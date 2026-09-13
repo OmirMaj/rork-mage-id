@@ -50,10 +50,11 @@ import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
+import { buildPortalProposal, PROPOSAL_NOT_A_CONTRACT_NOTE, type PortalProposal } from '@/utils/portalSnapshot';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type SectionKey = 'messages' | 'schedule' | 'budget' | 'invoices' | 'changeOrders' | 'photos' | 'dailyReports' | 'punchList' | 'rfis' | 'documents';
+type SectionKey = 'messages' | 'proposal' | 'schedule' | 'budget' | 'invoices' | 'changeOrders' | 'photos' | 'dailyReports' | 'punchList' | 'rfis' | 'documents';
 
 type PortalFailureKind = PortalSnapshotStatus | 'revoked';
 
@@ -422,7 +423,7 @@ export default function ClientViewScreen() {
   }, [project, isSnapshotMode, hydrated, contractQ.data, closeoutQ.data, warranties]);
 
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
-    messages: true, schedule: true, budget: true, invoices: true, changeOrders: false,
+    messages: true, proposal: true, schedule: true, budget: true, invoices: true, changeOrders: false,
     photos: true, dailyReports: false, punchList: false, rfis: false, documents: false,
   });
 
@@ -820,6 +821,33 @@ export default function ClientViewScreen() {
   // verify. Carrying the contract sum into the published snapshot
   // (utils/portalSnapshot.ts) is what makes the anon view print the real
   // figure; that file belongs to the AIA wave and is in the handoff.
+  // ── The proposal, as the homeowner sees it ────────────────────────────────
+  //
+  // READ-ONLY here, deliberately. Accepting a proposal is an electronic
+  // signature, and this screen cannot take one: snapshot mode has no session
+  // and the anon write policies were dropped in
+  // 20260713150001_portal_lock_direct_access.sql, so a button here would post
+  // nothing while looking like it had. The signature lives on the token-gated
+  // web portal (marketing/portal/index.html), which is where the share link
+  // goes. What this screen is for is the GC's own "what does my client
+  // actually see" check before they send it — the same block, from the same
+  // builder, so a preview cannot disagree with the page.
+  //
+  // Two sources, matching the screen's own resolution order: a published
+  // snapshot carries the proposal the contractor pushed; a locally-resolved
+  // project is rebuilt live so the preview reflects an estimate edited a
+  // second ago.
+  const proposalBlock: PortalProposal | undefined = useMemo(() => {
+    if (isSnapshotMode) return remote.snapshot?.proposal;
+    if (!localProject || !localPortalSettings) return undefined;
+    return buildPortalProposal({
+      project: localProject,
+      portal: localPortalSettings,
+      contractorName: settings?.branding?.companyName ?? 'MAGE ID',
+      contract: contractQ.data ?? undefined,
+    });
+  }, [isSnapshotMode, remote.snapshot, localProject, localPortalSettings, settings, contractQ.data]);
+
   const contractSum = resolveContractSum(project, contractQ.data);
   const contractValue = contractSum.value;
   /** True when this render COULD have seen a contract and found none. */
@@ -1207,6 +1235,59 @@ export default function ClientViewScreen() {
                 )}
                 {/* Tasks by phase */}
                 {tasks.map(task => <TaskRow key={task.id} task={task} />)}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Proposal — read-only. See the note on proposalBlock above for why
+            there is no Accept button on this screen. */}
+        {proposalBlock && (
+          <View style={styles.section}>
+            <SectionHeader
+              title="Your Proposal"
+              icon={<FileSignature size={18} color={themeColors.accent} strokeWidth={1.75} />}
+              expanded={expanded.proposal}
+              onToggle={() => toggleSection('proposal')}
+            />
+            {expanded.proposal && (
+              <View style={styles.sectionBody}>
+                <View style={[styles.budgetRow, styles.budgetRowTotal]}>
+                  <Text style={styles.budgetLabelTotal}>Fixed price</Text>
+                  <Text style={styles.budgetValueTotal}>{formatMoney(proposalBlock.total)}</Text>
+                </View>
+                {proposalBlock.scope.map(g => (
+                  <View key={g.key} style={styles.budgetRow}>
+                    <Text style={styles.budgetLabel}>{g.label}</Text>
+                    <Text style={styles.budgetValue}>{formatMoney(g.total)}</Text>
+                  </View>
+                ))}
+                {proposalBlock.allowances.length > 0 && (
+                  <>
+                    <Text style={styles.budgetCaption}>Allowances — you choose within these:</Text>
+                    {proposalBlock.allowances.map(a => (
+                      <View key={a.name} style={styles.budgetRow}>
+                        <Text style={styles.budgetLabel}>{a.name}</Text>
+                        <Text style={styles.budgetValue}>{formatMoney(a.amount)}</Text>
+                      </View>
+                    ))}
+                  </>
+                )}
+                {proposalBlock.payment.map(m => (
+                  <View key={m.label} style={styles.budgetRow}>
+                    <Text style={styles.budgetLabel}>{m.label} — {m.detail}</Text>
+                    <Text style={styles.budgetValue}>
+                      {typeof m.amount === 'number' ? formatMoney(m.amount) : '—'}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={styles.budgetCaption}>{PROPOSAL_NOT_A_CONTRACT_NOTE}</Text>
+                {/* Say plainly where the signature happens. A read-only screen
+                    that stays silent about that reads as a dead end. */}
+                <Text style={styles.budgetCaption} testID="proposal-accept-location">
+                  To accept, open the portal link your contractor sent — that page
+                  captures the signature. This view is read-only.
+                </Text>
               </View>
             )}
           </View>

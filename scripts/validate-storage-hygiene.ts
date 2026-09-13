@@ -308,6 +308,7 @@ ok('offline write queues survive a same-user re-auth',
   const queueSrc = strip(read('utils/offlineQueue.ts'));
   const photoSrc = strip(read('utils/photoUploadQueue.ts'));
   const audioSrc = strip(read('utils/audioTranscribeQueue.ts'));
+  const ledgerSrc = strip(read('utils/syncLedger.ts'));
 
   for (const key of OFFLINE_WRITE_QUEUE_KEYS) {
     ok(`AuthContext never removes ${key} by key`,
@@ -336,6 +337,11 @@ ok('offline write queues survive a same-user re-auth',
     'mageid_offline_queue':          { src: queueSrc, clearFn: 'clearOfflineQueue',       retainFn: 'retainOfflineQueueForUser',       keyConst: 'OFFLINE_QUEUE_KEY' },
     'mageid_photo_upload_queue':     { src: photoSrc, clearFn: 'clearPhotoUploadQueue',   retainFn: 'retainPhotoUploadQueueForUser',   keyConst: 'PHOTO_QUEUE_KEY' },
     'mageid_audio_transcribe_queue': { src: audioSrc, clearFn: 'clearAudioTranscribeQueue', retainFn: 'retainAudioTranscribeQueueForUser', keyConst: 'AUDIO_QUEUE_KEY' },
+    // Not a queue of pending work but of work already LOST — and exempt for the
+    // same reason: the sweep runs on every sign-in, so leaving it swept
+    // destroyed the red "didn't sync" notice on a same-user magic link, which
+    // is the one event the queues beside it are preserved for.
+    'mageid_sync_failures':          { src: ledgerSrc, clearFn: 'clearSyncFailures',        retainFn: 'retainSyncFailuresForUser',        keyConst: 'SYNC_FAILURE_KEY' },
   };
   const noRow = OFFLINE_WRITE_QUEUE_KEYS.filter((k) => !QUEUE_MODULES[k]);
   ok('every exempt write-queue has a row in this check',

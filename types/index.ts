@@ -3149,6 +3149,20 @@ export interface ClientPortalSettings {
   // pending approvals in-app and can sync them to the CO record.
   coApprovalEnabled?: boolean;
   /**
+   * Allows the client to ACCEPT (or decline) the proposal built from this
+   * project's estimate, from the portal, with the same electronic-signature
+   * capture the change-order flow uses. Off by default and deliberately
+   * opt-in: turning it on puts a signable price in front of the homeowner,
+   * which is not something a section-visibility toggle should do by
+   * accident.
+   *
+   * What the homeowner sees is the CLIENT view of the estimate
+   * (utils/clientEstimateView.toClientEstimateView) — scope rolled up by CSI
+   * division with markup already baked in, allowances, and the payment
+   * milestones. Never the cost buildup.
+   */
+  proposalApprovalEnabled?: boolean;
+  /**
    * Language code the homeowner reads in. Drives:
    *  - AI homeowner-summary generation (the prompt instructs the model
    *    to write in this language)

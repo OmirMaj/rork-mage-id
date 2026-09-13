@@ -29,7 +29,7 @@ import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, FileDown,
-  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp,
+  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp, AlertTriangle, Percent,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrainCard } from '@/components/brain/BrainCard';
@@ -58,13 +58,18 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
+import {
+  buildQuickLinkedEstimate, priceCostBreakdown, isMarkupSet, marginOf,
+  MARKUP_CHOICES, type MarkupPct,
+} from '@/utils/estimateMarkup';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage, getFreeTrialsRemaining, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
-import type { Commitment, CompanyBranding, LinkedEstimate, LinkedEstimateItem, Project, ProjectType, QualityTier } from '@/types';
+import type { Commitment, CompanyBranding, Project, ProjectType, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, SCOPE_STEPS, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
   estimateSchema, QUALITY_LABELS, stepBlockReason,
@@ -138,81 +143,17 @@ function freeRunsLabel(left: number | null): string | null {
   return left === 1 ? '1 free left' : `${left} free left`;
 }
 
-// Map an AI EstimateResult into a project LinkedEstimate. Item shape mirrors
-// utils/estimateAssemblies.ts applyAssembly and app/drawing-analyzer.tsx (the
-// canonical "AI lineItems → LinkedEstimate" mappers): bulkPrice = unitPrice,
-// usesBulk=false, markup=0, supplier='', stable materialId. No markup is
-// applied (globalMarkup=0) — the GC tunes it in the estimator. Shared by the
-// ?projectId link-back and the standalone "Save to a project" flow so they
-// can't drift.
-function buildLinkedEstimate(data: EstimateResult): LinkedEstimate {
-  const items: LinkedEstimateItem[] = data.lineItems.map<LinkedEstimateItem>((li) => ({
-    materialId: generateUUID(),
-    name: li.description,
-    category: li.category,
-    unit: li.unit,
-    quantity: li.quantity,
-    unitPrice: li.unitCost,
-    bulkPrice: li.unitCost,
-    markup: 0,
-    usesBulk: false,
-    lineTotal: li.total,
-    supplier: '',
-  }));
-  // Represent contingency and permits as explicit line items so the Estimate
-  // Items table in project-detail reconciles with the Base/Total. Previously
-  // they were folded into baseTotal but not itemized, leaving an unexplained
-  // gap (e.g. rows summing to $100k while summary showed "Base $130k").
-  // Only appended when > 0. Same shape as the priced rows above:
-  // quantity 1, unitPrice = the amount, markup 0.
-  // The label was 'Contingency (~10%)' while the amount is whatever the model
-  // returned against whatever subtotal it built — the two never had to agree,
-  // and this row propagates into the client proposal PDF. The dollar figure is
-  // real; the percentage was an assertion nothing checked, so it's gone.
-  if (data.contingency > 0) {
-    items.push({
-      materialId: generateUUID(),
-      name: 'Contingency',
-      category: 'Contingency',
-      unit: 'ls',
-      quantity: 1,
-      unitPrice: data.contingency,
-      bulkPrice: data.contingency,
-      markup: 0,
-      usesBulk: false,
-      lineTotal: data.contingency,
-      supplier: '',
-    });
-  }
-  if (data.permits > 0) {
-    items.push({
-      materialId: generateUUID(),
-      name: 'Permits & fees',
-      category: 'Permits & fees',
-      unit: 'ls',
-      quantity: 1,
-      unitPrice: data.permits,
-      bulkPrice: data.permits,
-      markup: 0,
-      usesBulk: false,
-      lineTotal: data.permits,
-      supplier: '',
-    });
-  }
-  // baseTotal now equals data.total (Σ all line items, including the
-  // contingency/permits rows). No markup is applied here — the GC tunes it
-  // in the estimator — so markupTotal stays 0 and grandTotal = data.total.
-  const baseTotal = items.reduce((s, i) => s + i.lineTotal, 0);
-  return {
-    id: generateUUID(),
-    items,
-    globalMarkup: 0,
-    baseTotal,
-    markupTotal: 0,
-    grandTotal: data.total,
-    createdAt: new Date().toISOString(),
-  };
-}
+// The AI EstimateResult → project LinkedEstimate mapper, and the pricing that
+// turns the model's COST breakdown into what the client is charged, both live
+// in utils/estimateMarkup.ts now.
+//
+// They used to live here as a screen-local `buildLinkedEstimate` that wrote
+// `markup: 0` on every row and `globalMarkup: 0` on the estimate, with a
+// comment claiming "the GC tunes it in the estimator". He did not. Nothing
+// carried him there, nothing told him the number was his cost, and the
+// estimate went out at a measured 0.0% margin. Moving the arithmetic into a
+// util is what lets scripts/validate-estimate-cost-basis.ts call the exact
+// function this screen ships instead of a re-typed copy of it.
 
 // Map the wizard's free-text project-type answer onto the legacy Project.type
 // enum so a newly-created project still classifies sensibly. Falls back to
@@ -284,7 +225,57 @@ function EstimateWizardScreenInner() {
   // on the activation funnel. Two buttons reach the send (the share button and
   // the identity ask's "Save and send"), so the latch lives on the send itself.
   const sharingRef = useRef(false);
-  const [result, setResult] = useState<EstimateResult | null>(null);
+  // THE MODEL RETURNS COST. THE CONTRACTOR SENDS A PRICE. Those are two
+  // different numbers and this screen now holds them separately.
+  //
+  // `costResult` is exactly what the AI produced: materials, labor, permits,
+  // contingency. utils/scopeQuestions' prompt asks for nothing else — there is
+  // no overhead line and no profit line in it, and there never was. It is the
+  // cost basis, and it is what the LinkedEstimate's unitPrice/baseTotal are
+  // built from so the job-cost engine and the calibration loop keep learning
+  // real costs (utils/estimateMarkup explains why scaling unitPrice would
+  // poison that).
+  //
+  // `result` is that breakdown priced at the contractor's own markup. Every
+  // display below — the hero total, the per-category breakdown, the payment
+  // schedule, the PDF — reads `result`, so the markup is applied in exactly
+  // ONE place and no downstream reader can be forgotten. That is the whole
+  // reason it is derived rather than a second piece of state.
+  const [costResult, setCostResult] = useState<EstimateResult | null>(null);
+
+  // His markup, and whether he has ever been asked for it. Lives in
+  // MaterialCartContext because that is already where the estimator keeps
+  // "the GC's usual markup" (app/quick-quote.tsx reads it under exactly that
+  // name), so the wizard, the estimator and the quick quote cannot disagree
+  // about what he charges. `markupDecided` is null while AsyncStorage is still
+  // answering — never prompt on null or the sheet flashes open on cold start.
+  const { globalMarkup, markupDecided, recordMarkupDecision } = useMaterialCart();
+  /** The markup to price this estimate at, or null when he has not decided.
+   *  null is NOT zero: null means "we must ask", zero means "he said none". */
+  const markupPct: MarkupPct = markupDecided === true ? globalMarkup : null;
+  const [showMarkupSheet, setShowMarkupSheet] = useState(false);
+  const [markupInput, setMarkupInput] = useState('');
+  // Set when the sheet was opened by an action that must NOT proceed until the
+  // markup question is answered — sharing the PDF, or saving to a project.
+  // Holds the action to run once he answers, so the tap he made is honoured
+  // instead of being swallowed by a modal.
+  const pendingAfterMarkupRef = useRef<null | ((pct: number) => void)>(null);
+  // The ?projectId auto-link, deferred when the markup is still unknown. Without
+  // this the wizard would commit an at-cost estimate onto his project a beat
+  // before asking what he charges, and the answer would land on a stale write.
+  const pendingAutoLinkRef = useRef<EstimateResult | null>(null);
+
+  // The priced estimate. `priceCostBreakdown` returns the input UNCHANGED when
+  // the markup is unset or zero, so an undecided contractor sees his true cost
+  // (correctly labelled as such by the at-cost banner) rather than a number the
+  // app made up on his behalf.
+  const result = useMemo(
+    () => (costResult ? priceCostBreakdown(costResult, markupPct) : null),
+    [costResult, markupPct],
+  );
+  /** The estimate on screen contains no profit — either he has not answered
+   *  the markup question, or he answered zero. Both need saying out loud. */
+  const atCost = !!result && !(isMarkupSet(markupPct) && markupPct > 0);
   // AI-F4 / PRODUCT-F18 (review): the grounding that went into THIS run's
   // prompt, stored next to the result. The chip, the seed CTA and the loader
   // copy read this — never a memo, which would re-render from newer answers
@@ -321,6 +312,23 @@ function EstimateWizardScreenInner() {
   const [identityHint, setIdentityHint] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
+  // The project the estimate was ACTUALLY written to by the ?projectId
+  // link-back, set inside commitAutoLink after updateProject has run — not
+  // derived from the route param.
+  //
+  // WHY IT IS NOT THE ROUTE PARAM. When the contractor has not yet said what
+  // he charges, the link-back is deferred (pendingAutoLinkRef below) so the
+  // project is not handed an at-cost estimate a beat before the question is
+  // asked. The result screen, however, derived "is this attached?" from
+  // `projectId && scopedProject` — the route param — and rendered a green
+  // check reading "Saved to Henderson Kitchen — open project" over a project
+  // that had received nothing. A first-run contractor who dismissed the markup
+  // sheet got a positive confirmation of a write that never happened. The
+  // label now tracks the write.
+  const [committedProjectId, setCommittedProjectId] = useState<string | null>(null);
+  // True while a link-back is parked waiting on the markup answer. Ref state
+  // alone cannot drive the label, so the two are set together.
+  const [autoLinkParked, setAutoLinkParked] = useState(false);
 
   useEffect(() => {
     if (scopedProject?.scope) {
@@ -422,6 +430,41 @@ function EstimateWizardScreenInner() {
     setStep((s) => Math.max(0, s - 1));
   }, []);
 
+  /**
+   * Fold a generated estimate into the ?projectId the wizard was launched
+   * from, at the markup `pct`.
+   *
+   * Lifted out of `generate` so it can be called LATER. When the contractor
+   * has not yet said what he charges, the wizard defers this write, parks the
+   * breakdown on `pendingAutoLinkRef`, and runs it the moment he answers —
+   * otherwise the project would receive an at-cost estimate a beat before the
+   * question was asked, and his answer would have nothing to attach to.
+   */
+  const commitAutoLink = useCallback((data: EstimateResult, pct: MarkupPct, targetId: string) => {
+    const target = getProject(targetId);
+    if (!target) return;
+    const linkedEstimate = buildQuickLinkedEstimate(data, pct, generateUUID);
+    updateProject(targetId, commitEstimatePatch(target, linkedEstimate, { reason: 'pre_overwrite' }));
+    // The write happened. Only now may the result screen say so.
+    setCommittedProjectId(targetId);
+    setAutoLinkParked(false);
+    // G4: fire-and-forget capture — ledger failure must never break estimate link
+    try {
+      const projectWithEstimate = { ...target, linkedEstimate };
+      const snapshotPayload = buildEstimateSnapshotPayload(
+        projectWithEstimate, projects, commitments, receipts, laborSamples, seeds,
+      );
+      if (snapshotPayload) {
+        recordPrediction(
+          'estimate_confidence_snapshot',
+          snapshotPayload.estimateId,
+          snapshotPayload as unknown as Record<string, unknown>,
+          targetId,
+        );
+      }
+    } catch { /* G4 */ }
+  }, [getProject, updateProject, projects, commitments, receipts, laborSamples, seeds]);
+
   const generate = useCallback(async (answersOverride?: WizardAnswers) => {
     if (loading) return;
 
@@ -445,7 +488,7 @@ function EstimateWizardScreenInner() {
     }
 
     setLoading(true);
-    setResult(null);
+    setCostResult(null);
     const runId = ++runRef.current;
 
     const a = answersOverride ?? answers;
@@ -510,7 +553,7 @@ function EstimateWizardScreenInner() {
         }
 
         const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
-        setResult(data);
+        setCostResult(data);
 
         // Activation funnel: enriched aha event — attaches whether THIS
         // estimate was priced from the contractor's own learned cost data.
@@ -534,30 +577,30 @@ function EstimateWizardScreenInner() {
         // flow (no projectId) skips this entirely and is byte-identical
         // to before.
         //
-        // Item shape and mapping live in buildLinkedEstimate (shared with
-        // the standalone "Save to a project" flow). LinkedEstimate has no
-        // notes field, so the AI notes + refineWith are NOT folded onto it
-        // (doing so would require an unsafe cast); they remain surfaced to
-        // the user in this screen's result UI instead.
+        // Item shape and mapping live in utils/estimateMarkup
+        // (buildQuickLinkedEstimate), shared with the standalone "Save to a
+        // project" flow. LinkedEstimate has no notes field, so the AI notes +
+        // refineWith are NOT folded onto it (doing so would require an unsafe
+        // cast); they remain surfaced to the user in this screen's result UI.
         if (projectId && scopedProject) {
-          const linkedEstimate = buildLinkedEstimate(data);
-          updateProject(projectId, commitEstimatePatch(getProject(projectId), linkedEstimate, { reason: 'pre_overwrite' }));
-          // G4: fire-and-forget capture — ledger failure must never break estimate link
-          try {
-            const projectWithEstimate = { ...scopedProject, linkedEstimate };
-            const snapshotPayload = buildEstimateSnapshotPayload(
-              projectWithEstimate, projects, commitments, receipts, laborSamples, seeds,
-            );
-            if (snapshotPayload) {
-              recordPrediction(
-                'estimate_confidence_snapshot',
-                snapshotPayload.estimateId,
-                snapshotPayload as unknown as Record<string, unknown>,
-                projectId,
-              );
-            }
-          } catch { /* G4 */ }
+          if (isMarkupSet(markupPct)) {
+            commitAutoLink(data, markupPct, projectId);
+          } else {
+            // Park it. `applyMarkupChoice` drains this ref the instant he
+            // answers, so the project gets ONE write, at his real price —
+            // rather than an at-cost write now and a stale one after.
+            pendingAutoLinkRef.current = data;
+            setAutoLinkParked(true);
+            setCommittedProjectId(null);
+          }
         }
+
+        // He has never told us what he charges, and an estimate is now on
+        // screen with his cost on it. Ask — once, here, at the only moment the
+        // question is concrete. The sheet is dismissible (the number is still
+        // useful to him as a cost check) but sharing or saving re-opens it,
+        // so nothing at cost can leave silently.
+        if (markupDecided === false) setShowMarkupSheet(true);
 
         // Fire-and-forget usage write — was previously awaited, which left
         // the loading spinner up while AsyncStorage finished on slow disks.
@@ -579,7 +622,7 @@ function EstimateWizardScreenInner() {
       // Only the run that owns the screen may take the loader down.
       if (runRef.current === runId) setLoading(false);
     }
-  }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, updateProject]);
+  }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, markupPct, markupDecided, commitAutoLink]);
 
   // Escape hatch for the loading screen. The in-flight fetch is not aborted
   // (the AbortController is internal to mageAI); bumping runRef orphans it,
@@ -591,30 +634,112 @@ function EstimateWizardScreenInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
 
+  /**
+   * THE GATE. Every action that turns this estimate into something a client
+   * holds — the PDF, an attachment onto a project — runs through here first.
+   *
+   * If he has already answered the markup question (any answer, including
+   * zero), returns true and the caller proceeds untouched. If he has not, it
+   * parks the caller's own continuation, opens the sheet, and returns false.
+   * The parked callback is invoked with the chosen percent the moment he
+   * answers, so his tap is honoured rather than swallowed by a modal he then
+   * has to dismiss and re-tap behind.
+   *
+   * It takes the percent as an ARGUMENT rather than letting the continuation
+   * read `markupPct` from its closure: `recordMarkupDecision` has not flushed
+   * through React state by the time the continuation runs, so a closure read
+   * would price the PDF at the OLD markup — which, the first time, is none at
+   * all. That is the exact bug this whole change exists to remove, and it
+   * would have reappeared one tick later.
+   */
+  const requireMarkup = useCallback((then: (pct: number) => void): boolean => {
+    if (isMarkupSet(markupPct)) return true;
+    pendingAfterMarkupRef.current = then;
+    setMarkupInput('');
+    setShowMarkupSheet(true);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    return false;
+  }, [markupPct]);
+
+  /** He answered. Record it forever, drain the deferred project write, and run
+   *  whatever he was trying to do when we stopped him. */
+  const applyMarkupChoice = useCallback((pct: number) => {
+    recordMarkupDecision(pct);
+    setShowMarkupSheet(false);
+    setMarkupInput('');
+    const pendingLink = pendingAutoLinkRef.current;
+    pendingAutoLinkRef.current = null;
+    if (pendingLink && projectId) commitAutoLink(pendingLink, pct, projectId);
+    const then = pendingAfterMarkupRef.current;
+    pendingAfterMarkupRef.current = null;
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    then?.(pct);
+  }, [recordMarkupDecision, projectId, commitAutoLink]);
+
+  // The answer can arrive AFTER the park. `markupDecided` is null until
+  // AsyncStorage resolves, so a generation that lands first parks the link-back
+  // even for a contractor who answered months ago (and whose answer is being
+  // seeded from the markup already on disk). Draining here means he never sees
+  // "Not saved to …" for a question he has already answered — and the project
+  // still gets exactly one write, at his real price.
+  useEffect(() => {
+    if (!autoLinkParked || !isMarkupSet(markupPct)) return;
+    const parked = pendingAutoLinkRef.current;
+    pendingAutoLinkRef.current = null;
+    if (parked && projectId) commitAutoLink(parked, markupPct, projectId);
+    else setAutoLinkParked(false);
+  }, [autoLinkParked, markupPct, projectId, commitAutoLink]);
+
+  /** Open the sheet from the margin band — no action parked behind it, he is
+   *  just changing his mind about the number. */
+  const openMarkupSheet = useCallback(() => {
+    pendingAfterMarkupRef.current = null;
+    setMarkupInput(isMarkupSet(markupPct) ? String(markupPct) : '');
+    setShowMarkupSheet(true);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [markupPct]);
+
+  /** Dismissed without answering. The parked action is DROPPED, not silently
+   *  run at cost — he asked to send a priced bid and we could not build one.
+   *
+   *  The parked ?projectId link-back is deliberately NOT dropped: he can still
+   *  answer from the at-cost band or the primary button, and the estimate then
+   *  lands on the project at his real price. What must not survive the dismiss
+   *  is the claim that it already landed — `autoLinkParked` stays true and the
+   *  primary button below says "not saved yet" instead of "Saved to …". */
+  const dismissMarkupSheet = useCallback(() => {
+    pendingAfterMarkupRef.current = null;
+    setShowMarkupSheet(false);
+  }, []);
+
   // The PDF actually goes out from here, and ONLY from here. It takes the
   // branding as an argument rather than reading `settings` itself, because the
   // identity ask below has to hand it values that were typed one tick ago:
   // updateSettings writes through the offline queue, so the `settings` captured
   // in this closure is still the blank one the user was just asked to fill in.
-  const generateAndSharePdf = useCallback(async (branding: CompanyBranding) => {
-    if (!result) return;
+  //
+  // It also takes the PRICED estimate as an argument, for the same reason: the
+  // markup gate can hand it a freshly-priced breakdown one tick before React
+  // has re-rendered `result`. Reading `result` from the closure here would
+  // print the contractor's cost on the homeowner's PDF.
+  const generateAndSharePdf = useCallback(async (branding: CompanyBranding, priced: EstimateResult) => {
     if (sharingRef.current) return;
     sharingRef.current = true;
     setSharingPdf(true);
     try {
-      await shareQuickEstimatePDF(result, answers, branding);
+      await shareQuickEstimatePDF(priced, answers, branding);
       // Activation funnel: the final funnel step — priced estimate sent to client.
       track(AnalyticsEvents.ESTIMATE_SHARED, {
         method: 'pdf_share',
         source: 'estimate_wizard',
-        grand_total: result?.total ?? 0,
+        grand_total: priced.total,
       });
       // Onboarding arc: the bid has just left his hands, so this is the one
       // moment the ask follows a delivered artifact rather than replacing one.
       // The project (if the estimate is attached to one) rides along so the
       // paywall's "Continue on the free plan" returns him to it.
       if (isOnboarding) {
-        const attachedId = (projectId && scopedProject) ? projectId : savedProjectId;
+        const attachedId = committedProjectId ?? savedProjectId;
         router.replace(attachedId
           ? ({ pathname: '/onboarding-paywall', params: { projectId: attachedId } } as never)
           : ONBOARDING_PAYWALL_ROUTE);
@@ -631,7 +756,7 @@ function EstimateWizardScreenInner() {
       sharingRef.current = false;
       setSharingPdf(false);
     }
-  }, [result, answers, isOnboarding, router, maybeAskForPush, projectId, scopedProject, savedProjectId]);
+  }, [answers, isOnboarding, router, maybeAskForPush, committedProjectId, savedProjectId]);
 
   /** The saved branding, with no vendor-name fallback. The old
    *  `?? 'MAGE ID'` default is what put the software's name on the header of a
@@ -642,23 +767,32 @@ function EstimateWizardScreenInner() {
   );
 
   const share = useCallback(() => {
-    if (!result) return;
-    const branding = savedBranding();
-    const gap = bidIdentityGap(branding);
-    if (gap.blocking) {
-      // Blocked, and the block says why — this is a document a homeowner will
-      // be holding, not a form field we want filled for its own sake.
-      setIdentityDraft({
-        companyName: gap.needsCompanyName ? '' : branding.companyName,
-        licenseNumber: branding.licenseNumber,
-      });
-      setIdentityHint(null);
-      setShowIdentityModal(true);
-      if (Platform.OS !== 'web') void Haptics.selectionAsync();
-      return;
-    }
-    void generateAndSharePdf(branding);
-  }, [result, savedBranding, generateAndSharePdf]);
+    if (!costResult) return;
+    const go = (pct: number) => {
+      const priced = priceCostBreakdown(costResult, pct);
+      const branding = savedBranding();
+      const gap = bidIdentityGap(branding);
+      if (gap.blocking) {
+        // Blocked, and the block says why — this is a document a homeowner will
+        // be holding, not a form field we want filled for its own sake.
+        setIdentityDraft({
+          companyName: gap.needsCompanyName ? '' : branding.companyName,
+          licenseNumber: branding.licenseNumber,
+        });
+        setIdentityHint(null);
+        setShowIdentityModal(true);
+        if (Platform.OS !== 'web') void Haptics.selectionAsync();
+        return;
+      }
+      void generateAndSharePdf(branding, priced);
+    };
+    // Two gates now stand between this tap and a homeowner's inbox, and they
+    // guard the same thing from different sides: `bidIdentityGap` refuses to
+    // send a bid with nobody's name on it, and this one refuses to send a bid
+    // with nobody's profit in it.
+    if (!requireMarkup(go)) return;
+    go(markupPct as number);
+  }, [costResult, savedBranding, generateAndSharePdf, requireMarkup, markupPct]);
 
   // Save what they typed to the profile — once, so the second bid never asks —
   // and send the PDF built from those exact values.
@@ -669,23 +803,29 @@ function EstimateWizardScreenInner() {
     updateSettings({ branding: merged });
     setShowIdentityModal(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    void generateAndSharePdf(merged);
-  }, [settings?.branding, identityDraft, updateSettings, generateAndSharePdf]);
+    // Safe to read `result` here: the identity modal is its own round trip, so
+    // any markup answered on the way in has long since flushed. Guarded anyway
+    // — an unpriced send is the one outcome this screen must not have.
+    if (result) void generateAndSharePdf(merged, result);
+  }, [settings?.branding, identityDraft, updateSettings, generateAndSharePdf, result]);
 
   const reset = useCallback(() => {
     setAnswers(INITIAL_SCOPE);
-    setResult(null);
+    setCostResult(null);
     setGroundingUsed(null);
     setStep(0);
     setSavedProjectId(null);
+    setCommittedProjectId(null);
+    setAutoLinkParked(false);
+    pendingAutoLinkRef.current = null;
   }, []);
 
   // Attach the just-generated estimate to an EXISTING project, then jump to
   // it. Reuses commitEstimatePatch (same revision-history behavior as the
   // ?projectId link-back and the drawing analyzer).
-  const attachToExisting = useCallback((targetId: string) => {
-    if (!result) return;
-    const linkedEstimate = buildLinkedEstimate(result);
+  const attachAt = useCallback((targetId: string, pct: MarkupPct) => {
+    if (!costResult) return;
+    const linkedEstimate = buildQuickLinkedEstimate(costResult, pct, generateUUID);
     const targetProject = getProject(targetId);
     updateProject(targetId, commitEstimatePatch(targetProject, linkedEstimate, { reason: 'pre_overwrite' }));
     // G4: fire-and-forget capture — ledger failure must never break project link
@@ -716,18 +856,27 @@ function EstimateWizardScreenInner() {
     if (!isOnboarding) {
       router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
     }
-  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
+  }, [costResult, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
+
+  /** The gated entry point the save modal calls. A project must never receive
+   *  an at-cost estimate from a contractor who was simply never asked: the
+   *  budget, the WIP report and the client portal all read this number. */
+  const attachToExisting = useCallback((targetId: string) => {
+    if (!costResult) return;
+    const go = (pct: number) => attachAt(targetId, pct);
+    // The sheet takes over the screen, so the save modal closes behind it; the
+    // attach resumes on his answer via the parked continuation.
+    if (!requireMarkup(go)) { setShowSaveModal(false); return; }
+    go(markupPct as number);
+  }, [costResult, requireMarkup, markupPct, attachAt]);
 
   // Create a NEW project from the wizard answers, hydrate its linkedEstimate,
   // and jump to it. The wizard answers are also stamped onto project.scope so
   // the estimate re-opens in the wizard with zero re-keying.
-  const createFromEstimate = useCallback(() => {
-    if (!result) return;
+  const createAt = useCallback((pct: MarkupPct) => {
+    if (!costResult) return;
     const name = newProjectName.trim();
-    if (!name) {
-      showAlert('Name required', 'Give this project a name so you can find it later.');
-      return;
-    }
+    if (!name) return;
     const now = new Date().toISOString();
     const id = generateUUID();
     const baseProject: Project = {
@@ -757,7 +906,7 @@ function EstimateWizardScreenInner() {
     };
     // Fold the AI estimate in through the same commit path so the new
     // project starts with an estimate revision (rev 1), not a bare project.
-    const linkedEstimate = buildLinkedEstimate(result);
+    const linkedEstimate = buildQuickLinkedEstimate(costResult, pct, generateUUID);
     const withEstimate = { ...baseProject, ...commitEstimatePatch(baseProject, linkedEstimate, { reason: 'pre_overwrite' }) };
     addProject(withEstimate);
     // G4: fire-and-forget capture — ledger failure must never break project create
@@ -789,7 +938,20 @@ function EstimateWizardScreenInner() {
     }
     // In onboarding we stay on the result for the same reason as
     // attachToExisting above: show him the thing he made before asking for $29.
-  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding, maybeAskForPush]);
+  }, [costResult, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding, maybeAskForPush]);
+
+  /** Gated entry point for "create a new project from this estimate". The name
+   *  check runs BEFORE the markup sheet — being stopped for a markup and then
+   *  stopped again for a missing name is two modals for one tap. */
+  const createFromEstimate = useCallback(() => {
+    if (!costResult) return;
+    if (!newProjectName.trim()) {
+      showAlert('Name required', 'Give this project a name so you can find it later.');
+      return;
+    }
+    if (!requireMarkup(createAt)) { setShowSaveModal(false); return; }
+    createAt(markupPct as number);
+  }, [costResult, newProjectName, requireMarkup, markupPct, createAt]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
@@ -835,6 +997,66 @@ function EstimateWizardScreenInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
         <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
+          {/* ── THE MARGIN BAND ──────────────────────────────────────────
+              CONTRACTOR-ONLY. It is rendered above the "this is what your
+              client sees" banner precisely because it is the one thing on
+              this screen the client must never see, and it is rendered at
+              ALL because the wizard used to show a cost total with nothing
+              saying so. utils/scopeQuestions asks the model for materials,
+              labor, permits and contingency — there is no profit anywhere in
+              that prompt, and there never was. The number below the band is
+              his cost until he says otherwise.
+
+              Never asserts a markup he did not set: with no answer on file it
+              reports the cost as a cost and asks the question. */}
+          {atCost ? (
+            <TouchableOpacity
+              style={styles.atCostBand}
+              onPress={openMarkupSheet}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={isMarkupSet(markupPct)
+                ? 'You are quoting at cost. Change your markup.'
+                : 'This estimate is your cost. Set what you charge on top.'}
+              testID="estimate-wizard-at-cost-band"
+            >
+              <AlertTriangle size={18} color={themeColors.dangerLabel} strokeWidth={2} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.atCostTitle}>
+                  {isMarkupSet(markupPct) ? 'Quoted at cost — no profit' : 'This number is your cost'}
+                </Text>
+                <Text style={styles.atCostBody}>
+                  {isMarkupSet(markupPct)
+                    ? 'Your markup is set to none, so this bid carries no overhead and no profit. Tap to change it.'
+                    : 'Materials, labor, permits and contingency — nothing on top. Tap to set what you charge.'}
+                </Text>
+              </View>
+              <ChevronRight size={16} color={themeColors.dangerLabel} strokeWidth={2} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.marginBand}
+              onPress={openMarkupSheet}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Your markup is ${markupPct} percent. Tap to change it.`}
+              testID="estimate-wizard-margin-band"
+            >
+              <Percent size={16} color={themeColors.accent} strokeWidth={2.25} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.marginBandTitle}>
+                  {`Your cost $${Math.round(costResult?.total ?? 0).toLocaleString()}`}
+                  {'  ·  '}
+                  {`+${markupPct}% markup`}
+                </Text>
+                <Text style={styles.marginBandBody}>
+                  {`$${Math.round(result.total - (costResult?.total ?? 0)).toLocaleString()} of overhead and profit — a ${(marginOf(markupPct as number) * 100).toFixed(1)}% gross margin. Only you see this row.`}
+                </Text>
+              </View>
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
+            </TouchableOpacity>
+          )}
+
           {/* "Client preview" banner — reminds the GC that what they see
               IS what the homeowner sees. Soft contextual cue at the top. */}
           <View style={styles.previewBanner}>
@@ -1191,12 +1413,17 @@ function EstimateWizardScreenInner() {
           />
 
           {(() => {
-            // Which project (if any) this estimate is now attached to:
-            // either the ?projectId link-back, or a project the standalone
-            // user just saved to via the modal.
-            const attachedId = (projectId && scopedProject) ? projectId : savedProjectId;
+            // Which project (if any) this estimate is now WRITTEN to: either
+            // the ?projectId link-back once commitAutoLink has actually run,
+            // or a project the standalone user just saved to via the modal.
+            // Deriving this from the route param instead is what put a green
+            // "Saved to …" over a project that had received nothing.
+            const attachedId = committedProjectId ?? savedProjectId;
             const attachedProject = attachedId ? getProject(attachedId) : null;
             const hasProject = !!attachedProject;
+            // Generated with a ?projectId, but the write is waiting on the
+            // markup answer. Neither "saved" nor "save to a project" is true.
+            const parkedProject = (!hasProject && autoLinkParked) ? scopedProject : null;
             return (
           <View style={styles.resultActions}>
             {hasProject ? (
@@ -1223,6 +1450,23 @@ function EstimateWizardScreenInner() {
                     than it arrives. */}
                 <Text style={styles.resultPrimaryText} numberOfLines={1}>
                   Saved to {attachedProject.name}{isOnboarding ? ' — continue' : ' — open project'}
+                </Text>
+              </TouchableOpacity>
+            ) : parkedProject ? (
+              // Held, not saved. The estimate is priced at cost until he
+              // answers, so writing it to the project would put his cost into
+              // the budget, the WIP and the portal. Say so, and reopen the one
+              // question that unblocks it.
+              <TouchableOpacity
+                style={[styles.resultPrimaryBtn, { backgroundColor: Colors.error }]}
+                onPress={openMarkupSheet}
+                activeOpacity={0.85}
+                disabled={sharingPdf}
+                testID="wizard-attach-blocked"
+              >
+                <AlertTriangle size={18} color="#FFF" strokeWidth={1.75} />
+                <Text style={styles.resultPrimaryText} numberOfLines={1}>
+                  Not saved to {parkedProject.name} — set your markup
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -1349,6 +1593,115 @@ function EstimateWizardScreenInner() {
                     </ScrollView>
                   </>
                 ) : null}
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* ── THE MARKUP SHEET ────────────────────────────────────────────
+            Asked once, ever (MaterialCartContext.markupDecided), at the only
+            moment the question is concrete: a real number for a real job is
+            on the screen behind it.
+
+            THREE THINGS THIS SHEET DELIBERATELY DOES NOT DO.
+
+            It does not preselect a percentage. Not 15, not 20, not the industry
+            median. A contractor's markup encodes his overhead structure, his
+            risk, and what his market bears; an app that fills it in is telling
+            him what to charge and will be believed. Every choice below is an
+            equal, unhighlighted option.
+
+            It does not hide the arithmetic. Each preset shows the MARGIN it
+            actually yields, because markup and margin are different numbers
+            and conflating them is the most common way a contractor loses the
+            points he thought he had: 25% markup is 20% margin, and a man
+            aiming for 25 points who types 25 here walks away with 20.
+
+            It does not treat "none" as a failure to answer. Cost-plus work and
+            a favour for a friend are real, and "none" is recorded as a real
+            decision so he is never asked again — the at-cost band on the
+            estimate is what keeps that honest instead of a nagging re-prompt.
+
+            It is dismissible. The estimate is still useful to him as a cost
+            check, and a modal he cannot close is a modal he learns to hate.
+            What is NOT dismissible is sending it: `requireMarkup` re-opens
+            this sheet from the share and save paths, so nothing at cost can
+            reach a client without him having said, in as many words, that
+            that is what he wants. */}
+        <Modal visible={showMarkupSheet} transparent animationType="slide" onRequestClose={dismissMarkupSheet}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.saveOverlay}>
+              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
+                <View style={styles.saveHeader}>
+                  <Text style={styles.saveTitle}>What do you add on top of cost?</Text>
+                  <TouchableOpacity onPress={dismissMarkupSheet} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.identityReason}>
+                  {`The $${Math.round(costResult?.total ?? 0).toLocaleString()} behind this sheet is what the job costs you — materials, labor, permits and contingency. Your overhead and profit go on top. We ask once and remember it.`}
+                </Text>
+
+                <Text style={styles.saveSectionLabel}>Markup on cost</Text>
+                <View style={styles.markupGrid}>
+                  {MARKUP_CHOICES.map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      style={styles.markupChoice}
+                      onPress={() => applyMarkupChoice(c)}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${c} percent markup, a ${(marginOf(c) * 100).toFixed(0)} percent margin`}
+                      testID={`wizard-markup-${c}`}
+                    >
+                      <Text style={styles.markupChoicePct}>+{c}%</Text>
+                      <Text style={styles.markupChoiceMargin}>{(marginOf(c) * 100).toFixed(0)}% margin</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.saveSectionLabel}>Or your own number</Text>
+                <View style={styles.markupCustomRow}>
+                  <TextInput
+                    style={[styles.saveInput, { flex: 1, marginBottom: 0 }]}
+                    value={markupInput}
+                    onChangeText={setMarkupInput}
+                    placeholder="e.g. 18"
+                    placeholderTextColor={themeColors.textMuted}
+                    keyboardType="decimal-pad"
+                    returnKeyType="done"
+                    testID="wizard-markup-custom"
+                  />
+                  <Text style={styles.markupCustomSuffix}>%</Text>
+                  <TouchableOpacity
+                    style={[styles.markupApply, !(parseFloat(markupInput) > 0) && styles.markupApplyOff]}
+                    disabled={!(parseFloat(markupInput) > 0)}
+                    onPress={() => applyMarkupChoice(parseFloat(markupInput))}
+                    accessibilityRole="button"
+                    accessibilityLabel="Use this markup"
+                    testID="wizard-markup-apply"
+                  >
+                    <Text style={styles.markupApplyText}>Use</Text>
+                  </TouchableOpacity>
+                </View>
+                {parseFloat(markupInput) > 0 ? (
+                  <Text style={styles.markupCustomHint}>
+                    {`+${parseFloat(markupInput)}% on cost is a ${(marginOf(parseFloat(markupInput)) * 100).toFixed(1)}% gross margin — $${Math.round((costResult?.total ?? 0) * (parseFloat(markupInput) / 100)).toLocaleString()} on this job.`}
+                  </Text>
+                ) : null}
+
+                <TouchableOpacity
+                  style={styles.markupNone}
+                  onPress={() => applyMarkupChoice(0)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Quote this at cost, with no markup"
+                  testID="wizard-markup-none"
+                >
+                  <Text style={styles.markupNoneText}>I quote at cost — no markup</Text>
+                  <Text style={styles.markupNoneSub}>Every estimate will say so, on screen and to you.</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -1784,6 +2137,130 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textSecondary,
   },
   // "Client preview" banner at top of result screen
+  // ── Margin band + markup sheet (contractor-only, never printed) ────────
+  atCostBand: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    backgroundColor: themeColors.dangerSoft,
+    borderColor: themeColors.danger + '55',
+    borderWidth: 1,
+    borderRadius: Tokens.radius.card,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  atCostTitle: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.dangerLabel,
+    marginBottom: 2,
+  },
+  atCostBody: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.dangerLabel,
+    lineHeight: 17,
+  },
+  marginBand: {
+    // cardSurface, not a hand-rolled recipe: this file already imports it and
+    // the ratchet in scripts/validate-ui-adoption.ts counts every surface+radius
+    // pair written by hand.
+    ...cardSurface(themeColors, { radius: 'card', pad: 'none' }),
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  marginBandTitle: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.text,
+    marginBottom: 2,
+  },
+  marginBandBody: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.textMuted,
+    lineHeight: 17,
+  },
+  markupGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 8,
+    marginBottom: 16,
+  },
+  // No `active` variant, on purpose: preselecting a markup is the app telling
+  // a contractor what to charge. Every option renders identically.
+  markupChoice: {
+    ...cardSurface(themeColors, { radius: 'md', pad: 'none' }),
+    minWidth: 84,
+    flexGrow: 1,
+    alignItems: 'center' as const,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  markupChoicePct: {
+    fontSize: Type.headline.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.text,
+  },
+  markupChoiceMargin: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: themeColors.textMuted,
+    marginTop: 2,
+  },
+  markupCustomRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 8,
+  },
+  markupCustomSuffix: {
+    fontSize: Type.body.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.textMuted,
+  },
+  markupApply: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: Tokens.radius.md,
+    // accentFill, not accent: the white "Use" label on the raw accent measures
+    // 2.87:1, under AA. This is the button that records his markup.
+    backgroundColor: themeColors.accentFill,
+  },
+  markupApplyOff: { opacity: 0.4 },
+  markupApplyText: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: '#FFF',
+  },
+  markupCustomHint: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.textMuted,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  markupNone: {
+    marginTop: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    backgroundColor: 'transparent' as const,
+  },
+  markupNoneText: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.text,
+  },
+  markupNoneSub: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.textMuted,
+    marginTop: 2,
+  },
   previewBanner: {
     backgroundColor: themeColors.accent + '12',
     borderColor: themeColors.accent + '30',

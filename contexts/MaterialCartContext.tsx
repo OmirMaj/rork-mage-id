@@ -28,6 +28,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import type { MaterialItem } from '@/constants/materials';
 import type { LaborRate } from '@/constants/laborRates';
 import type { AssemblyItem } from '@/constants/assemblies';
+import { markupDecidedFromStorage } from '@/utils/estimateMarkup';
 
 const CART_KEY = 'mageid_material_cart';
 const MARKUP_KEY = 'mageid_material_cart_markup';
@@ -38,6 +39,27 @@ const MARKUP_KEY = 'mageid_material_cart_markup';
 // so the tenant-wipe sweep covers them) fixes both.
 const LABOR_KEY = 'mageid_labor_cart';
 const ASSEMBLY_KEY = 'mageid_assembly_cart';
+// Has the contractor ever been ASKED what he adds on top of cost, and answered?
+//
+// DEFAULT_MARKUP below makes "15" indistinguishable from "he never told us",
+// which is exactly the ambiguity that let the Quick Estimate wizard ship at
+// cost: every AI path wrote markup 0 and there was no state that could say
+// "nobody has decided this yet, go ask". This key is that state. It stores the
+// literal string '1' once he has answered — including when he answers ZERO,
+// which is a legitimate decision (cost-plus work, a favour, a friend's job)
+// and must be remembered so he is never asked twice.
+//
+// Same mageid_ prefix as everything else here, so utils/localCacheKeys'
+// prefix sweep wipes it on a tenant switch without a list edit.
+//
+// IT IS YOUNGER THAN THE VALUE IT DESCRIBES. Every contractor who set a markup
+// in the estimator before this key existed has his percentage in MARKUP_KEY
+// and no flag beside it, and would hydrate as "never asked" on his first
+// launch after the update — quick-quote stops prefilling his 25%, the wizard
+// shows him the at-cost band and blocks his PDF. Hydration therefore SEEDS the
+// flag from MARKUP_KEY (utils/estimateMarkup.markupDecidedFromStorage) and
+// writes the seed through, so the inference runs exactly once.
+const MARKUP_DECIDED_KEY = 'mageid_markup_decided';
 
 export interface MaterialCartItem {
   material: MaterialItem;
@@ -76,6 +98,26 @@ async function loadLocal<T>(key: string, fallback: T): Promise<T> {
   }
 }
 
+/** Raw read — `loadLocal` collapses "absent" and "stored fallback value" into
+ *  the same answer, and the markup seed above has to tell those two apart. */
+async function loadRaw(key: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function parseNumber(raw: string | null): number | null {
+  if (raw === null || raw === '') return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 async function saveLocal(key: string, data: unknown): Promise<void> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(data));
@@ -89,6 +131,10 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
   const [laborCart, setLaborCart] = useState<LaborCartItem[]>([]);
   const [assemblyCart, setAssemblyCart] = useState<AssemblyCartItem[]>([]);
   const [globalMarkup, setGlobalMarkupState] = useState<number>(DEFAULT_MARKUP);
+  // null while hydrating. Callers MUST treat null as "don't know yet" and not
+  // prompt — otherwise the markup sheet flashes open on every cold start
+  // before AsyncStorage has answered.
+  const [markupDecided, setMarkupDecided] = useState<boolean | null>(null);
   // Track when we've hydrated so we don't write the empty initial state back
   // over the persisted cart on first mount.
   const hydratedRef = useRef(false);
@@ -96,13 +142,26 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [cartLoaded, markupLoaded, laborLoaded, assemblyLoaded] = await Promise.all([
+      const [cartLoaded, markupRaw, laborLoaded, assemblyLoaded, decidedRaw] = await Promise.all([
         loadLocal<MaterialCartItem[]>(CART_KEY, []),
-        loadLocal<number>(MARKUP_KEY, DEFAULT_MARKUP),
+        loadRaw(MARKUP_KEY),
         loadLocal<LaborCartItem[]>(LABOR_KEY, []),
         loadLocal<AssemblyCartItem[]>(ASSEMBLY_KEY, []),
+        loadRaw(MARKUP_DECIDED_KEY),
       ]);
       if (cancelled) return;
+      const markupLoaded = parseNumber(markupRaw);
+      // Seeded from the markup already on disk, not just from the new flag —
+      // otherwise every existing estimator user hydrates as "never asked" and
+      // loses the percentage he set months ago. See
+      // utils/estimateMarkup.markupDecidedFromStorage for why the presence of
+      // the key is a safe proxy for the decision.
+      const decided = markupDecidedFromStorage(decidedRaw, markupRaw);
+      setMarkupDecided(decided);
+      // Persist the seed so the inference runs exactly once. Without this the
+      // decided-flag stays absent forever and every consumer re-derives it,
+      // which is fine until someone reads the raw key directly.
+      if (decided && decidedRaw === null) void saveLocal(MARKUP_DECIDED_KEY, '1');
       if (Array.isArray(laborLoaded)) {
         setLaborCart(laborLoaded.filter(i =>
           i && typeof i === 'object' && i.labor && typeof i.labor === 'object' &&
@@ -127,7 +186,7 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
         );
         setCart(cleaned);
       }
-      if (typeof markupLoaded === 'number' && !Number.isNaN(markupLoaded)) {
+      if (markupLoaded !== null) {
         setGlobalMarkupState(markupLoaded);
       }
       hydratedRef.current = true;
@@ -208,12 +267,40 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
     setCart([]);
   }, []);
 
-  const setGlobalMarkup = useCallback((value: number) => {
-    setGlobalMarkupState(value);
-    // Cascade to all current items so the cart view reflects the new value
-    // immediately. Per-item updateMarkup overrides this for individual lines.
-    setCart(prev => prev.map(i => ({ ...i, markup: value })));
+  /**
+   * Record the contractor's answer to "what do you add on top of cost?".
+   *
+   * This is the ONLY way `markupDecided` becomes true, and it is deliberately
+   * not a side effect of the estimator's markup chips or of hydration — the
+   * flag means "he was asked the question and answered it", which is a
+   * stronger claim than "a number exists in storage". `pct` of 0 is a real
+   * answer (quote at cost) and is recorded as decided, so the ask never
+   * repeats; the at-cost disclosure on the estimate is what keeps that honest
+   * rather than a second prompt.
+   *
+   * Writes through to AsyncStorage immediately instead of waiting on the
+   * persist effect below: the caller's very next action is usually to share a
+   * PDF, and a decision that only lived in React state would be re-asked after
+   * a cold start.
+   */
+  const recordMarkupDecision = useCallback((pct: number) => {
+    const safe = Number.isFinite(pct) && pct >= 0 ? pct : 0;
+    setGlobalMarkupState(safe);
+    setCart(prev => prev.map(i => ({ ...i, markup: safe })));
+    setMarkupDecided(true);
+    void saveLocal(MARKUP_DECIDED_KEY, '1');
+    void saveLocal(MARKUP_KEY, safe);
   }, []);
+
+  // Cascades to all current items so the cart view reflects the new value
+  // immediately. Per-item updateMarkup overrides this for individual lines.
+  //
+  // Every call site is an explicit user gesture (the estimator's markup chips
+  // and its custom-percent input — app/(tabs)/estimate/full.tsx:1271, :1799),
+  // so setting a global markup here IS the contractor answering the markup
+  // question. It records the decision, which is why a contractor who already
+  // uses the estimator is never stopped by the wizard's markup sheet.
+  const setGlobalMarkup = recordMarkupDecision;
 
   // Setter that updates JUST the global default (used for next adds) without
   // touching existing line items. Useful when the user wants to change the
@@ -263,6 +350,10 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
     assemblyCart,
     setAssemblyCart,
     globalMarkup,
+    /** null = still hydrating (do not prompt); false = never asked;
+     *  true = he answered, and `globalMarkup` is his answer. */
+    markupDecided,
+    recordMarkupDecision,
     addToCart,
     addManyToCart,
     removeFromCart,

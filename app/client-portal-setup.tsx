@@ -28,7 +28,7 @@ import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
-  maskPortalLinkToken, PORTAL_BASE_URL,
+  maskPortalLinkToken, PORTAL_BASE_URL, proposalBlockReason,
 } from '@/utils/portalSnapshot';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import type { BakedHomePassport } from '@/utils/passport/types';
@@ -130,6 +130,18 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
   },
 ];
 
+/** One signed proposal decision, as `proposal_approvals` stores it. */
+interface ProposalApprovalRow {
+  id: string;
+  proposal_id: string;
+  decision: 'accepted' | 'declined';
+  signer_name: string | null;
+  note: string | null;
+  proposal_total: number | null;
+  document_hash: string | null;
+  created_at: string;
+}
+
 const DEFAULT_PORTAL: ClientPortalSettings = {
   enabled: true,
   portalId: '',
@@ -150,6 +162,11 @@ const DEFAULT_PORTAL: ClientPortalSettings = {
   // Off by default; turn on per project to invite owners to approve COs
   // from the portal.
   coApprovalEnabled: false,
+  // Off by default. Turning it on puts a signable price in front of the
+  // homeowner, which is not something a section-visibility toggle should do
+  // by accident. Needs a priced estimate; the row below says so when there
+  // isn't one rather than offering a switch that does nothing.
+  proposalApprovalEnabled: false,
   // Defaults to English. GC picks the homeowner's language in the
   // setup screen — drives AI summary language + portal UI strings.
   homeownerLanguage: 'en',
@@ -241,6 +258,44 @@ function ClientPortalSetupScreenInner() {
     queryFn: () => id ? fetchCloseoutBinder(id) : Promise.resolve(null),
     enabled: !!id,
   });
+
+  // Signed proposal decisions the homeowner made from the portal. The
+  // acceptance RPC (supabase/migrations/held/…_portal_proposal_acceptance.sql)
+  // is the only writer; RLS scopes the read to the project's owner. The table
+  // does not exist until that migration is applied, so a failed read resolves
+  // to an empty list rather than throwing — the section simply shows nothing
+  // yet, which is the truth.
+  const acceptancesQ = useQuery({
+    queryKey: ['portal-proposal-approvals', id],
+    enabled: !!id && isSupabaseConfigured,
+    queryFn: async (): Promise<ProposalApprovalRow[]> => {
+      const { data, error } = await supabase
+        .from('proposal_approvals')
+        .select('id, proposal_id, decision, signer_name, note, proposal_total, document_hash, created_at')
+        .eq('project_id', id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) return [];
+      return (data ?? []) as ProposalApprovalRow[];
+    },
+  });
+  const acceptances = acceptancesQ.data ?? [];
+
+  // The proposal toggle needs something to propose — and the switch and the
+  // builder have to agree on what "something" means. They ask the SAME
+  // function (proposalBlockReason), so the switch can no longer turn on for a
+  // project whose proposal buildPortalProposal then silently refuses to emit.
+  //
+  // That happened three ways before 2026-09-13, all measured: a project with a
+  // contract already SENT (switch on, portal empty, no explanation anywhere);
+  // an estimate whose lines carry no CSI division, which is what BOTH of the
+  // app's own estimate builders produce, so the whole price rolled up to one
+  // unlabelled "Other scope" line; and a finished job, which offered "accept
+  // to get started" next to "your build is finished".
+  const proposalBlock = project
+    ? proposalBlockReason(project, contractQ.data ?? undefined)
+    : { code: 'no-estimate' as const, gc: 'Needs a priced estimate on this project — build one and this turns on.' };
+  const canProposeToClient = !proposalBlock;
 
   const [portal, setPortal] = useState<ClientPortalSettings>(() => {
     if (project?.clientPortal?.enabled) {
@@ -1250,9 +1305,71 @@ function ClientPortalSetupScreenInner() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Approvals & messaging</Text>
           <Text style={styles.sectionSubtitle}>
-            Let the client tap Approve / Decline on change orders, and send messages directly from the portal — they land here.
+            Let the client respond from the portal — accept the proposal once it is switched on below, tap Approve / Decline on change orders, and send messages. They land here.
           </Text>
           <View style={styles.togglesCard}>
+            {/* Accept the proposal — the decision that starts the job. It sits
+                above the CO row because that is the order a job happens in.
+                A switch that cannot do anything is worse than no switch, so
+                without a priced estimate this row says why instead. */}
+            <View style={[styles.toggleRow, styles.toggleRowBorder]}>
+              <View style={styles.toggleLeft}>
+                <FileText size={18} color={themeColors.accent} strokeWidth={1.75} />
+                <View style={styles.toggleLabels}>
+                  <Text style={styles.toggleLabel}>Accept the proposal</Text>
+                  <Text style={styles.toggleDesc}>
+                    {canProposeToClient
+                      ? 'Owner reviews the scope and price and signs to accept, from the portal'
+                      : proposalBlock.gc}
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={!!portal.proposalApprovalEnabled && canProposeToClient}
+                disabled={!canProposeToClient}
+                onValueChange={val => handleToggle('proposalApprovalEnabled', val)}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                thumbColor="#FFF"
+              />
+            </View>
+            {/* What the switch does NOT do on its own. The proposal only
+                reaches the homeowner on the next snapshot push, and a portal
+                page opened before this feature shipped has no accept button —
+                it tells them to message you instead. Saying so here is the
+                difference between a switch and a promise. */}
+            {!!portal.proposalApprovalEnabled && canProposeToClient && (
+              <View style={[styles.toggleRow, styles.toggleRowBorder]}>
+                <Text style={styles.toggleDesc} testID="proposal-rollout-note">
+                  Your client sees this the next time this project publishes its portal — Save here, or open the
+                  project. If their page was loaded before the update, it tells them to message you rather than
+                  taking a signature it cannot record.
+                </Text>
+              </View>
+            )}
+            {acceptances.map((a, idx) => (
+              <View key={a.id} style={[styles.coApprovalRow, styles.toggleRowBorder]}>
+                <View style={[styles.budgetStatusBadge, a.decision === 'declined' && { backgroundColor: '#FBEAE7' }]}>
+                  {a.decision === 'accepted'
+                    ? <Check size={14} color={Colors.successDark} strokeWidth={1.75} />
+                    : <X size={14} color="#C0392B" strokeWidth={1.75} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.coApprovalLabel}>
+                    {a.decision === 'accepted' ? 'Proposal accepted' : 'Proposal declined'}
+                    {typeof a.proposal_total === 'number' ? ` · ${formatMoney(a.proposal_total)}` : ''}
+                  </Text>
+                  <Text style={styles.coApprovalMeta}>
+                    {a.signer_name ? a.signer_name : 'Client'} · {new Date(a.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </Text>
+                  {a.note ? <Text style={styles.coApprovalNote} numberOfLines={2}>{a.note}</Text> : null}
+                  {a.document_hash
+                    ? <Text style={styles.coApprovalNote} numberOfLines={1}>
+                        Record SHA-256 {a.document_hash.slice(0, 24)}…
+                      </Text>
+                    : null}
+                </View>
+              </View>
+            ))}
             <View style={[styles.toggleRow, threadQ.coApprovals.length > 0 && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
                 <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />

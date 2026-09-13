@@ -174,6 +174,43 @@ ok('every failure points back at the contractor',
 ok('snapshot mode is read-only (no CO signing without a session)',
   /const awaitingClient = !isSnapshotMode/.test(cv));
 
+// ── v12: the proposal rides the snapshot, and the screen must read it there ──
+//
+// hydratePortalSnapshot's job is to rebuild the DOMAIN objects a Project-shaped
+// screen needs (project, portal, invoices, change orders…). The proposal is not
+// one of those — it is a client-safe projection that exists only in the
+// snapshot — so the hydrator does not carry it and must not be asked to. The
+// failure mode this guards is a plausible-looking one-word change in
+// client-view: reading `hydrated.proposal` instead of `remote.snapshot.proposal`
+// yields `undefined` forever, and the whole section silently vanishes for every
+// anonymous homeowner while still rendering in the GC's own preview — which is
+// exactly the class of bug this file exists for.
+{
+  const withProposal = {
+    ...SNAPSHOT,
+    v: 12,
+    proposal: {
+      id: 'est-77', version: 'proposal-esign-1', title: 'Proposal for Oak Street Remodel',
+      total: 400000, scope: [{ key: '06', label: '06 Wood', total: 400000 }],
+      allowances: [], payment: [], lineCount: 3,
+      documentText: 'MAGE ID PROPOSAL — THE DOCUMENT YOU ARE ACCEPTING\nproposal_id: est-77',
+    },
+  } as unknown as PortalSnapshot;
+  const hp = hydratePortalSnapshot(withProposal, 'portal-abc123');
+  ok('the hydrator does not invent a proposal onto the project',
+    !('proposal' in (hp as unknown as Record<string, unknown>))
+    && !('proposal' in (hp.project as unknown as Record<string, unknown>)));
+  ok('…and a snapshot carrying one still hydrates everything else unchanged',
+    hp.changeOrders.length === h.changeOrders.length && hp.portal.showSchedule === true);
+  // Reading it off `hydrated` yields undefined forever: the section would
+  // vanish for every anonymous homeowner while still rendering in the GC's own
+  // preview, which is the exact asymmetry this file was written for.
+  ok('client-view reads the proposal off the RAW snapshot, not the hydrator',
+    /remote\.snapshot\?\.proposal/.test(cv) && !/hydrated\?\.proposal/.test(cv));
+  ok('…and shows it read-only, with no write path on this screen',
+    /title="Your Proposal"/.test(cv) && !/proposal_approvals/.test(cv));
+}
+
 // ── The route must be reachable without a session ────────────────────────────
 const layout = read('app/_layout.tsx');
 ok('client-view is on the unauthenticated allow-list',

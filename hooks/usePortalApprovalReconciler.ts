@@ -104,7 +104,26 @@ export function usePortalApprovalReconciler(): void {
         const pendingTrails = new Map<string, COAuditEntry[]>();
 
         for (const row of data as ApprovalRow[]) {
-          const co = changeOrders.find(c => c.id === row.change_order_id);
+          // OWNERSHIP (2026-09-13). `changeOrders` is the TENANT-WIDE list from
+          // ProjectContext, so matching on change_order_id alone flipped a
+          // change order to `approved` on the strength of an approval row
+          // recorded against a DIFFERENT project. That is exploitable: until
+          // the held migration lands, portal_submit_co_approval(_signed) insert
+          // a row for whatever p_change_order_id the caller sends, having
+          // verified only that the token is good for SOME project — so a
+          // link-holder for one small job, holding a change-order id from a
+          // bigger job at the same contractor, could get it approved here.
+          //
+          // The server side is closed in
+          // supabase/migrations/held/20260913120000_portal_proposal_acceptance.sql
+          // (section 3), but this is the layer that DECIDES, it is unfixed by
+          // that migration, and rows written before it is applied are still
+          // sitting in the table waiting for this loop. So compare the project
+          // too. `project_id` is nullable for historical rows: a null is
+          // tolerated (there is nothing to compare), a MISMATCH is not.
+          const co = changeOrders.find(c =>
+            c.id === row.change_order_id
+            && (!row.project_id || c.projectId === row.project_id));
           if (!co) continue;
           const trail = pendingTrails.get(co.id) ?? co.auditTrail ?? [];
           const auditEntryId = portalAuditEntryId(row.id);

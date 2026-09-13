@@ -22,6 +22,8 @@ import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEsti
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
 import type { LinkedEstimate } from '@/types';
 import { CATEGORY_META } from '@/constants/materials';
+import { cartTotals } from '@/utils/estimateMarkup';
+import { formatMoney } from '@/utils/formatters';
 import { buildCostDatabase, lookupRate } from '@/utils/costDatabase';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
@@ -87,16 +89,21 @@ export default function EstimateReviewScreen() {
   // Scrolling down slides the FAB away so it stops covering division rows.
   const fabScroll = useBrainFabScroll();
 
-  // Labor and assemblies are direct costs carried at cost (no markup applied to
-  // them), exactly as estimate/full.tsx totals them: grandTotal = materials
-  // (with markup) + labor + assemblies. Before this, review.tsx summed the
-  // material cart alone and under-reported every estimate by labor + assemblies.
-  const laborTotal = useMemo(
+  // Labor and assemblies are COST here (`laborBaseTotal` / `assemblyBaseTotal`)
+  // and carry the contractor's markup on top, exactly as estimate/full.tsx
+  // totals them: grandTotal = (materials + labor + assemblies) each with
+  // markup. This file mirrors that arithmetic rather than importing it, so the
+  // two must be changed together — they were previously in agreement on the
+  // WRONG rule (markup on materials only), which meant a labor-heavy estimate
+  // showed a small fraction of the margin the contractor had set. See the
+  // long note on full.tsx's laborBaseTotal for why cost ≠ price on an
+  // already-loaded hourly rate.
+  const laborBaseTotal = useMemo(
     () => laborCart.reduce((s, i) => s + i.adjustedRate * i.hours, 0), [laborCart]);
-  const assemblyTotal = useMemo(
+  const assemblyBaseTotal = useMemo(
     () => assemblyCart.reduce((s, i) => s + i.totalCost, 0), [assemblyCart]);
 
-  const { directCost, markups, itemCount } = useMemo(() => {
+  const { directCost, markups, itemCount, laborTotal, assemblyTotal } = useMemo(() => {
     const base = cart.reduce((sum, item) => {
       const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
       return sum + p * item.quantity;
@@ -105,12 +112,21 @@ export default function EstimateReviewScreen() {
       const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
       return sum + p * (1 + item.markup / 100) * item.quantity;
     }, 0);
+    // Same shared function estimate/full.tsx totals with, so the two screens
+    // cannot drift the way they previously agreed on the WRONG rule.
+    const t = cartTotals({
+      materialsCost: base, materialsSell: withMarkup,
+      laborCost: laborBaseTotal, assembliesCost: assemblyBaseTotal,
+      markupPct: globalMarkup,
+    });
     return {
-      directCost: base + laborTotal + assemblyTotal,
-      markups: withMarkup - base,
+      directCost: t.directCostTotal,
+      markups: t.markupTotal,
+      laborTotal: t.laborSell,
+      assemblyTotal: t.assemblySell,
       itemCount: cart.length + laborCart.length + assemblyCart.length,
     };
-  }, [cart, laborCart.length, assemblyCart.length, laborTotal, assemblyTotal]);
+  }, [cart, laborCart.length, assemblyCart.length, laborBaseTotal, assemblyBaseTotal, globalMarkup]);
 
   // The learned price book — only consulted for the CONTRACTOR view's
   // rate-provenance chips. See the divisions memo below for why it is gated.
@@ -157,17 +173,19 @@ export default function EstimateReviewScreen() {
     if (laborCart.length) {
       extra.push({
         key: 'labor', number: null, title: 'Labor', total: laborTotal,
-        items: laborCart.map(l => ({ name: l.labor.trade, qty: l.hours, unit: 'hrs', total: l.adjustedRate * l.hours, rateEntry: null })),
+        // Per-row totals carry the markup so the group's rows sum to the
+        // group total, which sums to the grand total the header shows.
+        items: laborCart.map(l => ({ name: l.labor.trade, qty: l.hours, unit: 'hrs', total: l.adjustedRate * l.hours * (1 + globalMarkup / 100), rateEntry: null })),
       });
     }
     if (assemblyCart.length) {
       extra.push({
         key: 'assemblies', number: null, title: 'Assemblies', total: assemblyTotal,
-        items: assemblyCart.map(a => ({ name: a.assembly.name, qty: 1, unit: a.assembly.unit, total: a.totalCost, rateEntry: null })),
+        items: assemblyCart.map(a => ({ name: a.assembly.name, qty: 1, unit: a.assembly.unit, total: a.totalCost * (1 + globalMarkup / 100), rateEntry: null })),
       });
     }
     return [...materialGroups, ...extra];
-  }, [cart, costDb, mode, laborCart, assemblyCart, laborTotal, assemblyTotal]);
+  }, [cart, costDb, mode, laborCart, assemblyCart, laborTotal, assemblyTotal, globalMarkup]);
 
   // Client-safe projection — build a LinkedEstimate from the cart (base line
   // totals + grand total) and run the validated transform. It strips every
@@ -187,13 +205,19 @@ export default function EstimateReviewScreen() {
     });
     // Fold labor and assemblies in the same shape estimate/full.tsx uses when it
     // links an estimate to a project, so the client view and the estimator agree.
-    // Both carry markup 0 (they are already at cost).
+    // `lineTotal` on EVERY row in this projection is the COST (materials above
+    // use `base * quantity`, unmarked-up); the markup lives on `markup` and is
+    // added once, at the bottom, as `grandTotal = directCost + markups`. So
+    // these two rows carry the contractor's markup on `markup` like the
+    // material rows do, and their lineTotal stays at cost like the material
+    // rows do. toClientEstimateView strips all of it before the client sees
+    // anything.
     for (const l of laborCart) {
       const lineTotal = l.adjustedRate * l.hours;
       items.push({
         materialId: l.labor.id, name: l.labor.trade, category: 'Labor',
         unit: 'hrs', quantity: l.hours, unitPrice: l.adjustedRate,
-        bulkPrice: l.adjustedRate, markup: 0, usesBulk: false,
+        bulkPrice: l.adjustedRate, markup: globalMarkup, usesBulk: false,
         lineTotal, supplier: l.labor.category, csiDivision: undefined,
       });
     }
@@ -201,7 +225,7 @@ export default function EstimateReviewScreen() {
       items.push({
         materialId: a.assembly.id, name: a.assembly.name, category: 'Assemblies',
         unit: a.assembly.unit, quantity: 1, unitPrice: a.totalCost,
-        bulkPrice: a.totalCost, markup: 0, usesBulk: false,
+        bulkPrice: a.totalCost, markup: globalMarkup, usesBulk: false,
         lineTotal: a.totalCost, supplier: '', csiDivision: undefined,
       });
     }
@@ -293,6 +317,28 @@ export default function EstimateReviewScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* An estimate with nothing on top of cost, said out loud. The
+                metric grid below reports "Markups $0" truthfully but a zero in
+                a row of numbers does not read as an alarm, and this screen is
+                one tap from a client-safe share link. Contractor mode only —
+                it is the one thing here the client must never see. */}
+            {mode === 'contractor' && directCost > 0 && markups < 0.005 ? (
+              <View style={styles.atCostBand} testID="review-at-cost-band">
+                <Text style={styles.atCostTitle}>This estimate has no profit in it</Text>
+                {/* Says what it MEASURED — that this estimate carries no
+                    markup — rather than quoting a percentage. The band fires
+                    on the realized markup, and a materials-only cart whose
+                    lines have each been zeroed realizes nothing while the
+                    global chip above still reads 20%. "Your markup is 0%" was
+                    then a number contradicting the control on the previous
+                    screen; the money claim underneath it was always true. */}
+                <Text style={styles.atCostBody}>
+                  Nothing is added on top of cost here, so the {formatMoney(directCost)} below is exactly
+                  what the work costs you. Set a markup in the Full Estimator before you send it.
+                </Text>
+              </View>
+            ) : null}
+
             {mode === 'contractor' ? (
               isDesktop ? (
                 <View>
@@ -362,6 +408,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Fraunces display face — same hero band as the estimate hub + wizard.
   heroTitle: { ...Type.serifTitle, color: OnInk.title },
   heroSub: { ...Type.subhead, color: OnInk.subtitle, marginTop: 4 },
+  atCostBand: {
+    backgroundColor: t.dangerSoft,
+    borderColor: t.danger + '55',
+    borderWidth: 1,
+    borderRadius: Tokens.radius.card,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  atCostTitle: { ...Type.subhead, fontWeight: '700' as const, color: t.dangerLabel, marginBottom: 2 },
+  atCostBody: { ...Type.caption1, color: t.dangerLabel, lineHeight: 17 },
   toggle: { flexDirection: 'row', gap: 4, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, padding: 4, marginBottom: 16 },
   seg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: Tokens.radius.sm },
   segOn: { backgroundColor: t.accentFill },

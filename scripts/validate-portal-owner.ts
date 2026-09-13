@@ -36,7 +36,10 @@ import {
   ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION, DUE_SOON_DAYS,
   type OwnerDecision,
 } from '../utils/portalOwnerCore';
-import { buildPortalSnapshot, scheduleWorkComplete, maskPortalLinkToken, portalShareUrl, PORTAL_BASE_URL, PORTAL_SNAPSHOT_VERSION } from '../utils/portalSnapshot';
+import { buildPortalSnapshot, scheduleWorkComplete, maskPortalLinkToken, portalShareUrl, PORTAL_BASE_URL, PORTAL_SNAPSHOT_VERSION,
+  buildProposalConsentRecord, buildFeedbackAsk, proposalBlockReason,
+  PROPOSAL_ESIGN_VERSION, PROPOSAL_DISCLOSURE_TEXT, PROPOSAL_NOT_A_CONTRACT_NOTE } from '../utils/portalSnapshot';
+import { toClientEstimateView } from '../utils/clientEstimateView';
 import type { Project, ClientPortalSettings, SavedAIAPayApp, SelectionCategory, ChangeOrder, DailyFieldReport, ProjectPhoto, Invoice } from '../types';
 
 let pass = 0, fail = 0;
@@ -730,6 +733,948 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
     /!esignConsent/.test(cv) && /Consent Required/.test(cv));
   ok('client-view persists the sealed record columns',
     /consent_record:/.test(cv) && /document_hash:/.test(cv));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6b. PROPOSAL ACCEPTANCE — the portal's third write path (2026-09-13)
+//
+// The homeowner could read everything and act on almost nothing: approve a
+// change order, pay an invoice, and that was the list. Accepting the PROPOSAL
+// is the decision that starts the job, and three cheaper competitors ship it.
+//
+// What is pinned here is not "the feature exists" — it is the two properties
+// that make an acceptance worth anything:
+//
+//   A. THE SIGNATURE BINDS TO A DOCUMENT THE CONTRACTOR PUBLISHED. The portal
+//      is a 192-bit token in a link and nothing else, so every byte the RPC
+//      receives is attacker-controlled. There is no proposal ROW to join to
+//      (an estimate lives inside project_financials.linked_estimate), so the
+//      binding is: buildPortalProposal writes a canonical `documentText` into
+//      the snapshot, the server hashes ITS copy of that text, and the signed
+//      consent record must carry that digest on its own line. If the record
+//      format and the SQL's line match ever drift, every acceptance fails
+//      closed — but a drift in the OTHER direction (the SQL check quietly
+//      passing on a record that no longer names the document) is the one that
+//      would matter, so the exact substring the SQL greps for is asserted here
+//      against a record the shipped builder produced.
+//
+//   B. THE CLIENT-FACING BOUNDARY HOLDS. The proposal is a projection of the
+//      contractor's estimate — the object that DOES carry unit prices, markup
+//      and suppliers — so the deep key scan and a value-level scan both run
+//      over it, against a fixture whose estimate really does contain those.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nportal owner — proposal acceptance:');
+
+const PROPOSAL_EST = {
+  id: 'est-77', createdAt: '2026-05-02T00:00:00.000Z',
+  globalMarkup: 25, baseTotal: 320000, markupTotal: 80000, grandTotal: 400000,
+  items: [
+    { materialId: 'm1', name: 'Slab on grade', category: 'concrete', unit: 'sf', quantity: 1200, unitPrice: 9.5, bulkPrice: 9, markup: 25, usesBulk: false, lineTotal: 11400, supplier: 'Ferguson', csiDivision: '03' },
+    { materialId: 'm2', name: 'Framing package', category: 'lumber', unit: 'ls', quantity: 1, unitPrice: 240000, bulkPrice: 0, markup: 25, usesBulk: false, lineTotal: 240000, supplier: 'BMC Lumber', csiDivision: '06' },
+    { materialId: 'm3', name: 'Bathroom tile allowance', category: 'finishes', unit: 'ls', quantity: 1, unitPrice: 68600, bulkPrice: 0, markup: 25, usesBulk: false, lineTotal: 68600, supplier: 'Clé', csiDivision: '09', isAllowance: true },
+  ],
+};
+
+const proposalProject = {
+  ...project,
+  linkedEstimate: PROPOSAL_EST,
+} as unknown as Project;
+
+const proposalPortal = {
+  ...portalSettings, proposalApprovalEnabled: true,
+} as unknown as ClientPortalSettings;
+
+const buildProposalSnapshot = (
+  p: Project = proposalProject,
+  pt: ClientPortalSettings = proposalPortal,
+  extra: Record<string, unknown> = {},
+) => buildPortalSnapshot({
+  project: p, portal: pt,
+  settings: { branding: { companyName: 'Ridgeline Builders' } } as never,
+  supabaseUrl: 'https://example.supabase.co', supabaseAnonKey: 'anon',
+  ...extra,
+});
+
+// ── The gate ────────────────────────────────────────────────────────────────
+{
+  // The toggle, isolated. The shared `snapshot` fixture above ALSO has no
+  // proposal, but its estimate has no id — so asserting on it would pass with
+  // the toggle deleted. Mutation-checked 2026-09-13: removing
+  // `if (!portal.proposalApprovalEnabled) return undefined` left the shared
+  // fixture green and only this pair turns red.
+  const off = buildProposalSnapshot(proposalProject,
+    { ...portalSettings, proposalApprovalEnabled: false } as unknown as ClientPortalSettings);
+  ok('a portal with the toggle OFF ships no proposal at all',
+    off.proposal === undefined, JSON.stringify(off.proposal?.id));
+  const missing = buildProposalSnapshot(proposalProject,
+    { ...portalSettings } as unknown as ClientPortalSettings);
+  ok('…and so does one that never heard of the toggle',
+    missing.proposal === undefined, JSON.stringify(missing.proposal?.id));
+}
+{
+  const on = buildProposalSnapshot();
+  ok('turning proposalApprovalEnabled on ships one', !!on.proposal);
+  expect('…for the estimate the contractor priced', on.proposal?.id, 'est-77');
+}
+{
+  const noId = buildProposalSnapshot(
+    { ...proposalProject, linkedEstimate: { ...PROPOSAL_EST, id: '' } } as unknown as Project);
+  ok('an estimate with no id ships NO proposal (nothing stable to bind a signature to)',
+    noId.proposal === undefined, JSON.stringify(noId.proposal));
+}
+{
+  const zero = buildProposalSnapshot(
+    { ...proposalProject, linkedEstimate: { ...PROPOSAL_EST, grandTotal: 0, items: [] } } as unknown as Project);
+  ok('a $0 estimate ships no proposal', zero.proposal === undefined);
+}
+for (const status of ['sent', 'signed'] as const) {
+  const withContract = buildProposalSnapshot(proposalProject, proposalPortal, {
+    contract: { id: 'k1', status, contractValue: 400000, title: 'Construction Agreement', updatedAt: '2026-06-01' },
+  });
+  ok(`a contract already ${status} supersedes the proposal — it is not shown`,
+    withContract.proposal === undefined, JSON.stringify(withContract.proposal?.id));
+}
+
+// ── THE SCOPE HAS TO DESCRIBE THE WORK ──────────────────────────────────────
+//
+// The fixture above stamps a csiDivision on every item, which is exactly why
+// nothing here caught this. The app's OWN builders do not:
+// app/(tabs)/estimate/full.tsx buildLinkedEstimate (:1021-1088) sets
+// csiDivision on no item at all, and app/(tabs)/estimate/review.tsx sets
+// `csiDivision: undefined` on every labor row (:221) and every assembly row
+// (:229). groupByCSIDivision buckets all of that into one unassigned group, so
+// on the mainline path a $400,000 estimate produced a proposal whose ENTIRE
+// scope was `scope: Other scope — 400000.00` — and that line is the text the
+// homeowner's signature binds to.
+//
+// A one-line "Other scope" is not a scope description, so it is refused, and
+// the setup row says which condition fired.
+{
+  const unclassified = {
+    ...PROPOSAL_EST,
+    items: PROPOSAL_EST.items.map(i => ({ ...i, csiDivision: undefined })),
+  };
+  const p = { ...proposalProject, linkedEstimate: unclassified } as unknown as Project;
+
+  // NEGATIVE FIRST — prove the fixture really does degenerate the way the app
+  // does, or the refusal below proves nothing.
+  const view = toClientEstimateView(unclassified as never);
+  expect('NEGATIVE: an estimate with no CSI divisions really does roll up to ONE group',
+    view.scopeGroups.map(g => `${g.key}:${g.total}`), ['other:400000']);
+
+  const blocked = proposalBlockReason(p);
+  expect('an estimate with no trade assignment is refused, with a reason',
+    blocked?.code, 'scope-unclassified');
+  ok('…and the reason names what the homeowner would otherwise have signed',
+    /Other scope/.test(blocked?.gc ?? ''), blocked?.gc);
+  ok('…and buildPortalSnapshot ships no proposal for it',
+    buildProposalSnapshot(p).proposal === undefined,
+    JSON.stringify(buildProposalSnapshot(p).proposal?.scope));
+  // The mixed case still ships: one unassigned bucket alongside real trades is
+  // a scope description with a catch-all in it, which is normal and fine.
+  const mixed = {
+    ...PROPOSAL_EST,
+    items: [PROPOSAL_EST.items[0], { ...PROPOSAL_EST.items[1], csiDivision: undefined }],
+  };
+  const mixedSnap = buildProposalSnapshot(
+    { ...proposalProject, linkedEstimate: mixed } as unknown as Project);
+  ok('…but a real trade line plus an "Other scope" catch-all still ships',
+    (mixedSnap.proposal?.scope.length ?? 0) === 2,
+    JSON.stringify(mixedSnap.proposal?.scope));
+}
+{
+  // grandTotal above zero, every item priced at zero. Measured before the fix:
+  // the homeowner got "Fixed price $50,000", a payment table and a live accept
+  // button with NO "What is included" block at all, under a consent box
+  // reading "you are accepting the scope and the fixed price shown above".
+  const hollow = { ...PROPOSAL_EST, baseTotal: 0, markupTotal: 50000, grandTotal: 50000, items: [] };
+  const p = { ...proposalProject, linkedEstimate: hollow } as unknown as Project;
+  expect('NEGATIVE: this shape really does produce a priced view with no scope',
+    [toClientEstimateView(hollow as never).projectTotal,
+      toClientEstimateView(hollow as never).scopeGroups.length],
+    [50000, 0]);
+  expect('a priced estimate with NO scope lines is refused', proposalBlockReason(p)?.code, 'scope-unclassified');
+  ok('…and ships no proposal', buildProposalSnapshot(p).proposal === undefined);
+}
+{
+  // A finished job has nothing to accept. Measured before the fix: a project
+  // with status 'completed' and a substantial-completion date shipped BOTH the
+  // proposal (total 400000, "accept to get started") and the feedback ask
+  // ("your contractor has recorded substantial completion") in one snapshot.
+  const done = { ...proposalProject, status: 'completed', substantialCompletionDate: '2026-08-01' } as unknown as Project;
+  expect('a completed job is refused', proposalBlockReason(done)?.code, 'job-complete');
+  const snap = buildProposalSnapshot(done);
+  ok('…and its snapshot carries the completion ask WITHOUT a proposal beside it',
+    snap.proposal === undefined && !!snap.feedbackAsk,
+    JSON.stringify({ proposal: snap.proposal?.id, ask: snap.feedbackAsk }));
+  const closed = { ...proposalProject, status: 'closed' } as unknown as Project;
+  expect('…and so is a closed one', proposalBlockReason(closed)?.code, 'job-complete');
+}
+{
+  expect('the contract reason is the same function the switch reads',
+    proposalBlockReason(proposalProject, { id: 'k1', status: 'sent' } as never)?.code,
+    'contract-superseded');
+  expect('a project with no estimate reports no-estimate',
+    proposalBlockReason({ ...proposalProject, linkedEstimate: undefined } as unknown as Project)?.code,
+    'no-estimate');
+  ok('a healthy project is not blocked', proposalBlockReason(proposalProject) === undefined);
+}
+
+// ── A CREDIT IS SCOPE, AND IT MUST REACH THE DOCUMENT ───────────────────────
+//
+// An owner-supplied credit in its own CSI division used to be dropped by
+// clientEstimateView's `g.total > 0` filter, and the drift fold then ADDED its
+// magnitude to the largest surviving group. Measured 2026-09-13 before the
+// fix: framing $10,000 in div 06 plus a −$1,000 credit in div 01 rendered, and
+// would have been SIGNED, as `scope: 06 Wood, Plastics, and Composites —
+// 9000.00`. Total right; scope line overstated by the credit; the credit
+// itself absent from the document the homeowner accepts.
+{
+  const mk = (over: Record<string, unknown>) => ({
+    materialId: 'x', name: 'n', category: 'c', unit: 'ls', quantity: 1,
+    unitPrice: 0, bulkPrice: 0, markup: 0, usesBulk: false, supplier: '', ...over,
+  });
+  const credited = {
+    id: 'est-credit', createdAt: '2026-05-02T00:00:00.000Z',
+    globalMarkup: 0, baseTotal: 9000, markupTotal: 0, grandTotal: 9000,
+    items: [
+      mk({ name: 'Framing', lineTotal: 10000, csiDivision: '06' }),
+      mk({ name: 'Owner-supplied appliance credit', lineTotal: -1000, csiDivision: '01' }),
+    ],
+  };
+  const p = buildProposalSnapshot(
+    { ...proposalProject, linkedEstimate: credited } as unknown as Project).proposal!;
+  ok('the credit survives as its own scope line', !!p, 'no proposal at all');
+  expect('…and the trade line is NOT inflated by it',
+    p.scope.find(g => g.key === '06')?.total, 10000);
+  expect('…and the credit itself is a line the homeowner can read',
+    p.scope.find(g => g.key === '01')?.total, -1000);
+  expect('…and they still tie out to the price being accepted',
+    p.scope.reduce((s, g) => s + g.total, 0), p.total);
+  ok('…and BOTH lines are in the text the signature binds to',
+    p.documentText.includes('— 10000.00') && p.documentText.includes('— -1000.00'),
+    p.documentText);
+}
+
+// ── The numbers the homeowner reads ─────────────────────────────────────────
+{
+  const p = buildProposalSnapshot().proposal!;
+  const groupSum = p.scope.reduce((s, g) => s + g.total, 0);
+  expect('the scope groups sum EXACTLY to the price being accepted', groupSum, p.total);
+  expect('…which is the estimate grand total, markup already inside it', p.total, 400000);
+  expect('the line COUNT ships, never the lines', p.lineCount, 3);
+  ok('the allowance line is carried so the homeowner knows what is still open',
+    p.allowances.length === 1 && p.allowances[0].name === 'Bathroom tile allowance',
+    JSON.stringify(p.allowances));
+  ok('a payment schedule ships', p.payment.length >= 2, JSON.stringify(p.payment));
+}
+
+// ── Stability: the hash the server checks cannot move on its own ────────────
+{
+  const snapA = buildProposalSnapshot();
+  const snapB = buildProposalSnapshot();
+  const a = snapA.proposal!;
+  const b = snapB.proposal!;
+  expect('documentText is byte-identical across two builds (no wall clock in it)',
+    a.documentText, b.documentText);
+  // Two builds a millisecond apart can legitimately share a snapshotAt, so
+  // "they differ" is not the assertion. The assertion is that NEITHER build's
+  // stamp is inside the document — a `snapshotAt` in there would re-hash the
+  // proposal on every push (project-detail pushes on every project open) and
+  // refuse the acceptance of anyone whose page loaded a moment earlier.
+  ok('neither build\'s snapshotAt appears inside documentText',
+    !a.documentText.includes(snapA.snapshotAt) && !a.documentText.includes(snapB.snapshotAt),
+    `${snapA.snapshotAt} / ${snapB.snapshotAt}`);
+  ok('NEGATIVE: that check would fire if the stamp were in there',
+    `${a.documentText}\nsnapshot_at: ${snapA.snapshotAt}`.includes(snapA.snapshotAt));
+
+  // client-portal-setup rewrites `clientName` per invite when it builds a
+  // link. If that reached the document, the link and the stored row would
+  // hash differently and every acceptance from a named invite would be
+  // refused as superseded.
+  const named = buildProposalSnapshot(proposalProject, proposalPortal, {
+    invite: { id: 'inv1', name: 'Dana Reyes', email: 'd@example.com' },
+  });
+  expect('an invite name does NOT reach documentText', named.proposal?.documentText, a.documentText);
+  expect('…even though it did reach the snapshot', named.clientName, 'Dana Reyes');
+}
+
+// ── The client-facing boundary ──────────────────────────────────────────────
+{
+  const p = buildProposalSnapshot().proposal!;
+  expect('the proposal exposes no cost/markup/margin/supplier keys', forbiddenKeys(p), []);
+  const text = [p.documentText, ...allStrings({ ...p, documentText: undefined })].join(' ');
+  for (const leak of ['Ferguson', 'BMC Lumber', 'Clé']) {
+    ok(`no supplier name (${leak}) reaches the proposal`, !text.includes(leak));
+  }
+  ok('no unit price reaches the proposal', !/\b9\.50\b/.test(text) && !text.includes('unitPrice'));
+  ok('the base (pre-markup) total does not reach the proposal', !text.includes('320000'), text.slice(0, 200));
+  // NEGATIVE — the scan above is only worth something if the fixture really
+  // does carry what it is looking for.
+  const raw = JSON.stringify(PROPOSAL_EST);
+  ok('NEGATIVE: the fixture estimate really does carry those suppliers and the base total',
+    raw.includes('Ferguson') && raw.includes('BMC Lumber') && raw.includes('Clé') && raw.includes('320000'));
+}
+
+// ── The consent record ──────────────────────────────────────────────────────
+const PROPOSAL_DOC_HASH = 'c'.repeat(64);
+{
+  const p = buildProposalSnapshot().proposal!;
+  const args = {
+    decision: 'accepted' as const, portalId: 'portal-abc', proposalId: p.id,
+    proposalTotal: p.total, proposalDocumentHash: PROPOSAL_DOC_HASH,
+    signerName: '  Dana Reyes ', signedAt: '2026-06-15T18:04:00.000Z',
+    timezoneOffsetMinutes: -240, signatureHash: 'b'.repeat(64), signatureStrokeCount: 5,
+    userAgent: 'Mozilla/5.0 (iPhone)',
+  };
+  const record = buildProposalConsentRecord(args);
+  const lines = record.split('\n');
+  expect('record header is stable', lines[0], 'MAGE ID PROPOSAL ELECTRONIC SIGNATURE RECORD');
+  expect('record is versioned on line 2', lines[1], `version: ${PROPOSAL_ESIGN_VERSION}`);
+  for (const field of [
+    'decision: accepted', 'proposal_id: est-77', 'proposal_total_usd: 400000.00',
+    `proposal_document_sha256: ${PROPOSAL_DOC_HASH}`, 'signer_name: Dana Reyes',
+    'signed_at: 2026-06-15T18:04:00.000Z', 'signature_strokes: 5',
+  ]) {
+    ok(`record carries "${field.split(':')[0]}"`, record.includes(field));
+  }
+  ok('record embeds the full disclosure the signer saw',
+    record.includes(`consent_disclosure: ${PROPOSAL_DISCLOSURE_TEXT}`));
+  expect('record is byte-deterministic', buildProposalConsentRecord(args), record);
+
+  // THE CROSS-LANGUAGE CONTRACT. The RPC refuses any record that does not
+  // contain, on its own line, the digest it computed from its own copy of the
+  // published document:
+  //     strpos(p_consent_record, E'\nproposal_document_sha256: ' || v_doc_hash || E'\n')
+  // If that line ever moves to the end, loses its newline, or is renamed, the
+  // RPC rejects every acceptance. Assert the exact substring the SQL looks for.
+  ok('the record contains the EXACT full line the RPC greps for',
+    record.includes(`\nproposal_document_sha256: ${PROPOSAL_DOC_HASH}\n`), record.slice(0, 300));
+  ok('…and the proposal-id line it also greps for',
+    record.includes(`\nproposal_id: ${p.id}\n`));
+  // The RPC parses the total out with `([0-9]+\.[0-9]{2})` and compares it to
+  // its own figure as a NUMBER. Run that exact pattern here: if the builder
+  // ever emits a total this cannot parse, every acceptance is refused.
+  {
+    const m = new RegExp('\\nproposal_total_usd: ([0-9]+\\.[0-9]{2})\\n').exec(record);
+    ok('the RPC\'s own total pattern matches what the builder emits', !!m, record.slice(0, 300));
+    expect('…and parses to exactly the price in the snapshot', m ? Number(m[1]) : null, p.total);
+    ok('NEGATIVE: that pattern does not match a total written without cents',
+      !new RegExp('\\nproposal_total_usd: ([0-9]+\\.[0-9]{2})\\n')
+        .test(record.replace(`proposal_total_usd: ${p.total.toFixed(2)}`, `proposal_total_usd: ${p.total}`)));
+  }
+  ok('NEGATIVE: a prefix-extended digest would NOT satisfy that full-line match',
+    !record.replace(`proposal_document_sha256: ${PROPOSAL_DOC_HASH}\n`,
+                    `proposal_document_sha256: ${PROPOSAL_DOC_HASH}DEADBEEF\n`)
+       .includes(`\nproposal_document_sha256: ${PROPOSAL_DOC_HASH}\n`));
+
+  const declined = buildProposalConsentRecord({
+    decision: 'declined', portalId: 'portal-abc', proposalId: p.id, proposalTotal: p.total,
+    proposalDocumentHash: PROPOSAL_DOC_HASH, signerName: 'Dana Reyes',
+    signedAt: '2026-06-15T18:04:00.000Z',
+    reason: 'Too expensive — please re-price without the primary bath.',
+  });
+  ok('a decline record captures the reason and carries no signature fields',
+    declined.includes('decline_reason: Too expensive') &&
+    !declined.includes('signature_sha256') && !declined.includes('signature_strokes'));
+  ok('the consent record contains no cost/markup/margin language',
+    !/unit cost|markup|margin|gross profit/i.test(record));
+}
+
+// ── The disclosure ──────────────────────────────────────────────────────────
+{
+  const slice = portalHtml.slice(portalHtml.indexOf('var PROPOSAL_DISCLOSURE_TEXT ='));
+  const body = slice.slice(0, slice.indexOf(';'));
+  const joined = (body.match(/'([^']*)'/g) ?? []).map(s => s.slice(1, -1)).join('');
+  expect('portal proposal disclosure matches utils/portalSnapshot.ts exactly',
+    joined, PROPOSAL_DISCLOSURE_TEXT);
+  ok('portal proposal record version matches',
+    portalHtml.includes(`var PROPOSAL_ESIGN_VERSION = '${PROPOSAL_ESIGN_VERSION}'`));
+  ok('the disclosure names the act being performed',
+    /consent to accept this proposal electronically/.test(PROPOSAL_DISCLOSURE_TEXT));
+  ok('the disclosure offers a paper copy at no charge',
+    /paper copy at no charge/.test(PROPOSAL_DISCLOSURE_TEXT));
+  ok('the disclosure cites no statute and claims no legal effect',
+    !/E-?SIGN|UETA|U\.S\.C|legal effect|legally binding|same (force|effect) as/i.test(PROPOSAL_DISCLOSURE_TEXT),
+    PROPOSAL_DISCLOSURE_TEXT);
+  // Accepting a proposal is NOT signing the construction agreement, and this
+  // product does not get to blur that. Both surfaces say so.
+  ok('the app-side copy says the agreement is a separate document',
+    /separate document you will review and sign/.test(PROPOSAL_NOT_A_CONTRACT_NOTE));
+  ok('the portal ships that same sentence next to the button',
+    portalHtml.includes('That agreement is a separate document you will review and sign.'));
+}
+
+// ── Cross-runtime equivalence with the static portal's copy ─────────────────
+{
+  const START = '// PROPOSAL-ESIGN-BLOCK-START';
+  const END = '// PROPOSAL-ESIGN-BLOCK-END';
+  const s0 = portalHtml.indexOf(START);
+  const s1 = portalHtml.indexOf(END, s0);
+  ok('portal proposal e-signature block is extractable for a head-to-head check', s0 >= 0 && s1 > s0);
+  // The block calls esignTidy(), which lives with the CO helpers further up
+  // the page. Lift that too rather than re-implementing it here — a local
+  // re-implementation would be the thing under test.
+  const tidyStart = portalHtml.indexOf('function esignTidy(');
+  const tidyEnd = portalHtml.indexOf('\n  }', tidyStart) + 4;
+  ok('portal esignTidy is extractable', tidyStart >= 0 && tidyEnd > tidyStart);
+  if (s0 >= 0 && s1 > s0 && tidyStart >= 0) {
+    const src = `${portalHtml.slice(tidyStart, tidyEnd)}\n${portalHtml.slice(s0, s1)}\nreturn buildProposalConsentRecord;`;
+    // eslint-disable-next-line no-new-func
+    const portalBuild = new Function(src)() as (f: Record<string, unknown>) => string;
+    const args = {
+      decision: 'accepted' as const, portalId: 'portal-abc', proposalId: 'est-77',
+      proposalTotal: 400000, proposalDocumentHash: PROPOSAL_DOC_HASH,
+      signerName: '  Dana Reyes ', signedAt: '2026-06-15T18:04:00.000Z',
+      timezoneOffsetMinutes: -240, signatureHash: 'b'.repeat(64), signatureStrokeCount: 7,
+      userAgent: '  Mozilla/5.0   (iPhone)  ',
+    };
+    expect('portal and app emit byte-identical proposal records (acceptance)',
+      portalBuild(args), buildProposalConsentRecord(args));
+    const declineArgs = {
+      decision: 'declined' as const, portalId: 'portal-abc', proposalId: 'est-77',
+      proposalTotal: 400000, proposalDocumentHash: PROPOSAL_DOC_HASH,
+      signerName: 'Dana Reyes', signedAt: '2026-06-15T18:04:00.000Z',
+      reason: '  Too   expensive — please re-price.  ', userAgent: 'Mozilla/5.0',
+    };
+    expect('portal and app emit byte-identical proposal records (decline)',
+      portalBuild(declineArgs), buildProposalConsentRecord(declineArgs));
+  }
+}
+
+// ── The page ────────────────────────────────────────────────────────────────
+{
+  ok('portal renders a proposal section', /function renderProposal\(/.test(portalHtml)
+    && portalHtml.includes("addSection('proposal'"));
+  ok('the accept + decline buttons exist',
+    portalHtml.includes('data-proposal-accept=') && portalHtml.includes('data-proposal-decline='));
+  ok('the proposal signs through the SAME modal as a change order',
+    /function showProposalSignModal\(/.test(portalHtml)
+    && /return showDocSignModal\(\{[\s\S]{0,900}consentText: PROPOSAL_DISCLOSURE_TEXT/.test(portalHtml));
+  ok('…and so does the change order, so the two cannot drift apart',
+    /function showCOSignModal\(opts\) \{[\s\S]{0,3000}return showDocSignModal\(/.test(portalHtml));
+  ok('the one modal still demands all three ESIGN elements before enabling submit',
+    /nameValue\(\)\.length >= 3 && !!pad && pad\.pointCount\(\) >= 2 && checkEl\.checked/.test(portalHtml));
+
+  const handler = (() => {
+    const a = portalHtml.indexOf('function handleProposalDecision');
+    const b = portalHtml.indexOf('function bindProposalHandlers', a);
+    return a >= 0 && b > a ? portalHtml.slice(a, b) : '';
+  })();
+  ok('handleProposalDecision() exists', handler.length > 0);
+  ok('it hashes the PUBLISHED documentText, not a locally re-derived one',
+    /sha256Hex\(proposal\.documentText/.test(handler), handler.slice(0, 400));
+  ok('it sends that digest to the server as well as inside the record',
+    /proposal_document_hash: docHash/.test(handler) && /proposalDocumentHash: docHash/.test(handler));
+  // Mutation-checked 2026-09-13: `/no_subtle_crypto/` alone stayed GREEN when
+  // the throw was replaced with `docHash = docHash || ''` — the string still
+  // occurs in the catch block that renders the message. Pin the refusal
+  // itself, and the message that goes with it.
+  ok('a browser that cannot hash is refused rather than sealed weakly',
+    /if \(!docHash\) \{[\s\S]{0,120}throw new Error\('no_subtle_crypto'\)/.test(handler),
+    handler.slice(handler.indexOf('docHash'), handler.indexOf('docHash') + 300));
+  ok('…and is told why, rather than shown a generic failure',
+    /cannot seal a signature/.test(handler));
+  ok('it submits through the sealed RPC', /postProposalDecisionSigned\(/.test(handler));
+  ok('it uses neither confirm() nor prompt()',
+    !/\bconfirm\s*\(/.test(handler) && !/\bprompt\s*\(/.test(handler));
+  ok('portal ships /rest/v1/rpc/portal_submit_proposal_approval_signed',
+    portalHtml.includes('/rest/v1/rpc/portal_submit_proposal_approval_signed'));
+
+  // An acceptance has exactly one way to be recorded. The CO flow can fall
+  // back to an older RPC because one exists; there is no older proposal RPC,
+  // and the available degradations — post a chat message, or write it to
+  // localStorage and call it done — would present something that is not a
+  // signature as one.
+  /** A Storage-shaped object that forgets everything. */
+  const stubStorage = () => ({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+
+  const poster = (() => {
+    const a = portalHtml.indexOf('async function postProposalDecisionSigned');
+    const b = portalHtml.indexOf('function proposalErrorMessage', a);
+    return a >= 0 && b > a ? portalHtml.slice(a, b) : '';
+  })();
+  ok('postProposalDecisionSigned() exists', poster.length > 0);
+
+  // ── EXECUTED, because the regex here was a lie ────────────────────────────
+  //
+  // This assertion used to be `!/postMessage|portal_post_message|
+  // saveProposalDecision/.test(poster)` — a NAME GREP over the function body,
+  // and it was reported as catching a mutation it does not catch. Replacing
+  // the whole error rejection with
+  //
+  //     try { localStorage.setItem('mage_prop_pending', JSON.stringify(payload)); } catch (e) {}
+  //     return { ok: true };
+  //
+  // leaves that regex GREEN (none of the three names appear), and ships a page
+  // that fires confetti and prints "Accepted" for a signature that never
+  // reached the server. Measured 2026-09-13: 363 passed, 0 failed with that
+  // fallback in place.
+  //
+  // So run the function. Stub fetch, hand it a 404 — the exact shape of "the
+  // RPC is not deployed" — and require a REJECTION. A resolved value of any
+  // kind is the failure, whatever the body is spelled like.
+  if (poster.length > 0) {
+    const makePoster = (fetchImpl: unknown) => new Function(
+      'fetch', 'getPortalToken', 'localStorage', 'sessionStorage',
+      `${poster}\nreturn postProposalDecisionSigned;`,
+    )(fetchImpl, () => 'tok', stubStorage(), stubStorage()) as
+      (api: unknown, payload: unknown) => Promise<unknown>;
+
+    const api = { supabaseUrl: 'https://x.supabase.co/', supabaseAnonKey: 'anon' };
+    const payload = { portal_id: 'p1', proposal_id: 'est-77', decision: 'accepted' };
+
+    const notDeployed = makePoster(async () => ({
+      ok: false, status: 404,
+      text: async () => '{"code":"PGRST202"}',
+      json: async () => ({ code: 'PGRST202' }),
+    }));
+    const rejected404 = await notDeployed(api, payload).then(
+      v => ({ threw: false, v }), e => ({ threw: true, v: e }));
+    ok('EXECUTED: a 404 (RPC not deployed) REJECTS — it never resolves to a decision',
+      rejected404.threw === true, `resolved with ${JSON.stringify(rejected404.v)}`);
+    ok('…and the rejection carries the status, so the caller can say which failure it was',
+      (rejected404.v as { status?: number })?.status === 404);
+
+    const denied = makePoster(async () => ({
+      ok: false, status: 403,
+      text: async () => 'portal_denied',
+      json: async () => ({}),
+    }));
+    const rejected403 = await denied(api, payload).then(() => false, () => true);
+    ok('EXECUTED: a 403 (bad token) rejects too', rejected403 === true);
+
+    // NEGATIVE — the two checks above are only worth something if a GOOD
+    // response really does resolve. Without this, a poster that rejected
+    // unconditionally would pass them both.
+    const good = makePoster(async () => ({
+      ok: true, status: 200,
+      text: async () => '{"ok":true}',
+      json: async () => ({ ok: true, recorded: true, id: 'row1' }),
+    }));
+    const resolved = await good(api, payload).then(v => v, () => null);
+    expect('NEGATIVE: a 200 resolves with the server\'s answer',
+      (resolved as { id?: string })?.id, 'row1');
+
+    // And nothing was stashed on the way out. This is the second half of the
+    // mutation: a fallback that writes the decision somewhere local and calls
+    // it done presents something that is not a signature as one.
+    const writes: string[] = [];
+    const spying = new Function(
+      'fetch', 'getPortalToken', 'localStorage', 'sessionStorage',
+      `${poster}\nreturn postProposalDecisionSigned;`,
+    )(
+      async () => ({ ok: false, status: 404, text: async () => 'PGRST202', json: async () => ({}) }),
+      () => 'tok',
+      { getItem: () => null, setItem: (k: string) => { writes.push(k); }, removeItem: () => {} },
+      { getItem: () => null, setItem: (k: string) => { writes.push(`s:${k}`); }, removeItem: () => {} },
+    ) as (api: unknown, payload: unknown) => Promise<unknown>;
+    await spying(api, payload).catch(() => undefined);
+    ok('EXECUTED: a failed submission writes NOTHING to local storage on its way out',
+      writes.length === 0, `wrote ${JSON.stringify(writes)}`);
+  }
+  ok('the "not deployed" message tells the homeowner plainly and offers a message instead',
+    /not switched on for your project yet/.test(portalHtml));
+  ok('a re-priced proposal is reported as changed, not as a generic failure',
+    /proposal_superseded/.test(portalHtml) && /changed this proposal since this page loaded/.test(portalHtml));
+}
+
+// ── The migration that gives the acceptance a home ──────────────────────────
+{
+  const mig = read('supabase/migrations/held/20260913120000_portal_proposal_acceptance.sql');
+  ok('proposal-acceptance migration present (HELD)', mig.length > 0);
+  ok('it is held, with its preconditions stated', /^-- =+\n-- HELD/.test(mig) && /PRECONDITIONS/.test(mig));
+  ok('the RPC is token-gated like every other portal RPC',
+    /portal_project_for_token\(p_portal_id, p_access_token\)/.test(mig));
+  ok('it reads the proposal back out of the contractor-published snapshot',
+    /from public\.portal_snapshots ps/.test(mig) && /snapshot->'proposal'/.test(mig));
+  ok('it refuses a snapshot row belonging to another project',
+    /v_snap_pid is not null and v_snap_pid <> v_pid/.test(mig));
+  ok('OWNERSHIP: the signed proposal id must equal the published one',
+    /coalesce\(v_proposal->>'id', ''\) <> btrim\(p_proposal_id\)/.test(mig));
+  ok('it hashes ITS OWN copy of documentText',
+    /v_doc_hash := encode\(digest\(v_doc, 'sha256'\), 'hex'\)/.test(mig));
+  ok('the consent record must carry that digest on its own full line',
+    /strpos\(p_consent_record, E'\\nproposal_document_sha256: ' \|\| v_doc_hash \|\| E'\\n'\) = 0/.test(mig));
+  ok('it re-hashes the consent record and refuses a mismatch',
+    /digest\(p_consent_record, 'sha256'\)/.test(mig) && /hash_mismatch/.test(mig));
+  ok('the stored price is the SERVER\'s, read from the snapshot',
+    /v_total := nullif\(v_proposal->>'total', ''\)::numeric/.test(mig)
+    && !/p_proposal_total\b/.test(mig));
+  ok('…and a snapshot with no usable total is refused rather than stored as null',
+    /if v_total is null or v_total <= 0 then raise exception 'portal_denied'/.test(mig));
+  // The digest binds the TERMS. These two stop the retained record — the thing
+  // with a signature on it — from SAYING something the server never agreed to:
+  // without them a link-holder could seal a record reading
+  // "proposal_total_usd: 1.00" against a $400,000 proposal.
+  ok('the record\'s own stated total must equal the server\'s, compared as a number',
+    /v_claimed_total := nullif\(/.test(mig)
+    && /proposal_total_usd: \(\[0-9\]\+/.test(mig)
+    && /v_claimed_total <> v_total then/.test(mig));
+  ok('…and the record\'s stated proposal id must match too',
+    /strpos\(p_consent_record, E'\\nproposal_id: ' \|\| btrim\(p_proposal_id\) \|\| E'\\n'\) = 0/.test(mig));
+  ok('a unique_violation from anywhere else is re-raised, not answered with ok:true',
+    /if not found then raise; end if;/.test(mig));
+  ok('an acceptance requires consent, a drawn signature and a legal name',
+    /esign_consent_required/.test(mig) && /esign_signature_required/.test(mig) && /esign_signer_name_required/.test(mig));
+  ok('declining stays one step but must say why', /decline_reason_required/.test(mig));
+  // ONE ACCEPTANCE PER PORTAL, not per (portal, proposal). The proposal id is
+  // the estimate id and app/(tabs)/estimate/full.tsx:1088 stamps a fresh
+  // generateUUID() inside buildLinkedEstimate() on every link AND every merge,
+  // so a per-proposal index lets a contractor's re-save unlock a SECOND
+  // acceptance, at a second price, with nothing marking which supersedes.
+  ok('one acceptance per PORTAL, enforced by a partial unique index',
+    /create unique index proposal_approvals_one_acceptance\s*\n\s*on public\.proposal_approvals \(portal_id\)\s*\n\s*where decision = 'accepted';/.test(mig),
+    mig.slice(mig.indexOf('proposal_approvals_one_acceptance') - 80, mig.indexOf('proposal_approvals_one_acceptance') + 220));
+  ok('…and the index is dropped by name first, so a re-apply cannot keep the weaker one',
+    /drop index if exists public\.proposal_approvals_one_acceptance;/.test(mig));
+  ok('…and neither the pre-check nor the race handler narrows by proposal_id',
+    !/where portal_id = p_portal_id and proposal_id = btrim\(p_proposal_id\)/.test(mig));
+  ok('a duplicate acceptance returns the original seal instead of a second obligation',
+    /exception when unique_violation/.test(mig) && /'already', true/.test(mig));
+  // A signature taken and discarded while the page says "sealed" is worse than
+  // no acceptance flow. The already-path must say who signed, when, and that
+  // THIS submission was not stored.
+  const alreadyReturns = mig.match(/'already', true, 'recorded', false,/g) ?? [];
+  expect('both already-paths report recorded:false (pre-check AND the race handler)',
+    alreadyReturns.length, 2);
+  ok('…and hand back the ORIGINAL signer and seal time, so the page can name them',
+    /'signer_name', v_existing\.signer_name,/.test(mig)
+    && /'sealed_at', v_existing\.sealed_at\);/.test(mig));
+  ok('…while a stored acceptance reports recorded:true',
+    /'ok', true,\s*\n\s*'recorded', true,/.test(mig));
+  // A decline filed after an acceptance is refused, not stored: the GC's list
+  // is ordered created_at desc, so it would read "Proposal declined" on a job
+  // the client already accepted.
+  ok('a decline after an acceptance is REFUSED, not filed',
+    /if p_decision = 'declined' then raise exception 'proposal_already_accepted'; end if;/.test(mig));
+  // Mutation-checked 2026-09-13: `/proposal_approval_freeze_evidence/` alone
+  // stayed GREEN when the function DEFINITION was renamed — the trigger below
+  // still mentions the old name. Pin the definition, the trigger that binds
+  // it, and the columns it actually pins.
+  ok('the signed evidence is frozen against later edits by the party it binds',
+    /create or replace function public\.proposal_approval_freeze_evidence\(\)/.test(mig)
+    && /create trigger proposal_approvals_freeze\s*\n\s*before update on public\.proposal_approvals\s*\n\s*for each row execute function public\.proposal_approval_freeze_evidence\(\)/.test(mig));
+  for (const col of ['decision', 'consent_record', 'document_hash', 'proposal_document_hash', 'proposal_total', 'signature_data', 'sealed_at']) {
+    ok(`…and the freeze pins ${col}`, new RegExp(`new\\.${col}\\s+:= old\\.${col};`).test(mig));
+  }
+  ok('…while acknowledged_at stays writable, which is the whole point',
+    !/new\.acknowledged_at\s+:= old\.acknowledged_at;/.test(mig)
+    && /acknowledged_at is deliberately NOT pinned/.test(mig));
+  ok('anon may execute it (the homeowner has no MAGE account)',
+    /grant execute on function public\.portal_submit_proposal_approval_signed\([\s\S]{0,200}to anon, authenticated/.test(mig));
+  ok('the table is not readable by anon', /revoke all on public\.proposal_approvals from anon/.test(mig));
+
+  // The hole the same audit found on the change-order path, closed in the
+  // same file: a portal token could file an approval for ANY change-order id,
+  // and hooks/usePortalApprovalReconciler.ts matches approvals to change
+  // orders by id alone.
+  const coOwnership = mig.match(/if not exists \(select 1 from public\.change_orders c\s*\n\s*where c\.id::text = btrim\(p_change_order_id\)\s*\n\s*and c\.project_id = v_pid\)/g) ?? [];
+  expect('BOTH change-order RPCs now confirm the CO belongs to the token\'s project',
+    coOwnership.length, 2);
+  ok('…and the fix keeps their signatures, so no caller has to change',
+    /create or replace function public\.portal_submit_co_approval\(\s*\n\s*p_portal_id text, p_access_token text, p_change_order_id text,/.test(mig)
+    && /create or replace function public\.portal_submit_co_approval_signed\(/.test(mig));
+  ok('the file tells the operator to look for rows the bug may already have made',
+    /left join public\.change_orders c/.test(mig) && /Expect zero/.test(mig));
+
+  // THE LAYER THAT ACTS ON THOSE ROWS. Section 3 stops new ones being written,
+  // but hooks/usePortalApprovalReconciler.ts is what flips a change order to
+  // `approved`, it runs against the TENANT-WIDE list from ProjectContext, and
+  // rows written before the migration is applied are still in the table. It
+  // matched on change_order_id alone until 2026-09-13.
+  const rec = read('hooks/usePortalApprovalReconciler.ts');
+  ok('the reconciler compares the PROJECT, not just the change-order id',
+    /c\.id === row\.change_order_id\s*\n\s*&& \(!row\.project_id \|\| c\.projectId === row\.project_id\)/.test(rec),
+    rec.slice(rec.indexOf('changeOrders.find') - 120, rec.indexOf('changeOrders.find') + 220));
+  ok('…and still applies a legacy row that carries no project_id at all',
+    /!row\.project_id \|\|/.test(rec),
+    'project_id is nullable for historical rows — a null is tolerated, a mismatch is not');
+  ok('…and it really does read project_id off the row it selects',
+    /created_at, project_id'\)/.test(rec));
+}
+
+// ── The section, EXECUTED ───────────────────────────────────────────────────
+//
+// Every check above this point is a regex over source text, and a regex cannot
+// tell you that the page renders the right dollar figure or that a supplier
+// name does not reach the HTML. The static portal has no build step, so the
+// house technique (scripts/validate-invoice-billing.ts does the same to the
+// pay-app rules) is to lift the function out of the page and run it.
+{
+  const start = portalHtml.indexOf('function renderProposal(');
+  const stop = portalHtml.indexOf('// Open the review-and-sign sheet for the proposal.', start);
+  ok('renderProposal is extractable for execution', start >= 0 && stop > start);
+  const noteStart = portalHtml.indexOf('var PROPOSAL_NOT_A_CONTRACT_NOTE =');
+  const noteStop = portalHtml.indexOf(';', noteStart) + 1;
+
+  if (start >= 0 && stop > start && noteStart >= 0) {
+    const prelude = `
+      function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+      function fmtMoney(n,o){ if(n==null||isNaN(n))return '—'; var d=o&&o.dec?o.dec:0;
+        return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+      function fmtDate(iso){ return iso ? 'May 2, 2026' : '—'; }
+      function timeAgo(){ return 'just now'; }
+      function emptyState(l){ return '<div class="empty-section">'+l+'</div>'; }
+      function icn(){ return '<svg></svg>'; }
+      var ICONS = { check: '', alert: '' };
+    `;
+    const src = `${prelude}\n${portalHtml.slice(noteStart, noteStop)}\n${portalHtml.slice(start, stop)}\nreturn renderProposal;`;
+    const make = (decided: unknown) =>
+      // eslint-disable-next-line no-new-func
+      new Function('loadProposalDecision', src)(() => decided) as (p: unknown, can: boolean) => string;
+
+    const snapProposal = buildProposalSnapshot().proposal!;
+    const html = make(null)(snapProposal, true);
+
+    // Anchored to the headline element, not to "the string appears somewhere":
+    // mutation-checked 2026-09-13, `fmtMoney(p.total * 0.8)` left a bare
+    // includes('$400,000') GREEN because the scope total row also prints it.
+    ok('the headline shows the price being accepted',
+      /<div class="prop-total">\$400,000<\/div>/.test(html), html.slice(0, 400));
+    ok('…and the tie-out row under the scope shows the same number',
+      /<div class="ob-row ob-row-total"><span>Total<\/span><strong>\$400,000<\/strong><\/div>/.test(html),
+      html.slice(html.indexOf('ob-row-total') - 100, html.indexOf('ob-row-total') + 160));
+    for (const g of snapProposal.scope) {
+      ok(`…and the scope line "${g.label}"`, html.includes(g.label));
+    }
+    ok('…and the allowance the homeowner still gets to spend',
+      html.includes('Bathroom tile allowance'));
+    ok('…and the accept + decline buttons, wired to this proposal id',
+      html.includes(`data-proposal-accept="${snapProposal.id}"`)
+      && html.includes(`data-proposal-decline="${snapProposal.id}"`));
+    ok('…and the sentence that keeps a proposal from reading as a contract',
+      html.includes('separate document you will review and sign'));
+    for (const leak of ['Ferguson', 'BMC Lumber', 'Clé', '320,000', 'markup', 'unit price']) {
+      ok(`no "${leak}" reaches the rendered HTML`, !html.includes(leak), html.slice(0, 200));
+    }
+    // NEGATIVE — a render that returned '' would pass every "does not contain"
+    // check above.
+    ok('NEGATIVE: the rendered HTML is substantial, so the absence checks mean something',
+      html.length > 800, `length ${html.length}`);
+
+    // Without a write path there must be no button offering one.
+    const readOnly = make(null)(snapProposal, false);
+    ok('with no portalApi there is NO accept button (a button that cannot post must not be drawn)',
+      !readOnly.includes('data-proposal-accept'), readOnly.slice(-300));
+    ok('…but the proposal is still shown', readOnly.includes('$400,000'));
+
+    // Already decided on this device → receipt, not a second button.
+    const done = make({ decision: 'accepted', at: '2026-06-15T18:04:00.000Z', signer: 'Dana Reyes', hash: 'f'.repeat(64) })(snapProposal, true);
+    ok('an already-accepted proposal shows the decision, not the button again',
+      done.includes('Accepted') && done.includes('Dana Reyes') && !done.includes('data-proposal-accept'));
+    ok('…and shows the record hash back as the homeowner\'s receipt',
+      done.includes('Record SHA-256 ' + 'f'.repeat(32)));
+
+    // ── THE SECOND PERSON ───────────────────────────────────────────────────
+    //
+    // Acceptance state lives in this browser's localStorage and the snapshot
+    // carries no accepted flag, so a spouse, a second device, or the same
+    // phone after clearing site data sees "Waiting on you" and a live accept
+    // button on an already-accepted proposal. They type their legal name, draw
+    // a signature, tick consent and submit — and the RPC, holding an
+    // acceptance already, writes NOTHING.
+    //
+    // Before 2026-09-13 the page ran its entire success path on that answer:
+    // confetti, "Accepted by <the second person's name>", and a "Record
+    // SHA-256 …" receipt taken from the FIRST signer's row. A signature was
+    // collected and discarded while the page said it was sealed.
+    const second = make({
+      decision: 'accepted', recorded: false,
+      at: '2026-06-15T18:04:00.000Z', signer: 'Dana Reyes', hash: null,
+    })(snapProposal, true);
+    ok('a submission the server did not store says ALREADY accepted, not "accepted"',
+      second.includes('Already accepted') && second.includes('Dana Reyes'),
+      second.slice(-700));
+    ok('…and says in so many words that what they just signed was not recorded',
+      /not recorded/.test(second), second.slice(-500));
+    ok('…and offers NO receipt hash, because the row is not theirs',
+      !second.includes('Record SHA-256'), second.slice(-400));
+    ok('…and does not draw the accept button again',
+      !second.includes('data-proposal-accept'));
+    // A decision saved by an older build of this page carries no `recorded`
+    // field. It must keep reading as recorded, not silently downgrade every
+    // existing homeowner's receipt to "already accepted by someone else".
+    const legacy = make({ decision: 'accepted', at: '2026-06-15T18:04:00.000Z', signer: 'Dana Reyes', hash: 'a'.repeat(64) })(snapProposal, true);
+    ok('a decision stored before the field existed still reads as sealed',
+      !legacy.includes('Already accepted') && legacy.includes('Record SHA-256'),
+      legacy.slice(-400));
+  }
+}
+
+// ── The submit handler's honesty, in the page ───────────────────────────────
+{
+  const handlerSrc = (() => {
+    const a = portalHtml.indexOf('function handleProposalDecision');
+    const b = portalHtml.indexOf('function bindProposalHandlers', a);
+    return a >= 0 && b > a ? portalHtml.slice(a, b) : '';
+  })();
+  ok('the handler branches on whether the SERVER stored the row',
+    /var wasRecorded = res\.recorded !== false;/.test(handlerSrc), handlerSrc.slice(0, 200));
+  ok('…reading !== false, so an older server that predates the field still seals',
+    !/res\.recorded === true/.test(handlerSrc));
+  ok('confetti fires only for a signature that was actually recorded',
+    /if \(decision === 'accepted' && wasRecorded\) fireWebConfetti\(\);/.test(handlerSrc),
+    handlerSrc.slice(handlerSrc.indexOf('fireWebConfetti') - 200, handlerSrc.indexOf('fireWebConfetti') + 60));
+  ok('…and no receipt hash is kept for a row this device did not create',
+    /var stamp = wasRecorded \? \(res\.document_hash \|\| out\.clientHash \|\| null\) : null;/.test(handlerSrc));
+  ok('…and the name and time shown are the ORIGINAL signer\'s, not this person\'s',
+    /signer: wasRecorded \? result\.signerName : \(res\.signer_name \|\| null\)/.test(handlerSrc));
+  ok('a decline refused because the proposal is already accepted is explained, not generic',
+    /proposal_already_accepted/.test(portalHtml)
+    && /already been accepted, so a decline cannot be filed/.test(portalHtml));
+  // Substantial completion is the point at which the punch list is still open.
+  ok('the completion card does not call a job with an open punch list "finished"',
+    !/Your build is finished/.test(portalHtml)
+    && /recorded substantial completion\. They would like to hear from you\./.test(portalHtml));
+}
+
+// ── The two app-side surfaces ───────────────────────────────────────────────
+{
+  const cv = read('app/client-view.tsx');
+  ok('client-view renders the proposal the homeowner will see',
+    /title="Your Proposal"/.test(cv) && /proposalBlock\.scope\.map/.test(cv));
+  // It builds it with the SAME function the snapshot does. A hand-rolled
+  // preview is a preview of something else.
+  ok('…built with the shared buildPortalProposal, not re-derived',
+    /buildPortalProposal\(\{/.test(cv) && /from '@\/utils\/portalSnapshot'/.test(cv));
+  ok('…and reads a published snapshot\'s proposal straight off the snapshot',
+    /if \(isSnapshotMode\) return remote\.snapshot\?\.proposal;/.test(cv));
+  // THE HONESTY CONSTRAINT. This screen cannot take a signature — snapshot
+  // mode has no session and the anon write policies are gone — so it must not
+  // grow a button that looks like it can.
+  ok('client-view has NO proposal write path',
+    !/proposal_approvals/.test(cv) && !/portal_submit_proposal_approval/.test(cv),
+    'a button here would post nothing while looking like it had');
+  ok('…and says where the signature actually happens',
+    /open the portal link your contractor sent/.test(cv) && /This view is read-only/.test(cv));
+  ok('…and repeats that accepting is not signing the agreement',
+    /PROPOSAL_NOT_A_CONTRACT_NOTE/.test(cv));
+}
+{
+  const setup = read('app/client-portal-setup.tsx');
+  ok('the GC gets an explicit opt-in switch',
+    /onValueChange=\{val => handleToggle\('proposalApprovalEnabled', val\)\}/.test(setup));
+  ok('…which is OFF by default',
+    /proposalApprovalEnabled: false,/.test(setup));
+  // A switch that cannot do anything is worse than no switch — and the switch
+  // and the builder have to agree on what "cannot" means. They ask the SAME
+  // function. The old gate checked only `linkedEstimate.id && grandTotal > 0`,
+  // so the switch turned on (and read "Owner reviews the scope and price…")
+  // for a project with a contract already sent, whose proposal
+  // buildPortalProposal then refused to emit, with no explanation anywhere.
+  ok('…is disabled on exactly the conditions buildPortalProposal refuses on',
+    /disabled=\{!canProposeToClient\}/.test(setup)
+    && /proposalBlockReason\(project, contractQ\.data \?\? undefined\)/.test(setup));
+  ok('…and says WHY rather than sitting there dead',
+    /: proposalBlock\.gc\}/.test(setup));
+  ok('…and no longer hand-rolls its own gate beside the builder\'s',
+    !/hasPricedEstimate/.test(setup), 'two gates that can disagree is the bug');
+  // The switch does not, by itself, put anything in front of the homeowner:
+  // the proposal reaches them on the next snapshot push, and a portal page
+  // loaded before the feature shipped has no accept button at all.
+  ok('…and the GC is told what the switch does NOT do on its own',
+    /testID="proposal-rollout-note"/.test(setup)
+    && /next time this project publishes its portal/.test(setup));
+  ok('the section subtitle no longer promises the accept path unconditionally',
+    !/Let the client accept the proposal,/.test(setup)
+    && /accept the proposal once it is switched on below/.test(setup));
+  ok('the GC sees the signed decisions that come back',
+    /\.from\('proposal_approvals'\)/.test(setup) && /acceptances\.map\(/.test(setup));
+  ok('…including the record hash, which is what makes it evidence',
+    /Record SHA-256 \{a\.document_hash\.slice\(0, 24\)\}/.test(setup));
+  ok('…and a missing table (migration not applied yet) shows nothing rather than throwing',
+    /if \(error\) return \[\];/.test(setup));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6c. THE ASK AT SUBSTANTIAL COMPLETION, AND THE MESSAGE STARTERS (2026-09-13)
+//
+// Two cheap things a homeowner portal is supposed to do and this one did not:
+// ask for feedback when the job finishes, and make raising a request one tap
+// instead of a blank box.
+//
+// The honesty constraint governs both. Zuper's portal auto-triggers a
+// satisfaction SURVEY and converts a customer request into a JOB. MAGE does
+// neither — there is no survey table and no request-to-job conversion — so
+// what ships is a prompt that opens the message thread that already exists,
+// and both surfaces say that in so many words. What is pinned below is
+// precisely that: the prompts exist, and they do not claim to be more.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nportal owner — completion ask + message starters:');
+
+{
+  const base = { ...proposalProject, substantialCompletionDate: undefined } as unknown as Project;
+  ok('no completion date → no ask (nothing to ask about)',
+    buildFeedbackAsk(base, portalSettings, '2026-09-13') === undefined);
+
+  const future = { ...proposalProject, substantialCompletionDate: '2026-12-01' } as unknown as Project;
+  ok('a completion date still in the future → no ask',
+    buildFeedbackAsk(future, portalSettings, '2026-09-13') === undefined,
+    'asking "how did it go" before the job is done is worse than not asking');
+
+  const past = { ...proposalProject, substantialCompletionDate: '2026-08-01' } as unknown as Project;
+  expect('a completion date that has arrived → ask, carrying that date',
+    buildFeedbackAsk(past, portalSettings, '2026-09-13'), { completedOn: '2026-08-01' });
+  expect('the boundary day itself counts',
+    buildFeedbackAsk(past, portalSettings, '2026-08-01'), { completedOn: '2026-08-01' });
+  ok('the day before does not',
+    buildFeedbackAsk(past, portalSettings, '2026-07-31') === undefined);
+  ok('a disabled portal never asks',
+    buildFeedbackAsk(past, { ...portalSettings, enabled: false } as unknown as ClientPortalSettings, '2026-09-13') === undefined);
+  // A timestamp, not a calendar date, is what the app actually stores on some
+  // paths. It must not be read as "unknown".
+  expect('an ISO timestamp is normalised to its calendar day',
+    buildFeedbackAsk({ ...proposalProject, substantialCompletionDate: '2026-08-01T17:30:00.000Z' } as unknown as Project,
+      portalSettings, '2026-09-13'),
+    { completedOn: '2026-08-01' });
+
+  // And it reaches the snapshot both writers produce.
+  const snap = buildProposalSnapshot(past);
+  expect('the ask rides the snapshot', snap.feedbackAsk, { completedOn: '2026-08-01' });
+  expect('…and carries NO rating, score or survey field',
+    Object.keys(snap.feedbackAsk ?? {}).sort(), ['completedOn']);
+}
+{
+  ok('the portal renders the ask', /function renderFeedbackAsk\(/.test(portalHtml)
+    && portalHtml.includes("addSection('feedback'"));
+  ok('…only when there is somewhere to send a message',
+    /var showFeedbackAsk = !!feedbackAsk && !!data\.portalApi/.test(portalHtml));
+  ok('…and not after the homeowner has already written since completion',
+    /!homeownerRepliedSince\(data, feedbackAsk\.completedOn\)/.test(portalHtml)
+    && /function homeownerRepliedSince\(/.test(portalHtml));
+  ok('…and not after they have waved it off on this device',
+    /!feedbackDismissed\(data\.portalApi\.portalId\)/.test(portalHtml)
+    && /data-feedback-dismiss/.test(portalHtml));
+  // THE HONESTY LINE. Without it a homeowner can reasonably think they are
+  // leaving a public review or a star rating. Neither exists.
+  ok('the card says the buttons write a message, publish nothing, and record no rating',
+    /These write a message in your thread with your contractor\./.test(portalHtml)
+    && /Nothing is published anywhere/.test(portalHtml)
+    && /no rating is recorded/.test(portalHtml));
+  ok('there is no star / score widget anywhere on the page',
+    !/star-rating|data-rating|★/.test(portalHtml));
+  ok('the local reply check counts messages sent from this device too',
+    /loadLocalMessages\(data\)/.test(portalHtml.slice(
+      portalHtml.indexOf('function homeownerRepliedSince'),
+      portalHtml.indexOf('var FEEDBACK_PROMPTS'))),
+    'app/project-detail.tsx pushes a snapshot with messages: [], so an empty thread is not evidence of silence');
+}
+{
+  ok('the message composer offers tap-to-start prompts',
+    /var MESSAGE_PROMPTS = \[/.test(portalHtml) && /data-msg-prompt=/.test(portalHtml));
+  ok('…including asking for more work — the request a portal is judged on',
+    /Request additional work/.test(portalHtml));
+  ok('…and they fill the box rather than sending anything',
+    /msgInput\.value = opener;/.test(portalHtml)
+    && !/data-msg-prompt[\s\S]{0,400}postPortalMessage/.test(portalHtml));
+  ok('…under a heading that says what actually happens to them',
+    /Start a message — your contractor reads these/.test(portalHtml));
+  // Zuper converts a portal request into a job. MAGE does not, and must not
+  // imply it.
+  ok('nothing on the page claims a request becomes a job automatically',
+    !/automatically (creates|converted|becomes) a job/i.test(portalHtml));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

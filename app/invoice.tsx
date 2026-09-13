@@ -42,9 +42,10 @@ import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { useAuth } from '@/contexts/AuthContext';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
-import type { InvoiceLineItem, Invoice, InvoiceStatus, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
+import type { InvoiceLineItem, Invoice, InvoiceStatus, PaymentTerms, PaymentMethod, InvoicePayment } from '@/types';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { buildRetainageReleasePatch, PAYMENT_TERM_DAYS } from '@/utils/retainage';
 
 // Happy-path lifecycle for an invoice. partially_paid + overdue map back to
 // "Sent" in the visual since the invoice is mid-flight to "Paid"; the
@@ -108,14 +109,15 @@ const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
 ];
 
+// The day counts come from utils/retainage.PAYMENT_TERM_DAYS, which
+// app/retention.tsx's project-level release reads too: a release restarts the
+// payment clock, and two surfaces restarting it by two different switches is a
+// drift waiting to happen. The `new Date(issueDate)` site stays here — four
+// other call sites need this function, and scripts/validate-calendar-date.ts
+// carries a dated ALLOWED entry for exactly this snippet.
 function getDueDate(issueDate: string, terms: PaymentTerms): string {
   const date = new Date(issueDate);
-  switch (terms) {
-    case 'net_15': date.setDate(date.getDate() + 15); break;
-    case 'net_30': date.setDate(date.getDate() + 30); break;
-    case 'net_45': date.setDate(date.getDate() + 45); break;
-    case 'due_on_receipt': break;
-  }
+  date.setDate(date.getDate() + (PAYMENT_TERM_DAYS[terms] ?? 0));
   return date.toISOString();
 }
 
@@ -1271,6 +1273,17 @@ function InvoiceInner() {
     );
   }, [existingInvoice, legacyTaxBasisRetention, updateInvoice]);
 
+  // MONEY / RETAINAGE-1: the mechanics of a release — the cap, the re-open, the
+  // fresh due date, the dunning reset, the pay-link clear — now live in
+  // utils/retainage.buildRetainageReleasePatch, because app/retention.tsx
+  // releases retainage across a whole job and a second copy of this arithmetic
+  // is how this repo has produced double-billing before. This handler keeps the
+  // things only a screen can do: validating the typed amount with a message a
+  // human reads, and re-minting the Stripe link.
+  //
+  // The LIVE editor figures are passed over the stored row (subtotal,
+  // retentionPctValue, retentionAmount, amountPaid), exactly as before, so a
+  // draft mid-edit releases against what is on screen.
   const handleReleaseRetention = useCallback(() => {
     if (!existingInvoice) return;
     const amt = parseFloat(retentionReleaseAmount) || 0;
@@ -1286,49 +1299,36 @@ function InvoiceInner() {
     // into the balance due / forecast income; the cash is recorded later as a
     // payment ("Record Payment"), never here. No payment method is collected
     // because nothing has been paid yet.
-    const release: RetentionRelease = {
-      id: createId('ret'),
-      date: new Date().toISOString(),
-      amount: amt,
-      note: retentionReleaseNote.trim() || undefined,
-    };
-    const newReleased = retentionReleased + amt;
-    const newBalance = netBalanceDue({
-      totalDue, amountPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased: newReleased,
-    });
-    updateInvoice(existingInvoice.id, {
-      retentionReleased: newReleased,
-      retentionReleases: [...(existingInvoice.retentionReleases || []), release],
-      // A release on a SETTLED invoice reopens it: the stored 'paid' used to
-      // survive this write, and every reader that trusts stored status —
-      // dunning's cron query, the portal pill, this screen's own gates — kept
-      // treating the released $10,000 as already collected. Reopen to
-      // partially_paid when money has been received, else sent.
-      ...(existingInvoice.status === 'paid' && newBalance > 0.01
-        ? {
-            status: amountPaid > 0 ? 'partially_paid' as const : 'sent' as const,
-            // The released money became collectible today, not on the original
-            // due date: without a fresh dueDate the A/R report ages it from the
-            // old date and dunning's first run would send a FINAL NOTICE for a
-            // balance that is hours old. Restart the clock and the dunning stage.
-            dueDate: getDueDate(new Date().toISOString(), existingInvoice.paymentTerms),
-            dunningStage: 0,
-          }
-        : {}),
-      // The balance just grew; a link minted for the old balance would charge
-      // the wrong amount (MONEY-F2). Clear it locally so nothing here offers it
-      // before the re-mint below lands.
-      payLinkUrl: undefined,
-      payLinkId: undefined,
-      payLinkAmount: undefined,
-    });
+    const outcome = buildRetainageReleasePatch(
+      {
+        ...existingInvoice,
+        // Inline, like the MONEY-05 read sites: these are the LIVE editor
+        // figures being read, not one of the three persist sites, and the
+        // write-site guard in scripts/validate-invoice-billing.ts counts the
+        // standalone-line spelling.
+        totalDue, amountPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,
+      },
+      amt,
+      {
+        now: new Date().toISOString(),
+        makeId: () => createId('ret'),
+        dueDateFor: getDueDate,
+        note: retentionReleaseNote,
+      },
+    );
+    if (!outcome) {
+      showAlert('Exceeds Pending', `Only ${formatCurrency(retentionPending)} of retention is pending. Reduce the amount.`);
+      return;
+    }
+    updateInvoice(existingInvoice.id, outcome.patch);
     // MONEY-F2: pay_link_* are server-owned, so the local clear is undone by
     // the next refetch. When a link is live for the old balance, re-mint for
     // the new one — create-payment-link retires the replaced link on Stripe
     // (there is no standalone deactivate endpoint). Fire-and-forget; the
     // release is recorded either way, and a failed mint leaves the stale link
     // hidden behind payLinkMatchesBalance until Send / Regenerate re-mints.
-    if (existingInvoice.payLinkUrl && newBalance > 0) {
+    const newBalance = outcome.newBalance;
+    if (outcome.needsPayLinkRemint) {
       void mintPayLinkFor(existingInvoice, newBalance).catch((err) => {
         console.warn('[Invoice] re-mint after retention release failed:', err);
       });
@@ -1337,7 +1337,7 @@ function InvoiceInner() {
     setRetentionReleaseAmount('');
     setRetentionReleaseNote('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Retention Released', `${formatCurrency(amt)} is now collectible. Regenerate the pay link or send the invoice to bill it; record the payment when it arrives.`);
+    showAlert('Retention Released', `${formatCurrency(outcome.amount)} is now collectible. Regenerate the pay link or send the invoice to bill it; record the payment when it arrives.`);
   }, [existingInvoice, retentionReleaseAmount, retentionReleaseNote, retentionPending, retentionReleased, totalDue, amountPaid, subtotal, retentionPctValue, retentionAmount, updateInvoice, mintPayLinkFor]);
 
   // Use the effective status so an unpaid-but-past-due invoice flips to "overdue"

@@ -23,16 +23,23 @@
 //
 // Run via: bun run test:cashflow-retention
 
-import { generateForecast, calculateSummary, pendingRetention } from '../utils/cashFlowEngine';
+import {
+  generateForecast, calculateSummary, pendingRetention, getEffectiveStartingBalance,
+} from '../utils/cashFlowEngine';
 import { netBalanceDue } from '../utils/invoiceBilling';
+import {
+  summarizeProjectRetainage, planRetainageReduction, buildProjectRetainageRelease,
+  nextRetainageWrite, type RetainageReleaseOutcome,
+} from '../utils/retainage';
 import type { Invoice } from '../types';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 let failures = 0;
+let passes = 0;
 function check(label: string, cond: boolean, detail?: string) {
-  if (cond) { console.log('  ✓', label); }
+  if (cond) { passes++; console.log('  ✓', label); }
   else { console.error('  ✗', label, detail ? `\n      ${detail}` : ''); failures++; }
 }
 function eq(label: string, actual: number, expected: number, tol = 0.01) {
@@ -213,8 +220,149 @@ eq('forecast income equals netBalanceDue — one formula, not two',
   }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The write path, modelled the way the app actually writes.
+//
+// This section used to apply a release with ONE simultaneous
+// `job.map(inv => outcome ? {...inv, ...patch} : inv)`. The app has no such
+// write. contexts/ProjectContext.updateInvoice (line 2807) is
+// `useCallback((id, updates) => { const updated = invoices.map(…);
+// setInvoices(updated); … }, [invoices, …])` — it rebuilds the whole array from
+// the array THIS RENDER captured, so N calls in one handler tick each start
+// from the same unchanged list and only the last survives. Substituting the
+// correct write for the broken one and then certifying the result is how this
+// file read 40 passed / 0 failed while a 14-invoice closeout showed $65,000
+// still held on the device.
+//
+// `reactStore` reproduces the stale closure. `commit()` is React re-rendering:
+// the closure is recaptured from committed state. `drainThroughReact` is the
+// shipped drain — one write per commit, sequenced by the same
+// utils/retainage.nextRetainageWrite the screen's effect calls.
+// `drainInOneTick` is the old bug, kept as a NEGATIVE CONTROL so the model is
+// provably able to see it rather than being green by construction.
+// ─────────────────────────────────────────────────────────────────────────────
+function reactStore(initial: Invoice[]) {
+  let committed = initial;
+  let closure = initial;
+  return {
+    get state() { return committed; },
+    commit() { closure = committed; },
+    updateInvoice(id: string, patch: Partial<Invoice>) {
+      committed = closure.map(inv => (inv.id === id ? ({ ...inv, ...patch } as Invoice) : inv));
+    },
+  };
+}
+
+function drainThroughReact(initial: Invoice[], outcomes: RetainageReleaseOutcome[]): Invoice[] {
+  const store = reactStore(initial);
+  let pending: readonly RetainageReleaseOutcome[] = outcomes;
+  // +1: the last pass is the one that finds nothing left and fires the alert.
+  for (let i = 0; i <= outcomes.length; i++) {
+    store.commit();
+    const { write, remaining } = nextRetainageWrite(pending);
+    if (!write) break;
+    store.updateInvoice(write.invoiceId, write.patch);
+    pending = remaining;
+  }
+  return store.state;
+}
+
+function drainInOneTick(initial: Invoice[], outcomes: RetainageReleaseOutcome[]): Invoice[] {
+  const store = reactStore(initial);
+  store.commit();
+  outcomes.forEach(o => store.updateInvoice(o.invoiceId, o.patch));
+  return store.state;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RETAINAGE-1 — a PROJECT-LEVEL release reaches the forecast exactly once.
+//
+// The whole point of the new path is that a GC steps the withholding down
+// across every invoice on a job in one action. The forecast is the surface
+// that answers "can I make payroll", so the thing that must be true is that
+// the money released across N invoices arrives once, and that pressing the
+// same target a second time adds nothing — a step-down that double-counts
+// itself in the runway is worse than no step-down at all.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nproject-level retainage release (steps down once, not twice):');
+{
+  // Three progress invoices, all past their terms so the money lands in week 0.
+  const issued = new Date(today); issued.setDate(issued.getDate() - 40);
+  const mk = (id: string, subtotal: number): Invoice => invoice({
+    id, number: Number(id.slice(1)), subtotal, totalDue: subtotal,
+    amountPaid: subtotal * 0.9, status: 'paid', retentionPercent: 10,
+    issueDate: iso(issued), dueDate: iso(issued),
+  });
+  const job: Invoice[] = [mk('i1', 10_000), mk('i2', 20_000), mk('i3', 30_000)];
+
+  eq('nothing is collectible while the full 10% is held', forecast(job).totalIncome, 0);
+
+  const summary = summarizeProjectRetainage('p1', job);
+  eq('the job is holding 10% of $60,000 of work value', summary.pending, 6_000);
+
+  const ctx = {
+    now: iso(today),
+    makeId: (() => { let n = 0; return () => `rel${++n}`; })(),
+    dueDateFor: (isoDate: string) => isoDate,
+  };
+  const step = planRetainageReduction(summary, 5);
+  const applied = buildProjectRetainageRelease(step, job, ctx);
+  eq('stepping to 5% releases half of it', applied.released, 3_000);
+
+  // NEGATIVE CONTROL. The write the screen used to do: three updateInvoice
+  // calls in one tick, against one captured array. If this passed, the model
+  // above would be proving nothing.
+  const released = (list: Invoice[]) => list.filter(inv => (inv.retentionReleased ?? 0) > 0).map(inv => inv.id);
+  const oneTick = drainInOneTick(job, applied.outcomes);
+  check('CONTROL — the old one-tick loop kept only the LAST invoice release',
+    JSON.stringify(released(oneTick)) === JSON.stringify(['i3']), `got ${JSON.stringify(released(oneTick))}`);
+  eq('…and the forecast would have carried $1,500 of the $3,000 released',
+    forecast(oneTick).totalIncome, 1_500);
+
+  const afterStep = drainThroughReact(job, applied.outcomes);
+  check('every one of the 3 releases survives the drain',
+    JSON.stringify(released(afterStep)) === JSON.stringify(['i1', 'i2', 'i3']),
+    `got ${JSON.stringify(released(afterStep))}`);
+  eq('…and the forecast carries that $3,000 exactly once', forecast(afterStep).totalIncome, 3_000);
+  eq('…while the other $3,000 stays reported as held, with no date on it',
+    pendingRetention(afterStep), 3_000);
+
+  // The repeatability property, measured where it would hurt: the runway.
+  const again = planRetainageReduction(summarizeProjectRetainage('p1', afterStep), 5);
+  const appliedAgain = buildProjectRetainageRelease(again, afterStep, ctx);
+  eq('pressing the same 5% target again releases nothing', appliedAgain.released, 0);
+  // Measured, not assumed: with the planner's already-at-target skip removed
+  // the line above STAYS GREEN, because buildRetainageReleasePatch refuses a
+  // zero-dollar release on its own. Two protections, and the end-to-end
+  // assertion only proves that at least one of them is alive. This one proves
+  // the planner's, so a mutation to either goes red somewhere.
+  check('…and the plan emits no allocations at all the second time', again.allocations.length === 0,
+    `got ${again.allocations.length}`);
+  const afterAgain = drainThroughReact(afterStep, appliedAgain.outcomes);
+  eq('…so the forecast does not count the step-down twice', forecast(afterAgain).totalIncome, 3_000);
+
+  // Closeout: the remaining 5%.
+  const closeoutPlan = planRetainageReduction(summarizeProjectRetainage('p1', afterStep), 0);
+  const closeout = buildProjectRetainageRelease(closeoutPlan, afterStep, ctx);
+  const afterCloseout = drainThroughReact(afterStep, closeout.outcomes);
+  eq('closeout releases the remaining 5%', closeout.released, 3_000);
+  eq('…and the forecast now carries the whole $6,000, once', forecast(afterCloseout).totalIncome, 6_000);
+  eq('…with nothing left reported as held', pendingRetention(afterCloseout), 0);
+
+  // A release is COLLECTIBLE, not cash. Same rule MONEY-F7 fixed for the
+  // single-invoice path, re-checked for the project-level one.
+  const asOf = iso(new Date(today.getTime() + 86_400_000));
+  eq('a project-level release does not move the bank balance',
+    getEffectiveStartingBalance(50_000, asOf, afterCloseout), 50_000);
+}
+
+const total = passes + failures;
 if (failures > 0) {
-  console.error(`\n✗ validate-cashflow-retention: ${failures} failure(s)\n`);
+  console.error(`\n✗ validate-cashflow-retention: ${failures} failure(s) of ${total}\n`);
   process.exit(1);
 }
-console.log('\n26 passed, 0 failed\n');
+// Counted, not remembered. This line used to read a hard-coded "26 passed"
+// while the file actually ran 28 checks — a number nobody measured, in a file
+// whose entire subject is not reporting money you cannot back up.
+console.log(`\n${passes} passed, 0 failed\n`);

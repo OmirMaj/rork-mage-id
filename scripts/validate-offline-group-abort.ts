@@ -170,14 +170,26 @@ ok('a flush with no session sends nothing and keeps everything (B1b)',
 // The ours/not-ours split lives in one exported pure function so the flush, the
 // depth hook and the sign-out dialog cannot drift apart on what "queued" means.
 ok('entries tagged for another user are skipped, not dispatched (B1d)',
-  /if \(m\.userId === sessionUserId\) own\.push\(m\);/.test(code)
+  /if \(tagged\.userId === sessionUserId\) own\.push\(tagged\);/.test(code)
     && /else foreign\.push\(m\);/.test(code)
     && /partitionQueueForSession\(queue, flushUserId, marker\)/.test(code),
   'the previous tenant\'s writes must never go out under this JWT');
+// The adoption rule moved into `adoptUntaggedForSession` (2026-09-13) so the
+// DROP path could apply the identical rule: the queue-cap overflow used to hand
+// notifyDroppedWrites raw rows, so a legacy untagged entry counted as pending
+// here was recorded in the failure ledger as nobody's — the depth ticked down
+// and nothing turned red. One function, one rule, two callers. Behaviour is
+// executed in __tests__/sync/offline-queue.test.ts (both directions of the
+// marker), which is what actually fails if the rule changes; this pin only
+// keeps the split from being re-inlined into one of them.
 ok('an untagged entry is adopted only when the last-user marker names the session user (B1a legacy rule)',
-  /else if \(!m\.userId && marker === sessionUserId\) own\.push\(\{ \.\.\.m, userId: sessionUserId \}\);/.test(code)
+  /if \(!m\.userId && marker === sessionUserId\) return \{ \.\.\.m, userId: sessionUserId \};/.test(code)
+    && /const tagged = adoptUntaggedForSession\(m, sessionUserId, marker\);/.test(code)
     && /AsyncStorage\.getItem\(LAST_USER_ID_KEY\)/.test(code),
   'pre-tagging entries need the device marker to vouch for them');
+ok('…and the DROP path applies that same rule before the ledger is written',
+  /droppedEntries\.map\(\(m\) => adoptUntaggedForSession\(m, userId, marker\)\)/.test(code),
+  'a cap-overflow drop recorded as nobody\'s is invisible to the red badge that exists to report it');
 // A4 — getSession() is not a local read: with an expired access token it goes
 // to the network FIRST, so an enqueue on a captive-portal Wi-Fi stalled behind
 // it, and a write made after an hour offline was queued UNTAGGED.
@@ -247,8 +259,15 @@ ok('a flush reports remaining and foreign separately (A3)',
   ok('OfflineSyncManager backs off on `remaining` alone, never on foreign entries (A3)',
     /remaining: res\.remaining \+ photos\.remaining/.test(layout) && !/res\.foreign/.test(layout),
     'another tenant\'s queue is the tenant switch\'s to drop, not a reason to retry forever');
+  // NAMES THE HOOK, NOT THE PILL. components/OfflineSyncPill moved to
+  // hooks/useSyncStatus (2026-09-13) — which counts all three queues and the
+  // failure ledger — so this line no longer guards any rendered surface, and
+  // saying "the depth pill" made it look as though it did. The live A3
+  // assertions for what the pill actually reads are in
+  // scripts/validate-sync-status.ts §9. This stays only because
+  // useOfflineQueueDepth is still exported; it should go with the hook.
   const depthHook = readFileSync(join(ROOT, 'hooks', 'useOfflineQueueDepth.ts'), 'utf8');
-  ok('the depth pill counts only this session\'s entries (A3)',
+  ok('useOfflineQueueDepth (no consumer; NOT the pill) counts only this session\'s entries (A3)',
     /getOwnOfflineQueue\(\)/.test(depthHook) && !/[^n]getOfflineQueue\(\)/.test(depthHook));
   const settings = readFileSync(join(ROOT, 'app', '(tabs)', 'settings', 'index.tsx'), 'utf8');
   ok('the sign-out dialog counts only this session\'s entries (A3)',

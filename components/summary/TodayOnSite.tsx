@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { CalendarClock, ChevronRight } from 'lucide-react-native';
+import { CalendarClock, ChevronRight, HardDriveDownload } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
 import { chipInitials, type TodayTask } from '@/utils/summaryBriefing';
+import { useFieldDayPack } from '@/hooks/useFieldDayPack';
 
 interface TodayOnSiteProps {
   tasks: TodayTask[];
@@ -17,6 +18,26 @@ interface TodayOnSiteProps {
 export function TodayOnSite({ tasks, jobCount, onPressTask }: TodayOnSiteProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // OFFLINE READINESS, stated on the card that names the day's work.
+  //
+  // The text on this card is already readable with no signal — projects and
+  // their schedule tasks persist through ProjectContext's write-through cache,
+  // as do the punch list, the subs and the contacts. What was NOT guaranteed
+  // was the drawings, and nothing anywhere told the user either way. The hook
+  // reads a record of what the day pack actually warmed (measured, not
+  // requested) and how old it is; `summary` is the only string we are allowed
+  // to show, and it downgrades itself to "may be out of date" and then to
+  // "expired" on its own. See utils/fieldDayPackCore.ts.
+  //
+  // Read-only, self-contained: the parent passes no prop for this, so the card
+  // can state its own freshness without every caller learning about packs.
+  //
+  // `jobCount` goes in as the DENOMINATOR. "Saved for offline: 4 sheets across
+  // 1 job" is a true sentence and a false impression on a two-job day where the
+  // second job has nothing on the device — the super reads coverage and drives
+  // to the site that has none. With the day's count, the line names the
+  // shortfall instead of leaving it to be inferred.
+  const dayPack = useFieldDayPack(jobCount);
 
   return (
     <View style={styles.card} testID="summary-today">
@@ -60,6 +81,20 @@ export function TodayOnSite({ tasks, jobCount, onPressTask }: TodayOnSiteProps) 
           </TouchableOpacity>
         ))
       )}
+
+      {/* Only shown when there IS work today — an offline-readiness line under
+          "Nothing scheduled on site today" is noise about a day with nothing
+          to be ready for — and only once the hook has something true to say.
+          An empty `summary` means the record has not been read yet, or the
+          platform has no offline guarantee to describe; rendering a
+          placeholder there would flash "nothing is saved" at a user whose
+          plans are in fact on the device. */}
+      {tasks.length > 0 && dayPack.summary.length > 0 ? (
+        <View style={styles.offlineRow} testID="summary-today-offline">
+          <HardDriveDownload size={12} color={colors.textMuted} strokeWidth={1.9} />
+          <Text style={styles.offlineText} numberOfLines={2}>{dayPack.summary}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -71,6 +106,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2 },
   headerMeta: { marginLeft: 'auto' as const, fontSize: 11, fontWeight: '700' as const, color: t.textMuted },
   empty: { fontSize: 13, color: t.textMuted, fontWeight: '500' as const, paddingVertical: 8, textAlign: 'center' as const },
+  offlineRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: t.line,
+  },
+  offlineText: { flex: 1, fontSize: 10.5, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.05 },
   row: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 11, paddingVertical: 9 },
   rowDivider: { borderTopWidth: 1, borderTopColor: t.line },
   chip: { width: 30, height: 30, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const },

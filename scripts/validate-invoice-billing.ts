@@ -50,6 +50,20 @@ import {
   type AIAPayApplication,
   type AIASOVLine,
 } from '../utils/aiaBilling';
+import {
+  summarizeProjectRetainage,
+  planRetainageRelease,
+  planRetainageReduction,
+  buildRetainageReleasePatch,
+  buildProjectRetainageRelease,
+  nextRetainageWrite,
+  hasPercentageBasis,
+  retainageReadiness,
+  dueDateForTerms,
+  PAYMENT_TERM_DAYS,
+  RETAINAGE_SOURCES,
+  type RetainageReleaseOutcome,
+} from '../utils/retainage';
 import { buildPortalSnapshot } from '../utils/portalSnapshot';
 import { aiaRowToSaved, savedToAiaRow, aiaTotalsFromLines } from '../utils/projectContextPure';
 import type { SavedAIAPayApp } from '../types';
@@ -251,8 +265,21 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       (code.match(/void mintPayLinkFor\(existingInvoice, newBalance\)/g) ?? []).length, 2);
     eq('a draft total change clears payLinkAmount together with url/id',
       /totalChanged \? \{ payLinkUrl: undefined, payLinkId: undefined, payLinkAmount: undefined \}/.test(code), true);
+    // RETAINAGE-1 moved this mechanic out of the screen and into
+    // utils/retainage.buildRetainageReleasePatch, because app/retention.tsx
+    // now releases across a whole job and a second copy of it is how this repo
+    // has produced double-billing before. The guard follows the code. The
+    // BEHAVIOUR is asserted by executing the builder further down ("a partial
+    // release on a SETTLED invoice reopens it"); this one only pins the shape
+    // so a refactor cannot quietly drop the re-open branch.
+    const retainageMod = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'utils', 'retainage.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
     eq('releasing retention on a stored-paid invoice reopens it',
-      /existingInvoice\.status === 'paid' && newBalance > 0\.01[\s\S]{0,120}status: amountPaid > 0 \? 'partially_paid'/.test(code), true);
+      /target\.status === 'paid' && newBalance > 0\.01/.test(retainageMod)
+      && /amountPaid > 0 \? 'partially_paid' : 'sent'/.test(retainageMod), true);
+    eq('…and the screen no longer carries its own copy of that branch',
+      /status === 'paid' && newBalance > 0\.01/.test(code), false);
   }
   // Code-health test #9: a 0% progress line bills nothing.
   close('progressSubtotal on a 0% progress invoice is 0', progressSubtotal([{ total: 10000 }], true, 0), 0);
@@ -1046,6 +1073,470 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     && /before sales tax/.test(screen), true);
   eq('…and the explainer defines the term for a GC who has never met it',
     /term="Retention \(Retainage\)"/.test(screen), true);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RETAINAGE-1 — project-level retainage release (utils/retainage.ts).
+//
+// THE GAP: Knowify tracks retainage by phase and reminds you to bill it; MAGE
+// released it one invoice at a time from inside each invoice. On a job with
+// fourteen progress invoices that was fourteen taps at closeout, and the one a
+// contractor forgets never gets paid.
+//
+// THE RISK IN FIXING IT: a second way to release the same money. Every
+// assertion below either executes the shipped planner/patch builder, or proves
+// that the second path does not exist.
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const retInv = (over: Partial<Invoice>): Invoice => ({
+    id: 'r1', number: 1, projectId: 'pR', type: 'progress',
+    issueDate: '2026-01-01T10:00:00.000Z', dueDate: '2026-01-31T10:00:00.000Z',
+    paymentTerms: 'net_30', notes: '', lineItems: [],
+    subtotal: 10_000, taxRate: 0, taxAmount: 0, totalDue: 10_000, amountPaid: 0,
+    status: 'sent', payments: [],
+    createdAt: '2026-01-01T10:00:00.000Z', updatedAt: '2026-01-01T10:00:00.000Z',
+    ...over,
+  });
+  // Three progress invoices on one job, 10% retainage on each work value.
+  const three: Invoice[] = [
+    retInv({ id: 'a', number: 1, subtotal: 10_000, totalDue: 10_000, retentionPercent: 10, issueDate: '2026-01-01T10:00:00.000Z' }),
+    retInv({ id: 'b', number: 2, subtotal: 20_000, totalDue: 20_000, retentionPercent: 10, issueDate: '2026-02-01T10:00:00.000Z' }),
+    retInv({ id: 'c', number: 3, subtotal: 30_000, totalDue: 30_000, retentionPercent: 10, issueDate: '2026-03-01T10:00:00.000Z' }),
+  ];
+  const ctxFor = (note?: string) => {
+    let n = 0;
+    return {
+      now: '2026-06-01T12:00:00.000Z',
+      makeId: () => `rel${++n}`,
+      dueDateFor: (iso: string, terms: Invoice['paymentTerms']) => {
+        const d = new Date(iso);
+        if (terms === 'net_15') d.setDate(d.getDate() + 15);
+        if (terms === 'net_30') d.setDate(d.getDate() + 30);
+        if (terms === 'net_45') d.setDate(d.getDate() + 45);
+        return d.toISOString();
+      },
+      note,
+    };
+  };
+
+  const s0 = summarizeProjectRetainage('pR', three);
+  close('the project summary holds 10% of $60,000 of work value', s0.pending, 6_000);
+  close('…measured against the work value, not the invoice totals', s0.workValue, 60_000);
+  eq('…and it is 10.00% of it', Number(s0.pendingPercent?.toFixed(4)), 10);
+  eq('…across three invoices, oldest first', s0.invoices.map(r => r.invoice.id), ['a', 'b', 'c']);
+
+  // ── The oldest-first dollar plan, and the two money invariants. ──────────
+  const p1 = planRetainageRelease(s0, 2_500);
+  eq('a $2,500 release lands on the two oldest invoices', p1.allocations.map(a => [a.invoiceId, a.amount]),
+    [['a', 1_000], ['b', 1_500]]);
+  close('…and sums to exactly what was asked for', p1.allocated, 2_500);
+  eq('no allocation ever exceeds that invoice own withholding',
+    p1.allocations.every(a => a.amount <= s0.invoices.find(r => r.invoice.id === a.invoiceId)!.pending + 0.0001), true);
+
+  // Asking for more than is held allocates the held figure and SAYS the rest
+  // could not be released — never silently rounds the ask down.
+  const pOver = planRetainageRelease(s0, 10_000);
+  close('asking for more than is held releases only what is held', pOver.allocated, 6_000);
+  close('…and reports the shortfall rather than hiding it', pOver.unallocated, 4_000);
+  close('…leaving nothing withheld', pOver.pendingAfter, 0);
+
+  // Cent residual: $1,000.00 over three invoices whose pendings are 1000/2000/3000
+  // is trivially exact, so force the hard case — an amount that cannot divide.
+  const odd = summarizeProjectRetainage('pR', [
+    retInv({ id: 'x', number: 1, subtotal: 3_333.33, totalDue: 3_333.33, retentionPercent: 10, issueDate: '2026-01-01T10:00:00.000Z' }),
+    retInv({ id: 'y', number: 2, subtotal: 3_333.33, totalDue: 3_333.33, retentionPercent: 10, issueDate: '2026-02-01T10:00:00.000Z' }),
+    retInv({ id: 'z', number: 3, subtotal: 3_333.34, totalDue: 3_333.34, retentionPercent: 10, issueDate: '2026-03-01T10:00:00.000Z' }),
+  ]);
+  // Each 10% withholding rounds to 333.33, so the job holds 999.99 — not 1,000.
+  // Asking for 1,000 must release 999.99 and SAY the cent could not be found.
+  close('the job holds the rounded sum of its per-invoice withholdings', odd.pending, 999.99);
+  const pOddOver = planRetainageRelease(odd, 1_000);
+  close('…so a $1,000 ask releases 999.99', pOddOver.allocated, 999.99);
+  close('…and reports the missing cent instead of inventing it', pOddOver.unallocated, 0.01);
+  // The residual case proper: an ask that must split a withholding unevenly.
+  const pOdd = planRetainageRelease(odd, 500.01);
+  eq('a residual-producing release splits across invoices',
+    pOdd.allocations.map(a => [a.invoiceId, a.amount]), [['x', 333.33], ['y', 166.68]]);
+  close('…and sums to the exact ask', pOdd.allocated, 500.01);
+  eq('…to the cent, with no invented or lost penny',
+    pOdd.allocations.reduce((s, a) => s + Math.round(a.amount * 100), 0), 50_001);
+
+  // ── The percentage step-down: partial, per-invoice, and REPEATABLE. ──────
+  const step = planRetainageReduction(s0, 5);
+  eq('stepping 10% down to 5% halves every invoice withholding',
+    step.allocations.map(a => [a.invoiceId, a.amount]), [['a', 500], ['b', 1_000], ['c', 1_500]]);
+  close('…releasing exactly half the money', step.allocated, 3_000);
+  close('…and leaving 5% held', step.pendingAfter, 3_000);
+
+  const afterStep: Invoice[] = three.map(inv => {
+    const a = step.allocations.find(x => x.invoiceId === inv.id)!;
+    return { ...inv, retentionReleased: a.amount };
+  });
+  const s1 = summarizeProjectRetainage('pR', afterStep);
+  eq('the job is now holding 5.00%', Number(s1.pendingPercent?.toFixed(4)), 5);
+  const stepAgain = planRetainageReduction(s1, 5);
+  eq('pressing the same 5% target again releases NOTHING', stepAgain.allocations.length, 0);
+  close('…not one cent', stepAgain.allocated, 0);
+  eq('…and says why, per invoice', stepAgain.skipped.map(s => s.reason),
+    ['already_at_or_below_target', 'already_at_or_below_target', 'already_at_or_below_target']);
+  const closeout = planRetainageReduction(s1, 0);
+  close('and the closeout step to 0% releases exactly the remaining 5%', closeout.allocated, 3_000);
+  close('…landing at zero held', closeout.pendingAfter, 0);
+
+  // A stored-amount row with no work value cannot be stepped to a percentage:
+  // there is no denominator, and inventing one releases money on a guess.
+  const noBasis = summarizeProjectRetainage('pR', [
+    retInv({ id: 'nb', number: 9, subtotal: 0, totalDue: 5_000, retentionAmount: 500 }),
+  ]);
+  close('a row with no work value still shows as held', noBasis.pending, 500);
+  eq('…but a percentage target refuses to touch it', planRetainageReduction(noBasis, 5).allocations.length, 0);
+  eq('…and names the reason instead of guessing a basis',
+    planRetainageReduction(noBasis, 5).skipped.map(s => s.reason), ['no_work_value']);
+  close('…while the dollar path can still release it', planRetainageRelease(noBasis, 500).allocated, 500);
+
+  // ── The ONE patch builder — the same mechanics the invoice screen had. ───
+  const settled = retInv({
+    id: 'p', number: 5, subtotal: 100_000, totalDue: 100_000, amountPaid: 90_000,
+    retentionPercent: 10, status: 'paid', paymentTerms: 'net_30',
+    payments: [{ id: 'y1', date: '2026-01-05T10:00:00.000Z', amount: 90_000, method: 'check' }],
+    dueDate: '2026-01-31T10:00:00.000Z', dunningStage: 3, payLinkUrl: 'https://pay.example/abc',
+  });
+  const rel = buildRetainageReleasePatch(settled, 4_000, ctxFor('substantial completion'));
+  eq('a partial release on a SETTLED invoice reopens it', rel?.patch.status, 'partially_paid');
+  eq('…with the payment clock restarted from the release date, not the old due date',
+    rel?.patch.dueDate, '2026-07-01T12:00:00.000Z');
+  eq('…and the dunning stage reset, so no FINAL NOTICE for an hours-old balance',
+    rel?.patch.dunningStage, 0);
+  close('…the released money is collectible', rel?.newBalance ?? -1, 4_000);
+  // Asserting these read `undefined` is a TAUTOLOGY: deleting the keys from the
+  // patch entirely reads undefined too, and the mutation run proved it (this
+  // assertion stayed green with the clear removed). The patch must CARRY the
+  // keys — `updateInvoice` merges, so an absent key leaves the stale link on
+  // the row and the portal keeps offering a button minted for the old balance.
+  eq('…the stale pay link is dropped (MONEY-F2)',
+    (['payLinkUrl', 'payLinkId', 'payLinkAmount'] as const)
+      .map(k => Object.prototype.hasOwnProperty.call(rel!.patch, k) && rel!.patch[k] === undefined),
+    [true, true, true]);
+  eq('…and the caller is told to re-mint it', rel?.needsPayLinkRemint, true);
+  eq('…the release records no payment method (MONEY-F7)',
+    Object.prototype.hasOwnProperty.call(rel!.patch.retentionReleases![0], 'method'), false);
+  eq('…and carries the note the GC typed', rel?.patch.retentionReleases?.[0].note, 'substantial completion');
+
+  // THE DOUBLE-RELEASE GUARD. This is the cap that stops the project-level
+  // path from releasing money the per-invoice path would have refused.
+  eq('releasing more than is withheld is refused, not clamped',
+    buildRetainageReleasePatch(settled, 10_000.01, ctxFor()), null);
+  eq('releasing zero is refused', buildRetainageReleasePatch(settled, 0, ctxFor()), null);
+  eq('releasing a negative is refused', buildRetainageReleasePatch(settled, -500, ctxFor()), null);
+  eq('releasing NaN is refused', buildRetainageReleasePatch(settled, Number.NaN, ctxFor()), null);
+  const exact = buildRetainageReleasePatch(settled, 10_000, ctxFor());
+  close('…while releasing exactly the pending figure is allowed', exact?.amount ?? -1, 10_000);
+
+  // Sequential partial releases land exactly on the full figure and then stop.
+  const half1 = buildRetainageReleasePatch(settled, 6_000, ctxFor())!;
+  const mid = { ...settled, ...half1.patch } as Invoice;
+  const half2 = buildRetainageReleasePatch(mid, 4_000, ctxFor())!;
+  close('two partial releases total the full withholding', half1.amount + half2.amount, 10_000);
+  eq('…and the release ledger keeps both', (
+    [...(mid.retentionReleases ?? []), ...(half2.patch.retentionReleases ?? [])].length >= 2
+  ), true);
+  const done = { ...mid, ...half2.patch } as Invoice;
+  close('…nothing is left withheld', pendingRetentionHeld(done), 0);
+  eq('…and a third release is refused', buildRetainageReleasePatch(done, 0.01, ctxFor()), null);
+
+  // A release that does NOT settle-and-reopen leaves status alone.
+  const openInv = retInv({ id: 'o', number: 6, subtotal: 10_000, totalDue: 10_000, retentionPercent: 10, status: 'sent' });
+  const relOpen = buildRetainageReleasePatch(openInv, 1_000, ctxFor())!;
+  eq('a release on an unsettled invoice does not rewrite its status',
+    [relOpen.patch.status, relOpen.patch.dueDate, relOpen.patch.dunningStage], [undefined, undefined, undefined]);
+  eq('…and does not ask for a pay-link re-mint it never had', relOpen.needsPayLinkRemint, false);
+
+  // ── The project-level apply re-checks every allocation against the LIVE row.
+  const stalePlan = planRetainageRelease(s0, 6_000);
+  const movedUnderneath: Invoice[] = three.map(inv =>
+    inv.id === 'b' ? { ...inv, retentionReleased: 1_900 } : inv);
+  const applied = buildProjectRetainageRelease(stalePlan, movedUnderneath, ctxFor());
+  eq('an allocation that no longer fits the live row is REFUSED, not clamped',
+    applied.refused.map(a => a.invoiceId), ['b']);
+  close('…and the rest still release', applied.released, 4_000);
+  eq('…so nothing is written for the refused invoice',
+    applied.outcomes.some(o => o.invoiceId === 'b'), false);
+
+  // ── The MULTI-INVOICE WRITE, executed against the app's real semantics. ──
+  //
+  // The regex assertions below prove the screen calls the shared builder. They
+  // are structurally blind to how many times the call runs and what state each
+  // run reads, which is how a closeout that released $70,000 on the server and
+  // showed $65,000 still held on the device shipped green.
+  //
+  // `reactStore` is contexts/ProjectContext.updateInvoice (line 2807) as it is
+  // actually written: a useCallback over [invoices, …] doing `invoices.map(…)`
+  // — NOT a functional updater. Every call inside one handler tick maps the
+  // array that render captured. `commit()` is the re-render that recaptures it.
+  const reactStore = (initial: Invoice[]) => {
+    let committed = initial;
+    let closure = initial;
+    return {
+      get state() { return committed; },
+      commit() { closure = committed; },
+      updateInvoice(id: string, patch: Partial<Invoice>) {
+        committed = closure.map(inv => (inv.id === id ? ({ ...inv, ...patch } as Invoice) : inv));
+      },
+    };
+  };
+  // The shipped drain: app/retention.tsx applies ONE write per commit, sequenced
+  // by utils/retainage.nextRetainageWrite. Same function the screen's effect
+  // calls, so this executes shipped code rather than a retyped loop.
+  const drainThroughReact = (initial: Invoice[], outcomes: RetainageReleaseOutcome[]): Invoice[] => {
+    const store = reactStore(initial);
+    let pendingWrites: readonly RetainageReleaseOutcome[] = outcomes;
+    for (let i = 0; i <= outcomes.length; i++) {
+      store.commit();
+      const { write, remaining } = nextRetainageWrite(pendingWrites);
+      if (!write) break;
+      store.updateInvoice(write.invoiceId, write.patch);
+      pendingWrites = remaining;
+    }
+    return store.state;
+  };
+  // The bug, kept as a negative control so the model is provably able to see it.
+  const drainInOneTick = (initial: Invoice[], outcomes: RetainageReleaseOutcome[]): Invoice[] => {
+    const store = reactStore(initial);
+    store.commit();
+    outcomes.forEach(o => store.updateInvoice(o.invoiceId, o.patch));
+    return store.state;
+  };
+
+  // The scenario the feature exists for, at the size that made it visible:
+  // 14 progress invoices of $50,000 at 10%, closed out to 0%.
+  const fourteen: Invoice[] = Array.from({ length: 14 }, (_, i) => retInv({
+    id: `c${i + 1}`, number: i + 1, subtotal: 50_000, totalDue: 50_000,
+    retentionPercent: 10, issueDate: `2026-0${(i % 9) + 1}-01T10:00:00.000Z`,
+  }));
+  const bigPlan = planRetainageReduction(summarizeProjectRetainage('pR', fourteen), 0);
+  const bigApplied = buildProjectRetainageRelease(bigPlan, fourteen, ctxFor('closeout'));
+  close('a 14-invoice closeout releases the whole $70,000', bigApplied.released, 70_000);
+  eq('…as 14 separate writes', bigApplied.outcomes.length, 14);
+  const bigOneTick = drainInOneTick(fourteen, bigApplied.outcomes);
+  eq('CONTROL — writing them in one tick keeps only the last one',
+    bigOneTick.filter(inv => (inv.retentionReleased ?? 0) > 0).length, 1);
+  close('…leaving $65,000 of released money still showing as held',
+    bigOneTick.reduce((s, inv) => s + pendingRetentionHeld(inv), 0), 65_000);
+  const bigDrained = drainThroughReact(fourteen, bigApplied.outcomes);
+  eq('the drain lands all 14 releases in local state',
+    bigDrained.filter(inv => (inv.retentionReleased ?? 0) > 0).length, 14);
+  close('…so the screen shows the $70,000 the alert claims',
+    bigDrained.reduce((s, inv) => s + (inv.retentionReleased ?? 0), 0), 70_000);
+  close('…and nothing is left held', bigDrained.reduce((s, inv) => s + pendingRetentionHeld(inv), 0), 0);
+  eq('…each with its own release record, none overwritten',
+    bigDrained.every(inv => (inv.retentionReleases ?? []).length === 1), true);
+
+  // The follow-on corruption: a GC who sees stale state releases AGAIN. After
+  // the drain there is nothing left to release, which is the whole protection.
+  const secondPlan = planRetainageReduction(summarizeProjectRetainage('pR', bigDrained), 0);
+  eq('a second closeout on correctly-drained state allocates nothing',
+    secondPlan.allocations.length, 0);
+  const staleSecondPlan = planRetainageReduction(summarizeProjectRetainage('pR', bigOneTick), 0);
+  eq('CONTROL — on the stale state it would have re-released 13 invoices',
+    staleSecondPlan.allocations.length, 13);
+
+  // ── TWO SURFACES, ONE DOLLAR. The project view and the per-invoice button
+  // cannot both take it. app/invoice.tsx derives `retentionReleased` from the
+  // ProjectContext row (line 372, `existingInvoice?.retentionReleased ?? 0`),
+  // not from editor state, so once the drain has committed, the invoice screen
+  // is planning against the released row — and the cap in
+  // buildRetainageReleasePatch is re-read from it. Executed both ways round.
+  const twoSurface: Invoice[] = [retInv({
+    id: 'ts', number: 11, subtotal: 50_000, totalDue: 50_000, retentionPercent: 10,
+  })];
+  close('the invoice holds $5,000', pendingRetentionHeld(twoSurface[0]), 5_000);
+  // Project view first: step to 0%.
+  const tsPlan = planRetainageReduction(summarizeProjectRetainage('pR', twoSurface), 0);
+  const tsApplied = buildProjectRetainageRelease(tsPlan, twoSurface, ctxFor('project view'));
+  const tsAfter = drainThroughReact(twoSurface, tsApplied.outcomes);
+  close('the project view releases all $5,000', tsApplied.released, 5_000);
+  // Now the per-invoice button, on exactly the row the invoice screen would
+  // read, for exactly the figure the project view already took.
+  eq('…and the per-invoice button then refuses the same $5,000',
+    buildRetainageReleasePatch(tsAfter[0], 5_000, ctxFor('invoice screen')), null);
+  eq('…and refuses a single cent of it', buildRetainageReleasePatch(tsAfter[0], 0.01, ctxFor()), null);
+  close('…so the invoice holds nothing, not minus five thousand',
+    pendingRetentionHeld(tsAfter[0]), 0);
+  // Reverse order: per-invoice button first, then the project view.
+  const invFirst = buildRetainageReleasePatch(twoSurface[0], 5_000, ctxFor('invoice screen'))!;
+  const afterInvFirst: Invoice[] = [{ ...twoSurface[0], ...invFirst.patch } as Invoice];
+  const projAfter = planRetainageReduction(summarizeProjectRetainage('pR', afterInvFirst), 0);
+  eq('the project view then plans nothing on that invoice', projAfter.allocations.length, 0);
+  close('…and releases nothing',
+    buildProjectRetainageRelease(projAfter, afterInvFirst, ctxFor()).released, 0);
+  // The dangerous order: a project plan drawn BEFORE the invoice-screen release
+  // and applied after. The cap is re-read from the live row, so it is refused
+  // outright rather than clamped to a figure the GC was never shown.
+  const stalePlanTS = planRetainageReduction(summarizeProjectRetainage('pR', twoSurface), 0);
+  const staleApplied = buildProjectRetainageRelease(stalePlanTS, afterInvFirst, ctxFor());
+  close('a stale project plan applied after a per-invoice release takes $0', staleApplied.released, 0);
+  eq('…and reports the refusal', staleApplied.refused.map(a => a.invoiceId), ['ts']);
+
+  // ── A stored-DOLLAR hold has no percentage to step. ─────────────────────
+  // The pre-MISS-04 population: subtotal $100,000 holding a stored $10,800 (10%
+  // of the tax-inclusive total), no retentionPercent. Stepping it to a typed
+  // "10" released $800 against a basis that withholding never used.
+  const storedDollar = summarizeProjectRetainage('pR', [
+    retInv({ id: 'sd', number: 7, subtotal: 100_000, totalDue: 108_000, taxRate: 8, taxAmount: 8_000, retentionAmount: 10_800 }),
+  ]);
+  eq('hasPercentageBasis is false for a stored-dollar hold',
+    hasPercentageBasis({ retentionPercent: undefined, subtotal: 100_000 }), false);
+  eq('…and true for a percentage row', hasPercentageBasis({ retentionPercent: 10, subtotal: 100_000 }), true);
+  close('the stored-dollar row still shows the full $10,800 as held', storedDollar.pending, 10_800);
+  const sdStep = planRetainageReduction(storedDollar, 10);
+  eq('a 10% target releases NOTHING from it', sdStep.allocations.length, 0);
+  close('…not the $800 an invented percentage basis produced', sdStep.allocated, 0);
+  eq('…and names the reason', sdStep.skipped.map(s => s.reason), ['no_percentage_basis']);
+  // Closeout still works: releasing everything needs no denominator.
+  close('a 0% closeout releases the whole stored dollar figure',
+    planRetainageReduction(storedDollar, 0).allocated, 10_800);
+  close('…and the dollar path can still release it',
+    planRetainageRelease(storedDollar, 10_800).allocated, 10_800);
+
+  // ── The TWO denominators, reconciled. ───────────────────────────────────
+  // Seven $100,000 invoices at 10%. A $30,000 dollar release empties the three
+  // oldest; the job then reads 5.71% of work value. Tapping the 5% chip is a
+  // PER-INVOICE target and releases $20,000, not the ~$5,000 the job rate
+  // implies. The plan must carry the resulting job rate so the screen can show
+  // both before the money moves.
+  const seven: Invoice[] = Array.from({ length: 7 }, (_, i) => retInv({
+    id: `s${i + 1}`, number: i + 1, subtotal: 100_000, totalDue: 100_000,
+    retentionPercent: 10, issueDate: `2026-0${i + 1}-01T10:00:00.000Z`,
+  }));
+  const dollarPlan = planRetainageRelease(summarizeProjectRetainage('pR', seven), 30_000);
+  const afterDollar = drainThroughReact(seven, buildProjectRetainageRelease(dollarPlan, seven, ctxFor()).outcomes);
+  const sAfterDollar = summarizeProjectRetainage('pR', afterDollar);
+  eq('after a $30,000 release the job reads 5.71% of work value',
+    Number(sAfterDollar.pendingPercent?.toFixed(2)), 5.71);
+  const chip5 = planRetainageReduction(sAfterDollar, 5);
+  close('…and the 5% chip releases $20,000, not $5,000', chip5.allocated, 20_000);
+  eq('…so the plan reports the job rate it actually lands on',
+    Number(chip5.pendingPercentAfter?.toFixed(2)), 2.86);
+  eq('a dollar plan carries the same figure', Number(dollarPlan.pendingPercentAfter?.toFixed(2)), 5.71);
+  eq('…and it is null when there is no work value to divide by',
+    planRetainageReduction(summarizeProjectRetainage('pR', [
+      retInv({ id: 'nw', number: 8, subtotal: 0, totalDue: 500, retentionAmount: 500 }),
+    ]), 0).pendingPercentAfter, null);
+
+  // ── There is exactly ONE release path. ──────────────────────────────────
+  const here = dirname(fileURLToPath(import.meta.url));
+  const invScreen = readFileSync(join(here, '..', 'app', 'invoice.tsx'), 'utf8');
+  const retScreen = readFileSync(join(here, '..', 'app', 'retention.tsx'), 'utf8');
+  const stripComments = (src: string) => src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').filter(l => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+  const invCode = stripComments(invScreen);
+  const retCode = stripComments(retScreen);
+  eq('app/invoice.tsx releases through the shared builder',
+    /buildRetainageReleasePatch\(/.test(invCode), true);
+  eq('app/retention.tsx releases through the same module',
+    /buildProjectRetainageRelease\(/.test(retCode), true);
+  // The second-path detector: hand-appending to `retentionReleases` anywhere
+  // outside utils/retainage.ts IS a second way to release the same money.
+  eq('no screen hand-builds a retentionReleases append of its own',
+    /retentionReleases:\s*\[\s*\.\.\./.test(invCode) || /retentionReleases:\s*\[\s*\.\.\./.test(retCode), false);
+  eq('…and no screen writes retentionReleased directly',
+    /retentionReleased:\s*newReleased/.test(invCode), false);
+  // The project-level screen may hand updateInvoice ONE thing: the patch the
+  // shared builder produced. Any other argument shape is a second write path.
+  eq('the project-level release writes only the builder patch',
+    (retCode.match(/updateInvoice\(/g) ?? []).length, 1);
+  eq('…and that call passes the patch, nothing hand-assembled',
+    /updateInvoice\(write\.invoiceId, write\.patch\)/.test(retCode), true);
+  // …and it is DRAINED, not looped. A `forEach` over the outcomes calling
+  // updateInvoice is the shape that lost 13 of 14 releases; the executed proof
+  // is above, this stops the shape coming back.
+  eq('the release is drained one write per commit, not looped in one tick',
+    /nextRetainageWrite\(/.test(retCode), true);
+  // Any loop at all around the call, however it is spelled. (Written narrowly
+  // first — matching only `outcomes.forEach` — and the mutation run walked
+  // straight past it with `writeQueue.pending.forEach`.)
+  eq('…and no loop of any spelling hands updateInvoice more than one outcome',
+    /\.forEach\s*\([\s\S]{0,80}?updateInvoice\s*\(/.test(retCode)
+    || /\bfor\s*\([\s\S]{0,120}?\)\s*\{[\s\S]{0,200}?updateInvoice\s*\(/.test(retCode)
+    || /\.map\s*\([\s\S]{0,80}?updateInvoice\s*\(/.test(retCode), false);
+
+  // ── Both release surfaces restart the payment clock the same way. ───────
+  // A release re-opens a settled invoice with a fresh due date. Two surfaces
+  // computing that date from two hand-written switches is a drift; the day
+  // counts live in one table and both read it.
+  eq('the term table covers every payment term, and only those',
+    Object.keys(PAYMENT_TERM_DAYS).sort(), ['due_on_receipt', 'net_15', 'net_30', 'net_45']);
+  eq('…with the day counts the terms are named for',
+    [PAYMENT_TERM_DAYS.due_on_receipt, PAYMENT_TERM_DAYS.net_15, PAYMENT_TERM_DAYS.net_30, PAYMENT_TERM_DAYS.net_45],
+    [0, 15, 30, 45]);
+  eq('dueDateForTerms adds exactly those days',
+    (['due_on_receipt', 'net_15', 'net_30', 'net_45'] as const).map(t => Math.round(
+      (new Date(dueDateForTerms('2026-03-02T12:00:00.000Z', t)).getTime()
+        - new Date('2026-03-02T12:00:00.000Z').getTime()) / 86_400_000)),
+    [0, 15, 30, 45]);
+  // Wrapped: without the finite-time guard this does not return a wrong value,
+  // it THROWS RangeError out of toISOString() and takes the whole validator
+  // down with it. A crash is a build failure, but it is not a legible one — the
+  // run should name the assertion that broke.
+  eq('…and an unparseable issue instant returns the input rather than an Invalid Date',
+    (() => { try { return dueDateForTerms('not a date', 'net_30'); } catch { return 'THREW'; } })(),
+    'not a date');
+  eq('app/invoice.tsx computes its due date from the shared table',
+    /date\.setDate\(date\.getDate\(\) \+ \(PAYMENT_TERM_DAYS\[terms\] \?\? 0\)\)/.test(invCode), true);
+  eq('…and no longer carries a second switch over the terms',
+    /case 'net_15': date\.setDate/.test(invCode), false);
+  eq('the project-level release restarts the clock through the same helper',
+    /dueDateFor: dueDateForTerms,/.test(retCode), true);
+
+  // ── The reminder says only what the app can point at. ───────────────────
+  const nowD = new Date('2026-06-10T12:00:00.000Z');
+  const readyish = retainageReadiness({
+    pending: 6_000, projectStatus: 'completed', substantialCompletionDate: '2026-06-01T00:00:00.000Z',
+    punchTotal: 12, punchOpen: 0, lastRetainageInvoiceIso: '2026-03-01T10:00:00.000Z', now: nowD,
+  });
+  eq('completion recorded + punch list closed reads as due', readyish.level, 'due');
+  eq('…and every reason is a fact the app holds', readyish.reasons, [
+    'Substantial completion recorded 9 days ago.',
+    'All 12 punch items closed.',
+    'Last invoice holding retainage was issued 101 days ago.',
+  ]);
+  const emptyPunch = retainageReadiness({
+    pending: 6_000, projectStatus: 'completed', substantialCompletionDate: '2026-06-01T00:00:00.000Z',
+    punchTotal: 0, punchOpen: 0, now: nowD,
+  });
+  eq('an EMPTY punch list is not a cleared punch list', emptyPunch.level, 'watch');
+  eq('…and it says so rather than implying the punch is clear',
+    emptyPunch.reasons.includes('No punch list on file — nothing here says the punch is clear.'), true);
+  eq('…and never claims items were closed',
+    emptyPunch.reasons.some(r => /closed/.test(r)), false);
+  const openPunch = retainageReadiness({
+    pending: 6_000, projectStatus: 'in_progress', punchTotal: 12, punchOpen: 3, now: nowD,
+  });
+  eq('open punch items on a live job do not raise a flag', openPunch.level, 'none');
+  eq('an old invoice alone never escalates', retainageReadiness({
+    pending: 6_000, projectStatus: 'in_progress', punchTotal: 0, punchOpen: 0,
+    lastRetainageInvoiceIso: '2020-01-01T10:00:00.000Z', now: nowD,
+  }).level, 'none');
+  eq('nothing held means nothing to remind about', retainageReadiness({
+    pending: 0, projectStatus: 'closed', punchTotal: 5, punchOpen: 0, now: nowD,
+  }).level, 'none');
+
+  // ── The honesty layer on the legal copy. ────────────────────────────────
+  eq('every legal statement carries a URL and the date it was read',
+    RETAINAGE_SOURCES.every(s =>
+      /^https:\/\//.test(s.url) && /^\d{4}-\d{2}-\d{2}$/.test(s.readOn) && s.says.length > 0), true);
+  eq('…and each is labelled primary or secondary',
+    RETAINAGE_SOURCES.every(s => s.kind === 'primary' || s.kind === 'secondary'), true);
+  eq('the retention screen renders the citations, not a remembered rule',
+    /RETAINAGE_SOURCES\.map/.test(retCode) && /src\.readOn/.test(retCode), true);
+  eq('…alongside the disclaimer that this app applies none of it',
+    /RETAINAGE_LEGAL_DISCLAIMER/.test(retCode), true);
+  // The screen must not name a statute of its own. Every citation on it comes
+  // from RETAINAGE_SOURCES; a hand-typed "815 ILCS" or "Civil Code" in the JSX
+  // is a claim nobody dated.
+  eq('no statute is named in the screen own copy',
+    /(ILCS|U\.S\.C\.|Civil Code|§)/.test(retCode.replace(/RETAINAGE_SOURCES|RETAINAGE_LEGAL_DISCLAIMER/g, '')), false);
 }
 
 

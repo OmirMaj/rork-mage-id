@@ -54,7 +54,28 @@ assert(sum === view.projectTotal, `scope groups sum exactly to project total (go
 // Concrete (2 items) should be the largest group, markup baked in: 150000 * 1.25 = 187500
 const concrete = view.scopeGroups.find(g => g.key === '03');
 assert(!!concrete && concrete.total === 187500, `concrete group carries baked-in markup (got ${concrete?.total})`);
-assert(view.scopeGroups.every(g => g.total > 0), 'no empty scope groups');
+assert(view.scopeGroups.every(g => g.total !== 0), 'no empty scope groups');
+
+// A credit in its own division is SCOPE, and must survive to the client view.
+// Before 2026-09-13 the `> 0` filter dropped it and the drift fold folded its
+// magnitude into the largest surviving group, overstating that group's price.
+{
+  const credited = toClientEstimateView({
+    ...est,
+    baseTotal: 190000,
+    markupTotal: 0,
+    grandTotal: 190000,
+    items: [
+      mkItem({ name: 'Framing', csiDivision: '06', lineTotal: 200000 }),
+      mkItem({ name: 'Owner-supplied appliances credit', csiDivision: '11', lineTotal: -10000 }),
+    ],
+  });
+  const framing = credited.scopeGroups.find(g => g.key === '06');
+  const credit = credited.scopeGroups.find(g => g.key === '11');
+  assert(framing?.total === 200000, `framing is not inflated by the credit (got ${framing?.total})`);
+  assert(credit?.total === -10000, `the credit survives as its own line (got ${credit?.total})`);
+  assert(credited.scopeGroups.reduce((s, g) => s + g.total, 0) === 190000, 'and the two still tie out');
+}
 assert(view.scopeGroups.some(g => /concrete/i.test(g.label)), 'groups are labeled by division name');
 
 // 3. Allowances only from isAllowance items, client price (markup baked in)

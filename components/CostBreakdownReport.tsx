@@ -36,7 +36,20 @@ interface CostBreakdownReportProps {
   cart: CartItem[];
   laborCart: LaborCartItem[];
   assemblyCart: AssemblyCartItem[];
-  globalMarkup: number;
+  /**
+   * Overhead + profit for the WHOLE job, in dollars, as computed by
+   * utils/estimateMarkup.cartTotals — the same figure the Estimate Summary
+   * card renders four inches below this report.
+   *
+   * It is passed in rather than recomputed here, and that is the whole point.
+   * This component used to derive it itself as `materialTotal * globalMarkup /
+   * 100` — materials only — while the summary above it had been corrected to
+   * mark up the whole cost base. On a $40k materials / $50k labor / $10k
+   * assemblies cart at 20% the two cards sat on one screen reading $8,000
+   * ("Markup 7%") and $20,000. A screen cannot hold two answers to "what am I
+   * making on this job", so there is now one arithmetic and one owner of it.
+   */
+  markupTotal: number;
   locationFactor: number;
   locationName?: string;
 }
@@ -52,7 +65,7 @@ interface CategoryBreakdown {
 }
 
 const CostBreakdownReport = React.memo(function CostBreakdownReport({
-  cart, laborCart, assemblyCart, globalMarkup, locationFactor, locationName: _locationName,
+  cart, laborCart, assemblyCart, markupTotal, locationFactor, locationName: _locationName,
 }: CostBreakdownReportProps) {
   // Built per theme: the report's card, rules and ink baked their Colors.*
   // getters at import, so the breakdown stayed a white sheet in dark mode
@@ -113,7 +126,9 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
     const combinedLabor = laborTotal + directLaborTotal + assemblyLaborTotal;
     const combinedEquipment = equipmentTotal;
     const subtotal = combinedMaterial + combinedLabor + combinedEquipment;
-    const markupAmount = (materialTotal * globalMarkup / 100);
+    // NOT recomputed. The whole-job overhead + profit arrives as a prop from
+    // cartTotals so this card and the Estimate Summary quote one number.
+    const markupAmount = Number.isFinite(markupTotal) ? markupTotal : 0;
     const grandTotal = subtotal + markupAmount;
 
     const matPct = grandTotal > 0 ? (combinedMaterial / grandTotal) * 100 : 0;
@@ -131,7 +146,7 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
       matPct, labPct, eqPct, mkPct,
       matLaborRatio: combinedLabor > 0 ? (combinedMaterial / combinedLabor).toFixed(1) : 'N/A',
     };
-  }, [breakdown, laborCart, assemblyCart, globalMarkup]);
+  }, [breakdown, laborCart, assemblyCart, markupTotal]);
 
   if (cart.length === 0 && laborCart.length === 0 && assemblyCart.length === 0) return null;
 

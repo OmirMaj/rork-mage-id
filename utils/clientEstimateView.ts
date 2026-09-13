@@ -79,10 +79,20 @@ export function toClientEstimateView(est: LinkedEstimate): ClientEstimateView {
       const total = g.items.reduce((s, it) => s + clientAmount(it), 0);
       return { key, label, total };
     })
-    .filter(g => g.total > 0);
+    // Drop only groups that price to nothing. NOT `> 0`: an owner-supplied
+    // credit sitting in its own division nets negative, and dropping it made
+    // the drift fold below silently ADD its magnitude to the largest surviving
+    // group — measured 2026-09-13, framing $10,000 in div 06 plus a −$1,000
+    // credit in div 01 rendered (and, once the portal could take a signature,
+    // SIGNED) as "06 Wood, Plastics, and Composites — 9,000". Total right,
+    // scope line overstated by the credit, and the credit itself absent from
+    // the document the homeowner accepts.
+    .filter(g => g.total !== 0);
 
   // Fold the rounding remainder into the largest group so the schedule of
-  // values sums exactly to the contract price.
+  // values sums exactly to the contract price. With the filter above this is
+  // now genuinely a ROUNDING remainder (bounded by the item count), not a
+  // dumping ground for a dropped line.
   const groupSum = scopeGroups.reduce((s, g) => s + g.total, 0);
   const drift = projectTotal - groupSum;
   if (drift !== 0 && scopeGroups.length > 0) {

@@ -25,6 +25,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -104,6 +105,7 @@ export default function SubmitBidResponseScreen() {
   const goBack = useSafeBack(); // UX-F18: pushed from rfp-detail and from notifications
   const { user } = useAuth();
   const { companies } = useCompanies();
+  const { globalMarkup, markupDecided } = useMaterialCart();
   const { settings, addLead, projects, getCommitmentsForProject } = useProjects() as any;
   const { canAccess } = useTierAccess();
   const { bidId } = useLocalSearchParams<{ bidId: string }>();
@@ -188,6 +190,10 @@ export default function SubmitBidResponseScreen() {
           companyName: company?.companyName,
           financing: settings?.financing,
           contractorNote: message.trim() || undefined,
+          // aiMidpoint asks the model for a ROM COST. Without this the tier
+          // amounts on a bid a homeowner receives are the contractor's cost.
+          // Only passed once he has actually answered the markup question.
+          markupPct: markupDecided === true ? globalMarkup : undefined,
           // Seeds alone ground the ROM. Gating on projects.length would drop the
           // stated rate sheet of a contractor who hasn't created a project yet
           // — the exact cold start seeding exists to fix.
@@ -211,7 +217,7 @@ export default function SubmitBidResponseScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [rfp, company, settings, message]);
+  }, [rfp, company, settings, message, globalMarkup, markupDecided]);
 
   // Picking a different tier re-fills the amount/summary from that tier.
   const handlePickTier = useCallback((key: ProposalTierKey) => {

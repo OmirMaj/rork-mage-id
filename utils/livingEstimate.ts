@@ -68,6 +68,11 @@ export interface LivingEstimateSnapshot {
    *  build a margin from. Legacy single-total estimates return false and the
    *  UI should show the "add markup to enable live margin" empty state. */
   hasMarginBasis: boolean;
+  /** True when the job was BID at or below cost — original.margin <= 0. There
+   *  is no profit in the contract to erode, so erosion language is the wrong
+   *  story to tell about it; the story is "this bid has no profit in it".
+   *  Always false when hasMarginBasis is false (nothing is known). */
+  bidAtCost: boolean;
   /** Margin as bid — the frozen baseline. */
   original: MarginPoint;
   /** Margin projected at completion — the living number. */
@@ -237,12 +242,34 @@ export function computeLivingEstimate({
   const pendingCORevenue = getPendingChangeOrderValue(projectCOs);
 
   // ── Original baseline ────────────────────────────────────────────────
-  // We need a real cost/markup split. linkedEstimate carries baseTotal (cost)
-  // and grandTotal (sell). A legacy `project.estimate` only has grandTotal —
-  // no margin can be derived, so we flag hasMarginBasis = false.
+  // We need a real COST BASIS. linkedEstimate carries baseTotal (cost) and
+  // grandTotal (sell). A legacy `project.estimate` only has grandTotal — no
+  // margin can be derived from one number, so hasMarginBasis stays false.
+  //
+  // `baseTotal < grandTotal` USED TO BE PART OF THIS TEST, and that clause is
+  // why the most expensive defect in the product had no alarm on it. Every
+  // estimate the Quick Estimate wizard produced was written at exactly cost
+  // (baseTotal === grandTotal, measured 0.0% margin), which made this
+  // expression false, which made computeCurrentBaselines in utils/marginAlerts
+  // `continue` past the job, which meant the margin-monitoring subsystem was
+  // STRUCTURALLY BLIND to precisely the jobs that had no margin. The worse the
+  // bid, the quieter the alarm. utils/marginRiskScore, app/portfolio-margin
+  // and the OneMind margin fact block all skip on the same flag.
+  //
+  // A zero-margin bid is not a missing margin basis. It is a margin basis
+  // whose value is zero, and it is the single most alarming thing this engine
+  // can be handed. A NEGATIVE one (priced below cost, baseTotal > grandTotal)
+  // is worse still and must not be filtered out either. The real question this
+  // flag has to answer is "do I know this job's cost?" — so that is what it
+  // now asks. `classifyHealth` sends both cases straight to 'critical' via its
+  // `projectedPct <= 0` rule.
   const grandTotal = estimate?.grandTotal ?? 0;
   const baseTotal = estimate?.baseTotal ?? 0;
-  const hasMarginBasis = !!estimate && grandTotal > 0 && baseTotal > 0 && baseTotal < grandTotal;
+  const hasMarginBasis = !!estimate && grandTotal > 0 && baseTotal > 0;
+  /** Bid at (or below) cost: there is no profit in the contract to protect.
+   *  Surfaced separately because "you bid this at cost" and "you have eroded
+   *  four points since bid" are different sentences for the UI to say. */
+  const bidAtCost = hasMarginBasis && baseTotal >= grandTotal - 0.005;
 
   const originalRevenue = grandTotal;
   const originalCost = baseTotal;
@@ -278,6 +305,7 @@ export function computeLivingEstimate({
 
   return {
     hasMarginBasis,
+    bidAtCost,
     original: {
       revenue: originalRevenue,
       cost: originalCost,

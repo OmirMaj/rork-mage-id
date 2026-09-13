@@ -12,7 +12,7 @@
 // viewed-tracking, deposit-invoice generation, and converting a won quote into
 // a full project. Those belong to later increments.
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -62,7 +62,7 @@ export default function QuickQuoteScreen() {
   // when this screen is the first route (cold-start deep link) — falls
   // through to the home tab instead of an unhandled GO_BACK.
   const goBack = useSafeBack();
-  const { globalMarkup } = useMaterialCart();
+  const { globalMarkup, markupDecided } = useMaterialCart();
   const { proposals, addProposal, updateProposal } = useSmartProposals();
 
   const [clientName, setClientName] = useState('');
@@ -71,11 +71,22 @@ export default function QuickQuoteScreen() {
   const [lines, setLines] = useState<DraftLine[]>([
     { id: generateUUID(), description: '', amountStr: '' },
   ]);
-  // Prefill markup from the GC's usual markup (a percent, e.g. 15). Falls back
-  // to '' if unset so the field reads empty rather than "0".
-  const [markupStr, setMarkupStr] = useState(
-    globalMarkup && globalMarkup > 0 ? String(Math.round(globalMarkup)) : '',
-  );
+  // Prefill markup from the GC's usual markup — but only once he has actually
+  // ANSWERED the markup question (MaterialCartContext.markupDecided). The
+  // context's DEFAULT_MARKUP of 15 makes "15" indistinguishable from "never
+  // asked", and prefilling a number he never chose is the app quietly setting
+  // his price for him. Empty until he has decided.
+  const [markupStr, setMarkupStr] = useState('');
+  // markupDecided is null until AsyncStorage answers, so the initializer above
+  // always runs before the answer arrives. Seed once, on hydration, and only
+  // while the field is still untouched — never clobber what he has typed.
+  const markupSeededRef = useRef(false);
+  useEffect(() => {
+    if (markupSeededRef.current) return;
+    if (markupDecided !== true) return;
+    markupSeededRef.current = true;
+    if (globalMarkup > 0) setMarkupStr(String(Math.round(globalMarkup)));
+  }, [markupDecided, globalMarkup]);
   const [taxStr, setTaxStr] = useState('');
 
   const subtotal = useMemo(
@@ -285,7 +296,7 @@ export default function QuickQuoteScreen() {
         {/* Markup + tax */}
         <View style={styles.inputCard}>
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Markup <Text style={styles.inputHint}>(optional)</Text></Text>
+            <Text style={styles.inputLabel}>Markup <Text style={styles.inputHint}>on the amounts above</Text></Text>
             <View style={styles.inlineInputWrap}>
               <TextInput
                 style={styles.inlineInput}
@@ -338,6 +349,19 @@ export default function QuickQuoteScreen() {
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>{formatMoney(total)}</Text>
           </View>
+          {/* Say what a 0% markup means rather than leaving a $0 row to be
+              read as "nothing to see here". The line amounts a contractor
+              types here are what the work costs him far more often than not,
+              and this quote goes straight to a client. */}
+          {subtotal > 0 && markupPct <= 0 ? (
+            <Text style={styles.atCostNote} testID="quick-quote-at-cost-note">
+              No markup on this quote — the total is exactly the amounts you entered.
+            </Text>
+          ) : subtotal > 0 ? (
+            <Text style={styles.marginNote}>
+              {`${markupPct}% on cost is a ${((markupPct / (100 + markupPct)) * 100).toFixed(1)}% gross margin.`}
+            </Text>
+          ) : null}
         </View>
 
         {/* Primary action */}
@@ -524,6 +548,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   breakdownDivider: { height: 1, backgroundColor: t.line, marginVertical: 2 },
   totalLabel: { fontSize: Type.headline.fontSize, fontWeight: '800' as const, color: t.text },
   totalValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
+  atCostNote: { fontSize: Type.caption1.fontSize, color: t.dangerLabel, marginTop: 8, lineHeight: 17 },
+  marginNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 17 },
 
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 10, marginTop: 2 },
 

@@ -51,6 +51,24 @@ export interface InstantBidOptions {
   /** Free-text the contractor typed before generating, woven into the pitch. */
   contractorNote?: string;
   /**
+   * The contractor's markup as a PERCENT OF COST (utils/estimateMarkup's
+   * convention — 20 means price = cost × 1.20), applied to the AI's ROM before
+   * the Good/Better/Best ladder is built off it.
+   *
+   * WHY IT IS OPTIONAL AND WHY THAT IS NOT FINE. `aiMidpoint` asks the model
+   * for a "rough order-of-magnitude total COST" — materials and labor, no
+   * overhead and no profit — and the number that comes back becomes the
+   * `better` tier amount on a proposal a homeowner receives. With no markup
+   * passed, that proposal quotes the contractor's cost. It is optional rather
+   * than required because this module must not invent a percentage the
+   * contractor never set (see utils/estimateMarkup's header), and because two
+   * call sites — app/submit-bid-response.tsx and
+   * components/InstantBidProposalModal.tsx — do not pass it yet. Until they
+   * do, an unmarked-up proposal SAYS SO in `assumptions`, which renders on the
+   * proposal itself. A silent cost quote is the one outcome ruled out.
+   */
+  markupPct?: number;
+  /**
    * Closed-jobs data used to ground the ROM on the contractor's own cost
    * history. When present, aiMidpoint injects learned-rate facts into the
    * prompt rather than letting the model guess from national averages.
@@ -312,7 +330,13 @@ export async function generateInstantBid(
   // Establish the recommended midpoint. Prefer the grounded AI ROM; blend
   // toward the homeowner's stated budget when both exist so we never ignore
   // their number.
-  const { value: aiMid, rateCount, seededRateCount } = await aiMidpoint(rfp, opts);
+  const { value: aiMidCost, rateCount, seededRateCount } = await aiMidpoint(rfp, opts);
+  // The model returns COST. The homeowner is quoted a PRICE. Apply the
+  // contractor's own markup to the cost side ONLY: `budgetMid` is what the
+  // homeowner said they were willing to pay, which is already a price, and
+  // marking that up would be quoting a markup on the client's own budget.
+  const markupPct = typeof opts.markupPct === 'number' && opts.markupPct > 0 ? opts.markupPct : 0;
+  const aiMid = aiMidCost != null ? aiMidCost * (1 + markupPct / 100) : null;
   let midUsd: number;
   let source: 'ai' | 'heuristic';
   let basis: TieredProposal['basis'];
@@ -339,6 +363,13 @@ export async function generateInstantBid(
 
   const assumptions = [
     'Rough order-of-magnitude based on the scope provided — final price set after a site visit.',
+    // The honesty line. The ROM the model produces is a COST estimate; if no
+    // markup was supplied, this proposal contains no overhead and no profit
+    // and the contractor is entitled to be told so on the artifact itself
+    // rather than discovering it at job close.
+    ...(markupPct > 0
+      ? [`Includes your ${markupPct}% markup on cost.`]
+      : ['NO MARKUP APPLIED — this is a cost estimate. It carries no overhead and no profit.']),
     budgetMid > 0 ? 'Blended toward the budget range you posted.' : 'No budget range posted; numbers are indicative.',
     ...(rateCount > 0 ? [`Anchored on ${rateCount} learned rate${rateCount === 1 ? '' : 's'} from your closed jobs.`] : []),
     // Separate line, separate wording. Never merged into the count above.

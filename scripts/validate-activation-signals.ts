@@ -376,9 +376,18 @@ ok('the PDF leaves from exactly one place',
   'a second send path is a second way past the identity gate');
 
 const genBody = callbackBody(wizard, 'generateAndSharePdf');
+// It takes the PRICED estimate as an argument for the same reason it takes the
+// branding: the markup gate can hand this callback a freshly-priced breakdown
+// one tick before React has re-rendered `result`. Reading `result` from the
+// closure here prints the contractor's COST on the homeowner's PDF, which is
+// the defect the whole markup change exists to remove — so the guard asserts
+// the priced argument, not just the branding one.
 ok('the send path takes its branding as an argument',
-  genBody.includes('shareQuickEstimatePDF(result, answers, branding)'),
+  genBody.includes('shareQuickEstimatePDF(priced, answers, branding)'),
   'reading settings here would re-read the blank profile the user was just asked to fill in');
+ok('…and the PRICED estimate, never the closure `result`',
+  !/shareQuickEstimatePDF\(\s*result\b/.test(genBody),
+  'the closure `result` is still the at-cost breakdown one tick after the markup is recorded');
 
 // Two buttons reach this one send — the share button and the identity ask's
 // "Save and send" — and `sharingPdf` only disables them on the render AFTER
@@ -414,7 +423,7 @@ ok('the ask re-checks the gap before accepting what was typed',
 ok('the ask saves to the profile so the second bid is not gated',
   saveBody.includes('updateSettings({ branding: merged })'));
 ok('the ask sends the MERGED branding, not context state',
-  saveBody.includes('generateAndSharePdf(merged)') && !saveBody.includes('generateAndSharePdf(savedBranding())'),
+  /generateAndSharePdf\(merged\b/.test(saveBody) && !saveBody.includes('generateAndSharePdf(savedBranding())'),
   'updateSettings writes through the offline queue — re-reading settings here sends the blank profile');
 ok('the ask renders the reason, not a bare required-field message',
   wizard.includes('testID="wizard-identity-reason"') && wizard.includes('{savedGap.reason}'),

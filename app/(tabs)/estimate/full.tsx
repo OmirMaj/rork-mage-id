@@ -30,6 +30,7 @@ import {
 import { useProjects } from '@/contexts/ProjectContext';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useMaterialCart, type MaterialCartItem, type LaborCartItem, type AssemblyCartItem } from '@/contexts/MaterialCartContext';
+import { cartTotals } from '@/utils/estimateMarkup';
 import MaterialAIEstimateModal from '@/components/MaterialAIEstimateModal';
 import { generateUUID } from '@/utils/generateId';
 import { findMaterials, type AIMaterialResult } from '@/utils/materialFinder';
@@ -656,12 +657,56 @@ export default function EstimateScreen() {
     return sum + base * item.quantity;
   }, 0), [cart]);
 
-  const markupTotal = cartTotal - cartBaseTotal;
+  // Declared after the labor/assembly figures below, so it can be whole-job.
 
-  const laborTotal = useMemo(() => laborCart.reduce((sum, item) => sum + item.adjustedRate * item.hours, 0), [laborCart]);
+  // ── LABOR AND ASSEMBLIES CARRY THE MARKUP TOO ─────────────────────────
+  //
+  // They did not, and the comment that used to sit on `buildLinkedEstimate`
+  // below defended it: "Labor and assemblies are all-in costs (no markup)".
+  // The premise is right and the conclusion is backwards. `adjustedRate` IS
+  // the all-in COST of an hour — loaded wage, burden, the lot — which is
+  // exactly why it needs a markup on top of it. Cost is not price. Overhead
+  // and profit are what the contractor adds to cost, and his overhead does not
+  // stop existing on the labor half of the job.
+  //
+  // What the old split actually produced: on a $100K estimate that was $40K
+  // materials and $60K labor, a contractor who set 20% markup got $8K of
+  // margin instead of $20K — 7.4% of the contract instead of 16.7% — and
+  // nothing anywhere said so. Two engines then read that number and believed
+  // it: app/judges.tsx converts globalMarkup into the target margin it prices
+  // against (m/(1+m)), and utils/livingEstimate treats grandTotal − baseTotal
+  // as the margin it watches for the rest of the job. Both were being handed a
+  // materials-only figure and told it described the whole contract. The more
+  // self-perform labor a contractor did, the further off it was.
+  //
+  // This is not the app inventing a markup: it applies the percentage HE set,
+  // to the whole cost base, which is what he already believed it did.
+  const laborBaseTotal = useMemo(() => laborCart.reduce((sum, item) => sum + item.adjustedRate * item.hours, 0), [laborCart]);
   const laborHoursTotal = useMemo(() => laborCart.reduce((sum, item) => sum + item.hours, 0), [laborCart]);
-  const assemblyTotal = useMemo(() => assemblyCart.reduce((sum, item) => sum + item.totalCost, 0), [assemblyCart]);
-  const grandTotal = cartTotal + laborTotal + assemblyTotal;
+  const assemblyBaseTotal = useMemo(() => assemblyCart.reduce((sum, item) => sum + item.totalCost, 0), [assemblyCart]);
+  // Sell-side. Named `laborTotal` / `assemblyTotal` because every display and
+  // export below already treats them as siblings of `cartTotal`, which has
+  // always been the marked-up materials figure — before this they were the one
+  // pair in that row that quietly was not.
+  //
+  // The arithmetic itself lives in utils/estimateMarkup.cartTotals, not inline
+  // here, so scripts/validate-estimate-cost-basis.ts can call the function this
+  // screen actually ships. A guard that re-derives the formula it is guarding
+  // proves only that the guard can multiply.
+  const { directCostTotal, laborSell: laborTotal, assemblySell: assemblyTotal, grandTotal, markupTotal,
+    effectiveMarkupPct } =
+    cartTotals({
+      materialsCost: cartBaseTotal,
+      materialsSell: cartTotal,
+      laborCost: laborBaseTotal,
+      assembliesCost: assemblyBaseTotal,
+      markupPct: globalMarkup,
+    });
+  // The rate to PRINT on the markup row. Materials carry per-item markups, so
+  // a cart with one line hand-tuned to 40% realizes more than the global
+  // percent — and the row used to state the global regardless, putting a
+  // number under a percentage that did not produce it.
+  const shownMarkupPct = Math.round(effectiveMarkupPct * 10) / 10;
   const totalItemCount = cart.length + laborCart.length + assemblyCart.length;
 
   const filteredLabor = useMemo(() => {
@@ -998,13 +1043,17 @@ export default function EstimateScreen() {
         supplier: item.material.supplier,
       };
     });
-    // Fold labor into the same LinkedEstimateItem shape. Labor carries no
-    // markup — the adjusted hourly rate is the all-in cost — so unitPrice and
-    // bulkPrice both hold the rate, markup=0, usesBulk=false, and the line
-    // total is rate × hours. Without this, an estimate with $X of labor was
-    // silently dropped when linked to a project or emailed as a PDF.
+    // Fold labor into the same LinkedEstimateItem shape. `adjustedRate` is the
+    // all-in COST of an hour, so it is what unitPrice and bulkPrice hold — the
+    // cost basis every downstream engine reads (utils/jobCostEngine seeds the
+    // budget from unitPrice × quantity, utils/estimateActuals compares buyouts
+    // against it, utils/estimateCalibration divides by it to learn real rates,
+    // and scripts/validate-estimate-cost-basis.ts guards all three). The
+    // contractor's markup rides on `markup` and shows up in lineTotal, exactly
+    // as it does for materials. It used to be hard-coded 0 here, which is why
+    // a labor-heavy job silently carried a fraction of the margin he set.
     const laborItems: LinkedEstimateItem[] = laborCart.map(item => {
-      const lineTotal = item.adjustedRate * item.hours;
+      const cost = item.adjustedRate * item.hours;
       return {
         materialId: item.labor.id,
         name: item.labor.trade,
@@ -1013,9 +1062,9 @@ export default function EstimateScreen() {
         quantity: item.hours,
         unitPrice: item.adjustedRate,
         bulkPrice: item.adjustedRate,
-        markup: 0,
+        markup: globalMarkup,
         usesBulk: false,
-        lineTotal,
+        lineTotal: cost * (1 + globalMarkup / 100),
         supplier: item.labor.category,
       };
     });
@@ -1030,26 +1079,27 @@ export default function EstimateScreen() {
       quantity: 1,
       unitPrice: item.totalCost,
       bulkPrice: item.totalCost,
-      markup: 0,
+      markup: globalMarkup,
       usesBulk: false,
-      lineTotal: item.totalCost,
+      lineTotal: item.totalCost * (1 + globalMarkup / 100),
       supplier: `${item.quantity} ${item.assembly.unit}`,
     }));
     const items: LinkedEstimateItem[] = [...materialItems, ...laborItems, ...assemblyItems];
     // grandTotal must equal what the estimator footer shows: materials + labor
-    // + assemblies. Labor and assemblies are all-in costs (no markup), so they
-    // fold into baseTotal; markupTotal stays materials-only. That keeps
-    // baseTotal + markupTotal === grandTotal.
+    // + assemblies, all three on the sell side. baseTotal is the whole-job COST
+    // (Σ unitPrice × quantity) and markupTotal is the difference, so
+    // baseTotal + markupTotal === grandTotal and Σ lineTotal === grandTotal
+    // both hold — the two invariants every consumer of a LinkedEstimate reads.
     return {
       id: generateUUID(),
       items,
       globalMarkup,
-      baseTotal: cartBaseTotal + laborTotal + assemblyTotal,
+      baseTotal: directCostTotal,
       markupTotal,
-      grandTotal: cartTotal + laborTotal + assemblyTotal,
+      grandTotal,
       createdAt: new Date().toISOString(),
     };
-  }, [cart, laborCart, assemblyCart, globalMarkup, cartBaseTotal, markupTotal, cartTotal, laborTotal, assemblyTotal]);
+  }, [cart, laborCart, assemblyCart, globalMarkup, directCostTotal, markupTotal, grandTotal]);
 
   const handleSelectProject = useCallback(() => {
     if (!selectedProjectId) {
@@ -1117,7 +1167,9 @@ export default function EstimateScreen() {
         companyName: branding.companyName,
         recipientName: '',
         projectName: options.fileName || 'Estimate',
-        grandTotal: cartTotal,
+        // Whole estimate, not just the materials cart: labor and assemblies
+        // were silently missing from the figure in the email body.
+        grandTotal,
         itemCount: cart.length,
         message: options.message,
         contactName: branding.contactName,
@@ -1241,9 +1293,9 @@ export default function EstimateScreen() {
       text += `${item.material.name}\n`;
       text += `  Qty: ${item.quantity} | $${base.toFixed(2)}/${item.material.unit} | Markup: ${item.markup}% | Total: $${lineTotal.toFixed(2)}\n`;
     });
-    text += `\nBase Cost: $${cartBaseTotal.toFixed(2)}\n`;
+    text += `\nBase Cost: $${directCostTotal.toFixed(2)}\n`;
     text += `Markup: +$${markupTotal.toFixed(2)}\n`;
-    text += `TOTAL: $${cartTotal.toFixed(2)}\n`;
+    text += `TOTAL: $${grandTotal.toFixed(2)}\n`;
     if (settings.branding?.contactName || settings.branding?.phone) {
       text += `\nContact: ${settings.branding?.contactName ?? ''} ${settings.branding?.phone ?? ''}\n`;
     }
@@ -1252,7 +1304,7 @@ export default function EstimateScreen() {
     Linking.openURL(url).catch(() => {
       showAlert('Unable to open email', 'Please check your email app is configured.');
     });
-  }, [cart, cartBaseTotal, cartTotal, markupTotal, settings]);
+  }, [cart, directCostTotal, grandTotal, markupTotal, settings]);
 
   const handleShareText = useCallback(() => {
     let body = 'MAGE ID Estimate\n';
@@ -1771,9 +1823,15 @@ export default function EstimateScreen() {
           )}
         </View>}
 
-        {activeTab === 'materials' && <View style={styles.markupRow}>
+        {/* Shown on every tab, not just Materials. It used to be gated to
+            `activeTab === 'materials'`, which was honest while the percentage
+            only touched materials — it now sets the overhead and profit on the
+            whole estimate, so hiding it behind one tab would hide the control
+            that prices the labor a contractor is standing on the Labor tab
+            adding. */}
+        <View style={styles.markupRow}>
           <Percent size={14} color={Colors.accent} strokeWidth={1.75} />
-          <Text style={styles.markupLabel}>Markup:</Text>
+          <Text style={styles.markupLabel}>Markup on all costs:</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.markupPresets}>
             {MARKUP_PRESETS.map(p => (
               <TouchableOpacity
@@ -1807,7 +1865,7 @@ export default function EstimateScreen() {
               <Text style={styles.markupCustomSuffix}>%</Text>
             </View>
           </ScrollView>
-        </View>}
+        </View>
       </View>
 
       {activeTab === 'materials' && <View style={styles.categoriesWrapper}>
@@ -2732,25 +2790,35 @@ export default function EstimateScreen() {
           </View>
 
           <View style={dStyles.summaryPanel}>
+            {/* The three trade rows are COST and the markup row is the whole
+                job's overhead + profit, so the four foot exactly to Total.
+                They did not before: Materials showed the marked-up figure
+                while a separate Markup row showed that same markup again, and
+                the column added up to more than the total it sat above. */}
             <Text style={dStyles.summaryTitle}>Cost Summary</Text>
             <View style={dStyles.summaryRow}>
-              <Text style={dStyles.summaryLabel}>Materials</Text>
-              <Text style={dStyles.summaryValue}>{formatMoney(cartTotal, 2)}</Text>
+              <Text style={dStyles.summaryLabel}>Materials (cost)</Text>
+              <Text style={dStyles.summaryValue}>{formatMoney(cartBaseTotal, 2)}</Text>
             </View>
             <View style={dStyles.summaryRow}>
-              <Text style={dStyles.summaryLabel}>Labor</Text>
-              <Text style={dStyles.summaryValue}>{formatMoney(laborTotal, 2)}</Text>
+              <Text style={dStyles.summaryLabel}>Labor (cost)</Text>
+              <Text style={dStyles.summaryValue}>{formatMoney(laborBaseTotal, 2)}</Text>
             </View>
             <View style={dStyles.summaryRow}>
-              <Text style={dStyles.summaryLabel}>Assemblies</Text>
-              <Text style={dStyles.summaryValue}>{formatMoney(assemblyTotal, 2)}</Text>
+              <Text style={dStyles.summaryLabel}>Assemblies (cost)</Text>
+              <Text style={dStyles.summaryValue}>{formatMoney(assemblyBaseTotal, 2)}</Text>
             </View>
-            {markupTotal > 0 && (
+            {markupTotal > 0 ? (
               <View style={dStyles.summaryRow}>
-                <Text style={[dStyles.summaryLabel, { color: Colors.accent }]}>Markup</Text>
+                <Text style={[dStyles.summaryLabel, { color: Colors.accent }]}>Overhead &amp; profit ({shownMarkupPct}%)</Text>
                 <Text style={[dStyles.summaryValue, { color: Colors.accent }]}>+{formatMoney(markupTotal, 2)}</Text>
               </View>
-            )}
+            ) : directCostTotal > 0 ? (
+              <View style={dStyles.summaryRow}>
+                <Text style={[dStyles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead &amp; profit</Text>
+                <Text style={[dStyles.summaryValue, { color: themeColors.dangerLabel }]}>none — at cost</Text>
+              </View>
+            ) : null}
             <View style={dStyles.summaryDivider} />
             <View style={dStyles.summaryRow}>
               <Text style={[dStyles.summaryLabel, { fontWeight: '700' as const, color: Colors.text }]}>Total</Text>
@@ -3428,29 +3496,39 @@ export default function EstimateScreen() {
                     cart={cart}
                     laborCart={laborCart}
                     assemblyCart={assemblyCart}
-                    globalMarkup={globalMarkup}
+                    /* The SAME whole-job overhead+profit the Estimate Summary
+                       below renders. The report used to derive its own from
+                       materials alone, so this screen showed $8,000 and
+                       $20,000 for one number on one scroll. */
+                    markupTotal={markupTotal}
                     locationFactor={locationMultiplier}
                     locationName={settings.location}
                   />
 
                   <View style={styles.summaryCard}>
                     <Text style={styles.summaryTitle}>Estimate Summary</Text>
+                    {/* Cost rows, then ONE whole-job markup row. The old shape
+                        labelled the markup "Materials markup" because that is
+                        all it was; labor and assemblies went out at cost. */}
                     {cart.length > 0 && <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Materials (base)</Text>
+                      <Text style={styles.summaryLabel}>Materials (cost)</Text>
                       <Text style={styles.summaryValue}>{formatMoney(cartBaseTotal, 2)}</Text>
                     </View>}
-                    {markupTotal > 0 && <View style={styles.summaryRow}>
-                      <Text style={[styles.summaryLabel, { color: Colors.accent }]}>Materials markup</Text>
+                    {laborBaseTotal > 0 && <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Labor ({laborHoursTotal.toFixed(0)} hrs, cost)</Text>
+                      <Text style={styles.summaryValue}>{formatMoney(laborBaseTotal, 2)}</Text>
+                    </View>}
+                    {assemblyBaseTotal > 0 && <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Assemblies (cost)</Text>
+                      <Text style={styles.summaryValue}>{formatMoney(assemblyBaseTotal, 2)}</Text>
+                    </View>}
+                    {markupTotal > 0 ? <View style={styles.summaryRow}>
+                      <Text style={[styles.summaryLabel, { color: Colors.accent }]}>Overhead &amp; profit ({shownMarkupPct}%)</Text>
                       <Text style={[styles.summaryValue, { color: Colors.accent }]}>+{formatMoney(markupTotal, 2)}</Text>
-                    </View>}
-                    {laborTotal > 0 && <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Labor ({laborHoursTotal.toFixed(0)} hrs)</Text>
-                      <Text style={styles.summaryValue}>{formatMoney(laborTotal, 2)}</Text>
-                    </View>}
-                    {assemblyTotal > 0 && <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Assemblies</Text>
-                      <Text style={styles.summaryValue}>{formatMoney(assemblyTotal, 2)}</Text>
-                    </View>}
+                    </View> : directCostTotal > 0 ? <View style={styles.summaryRow}>
+                      <Text style={[styles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead &amp; profit</Text>
+                      <Text style={[styles.summaryValue, { color: themeColors.dangerLabel }]}>none — at cost</Text>
+                    </View> : null}
                     <View style={styles.summaryDivider} />
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryTotal}>Grand Total</Text>

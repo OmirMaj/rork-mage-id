@@ -751,6 +751,60 @@
     background: var(--error-tint); color: var(--error);
   }
 
+  /* Message starters — one tap instead of a blank box. */
+  .msg-prompts-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.1px;
+    color: #8B9099; text-transform: uppercase;
+    margin: 4px 0 8px;
+  }
+  .msg-prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .msg-prompt {
+    padding: 7px 12px;
+    background: var(--surface); color: var(--text-2);
+    border: 1px solid var(--bone);
+    border-radius: 999px; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .msg-prompt:hover { background: var(--bone-2); color: var(--text); border-color: var(--amber); }
+
+  /* ───────── Proposal acceptance (portal) ─────────
+     The homeowner's first real decision: accept the price that starts the
+     job. Deliberately built from the same parts as the CO approval above —
+     one signature flow, one look — rather than a second visual language. */
+  .prop { padding: 4px 0 6px; }
+  .prop-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 16px; flex-wrap: wrap;
+    padding-bottom: 12px; margin-bottom: 12px;
+    border-bottom: 2px solid #0B0D10;
+  }
+  .prop-head-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
+    color: #8B9099; text-transform: uppercase;
+  }
+  .prop-total {
+    font-size: 30px; font-weight: 800; color: #0B0D10;
+    font-feature-settings: "tnum"; line-height: 1.05;
+  }
+  .prop-total-note { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .prop-group-head {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
+    color: #8B9099; text-transform: uppercase;
+    margin: 16px 0 6px;
+  }
+  .prop-note {
+    margin-top: 14px; padding: 12px 14px;
+    background: var(--bone-2); border-radius: 12px;
+    font-size: 12.5px; line-height: 1.5; color: var(--text-2);
+  }
+  .prop-cta { display: flex; gap: 8px; margin-top: 16px; align-items: center; flex-wrap: wrap; }
+  .prop-receipt {
+    margin-top: 8px; font-size: 11px; color: var(--text-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    word-break: break-all;
+  }
+
   /* ───────── Messages ───────── */
   .msg-thread {
     display: flex; flex-direction: column; gap: 10px;
@@ -2728,7 +2782,7 @@
           <div class="esign-consent-body" id="esign-consent-text"></div>
           <label class="esign-consent-check">
             <input type="checkbox" id="esign-consent-check" />
-            <span>I agree to sign this change order electronically, and I approve the scope and the change to my contract total shown above.</span>
+            <span id="esign-consent-check-label">I agree to sign this change order electronically, and I approve the scope and the change to my contract total shown above.</span>
           </label>
         </div>
       </div>
@@ -5075,8 +5129,23 @@
         }).join('')
       : '<div class="empty-section">No messages yet — say hi to your contractor.</div>';
 
+    // Tap-to-start prompts. A blank box is the reason a homeowner phones
+    // instead of writing — the three things they actually want to do
+    // (ask for more work, ask a question, report a problem) each become one
+    // tap that fills the composer with an opening line they can edit.
+    //
+    // These are MESSAGES and nothing else. Zuper converts a portal request
+    // into a job automatically; MAGE does not, and a chip that implied it did
+    // would be the lie. The heading says what happens: the contractor reads it.
+    var chips = MESSAGE_PROMPTS.map(function (c) {
+      return '<button type="button" class="msg-prompt" data-msg-prompt="' + esc(c.text) + '">' +
+               esc(c.label) + '</button>';
+    }).join('');
+
     return (
       '<div id="msg-thread" class="msg-thread">' + threadHtml + '</div>' +
+      '<div class="msg-prompts-label">Start a message — your contractor reads these</div>' +
+      '<div class="msg-prompts">' + chips + '</div>' +
       '<div class="msg-compose">' +
         '<textarea id="msg-input" class="msg-input" placeholder="Write a message…" rows="1"></textarea>' +
         '<button id="msg-send" class="msg-send-btn">' +
@@ -5086,6 +5155,15 @@
       '</div>'
     );
   }
+
+  // The openers. Deliberately first-person and incomplete — the homeowner
+  // finishes the sentence, so what lands in the thread is theirs, not ours.
+  var MESSAGE_PROMPTS = [
+    { label: 'Request additional work', text: 'I would like to add some work to the project: ' },
+    { label: 'Ask about the schedule', text: 'A question about the schedule: ' },
+    { label: 'Ask about a cost', text: 'A question about a cost on my project: ' },
+    { label: 'Report a problem', text: 'Something needs attention on site: ' },
+  ];
 
   function localMessagesKey(portalId) { return 'mage_portal_msgs_' + portalId; }
   function loadLocalMessages(data) {
@@ -5394,12 +5472,28 @@
     };
   }
 
-  // Open the review-and-sign sheet for one change order.
-  //   opts.co         snapshot change-order row
-  //   opts.decision   'approved' | 'declined'
-  //   opts.onConfirm  (result, ui) => void — result carries the signer name,
-  //                   signature path data + stroke count, and the reason.
-  function showCOSignModal(opts) {
+  // ───────── The one review-and-sign sheet ─────────
+  //
+  // 2026-09-13. This used to be showCOSignModal() and nothing else. The portal
+  // now has a SECOND thing a homeowner signs — accepting the proposal — and a
+  // second signature flow is how the two drift: one grows a stroke-count
+  // minimum the other doesn't, one keeps the consent checkbox gated and the
+  // other stops. So the mechanics live here once, document-agnostic, and each
+  // document supplies only its own copy and its own scope panel.
+  //
+  //   opts.approveMode  true for the affirmative path (signature required),
+  //                     false for the decline path (name + reason)
+  //   opts.eyebrow      small label above the title
+  //   opts.title        sheet title
+  //   opts.scopeHtml    the record the signer is looking at, already escaped
+  //   opts.consentText  the disclosure they affirm
+  //   opts.consentLabel the checkbox sentence
+  //   opts.legal        the line under the buttons
+  //   opts.submitLabel / opts.busyLabel / opts.declinePlaceholder
+  //   opts.clientName   prefill for the name field
+  //   opts.onConfirm    (result, ui) => void — result carries the signer name,
+  //                     signature path data + stroke count, consent, reason.
+  function showDocSignModal(opts) {
     var modal   = document.getElementById('esign-modal');
     var scopeEl = document.getElementById('esign-scope');
     var approve = document.getElementById('esign-approve-fields');
@@ -5408,6 +5502,7 @@
     var declineNameEl = document.getElementById('esign-decline-name');
     var reasonEl = document.getElementById('esign-reason');
     var checkEl = document.getElementById('esign-consent-check');
+    var checkLabelEl = document.getElementById('esign-consent-check-label');
     var errEl   = document.getElementById('esign-error');
     var submit  = document.getElementById('esign-submit');
     var cancel  = document.getElementById('esign-cancel');
@@ -5417,50 +5512,24 @@
     var signedTag = document.getElementById('esign-signed-tag');
     if (!modal || !scopeEl) return;
 
-    var isApprove = opts.decision === 'approved';
-    var c = opts.co || {};
-    var amt = Number(c.changeAmount || 0);
-    var deltaClass = amt < 0 ? 'credit' : 'add';
-    var deltaText = (amt >= 0 ? '+' : '−') + fmtMoney(Math.abs(amt), { dec: 2 });
+    var isApprove = !!opts.approveMode;
+    var submitLabel = opts.submitLabel || (isApprove ? 'Sign & approve' : 'Send decline');
+    var busyLabel = opts.busyLabel || (isApprove ? 'Sealing…' : 'Sending…');
 
-    document.getElementById('esign-eyebrow').textContent =
-      'Change order #' + (c.number != null ? c.number : '—');
-    document.getElementById('esign-title').textContent =
-      isApprove ? 'Review & sign this change' : 'Decline this change';
+    document.getElementById('esign-eyebrow').textContent = opts.eyebrow || '';
+    document.getElementById('esign-title').textContent = opts.title || 'Review & sign';
 
-    scopeEl.innerHTML =
-      '<div class="esign-scope-label">What is changing</div>' +
-      '<div class="esign-scope-desc">' + esc(c.description || 'No description provided.') + '</div>' +
-      (c.reason ? '<div class="esign-scope-reason">' + esc(c.reason) + '</div>' : '') +
-      '<div class="esign-delta">' +
-        '<span class="esign-delta-label">' + (amt < 0 ? 'Credit to your contract' : 'Added to your contract') + '</span>' +
-        '<span class="esign-delta-value ' + deltaClass + '">' + deltaText + '</span>' +
-      '</div>' +
-      (typeof c.newContractTotal === 'number' && c.newContractTotal > 0
-        ? '<div class="esign-delta">' +
-            '<span class="esign-delta-label">Your new contract total</span>' +
-            '<span class="esign-delta-value small">' + fmtMoney(c.newContractTotal, { dec: 2 }) + '</span>' +
-          '</div>'
-        : '') +
-      (c.scheduleImpactDays
-        ? '<div class="esign-delta">' +
-            '<span class="esign-delta-label">Schedule impact</span>' +
-            '<span class="esign-delta-value small">' +
-              (c.scheduleImpactDays > 0 ? '+' : '−') + Math.abs(c.scheduleImpactDays) +
-              ' day' + (Math.abs(c.scheduleImpactDays) === 1 ? '' : 's') +
-            '</span>' +
-          '</div>'
-        : '');
+    scopeEl.innerHTML = opts.scopeHtml || '';
 
-    document.getElementById('esign-consent-text').textContent = ESIGN_DISCLOSURE_TEXT;
-    document.getElementById('esign-legal').textContent = isApprove
-      ? 'Signed electronically. Your contractor keeps a sealed copy of this record, and so can you.'
-      : 'Declining costs you nothing and does not cancel your contract — it tells your contractor what to change.';
+    document.getElementById('esign-consent-text').textContent = opts.consentText || '';
+    if (checkLabelEl && opts.consentLabel) checkLabelEl.textContent = opts.consentLabel;
+    document.getElementById('esign-legal').textContent = opts.legal || '';
+    if (reasonEl && opts.declinePlaceholder) reasonEl.setAttribute('placeholder', opts.declinePlaceholder);
 
     approve.style.display = isApprove ? 'block' : 'none';
     decline.style.display = isApprove ? 'none' : 'block';
     submit.className = 'esign-btn ' + (isApprove ? 'esign-btn-primary' : 'esign-btn-danger');
-    submit.textContent = isApprove ? 'Sign & approve' : 'Send decline';
+    submit.textContent = submitLabel;
     errEl.className = 'esign-error';
     errEl.textContent = '';
 
@@ -5492,9 +5561,7 @@
     function setBusy(busy) {
       submit.disabled = busy;
       cancel.disabled = busy;
-      submit.textContent = busy
-        ? (isApprove ? 'Sealing…' : 'Sending…')
-        : (isApprove ? 'Sign & approve' : 'Send decline');
+      submit.textContent = busy ? busyLabel : submitLabel;
       if (!busy) refresh();
     }
     function close() {
@@ -5542,6 +5609,60 @@
       if (pad) pad.resize();
       (isApprove ? nameEl : declineNameEl).focus();
     }, 0);
+  }
+
+  // Open the review-and-sign sheet for one change order. Copy only — every
+  // mechanic lives in showDocSignModal above.
+  //   opts.co         snapshot change-order row
+  //   opts.decision   'approved' | 'declined'
+  //   opts.onConfirm  (result, ui) => void
+  function showCOSignModal(opts) {
+    var isApprove = opts.decision === 'approved';
+    var c = opts.co || {};
+    var amt = Number(c.changeAmount || 0);
+    var deltaClass = amt < 0 ? 'credit' : 'add';
+    var deltaText = (amt >= 0 ? '+' : '−') + fmtMoney(Math.abs(amt), { dec: 2 });
+
+    var scopeHtml =
+      '<div class="esign-scope-label">What is changing</div>' +
+      '<div class="esign-scope-desc">' + esc(c.description || 'No description provided.') + '</div>' +
+      (c.reason ? '<div class="esign-scope-reason">' + esc(c.reason) + '</div>' : '') +
+      '<div class="esign-delta">' +
+        '<span class="esign-delta-label">' + (amt < 0 ? 'Credit to your contract' : 'Added to your contract') + '</span>' +
+        '<span class="esign-delta-value ' + deltaClass + '">' + deltaText + '</span>' +
+      '</div>' +
+      (typeof c.newContractTotal === 'number' && c.newContractTotal > 0
+        ? '<div class="esign-delta">' +
+            '<span class="esign-delta-label">Your new contract total</span>' +
+            '<span class="esign-delta-value small">' + fmtMoney(c.newContractTotal, { dec: 2 }) + '</span>' +
+          '</div>'
+        : '') +
+      (c.scheduleImpactDays
+        ? '<div class="esign-delta">' +
+            '<span class="esign-delta-label">Schedule impact</span>' +
+            '<span class="esign-delta-value small">' +
+              (c.scheduleImpactDays > 0 ? '+' : '−') + Math.abs(c.scheduleImpactDays) +
+              ' day' + (Math.abs(c.scheduleImpactDays) === 1 ? '' : 's') +
+            '</span>' +
+          '</div>'
+        : '');
+
+    return showDocSignModal({
+      approveMode: isApprove,
+      clientName: opts.clientName || '',
+      eyebrow: 'Change order #' + (c.number != null ? c.number : '—'),
+      title: isApprove ? 'Review & sign this change' : 'Decline this change',
+      scopeHtml: scopeHtml,
+      consentText: ESIGN_DISCLOSURE_TEXT,
+      consentLabel: 'I agree to sign this change order electronically, and I approve the scope and the change to my contract total shown above.',
+      legal: isApprove
+        ? 'Signed electronically. Your contractor keeps a sealed copy of this record, and so can you.'
+        : 'Declining costs you nothing and does not cancel your contract — it tells your contractor what to change.',
+      submitLabel: isApprove ? 'Sign & approve' : 'Send decline',
+      busyLabel: isApprove ? 'Sealing…' : 'Sending…',
+      declinePlaceholder: 'Tell your contractor what needs to change before you can approve — price, scope, timing…',
+      onConfirm: opts.onConfirm,
+    });
   }
 
   // Submit a SIGNED change-order decision. Same token-gated RPC pattern as
@@ -5598,6 +5719,398 @@
       return { legacy: true, document_hash: payload.client_hash || null };
     }
     throw new Error('Supabase ' + resp.status + ': ' + text);
+  }
+
+  // ───────── The completion ask ─────────
+  //
+  // A remodeler's referral rate is most of his marketing budget and almost
+  // nobody asks for one. Zuper auto-triggers a satisfaction survey when a job
+  // closes; this is the same moment, done with what MAGE actually has.
+  //
+  // WHAT IT IS NOT. There is no rating, no score, no survey table and no
+  // public review — because there is no write path for any of those, and
+  // shipping a five-star widget that posts nowhere would be a lie of exactly
+  // the kind this product removes features for. The buttons open the message
+  // thread that already exists, with an opener the homeowner edits and sends
+  // themselves. The card says so, in the card.
+  var FEEDBACK_DISMISS_PREFIX = 'mage_portal_feedback_';
+  function feedbackDismissed(portalId) {
+    try { return localStorage.getItem(FEEDBACK_DISMISS_PREFIX + portalId) === '1'; }
+    catch (e) { return false; }
+  }
+  function dismissFeedback(portalId) {
+    try { localStorage.setItem(FEEDBACK_DISMISS_PREFIX + portalId, '1'); } catch (e) {}
+  }
+
+  // Already said something since the job finished? Then stop asking. Uses the
+  // thread the snapshot carries PLUS anything sent from this device, because
+  // the lite snapshot writer (app/project-detail.tsx) pushes no messages at
+  // all — so `data.messages` being empty is not evidence of silence, and the
+  // local record is what covers that gap.
+  function homeownerRepliedSince(data, sinceDate) {
+    var since = Date.parse(sinceDate + 'T00:00:00Z');
+    if (!isFinite(since)) return false;
+    var all = (data.messages || []).concat(loadLocalMessages(data));
+    for (var i = 0; i < all.length; i++) {
+      var m = all[i];
+      if (!m || m.authorType !== 'client') continue;
+      var at = Date.parse(m.createdAt);
+      if (isFinite(at) && at >= since) return true;
+    }
+    return false;
+  }
+
+  var FEEDBACK_PROMPTS = [
+    { label: 'It went well', text: 'The work is finished and I am happy with it. What stood out: ' },
+    { label: 'Something is not right', text: 'Before I can call this finished, this still needs attention: ' },
+  ];
+
+  function renderFeedbackAsk(ask) {
+    var chips = FEEDBACK_PROMPTS.map(function (c) {
+      return '<button type="button" class="msg-prompt" data-msg-prompt="' + esc(c.text) + '">' +
+               esc(c.label) + '</button>';
+    }).join('');
+    return (
+      '<div class="prop">' +
+        '<div class="prop-note" style="margin-top:0">' +
+          // 'YYYY-MM-DD' through `new Date()` is parsed as UTC midnight, which
+          // renders as the PREVIOUS day everywhere west of Greenwich. The
+          // explicit time makes it local, so the date the homeowner reads is
+          // the date the contractor typed.
+          'Your contractor recorded substantial completion on <strong>' +
+            esc(fmtDate(ask.completedOn + 'T00:00:00')) + '</strong>. ' +
+          'Telling them how it went — and whether you would recommend them — is the single most useful ' +
+          'thing you can do for a small builder.' +
+        '</div>' +
+        '<div class="msg-prompts" style="margin-top:12px">' + chips +
+          '<button type="button" class="msg-prompt" data-feedback-dismiss="1">Not now</button>' +
+        '</div>' +
+        '<div class="prop-total-note">' +
+          'These write a message in your thread with your contractor. Nothing is published anywhere, ' +
+          'and no rating is recorded.' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  // ───────── Proposal acceptance ─────────
+  //
+  // The decision that starts the job. Until 2026-09-13 this portal could show
+  // a homeowner everything and let them act on almost none of it: approve a
+  // change order, pay an invoice, and that was the list. Jobber, Housecall Pro
+  // and Zuper all let a customer approve the quote from their client portal at
+  // a lower price than MAGE, and it is the one decision a remodeler is
+  // actually waiting on.
+  //
+  // Everything below signs through the SAME pad, the same three ESIGN gates
+  // and the same modal as a change order — see showDocSignModal.
+  //
+  // WHAT THE SIGNATURE BINDS TO. `data.proposal.documentText` is the canonical,
+  // order-fixed text of the proposal, built on the contractor's device by
+  // utils/portalSnapshot.buildProposalDocumentText and published into
+  // portal_snapshots with the rest of the snapshot. This page hashes it, puts
+  // that digest inside the consent record, and sends both. The RPC re-reads the
+  // published snapshot, hashes ITS copy, and refuses anything that does not
+  // match — so a page holding a re-priced or hand-edited proposal cannot seal
+  // an acceptance, and the dollar figure recorded is the server's, not ours.
+  //
+  // The record format below MUST stay byte-identical to
+  // buildProposalConsentRecord() in utils/portalSnapshot.ts;
+  // scripts/validate-portal-owner.ts lifts this copy out of the page and runs
+  // the two head-to-head.
+  // PROPOSAL-ESIGN-BLOCK-START
+  var PROPOSAL_ESIGN_VERSION = 'proposal-esign-1';
+  var PROPOSAL_DISCLOSURE_TEXT =
+    'By typing your legal name, drawing your signature, and selecting "I agree", you consent to accept this proposal electronically. ' +
+    'You are accepting the scope and the fixed price shown above as the basis of the work your contractor will do. ' +
+    'You may decline instead, or ask for a paper copy at no charge, by messaging your contractor. ' +
+    'A copy of this record is retained by your contractor and is available to you on request.';
+
+  // Said next to the button. Accepting a proposal is NOT signing the
+  // construction agreement — that is a separate document with its own
+  // signature flow in this same portal — and this page does not get to blur
+  // the two.
+  var PROPOSAL_NOT_A_CONTRACT_NOTE =
+    'Accepting tells your contractor to go ahead and prepare your construction agreement. ' +
+    'That agreement is a separate document you will review and sign.';
+
+  function proposalUsd(n) {
+    var v = Number(n);
+    return (isFinite(v) ? v : 0).toFixed(2);
+  }
+
+  function buildProposalConsentRecord(f) {
+    var lines = [
+      'MAGE ID PROPOSAL ELECTRONIC SIGNATURE RECORD',
+      'version: ' + PROPOSAL_ESIGN_VERSION,
+      'decision: ' + f.decision,
+      'portal_id: ' + f.portalId,
+      'proposal_id: ' + f.proposalId,
+      'proposal_total_usd: ' + proposalUsd(f.proposalTotal),
+      'proposal_document_sha256: ' + f.proposalDocumentHash,
+      'signer_name: ' + String(f.signerName == null ? '' : f.signerName).replace(/^\s+|\s+$/g, ''),
+      'signed_at: ' + f.signedAt
+    ];
+    if (typeof f.timezoneOffsetMinutes === 'number') {
+      lines.push('signer_utc_offset_minutes: ' + f.timezoneOffsetMinutes);
+    }
+    if (f.signatureHash) lines.push('signature_sha256: ' + f.signatureHash);
+    if (typeof f.signatureStrokeCount === 'number') {
+      lines.push('signature_strokes: ' + f.signatureStrokeCount);
+    }
+    if (f.reason) lines.push('decline_reason: ' + esignTidy(f.reason, 600));
+    if (f.userAgent) lines.push('user_agent: ' + esignTidy(f.userAgent, 200));
+    lines.push('consent_disclosure: ' + PROPOSAL_DISCLOSURE_TEXT);
+    return lines.join('\n');
+  }
+  // PROPOSAL-ESIGN-BLOCK-END
+
+  function localProposalKey(id) { return 'mage_portal_proposal_' + id; }
+  function loadProposalDecision(id) {
+    try { return JSON.parse(localStorage.getItem(localProposalKey(id)) || 'null'); }
+    catch (e) { return null; }
+  }
+  function saveProposalDecision(id, payload) {
+    try { localStorage.setItem(localProposalKey(id), JSON.stringify(payload)); } catch (e) {}
+  }
+
+  // The proposal section. Money shown here is the client-facing price with
+  // markup already inside it — the snapshot carries no cost, unit price,
+  // supplier or markup rate to leak (utils/clientEstimateView is the boundary).
+  function renderProposal(p, canDecide) {
+    if (!p) return emptyState('No proposal shared yet.');
+    var decided = loadProposalDecision(p.id);
+    var scope = p.scope || [];
+    var allowances = p.allowances || [];
+    var payment = p.payment || [];
+
+    var pill = decided
+      ? (decided.decision === 'accepted'
+          ? '<span class="pill pill-success">Accepted</span>'
+          : '<span class="pill pill-muted">Declined</span>')
+      : (canDecide ? '<span class="pill pill-amber">Waiting on you</span>' : '');
+
+    var lineCount = Math.max(0, Number(p.lineCount) || 0);
+    var sub = lineCount
+      ? lineCount + ' line item' + (lineCount === 1 ? '' : 's')
+      : '';
+    if (p.preparedAt) sub += (sub ? ' · ' : '') + 'Prepared ' + fmtDate(p.preparedAt);
+
+    var html =
+      '<div class="prop">' +
+        '<div class="prop-head">' +
+          '<div>' +
+            '<div class="prop-head-label">Fixed price</div>' +
+            '<div class="prop-total">' + fmtMoney(p.total, { dec: 0 }) + '</div>' +
+            (sub ? '<div class="prop-total-note">' + esc(sub) + '</div>' : '') +
+          '</div>' +
+          pill +
+        '</div>';
+
+    if (scope.length) {
+      html += '<div class="prop-group-head">What is included</div><div class="ob-summary">';
+      for (var i = 0; i < scope.length; i++) {
+        html += '<div class="ob-row"><span>' + esc(scope[i].label || '') + '</span>' +
+                '<strong>' + fmtMoney(scope[i].total, { dec: 0 }) + '</strong></div>';
+      }
+      html += '<div class="ob-row ob-row-total"><span>Total</span>' +
+              '<strong>' + fmtMoney(p.total, { dec: 0 }) + '</strong></div></div>';
+    }
+
+    if (allowances.length) {
+      html += '<div class="prop-group-head">Allowances — you choose within these</div><div class="ob-summary">';
+      for (var a = 0; a < allowances.length; a++) {
+        html += '<div class="ob-row"><span>' + esc(allowances[a].name || '') + '</span>' +
+                '<strong>' + fmtMoney(allowances[a].amount, { dec: 0 }) + '</strong></div>';
+      }
+      html += '</div>';
+    }
+
+    if (payment.length) {
+      html += '<div class="prop-group-head">How payment works</div><div class="ob-summary">';
+      for (var m = 0; m < payment.length; m++) {
+        var amt = typeof payment[m].amount === 'number'
+          ? fmtMoney(payment[m].amount, { dec: 0 })
+          : '—';
+        html += '<div class="ob-row"><span>' + esc(payment[m].label || '') +
+                ' — ' + esc(payment[m].detail || '') + '</span>' +
+                '<strong>' + amt + '</strong></div>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="prop-note">' + esc(PROPOSAL_NOT_A_CONTRACT_NOTE) + '</div>';
+
+    if (decided) {
+      var good = decided.decision === 'accepted';
+      // `recorded === false` means the server already held an acceptance and
+      // this device's submission created NO row. It is a different sentence,
+      // and it has to be said: a second person (a spouse, a second device, the
+      // same phone after clearing site data) sees a live accept button, types
+      // their legal name, draws a signature and ticks consent — and none of it
+      // is stored. Until 2026-09-13 this branch fired confetti and printed
+      // "Accepted by <their name>" over the FIRST signer's record hash.
+      // Reading `!== false` (not `=== true`) so a decision saved by an older
+      // build of this page, which carried no flag, still reads as recorded.
+      if (good && decided.recorded === false) {
+        html +=
+          '<div class="co-decided good">' +
+            icn(ICONS.check, 14) +
+            '<span>Already accepted' +
+              (decided.signer ? ' by ' + esc(decided.signer) : '') +
+              (decided.at ? ' ' + esc(timeAgo(decided.at)) : '') + '</span>' +
+          '</div>' +
+          '<div class="prop-total-note">' +
+            'This proposal had already been accepted, so what you just signed was <strong>not recorded</strong> — ' +
+            'there is one acceptance per proposal, and it stands. Nothing further is needed from you. ' +
+            'If that acceptance was not meant to happen, message your contractor.' +
+          '</div>';
+      } else {
+        html +=
+          '<div class="co-decided ' + (good ? 'good' : 'bad') + '">' +
+            (good ? icn(ICONS.check, 14) : icn(ICONS.alert, 14)) +
+            '<span>' + (good ? 'Accepted' : 'Declined') +
+              (decided.signer ? ' by ' + esc(decided.signer) : '') +
+              ' ' + esc(timeAgo(decided.at)) + '</span>' +
+          '</div>' +
+          (decided.hash
+            ? '<div class="prop-receipt">Record SHA-256 ' + esc(String(decided.hash).slice(0, 32)) + '…</div>'
+            : '');
+      }
+    } else if (canDecide) {
+      html +=
+        '<div class="prop-cta">' +
+          '<button class="co-decline-btn" data-proposal-decline="' + esc(p.id) + '">Not yet — send a note</button>' +
+          '<button class="co-approve-btn" data-proposal-accept="' + esc(p.id) + '">' +
+            icn(ICONS.check, 13) + '<span>Review &amp; accept</span>' +
+          '</button>' +
+        '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  // Open the review-and-sign sheet for the proposal. Copy only — the
+  // mechanics are showDocSignModal's.
+  function showProposalSignModal(opts) {
+    var isAccept = opts.decision === 'accepted';
+    var p = opts.proposal || {};
+    var scope = p.scope || [];
+
+    var scopeHtml =
+      '<div class="esign-scope-label">What you are accepting</div>' +
+      '<div class="esign-scope-desc">' + esc(p.title || 'Proposal') + '</div>' +
+      '<div class="esign-delta">' +
+        '<span class="esign-delta-label">Fixed price</span>' +
+        '<span class="esign-delta-value add">' + fmtMoney(p.total, { dec: 2 }) + '</span>' +
+      '</div>' +
+      (scope.length
+        ? '<div class="esign-delta">' +
+            '<span class="esign-delta-label">Scope</span>' +
+            '<span class="esign-delta-value small">' + scope.length +
+              ' group' + (scope.length === 1 ? '' : 's') + '</span>' +
+          '</div>'
+        : '') +
+      '<div class="esign-scope-reason">' + esc(PROPOSAL_NOT_A_CONTRACT_NOTE) + '</div>';
+
+    return showDocSignModal({
+      approveMode: isAccept,
+      clientName: opts.clientName || '',
+      eyebrow: 'Proposal',
+      title: isAccept ? 'Review & accept this proposal' : 'Send your contractor a note',
+      scopeHtml: scopeHtml,
+      consentText: PROPOSAL_DISCLOSURE_TEXT,
+      consentLabel: 'I agree to accept this proposal electronically, and I accept the scope and the fixed price shown above.',
+      legal: isAccept
+        ? 'Accepted electronically. Your contractor keeps a sealed copy of this record, and so can you.'
+        : 'Saying not yet costs you nothing. It tells your contractor what to change before you can accept.',
+      submitLabel: isAccept ? 'Sign & accept' : 'Send note',
+      busyLabel: isAccept ? 'Sealing…' : 'Sending…',
+      declinePlaceholder: 'Tell your contractor what needs to change before you can accept — price, scope, timing…',
+      onConfirm: opts.onConfirm,
+    });
+  }
+
+  // Submit a SIGNED proposal decision. Same token-gated RPC pattern as every
+  // other portal write.
+  //
+  // NO LEGACY FALLBACK, deliberately. The change-order flow can degrade to an
+  // older RPC because one exists. There is no older proposal RPC, and the only
+  // things this page could degrade to — posting a chat message, or stashing the
+  // decision locally and calling it done — would present something that is not
+  // a signature as one. If the RPC is not deployed the homeowner is told
+  // plainly and handed the message composer instead.
+  async function postProposalDecisionSigned(api, payload) {
+    if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
+    var base = api.supabaseUrl.replace(/\/+$/, '');
+    var resp = await fetch(base + '/rest/v1/rpc/portal_submit_proposal_approval_signed', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api.supabaseAnonKey,
+        'Authorization': 'Bearer ' + api.supabaseAnonKey,
+      },
+      body: JSON.stringify({
+        p_portal_id: payload.portal_id,
+        p_access_token: getPortalToken(),
+        p_proposal_id: payload.proposal_id,
+        p_proposal_document_hash: payload.proposal_document_hash,
+        p_decision: payload.decision,
+        p_signer_name: payload.signer_name || null,
+        p_note: payload.note || null,
+        p_user_agent: payload.user_agent || null,
+        p_signature_data: payload.signature_data || null,
+        p_signature_hash: payload.signature_hash || null,
+        p_consent_record: payload.consent_record || null,
+        p_client_hash: payload.client_hash || null,
+        p_consent_version: payload.consent_version || null,
+        p_consent_accepted: !!payload.consent_accepted,
+      }),
+    });
+    if (resp.ok) {
+      try { return await resp.json(); } catch (e) { return {}; }
+    }
+    var text = '';
+    try { text = await resp.text(); } catch (e) {}
+    var err = new Error('Supabase ' + resp.status + ': ' + text);
+    err.status = resp.status;
+    err.body = text;
+    return Promise.reject(err);
+  }
+
+  // What went wrong, said in the homeowner's terms. Every branch here maps a
+  // server condition the RPC raises on purpose; anything unrecognised falls
+  // through to the honest "we could not record this".
+  function proposalErrorMessage(err) {
+    var body = String((err && err.body) || (err && err.message) || '');
+    // Raised only on a DECLINE filed after this portal's proposal was already
+    // accepted. The RPC refuses it rather than filing a row, because the
+    // contractor's screen orders these newest-first and a "Proposal declined"
+    // landing on top of an accepted job is a signal he would stop work on.
+    if (/proposal_already_accepted/.test(body)) {
+      return 'This proposal has already been accepted, so a decline cannot be filed against it. If something needs to change, send your contractor a message — a change to accepted work is handled as a change order.';
+    }
+    if (/proposal_superseded/.test(body)) {
+      return 'Your contractor changed this proposal since this page loaded. Refresh the page to read the current version — a signature has to match the proposal you were shown.';
+    }
+    if (/portal_denied/.test(body) || /Supabase 40[13]/.test(body)) {
+      // Deliberately one message for two server conditions. The RPC answers a
+      // flat portal_denied both for a bad access code and for a portal whose
+      // published copy carries no proposal — telling them apart would let
+      // anyone holding a link probe what exists behind it. The good news is
+      // that the fix is the same either way: the contractor re-opening the
+      // project republishes the proposal, and re-sending the link carries a
+      // fresh access code.
+      return 'To accept, ask your contractor to re-send your portal link. It carries a secure access code, and re-sending also republishes the current proposal.';
+    }
+    if (/PGRST202|Could not find the function|does not exist|Supabase 404/.test(body)) {
+      return 'Accepting from this page is not switched on for your project yet. Send your contractor a message instead — we have started one for you below.';
+    }
+    if (/hash_mismatch/.test(body)) {
+      return 'Something altered this proposal between your screen and our records, so nothing was signed. Refresh the page and try again.';
+    }
+    return "We couldn't record your decision. Check your connection and try again, or message your contractor.";
   }
 
   // ───────── Work complete ─────────
@@ -6083,6 +6596,39 @@
         t('contractSectionSubtitleSigned'), null, renderContractCard(data.contract));
     }
 
+    // Proposal — the decision that starts the job, directly under the
+    // contract slot (buildPortalProposal suppresses the proposal once an
+    // agreement has been sent, so the two never appear together). The accept
+    // buttons need portalApi: without it there is nothing to submit to, and a
+    // button that cannot record a signature must not be drawn.
+    if (data.proposal) {
+      var proposalCanDecide = !!data.portalApi;
+      addSection('proposal', 'fileText', 'Your proposal',
+        proposalCanDecide
+          ? 'Review the scope and the price, then accept to get started.'
+          : 'The scope and price your contractor has put together.',
+        null, renderProposal(data.proposal, proposalCanDecide));
+    }
+
+    // The completion ask. Shown once the GC's own substantial-completion date
+    // has arrived, unless this homeowner has already written since then or
+    // waved it off on this device. Needs portalApi for the same reason the
+    // proposal buttons do: without somewhere to send a message, the card is a
+    // prompt to do something impossible.
+    var feedbackAsk = data.feedbackAsk;
+    var showFeedbackAsk = !!feedbackAsk && !!data.portalApi
+      && !feedbackDismissed(data.portalApi.portalId)
+      && !homeownerRepliedSince(data, feedbackAsk.completedOn);
+    if (showFeedbackAsk) {
+      addSection('feedback', 'check', 'How did we do?',
+        // NOT "your build is finished". Substantial completion is the point at
+        // which the job is usable and the punch list is still open — this card
+        // routinely appears over a punch list with items on it, and saying
+        // "finished" about that is a claim the page cannot make.
+        'Your contractor has recorded substantial completion. They would like to hear from you.',
+        null, renderFeedbackAsk(feedbackAsk));
+    }
+
     // "Waiting on you" — every open decision, ranked overdue-first, right
     // under the contract. The homeowner rarely knows they're the bottleneck:
     // every day an owner sits on a tile selection is a day the GC's sub
@@ -6351,6 +6897,152 @@
       bindCOHandlers();
     }
 
+    // Proposal accept / decline buttons
+    if (data.proposal && data.portalApi) {
+      var proposal = data.proposal;
+
+      function handleProposalDecision(decision) {
+        showProposalSignModal({
+          proposal: proposal,
+          decision: decision,
+          clientName: data.clientName || '',
+          onConfirm: function (result, ui) {
+            ui.setBusy(true);
+            var signedAt = new Date().toISOString();
+            var userAgent = String(navigator.userAgent || '').slice(0, 200);
+            var tzOffset = null;
+            try { tzOffset = -new Date().getTimezoneOffset(); } catch (e) { tzOffset = null; }
+            var isAccept = decision === 'accepted';
+            var signatureData = isAccept ? (result.signatureData || '') : '';
+
+            // The document hash is computed over the PUBLISHED text, and the
+            // server recomputes it from its own copy of the snapshot. If this
+            // browser cannot hash at all (no secure context) there is nothing
+            // to bind the signature to, so we stop rather than seal something
+            // weaker and call it the same thing.
+            sha256Hex(proposal.documentText || '').then(function (docHash) {
+              if (!docHash) {
+                throw new Error('no_subtle_crypto');
+              }
+              return sha256Hex(signatureData).then(function (signatureHash) {
+                var record = buildProposalConsentRecord({
+                  decision: decision,
+                  portalId: data.portalApi.portalId,
+                  proposalId: proposal.id,
+                  proposalTotal: proposal.total,
+                  proposalDocumentHash: docHash,
+                  signerName: result.signerName,
+                  signedAt: signedAt,
+                  timezoneOffsetMinutes: typeof tzOffset === 'number' ? tzOffset : undefined,
+                  signatureHash: isAccept ? (signatureHash || undefined) : undefined,
+                  signatureStrokeCount: isAccept ? result.strokeCount : undefined,
+                  reason: isAccept ? undefined : (result.reason || undefined),
+                  userAgent: userAgent,
+                });
+                return sha256Hex(record).then(function (clientHash) {
+                  return postProposalDecisionSigned(data.portalApi, {
+                    portal_id: data.portalApi.portalId,
+                    proposal_id: proposal.id,
+                    proposal_document_hash: docHash,
+                    decision: decision,
+                    signer_name: result.signerName,
+                    note: isAccept ? null : result.reason,
+                    user_agent: userAgent,
+                    signature_data: signatureData || null,
+                    signature_hash: signatureHash,
+                    consent_record: record,
+                    client_hash: clientHash,
+                    consent_version: PROPOSAL_ESIGN_VERSION,
+                    consent_accepted: !!result.consentAccepted,
+                  }).then(function (res) {
+                    return { res: res, clientHash: clientHash };
+                  });
+                });
+              });
+            }).then(function (out) {
+              var res = out.res || {};
+              // DID THE SERVER ACTUALLY STORE THIS ONE? `recorded: false` comes
+              // back when an acceptance was already on file for this portal —
+              // a second person, a second device, or this same phone after
+              // clearing site data, all of which see a live accept button
+              // because the decision lives in localStorage and the snapshot
+              // carries no accepted flag. The row is NOT written in that case,
+              // so nothing here may present it as sealed: no confetti, no
+              // "Accepted by <this person>", and no record hash offered as
+              // their receipt — the hash that comes back belongs to the first
+              // signer. Read as `!== false` so an older server that predates
+              // the field still reads as recorded.
+              var wasRecorded = res.recorded !== false;
+              var stamp = wasRecorded ? (res.document_hash || out.clientHash || null) : null;
+              saveProposalDecision(proposal.id, {
+                decision: wasRecorded ? decision : 'accepted',
+                recorded: wasRecorded,
+                at: wasRecorded ? signedAt : (res.sealed_at || null),
+                signer: wasRecorded ? result.signerName : (res.signer_name || null),
+                hash: stamp,
+              });
+              ui.close();
+              var sectionEl = document.getElementById('sec-proposal');
+              if (sectionEl) {
+                var body = sectionEl.querySelector('.section-body');
+                if (body) body.innerHTML = renderProposal(proposal, true);
+                bindProposalHandlers();
+              }
+              // NO notifyEvent() HERE, on purpose. The `notify` edge function
+              // accepts exactly two events from an anon caller —
+              // ANON_ALLOWED_EVENTS = {contract_signed, selection_chosen} in
+              // supabase/functions/_shared/notifyGuards.ts — and rejects
+              // everything else. The change-order flow above calls
+              // notifyEvent('change_order_signed'), which that allowlist has
+              // been refusing since it shipped: it looks like a push and is
+              // not one. Copying a dead call to make this one look finished
+              // would be worse than not having it. The contractor learns of an
+              // acceptance from the `proposal_approvals` row, which
+              // app/client-portal-setup.tsx reads and shows. Adding
+              // 'proposal_accepted' to that allowlist (and a project resolver
+              // for it in notify) is a separate, deployable change.
+              //
+              // Confetti only for a signature that was actually stored. See
+              // wasRecorded above.
+              if (decision === 'accepted' && wasRecorded) fireWebConfetti();
+            }).catch(function (err) {
+              console.warn('proposal decision failed', err);
+              ui.setBusy(false);
+              if (String(err && err.message) === 'no_subtle_crypto') {
+                ui.setError('This browser cannot seal a signature (it is missing the crypto features we hash the record with). Open the link in Safari or Chrome, or message your contractor.');
+                return;
+              }
+              var msg = proposalErrorMessage(err);
+              ui.setError(msg);
+              // The one case where there is something useful to hand them:
+              // the RPC is not deployed yet. Open the composer with a draft
+              // they can read and edit. It is a MESSAGE, clearly, and nothing
+              // here pretends it is a signature.
+              if (/not switched on/.test(msg)) {
+                var input = document.getElementById('msg-input');
+                if (input) {
+                  input.value = decision === 'accepted'
+                    ? 'I would like to accept the proposal for ' + (data.project && data.project.name ? data.project.name : 'my project') + '. Please send it over to sign.'
+                    : (result.reason || 'I have a question about the proposal.');
+                  try { input.dispatchEvent(new Event('input')); } catch (e) {}
+                }
+              }
+            });
+          },
+        });
+      }
+
+      function bindProposalHandlers() {
+        document.querySelectorAll('[data-proposal-accept]').forEach(function (b) {
+          b.addEventListener('click', function () { handleProposalDecision('accepted'); });
+        });
+        document.querySelectorAll('[data-proposal-decline]').forEach(function (b) {
+          b.addEventListener('click', function () { handleProposalDecision('declined'); });
+        });
+      }
+      bindProposalHandlers();
+    }
+
     // Messages compose / send
     if (data.portalApi) {
       var msgInput = document.getElementById('msg-input');
@@ -6387,6 +7079,31 @@
         msgThread.appendChild(bubble);
         msgThread.scrollTop = msgThread.scrollHeight;
       }
+
+      // Message starters — fill the box, focus it, and get out of the way.
+      // Nothing is sent until the homeowner presses Send, and the opener is
+      // editable, so what lands in the thread is their words.
+      document.querySelectorAll('[data-feedback-dismiss]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          dismissFeedback(data.portalApi.portalId);
+          var sec = document.getElementById('sec-feedback');
+          if (sec) sec.remove();
+          var navEl = document.querySelector('.nav-link[data-target="sec-feedback"]');
+          if (navEl) navEl.remove();
+        });
+      });
+
+      document.querySelectorAll('[data-msg-prompt]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!msgInput) return;
+          var opener = b.getAttribute('data-msg-prompt') || '';
+          msgInput.value = opener;
+          autoGrow();
+          msgInput.focus();
+          try { msgInput.setSelectionRange(opener.length, opener.length); } catch (e) {}
+          msgInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
 
       if (msgInput && msgSend && msgThread) {
         // Auto-scroll to bottom on first render

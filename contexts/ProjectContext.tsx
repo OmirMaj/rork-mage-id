@@ -5,6 +5,7 @@ import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollabo
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
+import { useFieldDayPackWarmer } from '@/hooks/useFieldDayPack';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite, getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
@@ -5670,6 +5671,18 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     [planSheets]);
 
   const getPlanSheet = useCallback((id: string) => planSheets.find(s => s.id === id), [planSheets]);
+
+  // FIELD DAY PACK. Pull the plan sheets for every jobsite scheduled today and
+  // tomorrow onto the device while there is still signal, inside ONE bounded
+  // budget — instead of the previous behaviour, which warmed only whichever
+  // project's detail screen the user happened to open. Mounted here because
+  // this is where `projects` and `planSheets` live; everything it does (the
+  // budget, the fair share, the staleness rules, the copy) is in
+  // utils/fieldDayPackCore.ts and hooks/useFieldDayPack.ts. Warms at most once
+  // every three hours, records only what the prefetch confirmed, and never
+  // surfaces an error — a warm that does not happen is a slower plan open, not
+  // a broken screen.
+  useFieldDayPackWarmer(projects, planSheets);
 
   const addDrawingPin = useCallback((pin: Omit<DrawingPin, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();

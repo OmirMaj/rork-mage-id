@@ -36,6 +36,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { shareText } from '@/utils/shareText';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
@@ -63,6 +64,7 @@ export default function InstantBidProposalModal({
   const styles = useThemedStyles(makeStyles);
   const { settings, addLeadTouch, updateLead, projects, getCommitmentsForProject } = useProjects() as any;
   const { companies } = useCompanies();
+  const { globalMarkup, markupDecided } = useMaterialCart();
   const company = companies[0];
   // Self-perform labor samples (D6) — folds crew hours × configured loaded
   // rates into the cost book that grounds the ROM.
@@ -149,6 +151,11 @@ export default function InstantBidProposalModal({
         companyName: company?.companyName,
         financing: settings?.financing,
         groundingContext,
+        // aiMidpoint asks the model for a ROM COST. Without this the tier
+        // amounts on a proposal a homeowner receives are the contractor's cost.
+        // Only passed once he has actually answered the markup question — the
+        // context's default is not an answer (contexts/MaterialCartContext).
+        markupPct: markupDecided === true ? globalMarkup : undefined,
       });
       if (runId !== runIdRef.current) return; // aborted: closed / reopened / lead changed
       setProposal(p);
@@ -159,7 +166,7 @@ export default function InstantBidProposalModal({
     } finally {
       if (runId === runIdRef.current) setGenerating(false);
     }
-  }, [lead, generating, company, settings, projects, allCommitments, receipts, laborSamples, seeds]);
+  }, [lead, generating, company, settings, projects, allCommitments, receipts, laborSamples, seeds, globalMarkup, markupDecided]);
 
   const handleGenerate = useCallback(async () => {
     if (!lead) return;

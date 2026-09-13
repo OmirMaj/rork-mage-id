@@ -40,8 +40,25 @@
 import { computeJobCost } from '../utils/jobCostEngine';
 import { computeEstimateActuals } from '../utils/estimateActuals';
 import { computeLivingEstimate } from '../utils/livingEstimate';
+import {
+  buildQuickLinkedEstimate, priceCostBreakdown, isAtCost, marginOf,
+  markupForMargin, estimateMarginPct, cartTotals, applyMarkupToItems,
+  isMarkupSet, markupFactor, markupDecidedFromStorage,
+} from '../utils/estimateMarkup';
+// fileURLToPath + join because the repo path contains a space.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { billFromEstimateLine, billFromEstimateUnitPrice } from '../utils/billFromEstimateCore';
 import type { LinkedEstimate, Project, Commitment } from '../types';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+/** Source with comments dropped — this file's structural checks are about the
+ *  arithmetic a screen ships, not the arithmetic its comments describe. */
+const stripComments = (src: string) => src
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -1106,6 +1123,462 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
       commitment({ id: 'c-small', projectId: 'p-sumless', amount: 0, paidToDate: 300 }),
       commitment({ id: 'c-big', projectId: 'p-sumless', amount: 0, paidToDate: 9_000 }),
     ]).map(r => r.commitmentId), ['c-big', 'c-small']);
+}
+
+// ── 12. THE MARGIN BUG: an estimate must not ship at cost, silently ─────────
+//
+// The most expensive defect this file has ever had to guard. Measured on the
+// shipped code before the fix: the Quick Estimate wizard produced a $59,132
+// estimate with baseTotal $59,132, grandTotal $59,132, markupTotal $0 — a
+// 0.0% gross margin — and utils/livingEstimate reported hasMarginBasis FALSE
+// on it, so utils/marginAlerts skipped the job and nothing caught it at close
+// either. The number a contractor emailed a homeowner was his cost.
+//
+// These assertions call the SHIPPED functions. buildQuickLinkedEstimate and
+// priceCostBreakdown are the exact ones app/estimate-wizard.tsx imports; the
+// mapper used to be a screen-local closure inside the .tsx, which no validator
+// could reach and which is why nothing here could have caught this before.
+{
+  console.log('\nthe margin bug (an estimate must not ship at cost):');
+
+  let n = 0;
+  const seq = () => `id${n++}`;
+  const breakdown = () => ({
+    lineItems: [
+      { category: 'Demolition', description: 'Gut kitchen', quantity: 1, unit: 'ls', unitCost: 4_800, total: 4_800 },
+      { category: 'Labor', description: 'Carpentry crew', quantity: 240, unit: 'hrs', unitCost: 78, total: 18_720 },
+      { category: 'Finishes', description: 'Cabinets + tops', quantity: 1, unit: 'ls', unitCost: 22_400, total: 22_400 },
+    ],
+    subtotal: 45_920, contingency: 4_592, permits: 1_800, total: 52_312,
+  });
+  const COST_TOTAL = 52_312;
+
+  // ── 12a. the mapper actually applies the markup ──────────────────────────
+  {
+    n = 0;
+    const est = buildQuickLinkedEstimate(breakdown(), 20, seq);
+    expect('the wizard mapper prices at cost basis + markup', est.baseTotal, COST_TOTAL);
+    expect('…and sells at cost x 1.20', est.grandTotal, round2(COST_TOTAL * 1.2));
+    ok('…so the estimate carries real profit', est.markupTotal > 0,
+      `markupTotal ${est.markupTotal} — a wizard estimate with no profit in it is THE defect`);
+    ok('…and it is not at cost', !isAtCost(est));
+    // The exact pre-fix state, asserted as a NEGATIVE so the guard fails if the
+    // hard-coded `markup: 0` ever comes back.
+    ok('no line is left at markup 0', est.items.every(i => i.markup === 20),
+      `markups seen: ${JSON.stringify([...new Set(est.items.map(i => i.markup))])}`);
+    expect('globalMarkup records what was applied', est.globalMarkup, 20);
+    // Contingency and permits are priced too, not carried at cost — see the
+    // argument in utils/estimateMarkup.applyMarkupToItems.
+    const cont = est.items.find(i => i.name === 'Contingency');
+    ok('contingency carries the markup as well', !!cont && cont.markup === 20 && cont.lineTotal > cont.unitPrice,
+      'a contingency carried at cost is spent at 0% margin and drags realized margin below the bid');
+  }
+
+  // A hand-tuned per-line markup survives a global pass, and `force` overrides
+  // it. Unguarded until this was mutated (`keepOwn = false` left all 214 green),
+  // and it is a promise the estimator's per-item markup chips depend on.
+  {
+    const tuned = [{
+      materialId: 'x', name: 'Tile', category: 'Tile', unit: 'sf', quantity: 100,
+      unitPrice: 10, bulkPrice: 10, markup: 40, usesBulk: false, lineTotal: 1_400, supplier: '',
+    }, {
+      materialId: 'y', name: 'Paint', category: 'Painting', unit: 'sf', quantity: 100,
+      unitPrice: 5, bulkPrice: 5, markup: 0, usesBulk: false, lineTotal: 500, supplier: '',
+    }];
+    const soft = applyMarkupToItems(tuned, 20);
+    expect('a hand-tuned 40% line keeps its markup through a global pass', soft[0].markup, 40);
+    expect('…and its sell price is still cost x 1.40', soft[0].lineTotal, 1_400);
+    expect('…while the untouched line takes the global 20%', soft[1].markup, 20);
+    const forced = applyMarkupToItems(tuned, 20, { force: true });
+    expect('force overrides even a hand-tuned line', forced[0].markup, 20);
+    expect('…and reprices it', forced[0].lineTotal, 1_200);
+  }
+
+  // ── 12b. the two invariants every downstream engine reads ────────────────
+  {
+    n = 0;
+    const est = buildQuickLinkedEstimate(breakdown(), 18, seq);
+    expect('sum of lineTotal === grandTotal',
+      round2(est.items.reduce((t, i) => t + i.lineTotal, 0)), round2(est.grandTotal));
+    expect('baseTotal + markupTotal === grandTotal',
+      round2(est.baseTotal + est.markupTotal), round2(est.grandTotal));
+    expect('sum of unitPrice x quantity === baseTotal',
+      round2(est.items.reduce((t, i) => t + i.unitPrice * i.quantity, 0)), round2(est.baseTotal));
+    // THE COST BASIS MUST SURVIVE. jobCostEngine seeds the budget from
+    // unitPrice, estimateActuals compares buyouts to it, estimateCalibration
+    // divides by it. Marking up unitPrice would teach the cost engine that his
+    // costs rose by his profit, and the calibration loop compounds that.
+    const demo = est.items[0];
+    expect('unitPrice is untouched COST, never the marked-up figure', demo.unitPrice, 4_800);
+    ok('lineTotal is the marked-up SELL figure', demo.lineTotal > demo.unitPrice * demo.quantity);
+  }
+
+  // ── 12c. zero is a real answer and it is honoured, not overridden ────────
+  {
+    n = 0;
+    const est = buildQuickLinkedEstimate(breakdown(), 0, seq);
+    expect('a 0% markup quotes exactly cost', est.grandTotal, COST_TOTAL);
+    ok('…and isAtCost says so out loud', isAtCost(est),
+      'the UI band that warns him depends on this predicate');
+    // An UNSET markup must behave identically to zero in the arithmetic — the
+    // app must never invent a percentage for a contractor who has not chosen.
+    n = 0;
+    const unset = buildQuickLinkedEstimate(breakdown(), null, seq);
+    expect('an UNSET markup invents nothing', unset.grandTotal, COST_TOTAL);
+  }
+
+  // ── 12d. markup is not margin, and the app knows the difference ──────────
+  expect('25% markup is 20% margin', Math.round(marginOf(25) * 1000) / 10, 20);
+  expect('50% markup is 33.3% margin', Math.round(marginOf(50) * 1000) / 10, 33.3);
+  expect('20% margin needs a 25% markup', Math.round(markupForMargin(0.2)), 25);
+  ok('the two are NOT the same number', marginOf(25) * 100 !== 25,
+    'conflating them is how a contractor aiming for 25 points walks away with 20');
+  {
+    n = 0;
+    const est = buildQuickLinkedEstimate(breakdown(), 25, seq);
+    expect('a 25% markup yields a 20.0% realized gross margin',
+      Math.round(estimateMarginPct(est) * 1000) / 10, 20);
+  }
+
+  // ── 12e. the client-facing document is priced, not costed ────────────────
+  // priceCostBreakdown is what the hero total, the category breakdown, the
+  // payment schedule AND utils/pdfGenerator all read. If it returned cost, the
+  // homeowner's PDF would quote cost no matter what the LinkedEstimate said.
+  {
+    const priced = priceCostBreakdown(breakdown(), 20);
+    expect('the PDF/on-screen total is the SELL price', priced.total, round2(COST_TOTAL * 1.2));
+    ok('every client-visible unit price carries the markup',
+      priced.lineItems.every((li, i) => li.unitCost > breakdown().lineItems[i].unitCost));
+    ok('the priced doc and the linked estimate agree on the total', (() => {
+      n = 0;
+      const est = buildQuickLinkedEstimate(breakdown(), 20, seq);
+      return Math.abs(est.grandTotal - priced.total) < 0.05;
+    })(), 'the client PDF and the project budget must not quote two different numbers');
+    expect('an unset markup leaves the document untouched', priceCostBreakdown(breakdown(), null).total, COST_TOTAL);
+  }
+
+  // ── 12f. livingEstimate can SEE a job bid at cost ────────────────────────
+  // The blindness clause. `hasMarginBasis` used to require
+  // `baseTotal < grandTotal`, so a job with no margin failed the test for
+  // HAVING a margin basis, and utils/marginAlerts `continue`d straight past
+  // the only jobs that needed the alarm.
+  {
+    n = 0;
+    const atCostEst = buildQuickLinkedEstimate(breakdown(), 0, seq);
+    const atCostJob = { id: 'p-atcost', name: 'At cost', status: 'in_progress', linkedEstimate: atCostEst } as unknown as Project;
+    const le = computeLivingEstimate({ project: atCostJob, changeOrders: [], commitments: [], invoices: [] });
+    ok('a job bid at cost HAS a margin basis', le.hasMarginBasis,
+      'false here means utils/marginAlerts, marginRiskScore and portfolio-margin all skip it');
+    ok('…and is named as bid-at-cost', le.bidAtCost);
+    expect('…its bid margin is zero', Math.round(le.original.marginPct * 1000), 0);
+    expect('…and its health is critical', le.health, 'critical');
+
+    // Priced below cost is worse, and must not be filtered out either.
+    n = 0;
+    const underEst = buildQuickLinkedEstimate(breakdown(), 0, seq);
+    underEst.grandTotal = round2(underEst.baseTotal * 0.9);
+    underEst.markupTotal = round2(underEst.grandTotal - underEst.baseTotal);
+    const underJob = { id: 'p-under', name: 'Under', status: 'in_progress', linkedEstimate: underEst } as unknown as Project;
+    const under = computeLivingEstimate({ project: underJob, changeOrders: [], commitments: [], invoices: [] });
+    ok('a job priced BELOW cost is still seen', under.hasMarginBasis);
+    expect('…and is critical', under.health, 'critical');
+    ok('…with a negative bid margin', under.original.marginPct < 0);
+
+    // …and the genuinely blind case still reports blind: no cost basis at all.
+    const legacy = { id: 'p-legacy', name: 'Legacy', status: 'in_progress',
+      estimate: { grandTotal: 90_000 } } as unknown as Project;
+    ok('a legacy single-total estimate still has NO margin basis',
+      !computeLivingEstimate({ project: legacy, changeOrders: [], commitments: [], invoices: [] }).hasMarginBasis,
+      'one number cannot be split into cost and margin — this case must stay excluded');
+    ok('…and is not mislabelled as bid-at-cost',
+      !computeLivingEstimate({ project: legacy, changeOrders: [], commitments: [], invoices: [] }).bidAtCost);
+  }
+
+  // ── 12g. a marked-up job is not misreported as at-cost ───────────────────
+  // The other direction, so the band and the alert cannot cry wolf.
+  {
+    n = 0;
+    const good = buildQuickLinkedEstimate(breakdown(), 22, seq);
+    const goodJob = { id: 'p-good', name: 'Good', status: 'in_progress', linkedEstimate: good } as unknown as Project;
+    const le = computeLivingEstimate({ project: goodJob, changeOrders: [], commitments: [], invoices: [] });
+    ok('a properly marked-up job is not flagged at cost', !le.bidAtCost);
+    expect('…and is healthy with nothing spent', le.health, 'healthy');
+  }
+
+  // ── 12h. labor and assemblies carry the markup too ───────────────────────
+  // app/(tabs)/estimate/full.tsx wrote `markup: 0` on every labor and assembly
+  // row while materials carried the contractor's percentage, so a labor-heavy
+  // job realized a fraction of the margin he set. This asserts the arithmetic
+  // that file now uses — a mixed cart must yield the markup he chose ACROSS
+  // the whole cost base, not just the materials slice.
+  {
+    const MK = 20;
+    const materialsCost = 40_000, laborCost = 50_000, assembliesCost = 10_000;
+    // cartTotals is the function BOTH estimator screens call — not a re-typed
+    // copy of their formula. Deleting the markup from labor inside it turns
+    // every assertion below red, which is the only reason they mean anything.
+    const t = cartTotals({
+      materialsCost,
+      materialsSell: materialsCost * (1 + MK / 100),
+      laborCost, assembliesCost, markupPct: MK,
+    });
+    expect('the shared cart total marks up the WHOLE cost base',
+      round2(t.markupTotal), round2(t.directCostTotal * MK / 100));
+    expect('…which is 20,000 on a 100k job, not the 8,000 materials-only gave',
+      Math.round(t.markupTotal), 20_000);
+    expect('…labor is sold above its loaded cost', round2(t.laborSell), round2(laborCost * 1.2));
+    expect('…and so are assemblies', round2(t.assemblySell), round2(assembliesCost * 1.2));
+    expect('…the realized margin equals marginOf(markup)',
+      Math.round((t.markupTotal / t.grandTotal) * 1000) / 10, Math.round(marginOf(MK) * 1000) / 10);
+    ok('the materials-only rule would have under-margined this job',
+      materialsCost * MK / 100 < t.markupTotal,
+      'materials-only markup on a labor-heavy job is 8,000 against the 20,000 he set');
+    // Zero must stay zero — the shared function must not invent a floor.
+    const none = cartTotals({ materialsCost, materialsSell: materialsCost, laborCost, assembliesCost, markupPct: 0 });
+    expect('a 0% cart totals to exactly cost', round2(none.grandTotal), round2(none.directCostTotal));
+    expect('…with no markup', round2(none.markupTotal), 0);
+    // The NaN guard inside cartTotals. Unguarded until this was written:
+    // deleting `Number.isFinite(input.markupPct) ? input.markupPct : 0` left
+    // all 219 assertions green while every total on the estimator screen
+    // rendered NaN the moment the custom-percent field held a non-number.
+    const bad = cartTotals({
+      materialsCost, materialsSell: materialsCost, laborCost, assembliesCost,
+      markupPct: Number.NaN,
+    });
+    ok('a NaN markup produces finite totals, not NaN on every row',
+      Number.isFinite(bad.grandTotal) && Number.isFinite(bad.markupTotal) && Number.isFinite(bad.laborSell),
+      `grandTotal ${bad.grandTotal} — the estimator's custom-percent field can hold "" or "2o"`);
+    expect('…and is treated as no markup, never as an invented one',
+      round2(bad.grandTotal), round2(bad.directCostTotal));
+
+    // THE RATE PRINTED ON THE ROW. "Overhead & profit ({globalMarkup}%)" was
+    // stated unconditionally, so a cart with one material line hand-tuned to
+    // 40% showed a bigger dollar figure under a percentage that did not
+    // produce it. The realized rate is the only one that footed.
+    expect('a clean cart realizes exactly the global percent',
+      round2(t.effectiveMarkupPct), MK);
+    const tuned = cartTotals({
+      materialsCost,
+      // One line pulled up: the materials SELL side is 40% over cost, not 20%.
+      materialsSell: materialsCost * 1.4,
+      laborCost, assembliesCost, markupPct: MK,
+    });
+    ok('a hand-tuned line moves the rate the row must print',
+      tuned.effectiveMarkupPct > MK,
+      `effective ${tuned.effectiveMarkupPct} — printing the global 20% here understates what he is charging`);
+    expect('…and the printed rate still foots to the dollars',
+      round2(tuned.markupTotal), round2(tuned.directCostTotal * tuned.effectiveMarkupPct / 100));
+    expect('an empty cart falls back to the percent he set, not NaN',
+      round2(cartTotals({ materialsCost: 0, materialsSell: 0, laborCost: 0, assembliesCost: 0, markupPct: MK })
+        .effectiveMarkupPct), MK);
+  }
+
+  // ── 12i. "he answered zero" is not "he was never asked" ──────────────────
+  //
+  // isMarkupSet is the predicate app/estimate-wizard.tsx's requireMarkup()
+  // gates the PDF and the project write on, and the one that decides whether
+  // the red "This number is your cost" band is shown. It is the single most
+  // load-bearing line in the whole markup change, and section 12c above could
+  // not see it: BOTH branches produce grandTotal === COST_TOTAL, so every
+  // arithmetic assertion there stays green whichever way the predicate goes.
+  // Mutating `pct >= 0` to `pct > 0` — which makes a recorded "I quote at
+  // cost" indistinguishable from "never asked" and re-opens the hard gate on
+  // every single share, forever — left 219 passed / 0 failed. These are the
+  // assertions that can tell the two apart.
+  {
+    ok('a recorded ZERO is a decision the app must honour', isMarkupSet(0),
+      'false here re-asks the markup question on every share for a cost-plus contractor');
+    ok('…and an unanswered markup is not', !isMarkupSet(null));
+    ok('…nor is a NaN one', !isMarkupSet(Number.NaN));
+    ok('…nor a negative one', !isMarkupSet(-5), 'a negative markup is a price below cost, not a decision');
+    ok('a real percentage is set', isMarkupSet(20));
+    // The tautology this breaks: decided-zero and never-asked PRICE the same.
+    // Only the predicate separates them, so only the predicate can be guarded.
+    expect('decided-zero and never-asked price identically', markupFactor(0), markupFactor(null));
+    ok('…which is exactly why the arithmetic cannot guard this and the predicate must',
+      isMarkupSet(0) !== isMarkupSet(null));
+  }
+
+  // ── 12j. the clamps and zero-guards inside the conversions ───────────────
+  // Each of these was mutated out and left 219 green.
+  {
+    // markupForMargin's clamp. Without it a 100% margin asks for an infinite
+    // markup and a negative margin returns a negative one, both of which then
+    // reach a UI field as "Infinity" / "-33".
+    ok('a 100% margin clamps to a finite markup', Number.isFinite(markupForMargin(1)),
+      `got ${markupForMargin(1)}`);
+    ok('…as does an impossible 200% margin', Number.isFinite(markupForMargin(2)));
+    expect('a negative margin asks for no markup, not a negative one', markupForMargin(-0.5), 0);
+    // estimateMarginPct's zero guard: 0/0 is NaN, and NaN renders on the
+    // margin band as "NaN%" and compares false against every threshold.
+    expect('an empty estimate has 0% margin, not NaN',
+      estimateMarginPct({ baseTotal: 0, grandTotal: 0 }), 0);
+    ok('…and the result is a number', Number.isFinite(estimateMarginPct({ baseTotal: 0, grandTotal: 0 })));
+  }
+
+  // ── 12k. a negative contingency cannot split the PDF from the budget ─────
+  //
+  // Measured on the pre-fix functions with {subtotal 1000, contingency -200,
+  // permits 0} at 20%: priceCostBreakdown.total = 960 (what the homeowner is
+  // quoted) while buildQuickLinkedEstimate.grandTotal = 1200 (what the project
+  // budget, the WIP report and the client portal read) — because the row was
+  // dropped on `> 0` but still folded into the priced total. The gap is the
+  // contingency times the markup factor, so it GREW with the markup. Neither
+  // the zod schema (`.catch(0)`) nor the wizard's normalizer clamps it.
+  {
+    const negative = () => ({
+      lineItems: [{ category: 'Framing', description: 'Frame', quantity: 1, unit: 'ls', unitCost: 1_000, total: 1_000 }],
+      subtotal: 1_000, contingency: -200, permits: 0, total: 800,
+    });
+    for (const pct of [0, 20, 35]) {
+      n = 0;
+      const est = buildQuickLinkedEstimate(negative(), pct, seq);
+      const priced = priceCostBreakdown(negative(), pct);
+      expect(`a negative contingency: PDF and budget agree at ${pct}%`,
+        round2(priced.total), round2(est.grandTotal));
+    }
+    n = 0;
+    expect('…and the negative is clamped away rather than quoted as a discount',
+      priceCostBreakdown(negative(), 20).contingency, 0);
+    expect('…so the client total is cost x 1.20 on the real scope',
+      priceCostBreakdown(negative(), 20).total, 1_200);
+    ok('…and no line item carries a negative price into the job budget',
+      buildQuickLinkedEstimate(negative(), 20, seq).items.every(i => i.unitPrice >= 0 && i.lineTotal >= 0),
+      'a negative unitPrice seeds a negative jobCostEngine budget line and a negative buyout target');
+    // A negative PERMITS figure is the same defect on the other add-on.
+    const negPermits = () => ({ ...negative(), contingency: 0, permits: -50, total: 950 });
+    n = 0;
+    expect('the same holds for a negative permits figure',
+      round2(priceCostBreakdown(negPermits(), 20).total),
+      round2(buildQuickLinkedEstimate(negPermits(), 20, seq).grandTotal));
+    // …and for a non-finite one. A model that divides by a zero quantity can
+    // emit Infinity; carried into a LinkedEstimateItem it makes the whole job
+    // budget Infinity, and the two totals disagree about which one is broken.
+    const infinite = () => ({ ...negative(), contingency: Number.POSITIVE_INFINITY, total: 1_000 });
+    n = 0;
+    const infEst = buildQuickLinkedEstimate(infinite(), 20, seq);
+    ok('a non-finite contingency never reaches the job budget',
+      infEst.items.every(i => Number.isFinite(i.unitPrice) && Number.isFinite(i.lineTotal))
+        && Number.isFinite(infEst.grandTotal),
+      `grandTotal ${infEst.grandTotal}`);
+    expect('…and the PDF and the budget still agree',
+      round2(priceCostBreakdown(infinite(), 20).total), round2(infEst.grandTotal));
+  }
+
+  // ── 12l. the client total is RE-FOOTED, never the model's total scaled ────
+  // The AI returns `total` as its own arithmetic and it does not always agree
+  // with subtotal + contingency + permits. Mutating priceCostBreakdown's
+  // `total: round2(subtotal + contingency + permits)` to
+  // `total: round2(data.total * f)` left 219 green, because every fixture in
+  // this file is internally consistent. This one is not, on purpose.
+  {
+    const inconsistent = () => ({
+      lineItems: [{ category: 'Framing', description: 'Frame', quantity: 1, unit: 'ls', unitCost: 1_000, total: 1_000 }],
+      subtotal: 1_000, contingency: 100, permits: 50,
+      // The model's own total, wrong by 850. This happens.
+      total: 300,
+    });
+    const priced = priceCostBreakdown(inconsistent(), 20);
+    expect('the priced total is re-footed from its parts', priced.total, round2(1_150 * 1.2));
+    ok('…not the model\'s wrong total scaled by the markup', priced.total !== round2(300 * 1.2),
+      `got ${priced.total}; 360 means the wrong number is being carried through to the homeowner`);
+    n = 0;
+    expect('…and the linked estimate lands on the same figure',
+      round2(buildQuickLinkedEstimate(inconsistent(), 20, seq).grandTotal), round2(priced.total));
+  }
+
+  // ── 12m. an existing user does not lose the markup he already set ────────
+  //
+  // `mageid_markup_decided` is younger than `mageid_material_cart_markup`.
+  // Without a seed, every contractor who set 25% in the estimator months ago
+  // hydrates as "never asked" on his first launch after this ships:
+  // app/quick-quote.tsx stops prefilling it (the quote goes out at 0%), and
+  // app/estimate-wizard.tsx shows him the red at-cost band and blocks his PDF
+  // behind a question he has already answered. That is a regression for every
+  // existing user, and the one this whole change was supposed to prevent.
+  {
+    ok('a brand-new install has not answered', !markupDecidedFromStorage(null, null));
+    ok('a contractor with 25% already on disk HAS answered',
+      markupDecidedFromStorage(null, '25'),
+      'false here is the upgrade regression: his saved markup vanishes and quick-quote sends at cost');
+    ok('…and so has one whose saved markup is zero',
+      markupDecidedFromStorage(null, '0'),
+      'a cost-plus contractor must not be re-asked forever');
+    ok('the explicit flag alone is enough', markupDecidedFromStorage('"1"', null));
+    ok('…in either encoding', markupDecidedFromStorage('1', null));
+    ok('a corrupt markup value is not a decision', !markupDecidedFromStorage(null, 'not-json'));
+    ok('…nor is a stored null', !markupDecidedFromStorage(null, 'null'));
+    ok('…nor an empty string', !markupDecidedFromStorage(null, ''));
+    // JSON.stringify(NaN) is the string "null", so a corrupted numeric write
+    // lands in the branch above rather than parsing to a number.
+    ok('a negative saved markup is not a decision', !markupDecidedFromStorage(null, '-10'));
+  }
+
+  // ── 12n. one screen, one markup ──────────────────────────────────────────
+  //
+  // components/CostBreakdownReport renders directly above the Estimate Summary
+  // card in app/(tabs)/estimate/full.tsx. It used to compute its own
+  // `markupAmount = materialTotal * globalMarkup / 100` — materials only —
+  // while the summary four inches below had been corrected to mark up the
+  // whole cost base. On a $40k/$50k/$10k cart at 20% the two cards read
+  // $8,000 ("Markup 7%") and $20,000 on one scroll. This is structural because
+  // the contradiction is structural: the report must not own an arithmetic
+  // that the summary also owns.
+  {
+    const report = stripComments(read('components/CostBreakdownReport.tsx'));
+    ok('the cost report does not derive its own markup',
+      !/globalMarkup/.test(report),
+      'the materials-only markup rule is back, and this screen now shows two answers to "what am I making"');
+    ok('…it is handed the whole-job figure instead',
+      /markupTotal:\s*number/.test(report),
+      'CostBreakdownReportProps must declare markupTotal');
+    const screen = stripComments(read('app/(tabs)/estimate/full.tsx'));
+    ok('…and the estimator passes it the same number the summary renders',
+      /markupTotal=\{markupTotal\}/.test(screen),
+      'full.tsx must hand CostBreakdownReport the markupTotal it got from cartTotals');
+    ok('…which comes from the shared cartTotals, not a re-typed formula',
+      /cartTotals\(\{/.test(screen));
+    // The RATE on the markup row. Stating the global percent next to a figure
+    // that per-item markups actually produced is the same defect one level
+    // down: a cart with a 40% tile line read "Overhead & profit (20%)".
+    ok('the markup row prints the realized rate, not the global chip',
+      !/Overhead &amp; profit \(\{globalMarkup\}/.test(screen) && /shownMarkupPct/.test(screen),
+      'both the mobile and the desktop summary must interpolate the effective percent');
+    // The at-cost band on the review screen fires on the REALIZED markup, so
+    // it must not quote a percentage the estimator's control contradicts.
+    const review = stripComments(read('app/(tabs)/estimate/review.tsx'));
+    ok('the at-cost band does not quote a percentage it did not measure',
+      !/markup is 0%/.test(review),
+      'a materials-only cart with hand-zeroed lines fires this band while the global chip reads 20%');
+    ok('…and it still names the money, which is the part that was always true',
+      /exactly\s*\n?\s*what the work costs you/.test(review) || /what the\s*\n?\s*work costs you/.test(review));
+  }
+
+  // ── 12o. "Saved to <project>" must mean the write happened ───────────────
+  //
+  // The wizard defers the ?projectId link-back until the contractor says what
+  // he charges, so the project is not handed an at-cost estimate a beat before
+  // the question is asked. The result screen, though, derived "is this
+  // attached?" from the ROUTE PARAM — `(projectId && scopedProject) ? projectId
+  // : savedProjectId` — and rendered a green check reading "Saved to Henderson
+  // Kitchen — open project" over a project that had received nothing. A
+  // first-run contractor who dismissed the markup sheet got a positive
+  // confirmation of a write that never happened, and the estimate was gone the
+  // moment he left the screen. This is structural because the defect is: the
+  // label has to read the write, and there is no arithmetic to assert.
+  {
+    const wizard = stripComments(read('app/estimate-wizard.tsx'));
+    ok('the attached-project label is not derived from the route param',
+      !/\(projectId && scopedProject\) \? projectId : savedProjectId/.test(wizard),
+      'this expression is true before commitAutoLink has run, and it is what put "Saved to X" over an empty project');
+    ok('…it is derived from the project actually written to',
+      /committedProjectId \?\? savedProjectId/.test(wizard));
+    ok('…and that state is set inside the commit, after updateProject',
+      /setCommittedProjectId\(targetId\)/.test(wizard));
+    ok('…while a deferred link renders as NOT saved, with the way out',
+      /Not saved to \{parkedProject\.name\}/.test(wizard),
+      'dismissing the markup sheet must leave a visible "not attached yet", not a green check');
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

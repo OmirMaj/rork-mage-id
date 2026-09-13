@@ -255,6 +255,28 @@ export async function getOfflineQueue(): Promise<OfflineMutation[]> {
  *  naming it — tagged on the way through); `foreign` is everything else. */
 export interface QueuePartition { own: OfflineMutation[]; foreign: OfflineMutation[] }
 
+/**
+ * THE ONE RULE for whether an UNTAGGED entry (queued before per-entry tagging
+ * shipped) belongs to this session: the device's last-user marker names this
+ * user. Returns the entry tagged, or unchanged.
+ *
+ * Extracted so the count the user is shown and the FAILURE RECORD the user is
+ * shown cannot disagree. They did: the queue-cap drop path passed raw entries
+ * to notifyDroppedWrites, so a legacy untagged write was recorded with no
+ * userId — and ownFailures deliberately ignores untagged entries — while the
+ * same entry WAS being counted as pending here. The pending number ticked down
+ * and nothing turned red, which is the precise failure the ledger exists to
+ * stop.
+ */
+export function adoptUntaggedForSession(
+  m: OfflineMutation,
+  sessionUserId: string,
+  marker: string | null,
+): OfflineMutation {
+  if (!m.userId && marker === sessionUserId) return { ...m, userId: sessionUserId };
+  return m;
+}
+
 export function partitionQueueForSession(
   queue: readonly OfflineMutation[],
   sessionUserId: string,
@@ -263,8 +285,8 @@ export function partitionQueueForSession(
   const own: OfflineMutation[] = [];
   const foreign: OfflineMutation[] = [];
   for (const m of queue) {
-    if (m.userId === sessionUserId) own.push(m);
-    else if (!m.userId && marker === sessionUserId) own.push({ ...m, userId: sessionUserId });
+    const tagged = adoptUntaggedForSession(m, sessionUserId, marker);
+    if (tagged.userId === sessionUserId) own.push(tagged);
     else foreign.push(m);
   }
   return { own, foreign };
@@ -284,6 +306,25 @@ export async function getOwnOfflineQueue(): Promise<OfflineMutation[]> {
   const marker = await readLastUserMarker();
   const queue = await getOfflineQueue();
   return partitionQueueForSession(queue, user.id, marker).own;
+}
+
+/** What getOwnOfflineQueue cannot express: storage REFUSED the read, so the
+ *  empty array it would have returned means "we could not look", not "there is
+ *  nothing waiting". A flush is right to treat those the same; a status
+ *  indicator is not — an unreadable queue rendered as a green all-clear is the
+ *  exact lie hooks/useSyncStatus exists to stop. */
+export interface OwnQueueRead { entries: OfflineMutation[]; readFailed: boolean }
+
+export async function getOwnOfflineQueueDetailed(): Promise<OwnQueueRead> {
+  const user = await currentSessionUser();
+  if (!user) return { entries: [], readFailed: false };
+  const marker = await readLastUserMarker();
+  try {
+    const queue = await readOfflineQueueOrThrow();
+    return { entries: partitionQueueForSession(queue, user.id, marker).own, readFailed: false };
+  } catch {
+    return { entries: [], readFailed: true };
+  }
 }
 
 // A2: the ONLY way to empty the queue. Runs under the same lock as every
@@ -370,7 +411,18 @@ export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | '
       if (queue.length > MAX_QUEUE) {
         const droppedEntries = queue.splice(0, queue.length - MAX_QUEUE); // FIFO: drop oldest
         console.warn(`[OfflineQueue] cap ${MAX_QUEUE} exceeded — dropped ${droppedEntries.length} oldest mutation(s)`);
-        notifyDroppedWrites(droppedEntries, 'queue cap exceeded');
+        // Tag the drops the SAME way the pending count tags them, or the two
+        // disagree about legacy untagged entries: they are counted as this
+        // user's while queued (adoptUntaggedForSession, via
+        // partitionQueueForSession) but would be recorded as nobody's once
+        // dropped, so the pending number would tick down with nothing turning
+        // red. The marker read is deferred into this branch because the cap is
+        // rare and the enqueue path is hot.
+        const marker = userId ? await readLastUserMarker() : null;
+        notifyDroppedWrites(
+          userId ? droppedEntries.map((m) => adoptUntaggedForSession(m, userId, marker)) : droppedEntries,
+          'queue cap exceeded',
+        );
       }
       await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
       console.log('[OfflineQueue] Queued mutation:', mutation.table, mutation.operation);
@@ -494,6 +546,33 @@ export function onQueueDropped(listener: DroppedListener): () => void {
 // supabaseWrite's AUD-001 handling below).
 function notifyDroppedWrites(entries: readonly OfflineMutation[], reason: string): void {
   if (entries.length === 0) return;
+
+  // DURABLE FIRST. Everything below this block is a NOTIFICATION — a toast that
+  // is a no-op when the host is unmounted (which is the normal case: drops
+  // happen during a background flush on the wake after signal returns) and a
+  // Sentry warning the user cannot read. Meanwhile the queue depth has just
+  // gone DOWN, so without a written record the sync pill gets QUIETER as work
+  // is lost. utils/syncLedger.ts is that record; hooks/useSyncStatus reads it
+  // and the pill says "2 didn't sync" instead of showing nothing.
+  //
+  // Recorded for EVERY dropped entry, including ones a listener claims below —
+  // claiming only suppresses the generic toast (usePortalThread renders its own
+  // in-thread), and the device-level "what did I lose today" answer must still
+  // be complete. Lazy require keeps this module side-effect free at load, the
+  // same as the Sentry and toast requires.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
+    void ledger.recordSyncFailures(entries.map((m) => ({
+      id: m.id,
+      kind: 'write' as const,
+      label: ledger.labelForTable(m.table),
+      reason,
+      at: Date.now(),
+      userId: m.userId,
+    })));
+  } catch {/* a ledger write must never wedge the queue */}
+
   const claimed = new Set<string>();
   for (const listener of droppedListeners) {
     try {

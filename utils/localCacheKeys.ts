@@ -101,6 +101,21 @@ export const DEVICE_SCOPED_KEYS: readonly string[] = [
 export const OFFLINE_WRITE_QUEUE_KEYS: readonly string[] = [
   'mageid_offline_queue',
   'mageid_photo_upload_queue',
+  // The record of writes that will NEVER be sent (utils/syncLedger.ts) — the
+  // only trace left of work the queue has already discarded, and the sole
+  // reason the sync pill is allowed to say "2 didn't sync" instead of going
+  // quiet. It belongs in THIS list, not merely under the prefix sweep, for one
+  // reason: the sweep runs on every sign-in, and a same-user re-auth (the magic
+  // link the exemption below was written for) would otherwise destroy the
+  // notice about the exact work the queues beside it are being preserved for —
+  // silently, with nothing telling the user the warning is gone.
+  //
+  // Keeping it is safe across tenants because every entry is tagged with its
+  // owning user and read back through syncLedger.ownFailures, which — unlike
+  // the write queues — has NO last-user-marker fallback: an entry that is not
+  // this session's, tag included, is invisible. A deliberate sign-out still
+  // drops it with the queues (dropOfflineQueue defaults to true).
+  'mageid_sync_failures',
   // A dictation that has not transcribed yet exists NOWHERE else — the words
   // were never typed and the audio lives only in this queue. It is the same
   // class as an un-uploaded photo, and it is the exact data loss

@@ -46,6 +46,7 @@ function ok(n: string, cond: boolean, extra = '') {
 
 const marginBasis: LivingEstimateSnapshot = {
   hasMarginBasis: true,
+  bidAtCost: false,
   original: { revenue: 100_000, cost: 78_000, margin: 22_000, marginPct: 0.22 },
   projected: { revenue: 108_000, cost: 88_500, margin: 19_500, marginPct: 0.1806 },
   marginErosionPoints: -3.9,
@@ -64,6 +65,7 @@ const marginBasis: LivingEstimateSnapshot = {
 const noBasis: LivingEstimateSnapshot = {
   ...marginBasis,
   hasMarginBasis: false,
+  bidAtCost: false,
   drivers: [],
 };
 

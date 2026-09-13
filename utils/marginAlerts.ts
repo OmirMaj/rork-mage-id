@@ -56,6 +56,21 @@ export interface MarginBaseline {
   erosionPoints: number;
   /** Deepest erosion step crossed (see EROSION_STEPS). */
   erosionStep: number;
+  /**
+   * The estimate carried NO PROFIT when it was bid — cost and grand total are
+   * the same figure (utils/livingEstimate `bidAtCost`).
+   *
+   * This exists because of a false sentence, caught before release. Before the
+   * 2026-09-13 markup work, `hasMarginBasis` was false for an at-cost estimate
+   * and the whole margin subsystem skipped those jobs. Un-blinding it was
+   * correct — a job bid at cost is exactly the job that needs watching — but it
+   * made every such job FIRST SIGHT here, and the firstSight health branch says
+   * "Projected margin has slipped well off the bid." On a job bid at cost with
+   * zero spend nothing has slipped: there was no margin to slip from. That
+   * sentence would have gone to the lock screen, at scale, on the release that
+   * shipped the fix.
+   */
+  bidAtCost: boolean;
   asOf: string;
 }
 
@@ -122,6 +137,7 @@ export function computeCurrentBaselines(input: PortfolioInput): {
       marginPct: le.projected.marginPct,
       erosionPoints: le.marginErosionPoints,
       erosionStep: erosionStepOf(le.marginErosionPoints),
+      bidAtCost: le.bidAtCost,
       asOf: le.asOf,
     };
     names[project.id] = project.name;
@@ -211,9 +227,17 @@ function candidatesFor(
   // already cover it (negative margin always classifies as critical health).
   if (firstSight) {
     if (cur.health === 'critical' && !isNeg) {
-      out.push(makeAlert(cur, name, 'health', cur.health, 'worsened', 'high',
-        `${name} margin health is critical`,
-        `Projected margin has slipped well off the bid. Trace the biggest variance now.`));
+      // A job BID AT COST is critical from the moment it is written, and
+      // nothing has slipped — so it does not get the erosion sentence. It gets
+      // the true one, once, and at a lower urgency: there is no variance to
+      // trace and no emergency tonight, there is a price that was never set.
+      out.push(cur.bidAtCost
+        ? makeAlert(cur, name, 'health', cur.health, 'worsened', 'warning',
+            `${name} was bid at cost`,
+            `This estimate carries no profit — the price equals the cost. Set your markup before the next invoice.`)
+        : makeAlert(cur, name, 'health', cur.health, 'worsened', 'high',
+            `${name} margin health is critical`,
+            `Projected margin has slipped well off the bid. Trace the biggest variance now.`));
     }
   } else if (HEALTH_RANK[cur.health] > HEALTH_RANK[prev.health]) {
     out.push(makeAlert(cur, name, 'health', cur.health, 'worsened',

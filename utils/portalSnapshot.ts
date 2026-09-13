@@ -20,6 +20,7 @@ import {
   getRetentionHeld, getPaidToDate,
 } from '@/utils/projectFinancials';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
 import { computeProjectProgress } from '@/utils/projectProgress';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import {
@@ -131,7 +132,13 @@ function renderSerialized<T>(item: T & { portalState?: PortalState }, serialize:
 // Portals rendering an older snapshot (a `#d=` hash link, or a snapshot row
 // not yet re-pushed) re-derive work-complete from sections.schedule.tasks and
 // ignore pctComplete entirely — they never show the old figure again.
-export const PORTAL_SNAPSHOT_VERSION = 11;
+// v12 adds `proposal` — the client-safe projection of the project estimate,
+// plus the canonical text a homeowner's acceptance signature binds to. It is
+// the portal's first write path that creates an obligation out of something
+// that was not already a row in the database, which is why the document the
+// signature covers is built here and re-hashed server-side rather than taken
+// from the browser. See the PROPOSAL block below.
+export const PORTAL_SNAPSHOT_VERSION = 12;
 
 export interface PortalSnapshot {
   v: number;
@@ -184,6 +191,26 @@ export interface PortalSnapshot {
     contactEmail?: string;
     contactName?: string;
   };
+  // v12 — the moment to ask. Emitted once the GC's own substantial-completion
+  // date has arrived, so the portal can prompt the homeowner for feedback and
+  // a referral while the job is fresh. A remodeler's referral rate is most of
+  // his marketing budget, and nobody asks.
+  //
+  // It carries ONLY the date the GC recorded. There is no rating, no score and
+  // no survey response to store, because there is no write path for one — the
+  // ask opens the existing message thread. Calling it a satisfaction survey
+  // when it is a prompt to write a message would be the kind of claim this
+  // product deletes features for.
+  feedbackAsk?: {
+    /** The GC's recorded substantial-completion date (YYYY-MM-DD). */
+    completedOn: string;
+  };
+  // v12 — the proposal the homeowner can accept or decline, with the same
+  // signature capture the change-order flow uses. Present only when the GC
+  // turned `proposalApprovalEnabled` on AND there is a priced estimate AND no
+  // construction agreement has been sent yet (see buildPortalProposal). Its
+  // `documentText` is what an acceptance signature actually binds to.
+  proposal?: PortalProposal;
   // Whether the client can 1-tap approve/decline change orders from the
   // portal. When false the CO list is read-only.
   coApprovalEnabled?: boolean;
@@ -525,6 +552,361 @@ export interface PortalSnapshot {
       status: string; dateSubmitted?: string;
     }[];
     documents?: { name: string; type?: string; dateSent?: string }[];
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v12 — THE PROPOSAL THE HOMEOWNER CAN ACCEPT
+//
+// Until now the client portal was a read-only snapshot with exactly two write
+// paths: approve a change order, and pay an invoice. A homeowner could not
+// accept the proposal that starts the job — the thing every cheaper competitor
+// (Jobber's Client Hub, Housecall Pro, Zuper) lets a customer do in one tap.
+//
+// What is shared is the CLIENT view of the estimate (utils/clientEstimateView),
+// which is a safety boundary: scope rolled up by CSI division with markup
+// already baked into each group total, allowances, payment milestones, and a
+// line COUNT. Never a unit price, a base cost, a markup rate, or a supplier.
+//
+// THE PART THAT MATTERS FOR SECURITY. The portal is authenticated by a 192-bit
+// token in a link and nothing else, so every byte the browser sends is
+// attacker-controlled. `documentText` below is the canonical, order-fixed text
+// of exactly what is being accepted, and it is built HERE, on the contractor's
+// device, and pushed into `portal_snapshots` with the rest of the snapshot.
+// The acceptance RPC re-reads THAT ROW, hashes THAT COPY of the text, and
+// refuses any signature whose consent record does not carry that digest — so a
+// signature can only ever bind the document the contractor actually published,
+// and the dollar figure recorded against the acceptance is the server's, never
+// the client's. See supabase/migrations/held/…_portal_proposal_acceptance.sql.
+//
+// `documentText` therefore MUST be stable across snapshot pushes. It carries no
+// wall-clock stamp, and no invite-injected `clientName` (client-portal-setup
+// rewrites that field per invite when it builds a link, which would fork the
+// hash between the link and the stored row). Everything in it comes from the
+// estimate and the project.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Bumped whenever the canonical record format changes. Stored on the
+ *  acceptance row so an old seal stays interpretable. */
+export const PROPOSAL_ESIGN_VERSION = 'proposal-esign-1';
+
+/** What the signer affirms. Deliberately describes the ACT and the rights the
+ *  homeowner keeps, and cites no statute and claims no legal effect — MAGE
+ *  ships without legal review, so it does not state the law. Same rule as
+ *  ESIGN_DISCLOSURE_TEXT in utils/portalOwnerCore.ts. */
+export const PROPOSAL_DISCLOSURE_TEXT =
+  'By typing your legal name, drawing your signature, and selecting "I agree", you consent to accept this proposal electronically. ' +
+  'You are accepting the scope and the fixed price shown above as the basis of the work your contractor will do. ' +
+  'You may decline instead, or ask for a paper copy at no charge, by messaging your contractor. ' +
+  'A copy of this record is retained by your contractor and is available to you on request.';
+
+/** Said next to the button, both on the web portal and in the app. Accepting a
+ *  proposal is NOT signing the construction agreement — that is a separate
+ *  document with its own signature flow — and this product does not get to
+ *  blur the two. */
+export const PROPOSAL_NOT_A_CONTRACT_NOTE =
+  'Accepting tells your contractor to go ahead and prepare your construction agreement. ' +
+  'That agreement is a separate document you will review and sign.';
+
+/** One client-facing scope roll-up line. Markup is already inside `total`. */
+export interface PortalProposalScopeLine { key: string; label: string; total: number }
+/** One allowance line the homeowner will later spend against. */
+export interface PortalProposalAllowance { name: string; amount: number }
+/** One payment milestone. `amount` is absent for schedule-only milestones. */
+export interface PortalProposalMilestone { label: string; detail: string; amount?: number }
+
+export interface PortalProposal {
+  /** The estimate's own id. Echoed by the portal and matched server-side
+   *  against the published snapshot before anything is written. */
+  id: string;
+  /** Record-format version (PROPOSAL_ESIGN_VERSION). */
+  version: string;
+  /** Header line, e.g. "Proposal for Maple St Reno". */
+  title: string;
+  /** The fixed price being accepted. Scope groups sum to exactly this. */
+  total: number;
+  scope: PortalProposalScopeLine[];
+  allowances: PortalProposalAllowance[];
+  payment: PortalProposalMilestone[];
+  /** How many estimate lines rolled up. A count, never the lines. */
+  lineCount: number;
+  /** The estimate's own createdAt, when it has one. Stable across pushes —
+   *  unlike `snapshotAt`, which is why the document uses this one. */
+  preparedAt?: string;
+  /** The canonical text the signature binds to. See the block comment above. */
+  documentText: string;
+}
+
+/** Collapse whitespace and hard-cap free text, so the same estimate always
+ *  produces the same bytes no matter how the contractor typed it. */
+function proposalTidy(text: unknown, maxChars: number): string {
+  const flat = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (flat.length <= maxChars) return flat;
+  return `${flat.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
+function usd(n: number): string {
+  return (Number.isFinite(n) ? n : 0).toFixed(2);
+}
+
+export interface ProposalDocumentInput {
+  proposalId: string;
+  projectName: string;
+  contractorName: string;
+  total: number;
+  scope: PortalProposalScopeLine[];
+  allowances: PortalProposalAllowance[];
+  payment: PortalProposalMilestone[];
+  lineCount: number;
+  preparedAt?: string;
+}
+
+/**
+ * The canonical proposal document. Order-fixed and line-oriented, NOT
+ * JSON.stringify over an object literal — the contractor's device, the
+ * homeowner's browser and Postgres all have to agree on the exact bytes, and
+ * JS key order is not a contract worth betting a signature on. Same shape and
+ * same reasoning as buildCOConsentRecord in utils/portalOwnerCore.ts.
+ */
+export function buildProposalDocumentText(input: ProposalDocumentInput): string {
+  const lines = [
+    'MAGE ID PROPOSAL — THE DOCUMENT YOU ARE ACCEPTING',
+    `version: ${PROPOSAL_ESIGN_VERSION}`,
+    `proposal_id: ${proposalTidy(input.proposalId, 200)}`,
+    `project: ${proposalTidy(input.projectName, 200)}`,
+    `contractor: ${proposalTidy(input.contractorName, 200)}`,
+  ];
+  if (input.preparedAt) lines.push(`estimate_prepared_at: ${proposalTidy(input.preparedAt, 40)}`);
+  lines.push(`project_total_usd: ${usd(input.total)}`);
+  for (const g of input.scope) lines.push(`scope: ${proposalTidy(g.label, 200)} — ${usd(g.total)}`);
+  for (const a of input.allowances) lines.push(`allowance: ${proposalTidy(a.name, 200)} — ${usd(a.amount)}`);
+  for (const m of input.payment) {
+    lines.push(typeof m.amount === 'number'
+      ? `payment: ${proposalTidy(m.label, 120)} — ${proposalTidy(m.detail, 200)} — ${usd(m.amount)}`
+      : `payment: ${proposalTidy(m.label, 120)} — ${proposalTidy(m.detail, 200)}`);
+  }
+  lines.push(`line_items: ${Math.max(0, Math.round(input.lineCount))}`);
+  return lines.join('\n');
+}
+
+export interface ProposalConsentRecordInput {
+  decision: 'accepted' | 'declined';
+  portalId: string;
+  proposalId: string;
+  proposalTotal: number;
+  /** SHA-256 of `documentText`. The server recomputes this from its own copy
+   *  of the snapshot and refuses a record that does not carry it. */
+  proposalDocumentHash: string;
+  signerName: string;
+  signedAt: string;
+  timezoneOffsetMinutes?: number;
+  signatureHash?: string;
+  signatureStrokeCount?: number;
+  /** Required on a decline; absent on an acceptance. */
+  reason?: string;
+  userAgent?: string;
+}
+
+/** The retainable record. Byte-identical copy lives in marketing/portal/
+ *  index.html (the static page has no build step and cannot import this
+ *  module); scripts/validate-portal-owner.ts lifts that copy out and runs the
+ *  two head-to-head, because a seal that hashes differently in the browser
+ *  than in the app is not re-verifiable, which is the whole point. */
+export function buildProposalConsentRecord(input: ProposalConsentRecordInput): string {
+  const lines = [
+    'MAGE ID PROPOSAL ELECTRONIC SIGNATURE RECORD',
+    `version: ${PROPOSAL_ESIGN_VERSION}`,
+    `decision: ${input.decision}`,
+    `portal_id: ${input.portalId}`,
+    `proposal_id: ${input.proposalId}`,
+    `proposal_total_usd: ${usd(input.proposalTotal)}`,
+    `proposal_document_sha256: ${input.proposalDocumentHash}`,
+    `signer_name: ${String(input.signerName ?? '').trim()}`,
+    `signed_at: ${input.signedAt}`,
+  ];
+  if (typeof input.timezoneOffsetMinutes === 'number') {
+    lines.push(`signer_utc_offset_minutes: ${input.timezoneOffsetMinutes}`);
+  }
+  if (input.signatureHash) lines.push(`signature_sha256: ${input.signatureHash}`);
+  if (typeof input.signatureStrokeCount === 'number') {
+    lines.push(`signature_strokes: ${input.signatureStrokeCount}`);
+  }
+  if (input.reason) lines.push(`decline_reason: ${proposalTidy(input.reason, 600)}`);
+  if (input.userAgent) lines.push(`user_agent: ${proposalTidy(input.userAgent, 200)}`);
+  lines.push(`consent_disclosure: ${PROPOSAL_DISCLOSURE_TEXT}`);
+  return lines.join('\n');
+}
+
+/**
+ * Why this project cannot put a signable proposal in front of its homeowner,
+ * or `undefined` when it can. Independent of `proposalApprovalEnabled` on
+ * purpose: this answers "would the switch do anything", so the setup screen
+ * can disable it and SAY WHY, and buildPortalProposal can refuse on exactly
+ * the same conditions. One function, so the switch and the snapshot can never
+ * disagree — before 2026-09-13 they did, and the switch turned on for a
+ * project whose proposal the builder then silently refused to emit.
+ *
+ * `code` is for guards and branching; `gc` is the sentence a contractor reads.
+ */
+export type ProposalBlockCode =
+  | 'no-estimate'
+  | 'contract-superseded'
+  | 'job-complete'
+  | 'scope-unclassified';
+
+export interface ProposalBlock { code: ProposalBlockCode; gc: string }
+
+export function proposalBlockReason(
+  project: Project,
+  contract?: import('@/types').ProjectContract,
+): ProposalBlock | undefined {
+  // A construction agreement supersedes the proposal, and the portal already
+  // has a signature flow for it; showing both asks the homeowner to sign the
+  // same money twice.
+  if (contract && (contract.status === 'sent' || contract.status === 'signed')) {
+    return {
+      code: 'contract-superseded',
+      gc: `A construction agreement has already been ${contract.status} on this project — it supersedes the proposal.`,
+    };
+  }
+
+  // A finished job has nothing to accept. Measured 2026-09-13: without this
+  // gate a completed project shipped BOTH the proposal ("accept to get
+  // started") and the substantial-completion feedback ask ("your build is
+  // finished") into the same page.
+  if (project.status === 'completed' || project.status === 'closed'
+      || !!toCalendarDate(project.substantialCompletionDate)) {
+    return {
+      code: 'job-complete',
+      gc: 'This job is already recorded as complete, so there is nothing left to accept.',
+    };
+  }
+
+  // The estimate. No id means nothing stable to bind a signature to; a
+  // surrogate would move every time the snapshot is rebuilt.
+  const est = project.linkedEstimate;
+  if (!est || !est.id || !(est.grandTotal > 0)) {
+    return {
+      code: 'no-estimate',
+      gc: 'Needs a priced estimate on this project — build one and this turns on.',
+    };
+  }
+
+  // THE SCOPE HAS TO DESCRIBE THE WORK. Measured 2026-09-13 against the app's
+  // own primary builders: app/(tabs)/estimate/full.tsx buildLinkedEstimate
+  // sets `csiDivision` on no item, and app/(tabs)/estimate/review.tsx sets it
+  // to `undefined` on every labor and every assembly row. groupByCSIDivision
+  // therefore buckets the whole job into `__unassigned__`, and a $400,000
+  // estimate came out as ONE line — `scope: Other scope — 400000.00` — which
+  // is the text a homeowner's signature would have bound to. An estimate that
+  // prices to a positive total but whose items all price to zero produced NO
+  // scope lines at all, under a consent box reading "you are accepting the
+  // scope and the fixed price shown above".
+  //
+  // Neither is a scope description, so neither gets to be signed. This refuses
+  // rather than papering over it, and the setup row says which one it is.
+  const view = toClientEstimateView(est);
+  if (!(view.projectTotal > 0)) {
+    return {
+      code: 'no-estimate',
+      gc: 'Needs a priced estimate on this project — build one and this turns on.',
+    };
+  }
+  const priced = view.scopeGroups.filter(g => g.total !== 0);
+  const onlyUnassigned = priced.length === 0
+    || (priced.length === 1 && priced[0].key === 'other');
+  if (onlyUnassigned) {
+    return {
+      code: 'scope-unclassified',
+      gc: 'Your estimate lines are not assigned to trades, so the proposal would read "Other scope" for the whole price. Assign CSI divisions on the estimate and this turns on.',
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Build the acceptable proposal, or `undefined` when there is nothing to
+ * accept. Two gates: the GC's explicit opt-in (putting a signable price in
+ * front of a homeowner is not something a section-visibility toggle gets to do
+ * by accident), and proposalBlockReason above.
+ */
+/**
+ * The completion ask, or `undefined`. Two conditions, both about not asking
+ * into thin air:
+ *
+ *  1. the GC recorded a substantial-completion date. This is his own entry
+ *     (project.substantialCompletionDate — the same field retainage release
+ *     and the closeout binder key on), not something inferred from a schedule
+ *     that may never have been updated;
+ *  2. that date has arrived. Asking "how did it go" before the job is done is
+ *     worse than not asking.
+ *
+ * `today` comes from the clock, like buildOwnerDecisions' does. That makes the
+ * field time-varying, which is fine — unlike the proposal, nothing hashes it.
+ */
+export function buildFeedbackAsk(
+  project: Project,
+  portal: ClientPortalSettings,
+  today: string = new Date().toISOString().slice(0, 10),
+): { completedOn: string } | undefined {
+  if (!portal.enabled) return undefined;
+  const completedOn = toCalendarDate(project.substantialCompletionDate);
+  if (!completedOn) return undefined;
+  if (completedOn > today) return undefined;
+  return { completedOn };
+}
+
+export function buildPortalProposal(opts: {
+  project: Project;
+  portal: ClientPortalSettings;
+  contractorName: string;
+  contract?: import('@/types').ProjectContract;
+}): PortalProposal | undefined {
+  const { project, portal, contractorName, contract } = opts;
+  if (!portal.proposalApprovalEnabled) return undefined;
+  if (proposalBlockReason(project, contract)) return undefined;
+
+  // Non-null by the gate above: proposalBlockReason returns 'no-estimate' for
+  // every shape this could be missing on.
+  const est = project.linkedEstimate!;
+  const view = toClientEstimateView(est);
+
+  const scope: PortalProposalScopeLine[] = view.scopeGroups.map(g => ({
+    key: g.key, label: g.label, total: g.total,
+  }));
+  const allowances: PortalProposalAllowance[] = view.allowances.map(a => ({
+    name: a.name, amount: a.amount,
+  }));
+  const payment: PortalProposalMilestone[] = defaultPaymentSchedule(view.projectTotal).map(m => ({
+    label: m.label,
+    detail: m.detail,
+    ...(m.amount !== undefined ? { amount: m.amount } : {}),
+  }));
+
+  const documentText = buildProposalDocumentText({
+    proposalId: est.id,
+    projectName: project.name,
+    contractorName,
+    total: view.projectTotal,
+    scope,
+    allowances,
+    payment,
+    lineCount: view.itemCount,
+    preparedAt: est.createdAt,
+  });
+
+  return {
+    id: est.id,
+    version: PROPOSAL_ESIGN_VERSION,
+    title: `Proposal for ${project.name}`,
+    total: view.projectTotal,
+    scope,
+    allowances,
+    payment,
+    lineCount: view.itemCount,
+    preparedAt: est.createdAt,
+    documentText,
   };
 }
 
@@ -1305,6 +1687,21 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     submitBudget: clientCanSetBudget ? apiConfig : undefined,
     portalApi: apiConfig,
     coApprovalEnabled: !!portal.coApprovalEnabled,
+    // Derived from `project` + `portal` + `contract` only, so EVERY caller
+    // that pushes a snapshot produces the same block. That matters more than
+    // it looks: app/project-detail.tsx pushes a "lite" snapshot on every
+    // project open and merges only `sections` forward from the stored row, so
+    // a top-level key sourced from a caller-specific option would appear and
+    // disappear from the row the acceptance RPC reads.
+    // Derived from `project` + `portal` only, for the same reason `proposal`
+    // is: both snapshot writers must produce it identically.
+    feedbackAsk: buildFeedbackAsk(project, portal),
+    proposal: buildPortalProposal({
+      project,
+      portal,
+      contractorName: settings?.branding?.companyName ?? 'MAGE ID',
+      contract: opts.contract,
+    }),
     openBook,
     // Latest published homeowner update — newest published summary
     // wins. Independent of `showDailyReports`: even GCs who don't show

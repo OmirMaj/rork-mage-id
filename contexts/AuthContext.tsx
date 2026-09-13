@@ -11,6 +11,7 @@ import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
 import { processOfflineQueue, getOfflineQueue, clearOfflineQueue, retainOfflineQueueForUser } from '@/utils/offlineQueue';
 import { processPhotoUploadQueue, clearPhotoUploadQueue, retainPhotoUploadQueueForUser } from '@/utils/photoUploadQueue';
 import { clearAudioTranscribeQueue, retainAudioTranscribeQueueForUser } from '@/utils/audioTranscribeQueue';
+import { clearSyncFailures, retainSyncFailuresForUser } from '@/utils/syncLedger';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -291,6 +292,13 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean; keepLastU
       // else, and clearAudioTranscribeQueue also unlinks the staged recordings
       // under documentDirectory — the previous tenant's voice, on this device.
       await clearAudioTranscribeQueue();
+      // The record of writes that will NEVER be sent (utils/syncLedger.ts). It
+      // rides this flag with the queues because it is the only remaining trace
+      // of the work they lost: kept through a same-user re-auth so the red
+      // "didn't sync" notice survives the magic link, emptied here so the next
+      // contractor on a shared device inherits none of it. Locked, like the
+      // three above — its writer is the flush's drop path.
+      await clearSyncFailures();
     } catch (err) {
       console.log('[Auth] Failed to clear offline queue:', err);
     }
@@ -764,6 +772,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           await clearOfflineQueue();
           await clearPhotoUploadQueue();
           await clearAudioTranscribeQueue();
+          await clearSyncFailures();
         } catch (err) {
           console.log('[Auth] Failed to drop the previous user\'s offline queues:', err);
         }
@@ -887,6 +896,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
               retainOfflineQueueForUser(incomingId),
               retainPhotoUploadQueueForUser(incomingId),
             ]);
+            // The failure ledger narrows too: an entry that is not this
+            // arriving user's is unreadable anyway (no marker fallback), so
+            // keeping it only leaves the previous tenant's paperwork on disk.
+            // Not part of the keepQueue verdict — a note about lost work is not
+            // evidence that this user has pending work here.
+            await retainSyncFailuresForUser(incomingId);
             if (text.readFailed || photos.readFailed) {
               // A8 (round 5): storage refused one of the reads. `{kept: 0,
               // dropped: 0}` used to be the only thing that came back from

@@ -711,6 +711,67 @@ describe('offline queue — enqueue failure is surfaced (HEALTH-F10 / O5 #2)', (
   });
 });
 
+describe('offline queue — a cap-overflow drop is reported as THIS user\'s (ledger)', () => {
+  // WHY THIS EXISTS. A permanently-dropped write is only visible to the field
+  // user through utils/syncLedger, which is written from notifyDroppedWrites
+  // and read back through `ownFailures` — and ownFailures ignores an UNTAGGED
+  // entry, deliberately (no marker fallback: showing the wrong contractor a
+  // lost-paperwork warning is worse than showing nobody one).
+  //
+  // The cap-overflow path used to hand notifyDroppedWrites the RAW queue rows.
+  // A legacy untagged entry — one queued before per-entry tagging shipped —
+  // was therefore recorded as nobody's and vanished from the red badge, while
+  // the SAME entry was being counted in the amber pending total, because the
+  // pending count adopts it via the device's last-user marker. The depth ticked
+  // down, nothing turned red, and the user's report was gone: the precise
+  // failure mode the ledger was built to end.
+  test('an untagged legacy entry dropped at the cap is attributed to the session', async () => {
+    // 1000 = MAX_QUEUE. Every row untagged, as a pre-tagging queue would be,
+    // with the device's last-user marker naming the signed-in user.
+    const legacy = Array.from({ length: 1000 }, (_, i) => ({
+      id: `legacy-${i}`, timestamp: 1000 + i, retryCount: 0,
+      table: 'daily_reports', operation: 'insert' as const, data: { id: `d${i}` },
+    }));
+    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(legacy));
+    await AsyncStorage.setItem(LAST_USER_KEY, USER_A);
+
+    const seen: OfflineMutation[] = [];
+    const off = onQueueDropped((dropped) => { seen.push(...dropped); });
+    await addToOfflineQueue({ table: 'rfis', operation: 'insert', data: { id: 'r1' } });
+    off();
+
+    expect(seen.map((m) => m.id)).toEqual(['legacy-0']);
+    expect(seen[0].userId).toBe(USER_A);
+
+    // And the count it disappeared from agrees: getOwnOfflineQueue adopts the
+    // remaining untagged rows for the same session, so the two paths cannot
+    // disagree about who the dropped one belonged to.
+    const own = await getOwnOfflineQueue();
+    expect(own).toHaveLength(1000);
+    expect(own.every((m) => m.userId === USER_A)).toBe(true);
+    expect(own.some((m) => m.id === 'legacy-0')).toBe(false);
+  });
+
+  test('…but a drop the marker does NOT name stays untagged, and nobody is warned', async () => {
+    const legacy = Array.from({ length: 1000 }, (_, i) => ({
+      id: `legacy-${i}`, timestamp: 1000 + i, retryCount: 0,
+      table: 'daily_reports', operation: 'insert' as const, data: { id: `d${i}` },
+    }));
+    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(legacy));
+    await AsyncStorage.setItem(LAST_USER_KEY, USER_B);
+
+    const seen: OfflineMutation[] = [];
+    const off = onQueueDropped((dropped) => { seen.push(...dropped); });
+    await addToOfflineQueue({ table: 'rfis', operation: 'insert', data: { id: 'r1' } });
+    off();
+
+    expect(seen.map((m) => m.id)).toEqual(['legacy-0']);
+    expect(seen[0].userId).toBeUndefined();
+    // Same rule on the count side: these are not this session's entries.
+    expect(await getOwnOfflineQueue()).toHaveLength(1);
+  });
+});
+
 describe('offline queue — emptying it is a locked operation (A2)', () => {
   test('a flush in flight cannot resurrect a queue cleared behind it', async () => {
     // The sign-out race, exactly: flushQueuesBeforeSignOut is bounded by a 20 s
