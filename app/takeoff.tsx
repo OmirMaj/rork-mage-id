@@ -6,10 +6,19 @@
 //
 // Flow: idle → uploading → analyzing → review.
 //
-// Uploads go through utils/pdfRenderClient.uploadAndRenderPdf, which
-// hits the convert-pdf-to-images edge function and returns public PNG
-// URLs. Those URLs are then handed to analyze-takeoff via
-// utils/takeoffAnalyzer.analyzeTakeoff.
+// Uploads go through utils/pdfRenderClient.uploadAndRenderPdf, which hits the
+// convert-pdf-to-images edge function and returns, per page, a durable
+// `storagePath` in the `plan-sheets` bucket plus a short-lived signed `viewUrl`
+// for the thumbnail. The PATHS are what go to analyze-takeoff (DB-F11: the
+// function downloads the bytes itself with the service role).
+//
+// A PROJECT IS REQUIRED to upload. This screen used to pass
+// `projectId: pickedProjectId ?? 'tmp'`, which parked live construction
+// drawings under a SHARED `tmp/` bucket prefix that no per-project membership
+// policy can ever admit — and convert-pdf-to-images has answered that with a
+// 403 ("project not owned by caller") ever since its IDOR guard landed, so the
+// standalone upload was already dead server-side and only looked alive here.
+// The "Standalone" option is gone; the blocked upload card says why.
 //
 // Edits: per-row quantity overrides are kept in local state keyed by
 // the AI's row id. Persistence is Phase 2b — for now the override only
@@ -39,7 +48,9 @@ import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
-import { uploadAndRenderPdf, countPdfPages, type RenderedPlanPage } from '@/utils/pdfRenderClient';
+import {
+  uploadAndRenderPdf, countPdfPages, resolveRenderedPages, type RenderedPlanPage,
+} from '@/utils/pdfRenderClient';
 import { confirmQuotaFits } from '@/utils/quotaPrecheck';
 import { TakeoffQuotaBadge } from '@/components/TakeoffQuotaBadge';
 import { useUsageStatus } from '@/hooks/useUsageStatus';
@@ -151,6 +162,23 @@ function TakeoffInner() {
     [pickedProjectId, getProject],
   );
 
+  /**
+   * Why the upload is blocked, or null when it is available (DB-F11).
+   *
+   * A drawing has to live in a project's folder in the `plan-sheets` bucket —
+   * that folder is the tenant boundary the storage policy is evaluated against,
+   * so there is no project-less place to put one. Rather than upload into a
+   * shared prefix (what `'tmp'` did) or throw, the card states the reason and
+   * points at the fix, and it distinguishes "you have projects, pick one" from
+   * "you have none yet, make one" because those need different actions.
+   */
+  const uploadBlockedReason = useMemo(() => {
+    if (pickedProjectId) return null;
+    return projects.length === 0
+      ? 'Create a project first. Drawings are stored in that project’s folder, so only you and the people you share the job with can open them.'
+      : 'Pick a project above. Drawings are stored in that project’s folder, so only you and the people you share the job with can open them.';
+  }, [pickedProjectId, projects.length]);
+
   // Load any persisted takeoff for the active project (or standalone) on
   // mount + whenever the user switches projects. If there's saved data,
   // jump straight to review mode so the user picks up where they left off.
@@ -159,11 +187,16 @@ function TakeoffInner() {
     (async () => {
       const saved = await loadTakeoff(pickedProjectId);
       if (cancelled || !saved) return;
+      // A saved takeoff's page `viewUrl`s are long expired (and a takeoff saved
+      // before DB-F11 has none at all) — re-sign from the durable storagePath
+      // so the "Pages the AI read" thumbnails and the inspector still render.
+      const restoredPages = await resolveRenderedPages(saved.pages ?? []);
+      if (cancelled) return;
       setResult(saved.result);
       setOverrides(saved.overrides ?? {});
       setRejected(saved.rejected ?? {});
       setModelUsed(saved.modelUsed);
-      setPages(saved.pages ?? []);
+      setPages(restoredPages);
       setUploadedFileName(saved.fileName);
       setStep('review');
     })();
@@ -198,6 +231,14 @@ function TakeoffInner() {
 
   const handlePick = useCallback(async () => {
     setError(null);
+    // DB-F11. The bucket folder IS the tenant boundary, so there is no
+    // project-less place to put a drawing. uploadAndRenderPdf refuses a
+    // non-project prefix and the edge function 403s it; say so here, before the
+    // file picker, rather than after a multi-MB upload.
+    if (!pickedProjectId) {
+      setError(uploadBlockedReason ?? 'Pick a project before uploading drawings.');
+      return;
+    }
     try {
       // Tier gate — AI Takeoff is Pro-only. The server hard-gates every step
       // (convert-pdf-to-images, analyze-takeoff) to Pro+, so a free user is
@@ -234,7 +275,7 @@ function TakeoffInner() {
 
       const rendered = await uploadAndRenderPdf({
         fileUri: asset.uri,
-        projectId: pickedProjectId ?? 'tmp',
+        projectId: pickedProjectId,
         fileName: asset.name,
         dpi: 150,
         maxPages: 16,
@@ -246,7 +287,9 @@ function TakeoffInner() {
 
       setStep('analyzing');
       const { result: takeoff, modelUsed: usedModel } = await analyzeTakeoff({
-        pageUrls: rendered.map(p => p.publicUrl),
+        pagePaths: rendered.map(p => p.storagePath),
+        // Legacy, one release: an un-redeployed function still needs URLs.
+        pageUrls: rendered.map(p => p.viewUrl),
         projectName: project?.name,
         projectType: project?.type,
         squareFootage: project?.squareFootage,
@@ -267,10 +310,16 @@ function TakeoffInner() {
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [pickedProjectId, project, pickedModel, router, refreshQuota, tier]);
+  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, router, refreshQuota, tier]);
 
   const handleMatchSpecs = useCallback(async () => {
     if (!result) return;
+    // Same rule as the drawings upload: the spec book is rendered into the
+    // project's plan-sheets folder, so it needs a real project id (DB-F11).
+    if (!pickedProjectId) {
+      setSpecMatchError(uploadBlockedReason ?? 'Pick a project before uploading a spec book.');
+      return;
+    }
     setSpecMatchError(null);
     setSpecMatchLoading(true);
     try {
@@ -287,7 +336,7 @@ function TakeoffInner() {
       // Render PDF → PNG pages.
       const rendered = await uploadAndRenderPdf({
         fileUri: asset.uri,
-        projectId: pickedProjectId ?? 'tmp',
+        projectId: pickedProjectId,
         fileName: asset.name,
         dpi: 150,
         maxPages: 24,
@@ -300,7 +349,8 @@ function TakeoffInner() {
       // when the takeoff was Sonnet so the spec match still runs.
       const specModel = pickedModel === 'claude-sonnet-4-5' ? 'gemini-2.5-pro' : pickedModel;
       const { result: spec } = await analyzeSpecBook({
-        pageUrls: rendered.map(p => p.publicUrl),
+        pagePaths: rendered.map(p => p.storagePath),
+        pageUrls: rendered.map(p => p.viewUrl),
         targetCodes,
         projectName: project?.name,
         model: specModel,
@@ -313,7 +363,7 @@ function TakeoffInner() {
     } finally {
       setSpecMatchLoading(false);
     }
-  }, [result, pickedProjectId, project, pickedModel]);
+  }, [result, pickedProjectId, uploadBlockedReason, project, pickedModel]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
@@ -667,17 +717,11 @@ function TakeoffInner() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>Project (optional context)</Text>
+              <Text style={styles.cardLabel}>Project (required)</Text>
               <Text style={styles.cardHelper}>
-                Picking a project lets the AI cross-check the SF figure and flag wall heights when they don&apos;t match your scope.
+                Drawings are stored in the project&apos;s own folder, so only your team can open them. Picking the project also lets the AI cross-check the SF figure and flag wall heights when they don&apos;t match your scope.
               </Text>
               <View style={styles.chipRow}>
-                <TouchableOpacity
-                  style={[styles.chip, !pickedProjectId && styles.chipActive]}
-                  onPress={() => setPickedProjectId(undefined)}
-                >
-                  <Text style={[styles.chipText, !pickedProjectId && styles.chipTextActive]}>Standalone</Text>
-                </TouchableOpacity>
                 {projects.slice(0, 6).map(p => (
                   <TouchableOpacity
                     key={p.id}
@@ -692,7 +736,14 @@ function TakeoffInner() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.uploadCard} onPress={handlePick} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.uploadCard}
+              onPress={handlePick}
+              activeOpacity={0.85}
+              disabled={!!uploadBlockedReason}
+              accessibilityState={{ disabled: !!uploadBlockedReason }}
+              testID="takeoff-upload-card"
+            >
               <View style={styles.uploadIcon}>
                 <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
               </View>
@@ -708,6 +759,15 @@ function TakeoffInner() {
                 Each page is rendered to PNG and read by MAGE&apos;s vision engine. Uploaded drawings live in your project plans bucket.
               </Text>
             </TouchableOpacity>
+
+            {/* A blocked button that says why (standing rule) — and names the
+                action, not just the obstacle. */}
+            {!!uploadBlockedReason && (
+              <View style={styles.blockedNote} testID="takeoff-upload-blocked">
+                <ShieldAlert size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.blockedNoteText}>{uploadBlockedReason}</Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.sisterToolCard}
@@ -1191,8 +1251,8 @@ function ResultView({
               onPress={() => onInspectPage(d.page)}
               activeOpacity={0.85}
             >
-              {page?.publicUrl && (
-                <Image source={{ uri: page.publicUrl }} style={styles.drawingThumb} resizeMode="cover" />
+              {!!page?.viewUrl && (
+                <Image source={{ uri: page.viewUrl }} style={styles.drawingThumb} resizeMode="cover" />
               )}
               <View style={{ flex: 1 }}>
                 <View style={styles.drawingHead}>
@@ -2137,6 +2197,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   uploadCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
   uploadHint: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+
+  blockedNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10, marginTop: -4, marginBottom: 14,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line,
+  },
+  blockedNoteText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,

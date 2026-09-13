@@ -39,6 +39,10 @@ import {
 } from '@/utils/photoUploadCore';
 import { queuePhotoUpload } from '@/utils/photoUploadQueue';
 import { resolvePhotoUrls, deleteProjectPhotoObject } from '@/utils/storage';
+import {
+  carryDeviceLocalPlanSheetUris, durablePlanSheetValue, localPlanSheetValue,
+  planSheetRowUris, resolvePlanSheetUrls,
+} from '@/utils/planSheetUrls';
 import { warrantyStatus } from '@/utils/workflowPipelines';
 
 // ─── Photo durability ────────────────────────────────────────────────────────
@@ -129,6 +133,24 @@ async function buildPhotoUrlResolver(storedValues: (string | undefined)[]): Prom
     return { uri: stored ?? '', storagePath: undefined };
   };
 }
+
+// ─── Plan-sheet durability (audit DB-F11) ────────────────────────────────────
+// `plan_sheets.image_uri` used to hold the PERMANENT PUBLIC url that
+// convert-pdf-to-images returned from getPublicUrl() on the public `plan-sheets`
+// bucket. Construction drawings were therefore readable forever by anyone who
+// ever saw a link — no expiry, no revocation when a sheet was superseded or a
+// project deleted.
+//
+// Same two-value split as the photo helpers above: the DATABASE and the local
+// cache get the storage PATH, and the renderable url is signed on READ. Every
+// existing consumer of `sheet.imageUri` (plan-viewer, area-takeoff,
+// plan-intelligence, compare-drawings, the mobile schedule's LivingFloorPlan /
+// PlanZoneEditor, planPrefetch, planShareToken, askYourPlans) keeps working
+// unchanged because the signing happens here, at the single hydration point.
+
+// `durablePlanSheetValue` is the write-side half and lives in
+// utils/planSheetUrls.ts next to the resolvers, so a guard can execute it
+// without loading this 5,000-line provider.
 
 const PROJECTS_KEY = 'mageid_projects';
 const SETTINGS_KEY = 'mageid_settings';
@@ -711,6 +733,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               locationLatitude: r.location_latitude != null ? Number(r.location_latitude) : undefined,
               locationLongitude: r.location_longitude != null ? Number(r.location_longitude) : undefined,
               locationGeocodedAt: (r.location_geocoded_at as string | null) ?? undefined,
+              // THE ZONING CONFIRM IS DEVICE-LOCAL, AND THIS LINE IS WHY IT
+              // SURVIVES AT ALL. `projects` has no structured_address column, so
+              // structuredAddress is in neither the upsert payload below nor
+              // this mapper's inputs — and without carrying the device's cached
+              // copy forward, `saveLocal(PROJECTS_KEY, merged)` a few lines down
+              // overwrote it with undefined and DESTROYED every zoning confirm
+              // on the next successful fetch. (The first version of that fix
+              // claimed "no DB mapping exists … so it persists with no
+              // migration". No mapping means the opposite: it is wiped.)
+              // Deliberately device-scoped, not synced: a real fix is a column +
+              // payload + mapper + migration, which this pass did not take on.
+              // The gate still re-checks the confirm against the CURRENT
+              // (server-synced) location, so a carried confirm cannot outlive
+              // an address change made on another device — it reads stale.
+              structuredAddress: cached?.structuredAddress,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               estimate: (pick('estimate', r.estimate, cached?.estimate) ?? null) as Project['estimate'],
               schedule: r.schedule as Project['schedule'],
@@ -5365,6 +5402,24 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setPlanMarkups(lMarkups);
     setPlanCalibrations(lCals);
 
+    // DB-F11. The cached sheets hold storage PATHS (see the saveLocal below), so
+    // they need signing before anything can render them. Do it right after the
+    // instant paint and before the server round-trip, so a slow or failing
+    // fetch still leaves a viewable set of plans rather than a blank list.
+    //
+    // KNOWN LIMIT, deliberately not papered over: with the bucket private and
+    // the device offline, nothing can sign and the sheets do not render. Photos
+    // survive that case because the capture device keeps a `localUri`; plan
+    // sheets arrive from the server and have no local copy. Giving them one
+    // (download-on-import, same shape as photoUploadQueue in reverse) is the
+    // follow-up — it is not something a signed URL can fix.
+    if (lSheets.length > 0) {
+      const cachedSigned = await resolvePlanSheetUrls(lSheets.map(s => s.imageUri));
+      if (cachedSigned.size > 0) {
+        setPlanSheets(lSheets.map(s => ({ ...s, ...planSheetRowUris(s.imageUri, cachedSigned) })));
+      }
+    }
+
     if (!canSync) return;
     try {
       const [sheets, pins, markups, cals] = await Promise.all([
@@ -5375,11 +5430,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       ]);
 
       if (!sheets.error && sheets.data?.length) {
+        // DB-F11. Sign every stored plan-sheet path in ONE batched request
+        // before mapping, so the rest of the app keeps reading `imageUri`.
+        // A row that cannot be signed — offline, or the held migration not
+        // applied yet so there is still no SELECT policy — keeps whatever it
+        // stored, which for a legacy row is a public URL that still renders.
+        const sheetSigned = await resolvePlanSheetUrls(
+          sheets.data.map((r: Record<string, unknown>) => (r.image_uri as string) ?? ''),
+        );
         const mapped = sheets.data.map((r: Record<string, unknown>) => ({
           id: r.id as string, projectId: r.project_id as string,
           name: (r.name as string) ?? '',
           sheetNumber: (r.sheet_number as string | null) ?? undefined,
-          imageUri: (r.image_uri as string) ?? '',
+          // planSheetRowUris is the extracted, guarded mapper: signed url for
+          // rendering + a storagePath ONLY when the key is project-scoped.
+          ...planSheetRowUris(r.image_uri as string, sheetSigned),
           pageNumber: r.page_number == null ? undefined : Number(r.page_number),
           width: r.width == null ? undefined : Number(r.width),
           height: r.height == null ? undefined : Number(r.height),
@@ -5388,8 +5453,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           superseded: r.superseded == null ? undefined : Boolean(r.superseded),
           createdAt: r.created_at as string, updatedAt: r.updated_at as string,
         })) as PlanSheet[];
-        setPlanSheets(mapped);
-        await saveLocal(PLAN_SHEETS_KEY, mapped);
+        // A photo-library import has no storage object, so its row holds '' —
+        // keep this device's copy rather than blanking what the user just saw.
+        const merged = carryDeviceLocalPlanSheetUris(mapped, lSheets);
+        setPlanSheets(merged);
+        // The LOCAL cache gets the durable value, never the signed URL: a cached
+        // signature outlives its TTL and comes back as a dead image on the next
+        // offline open (utils/storage.ts:11-14 is the same bug, in Postgres).
+        await saveLocal(PLAN_SHEETS_KEY, merged.map(s => ({
+          ...s, imageUri: localPlanSheetValue(s.storagePath, s.imageUri),
+        })));
       }
 
       if (!pins.error && pins.data?.length) {
@@ -5451,7 +5524,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const persistPlanSheets = useCallback((list: PlanSheet[]) => {
     setPlanSheets(list);
-    void saveLocal(PLAN_SHEETS_KEY, list);
+    // In MEMORY the sheets carry the renderable (signed) url; on DISK they carry
+    // the durable path — a cached signature would expire and come back as a dead
+    // image. DB-F11.
+    //
+    // localPlanSheetValue, not durablePlanSheetValue: the DISK copy keeps a
+    // device-local `file://` when that is all a sheet has (app/plans.tsx
+    // `confirmImport` — a photo of a plan, never uploaded). Postgres still gets
+    // '' for that sheet; the cache is the device that took it.
+    void saveLocal(PLAN_SHEETS_KEY, list.map(s => ({
+      ...s, imageUri: localPlanSheetValue(s.storagePath, s.imageUri),
+    })));
   }, []);
   const persistDrawingPins = useCallback((list: DrawingPin[]) => {
     setDrawingPins(list);
@@ -5533,7 +5616,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       void supabaseWrite('plan_sheets', 'insert', {
         id: fresh.id, user_id: userId, project_id: fresh.projectId,
         name: fresh.name, sheet_number: fresh.sheetNumber ?? null,
-        image_uri: fresh.imageUri, page_number: fresh.pageNumber ?? null,
+        // The PATH, never the signed url and never the old permanent public one.
+        // This column is what DB-F11 was about.
+        image_uri: durablePlanSheetValue(fresh.storagePath, fresh.imageUri),
+        page_number: fresh.pageNumber ?? null,
         width: fresh.width ?? null, height: fresh.height ?? null,
         revision: fresh.revision ?? null,
         previous_sheet_id: fresh.previousSheetId ?? null,
@@ -5553,7 +5639,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       const patch: Record<string, unknown> = { updated_at: now };
       if (updates.name !== undefined) patch.name = updates.name;
       if (updates.sheetNumber !== undefined) patch.sheet_number = updates.sheetNumber;
-      if (updates.imageUri !== undefined) patch.image_uri = updates.imageUri;
+      if (updates.imageUri !== undefined || updates.storagePath !== undefined) {
+        const current = planSheets.find(s => s.id === id);
+        patch.image_uri = durablePlanSheetValue(
+          updates.storagePath ?? current?.storagePath,
+          updates.imageUri ?? current?.imageUri,
+        );
+      }
       if (updates.pageNumber !== undefined) patch.page_number = updates.pageNumber;
       if (updates.width !== undefined) patch.width = updates.width;
       if (updates.height !== undefined) patch.height = updates.height;

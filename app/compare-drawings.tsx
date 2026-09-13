@@ -93,9 +93,15 @@ export default function CompareDrawingsScreen() {
       const asset = picked.assets[0];
       setNewPageLabel(asset.name);
 
-      // PDF → render first page; image → use directly. Either way we need
-      // a public URL the edge function can fetch.
+      // PDF → render first page; image → use directly.
+      //
+      // DB-F11: the NEW page is freshly rendered, so we know its storage path
+      // and the function downloads it with the service role. `url` is still
+      // carried for the image-pick branch (an already-hosted asset that has no
+      // path) and as the one-release fallback for a function that has not been
+      // redeployed yet.
       let url: string;
+      let newPath = '';
       if ((asset.mimeType ?? '').includes('pdf')) {
         setStep('analyzing');
         const rendered = await uploadAndRenderPdf({
@@ -106,7 +112,8 @@ export default function CompareDrawingsScreen() {
           maxPages: 1,
         });
         if (!rendered[0]) throw new Error('Could not render the PDF page.');
-        url = rendered[0].publicUrl;
+        url = rendered[0].viewUrl;
+        newPath = rendered[0].storagePath;
       } else {
         // For now, image picks need to already be on a public URL. The
         // current Plans pipeline already pushes to storage on upload, so
@@ -131,6 +138,15 @@ export default function CompareDrawingsScreen() {
       setNewPageUrl(url);
       setStep('analyzing');
       const { result: r, modelUsed: m } = await compareDrawings({
+        // The OLD sheet comes out of a plan_sheets row. `storagePath` is set by
+        // planSheetRowUris ONLY when the key is project-scoped, so a legacy row
+        // under the shared `tmp/` prefix deliberately arrives with none and
+        // takes the URL fallback — the path would recover fine but no policy can
+        // admit it and planSheetBytes refuses it, which would turn a comparison
+        // that works today into a 403. The image-pick branch above is url-only
+        // for the same reason: it has no storage object at all.
+        oldPagePath: oldSheet.storagePath,
+        newPagePath: newPath || undefined,
         oldPageUrl: oldSheet.imageUri,
         newPageUrl: url,
         sheetNumber: oldSheet.sheetNumber || oldSheet.name,

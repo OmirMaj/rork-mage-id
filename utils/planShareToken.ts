@@ -221,6 +221,19 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
     n: projectName,
     gc: gcName,
     sd: scheduleStartDate ?? new Date().toISOString().slice(0, 10),
+    // DB-F11: since `plan-sheets` went private-by-design this is a SIGNED url,
+    // not a permanent public one, so a shared plan link now EXPIRES — mint a
+    // fresh one for the homeowner rather than expecting an old link to keep
+    // working. It expires on the SAME 24h clock as `photos[].u` below, which
+    // have been signed since the photo fix, so the whole payload goes stale
+    // together instead of the drawing outliving the photos by six days.
+    // A sheet that is cache-only (a bare storage path, nothing signed it) is
+    // reported as planNotSynced below, which is the honest answer.
+    //
+    // Still true, and worth saying out loud: while it lives, this url is an
+    // unrevocable bearer token embedded in a link sent over SMS. Revoking a
+    // share means waiting out the TTL; there is no server-side revocation for
+    // a signed storage url. That is the reason the TTL came down to 24h.
     img: sheet.imageUri,
     iw: sheet.width,
     ih: sheet.height,

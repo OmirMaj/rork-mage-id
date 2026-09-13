@@ -395,6 +395,7 @@ const RECEIPT_COMMENT = [
   'PROVENANCE — this file is NOT all machine-written, and saying otherwise would be the exact defect the module exists to prevent.',
   'Read `verifiedBy` on each claim. Entries marked "scripts/verify-code-sources.ts" were written by that script from its own fetch, and re-running it rewrites them.',
   'Entries marked "verification sweep 2026-09-07" were seeded by hand from a 23-jurisdiction verification pass in which agents fetched the pages themselves — through a real browser, curl, pdftotext or the Internet Archive — because several of these sources cannot be fetched by the script at all.',
+  'Entries marked "verification pass 2026-09-12" are the New York state row, re-read that day the same way: macOS curl with a Safari User-Agent returns HTTP 200 for dos.ny.gov (bun fetch still gets the Cloudflare 403), so the FAQ, 19 NYCRR Parts 1219/1220/1240 and the Notice of Adoption were all read directly, and the row gained the 2025 Residential Code of New York State.',
   '`readFrom`, where present, is the URL the evidence was actually read from when that differs from the URL the claim cites (e.g. an Internet Archive capture of a bot-blocked page).',
   '',
   'EXPECT verify-code-sources.ts TO REPORT SOME OF THESE UNREACHABLE, FOREVER. dos.ny.gov is behind a Cloudflare interstitial that 403s every script; www.mass.gov 403s automation the same way; dallascityhall.com serves an incomplete TLS chain; and two cited ordinances are 34-44 MB PDFs that can time out.',

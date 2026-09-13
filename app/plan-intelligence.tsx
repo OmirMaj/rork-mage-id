@@ -41,6 +41,7 @@ import Paywall from '@/components/Paywall';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import EmptyState from '@/components/EmptyState';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
+import { localPlanSheetValue, resolvePlanSheetUrl } from '@/utils/planSheetUrls';
 import { analyzePlanRooms } from '@/utils/photoAnalyzer';
 import {
   buildPlanRooms, learnFromSession, roomsToEstimateLines, planRoomTotals,
@@ -135,13 +136,19 @@ function PlanIntelligenceInner() {
 
   // Restore the last confirmed session for this project, if any.
   const session = projectId ? getSession(projectId) : null;
-  const restoreSession = useCallback(() => {
+  const restoreSession = useCallback(async () => {
     if (!session) return;
     setRooms(session.rooms);
     setSheetId(session.planSheetId ?? null);
     if (session.imageUri) {
-      setImageUri(session.imageUri);
-      measureAspect(session.imageUri);
+      // DB-F11: the session stores the DURABLE value (a plan-sheet storage
+      // path), so mint a fresh signed url here. A saved session outlives any
+      // signature by design — it is "where the GC left off", reopened weeks
+      // later — which is exactly why the signed url must not be the thing on
+      // disk. Anything that is not a plan-sheet reference comes back unchanged.
+      const uri = await resolvePlanSheetUrl(session.imageUri);
+      setImageUri(uri);
+      measureAspect(uri);
     }
     setPhase('review');
   }, [session, measureAspect]);
@@ -156,6 +163,19 @@ function PlanIntelligenceInner() {
     setPhase('analyzing');
     try {
       const { rooms: raw } = await analyzePlanRooms({
+        // DELIBERATELY still a URL (DB-F11 switched the four DRAWING analyzers to
+        // storage paths). Two inputs reach here and analyze-photos already
+        // handles both — verify in utils/photoAnalyzer.ts callAnalyzePhotos:190:
+        //   • a plan sheet, which is a SIGNED url after ProjectContext hydration.
+        //     It goes out as photoUrls and the server fetches it; urlGuard allows
+        //     it because the host is our own Supabase project.
+        //   • a photo the user just picked out of the library (pickFromLibrary),
+        //     which has no storage object anywhere. callAnalyzePhotos splits
+        //     local from remote and base64-ENCODES the local ones inline, so this
+        //     never becomes a file:// on the wire and never hits urlGuard.
+        // analyze-photos serves every photo flow in the app as well as this one,
+        // so teaching it plan-sheets paths would mean teaching it two buckets for
+        // one caller. Revisit if this screen ever becomes plan-sheet-only.
         photoUrls: [uri],
         projectName: project?.name,
         projectType: project?.type,
@@ -196,7 +216,12 @@ function PlanIntelligenceInner() {
     saveSession({
       projectId,
       planSheetId: sheetId ?? undefined,
-      imageUri: imageUri ?? undefined,
+      // DB-F11: never the signed url. `mageid_plan_room_sessions` is AsyncStorage
+      // and a session is reopened long after any 7-day TTL, so persist the
+      // storage path and re-sign in restoreSession — the same split the plan
+      // sheets themselves use. A library pick (no storage object) keeps its
+      // device-local URI, which is all it has ever had.
+      imageUri: localPlanSheetValue(undefined, imageUri ?? undefined) || undefined,
       rooms,
       updatedAt: new Date().toISOString(),
     });
@@ -343,7 +368,7 @@ function PlanIntelligenceInner() {
               ) : (
                 <>
                   {session && (
-                    <TouchableOpacity style={styles.resumeCard} onPress={restoreSession} activeOpacity={0.85}>
+                    <TouchableOpacity style={styles.resumeCard} onPress={() => void restoreSession()} activeOpacity={0.85}>
                       <MageAIMark size={16} color={t.accent} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resumeTitle}>Resume last session</Text>

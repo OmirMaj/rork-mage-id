@@ -40,8 +40,19 @@ export interface CompareDrawingsResult {
 }
 
 export interface CompareDrawingsOpts {
-  /** URL to the old revision image. Must be publicly fetchable from
-   *  the edge function (storage public URL or already-hosted asset). */
+  /**
+   * PREFERRED: `plan-sheets` storage paths. The function downloads the bytes
+   * with the service role, so no fetchable URL is needed (DB-F11).
+   *
+   * The OLD sheet comes out of a `plan_sheets` row, and a legacy row holds a
+   * public URL rather than a path — so this one is optional and the URL below
+   * stays the fallback for exactly that case.
+   */
+  oldPagePath?: string;
+  newPagePath?: string;
+  /** URL to the old revision image, fetchable from the edge function. Legacy
+   *  fallback: used when the sheet row predates the path migration, and by an
+   *  installed build that has not taken the OTA yet. */
   oldPageUrl: string;
   newPageUrl: string;
   sheetNumber?: string;

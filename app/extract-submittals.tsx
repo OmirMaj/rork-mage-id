@@ -118,7 +118,11 @@ export default function ExtractSubmittalsScreen() {
 
       setStep('analyzing');
       const { result } = await extractSubmittalsFromSpecBook({
-        pageUrls: rendered.map(p => p.publicUrl),
+        // DB-F11: paths, not URLs — the function downloads the bytes with the
+        // service role. pageUrls is the one-release fallback for a function
+        // that has not been redeployed yet.
+        pagePaths: rendered.map(p => p.storagePath),
+        pageUrls: rendered.map(p => p.viewUrl),
         projectName: project.name,
       });
       await recordAIUsage('smart', 'specBookExtract');

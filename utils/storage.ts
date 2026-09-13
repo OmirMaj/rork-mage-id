@@ -182,6 +182,17 @@ export async function uploadProfileImage(
 // public-read so contractors browsing the listing can fetch directly.
 // Path convention is <userId>/<rfpId>/<timestamp>_<filename> which the
 // RLS policy on storage.objects expects (folder[1] must equal auth.uid()).
+//
+// ⚠ OPEN FINDING DB-F11b, deliberately NOT closed by DB-F11. This is the same
+// permanent-unsigned-URL shape that DB-F11 removed from `plan-sheets`, on a
+// parallel bucket that DB-F11 does not touch. app/post-rfp.tsx accepts PDFs and
+// images here as kind:'drawing' and writes these URLs into
+// public_bids.drawing_urls, which `public_bids_select … TO authenticated USING
+// (true)` lets ANY signed-in account enumerate — and the bucket being public
+// then makes each URL readable by an unauthenticated third party, forever.
+// Do not read "drawings are private now" as covering this path. The marketplace
+// intent (a listing contractors browse) is why it is a separate decision and
+// not a silent extension of DB-F11.
 export async function uploadRfpAttachment(
   userId: string,
   rfpId: string,

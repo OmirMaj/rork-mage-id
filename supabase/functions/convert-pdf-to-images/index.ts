@@ -61,8 +61,9 @@
 //     success: true,
 //     pages: Array<{
 //       pageNumber: number,
-//       storagePath: string,    // inside `plan-sheets` bucket
-//       publicUrl: string,
+//       storagePath: string,    // inside `plan-sheets` bucket — the durable value
+//       publicUrl: string,      // DEPRECATED (DB-F11): a short-lived SIGNED url,
+//                               // kept one release for un-OTA'd builds
 //       width: number,          // px
 //       height: number,
 //     }>,
@@ -72,6 +73,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from '../_shared/auth.ts';
+import { mintLegacyViewUrl } from '../_shared/planSheetBytes.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -105,11 +107,33 @@ interface RequestBody {
 
 interface PageOutput {
   pageNumber: number;
+  /** The durable value. The client persists THIS (plan_sheets.image_uri) and
+   *  hands it to the analyzers, which read the bytes with the service role. */
   storagePath: string;
+  /**
+   * DEPRECATED (audit DB-F11) — kept for ONE release and now a SHORT-LIVED
+   * SIGNED url, not a getPublicUrl() link.
+   *
+   * The name is a lie we are keeping deliberately for one release: an installed
+   * build reads `publicUrl` and will keep doing so until the OTA lands, and a
+   * build that suddenly got nothing here would show a takeoff with no page
+   * thumbnails. What changed is what the value IS. It used to be a permanent
+   * unsigned link to a construction drawing in a public bucket, which anyone who
+   * ever saw it could read forever; it now expires, so the worst outcome for an
+   * old build is a dead image instead of an unrevocable leak.
+   *
+   * Current clients ignore it — utils/pdfRenderClient.ts signs `storagePath`
+   * itself and does not surface this field. Delete it next release.
+   */
   publicUrl: string;
   width: number;
   height: number;
 }
+
+/** TTL for the deprecated legacy `publicUrl`. A week: long enough for a stale
+ *  installed build to finish a takeoff, short enough that a link it persisted
+ *  into plan_sheets.image_uri stops working rather than leaking forever. */
+const LEGACY_VIEW_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 interface CloudConvertFile {
   filename: string;
@@ -433,11 +457,19 @@ serve(async (req) => {
         return json({ success: false, error: `upload page ${pageNumber} failed: ${upErr.message}` }, 500);
       }
 
-      const { data: pub } = supabase.storage.from(PNG_BUCKET).getPublicUrl(outPath);
+      // DB-F11: getPublicUrl() used to be here, and its output is what ended up
+      // in plan_sheets.image_uri forever. The minting lives in
+      // _shared/planSheetBytes.ts so a guard can assert the VALUE is signed
+      // rather than grep this file for a call name — see mintLegacyViewUrl.
+      // A signing failure is NOT fatal: the bytes are in the bucket and current
+      // clients only need storagePath.
+      const legacyViewUrl = await mintLegacyViewUrl(
+        supabase.storage.from(PNG_BUCKET), outPath, LEGACY_VIEW_URL_TTL_SECONDS,
+      );
       outputs.push({
         pageNumber,
         storagePath: outPath,
-        publicUrl: pub.publicUrl,
+        publicUrl: legacyViewUrl,
         width: dims.width,
         height: dims.height,
       });

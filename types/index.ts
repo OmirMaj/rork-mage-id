@@ -171,6 +171,12 @@ export interface Project {
    * requirements or auto-scheduling until a contractor confirms it, at which
    * point `zoningConfirmedAt` is stamped and `zoningSource` becomes
    * 'confirmed'. Never present a guessed district as truth.
+   *
+   * NOT SYNCED. There is no `projects.structured_address` column, so this field
+   * is absent from ProjectContext's upsert payload; the row→Project mapper
+   * carries the DEVICE's cached copy forward so a fetch cannot destroy a zoning
+   * confirm, but a second device starts unconfirmed. Persisting it needs a
+   * column + payload + mapper + migration.
    */
   structuredAddress?: {
     street: string;
@@ -186,6 +192,17 @@ export interface Project {
     /** Provenance of `zoningDistrict`. 'guess' = derived (never truth);
      *  'confirmed' = a human verified it. */
     zoningSource?: 'guess' | 'confirmed';
+    /**
+     * THE ADDRESS THE CONFIRM WAS MADE FOR — `state|city|street`, built by
+     * `zoningAddressKey` in utils/automation/jurisdiction.ts, which is also the
+     * only thing that should ever read it. A district is a fact about one
+     * parcel in one municipality, so a confirm stops counting when the jobsite
+     * moves; that file's comment states exactly which address edits invalidate
+     * a confirm (state, city, street) and which deliberately do not (ZIP,
+     * county, unit number, spelling). Absent on confirms written before this
+     * field existed, which therefore read as stale rather than as truth.
+     */
+    zoningConfirmedFor?: string;
   };
   squareFootage: number;
   quality: QualityTier;
@@ -2900,7 +2917,26 @@ export interface PlanSheet {
   projectId: string;
   name: string;               // "A-101 Floor Plan"
   sheetNumber?: string;       // "A-101"
-  imageUri: string;           // file://, https://, or data URI
+  /**
+   * RENDERABLE, NOT DURABLE. A `file://` capture, a data URI, or — for a sheet
+   * that lives in Storage — a SIGNED url minted at read time by
+   * utils/planSheetUrls.resolvePlanSheetUrls. It expires.
+   *
+   * Never write this to Postgres or AsyncStorage for a Storage-backed sheet:
+   * write `storagePath` instead (ProjectContext does this through
+   * `durablePlanSheetValue`). Rows written before audit DB-F11 hold a permanent
+   * PUBLIC url here — the resolver leaves those alone, so they keep rendering
+   * while the bucket is public and degrade to a missing image after the flip.
+   */
+  imageUri: string;
+  /**
+   * DURABLE. Bucket-relative path inside `plan-sheets`
+   * (`<projectId>/<id>-page-N.png`). Present on every sheet imported after
+   * DB-F11; absent on a legacy row (whose `imageUri` is a URL) and on a sheet
+   * that only exists on this device. This is what `plan_sheets.image_uri`
+   * stores and what the analyzer edge functions receive.
+   */
+  storagePath?: string;
   pageNumber?: number;        // 1-indexed if imported from a multi-page PDF
   width?: number;             // pixel dimensions of the image
   height?: number;

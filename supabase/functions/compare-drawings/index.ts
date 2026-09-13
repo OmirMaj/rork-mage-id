@@ -15,8 +15,10 @@
 //
 // Request:
 // {
-//   oldPageUrl: string;       // single image URL (current rev)
-//   newPageUrl: string;       // single image URL (proposed rev)
+//   oldPagePath?: string;     // PREFERRED. `plan-sheets` storage path (current rev)
+//   newPagePath?: string;     // PREFERRED. `plan-sheets` storage path (proposed rev)
+//   oldPageUrl: string;       // fallback image URL (current rev) — see DB-F11
+//   newPageUrl: string;       // fallback image URL (proposed rev)
 //   sheetNumber?: string;     // "A-101" — context for the prompt
 //   projectName?: string;
 //   model?: 'gemini-2.5-flash' | 'gemini-2.5-pro';
@@ -29,6 +31,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
+import { loadPlanSheetImageParts, PlanSheetAccessError, planSheetSideSource } from "../_shared/planSheetBytes.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 
@@ -82,6 +85,15 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface CompareRequest {
+  /** PREFERRED: a `plan-sheets` storage path, read with the service role
+   *  (DB-F11). Optional per side, because the OLD sheet may be a legacy row
+   *  under the shared `tmp/` prefix — which recovers a path that no membership
+   *  policy can ever admit — and the NEW side may be an already-hosted image
+   *  the user pasted rather than a rendered PDF page. */
+  oldPagePath?: string;
+  newPagePath?: string;
+  /** Fallback when the corresponding path is absent, and what an installed
+   *  build still sends until the OTA lands. */
   oldPageUrl: string;
   newPageUrl: string;
   sheetNumber?: string;
@@ -205,13 +217,44 @@ function validate(raw: Record<string, unknown>): CompareResult {
   };
 }
 
-async function callGemini(req: CompareRequest): Promise<{ data: CompareResult; modelUsed: ModelKey }> {
+/**
+ * One side of the comparison, read from the bucket when we have a USABLE path
+ * and fetched by URL only when we do not (DB-F11). Unlike the page-list
+ * functions the two sides are independent here: a fresh revision has a path
+ * while the sheet it supersedes may be a legacy object under the old shared
+ * `tmp/` prefix, which has no project to check membership against.
+ *
+ * "Usable" means project-scoped. A path whose folder[1] is not a project id can
+ * never be admitted by the storage policy and loadPlanSheetImageParts refuses
+ * it outright, so throwing here would break a comparison that works today off
+ * the still-public URL. Falling back is NOT a bypass: the URL route runs
+ * through validateFetchableUrl and only reaches objects that are publicly
+ * readable, so the moment the bucket goes private this degrades to an error
+ * rather than a leak. A path that IS project-scoped always takes the path
+ * branch and is access-checked — a stranger's project id is a 403, never a
+ * fallback.
+ */
+async function sideImagePart(
+  path: string | undefined,
+  url: string,
+  userId: string,
+): Promise<{ inlineData: { mimeType: string; data: string } }> {
+  const source = planSheetSideSource(path, url);
+  if (source === 'path') {
+    const [part] = await loadPlanSheetImageParts([path as string], userId, MAX_PAGE_BYTES);
+    return part;
+  }
+  if (source === 'none') throw new PlanSheetAccessError();
+  return await urlToInlineImagePart(url);
+}
+
+async function callGemini(req: CompareRequest, userId: string): Promise<{ data: CompareResult; modelUsed: ModelKey }> {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured.');
   const requested = req.model ?? DEFAULT_MODEL;
   const modelUsed: ModelKey = ALLOWED_MODELS.includes(requested) ? requested : DEFAULT_MODEL;
   const [oldImg, newImg] = await Promise.all([
-    urlToInlineImagePart(req.oldPageUrl),
-    urlToInlineImagePart(req.newPageUrl),
+    sideImagePart(req.oldPagePath, req.oldPageUrl, userId),
+    sideImagePart(req.newPagePath, req.newPageUrl, userId),
   ]);
   const body = {
     contents: [{
@@ -263,8 +306,14 @@ serve(async (req) => {
 
   try {
     const body = await req.json() as CompareRequest;
-    if (!body || typeof body.oldPageUrl !== 'string' || typeof body.newPageUrl !== 'string') {
-      return jsonResponse({ success: false, error: 'oldPageUrl + newPageUrl required' }, 400);
+    // A side is satisfied by EITHER a path or a URL (DB-F11). Both sides still
+    // have to be present — a one-sided compare has nothing to compare.
+    const oldOk = (typeof body?.oldPagePath === 'string' && body.oldPagePath.length > 0)
+      || typeof body?.oldPageUrl === 'string';
+    const newOk = (typeof body?.newPagePath === 'string' && body.newPagePath.length > 0)
+      || typeof body?.newPageUrl === 'string';
+    if (!body || !oldOk || !newOk) {
+      return jsonResponse({ success: false, error: 'old + new page (path or url) required' }, 400);
     }
     if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
       body.model = 'gemini-2.5-flash';
@@ -293,10 +342,15 @@ serve(async (req) => {
       }, 429);
     }
 
-    const { data, modelUsed } = await callGemini(body);
+    const { data, modelUsed } = await callGemini(body, auth.userId);
     const newUsed = await aiUsageIncrement(auth.userId, 'analyze_drawings');
     return jsonResponse({ success: true, data, modelUsed, usage: { used: newUsed, cap } });
   } catch (e) {
+    if (e instanceof PlanSheetAccessError) {
+      // Generic and 403 — never say whether the path was malformed or simply
+      // someone else's project (DB-F11).
+      return jsonResponse({ success: false, error: 'One or more plan sheets are not available on this account.' }, 403);
+    }
     if (e instanceof UrlValidationError) {
       // Generic — never echo the offending URL or an upstream status.
       return jsonResponse({ success: false, error: 'One or more image URLs are not allowed.' }, 400);

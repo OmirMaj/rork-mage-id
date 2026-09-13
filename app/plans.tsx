@@ -161,7 +161,13 @@ export default function PlansScreen() {
           projectId,
           name: pages.length === 1 ? baseName : `${baseName} \u2014 Page ${p.pageNumber}`,
           sheetNumber: undefined,
-          imageUri: p.publicUrl,
+          // DB-F11: `storagePath` is what reaches plan_sheets.image_uri (the
+          // context's durablePlanSheetValue picks it); `imageUri` carries the
+          // freshly-signed url so the thumbnail renders right now without a
+          // re-fetch. This line used to persist `p.publicUrl` — a permanent
+          // unsigned link to a construction drawing.
+          storagePath: p.storagePath,
+          imageUri: p.viewUrl,
           width: p.width,
           height: p.height,
           pageNumber: p.pageNumber,

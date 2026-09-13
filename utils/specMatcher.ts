@@ -12,7 +12,22 @@ import type { SpecMatchResult, SpecEntry, TakeoffResult } from '@/types';
 export type SpecModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
 
 export interface AnalyzeSpecOpts {
-  pageUrls: string[];
+  /**
+   * Storage PATHS inside the `plan-sheets` bucket — the PREFERRED input.
+   *
+   * DB-F11: handing a server a fetchable URL is the weaker design. It needs the
+   * object readable by URL, the signature can expire mid-analysis, and it keeps
+   * an SSRF-shaped surface open. The function runs with the SERVICE ROLE, so it
+   * can download the bytes itself and needs no URL at all.
+   */
+  pagePaths: string[];
+  /**
+   * DEPRECATED, one release only. An installed build keeps sending these until
+   * the OTA lands, so the function still accepts them; sending both here means
+   * the OTA is safe whichever order the function deploy and the OTA happen in.
+   * Delete this field (and the server's `pageUrls` arm) next release.
+   */
+  pageUrls?: string[];
   /** Codes pulled from the takeoff. AI prioritizes matching these first. */
   targetCodes?: string[];
   projectName?: string;
@@ -27,7 +42,7 @@ export interface AnalyzeSpecResponse {
 }
 
 export async function analyzeSpecBook(opts: AnalyzeSpecOpts): Promise<AnalyzeSpecResponse> {
-  if (!opts.pageUrls || opts.pageUrls.length === 0) {
+  if (!opts.pagePaths || opts.pagePaths.length === 0) {
     throw new Error('No spec book pages to analyze.');
   }
   const { data, error } = await supabase.functions.invoke<{
@@ -104,7 +119,22 @@ export interface AiSubmittalsResult {
 }
 
 export interface ExtractSubmittalsOpts {
-  pageUrls: string[];
+  /**
+   * Storage PATHS inside the `plan-sheets` bucket — the PREFERRED input.
+   *
+   * DB-F11: handing a server a fetchable URL is the weaker design. It needs the
+   * object readable by URL, the signature can expire mid-analysis, and it keeps
+   * an SSRF-shaped surface open. The function runs with the SERVICE ROLE, so it
+   * can download the bytes itself and needs no URL at all.
+   */
+  pagePaths: string[];
+  /**
+   * DEPRECATED, one release only. An installed build keeps sending these until
+   * the OTA lands, so the function still accepts them; sending both here means
+   * the OTA is safe whichever order the function deploy and the OTA happen in.
+   * Delete this field (and the server's `pageUrls` arm) next release.
+   */
+  pageUrls?: string[];
   projectName?: string;
   notes?: string;
   model?: SpecModel;
@@ -121,7 +151,7 @@ export async function extractSubmittalsFromSpecBook(opts: ExtractSubmittalsOpts)
   modelUsed: SpecModel;
   usage?: { used: number; cap: number };
 }> {
-  if (!opts.pageUrls || opts.pageUrls.length === 0) {
+  if (!opts.pagePaths || opts.pagePaths.length === 0) {
     throw new Error('No spec book pages to analyze.');
   }
   const { data, error } = await supabase.functions.invoke<{

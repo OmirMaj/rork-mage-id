@@ -29,6 +29,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  TextInput,
+  Linking,
 } from 'react-native';
 import {
   CalendarClock,
@@ -42,17 +44,35 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import type { LeadTimeSource, LeadTimeConfidence } from '@/utils/automation/leadTimeLibrary';
 import type { ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
+import type { ZoningUnknownFacts } from '@/utils/automation/jurisdiction';
 
 /**
  * Zoning gate state, lifted from the project's structuredAddress by the caller.
  * When `status === 'guess'` (or absent) the whole flow is blocked until
  * confirmed — a guessed district must never silently drive auto-scheduling.
+ *
+ * `district` IS ONLY EVER A REAL DISTRICT. The screen used to fall back to the
+ * project's location string when it knew no district, so this prop arrived
+ * holding "124 Park Slope, Brooklyn NY 11215" and the contractor confirmed
+ * their own address as zoning truth. Nothing may put an address in here; when
+ * the district is unknown, leave it undefined and pass `unknown` instead.
  */
 export interface ZoningGate {
   district?: string;
   status: 'guess' | 'confirmed';
+  /** Why the gate is blocking — from zoningBlockedReason, so the sheet and any
+   *  headless caller word it identically. */
+  reason?: string;
+  /** The honest UNKNOWN panel — from describeZoningUnknown. Present when MAGE
+   *  does not know the district, which is the normal case, not the error case. */
+  unknown?: ZoningUnknownFacts;
+  /** False when the project has no city/state, so there is nothing to confirm
+   *  AGAINST yet. The input is withheld rather than collecting an answer we
+   *  could not tie to a jobsite. */
+  canConfirm?: boolean;
 }
 
 export interface AutoScheduleReviewSheetProps {
@@ -67,9 +87,11 @@ export interface AutoScheduleReviewSheetProps {
   onConfirm: (lines: ReviewLine[]) => void;
   /** Dismiss without committing. */
   onCancel: () => void;
-  /** Confirm the guessed zoning district (unblocks the flow). Surfaced only
-   *  while the gate is blocking. */
-  onConfirmZoning?: () => void;
+  /** Confirm a zoning district (unblocks the flow). Surfaced only while the
+   *  gate is blocking. It takes the district EXPLICITLY: when MAGE knows none,
+   *  the contractor types it, and the caller can no longer substitute something
+   *  it happens to have lying around. */
+  onConfirmZoning?: (district: string) => void;
 }
 
 const SOURCE_LABEL: Record<LeadTimeSource, string> = {
@@ -116,6 +138,17 @@ function LeadTimeChip({
   );
 }
 
+/**
+ * The district a typed value would confirm, or null when there is nothing to
+ * confirm. Exported so the rule (trim, and empty is not an answer) is testable
+ * without a rendered press — pressing is blocked by `disabled`, which would
+ * otherwise let the in-code guard rot untested.
+ */
+export function districtToConfirm(raw: string): string | null {
+  const trimmed = (raw ?? '').trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function AutoScheduleReviewSheet(
   props: AutoScheduleReviewSheetProps,
 ): React.JSX.Element {
@@ -127,6 +160,24 @@ export function AutoScheduleReviewSheet(
   // zoning is treated as a guess (fail-closed) — we never auto-schedule on an
   // unconfirmed district.
   const zoningBlocked = !zoning || zoning.status !== 'confirmed';
+  const unknown = zoning?.unknown;
+  // Default TRUE only so an existing caller that knows its district keeps its
+  // one-tap confirm; the app passes the real value from canConfirmZoning.
+  const canConfirm = zoning?.canConfirm !== false;
+
+  // The district the contractor types when MAGE knows none. Local to the sheet:
+  // nothing leaves here until Confirm is pressed with a non-empty value.
+  const [typed, setTyped] = React.useState('');
+  // ONE decision, used by both the disabled state and the handler, so the
+  // button cannot say "ready" while the handler disagrees. It is exported and
+  // unit-tested: a rendered test cannot press a disabled button, so the trim /
+  // empty rule has to be provable on its own.
+  const ready = districtToConfirm(typed);
+  const typedReady = ready !== null;
+  const handleConfirmTyped = () => {
+    if (!ready || !onConfirmZoning) return;
+    onConfirmZoning(ready);
+  };
 
   const count = lines.length;
   const unresolvedCount = lines.filter((l) => l.unresolved).length;
@@ -160,39 +211,138 @@ export function AutoScheduleReviewSheet(
       {/* ── ZONING CONFIRM-GATE ── */}
       {zoningBlocked ? (
         <View style={styles.zoningBanner} testID="zoning-gate-banner">
-          <ShieldQuestion {...Tokens.iconSize.default} color={colors.warningLabel} />
-          <View style={styles.zoningTextWrap}>
-            <Text style={styles.zoningTitle}>
-              {zoning?.district
-                ? `Confirm zoning: ${zoning.district}?`
-                : 'Confirm zoning to enable'}
-            </Text>
-            <Text style={styles.zoningBody}>
-              {zoning?.district
-                ? `We guessed ${zoning.district} from the address. Confirm it to enable auto-scheduling — we won't schedule on a guess.`
-                : `We can't auto-schedule until the jurisdiction's zoning is confirmed.`}
-            </Text>
+          <View style={styles.zoningHeadRow}>
+            <ShieldQuestion {...Tokens.iconSize.default} color={colors.warningLabel} />
+            <View style={styles.zoningTextWrap}>
+              <Text style={styles.zoningTitle}>
+                {zoning?.district
+                  ? `Confirm zoning: ${zoning.district}?`
+                  : 'MAGE does not know this jobsite’s zoning district'}
+              </Text>
+              <Text style={styles.zoningBody} testID="zoning-gate-reason">
+                {zoning?.reason
+                  ?? (zoning?.district
+                    ? `We guessed ${zoning.district} from the address. Confirm it to enable auto-scheduling — we won't schedule on a guess.`
+                    : `We can't auto-schedule until the district is confirmed.`)}
+              </Text>
+            </View>
+            {/* One-tap confirm ONLY when there is a real district to confirm. */}
+            {onConfirmZoning && zoning?.district && canConfirm ? (
+              <TouchableOpacity
+                onPress={() => onConfirmZoning(zoning.district as string)}
+                style={styles.zoningConfirmBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`Confirm zoning ${zoning.district}`}
+                // DISTINCT from the typed control's id. The two are mutually
+                // exclusive today (`district` truthy vs falsy), but they shared
+                // one testID, so a future change that rendered both would break
+                // getByTestId — and, worse, a test could not tell WHICH control
+                // it just pressed. The stale-confirm test below depends on
+                // being able to.
+                testID="confirm-zoning-one-tap-btn"
+              >
+                <ShieldCheck {...Tokens.iconSize.small} color={colors.accentFill} />
+                <Text style={styles.zoningConfirmText}>Confirm</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
-          {onConfirmZoning ? (
-            <TouchableOpacity
-              onPress={onConfirmZoning}
-              style={styles.zoningConfirmBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Confirm zoning"
-              testID="confirm-zoning-btn"
-            >
-              <ShieldCheck {...Tokens.iconSize.small} color={colors.accentFill} />
-              <Text style={styles.zoningConfirmText}>Confirm</Text>
-            </TouchableOpacity>
+
+          {/* ── THE HONEST UNKNOWN PANEL — the majority case ──
+              Who governs the address, what code record we actually hold, and a
+              plain ask. Every line comes from describeZoningUnknown, which can
+              only report the project's own address and the cited adoption
+              table; it cannot produce a district, so nothing here can drift
+              into presenting a guess. */}
+          {unknown ? (
+            <View style={styles.zoningFacts} testID="zoning-unknown-facts">
+              {/* HEDGED ON PURPOSE. This line used to read "<place> writes the
+                  district map for this parcel", printed as fact for whatever
+                  the address parse produced — boroughs, census-designated
+                  places with no government, even a county the module's own
+                  header says does not zone. describeZoningUnknown now composes
+                  the sentence, and it claims only what was verified: zoning
+                  here is local, and MAGE has not looked up which local body
+                  covers this parcel. Do not re-compose it in the component. */}
+              {unknown.zoningAuthorityNote ? (
+                <Text style={styles.zoningFact} testID="zoning-unknown-authority">
+                  <Text style={styles.zoningFactKey}>Who sets zoning here: </Text>
+                  {unknown.zoningAuthorityNote}
+                </Text>
+              ) : null}
+              {unknown.permitAuthority ? (
+                <Text style={styles.zoningFact} testID="zoning-unknown-permit-office">
+                  <Text style={styles.zoningFactKey}>Permits: </Text>
+                  {unknown.permitAuthority}
+                </Text>
+              ) : null}
+              {unknown.codeSummary ? (
+                <Text style={styles.zoningFact} testID="zoning-unknown-code">
+                  <Text style={styles.zoningFactKey}>Building code on file: </Text>
+                  {unknown.codeSummary}
+                  {unknown.codeCheckedOn ? ` (checked ${unknown.codeCheckedOn})` : ''} — that is
+                  the building code, not zoning.
+                </Text>
+              ) : null}
+              {unknown.codeSourceUrl ? (
+                <Text
+                  style={styles.zoningLink}
+                  onPress={() => { void Linking.openURL(unknown.codeSourceUrl as string); }}
+                  accessibilityRole="link"
+                  testID="zoning-unknown-code-link"
+                >
+                  Open the adoption record
+                </Text>
+              ) : null}
+              <Text style={styles.zoningAsk} testID="zoning-unknown-ask">{unknown.ask}</Text>
+            </View>
+          ) : null}
+
+          {/* ── ASK FOR THE DISTRICT ──
+              Only when we have somewhere to attach the answer. Withheld when
+              canConfirm is false, because a district with no city/state is an
+              answer we could neither honour nor invalidate later. */}
+          {onConfirmZoning && !zoning?.district && canConfirm ? (
+            <View style={styles.zoningEntry}>
+              <TextInput
+                value={typed}
+                onChangeText={setTyped}
+                placeholder="Zoning district (e.g. R-5)"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={styles.zoningInput}
+                accessibilityLabel="Zoning district"
+                testID="zoning-district-input"
+              />
+              <TouchableOpacity
+                onPress={handleConfirmTyped}
+                disabled={!typedReady}
+                style={[styles.zoningConfirmBtn, !typedReady && styles.zoningConfirmBtnDisabled]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !typedReady }}
+                accessibilityLabel="Confirm zoning district"
+                testID="confirm-zoning-btn"
+              >
+                <ShieldCheck {...Tokens.iconSize.small} color={typedReady ? colors.accentFill : colors.textMuted} />
+                <Text style={[styles.zoningConfirmText, !typedReady && styles.zoningConfirmTextDisabled]}>
+                  Confirm
+                </Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
       ) : (
         <View style={styles.zoningConfirmed} testID="zoning-confirmed-chip">
           <ShieldCheck {...Tokens.iconSize.small} color={colors.successLabel} />
+          {/* "saved on this device" is not filler. A confirm lives in
+              structuredAddress, which has no projects column and is not in the
+              sync payload — ProjectContext carries the device's cached copy so a
+              fetch cannot destroy it, but a foreman on another phone still sees
+              this gate blocked. Saying so beats letting them wonder why. */}
           <Text style={styles.zoningConfirmedText}>
             {zoning?.district
-              ? `Zoning confirmed: ${zoning.district}`
-              : 'Zoning confirmed'}
+              ? `Zoning confirmed: ${zoning.district} · saved on this device`
+              : 'Zoning confirmed · saved on this device'}
           </Text>
         </View>
       )}
@@ -305,29 +455,60 @@ const makeStyles = (t: ThemeColors) =>
     subtitle: { ...Type.footnote, color: t.textSecondary, marginTop: Tokens.spacing.xxs },
 
     zoningBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
       gap: Tokens.spacing.sm,
       backgroundColor: t.warningSoft,
       borderRadius: Tokens.radius.card,
       padding: Tokens.spacing.sm,
       marginBottom: Tokens.spacing.sm,
     },
+    zoningHeadRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Tokens.spacing.sm,
+    },
+    zoningFacts: {
+      ...cardSurface(t, { radius: 'sm', pad: Tokens.spacing.sm, bordered: false }),
+      gap: Tokens.spacing.xxs,
+    },
+    zoningFact: { ...Type.footnote, color: t.textSecondary },
+    zoningFactKey: { ...Type.footnoteEmphasized, color: t.text },
+    zoningLink: { ...Type.footnoteEmphasized, color: t.accentLabel },
+    zoningAsk: { ...Type.footnote, color: t.text, marginTop: Tokens.spacing.xxs },
+    zoningEntry: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Tokens.spacing.xs,
+    },
+    // NOT cardSurface: this is a TextInput, and cardSurface is typed ViewStyle,
+    // so spreading it beside Type.body's TextStyle widens the whole StyleSheet
+    // to ViewStyle | TextStyle | ImageStyle and 49 call sites stop compiling.
+    // The ui-adoption ratchet counts this as a hand-rolled surface recipe; it is
+    // a text field, and the helper does not model one.
+    zoningInput: {
+      flex: 1,
+      ...Type.body,
+      color: t.text,
+      backgroundColor: t.surface,
+      borderRadius: Tokens.radius.sm,
+      borderWidth: 1,
+      borderColor: t.line,
+      paddingHorizontal: Tokens.spacing.sm,
+      minHeight: Tokens.touchTarget.min,
+    },
     zoningTextWrap: { flex: 1 },
     zoningTitle: { ...Type.subheadEmphasized, color: t.warningLabel },
     zoningBody: { ...Type.footnote, color: t.textSecondary, marginTop: Tokens.spacing.hairline },
     zoningConfirmBtn: {
+      ...cardSurface(t, { radius: 'sm', pad: 'none' }),
       flexDirection: 'row',
       alignItems: 'center',
       gap: Tokens.spacing.xxs,
-      backgroundColor: t.surface,
-      borderRadius: Tokens.radius.sm,
       paddingHorizontal: Tokens.spacing.sm,
       paddingVertical: Tokens.spacing.xs,
-      borderWidth: 1,
-      borderColor: t.line,
     },
+    zoningConfirmBtnDisabled: { backgroundColor: t.surfaceAlt },
     zoningConfirmText: { ...Type.footnoteEmphasized, color: t.accentLabel },
+    zoningConfirmTextDisabled: { color: t.textMuted },
 
     zoningConfirmed: {
       flexDirection: 'row',

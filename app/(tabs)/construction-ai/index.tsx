@@ -58,7 +58,10 @@ import AskConstructionMode from '@/components/construction/AskConstructionMode';
 import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleReviewSheet';
 import { roadmapToScheduleWork, mergeReviewLines, hasRoadmapScheduleTasks, type ReviewLine } from '@/utils/automation/roadmapToScheduleWork';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
-import { resolveZoning, confirmZoning, isZoningConfirmed } from '@/utils/automation/jurisdiction';
+import {
+  confirmZoning,
+  zoningPropForProject,
+} from '@/utils/automation/jurisdiction';
 import {
   resolveCodeJurisdiction,
   groundingFactsFor,
@@ -506,17 +509,16 @@ function ConstructionAIScreenInner() {
           ),
     [roadmapProject, roadmap],
   );
-  const zoningProp = roadmapProject
-    ? (() => {
-        const rz = resolveZoning(roadmapProject);
-        return {
-          district: rz.district ?? undefined,
-          status: isZoningConfirmed(roadmapProject)
-            ? ('confirmed' as const)
-            : ('guess' as const),
-        };
-      })()
-    : undefined;
+  // ZONING GATE PROP. Derived by zoningPropForProject in
+  // utils/automation/jurisdiction.ts — NOT here. It used to be composed inline
+  // and back-filled with `roadmapProject.location`, so the contractor confirmed
+  // their own street address as a zoning district and it read back as truth on
+  // the confirmed chip and unblocked the auto-schedule commit. Keeping the
+  // derivation in a pure exported function is what lets the guard EXECUTE it
+  // and assert that `district` is undefined for a real address-only project;
+  // the source-text regexes that stood in for that were walked past by an
+  // intermediate binding with every check still green.
+  const zoningProp = roadmapProject ? zoningPropForProject(roadmapProject) : undefined;
   // ALREADY-SCHEDULED detection: a task already carries this feature's ref, so
   // the surface flips to "view in Schedule" instead of re-committing. Uses the
   // shared predicate the smoke test also imports, so the two can't drift.
@@ -540,16 +542,30 @@ function ConstructionAIScreenInner() {
   }, [roadmapProject]);
   const roadmapEmpty = !!roadmap && roadmap.permits.length === 0 && roadmap.inspections.length === 0;
 
-  // Confirm the (guessed) zoning district — the ONLY path that unblocks the
-  // review sheet's confirm gate. Guards an empty district: confirmZoning throws
-  // on empty, so we never call it without one.
-  const handleConfirmZoning = useCallback(() => {
+  // Confirm the zoning district — the ONLY path that unblocks the review
+  // sheet's confirm gate. The district comes from the SHEET (the contractor
+  // typed it, or tapped Confirm on a district MAGE actually holds); this
+  // handler invents nothing. There is deliberately no fallback here: the old
+  // `?? roadmapProject.location` was the live path for every real project and
+  // laundered a street address into a confirmed district.
+  const handleConfirmZoning = useCallback((district: string) => {
     if (!roadmapProject) return;
-    const district = resolveZoning(roadmapProject).district ?? roadmapProject.location;
-    if (!district?.trim()) return;
-    updateProject(roadmapProject.id, {
-      structuredAddress: confirmZoning(roadmapProject, district),
-    });
+    if (!district.trim()) return;
+    // confirmZoning throws on an empty district, on the address-as-district
+    // shape, and on a project with no city/state. The sheet withholds the
+    // control in the last case, so a throw here would be a programmer error —
+    // but a bad district is a USER input, so surface it instead of crashing.
+    let patch;
+    try {
+      patch = confirmZoning(roadmapProject, district.trim());
+    } catch (err) {
+      showAlert(
+        'That is not a zoning district',
+        err instanceof Error ? err.message : 'Enter the district the municipality assigned this parcel.',
+      );
+      return;
+    }
+    updateProject(roadmapProject.id, { structuredAddress: patch });
   }, [roadmapProject, updateProject]);
 
   // Commit the reviewed draft inspections into the schedule. Runs ONLY on an
