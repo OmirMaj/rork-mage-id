@@ -661,7 +661,7 @@ export default function BuyoutPackageScreen() {
                     <Text style={styles.warningBody}>
                       {allowanceItems.slice(0, 3).map(i => i.name).join(', ')}
                       {allowanceItems.length > 3 ? ` +${allowanceItems.length - 3} more` : ''}.
-                      Awarding this package locks them to firm price in the estimate and homeowner portal.
+                      Awarding this package locks them to firm price in the estimate and client portal.
                     </Text>
                   </View>
                 </View>

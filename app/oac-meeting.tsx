@@ -133,13 +133,18 @@ export default function OACMeetingScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  const { canAccess, requiredTierFor } = useTierAccess();
   if (!canAccess('rfis_submittals')) {
     return (
       <Paywall
         visible={true}
         feature="OAC Meetings"
-        requiredTier="business"
+        // Derived, never typed. These four screens all said "business" while
+        // their gate said 'rfis_submittals' — true until that key moved to
+        // Pro, at which point the paywall quoted a price the gate did not
+        // charge. requiredTierFor reads featureTiers.ts, so the number on the
+        // wall is the number on the door.
+        requiredTier={requiredTierFor('rfis_submittals')}
         onClose={() => router.back()}
       />
     );
@@ -897,7 +902,7 @@ function labelForStatus(s: OACMeeting['status']): string {
 function defaultAttendeesFromProject(project: any): OACAttendee[] {
   // Pull whatever stakeholders the project has on file. The GC can edit.
   const out: OACAttendee[] = [];
-  // Owner from the homeowner portal invites
+  // Owner from the client portal invites
   const inv = project.clientPortal?.invites?.[0];
   if (inv) out.push({ id: generateUUID(), name: inv.name ?? 'Owner', email: inv.email, role: 'owner' });
   // GC from contract / settings — we keep this generic since settings live elsewhere

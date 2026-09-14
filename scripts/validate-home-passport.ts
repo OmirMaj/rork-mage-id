@@ -248,12 +248,32 @@ expectTrue('prompt contains every ref as a citation label',
 expectTrue('prompt contains the ONLY-grounding rule', p1.includes('ONLY the home records'));
 expectTrue('prompt embeds the exact not-found line', p1.includes(ASK_HOME_NOT_FOUND));
 expectTrue('prompt forbids invention', p1.toLowerCase().includes('never invent'));
-expectTrue('records precede the question', p1.indexOf('HOME RECORDS:') < p1.indexOf('HOMEOWNER QUESTION:'));
+expectTrue('records precede the question', p1.indexOf('HOME RECORDS:') < p1.indexOf('QUESTION:'));
 
 const p2 = buildAskHomePrompt('anything', []);
 expectTrue('empty docs → still instructs not-found', p2.includes(ASK_HOME_NOT_FOUND));
 expectTrue('empty docs → explicit no-records marker', p2.includes('(no records found for this question)'));
-expectTrue('question is trimmed', buildAskHomePrompt('  hi  ', []).endsWith('HOMEOWNER QUESTION: hi'));
+expectTrue('question is trimmed', buildAskHomePrompt('  hi  ', []).endsWith('QUESTION: hi'));
+
+// ── the commercial persona ──────────────────────────────────────────
+// A property manager asked "what paint is the kitchen" by their own portal
+// learns that the tool was not built for them. The nouns change; NOTHING that
+// makes the answer trustworthy does.
+const c1 = buildAskHomePrompt('What is the ceiling tile spec?', promptDocs, { commercial: true });
+expectTrue('commercial persona says building, not home', c1.includes('memory of a building'));
+expectTrue('commercial persona addresses the occupant / property manager',
+  c1.includes('OCCUPANT OR PROPERTY MANAGER') && !c1.includes('HOMEOWNER'));
+expectTrue('commercial grounding rule points at building records', c1.includes('ONLY the building records'));
+expectTrue('commercial record header matches', c1.includes('BUILDING RECORDS:') && !c1.includes('HOME RECORDS:'));
+// The guardrails are the point — they must survive the swap verbatim.
+expectTrue('commercial keeps the exact not-found line', c1.includes(ASK_HOME_NOT_FOUND));
+expectTrue('commercial keeps the invention ban', c1.toLowerCase().includes('never invent'));
+expectTrue('commercial keeps the citation instruction', c1.includes('cite the record reference'));
+expectTrue('commercial keeps every ref as a citation label',
+  c1.includes('[Warranty — Trane HVAC]') && c1.includes('[Trade — Volt Bros Electric]'));
+// Default must be unchanged, so every existing caller behaves as before.
+expectTrue('the residential wording is still the default',
+  buildAskHomePrompt('q', promptDocs).includes('memory of a home'));
 
 // ── portal-ask-home ↔ askHomePrompt sync ────────────────────────────
 // Edge functions can't import app code, so portal-ask-home carries a copy of
@@ -268,7 +288,16 @@ const edgeSrc = readFileSync(
   'utf8',
 );
 expectTrue('edge fn embeds the exact not-found line', edgeSrc.includes(ASK_HOME_NOT_FOUND));
-expectTrue('edge fn keeps the ONLY-grounding rule', edgeSrc.includes('ONLY the home records'));
+// The grounding rule is now interpolated ("ONLY the ${place} records") so the
+// literal string is gone from the source. What must be pinned is that the rule
+// still exists and is still absolute — checking for the template AND that both
+// resolved forms are what the canonical builder emits (asserted above via p1
+// and c1), rather than dropping the check because the text moved.
+// The grounding rule is what stops the model answering from general knowledge.
+expectTrue('edge fn keeps the ONLY-grounding rule',
+  edgeSrc.includes('ONLY the ${place} records'));
+expectTrue('edge fn has no second, ungrounded prompt path',
+  (edgeSrc.match(/You are the memory of/g) ?? []).length === 1);
 expectTrue('edge fn never logs the access token', !/console\.(log|warn|error)\([^)]*accessToken/i.test(edgeSrc));
 // Review 2026-09-05: the in-file constant-time compare was retired for the
 // portal_project_for_token choke point (token + enabled + expiry in one place;
@@ -277,6 +306,18 @@ expectTrue('edge fn authorises through the portal_project_for_token choke point'
   edgeSrc.includes('/rest/v1/rpc/portal_project_for_token') && !edgeSrc.includes('constantTimeEqual'));
 expectTrue('edge fn enforces the 20/day portal cap', edgeSrc.includes('PORTAL_DAILY_LIMIT = 20'));
 expectTrue('edge fn filters to homeowner-safe sources', edgeSrc.includes('ALLOWED_SOURCES'));
+
+// The edge function is the LIVE path — utils/passport/askHomePrompt.ts has no
+// runtime caller and exists as the canonical spec this copy is pinned to. So
+// the commercial persona has to be asserted HERE, or it ships in the spec and
+// never reaches a portal.
+expectTrue('edge fn carries the commercial persona too',
+  edgeSrc.includes('memory of a ${place}') && edgeSrc.includes('OCCUPANT OR PROPERTY MANAGER'));
+// A portal link is the only credential on this path; the body decides nothing.
+expectTrue('edge fn derives it from the project row, not the request body',
+  edgeSrc.includes('proj.type === "commercial"') && !/body[^\n]*commercial/i.test(edgeSrc));
+expectTrue('edge fn reads type on the lookup it already makes',
+  edgeSrc.includes('select=id,user_id,type'));
 
 // ── summary ─────────────────────────────────────────────────────────
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -47,13 +47,18 @@ export default function COIVaultScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  const { canAccess, requiredTierFor } = useTierAccess();
   if (!canAccess('rfis_submittals')) {
     return (
       <Paywall
         visible={true}
         feature="COI Vault & Insurance Validator"
-        requiredTier="business"
+        // Derived, never typed. These four screens all said "business" while
+        // their gate said 'rfis_submittals' — true until that key moved to
+        // Pro, at which point the paywall quoted a price the gate did not
+        // charge. requiredTierFor reads featureTiers.ts, so the number on the
+        // wall is the number on the door.
+        requiredTier={requiredTierFor('rfis_submittals')}
         onClose={() => router.back()}
       />
     );

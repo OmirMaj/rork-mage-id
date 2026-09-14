@@ -242,11 +242,12 @@ const REGISTRY = [
   { id: 'companies', title: 'Companies', synonyms: ['firms', 'gc directory'], route: '/(tabs)/discover/companies', icon: 'Building2', group: 'network' },
   { id: 'sub-scorecard', title: 'Sub Scorecard', synonyms: ['sub grades', 'ratings', 'who is good'], route: '/sub-scorecard', requires: 'job_costing', icon: 'Award', group: 'network' },
   { id: 'prequal-manager', title: 'Prequalification', synonyms: ['prequal', 'qualify subs', 'packets'], route: '/prequal-manager', requires: 'prequal_coi', icon: 'ClipboardList', group: 'network' },
-  // COI Vault gates on 'rfis_submittals' (Business) at app/coi-vault.tsx:50 —
-  // NOT on 'prequal_coi' (Pro) like the Prequalification row above it, despite
-  // the shared feature-key name. It advertised prequal_coi until 2026-08-31, so
-  // a Pro subscriber searching "coi" got no lock chip and walked into a
-  // Business wall. The key here must be the one the destination checks.
+  // COI Vault gates on 'rfis_submittals' at app/coi-vault.tsx:50 — NOT on
+  // 'prequal_coi' like the Prequalification row above it, despite the shared
+  // feature-key name. It advertised prequal_coi until 2026-08-31, so a Pro
+  // subscriber searching "coi" got no lock chip and walked into a wall. The key
+  // here must be the one the destination checks, whatever tier that key sits
+  // at — both are now Pro, and the rule is the same if either moves again.
   { id: 'coi-vault', title: 'COI Vault', synonyms: ['insurance', 'certificates', 'coi', 'expirations'], route: '/coi-vault', requires: 'rfis_submittals', icon: 'ShieldCheck', group: 'network' },
   { id: 'sub-portals', title: 'Sub Portals', synonyms: ['subcontractor portal', 'sub links'], route: '/sub-portals', icon: 'Handshake', group: 'network' },
 

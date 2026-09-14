@@ -1,13 +1,19 @@
-// closeout-binder — GC reviews + finalizes the homeowner closeout binder.
+// closeout-binder — GC reviews + finalizes the client closeout binder.
+//
+// Copy says "client", not "homeowner": this screen is reached on a tenant
+// fit-out as often as a house, and the recipient there is a tenant or a
+// property manager. The `homeowner_email` / `homeowner_name` keys in the
+// deliver payload below are deliberately NOT renamed — they are a wire format
+// the edge function reads, not words anybody sees.
 // The engine auto-compiles everything from selections, commitments,
 // warranties, photos. This screen is intentionally thin because the
 // magic is in the compiler — GC just adds a note + tweaks the
 // maintenance schedule + taps Generate PDF.
 //
 // Status flow:
-//   draft     → editable, not visible to homeowner
+//   draft     → editable, not visible to the client
 //   finalized → "ready to deliver", still editable, still not in portal
-//   sent      → visible in homeowner portal (closeout section), GC can
+//   sent      → visible in the client portal (closeout section), GC can
 //               re-deliver (re-fire notification) but content is locked
 //
 // The portal snapshot only emits the binder block when status ∈
@@ -185,7 +191,7 @@ export default function CloseoutBinderScreen() {
   // 1. buildHomePassport assembles pure docs from this project's data.
   // 2. Docs are indexed into memory_embeddings via project-memory-embed
   //    (contractor JWT, source 'Home Passport', idempotent by docId) so
-  //    the homeowner's portal-ask-home can retrieve them.
+  //    the client's portal-ask-home can retrieve them.
   // 3. Each FaqInput is pre-answered via answerFromMemory over the
   //    passport docs ONLY (never the full project index — change orders /
   //    punch items stay contractor-internal) and baked to AsyncStorage;
@@ -294,10 +300,10 @@ export default function CloseoutBinderScreen() {
 
   const handleDeliver = useCallback(() => {
     if (!project) return;
-    const title = sentAt ? 'Re-deliver to homeowner?' : 'Deliver to homeowner?';
+    const title = sentAt ? 'Re-deliver to client?' : 'Deliver to client?';
     const message = sentAt
-      ? 'The homeowner already received this binder. We\'ll re-send the email and refresh the portal copy. Continue?'
-      : 'The binder will appear in the homeowner\'s portal under the Closeout section, and we\'ll send them an email so they know where to find it. Continue?';
+      ? 'The client already received this binder. We\'ll re-send the email and refresh the portal copy. Continue?'
+      : 'The binder will appear in the client\'s portal under the Closeout section, and we\'ll send them an email so they know where to find it. Continue?';
     showAlert(title, message, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -314,7 +320,7 @@ export default function CloseoutBinderScreen() {
             setStatus('sent');
             setSentAt(now);
             // Fire-and-forget notification — don't block UI on email.
-            // Pull the first portal invite (the homeowner) so we can
+            // Pull the first portal invite (the client) so we can
             // address the email by name + send to the right inbox.
             const invite = (project.clientPortal?.invites ?? [])[0];
             void notifyEvent('closeout_binder_sent', {
@@ -348,7 +354,7 @@ export default function CloseoutBinderScreen() {
                 ],
               );
             } else {
-              showAlert('Delivered', 'The homeowner can see it in their portal now.');
+              showAlert('Delivered', 'The client can see it in their portal now.');
             }
           } finally {
             setDelivering(false);
@@ -449,7 +455,7 @@ export default function CloseoutBinderScreen() {
       //     compiled here purely by cast / `useProjects() as any`, and
       //     evaluated to undefined on every render since it was written.
       //   * `?? 'Owner'` — which printed the literal word "Owner" into the
-      //     Owner field of a G704/G714 the homeowner signs. field() in
+      //     Owner field of a G704/G714 the client signs. field() in
       //     utils/aiaForms.ts:125 renders `value || ' '`, a blank fill-in
       //     line, which is the correct rendering of a field nobody has filled.
       //     A form that looks completed and is not is worse than a blank.
@@ -582,7 +588,7 @@ export default function CloseoutBinderScreen() {
       {/* Back + which project + where the binder stands. NOT a second page
           title: this row used to also print "The handover packet" in
           Type.serifHeadline — the same style FeatureHeader below renders
-          "Everything the homeowner gets at the end" in — so the screen opened
+          "Everything the client gets at the end" in — so the screen opened
           with two competing serif titles and two eyebrows before any content
           (2026-09-07 app-experience audit; app/handover.tsx and
           app/lien-waivers.tsx still have the same stack). FeatureHeader owns
@@ -603,14 +609,14 @@ export default function CloseoutBinderScreen() {
       </View>
       <FeatureHeader
         eyebrow="Closeout Binder"
-        title="Everything the homeowner gets at the end"
+        title="Everything the client gets at the end"
         subtitle="Warranties, manuals, paint colors, sub contacts, as-builts — all bundled into one PDF binder you hand over on closeout day."
         explainer={{
           term: 'Closeout Binder',
-          definition: 'The closeout binder is the package of everything the homeowner needs to live with their new home: warranty docs from each manufacturer, operating manuals for installed equipment, paint colors and finishes for touch-ups, sub contact info for warranty claims, and as-built drawings showing what was actually built (not just what was designed).',
+          definition: 'The closeout binder is the package of everything the client needs to operate what you built: warranty docs from each manufacturer, operating manuals for installed equipment, paint colors and finishes for touch-ups, sub contact info for warranty claims, and as-built drawings showing what was actually built (not just what was designed).',
           whenToUse: [
             'At project closeout, before you hand over the keys',
-            'When the homeowner asks "where\'s the warranty for the dishwasher?"',
+            'When the client asks "where\'s the warranty for the rooftop unit?"',
             'A year later, when something needs warranty work and they call you',
           ],
         }}
@@ -636,7 +642,7 @@ export default function CloseoutBinderScreen() {
               {sentAt && (
                 <View style={styles.timelineRow}>
                   <Send size={13} color={themeColors.success} strokeWidth={1.75} />
-                  <Text style={styles.timelineText}>Delivered to homeowner {formattedAt(sentAt)}</Text>
+                  <Text style={styles.timelineText}>Delivered to client {formattedAt(sentAt)}</Text>
                 </View>
               )}
             </View>
@@ -649,7 +655,7 @@ export default function CloseoutBinderScreen() {
               <Text style={styles.previewTitle}>Auto-compiled from this project</Text>
             </View>
             <Text style={styles.previewBody}>
-              Your binder will pull live data from the project so the homeowner gets a complete record:
+              Your binder will pull live data from the project so the client gets a complete record:
             </Text>
             <View style={styles.previewList}>
               <PreviewRow label="Finishes & fixtures" value={`${selectionsCount} chosen`} />
@@ -670,7 +676,7 @@ export default function CloseoutBinderScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardLabel}>Home Passport</Text>
                   <Text style={styles.cardHelper}>
-                    Indexes this project&apos;s finishes, warranties, trades, and photos so the homeowner can ask their portal questions — &ldquo;what paint is the kitchen?&rdquo; — and get cited answers, plus a pre-answered FAQ.
+                    Indexes this project&apos;s finishes, warranties, trades, and photos so the client can ask their portal questions — &ldquo;what paint is the kitchen?&rdquo; — and get cited answers, plus a pre-answered FAQ.
                   </Text>
                 </View>
                 <BookOpen size={18} color={themeColors.accent} strokeWidth={1.75} />
@@ -709,7 +715,7 @@ export default function CloseoutBinderScreen() {
 
           {/* Notes */}
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>A note to the homeowner</Text>
+            <Text style={styles.cardLabel}>A note to the client</Text>
             <Text style={styles.cardHelper}>Goes at the top of the binder. Personal touch, sign-off, anything they should know.</Text>
             <TextInput
               style={styles.textarea}
@@ -728,7 +734,7 @@ export default function CloseoutBinderScreen() {
             <View style={styles.cardHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardLabel}>Maintenance schedule</Text>
-                <Text style={styles.cardHelper}>Routine tasks the homeowner should do. Pre-filled with sane defaults — edit, add, remove.</Text>
+                <Text style={styles.cardHelper}>Routine tasks the client should do. Pre-filled with sane defaults — edit, add, remove.</Text>
               </View>
               <TouchableOpacity style={styles.smallBtn} onPress={addMaintenance}>
                 <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -858,7 +864,7 @@ export default function CloseoutBinderScreen() {
                 {delivering ? <ActivityIndicator size="small" color="#FFF" /> : (
                   <>
                     <Send size={14} color="#FFF" strokeWidth={1.75} />
-                    <Text style={styles.primaryText}>Deliver to homeowner</Text>
+                    <Text style={styles.primaryText}>Deliver to client</Text>
                   </>
                 )}
               </TouchableOpacity>

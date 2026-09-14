@@ -102,8 +102,8 @@ const OPTIONS: CreateOption[] = [
   { label: 'Project', subtitle: 'Start a new job from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
   { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: MageEstimate, href: '/estimate-wizard', feature: 'estimate-wizard', category: 'project', scoped: true },
   { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: MageSchedule, href: '/schedule-wizard?scratch=1', category: 'project', scoped: true },
-  { label: 'Lead', subtitle: 'Capture a homeowner inquiry — voice or form', Icon: UserPlus, href: '/leads', feature: 'leads', category: 'project', keywords: ['pipeline', 'sales'] },
-  { label: 'Lead by voice', subtitle: 'Say what the homeowner told you — MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
+  { label: 'Lead', subtitle: 'Capture a client inquiry — voice or form', Icon: UserPlus, href: '/leads', feature: 'leads', category: 'project', keywords: ['pipeline', 'sales'] },
+  { label: 'Lead by voice', subtitle: 'Say what the client told you — MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
 
   // Money
   { label: 'Quick Quote', subtitle: 'Fast bid for a small job', Icon: Zap, href: '/quick-quote', feature: 'quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
@@ -127,12 +127,12 @@ const OPTIONS: CreateOption[] = [
 
   // People & meetings
   { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', feature: 'oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
-  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', feature: 'client-portal', category: 'people', scoped: true, param: 'id' },
+  { label: 'Client portal invite', subtitle: 'Give the client read access', Icon: Mail, href: '/client-portal-setup', feature: 'client-portal', category: 'people', scoped: true, param: 'id' },
   { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true },
 
   // Closeout
   { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', feature: 'handover', category: 'docs', scoped: true },
-  { label: 'Closeout Binder', subtitle: 'The PDF packet you give the homeowner', Icon: BookOpen, href: '/closeout-binder', feature: 'closeout-binder', category: 'docs', scoped: true },
+  { label: 'Closeout Binder', subtitle: 'The PDF packet you give the client', Icon: BookOpen, href: '/closeout-binder', feature: 'closeout-binder', category: 'docs', scoped: true },
 
   // Tools
   { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', feature: 'cash-flow', category: 'tools', scoped: true },

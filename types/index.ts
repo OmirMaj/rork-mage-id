@@ -1914,23 +1914,54 @@ export interface DailyFieldReport {
   portalState?: PortalState;
 }
 
+/**
+ * Every trade the app can file a sub under.
+ *
+ * This was twelve values, all of them residential, and a commercial interiors
+ * job has almost none of them: the fire-protection contractor, the fire-alarm
+ * vendor, the low-voltage/cabling crew, the AV integrator, the security
+ * integrator, the controls/BMS contractor, the acoustical-ceiling sub, the
+ * millworker, the glazier, the door-and-hardware supplier and the demolition
+ * contractor ALL filed as 'Other'. The COI vault filters on this list, the sub
+ * form renders it as chips with no free-text escape, punch-walk orders its
+ * columns by it, and utils/tradeInference.ts keys its routing off it — so
+ * "Other" was not a label problem, it was the whole fit-out supply chain
+ * collapsing into one bucket.
+ *
+ * Ordering matters for tradeInference: more specific trades must be able to
+ * claim a keyword before a broader one sees it.
+ */
 export type SubTrade =
   | 'General'
+  | 'Demolition'
   | 'Framing'
+  | 'Concrete'
   | 'Electrical'
   | 'Plumbing'
   | 'HVAC'
+  | 'Controls / BMS'
+  | 'Fire Protection'
+  | 'Fire Alarm'
+  | 'Low Voltage / Cabling'
+  | 'AV'
+  | 'Security'
   | 'Roofing'
-  | 'Concrete'
   | 'Drywall'
+  | 'Acoustical Ceilings'
+  | 'Millwork'
+  | 'Glazing'
+  | 'Doors & Hardware'
   | 'Painting'
   | 'Flooring'
   | 'Landscaping'
   | 'Other';
 
 export const SUB_TRADES: SubTrade[] = [
-  'General', 'Framing', 'Electrical', 'Plumbing', 'HVAC', 'Roofing',
-  'Concrete', 'Drywall', 'Painting', 'Flooring', 'Landscaping', 'Other',
+  'General', 'Demolition', 'Framing', 'Concrete',
+  'Electrical', 'Plumbing', 'HVAC', 'Controls / BMS',
+  'Fire Protection', 'Fire Alarm', 'Low Voltage / Cabling', 'AV', 'Security',
+  'Roofing', 'Drywall', 'Acoustical Ceilings', 'Millwork', 'Glazing',
+  'Doors & Hardware', 'Painting', 'Flooring', 'Landscaping', 'Other',
 ];
 
 export type ComplianceStatus = 'compliant' | 'expiring_soon' | 'expired';
@@ -3375,7 +3406,14 @@ export interface ScanRecord {
   createdAt: string;
 }
 
-export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Other';
+/**
+ * Landlord, Building Engineer and Property Manager are added because on a
+ * tenant fit-out those three people make most of the claims a PM has to chase
+ * — base-building complete, shutdown approved, dock booked — and until now
+ * they could only be filed as 'Other'. The same three names are already
+ * committed in FollowUpBall; this keeps the two vocabularies agreeing.
+ */
+export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Landlord' | 'Building Engineer' | 'Property Manager' | 'Other';
 
 export interface Contact {
   id: string;
@@ -3403,7 +3441,10 @@ export type RFIPriority = 'low' | 'normal' | 'urgent';
  *  the RFI is sent, gets it back when a response comes in, and so on.
  *  Surfacing this in the list view is what makes "no RFI gets buried"
  *  the actual GC experience instead of a wishful-thinking promise. */
-export type RFIBallInCourt = 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' | 'closed';
+/** An RFI on a fit-out is very often parked with the landlord or the building
+ *  engineer rather than the design team; without these the handoff log had to
+ *  record that as 'owner', which is a different party with a different SLA. */
+export type RFIBallInCourt = 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' | 'landlord' | 'building_engineer' | 'closed';
 
 /** One row of the ownership-handoff log. Append-only — every time the
  *  ball moves we push a new entry so the GC can audit "who held this
@@ -4277,7 +4318,15 @@ export interface OACMeeting {
 }
 
 export type PermitStatus = 'applied' | 'under_review' | 'approved' | 'denied' | 'expired' | 'inspection_scheduled' | 'inspection_passed' | 'inspection_failed';
-export type PermitType = 'building' | 'electrical' | 'plumbing' | 'mechanical' | 'demolition' | 'grading' | 'fire' | 'occupancy' | 'special_inspection' | 'other';
+/**
+ * The five added values are the approvals a tenant fit-out actually waits on,
+ * and they are permits in every sense that matters here: something is
+ * submitted, somebody reviews it, and work cannot start until it comes back.
+ * Naming them lets utils/automation/learnedLeadTime.ts measure a real
+ * shutdown-approval or landlord-approval turnaround from his own history
+ * instead of leaving that time unmodelled.
+ */
+export type PermitType = 'building' | 'electrical' | 'plumbing' | 'mechanical' | 'demolition' | 'grading' | 'fire' | 'occupancy' | 'special_inspection' | 'hot_work' | 'shutdown' | 'after_hours' | 'landlord_approval' | 'elevator_dock' | 'other';
 
 /**
  * IBC Chapter 17 special inspection categories. When a Permit has

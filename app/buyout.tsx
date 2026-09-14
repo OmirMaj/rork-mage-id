@@ -35,6 +35,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
   BID_PACKAGE_STATUSES, BID_PACKAGE_STATUS_LABELS,
@@ -52,33 +53,24 @@ const STATUS_COLORS: Record<BidPackageStatus, string> = {
   cancelled: '#9CA3AF',
 };
 
-// Condensed CSI MasterFormat divisions used in residential buyout.
-// Industry-standard alignment so bid packages map to the same
-// "address" the project manual / spec uses. We surface a residential-
-// relevant subset (the full 50-division list would overwhelm a phone
-// picker) but `csiDivision` accepts any string for power users who
-// prefer a different code.
-const CSI_DIVISIONS = [
-  { code: '02', name: 'Existing Conditions' },
-  { code: '03', name: 'Concrete' },
-  { code: '04', name: 'Masonry' },
-  { code: '05', name: 'Metals' },
-  { code: '06', name: 'Wood / Carpentry' },
-  { code: '07', name: 'Thermal / Moisture' },
-  { code: '08', name: 'Openings (Doors/Windows)' },
-  { code: '09', name: 'Finishes' },
-  { code: '10', name: 'Specialties' },
-  { code: '11', name: 'Equipment' },
-  { code: '12', name: 'Furnishings' },
-  { code: '21', name: 'Fire Suppression' },
-  { code: '22', name: 'Plumbing' },
-  { code: '23', name: 'HVAC' },
-  { code: '26', name: 'Electrical' },
-  { code: '27', name: 'Communications' },
-  { code: '31', name: 'Earthwork' },
-  { code: '32', name: 'Exterior Improvements' },
-  { code: '33', name: 'Utilities' },
-];
+// REMOVED: a private 19-entry CSI list.
+//
+// It carried the comment "we surface a residential-relevant subset (the full
+// 50-division list would overwhelm a phone picker)", and it was rendered as a
+// horizontal chip strip with no search — so choosing division 26 meant swiping
+// past fifteen chips. The reasoning was sound for a strip and wrong for the
+// app: components/CSIDivisionPicker.tsx already renders all fifty from the
+// shared utils/csiMasterFormat.ts catalog, in a searchable modal, with an
+// auto-suggest driven by the package name. That is strictly easier to use than
+// nineteen chips, not harder.
+//
+// What the subset actually cost: a commercial bid package could not be filed
+// under 13 Special Construction, 14 Conveying Equipment (the elevator sub on
+// every mid-rise), 25 Integrated Automation, 28 Electronic Safety and
+// Security, 41 Material Processing, or 48 Electrical Power Generation. Those
+// are not exotic divisions — 14 and 28 are on most occupied-building jobs. The
+// package could still be created, it just could not carry the address the
+// project manual gives it, which is the entire reason the field exists.
 
 export default function BuyoutScreen() {
   const insets = useSafeAreaInsets();
@@ -419,17 +411,17 @@ export default function BuyoutScreen() {
               <TextInput style={styles.input} value={newPkgPhase} onChangeText={setNewPkgPhase} placeholder='e.g. "Rough-in", "Finishes"' placeholderTextColor={themeColors.textMuted} />
 
               <Text style={styles.fieldLabel}>CSI Division</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.csiRow}>
-                {CSI_DIVISIONS.map(d => (
-                  <TouchableOpacity
-                    key={d.code}
-                    style={[styles.csiChip, newPkgCsi === d.code && styles.csiChipActive]}
-                    onPress={() => setNewPkgCsi(d.code)}
-                  >
-                    <Text style={[styles.csiChipText, newPkgCsi === d.code && styles.csiChipTextActive]}>{d.code} · {d.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              {/* All fifty divisions, searchable, with a suggestion derived
+                  from what he has already typed — the package name is usually
+                  the trade, so the right division is normally one tap. */}
+              <View style={styles.csiRow}>
+                <CSIDivisionPicker
+                  value={newPkgCsi || undefined}
+                  onChange={next => setNewPkgCsi(next ?? '')}
+                  suggestFromText={`${newPkgName} ${newPkgPhase}`.trim()}
+                  testID="buyout-csi-division"
+                />
+              </View>
 
               {/* Estimate item picker — links the package to specific
                   estimate line items so the budget rolls up automatically
@@ -562,11 +554,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fieldHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: -2, marginBottom: 8, lineHeight: 16 },
   input: { backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, fontSize: Type.subhead.fontSize, color: t.text },
   tip: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 18, fontStyle: 'italic', textAlign: 'center' },
-  csiRow: { flexDirection: 'row', gap: 6, paddingBottom: 4 },
-  csiChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line },
-  csiChipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
-  csiChipText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.text },
-  csiChipTextActive: { color: '#FFF', fontWeight: '700' as const },
+  // csiChip* styles deleted with the 19-chip strip they dressed — the shared
+  // CSIDivisionPicker brings its own.
+  csiRow: { flexDirection: 'row', paddingBottom: 4 },
   itemsList: { gap: 6, marginTop: 4, marginBottom: 4 },
   itemRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: t.surface, padding: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line },
   itemRowPicked: { backgroundColor: t.accent + '0F', borderColor: t.accent + '60' },

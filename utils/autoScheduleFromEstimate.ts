@@ -8,6 +8,9 @@ import type { Project, ScheduleTask, ProjectSchedule, DependencyLink, Dependency
 export interface AutoScheduleResult {
   schedule: ProjectSchedule;
   tasks: ScheduleTask[];
+  /** Set when the generator named a phase outside SCHEDULE_PHASES and it was
+   *  kept rather than flattened to 'General'. Undefined when it named none. */
+  coinedPhaseNote?: string;
   linkedItemCount: number;
   /** How many tasks were matched to a sub by trade, and how many were left
    *  alone because more than one sub does that trade. Empty string when the
@@ -170,13 +173,35 @@ Output JSON only. No prose.`;
       isMilestone: t.isMilestone,
       wbsCode: t.wbs,
       isCriticalPath: t.isCriticalPath,
-      isWeatherSensitive: ['Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing', 'Landscaping'].includes(t.phase),
+      // Exterior phases only. 'Building Envelope' joins the list because
+      // curtain wall, roofing membrane and exterior sealant are as rain-bound
+      // as framing; 'Demo' is interior as often as not on a fit-out, but it
+      // was already here and dropping it would change existing behaviour on
+      // residential jobs for no gain. A coined phase is never weather-flagged
+      // — the app does not know what it is.
+      isWeatherSensitive: ['Site Work', 'Demo', 'Foundation', 'Structure', 'Framing', 'Roofing', 'Building Envelope', 'Landscaping'].includes(t.phase),
       linkedEstimateItems: uniqueLinkedIds,
       // assignedSubId is filled BELOW, and only when exactly one sub on the
       // roster does this trade. See utils/subTradeMatch.ts for why an
       // ambiguous match is left empty rather than guessed.
     };
   });
+
+  // ── Say out loud where the generator coined a phase ────────────────────────
+  // normalizeGeneratedTask no longer rewrites an unrecognised phase to
+  // 'General' (see utils/scheduleGenSchema.ts for why that was destroying the
+  // answer on commercial jobs). Keeping the word is only half the fix: the
+  // reader has to be told it is not one of the app's own, or a typo'd phase
+  // would silently become a new group header. ScheduleTask has no field for
+  // this and does not need one — `rationale` is where a task already explains
+  // itself.
+  const coinedPhases = new Set<string>();
+  for (let i = 0; i < tasks.length; i++) {
+    if (!safeTasks[i].coinedPhase) continue;
+    coinedPhases.add(tasks[i].phase);
+    const note = `"${tasks[i].phase}" is not one of the app's standard phases — it was named for this scope. Rename it if you use a different word.`;
+    tasks[i].rationale = tasks[i].rationale ? `${tasks[i].rationale} ${note}` : note;
+  }
 
   // ── Assign subs by trade, where it is not a guess ──────────────────────────
   // `crew` stays empty for the reasons above. `assignedSubId` is different: it
@@ -224,10 +249,14 @@ Output JSON only. No prose.`;
 
   const linkedItemCount = tasks.reduce((sum, t) => sum + (t.linkedEstimateItems?.length ?? 0), 0);
 
+  const coinedList = Array.from(coinedPhases);
   return {
     schedule: finalSchedule,
     tasks,
     linkedItemCount,
     subAssignmentNote: summariseAssignments(subOutcomes) || undefined,
+    coinedPhaseNote: coinedList.length
+      ? `${coinedList.length === 1 ? 'One phase is' : `${coinedList.length} phases are`} not on the app's standard list and ${coinedList.length === 1 ? 'was' : 'were'} kept as written: ${coinedList.join(', ')}.`
+      : undefined,
   };
 }

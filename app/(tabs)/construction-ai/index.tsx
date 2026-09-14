@@ -302,6 +302,15 @@ const PERMIT_TYPE_MAP: Record<string, PermitType> = {
   electrical: 'electrical', plumbing: 'plumbing', mechanical: 'mechanical', hvac: 'mechanical',
   building: 'building', structural: 'building', demolition: 'demolition', demo: 'demolition',
   grading: 'grading', fire: 'fire', occupancy: 'occupancy', zoning: 'other',
+  // Occupied-building approvals. The roadmap model names these on a fit-out
+  // and every one of them used to land on 'other', which is the bucket the
+  // lead-time learner cannot break out — so the longest waits on the job were
+  // the ones it could say the least about.
+  hot_work: 'hot_work', 'hot work': 'hot_work',
+  shutdown: 'shutdown', 'system shutdown': 'shutdown',
+  'after hours': 'after_hours', after_hours: 'after_hours',
+  'landlord approval': 'landlord_approval', landlord: 'landlord_approval',
+  'elevator': 'elevator_dock', 'dock': 'elevator_dock', 'elevator/dock': 'elevator_dock',
 };
 function toPermitType(t: string): PermitType {
   return PERMIT_TYPE_MAP[t.trim().toLowerCase()] ?? 'other';

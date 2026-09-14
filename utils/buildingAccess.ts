@@ -56,7 +56,28 @@ export interface BuildingAccessRules {
   updatedAt: string;
 }
 
-export type AccessKind = 'freight_elevator' | 'dock' | 'after_hours' | 'badging';
+/**
+ * The kinds of building permission a jobsite has to book.
+ *
+ * `hot_work` and `shutdown` are added because they are the two that stop a
+ * crew at the door most often on an occupied building, and neither had a name
+ * here. A hot-work permit is issued per day, per location, usually with a fire
+ * watch attached; a system shutdown (sprinkler, power, domestic water) is
+ * scheduled with the building days ahead and is the single most common reason
+ * a tenant-fit-out task slips. Both were being recorded as free-text notes, so
+ * nothing could check whether one existed before the work was scheduled. */
+export type AccessKind = 'freight_elevator' | 'dock' | 'after_hours' | 'badging' | 'hot_work' | 'shutdown';
+
+/** Human label for a kind. Exported because a conflict message, the request
+ *  form and the reservation list must not each invent their own wording. */
+export const ACCESS_KIND_LABEL: Record<AccessKind, string> = {
+  freight_elevator: 'freight elevator',
+  dock: 'loading dock',
+  after_hours: 'after-hours work',
+  badging: 'badging',
+  hot_work: 'hot work permit',
+  shutdown: 'system shutdown',
+};
 export type AccessStatus = 'requested' | 'confirmed' | 'denied' | 'cancelled';
 
 /** A slot asked for, or granted, by the building. */
@@ -191,7 +212,11 @@ export function findAccessConflicts(opts: {
           && (!r.deliveryId || r.deliveryId === d.id),
       );
 
-      const label = kind === 'freight_elevator' ? 'freight elevator' : 'loading dock';
+      // Was `kind === 'freight_elevator' ? 'freight elevator' : 'loading dock'`
+      // — a two-way branch standing in for what is now a six-value union, so
+      // every kind that is not the freight elevator would have been announced
+      // to the user as the loading dock.
+      const label = ACCESS_KIND_LABEL[kind];
 
       // A denial that has since been re-requested is stale history, not a live
       // conflict — reporting it would send a PM chasing a slot they already

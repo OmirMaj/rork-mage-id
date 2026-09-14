@@ -262,7 +262,13 @@ export default function CostXrayScreen() {
 
       const { data: res, error: fnErr } = await invokeWithTimeout<{
         success: boolean; data?: { items?: unknown[] }; error?: string;
-      }>('analyze-photos', { body: { task: 'conditionRisk', photos: inline, projectName: project?.name } });
+        // projectType matters MORE here than anywhere else this function is
+        // called. analyze-photos folds it into the prompt's context line, and
+        // the condition-risk prompt's whole frame is an older house — on a
+        // tenant fit-out the tells it should be hunting are different ones.
+        // Sending the type was the one line missing; photo-triage has always
+        // sent it (app/photo-triage.tsx:209) and this screen never did.
+      }>('analyze-photos', { body: { task: 'conditionRisk', photos: inline, projectName: project?.name, projectType: project?.type } });
       if (fnErr) throw new Error(fnErr.message);
       if (!res?.success) throw new Error(res?.error ?? 'The scan came back empty.');
 

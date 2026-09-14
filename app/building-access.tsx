@@ -20,7 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Plus, Building2, X, Check, ArrowUpDown, Truck, Moon, IdCard } from 'lucide-react-native';
+import { ChevronLeft, Plus, Building2, X, Check, ArrowUpDown, Truck, Moon, IdCard, Flame, PowerOff } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -49,6 +49,8 @@ const KIND_LABEL: Record<AccessKind, string> = {
   dock: 'Loading dock',
   after_hours: 'After hours',
   badging: 'Badging',
+  hot_work: 'Hot work',
+  shutdown: 'System shutdown',
 };
 
 const KIND_ICON: Record<AccessKind, typeof ArrowUpDown> = {
@@ -56,6 +58,8 @@ const KIND_ICON: Record<AccessKind, typeof ArrowUpDown> = {
   dock: Truck,
   after_hours: Moon,
   badging: IdCard,
+  hot_work: Flame,
+  shutdown: PowerOff,
 };
 
 export default function BuildingAccessScreen() {

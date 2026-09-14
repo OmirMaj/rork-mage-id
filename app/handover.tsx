@@ -1,5 +1,5 @@
 // handover — the macro closeout flow. A single screen the GC walks
-// through with the homeowner on handover day. Every box that needs to
+// through with the client on handover day. Every box that needs to
 // be ticked before keys change hands lives here, with status computed
 // live from existing project data:
 //
@@ -22,7 +22,7 @@
 // project.
 //
 // The two manual items are the ceremony half — the GC confirms those
-// standing next to the homeowner, and the date is saved on the project.
+// standing next to the client, and the date is saved on the project.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -279,7 +279,7 @@ export default function HandoverScreen() {
         key: 'warranties',
         label: 'Warranties on file',
         detail: projectWarranties.length === 0
-          ? 'Add manufacturer + workmanship warranties so the homeowner has them.'
+          ? 'Add manufacturer + workmanship warranties so the client has them.'
           : `${projectWarranties.length} warrant${projectWarranties.length === 1 ? 'y' : 'ies'} recorded`,
         icon: ShieldCheck,
         status: warrantyStatus,
@@ -291,11 +291,11 @@ export default function HandoverScreen() {
         key: 'binder',
         label: 'Closeout binder delivered',
         detail: !binder
-          ? 'Compile and deliver the binder so the homeowner has finishes, warranties, and contacts in one place.'
+          ? 'Compile and deliver the binder so the client has finishes, warranties, and contacts in one place.'
           : binder.status === 'sent'
             ? `Delivered ${binder.sentAt ? new Date(binder.sentAt).toLocaleDateString() : ''}`
             : binder.status === 'finalized'
-              ? 'Finalized — tap to deliver to homeowner'
+              ? 'Finalized — tap to deliver to client'
               : 'Draft only — finalize and deliver',
         icon: BookOpen,
         status: binderStatus,
@@ -335,7 +335,7 @@ export default function HandoverScreen() {
         label: 'Final walk-through completed',
         detail: manualChecks['walkthrough']
           ? `Confirmed ${new Date(manualChecks['walkthrough']).toLocaleDateString()}`
-          : 'Walk every room with the homeowner. Note any last items.',
+          : 'Walk every space with the client. Note any last items.',
         icon: Footprints,
         status: manualChecks['walkthrough'] ? 'done' : 'open',
         manual: true,
@@ -394,9 +394,9 @@ export default function HandoverScreen() {
         subtitle="The walkthrough-day flow most GCs improvise. Every spec confirmed, every signature collected, every key handed over — captured in one place."
         explainer={{
           term: 'Handover Checklist',
-          definition: 'Handover is the day you walk the homeowner through the finished project, demonstrate every system (HVAC, smart lock, irrigation), confirm every selection, walk the punch list, and collect signatures on the certificate of substantial completion. Skipping a step here is how warranty disputes start six months later.',
+          definition: 'Handover is the day you walk the client through the finished project, demonstrate every system (HVAC, controls, life safety, access), confirm every selection, walk the punch list, and collect signatures on the certificate of substantial completion. Skipping a step here is how warranty disputes start six months later.',
           whenToUse: [
-            'Day-of project completion, before the homeowner moves in',
+            'Day-of project completion, before the client takes occupancy',
             'Anytime your contract requires "substantial completion" sign-off',
             'When you want a paper trail of what you demonstrated and what they accepted',
           ],

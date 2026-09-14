@@ -80,11 +80,17 @@ export const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   // Live schedule collaboration — inviting collaborators requires Pro (accepting
   // an invite and editing as an already-invited collaborator is NOT gated).
   schedule_collaboration: 'pro',
+  // RFIs and submittals were Business-only, which is backwards. A small GC
+  // doing one commercial job runs RFIs from day one — it is the paperwork the
+  // job itself forces on them, not an advanced capability they grow into.
+  // Gating it at Business meant the Pro customer most likely to need the app's
+  // RFI log was the one who could not open it, and every hold-time and
+  // ball-in-court feature built on top of it was dark for them too.
+  rfis_submittals: 'pro',
   // Business-only
   unlimited_bid_responses: 'business',
   subcontractor_management: 'business',
   punch_list_closeout: 'business',
-  rfis_submittals: 'business',
   full_budget_dashboard: 'business',
   wip_reporting: 'business',
   safety_management: 'business',

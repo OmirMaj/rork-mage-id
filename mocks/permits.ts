@@ -92,6 +92,16 @@ export const PERMIT_TYPE_INFO: Record<string, { label: string; color: string }> 
   // in the permit list. Subcategory (concrete / masonry / etc.) is shown
   // as a chip on the card when present.
   special_inspection: { label: 'Special Inspection', color: '#3949AB' },
+  // Occupied-building approvals. These are permits in every sense that
+  // matters to a schedule — something is submitted, somebody reviews it, and
+  // work cannot start until it comes back — but none of them are issued by
+  // the AHJ, so they share a warmer family of colors to read as a distinct
+  // group in the list.
+  hot_work: { label: 'Hot Work', color: '#EF6C00' },
+  shutdown: { label: 'System Shutdown', color: '#AD1457' },
+  after_hours: { label: 'After-Hours Work', color: '#4527A0' },
+  landlord_approval: { label: 'Landlord Approval', color: '#00695C' },
+  elevator_dock: { label: 'Elevator / Dock', color: '#37474F' },
   other: { label: 'Other', color: '#546E7A' },
 };
 

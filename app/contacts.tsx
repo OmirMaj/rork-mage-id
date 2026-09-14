@@ -37,6 +37,13 @@ const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   { value: 'Supplier', label: 'Supplier' },
   { value: 'Lender', label: 'Lender' },
   { value: 'Inspector', label: 'Inspector' },
+  // Building side. On a tenant fit-out these three are among the people a PM
+  // talks to most, and until now each of them had to be filed as 'Other' —
+  // which meant the contact list could not be filtered by the role that
+  // actually predicts who is holding up the job.
+  { value: 'Landlord', label: 'Landlord' },
+  { value: 'Building Engineer', label: 'Building Engineer' },
+  { value: 'Property Manager', label: 'Property Manager' },
   { value: 'Other', label: 'Other' },
 ];
 
@@ -53,6 +60,12 @@ function getRoleColor(role: ContactRole, t: ThemeColors): string {
     case 'Supplier': return '#7C7355';      // warm taupe — vendor
     case 'Lender': return '#2F6B6B';        // deep teal — finance
     case 'Inspector': return '#9A7B1F';     // muted gold-ochre — authority
+    // Building side — one shared plum so landlord, building engineer and
+    // property manager read as the same party at a glance. Matches the ball
+    // colour used for them in app/rfi.tsx.
+    case 'Landlord':
+    case 'Building Engineer':
+    case 'Property Manager': return '#8B5E83';
     default: return t.textSecondary;
   }
 }

@@ -46,21 +46,41 @@ const ALLOWED_SOURCES = new Set(["Home Passport", "Daily Report", "RFI"]);
 // not-found line and grounding rule.
 const ASK_HOME_NOT_FOUND = "That's not in your home's records — ask your contractor.";
 
-function buildPrompt(question: string, docs: { ref: string; content: string }[]): string {
+/**
+ * `commercial` switches the nouns and nothing else. The refusal rule, the
+ * citation rule and the no-jargon rule are what make the answer trustworthy
+ * and they are identical on both kinds of property.
+ *
+ * It is derived SERVER-SIDE from projects.type on the row the portal token
+ * already resolved to — never taken from the request body. A client-supplied
+ * flag would only change wording here, but this path is reachable with nothing
+ * but a portal link and the rule on it is that the request body decides
+ * nothing.
+ */
+function buildPrompt(
+  question: string,
+  docs: { ref: string; content: string }[],
+  commercial = false,
+): string {
   const context = docs.length > 0
     ? docs.map((d) => `[${d.ref}] ${d.content}`).join("\n\n")
     : "(no records found for this question)";
+  const place = commercial ? "building" : "home";
+  const asker = commercial ? "OCCUPANT OR PROPERTY MANAGER" : "HOMEOWNER";
+  const plainly = commercial
+    ? "a building occupant or property manager understands — no contractor jargon"
+    : "a homeowner understands — no contractor jargon";
   return (
-    "You are the memory of a home, answering the HOMEOWNER who lives there. " +
-    "Answer the question using ONLY the home records below. Never invent brands, " +
+    `You are the memory of a ${place}, answering the ${asker} responsible for it. ` +
+    `Answer the question using ONLY the ${place} records below. Never invent brands, ` +
     "dates, contacts, prices, or coverage terms. Write in plain, friendly language " +
-    "a homeowner understands — no contractor jargon. Lead with the direct answer, " +
+    `${plainly}. Lead with the direct answer, ` +
     "and cite the record reference in parentheses for each fact, e.g. " +
     "(Warranty — Trane HVAC). If the records do not contain the answer, reply " +
     `exactly: "${ASK_HOME_NOT_FOUND}" When unsure, prefer that reply over guessing.` +
     "\n\n" +
-    `HOME RECORDS:\n${context}\n\n` +
-    `HOMEOWNER QUESTION: ${question.trim()}`
+    `${commercial ? "BUILDING" : "HOME"} RECORDS:\n${context}\n\n` +
+    `QUESTION: ${question.trim()}`
   );
 }
 
@@ -168,14 +188,17 @@ serve(async (req: Request) => {
   // The OWNER's user_id is what match_project_memory is keyed on. Service
   // role, by the uuid the choke point just vouched for.
   const lookup = await fetch(
-    `${SUPABASE_URL}/rest/v1/projects?select=id,user_id&id=eq.${encodeURIComponent(projectId)}&limit=1`,
+    // `type` rides along on a lookup this path already makes — no extra
+    // round-trip — so the prompt's persona is derived from the project row
+    // rather than from anything the caller sent.
+    `${SUPABASE_URL}/rest/v1/projects?select=id,user_id,type&id=eq.${encodeURIComponent(projectId)}&limit=1`,
     { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } },
   );
   if (!lookup.ok) {
     console.error("[portal-ask-home] lookup failed:", lookup.status);
     return json({ success: false, error: "Lookup failed" }, 500);
   }
-  const rows = (await lookup.json()) as { id: string; user_id: string }[];
+  const rows = (await lookup.json()) as { id: string; user_id: string; type?: string | null }[];
   const proj = rows[0];
   if (!proj?.user_id) {
     console.error("[portal-ask-home] project vanished between gate and lookup");
@@ -233,7 +256,11 @@ serve(async (req: Request) => {
   }
 
   // Grounded answer.
-  const prompt = buildPrompt(question, matches.map((m) => ({ ref: m.ref, content: m.content })));
+  const prompt = buildPrompt(
+    question,
+    matches.map((m) => ({ ref: m.ref, content: m.content })),
+    proj.type === "commercial",
+  );
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), TEXT_TIMEOUT_MS);
   let gen: Response;

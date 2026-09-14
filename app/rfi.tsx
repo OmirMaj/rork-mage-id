@@ -19,13 +19,14 @@ import { FeatureHeader } from '@/components/FeatureHeader';
 // Project-scoped gate: an invited collaborator may do the work they were
 // invited to do, even though their own tier is free. See
 // utils/collaboratorAccess.
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
-import type { RFIStatus, RFIPriority } from '@/types';
+import type { RFIStatus, RFIPriority, RFIBallInCourt, RFIHandoff } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
@@ -41,26 +42,39 @@ import { parseCalendarDay, formatCalendarDay, toCalendarDayString, addCalendarDa
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
 
-/** Ball-in-court display helpers — a single-source-of-truth for the
- *  party labels + colors used in both the badge and the handoff log. */
-type BallParty = 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' | 'closed';
-function ballLabel(p: BallParty): string {
+/** Ball-in-court display helpers — a single source of truth for the party
+ *  labels + colors used in both the badge and the handoff log.
+ *
+ *  These switch on RFIBallInCourt ITSELF rather than on a local copy of its
+ *  values. There used to be a private `BallParty` alias here listing the six
+ *  parties by hand; the moment the real enum grew a landlord it silently
+ *  disagreed with the type it was pretending to be. Switching on the imported
+ *  union means tsc — not a bug report from the field — is what tells the next
+ *  person a new party needs a label and a color. */
+function ballLabel(p: RFIBallInCourt): string {
   switch (p) {
     case 'gc': return 'You (GC)';
     case 'architect': return 'Architect';
     case 'engineer': return 'Engineer';
     case 'owner': return 'Owner';
     case 'sub': return 'Subcontractor';
+    case 'landlord': return 'Landlord';
+    case 'building_engineer': return 'Building engineer';
     case 'closed': return 'Closed';
   }
 }
-function getBallColor(p: BallParty): string {
+function getBallColor(p: RFIBallInCourt): string {
   switch (p) {
     case 'gc': return '#0EA5A4';        // teal — GC's turn
     case 'architect': return '#3F6B7D'; // slate-blue — design team
     case 'engineer': return '#3F6B7D';
     case 'owner': return '#F59E0B';     // amber — owner
     case 'sub': return '#5A7D3C';       // olive — sub / field
+    // Building side gets its own hue. It is neither the owner (a different
+    // party with a different SLA) nor the GC's own tier, and on a fit-out it
+    // is the party a schedule most often waits on.
+    case 'landlord': return '#8B5E83';        // plum — building side
+    case 'building_engineer': return '#8B5E83';
     case 'closed': return '#6B7280';    // gray — closed
   }
 }
@@ -81,13 +95,21 @@ export default function RFIScreen() {
   // ask 'were they invited to THIS project?' before paywalling.
   const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { canAccess } = useProjectAccess(gateProjectId);
+  // useProjectAccess wraps the collaborator check; the tier LABEL still comes
+  // from useTierAccess, which is the one that reads featureTiers.ts.
+  const { requiredTierFor } = useTierAccess();
   const { colors: themeColors } = useTheme();
   if (!canAccess('rfis_submittals')) {
     return (
       <Paywall
         visible={true}
         feature="RFIs & Submittals"
-        requiredTier="business"
+        // Derived, never typed. These four screens all said "business" while
+        // their gate said 'rfis_submittals' — true until that key moved to
+        // Pro, at which point the paywall quoted a price the gate did not
+        // charge. requiredTierFor reads featureTiers.ts, so the number on the
+        // wall is the number on the door.
+        requiredTier={requiredTierFor('rfis_submittals')}
         onClose={() => router.back()}
       />
     );
@@ -376,10 +398,15 @@ function RFIScreenInner() {
       // through the portal or the GC manually pulls it back. Append to
       // the handoff log for the audit trail (delay-claim docs etc.).
       const now = new Date().toISOString();
-      const newHandoff = {
+      // Typed as RFIHandoff rather than inferred. The inline version spelled
+      // the party union out by hand on fromParty and used `as const` on
+      // toParty to dodge widening — two workarounds for not naming the type
+      // that already describes this object, and the hand-written copy is what
+      // let RFIBallInCourt grow a landlord without anything here noticing.
+      const newHandoff: RFIHandoff = {
         at: now,
-        fromParty: (existingRFI.ballInCourt ?? 'gc') as 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' | 'closed',
-        toParty: 'architect' as const,
+        fromParty: existingRFI.ballInCourt ?? 'gc',
+        toParty: 'architect',
         note: `Sent to ${sendEmail_Name.trim() || to}`,
       };
       updateRFI(existingRFI.id, {
@@ -599,14 +626,24 @@ function RFIScreenInner() {
                       <Text style={styles.holdValue}>{holdTime.subDays} {dayWord(holdTime.subDays)}</Text>
                     </View>
                   )}
+                  {holdTime.buildingDays > 0 && (
+                    <View style={styles.holdRow}>
+                      <Text style={styles.holdLabel}>Held by the building (neither side)</Text>
+                      <Text style={styles.holdValue}>
+                        {holdTime.buildingDays} {dayWord(holdTime.buildingDays)}
+                        {holdTime.accruingBuilding ? ' and counting' : ''}
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.holdRow}>
                     <Text style={styles.holdLabel}>Total elapsed, round trip</Text>
                     <Text style={styles.holdValue}>{holdTime.elapsedDays} {dayWord(holdTime.elapsedDays)}</Text>
                   </View>
                   <Text style={styles.holdNote}>
                     Owner side means the architect, engineer, or owner. A subcontractor&apos;s time
-                    counts on your side, not theirs. Round trip includes your own turnaround, so it
-                    is not a measure of how fast they answered.
+                    counts on your side, not theirs, and time with the landlord or building engineer
+                    counts on neither — that is a third party with its own turnaround. Round trip
+                    includes your own turnaround, so it is not a measure of how fast they answered.
                   </Text>
                 </>
               ) : (

@@ -76,7 +76,13 @@ import {
   inspectionHistorySummary,
 } from '@/utils/permitInspectionHistory';
 
-const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection', 'other'];
+const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection',
+  // Occupied-building approvals. Without these in the picker the new
+  // PermitType values are unreachable, and utils/automation/learnedLeadTime.ts
+  // can never learn a shutdown-approval or landlord-approval turnaround —
+  // it learns from completed Permit rows, and no row could carry the type.
+  'hot_work', 'shutdown', 'after_hours', 'landlord_approval', 'elevator_dock',
+  'other'];
 
 /**
  * The permit is issued but its inspection cycle has not begun. The inspection

@@ -63,8 +63,52 @@ export type SubTradeOutcome =
 const NON_TRADE_PHASES = new Set([
   'permitting', 'permits', 'design', 'procurement', 'mobilization',
   'punch list', 'punch', 'closeout', 'inspection', 'inspections',
+  'above-ceiling inspection', 'commissioning',
   'general', 'general conditions', 'management', 'milestone',
 ]);
+
+/**
+ * Two vocabularies name the same work with different words.
+ *
+ * SCHEDULE_PHASES is what the generator is told to produce, and it is phrased
+ * as a stage of the job: "Demo", "Ceilings", "Low Voltage". SubTrade is what a
+ * company on the roster calls itself, and it is phrased as a business:
+ * "Demolition", "Acoustical Ceilings", "Low Voltage / Cabling". The matcher
+ * compares them with plain equality after normalisation, so without this map
+ * the demolition contractor is simply never matched to the demo phase — the
+ * join fails silently and the assignment is quietly skipped, which looks
+ * exactly like "no sub for that trade".
+ *
+ * That was already true before the two lists grew; it is worth writing down
+ * now because extending both at once is precisely when the gap gets wider
+ * without anybody noticing. Keys and values are normalised keys, not labels.
+ *
+ * ONLY RENAMES BELONG HERE. Every entry is the same scope under two words —
+ * the company that does "Demolition" is the company that does the "Demo"
+ * phase, with no judgement in between. Phases that merely OVERLAP a trade are
+ * deliberately absent, and the first draft of this map had four of them:
+ * Structure→Concrete (it could as easily be steel or framing), Building
+ * Envelope→Roofing (or glazing, or waterproofing), Interior→Drywall, and
+ * Site Work→Landscaping, which is simply wrong — site work on a commercial
+ * job is excavation and utilities and the landscaper is nowhere near it.
+ *
+ * Each of those would have produced a confident, wrong `assignedSubId` on a
+ * join key that levelling, buyout, crew presence and the COI check all read.
+ * A missed match costs a manual pick; a wrong one corrupts four features. The
+ * module refuses ambiguity everywhere else and this map does not get an
+ * exception.
+ */
+const PHASE_TRADE_ALIASES: Record<string, string> = {
+  'demo': 'demolition',
+  'ceilings': 'acoustical ceilings',
+  'low voltage': 'low voltage / cabling',
+};
+
+/** Resolve a phase's normalised key onto the trade vocabulary. */
+function tradeKeyForPhase(raw: string): string {
+  const key = normalizeTradeKey(raw);
+  return PHASE_TRADE_ALIASES[key] ?? key;
+}
 
 /**
  * Match one task's phase to exactly one sub on the roster.
@@ -82,8 +126,11 @@ export function matchSubForPhase(
   const raw = (phase ?? '').trim();
   if (!raw) return { matched: false, refusal: { kind: 'no_trade_on_task' } };
 
-  const key = normalizeTradeKey(raw);
-  if (!key || key === 'general' || NON_TRADE_PHASES.has(raw.toLowerCase())) {
+  if (NON_TRADE_PHASES.has(raw.toLowerCase())) {
+    return { matched: false, refusal: { kind: 'no_trade_on_task' } };
+  }
+  const key = tradeKeyForPhase(raw);
+  if (!key || key === 'general') {
     return { matched: false, refusal: { kind: 'no_trade_on_task' } };
   }
 

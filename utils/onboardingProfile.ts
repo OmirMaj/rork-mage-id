@@ -45,13 +45,14 @@ export const SIZE_BAND_LABELS: Record<ProjectSizeBand, string> = {
   over_15m: '$15M+',
 };
 
-/** Plain-English description used by AI Copilot context + analytics. */
-export const SIZE_BAND_PERSONA: Record<ProjectSizeBand, string> = {
-  under_1m: 'small remodel / single-trade focus — kitchens, baths, ADUs',
-  '1_to_5m': 'mid-residential GC — full additions, large remodels, custom homes',
-  '5_to_15m': 'high-end residential / light commercial — luxury custom, multi-unit',
-  over_15m: 'mid-market commercial / multifamily — mixed-use, condo developments',
-};
+// REMOVED: SIZE_BAND_PERSONA. Its doc comment claimed it was "used by AI
+// Copilot context + analytics"; it had zero importers anywhere in the tree, so
+// no prompt and no event ever saw it. What it actually did was assert that a
+// GC's project size determines their sector — that a $1–5M job is "mid-
+// residential" and only past $15M does anyone build commercial. That is not
+// true (a $600k tenant fit-out is a commercial job) and it was the clearest
+// written statement of the residential assumption in the codebase. Deleting it
+// is free: SIZE_BAND_LABELS above is the one that is actually rendered.
 
 export interface OnboardingProfile {
   /** When the user completed onboarding. */

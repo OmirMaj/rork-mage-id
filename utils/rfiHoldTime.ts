@@ -18,8 +18,8 @@
 //
 // THE `sub` DECISION — sub time is NOT owner-side.
 // ------------------------------------------------------------------------
-// RFIBallInCourt is 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' |
-// 'closed'. Owner-side is 'architect' | 'engineer' | 'owner' only.
+// Owner-side is 'architect' | 'engineer' | 'owner' only — never the whole of
+// RFIBallInCourt.
 //
 // A subcontractor is the GC's own party — the GC picked them and the GC
 // manages them. Rolling `sub` into the owner-side figure is the same defect
@@ -31,6 +31,20 @@
 // They are tracked separately from `gc` days rather than merged into them,
 // because "I sat on it for nine days" and "my framer sat on it for nine days"
 // are different management problems even though neither is the owner's.
+//
+// THE `landlord` / `building_engineer` DECISION — same argument, third side.
+// ------------------------------------------------------------------------
+// On a tenant fit-out the party holding an RFI is very often the landlord or
+// the building engineer, and they are neither the GC's tier nor the owner's.
+// Rolling them into ownerSideDays would commit exactly the defect this module
+// exists to refuse: padding a number about ONE party's responsiveness with
+// time a DIFFERENT party controlled. The tenant who hired the GC did not sit
+// on the base-building question; their landlord did, and those are separate
+// conversations with separate leverage.
+//
+// So they get their own bucket, `buildingDays`. Every pre-existing figure is
+// unchanged by their arrival — an RFI that never touches the building side
+// produces byte-identical output to what it produced before.
 //
 // Caveat worth stating out loud: 'architect'/'engineer' are counted as
 // owner-side because on the usual job the design team works for the owner. On
@@ -58,8 +72,11 @@ const MS_PER_DAY = 86_400_000;
 export const OWNER_SIDE_PARTIES: readonly RFIBallInCourt[] = ['architect', 'engineer', 'owner'];
 
 /** Which bucket a party's hold time lands in. */
-export type HoldSide = 'owner' | 'gc' | 'sub' | 'none';
+export type HoldSide = 'owner' | 'gc' | 'sub' | 'building' | 'none';
 
+/** Exhaustive over RFIBallInCourt on purpose: a new party added to the enum
+ *  must fail to compile here rather than quietly landing in no bucket and
+ *  disappearing from every total. */
 export function holdSideOf(party: RFIBallInCourt): HoldSide {
   switch (party) {
     case 'architect':
@@ -70,6 +87,9 @@ export function holdSideOf(party: RFIBallInCourt): HoldSide {
       return 'gc';
     case 'sub':
       return 'sub';
+    case 'landlord':
+    case 'building_engineer':
+      return 'building';
     case 'closed':
       return 'none';
   }
@@ -98,6 +118,9 @@ export interface RfiHoldTime {
   /** Days held by a subcontractor. GC-side. Reported, never added to
    *  ownerSideDays. See the header note. */
   subDays: number;
+  /** Days held by the landlord or the building engineer. Neither side.
+   *  Reported, never added to ownerSideDays or gcDays. */
+  buildingDays: number;
   /** Total elapsed days from dateSubmitted to resolution (or now). This is
    *  the ROUND-TRIP figure. Kept so a surface can show both, clearly
    *  labelled — it includes the GC's own turnaround. */
@@ -107,6 +130,9 @@ export interface RfiHoldTime {
   measurable: boolean;
   /** True when an owner-side interval is still running at `nowMs`. */
   accruing: boolean;
+  /** True when a landlord / building-engineer interval is still running.
+   *  Separate from `accruing` so a surface can say who it is waiting on. */
+  accruingBuilding: boolean;
   /** Ordered custody intervals. Useful for an audit view. */
   segments: RfiHoldSegment[];
 }
@@ -137,9 +163,11 @@ const EMPTY: RfiHoldTime = {
   ownerSideDays: 0,
   gcDays: 0,
   subDays: 0,
+  buildingDays: 0,
   elapsedDays: 0,
   measurable: false,
   accruing: false,
+  accruingBuilding: false,
   segments: [],
 };
 
@@ -190,7 +218,9 @@ export function computeRfiHoldTime(rfi: HoldInput, opts: RfiHoldOptions = {}): R
   let ownerMs = 0;
   let gcMs = 0;
   let subMs = 0;
+  let buildingMs = 0;
   let accruing = false;
+  let accruingBuilding = false;
   const segments: RfiHoldSegment[] = [];
 
   for (let i = 0; i < chain.length; i++) {
@@ -204,9 +234,11 @@ export function computeRfiHoldTime(rfi: HoldInput, opts: RfiHoldOptions = {}): R
     if (side === 'owner') ownerMs += span;
     else if (side === 'gc') gcMs += span;
     else if (side === 'sub') subMs += span;
+    else if (side === 'building') buildingMs += span;
 
     const running = isTail && live && side !== 'none';
     if (running && side === 'owner') accruing = true;
+    if (running && side === 'building') accruingBuilding = true;
 
     segments.push({ party, side, fromMs, toMs, days: toDays(span), running });
   }
@@ -215,9 +247,11 @@ export function computeRfiHoldTime(rfi: HoldInput, opts: RfiHoldOptions = {}): R
     ownerSideDays: toDays(ownerMs),
     gcDays: toDays(gcMs),
     subDays: toDays(subMs),
+    buildingDays: toDays(buildingMs),
     elapsedDays,
     measurable: true,
     accruing,
+    accruingBuilding,
     segments,
   };
 }
@@ -235,6 +269,9 @@ export interface RfiHoldSummary {
   totalGcDays: number;
   /** Sub-held days across the same RFIs. GC-side. Same rule. */
   totalSubDays: number;
+  /** Days held by the landlord or building engineer across the same RFIs.
+   *  Its own side. Never folded into either of the two above. */
+  totalBuildingDays: number;
   /** Open RFIs where an owner-side hold is still running. */
   accruingCount: number;
   /** Prompt/report line, or null when nothing is measurable. */
@@ -266,6 +303,7 @@ export function summarizeRfiHoldTime(rfis: HoldInput[], opts: RfiHoldOptions = {
   const totalOwnerSideDays = ownerDays.reduce((a, b) => a + b, 0);
   const totalGcDays = measured.reduce((a, m) => a + m.gcDays, 0);
   const totalSubDays = measured.reduce((a, m) => a + m.subDays, 0);
+  const totalBuildingDays = measured.reduce((a, m) => a + m.buildingDays, 0);
   const accruingCount = measured.filter(m => m.accruing).length;
 
   let factLine: string | null = null;
@@ -276,6 +314,9 @@ export function summarizeRfiHoldTime(rfis: HoldInput[], opts: RfiHoldOptions = {
     ];
     if (totalSubDays > 0) {
       parts.push(`${plural(totalSubDays, 'day')} sat with a subcontractor and is counted on your side, not the owner's.`);
+    }
+    if (totalBuildingDays > 0) {
+      parts.push(`A further ${plural(totalBuildingDays, 'day')} sat with the landlord or building engineer — counted on neither side, because that is a third party with its own turnaround.`);
     }
     if (unmeasurableCount > 0) {
       parts.push(`${plural(unmeasurableCount, 'RFI')} has no handoff log and is excluded.`);
@@ -291,6 +332,7 @@ export function summarizeRfiHoldTime(rfis: HoldInput[], opts: RfiHoldOptions = {
     maxOwnerSideDays: ownerDays.length ? Math.max(...ownerDays) : 0,
     totalGcDays,
     totalSubDays,
+    totalBuildingDays,
     accruingCount,
     factLine,
   };

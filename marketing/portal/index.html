@@ -2890,6 +2890,12 @@
     closeoutContactsTitle: 'Trade contacts',
     closeoutEmergencyTitle: 'If something breaks during the warranty period',
     closeoutNoteEyebrow: 'A NOTE FROM YOUR CONTRACTOR',
+    // ── Passport wording, residential ──────────────────────────────────────
+    // These read to a homeowner. On a commercial project the recipient is a
+    // tenant, property manager or building owner, and "Ask your home" is not
+    // a cute mismatch — it reads as software built for somebody else. The
+    // COMMERCIAL_PASSPORT_STRINGS block below supplies the other wording, and
+    // t() swaps it in on project.type === 'commercial'.
     passportEyebrow: 'YOUR HOME PASSPORT',
     passportChipFinishes: 'finishes',
     passportChipWarranties: 'warranties',
@@ -2908,10 +2914,36 @@
     empty: 'No data shared yet.',
     payNow: 'Pay Now'
   };
+  // Passport wording for a commercial project. Only the keys that actually
+  // say "home" are overridden — everything else (warranties, trade contacts,
+  // maintenance) is already the same word on both kinds of job.
+  //
+  // A snapshot's own `uiStrings` still wins where it supplies a key, because
+  // that bundle is how the portal gets translated; this only replaces the
+  // English fallback. That means a translated commercial portal keeps its
+  // translation and, for now, its residential phrasing — worth fixing when
+  // the language bundles next get touched, and better than showing a Spanish
+  // speaker a sudden English string.
+  var COMMERCIAL_PASSPORT_STRINGS = {
+    passportEyebrow: 'YOUR BUILDING PASSPORT',
+    askHomeTitle: 'Ask your building',
+    askHomeSubtitle: 'What is the ceiling tile spec? Who did the electrical? When does the roof warranty end?',
+    askHomePlaceholder: 'Ask anything about this space…',
+    askHomeThinking: 'Checking the project records…',
+    askHomeUnavailable: 'Questions aren’t available yet — your contractor’s records are still being prepared. The binder above has everything on file.',
+  };
+
+  function isCommercialProject() {
+    var data = window.__portalData;
+    return !!(data && data.project && data.project.type === 'commercial');
+  }
+
   function t(key, vars) {
     var data = window.__portalData;
     var bundle = (data && data.uiStrings) || {};
-    var s = bundle[key] || FALLBACK_STRINGS[key] || key;
+    var fallback = (isCommercialProject() && COMMERCIAL_PASSPORT_STRINGS[key])
+      || FALLBACK_STRINGS[key];
+    var s = bundle[key] || fallback || key;
     if (vars) {
       Object.keys(vars).forEach(function (k) {
         s = s.replace('{' + k + '}', vars[k]);

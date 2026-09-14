@@ -112,16 +112,16 @@ export interface RunCpmOptions {
    * have less float. Default false — leveling changes startDays, so it should
    * be opt-in (the grid view doesn't want it auto-running on every keystroke).
    *
-   * **STATUS (2026-05-20):** wired in the engine + tested via
-   * `scripts/test-cpm.ts` and `scripts/test-demo-schedule.ts`, but NOT
-   * surfaced in any user UI. The audit at
-   * `docs/superpowers/audits/2026-05-20-session-end-audit.md` §F.T5
-   * flagged this as needing a product decision: either surface as a
-   * Pro-tier feature with a UI toggle, or delete the option + the
-   * `levelResources` helper + the `LevelingContext` interface + the
-   * `leveledStartDays` field on CpmResult. Engine code preserved
-   * pending that product call — tested engine code is more valuable
-   * than the maintenance overhead of carrying it.
+   * **STATUS:** SHIPPED. This comment used to say levelling was "NOT surfaced
+   * in any user UI" and offer deleting `levelResources`, `LevelingContext` and
+   * `leveledStartDays` as one of two options. That was true when it was
+   * written (2026-05-20) and stopped being true when the Pro scheduler's "Fix
+   * overloads" landed: app/schedule-pro.tsx:1373 calls this with
+   * `levelResources: true`, behind a preview modal with undo.
+   *
+   * Left uncorrected, a comment like this is worse than no comment — it reads
+   * as a standing invitation to delete live, user-facing code, and it is the
+   * kind of invitation a future pass through the file would accept.
    */
   levelResources?: boolean;
   /**

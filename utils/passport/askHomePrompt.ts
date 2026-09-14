@@ -18,20 +18,43 @@ export interface AskHomeDoc {
   content: string;
 }
 
-export function buildAskHomePrompt(question: string, docs: AskHomeDoc[]): string {
+/**
+ * `commercial` switches the persona from a house to a building.
+ *
+ * The rest of the instruction is identical on purpose — the refusal rule, the
+ * citation rule and the no-jargon rule are what make the answer trustworthy
+ * and they do not change with the kind of property. Only the nouns do, and
+ * they matter: a property manager asked "what paint is the kitchen" by their
+ * own portal learns, correctly, that this tool was not built for them.
+ *
+ * The parameter is optional and defaults to the residential wording, so every
+ * existing caller keeps its exact previous behaviour.
+ */
+export function buildAskHomePrompt(
+  question: string,
+  docs: AskHomeDoc[],
+  opts: { commercial?: boolean } = {},
+): string {
   const context = docs.length > 0
     ? docs.map(d => `[${d.ref}] ${d.content}`).join('\n\n')
     : '(no records found for this question)';
+
+  const place = opts.commercial ? 'building' : 'home';
+  const asker = opts.commercial ? 'OCCUPANT OR PROPERTY MANAGER' : 'HOMEOWNER';
+  const plainly = opts.commercial
+    ? 'a building occupant or property manager understands — no contractor jargon'
+    : 'a homeowner understands — no contractor jargon';
+
   return (
-    'You are the memory of a home, answering the HOMEOWNER who lives there. ' +
-    'Answer the question using ONLY the home records below. Never invent brands, ' +
+    `You are the memory of a ${place}, answering the ${asker} responsible for it. ` +
+    `Answer the question using ONLY the ${place} records below. Never invent brands, ` +
     'dates, contacts, prices, or coverage terms. Write in plain, friendly language ' +
-    'a homeowner understands — no contractor jargon. Lead with the direct answer, ' +
+    `${plainly}. Lead with the direct answer, ` +
     'and cite the record reference in parentheses for each fact, e.g. ' +
     '(Warranty — Trane HVAC). If the records do not contain the answer, reply ' +
     `exactly: "${ASK_HOME_NOT_FOUND}" When unsure, prefer that reply over guessing.` +
     '\n\n' +
-    `HOME RECORDS:\n${context}\n\n` +
-    `HOMEOWNER QUESTION: ${question.trim()}`
+    `${opts.commercial ? 'BUILDING' : 'HOME'} RECORDS:\n${context}\n\n` +
+    `QUESTION: ${question.trim()}`
   );
 }

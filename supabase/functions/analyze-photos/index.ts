@@ -68,7 +68,7 @@ interface AnalyzePhotosRequest {
   notes?: string;
 }
 
-const PUNCH_PROMPT = `You are a residential general contractor walking a job site to build the punch list before final walkthrough. Look at the attached project photos and identify any items that need to be fixed, finished, or addressed before the project can close.
+const PUNCH_PROMPT = `You are a general contractor walking a job site to build the punch list before final walkthrough. The job may be a house, a tenant fit-out, or any other building — read the photos, do not assume. Look at the attached project photos and identify any items that need to be fixed, finished, or addressed before the project can close.
 
 Return a JSON array of punch items, each with:
   - description: short title of the issue (≤80 chars). Sentence case.
@@ -84,7 +84,7 @@ Be specific and actionable. "Paint touch-up needed near the door frame in Hallwa
 
 Return JSON only — no preamble.`;
 
-const DFR_PROMPT = `You are summarizing a residential GC's job site photos as a daily field report entry. Write the workPerformed + tradesOnSite fields based on what's visible in the photos.
+const DFR_PROMPT = `You are summarizing a GC's job site photos as a daily field report entry. Write the workPerformed + tradesOnSite fields based on what's visible in the photos.
 
 Return JSON with:
   - workPerformed: 1-3 sentences describing what got done today, in plain GC language. Reference specific trades / phases when visible.
@@ -96,7 +96,7 @@ Be specific — "Electrical rough-in completed in master bath; visible BX cable 
 
 Return JSON only — no preamble.`;
 
-const RFI_PROMPT = `You are a residential GC reviewing photos from the field. Identify any photos that warrant an RFI (Request For Information) to the architect, designer, or owner — situations where the field condition does not match the drawings, where information is missing, where there's a conflict between trades, or where a decision needs to be made before work can continue.
+const RFI_PROMPT = `You are a GC reviewing photos from the field. Identify any photos that warrant an RFI (Request For Information) to the architect, engineer, designer, owner, landlord, or building engineer — situations where the field condition does not match the drawings, where information is missing, where there's a conflict between trades, or where a decision needs to be made before work can continue.
 
 Return a JSON array of RFI candidates, each with:
   - subject: short headline (≤80 chars). Sentence case. e.g. "Plumbing rough-in conflicts with HVAC in ceiling plenum"
@@ -111,7 +111,7 @@ Common RFI triggers: drawings show one thing, field shows another; spec is silen
 
 Return JSON only — no preamble. Empty array if nothing in the photos warrants an RFI.`;
 
-const TRIAGE_PROMPT = `You are a residential GC's AI assistant. The user just dumped a batch of job site photos and wants you to route each one to the right destination — punch list, RFI, daily report observation, progress photo, or noise (skip).
+const TRIAGE_PROMPT = `You are a GC's AI assistant. The user just dumped a batch of job site photos and wants you to route each one to the right destination — punch list, RFI, daily report observation, progress photo, or noise (skip).
 
 For EACH photo (in input order), return a JSON object with:
   - photoIndex: 0-based index of the photo
@@ -132,7 +132,7 @@ Return a JSON array (one entry per photo, same length as the input batch). Order
 
 Return JSON only — no preamble.`;
 
-const RECEIPT_PROMPT = `You are reading a SUPPLIER / MATERIAL invoice or receipt for a residential general contractor (lumber yard, supply house, big-box pro desk, plumbing/electrical supplier). Extract the purchase into structured JSON so it can be costed and fed into the GC's price book.
+const RECEIPT_PROMPT = `You are reading a SUPPLIER / MATERIAL invoice or receipt for a general contractor (lumber yard, supply house, big-box pro desk, plumbing/electrical/mechanical supplier, specialty distributor). Extract the purchase into structured JSON so it can be costed and fed into the GC's price book.
 
 Return a single JSON object (NOT an array) with:
   - vendor: the supplier's business name (top of the receipt).
@@ -158,7 +158,7 @@ Rules:
 
 Return JSON only — no preamble.`;
 
-const ROOMS_PROMPT = `You are an expert construction estimator reading a residential FLOOR PLAN sheet (architectural drawing). Identify every room and named space on the plan so the contractor can price the job room by room.
+const ROOMS_PROMPT = `You are an expert construction estimator reading a FLOOR PLAN sheet (architectural drawing). Identify every room and named space on the plan — bedrooms and baths on a house, and equally suites, offices, conference rooms, corridors, restrooms, IDF/MDF closets, and back-of-house spaces on a commercial plan — so the contractor can price the job space by space.
 
 Return a JSON object: { "rooms": [ ... ] } where each room has:
   - name: the label on the plan ("Master Bedroom", "Kitchen", "Bath 2"). If unlabeled but clearly a room, infer a sensible name ("Bedroom 3"). ≤60 chars.
@@ -388,7 +388,18 @@ serve(async (req) => {
     body.notes ? `GC notes: ${body.notes}` : null,
   ].filter(Boolean).join('\n');
 
-  const CONDITION_RISK_PROMPT = `You are a veteran residential general contractor doing a bid walkthrough of an older home. Look for HIDDEN-CONDITION TELLS — signs of costly work you can't fully see — and IGNORE cosmetic finishes.
+  // NOTE ON SCOPE — the key list below is RESIDENTIAL-ERA SPECIFIC and that is
+  // deliberate, not an oversight left over from the persona line above. Every
+  // key here (knob-and-tube, Federal Pacific panels, polybutylene supply,
+  // cast-iron waste) is priced client-side by `priceTell` in
+  // utils/conditionRisk.ts against a matching allowance. Adding commercial
+  // tells — abandoned above-ceiling conduit, failed fire-stopping at
+  // penetrations, undersized existing electrical service, asbestos-suspect
+  // floor tile or pipe insulation — means adding them to the pricing map in
+  // the same change, or the scanner returns findings the app cannot cost and
+  // silently drops. Until that pairs up, the honest statement is that
+  // condition scanning covers older buildings of residential construction.
+  const CONDITION_RISK_PROMPT = `You are a veteran general contractor doing a bid walkthrough of an older building. Look for HIDDEN-CONDITION TELLS — signs of costly work you can't fully see — and IGNORE cosmetic finishes.
 
 Only report tells in these four categories, and classify each into exactly one "key" from this fixed list:
 - electrical: panel_fpe_zinsco (Federal Pacific / Zinsco panel), wiring_knob_tube (knob-and-tube), outlets_two_prong (ungrounded 2-prong outlets)

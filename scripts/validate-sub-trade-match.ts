@@ -96,6 +96,49 @@ console.log('\nroster scoping — a sub on another job is not on this one');
   eq('two eligible subs stay ambiguous', twoEligible.matched, false);
 }
 
+console.log('\nthe two vocabularies join — phase words vs company words');
+{
+  // SCHEDULE_PHASES says "Demo"; a demolition contractor's SubTrade says
+  // "Demolition". Equality after normalisation does not bridge that, so
+  // without the alias map the sub is never matched and the failure looks
+  // identical to having no sub for the trade.
+  const RENAMES: [string, string][] = [
+    ['Demo', 'Demolition'],
+    ['Ceilings', 'Acoustical Ceilings'],
+    ['Low Voltage', 'Low Voltage / Cabling'],
+  ];
+  for (const [phase, trade] of RENAMES) {
+    const r = matchSubForPhase(phase, [sub('sa', `${trade} Co`, trade)], P);
+    ok(`phase "${phase}" reaches a "${trade}" sub`, r.matched,
+      'the alias map in utils/subTradeMatch.ts is what makes this join');
+  }
+
+  // Phases that merely OVERLAP a trade must NOT be bridged. A wrong
+  // assignedSubId is worse than none — levelling, buyout, crew presence and
+  // the COI check all join on it.
+  const NOT_ALIASES: [string, string][] = [
+    ['Site Work', 'Landscaping'],
+    ['Structure', 'Concrete'],
+    ['Building Envelope', 'Roofing'],
+    ['Interior', 'Drywall'],
+  ];
+  for (const [phase, trade] of NOT_ALIASES) {
+    const r = matchSubForPhase(phase, [sub('sa', `${trade} Co`, trade)], P);
+    ok(`phase "${phase}" does NOT get guessed onto a "${trade}" sub`, !r.matched,
+      'an overlapping phase is not a rename; guessing here corrupts a join key');
+  }
+
+  // Trades whose names already agree need no alias and must still work.
+  for (const t of ['Fire Protection', 'Millwork', 'Glazing', 'Painting']) {
+    ok(`"${t}" matches without an alias`, matchSubForPhase(t, [sub('sb', `${t} Inc`, t)], P).matched);
+  }
+
+  // Commercial phases that are events, not scopes.
+  for (const p of ['Above-Ceiling Inspection', 'Commissioning']) {
+    ok(`"${p}" is not a subcontract scope`, !matchSubForPhase(p, [sub('sc', 'Anyone', p)], P).matched);
+  }
+}
+
 console.log('\ncase and spacing are not a reason to miss a match');
 {
   ok('phase case is ignored', matchSubForPhase('DRYWALL', [ACE], P).matched);

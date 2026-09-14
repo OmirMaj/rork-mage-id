@@ -13,7 +13,7 @@ import { addMonths } from '../dateMath';
 
 export interface PermitApplied { route: '/permits'; projectId: string; params: { projectId: string } }
 
-const TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection', 'other'];
+const TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection', 'hot_work', 'shutdown', 'after_hours', 'landlord_approval', 'elevator_dock', 'other'];
 const asType = (v: unknown): PermitType | null => (typeof v === 'string' && (TYPES as string[]).includes(v) ? (v as PermitType) : null);
 
 const STATUSES: PermitStatus[] = ['applied', 'under_review', 'approved', 'denied', 'expired', 'inspection_scheduled', 'inspection_passed', 'inspection_failed'];
