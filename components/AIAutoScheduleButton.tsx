@@ -28,7 +28,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { projects } = useProjects();
+  const { projects, subcontractors } = useProjects();
   const [loading, setLoading] = useState(false);
 
   const handlePress = useCallback(async () => {
@@ -52,7 +52,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
     try {
       // Thread ALL projects — durations get paced from the contractor's own
       // finished tasks (utils/copilot/scheduleBuilder/paceGrounding.ts).
-      const result = await generateScheduleFromEstimate(project, estimate, projects);
+      const result = await generateScheduleFromEstimate(project, estimate, projects, subcontractors);
       onScheduleCreated(result.schedule);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(

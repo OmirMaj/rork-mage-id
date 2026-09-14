@@ -177,7 +177,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const fabScroll = useBrainFabScroll();
   const layout = useResponsiveLayout();
   const router = useRouter();
-  const { projects, updateProject, addProject, contacts } = useProjects();
+  const { projects, updateProject, addProject, contacts, subcontractors } = useProjects();
   const { canAccess } = useTierAccess();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -1017,7 +1017,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     // can inspect and adjust before saving.
     if (linkedEst) {
       try {
-        const result = await generateScheduleFromEstimate(selectedProject, linkedEst, projects);
+        const result = await generateScheduleFromEstimate(selectedProject, linkedEst, projects, subcontractors);
         stashDraft(result);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.push({ pathname: '/schedule-review', params: { projectId: selectedProject.id } } as any);

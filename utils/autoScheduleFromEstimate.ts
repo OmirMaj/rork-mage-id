@@ -1,4 +1,5 @@
 import { mageAI } from '@/utils/mageAI';
+import { matchSubForPhase, assignmentNote, summariseAssignments, type TradeCandidate, type SubTradeOutcome } from '@/utils/subTradeMatch';
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { autoScheduleSchema, normalizeGeneratedTask, SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
@@ -8,6 +9,10 @@ export interface AutoScheduleResult {
   schedule: ProjectSchedule;
   tasks: ScheduleTask[];
   linkedItemCount: number;
+  /** How many tasks were matched to a sub by trade, and how many were left
+   *  alone because more than one sub does that trade. Empty string when the
+   *  roster produced nothing — the caller then says nothing about subs. */
+  subAssignmentNote?: string;
 }
 
 // Ephemeral handoff so the generator screen can pass a draft to the review
@@ -48,6 +53,9 @@ export async function generateScheduleFromEstimate(
    *  Optional so legacy call sites keep working; when present, durations are
    *  grounded in the contractor's measured per-trade pace. */
   allProjects?: Project[],
+  /** The sub roster. Optional — omitted means "not loaded", and the generator
+   *  then assigns nobody rather than concluding the contractor has no subs. */
+  subcontractors?: TradeCandidate[],
 ): Promise<AutoScheduleResult> {
   if (!estimate || !estimate.items || estimate.items.length === 0) {
     throw new Error('Estimate has no line items to generate a schedule from.');
@@ -164,8 +172,32 @@ Output JSON only. No prose.`;
       isCriticalPath: t.isCriticalPath,
       isWeatherSensitive: ['Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing', 'Landscaping'].includes(t.phase),
       linkedEstimateItems: uniqueLinkedIds,
+      // assignedSubId is filled BELOW, and only when exactly one sub on the
+      // roster does this trade. See utils/subTradeMatch.ts for why an
+      // ambiguous match is left empty rather than guessed.
     };
   });
+
+  // ── Assign subs by trade, where it is not a guess ──────────────────────────
+  // `crew` stays empty for the reasons above. `assignedSubId` is different: it
+  // is a KEY, not a label, and half the product joins on it — levelling,
+  // buyout, crew presence, and the COI-versus-first-scheduled-day check. It was
+  // set on 0 of 44 tasks across seven live projects because the only writers
+  // were a manual picker and punch-walk. When the roster makes the answer
+  // unambiguous the generator now supplies it, says so in the task's own
+  // `assumption`, and stays silent when it does not know.
+  const subOutcomes: SubTradeOutcome[] = [];
+  if (subcontractors) {
+    for (let i = 0; i < tasks.length; i++) {
+      const outcome = matchSubForPhase(tasks[i].phase, subcontractors, project.id);
+      subOutcomes.push(outcome);
+      if (!outcome.matched) continue;
+      tasks[i].assignedSubId = outcome.match.subId;
+      tasks[i].assignedSubName = outcome.match.subName;
+      const note = assignmentNote(outcome.match);
+      tasks[i].rationale = tasks[i].rationale ? `${tasks[i].rationale} ${note}` : note;
+    }
+  }
 
   // Resolve predecessors
   const idMap = new Map<string, string>();
@@ -196,5 +228,6 @@ Output JSON only. No prose.`;
     schedule: finalSchedule,
     tasks,
     linkedItemCount,
+    subAssignmentNote: summariseAssignments(subOutcomes) || undefined,
   };
 }

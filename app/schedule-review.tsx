@@ -73,7 +73,7 @@ export default function ScheduleReviewScreen() {
   useBrainFabLift(fabLift);
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { getProject, updateProject, projects } = useProjects();
+  const { getProject, updateProject, projects, subcontractors } = useProjects();
   const { tier } = useSubscription();
   const { width } = useWindowDimensions();
   const { canAccess } = useTierAccess();
@@ -334,7 +334,7 @@ export default function ScheduleReviewScreen() {
     setRegenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate, projects);
+      const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate, projects, subcontractors);
       if (fresh.tasks.length === 0) {
         showAlert('Couldn\'t regenerate', 'The generator returned no tasks. Your current draft is unchanged.');
         return;

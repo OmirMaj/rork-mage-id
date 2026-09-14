@@ -101,7 +101,11 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
     // ctx.ctx.projects is the shell-injected all-projects array (same source
     // estimateGrounding reads) — threads the pace book into generation.
     const allProjects = Array.isArray(ctx.ctx?.projects) ? ctx.ctx.projects : [];
-    const result = await generateScheduleFromEstimate(project, project.linkedEstimate, allProjects);
+    // The sub roster, from the same shell-injected context. LEFT UNDEFINED when
+    // the shell did not provide it — undefined means "not loaded", and the
+    // generator then assigns nobody rather than concluding he has no subs.
+    const subs = Array.isArray(ctx.ctx?.subcontractors) ? ctx.ctx.subcontractors : undefined;
+    const result = await generateScheduleFromEstimate(project, project.linkedEstimate, allProjects, subs);
     // Fold the interview's start date onto the generated draft. NEVER auto-stamp
     // today — only set when the user gave a date (guards the startDate jump bug).
     if (draft.startDate && result.schedule) result.schedule.startDate = draft.startDate;
