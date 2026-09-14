@@ -35,16 +35,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
 import {
-  MessageSquare, FileText, Calendar, Users,
-  ClipboardList, Camera, ListChecks, Layers, Clock, ImageIcon,
-  Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
-  Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
-  PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
-  Ruler, ScanLine, HardHat, ScanSearch, IdCard, ScanEye,
-  Truck, Building2, Hourglass, Store, Zap, BadgeCheck, CalendarClock, Code,
-  type LucideIcon,
+  Calendar, Users, Camera, ListChecks, Layers, Clock, Wallet, BarChart3, Banknote,
+  FileSignature, ShieldCheck, UserPlus, Gavel, FileDown, PackageCheck, Inbox, TrendingUp,
+  Download, Wrench, ArrowLeft, ScanLine, HardHat, IdCard, ScanEye, Truck, Hourglass, Store,
+  Zap, BadgeCheck, CalendarClock, Code, FileSearch, BookOpen, PenTool, KeyRound, Target,
+  PieChart, SlidersHorizontal, ScrollText, Award, Stamp,
 } from 'lucide-react-native';
-import { MageAIMark, MageEquipment } from '@/components/icons';
+import {
+  MageAIMark, MageEquipment, MageTakeoff, MageChangeOrder, MageRFI, MageSubmittal,
+  MageDailyReport, MagePunch, MagePlans, MagePayApp, MageCOI,
+} from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -68,7 +68,12 @@ interface ToolRow {
   feature: FeatureId;
   /** Must equal featureFor(feature).route — see the header note. */
   route: string;
-  Icon: LucideIcon;
+  /** Accepts lucide icons AND the bespoke Mage glyph set (plain function
+   *  components, so `LucideIcon`'s ForwardRef type rejects them). Same
+   *  widening, for the same reason, as components/DesktopSidebar.tsx:39 —
+   *  which is why the bespoke marks were fully deployed on the desktop rail
+   *  and almost absent from the iOS surfaces this file owns. */
+  Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   title: string;
   subtitle: string;
   tone: NavRowTone;
@@ -89,20 +94,20 @@ const TOOL_ROWS: ToolRow[] = [
   // 2026-08-03 UX audit flagged flagship features missing from the Tools grid,
   // which is the only discovery surface on iOS. Restored from PR #85.
   { feature: 'cost-xray', route: '/cost-xray', Icon: ScanEye, title: 'Cost X-Ray', subtitle: "Camera prices the hidden conditions you can't see — on your learned costs", tone: 'accent', testID: 'tools-cost-xray', section: 'AI HUB' },
-  { feature: 'takeoff', route: '/takeoff', Icon: Ruler, title: 'AI Takeoff', subtitle: 'Upload a PDF, get a quantity takeoff with linear / area / count', tone: 'accent', testID: 'tools-takeoff', section: 'AI HUB' },
-  { feature: 'plan-intelligence', route: '/plan-intelligence', Icon: ScanSearch, title: 'Plan Intelligence', subtitle: 'AI reads the floor plan room by room — and learns your prices every job', tone: 'accent', testID: 'tools-plan-intelligence', section: 'AI HUB' },
+  { feature: 'takeoff', route: '/takeoff', Icon: MageTakeoff, title: 'AI Takeoff', subtitle: 'Upload a PDF, get a quantity takeoff with linear / area / count', tone: 'accent', testID: 'tools-takeoff', section: 'AI HUB' },
+  { feature: 'plan-intelligence', route: '/plan-intelligence', Icon: FileSearch, title: 'Plan Intelligence', subtitle: 'AI reads the floor plan room by room — and learns your prices every job', tone: 'accent', testID: 'tools-plan-intelligence', section: 'AI HUB' },
   { feature: 'ai-punch', route: '/ai-punch', Icon: ListChecks, title: 'AI Punch from Photos', subtitle: 'Walk a site with the camera, get a punch list back', tone: 'accent', testID: 'tools-ai-punch', section: 'AI HUB' },
   { feature: 'compare-drawings', route: '/compare-drawings', Icon: Layers, title: 'Compare Drawings', subtitle: 'See exactly what changed between two plan revisions', tone: 'accent', testID: 'tools-compare-drawings', section: 'AI HUB' },
-  { feature: 'extract-submittals', route: '/extract-submittals', Icon: ScanLine, title: 'Spec Book Extract', subtitle: 'Pull submittal requirements out of a 200-page spec book in one tap', tone: 'accent', testID: 'tools-spec-extract', section: 'AI HUB' },
+  { feature: 'extract-submittals', route: '/extract-submittals', Icon: BookOpen, title: 'Spec Book Extract', subtitle: 'Pull submittal requirements out of a 200-page spec book in one tap', tone: 'accent', testID: 'tools-spec-extract', section: 'AI HUB' },
   { feature: 'scan', route: '/scan', Icon: ScanLine, title: 'Scan Anything', subtitle: 'Snap any doc — invoice, business card, COI — it files itself to the right project', tone: 'warning', testID: 'tools-scan', section: 'AI HUB' },
 
   // ── DECISIONS — what is waiting on the GC to act on.
   // PRODUCT-F4 / UX-F16: the marketed chase list was sidebar-only —
   // unreachable on iPhone except through search.
   { feature: 'waiting-on', route: '/waiting-on', Icon: Hourglass, title: 'Waiting on others', subtitle: 'Who owes you an answer — overdue RFIs, submittals, sub confirmations', tone: 'warning', testID: 'tools-waiting-on', section: 'DECISIONS', needsProjects: true },
-  { feature: 'change-order', route: '/change-order', Icon: MessageSquare, title: 'Change orders', subtitle: 'Review, approve, send to client', tone: 'success', testID: 'tools-change-orders', section: 'DECISIONS', needsProjects: true },
-  { feature: 'rfi', route: '/rfi', Icon: FileText, title: 'RFIs', subtitle: 'Requests for information across all projects', tone: 'info', testID: 'tools-rfi', section: 'DECISIONS', needsProjects: true },
-  { feature: 'submittal', route: '/submittal', Icon: FileCheck, title: 'Submittals', subtitle: 'Spec submittals waiting for review', tone: 'info', testID: 'tools-submittal', section: 'DECISIONS', needsProjects: true },
+  { feature: 'change-order', route: '/change-order', Icon: MageChangeOrder, title: 'Change orders', subtitle: 'Review, approve, send to client', tone: 'success', testID: 'tools-change-orders', section: 'DECISIONS', needsProjects: true },
+  { feature: 'rfi', route: '/rfi', Icon: MageRFI, title: 'RFIs', subtitle: 'Requests for information across all projects', tone: 'info', testID: 'tools-rfi', section: 'DECISIONS', needsProjects: true },
+  { feature: 'submittal', route: '/submittal', Icon: MageSubmittal, title: 'Submittals', subtitle: 'Spec submittals waiting for review', tone: 'info', testID: 'tools-submittal', section: 'DECISIONS', needsProjects: true },
   { feature: 'oac-meeting', route: '/oac-meeting', Icon: Calendar, title: 'OAC meetings', subtitle: 'Owner-architect-contractor meetings & follow-ups', tone: 'primary', testID: 'tools-oac-meeting', section: 'DECISIONS', needsProjects: true },
   // PRODUCT-F4: sidebar-only before — the owner-facing delay record was
   // unreachable on the phone that logs the delays.
@@ -110,12 +115,12 @@ const TOOL_ROWS: ToolRow[] = [
 
   // ── FIELD — what crews + owners do day-to-day.
   { feature: 'last-planner', route: '/last-planner', Icon: ListChecks, title: 'Last Planner', subtitle: '3-week lookahead, weekly commitments & PPC reliability', tone: 'accent', testID: 'tools-last-planner', section: 'FIELD', needsProjects: true },
-  { feature: 'daily-report', route: '/daily-report', Icon: ClipboardList, title: 'Daily reports', subtitle: 'Voice-first DFRs with photo + GPS', tone: 'primary', testID: 'tools-daily-report', section: 'FIELD', needsProjects: true },
+  { feature: 'daily-report', route: '/daily-report', Icon: MageDailyReport, title: 'Daily reports', subtitle: 'Voice-first DFRs with photo + GPS', tone: 'primary', testID: 'tools-daily-report', section: 'FIELD', needsProjects: true },
   { feature: 'photo-triage', route: '/photo-triage', Icon: Camera, title: 'Photo triage', subtitle: 'Tag, organize & file jobsite photos', tone: 'info', testID: 'tools-photo-triage', section: 'FIELD', needsProjects: true },
-  { feature: 'punch-list', route: '/punch-list', Icon: ListChecks, title: 'Punch list', subtitle: 'Walk-through items + closeout', tone: 'warning', testID: 'tools-punch-list', section: 'FIELD', needsProjects: true },
-  { feature: 'selections', route: '/selections', Icon: Layers, title: 'Selections', subtitle: 'Finish picks, fixtures, appliances', tone: 'accent', testID: 'tools-selections', section: 'FIELD', needsProjects: true },
+  { feature: 'punch-list', route: '/punch-list', Icon: MagePunch, title: 'Punch list', subtitle: 'Walk-through items + closeout', tone: 'warning', testID: 'tools-punch-list', section: 'FIELD', needsProjects: true },
+  { feature: 'selections', route: '/selections', Icon: PenTool, title: 'Selections', subtitle: 'Finish picks, fixtures, appliances', tone: 'accent', testID: 'tools-selections', section: 'FIELD', needsProjects: true },
   { feature: 'time-tracking', route: '/time-tracking', Icon: Clock, title: 'Time tracking', subtitle: 'Crew hours & timesheets', tone: 'primary', testID: 'tools-time-tracking', section: 'FIELD', needsProjects: true },
-  { feature: 'plans', route: '/plans', Icon: ImageIcon, title: 'Plans & drawings', subtitle: 'Markup, compare versions, share', tone: 'info', testID: 'tools-plans', section: 'FIELD', needsProjects: true },
+  { feature: 'plans', route: '/plans', Icon: MagePlans, title: 'Plans & drawings', subtitle: 'Markup, compare versions, share', tone: 'info', testID: 'tools-plans', section: 'FIELD', needsProjects: true },
   // Safety hub — Business-tier. Only reachable via DesktopSidebar before this
   // tile, so it shipped dark on iOS (the primary target). It renders its own
   // Paywall for non-Business.
@@ -132,26 +137,26 @@ const TOOL_ROWS: ToolRow[] = [
   // PRODUCT-F4 / UX-F16: the 09-02 Deliveries batch shipped with no iOS entry
   // point at all (sidebar ≥1024pt + search only).
   { feature: 'deliveries', route: '/deliveries', Icon: Truck, title: 'Deliveries', subtitle: "What's arriving, what's late — chase it before the crew waits", tone: 'accent', testID: 'tools-deliveries', section: 'FIELD', needsProjects: true },
-  { feature: 'building-access', route: '/building-access', Icon: Building2, title: 'Building access', subtitle: 'Freight elevator, dock and badge bookings that gate a delivery', tone: 'info', testID: 'tools-building-access', section: 'FIELD', needsProjects: true },
+  { feature: 'building-access', route: '/building-access', Icon: KeyRound, title: 'Building access', subtitle: 'Freight elevator, dock and badge bookings that gate a delivery', tone: 'info', testID: 'tools-building-access', section: 'FIELD', needsProjects: true },
   { feature: 'equipment', route: '/(tabs)/equipment', Icon: MageEquipment, title: 'Equipment', subtitle: "Rentals, utilization and what's on which site", tone: 'primary', testID: 'tools-equipment', section: 'FIELD', needsProjects: true },
 
   // ── MONEY — every cash-related workflow.
-  { feature: 'win-optimizer', route: '/win-optimizer', Icon: Trophy, title: 'Win Optimizer', subtitle: 'The bid price that wins AND profits — learned from your own win/loss history', tone: 'accent', testID: 'tools-win-optimizer', section: 'MONEY' },
+  { feature: 'win-optimizer', route: '/win-optimizer', Icon: Target, title: 'Win Optimizer', subtitle: 'The bid price that wins AND profits — learned from your own win/loss history', tone: 'accent', testID: 'tools-win-optimizer', section: 'MONEY' },
   { feature: 'smart-proposal', route: '/smart-proposal', Icon: FileSignature, title: 'Smart Proposal', subtitle: 'Good / better / best, priced to win — send, track, close', tone: 'accent', testID: 'tools-smart-proposal', section: 'MONEY' },
   { feature: 'cash-flow', route: '/cash-flow', Icon: Wallet, title: 'Cash flow', subtitle: 'Multi-week forecast across all projects', tone: 'primary', testID: 'tools-cash-flow', section: 'MONEY', needsProjects: true },
-  { feature: 'budget-dashboard', route: '/budget-dashboard', Icon: BarChart3, title: 'Budget dashboard', subtitle: 'Earned-value (CPI/SPI) for one project — pick a project to chart', tone: 'success', testID: 'tools-budget-dashboard', section: 'MONEY', needsProjects: true },
+  { feature: 'budget-dashboard', route: '/budget-dashboard', Icon: PieChart, title: 'Budget dashboard', subtitle: 'Earned-value (CPI/SPI) for one project — pick a project to chart', tone: 'success', testID: 'tools-budget-dashboard', section: 'MONEY', needsProjects: true },
   // WIP Report — Business-tier. Portfolio-wide (no projectId needed); renders
   // its own Paywall for non-Business. Was desktop-sidebar-only before this row.
   { feature: 'wip-report', route: '/wip-report', Icon: TrendingUp, title: 'WIP report', subtitle: 'Over/under billings & earned revenue across the portfolio', tone: 'success', testID: 'tools-wip-report', section: 'MONEY', needsProjects: true },
-  { feature: 'estimate-calibration', route: '/estimate-calibration', Icon: TrendingUp, title: 'Estimate Calibration', subtitle: 'Where your bids run high or low — and the fix', tone: 'warning', testID: 'tools-estimate-calibration', section: 'MONEY', needsProjects: true },
+  { feature: 'estimate-calibration', route: '/estimate-calibration', Icon: SlidersHorizontal, title: 'Estimate Calibration', subtitle: 'Where your bids run high or low — and the fix', tone: 'warning', testID: 'tools-estimate-calibration', section: 'MONEY', needsProjects: true },
   // PRODUCT-F4: sidebar-only before.
   { feature: 'estimate-scorecard', route: '/estimate-scorecard', Icon: BarChart3, title: 'Estimate scorecard', subtitle: 'Bid vs. actual on your closed jobs — where the money went', tone: 'success', testID: 'tools-estimate-scorecard', section: 'MONEY', needsProjects: true },
   { feature: 'payments', route: '/payments', Icon: Banknote, title: 'Payments', subtitle: 'Client payment status & history', tone: 'success', testID: 'tools-payments', section: 'MONEY', needsProjects: true },
-  { feature: 'aia-pay-app', route: '/aia-pay-app', Icon: FileSignature, title: 'AIA pay applications', subtitle: 'G702/G703 auto-populated from invoices', tone: 'success', testID: 'tools-aia-pay-app', section: 'MONEY', needsProjects: true },
-  { feature: 'lien-waivers', route: '/lien-waivers', Icon: ShieldCheck, title: 'Lien waivers', subtitle: 'Generate & track conditional / unconditional', tone: 'info', testID: 'tools-lien-waivers', section: 'MONEY', needsProjects: true },
+  { feature: 'aia-pay-app', route: '/aia-pay-app', Icon: MagePayApp, title: 'AIA pay applications', subtitle: 'G702/G703 auto-populated from invoices', tone: 'success', testID: 'tools-aia-pay-app', section: 'MONEY', needsProjects: true },
+  { feature: 'lien-waivers', route: '/lien-waivers', Icon: ScrollText, title: 'Lien waivers', subtitle: 'Generate & track conditional / unconditional', tone: 'info', testID: 'tools-lien-waivers', section: 'MONEY', needsProjects: true },
   { feature: 'leads', route: '/leads', Icon: UserPlus, title: 'Pipeline', subtitle: 'Inquiries → qualified → proposal → won', tone: 'accent', testID: 'tools-pipeline', section: 'MONEY' },
   { feature: 'buyout', route: '/buyout', Icon: Gavel, title: 'Buyout', subtitle: 'Sub package builder + bid award flow', tone: 'info', testID: 'tools-buyout', section: 'MONEY' },
-  { feature: 'sub-scorecard', route: '/sub-scorecard', Icon: Trophy, title: 'Sub Scorecard', subtitle: "Who's actually good? Graded from your real job costs", tone: 'accent', testID: 'tools-sub-scorecard', section: 'MONEY' },
+  { feature: 'sub-scorecard', route: '/sub-scorecard', Icon: Award, title: 'Sub Scorecard', subtitle: "Who's actually good? Graded from your real job costs", tone: 'accent', testID: 'tools-sub-scorecard', section: 'MONEY' },
   { feature: 'tax-1099', route: '/tax-1099-export', Icon: FileDown, title: '1099-NEC export', subtitle: 'Year-end CSV for your CPA — flags subs paid ≥ $600', tone: 'success', testID: 'tools-tax-1099', section: 'MONEY' },
 
   // ── FIND WORK — PRODUCT-F4: both were sidebar-only.
@@ -159,8 +164,8 @@ const TOOL_ROWS: ToolRow[] = [
   { feature: 'marketplace', route: '/(tabs)/marketplace', Icon: Store, title: 'Suppliers', subtitle: 'Vendors, yards and price history', tone: 'neutral', testID: 'tools-suppliers', section: 'FIND WORK' },
 
   // ── COMPLIANCE — the regulatory side.
-  { feature: 'coi-vault', route: '/coi-vault', Icon: ShieldCheck, title: 'COI vault', subtitle: 'Sub insurance certificates + expiry tracking', tone: 'info', testID: 'tools-coi-vault', section: 'COMPLIANCE', needsProjects: true },
-  { feature: 'permits', route: '/permits', Icon: AlertTriangle, title: 'Permits', subtitle: 'Filings, inspections, expirations', tone: 'warning', testID: 'tools-permits', section: 'COMPLIANCE', needsProjects: true },
+  { feature: 'coi-vault', route: '/coi-vault', Icon: MageCOI, title: 'COI vault', subtitle: 'Sub insurance certificates + expiry tracking', tone: 'info', testID: 'tools-coi-vault', section: 'COMPLIANCE', needsProjects: true },
+  { feature: 'permits', route: '/permits', Icon: Stamp, title: 'Permits', subtitle: 'Filings, inspections, expirations', tone: 'warning', testID: 'tools-permits', section: 'COMPLIANCE', needsProjects: true },
   { feature: 'warranties', route: '/warranties', Icon: ShieldCheck, title: 'Warranties', subtitle: 'Workmanship + product warranties on file', tone: 'primary', testID: 'tools-warranties', section: 'COMPLIANCE', needsProjects: true },
 
   // ── CLOSEOUT — substantial completion + handover.

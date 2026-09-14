@@ -36,12 +36,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Search, X, ChevronRight, ChevronLeft, FolderPlus, Calculator, CalendarDays, FileText,
-  Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
+  Search, X, ChevronRight, ChevronLeft, FolderPlus,
+  Camera,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
-  Wallet, MessageSquare, Ruler, Lock, FileCheck, Zap, Mic, type LucideIcon,
+  Wallet, Ruler, Lock, FileCheck, Zap, Mic, PenTool,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import {
+  MageAIMark, MageEstimate, MageSchedule, MageInvoice, MageChangeOrder, MagePayApp,
+  MageDailyReport, MagePunch, MageRFI, MageSubmittal, MagePlans, MageCOI,
+} from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -60,7 +63,11 @@ interface CreateOption {
   /** One-sentence description. */
   subtitle: string;
   /** Lucide icon. */
-  Icon: LucideIcon;
+  /** Accepts lucide icons AND the bespoke Mage glyph set. Widened for the
+   *  same reason as components/DesktopSidebar.tsx:39 — the narrow type is
+   *  what forced the `MageAIMark as unknown as LucideIcon` cast below and
+   *  kept every other bespoke mark off the primary create surface. */
+  Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   /** Route to push when tapped. When `feature` is set this must equal
    *  featureFor(feature).route — scripts/validate-nav-coverage.ts asserts it,
    *  and the push itself uses the registry route. The literal stays because
@@ -93,30 +100,30 @@ const OPTIONS: CreateOption[] = [
   // Project-level
   { label: 'Start by voice', subtitle: 'Just say the job — MAGE sets it up and drops you inside', Icon: Mic, href: '/copilot?capabilityId=new_project', category: 'project', keywords: ['voice', 'dictate', 'speak', 'talk', 'ai', 'copilot', 'new', 'job'] },
   { label: 'Project', subtitle: 'Start a new job from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
-  { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: Calculator, href: '/estimate-wizard', feature: 'estimate-wizard', category: 'project', scoped: true },
-  { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: CalendarDays, href: '/schedule-wizard?scratch=1', category: 'project', scoped: true },
+  { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: MageEstimate, href: '/estimate-wizard', feature: 'estimate-wizard', category: 'project', scoped: true },
+  { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: MageSchedule, href: '/schedule-wizard?scratch=1', category: 'project', scoped: true },
   { label: 'Lead', subtitle: 'Capture a homeowner inquiry — voice or form', Icon: UserPlus, href: '/leads', feature: 'leads', category: 'project', keywords: ['pipeline', 'sales'] },
   { label: 'Lead by voice', subtitle: 'Say what the homeowner told you — MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
 
   // Money
   { label: 'Quick Quote', subtitle: 'Fast bid for a small job', Icon: Zap, href: '/quick-quote', feature: 'quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
-  { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: Receipt, href: '/invoice', feature: 'invoice', category: 'money', scoped: true },
-  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', feature: 'change-order', category: 'money', keywords: ['co'], scoped: true },
-  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true, extraParams: { type: 'progress' } },
+  { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: MageInvoice, href: '/invoice', feature: 'invoice', category: 'money', scoped: true },
+  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: MageChangeOrder, href: '/change-order', feature: 'change-order', category: 'money', keywords: ['co'], scoped: true },
+  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: MagePayApp, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true, extraParams: { type: 'progress' } },
   { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', feature: 'buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
   { label: 'Scope Sheet', subtitle: 'AI inclusions & exclusions from your estimate', Icon: FileCheck, href: '/scope-sheet', category: 'docs', keywords: ['scope', 'inclusions', 'exclusions', 'clarifications', 'assumptions', 'sow'], scoped: true },
   { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', feature: 'lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
 
   // Documentation
-  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: ClipboardList, href: '/daily-report', feature: 'daily-report', category: 'docs', keywords: ['dfr', 'log'], scoped: true },
-  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', feature: 'punch-list', category: 'docs', keywords: ['punch list'], scoped: true },
-  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', feature: 'rfi', category: 'docs', keywords: ['request for information'], scoped: true },
-  { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: FileText, href: '/submittal', feature: 'submittal', category: 'docs', scoped: true },
-  { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: ShoppingCart, href: '/selections', feature: 'selections', category: 'docs', scoped: true },
+  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: MageDailyReport, href: '/daily-report', feature: 'daily-report', category: 'docs', keywords: ['dfr', 'log'], scoped: true },
+  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: MagePunch, href: '/punch-list', feature: 'punch-list', category: 'docs', keywords: ['punch list'], scoped: true },
+  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MageRFI, href: '/rfi', feature: 'rfi', category: 'docs', keywords: ['request for information'], scoped: true },
+  { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: MageSubmittal, href: '/submittal', feature: 'submittal', category: 'docs', scoped: true },
+  { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: PenTool, href: '/selections', feature: 'selections', category: 'docs', scoped: true },
   { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', feature: 'photo-triage', category: 'docs', keywords: ['picture'], scoped: true },
-  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: Layers, href: '/plans', feature: 'plans', category: 'docs', keywords: ['blueprint'], scoped: true },
+  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: MagePlans, href: '/plans', feature: 'plans', category: 'docs', keywords: ['blueprint'], scoped: true },
   { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', feature: 'permits', category: 'docs', scoped: true },
-  { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: Shield, href: '/coi-vault', feature: 'coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
+  { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: MageCOI, href: '/coi-vault', feature: 'coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
 
   // People & meetings
   { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', feature: 'oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
@@ -139,7 +146,7 @@ const OPTIONS: CreateOption[] = [
   // invariant now lives where it belongs too: the registry's `takeoff` row
   // carries no `requires`, and scripts/validate-nav-coverage.ts asserts it.
   { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', feature: 'takeoff', category: 'tools', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
-  { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: MageAIMark as unknown as LucideIcon, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
+  { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: MageAIMark, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
 ];
 
 const CATEGORY_LABELS: Record<CreateOption['category'], string> = {

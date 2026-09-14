@@ -32,8 +32,12 @@ import type { ThemeColors } from '@/constants/colors';
 export type NavRowTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'info' | 'accent';
 
 export interface NavRowProps {
-  /** Lucide icon component — rendered in the leading icon square. */
-  Icon: LucideIcon;
+  /** Icon component rendered in the leading icon square. Accepts lucide icons
+   *  AND the bespoke Mage glyph set — those are plain function components, so
+   *  the narrower `LucideIcon` ForwardRef type rejected them and every caller
+   *  of this row was forced back onto stock lucide. Same widening, for the
+   *  same reason, as components/DesktopSidebar.tsx:39. */
+  Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   /** Primary text. Required. */
   title: string;
   /** Secondary text under the title. Optional. */

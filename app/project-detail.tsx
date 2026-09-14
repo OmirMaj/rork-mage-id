@@ -13,15 +13,19 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import {
-  DollarSign, Users, TrendingDown, MapPin,
+  DollarSign, Users, TrendingDown, MapPin, Presentation, Gavel,
   ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, CalendarDays,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, ScanSearch, Layers, Scale, ShieldCheck,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
-  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
+  HardHat, FolderOpen, ScrollText, BookOpen, Footprints,
   Clock, Lock, Mic, FileSignature, CalendarClock, Truck,
 } from 'lucide-react-native';
-import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
+import {
+  MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch,
+  MageEstimate, MageSchedule, MageContract, MageChangeOrder, MageInvoice,
+  MageDailyReport, MageMargin,
+} from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
 import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
@@ -1847,17 +1851,17 @@ export default function ProjectDetailScreen() {
           };
           const colorFor = (k: SectionKey): string => GROUP_BY_KEY[k] ?? NEUTRAL;
           const allTiles: Tile[] = [
-            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: colorFor('linkedEstimate'), count: linkedItems.length || estimate?.materials.length || 0 }] : []),
-            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: colorFor('schedule'), count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
+            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: MageEstimate, color: colorFor('linkedEstimate'), count: linkedItems.length || estimate?.materials.length || 0 }] : []),
+            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: MageSchedule, color: colorFor('schedule'), count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
             { key: 'collaborators', label: 'Team', icon: Users, color: colorFor('collaborators'), count: collaborators.length + 1 },
-            { key: 'contract', label: 'Contract', icon: FileText, color: colorFor('contract'), count: null as number | null },
-            { key: 'selections', label: 'Selections', icon: ShoppingCart, color: colorFor('selections'), count: null as number | null },
+            { key: 'contract', label: 'Contract', icon: MageContract, color: colorFor('contract'), count: null as number | null },
+            { key: 'selections', label: 'Selections', icon: PenTool, color: colorFor('selections'), count: null as number | null },
             { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: colorFor('lienWaivers'), count: null as number | null },
             { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: colorFor('closeoutBinder'), count: null as number | null },
             { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: colorFor('handover'), count: null as number | null },
-            { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: colorFor('changeOrders'), count: changeOrders.length },
-            { key: 'invoices', label: 'Invoices', icon: Receipt, color: colorFor('invoices'), count: projectInvoices.length },
-            { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: colorFor('dailyReports'), count: dailyReports.length },
+            { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, color: colorFor('changeOrders'), count: changeOrders.length },
+            { key: 'invoices', label: 'Invoices', icon: MageInvoice, color: colorFor('invoices'), count: projectInvoices.length },
+            { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, color: colorFor('dailyReports'), count: dailyReports.length },
             // T&M ticket — extra work signed for on site. The badge counts
             // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
             // has already earned and not yet asked for.
@@ -1868,11 +1872,11 @@ export default function ProjectDetailScreen() {
             { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
             { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
             { key: 'submittals', label: 'Submittals', icon: MageSubmittal, color: colorFor('submittals'), count: projectSubmittals.length },
-            { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
+            { key: 'oacMeetings', label: 'OAC Meetings', icon: Presentation, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
             { key: 'permits', label: 'Permits', icon: Shield, color: colorFor('permits'), count: projectPermits.length },
-            { key: 'projectFiles', label: 'Project Files', icon: FolderOpen, color: colorFor('projectFiles'), count: null as number | null },
+            { key: 'projectFiles', label: 'Project Files', icon: Archive, color: colorFor('projectFiles'), count: null as number | null },
             { key: 'scope', label: 'Scope', icon: ClipboardList, color: colorFor('scope'), count: null as number | null },
-            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: colorFor('budget'), count: null as number | null }] : []),
+            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: MageMargin, color: colorFor('budget'), count: null as number | null }] : []),
             { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
             { key: 'plans', label: 'Plans', icon: MagePlans, color: colorFor('plans'), count: projectPlans.length },
             { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
@@ -2383,7 +2387,10 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="project-post-for-bids"
                 >
-                  <Hammer size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  {/* Gavel, not Hammer — a hammer is carpentry. Gavel is already
+                      the bid mark at components/DesktopSidebar.tsx:98; five
+                      different glyphs meant "put this out to bid". */}
+                  <Gavel size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.crossLinkText}>Post this project for bids</Text>
                   <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3245,7 +3252,10 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="rfis-section"
           >
-            <FileText size={20} color={themeColors.info} strokeWidth={1.75} />
+            {/* MageRFI, not FileText. The tile that opens this section already
+                uses the bespoke mark and both are imported in this file — the
+                generic document threw it away one tap later. */}
+            <MageRFI size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               RFIs ({projectRFIs.length})
             </Text>
@@ -3377,7 +3387,7 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="submittals-section"
           >
-            <FileText size={20} color={themeColors.info} strokeWidth={1.75} />
+            <MageSubmittal size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Submittals ({projectSubmittals.length})
             </Text>
