@@ -101,10 +101,18 @@ export async function resolveRenderedPages<T extends { storagePath: string; view
     // signs, and without this the saved page thumbnails would go blank while a
     // working URL sat on the same object. Then '': renders nothing, but the
     // page keeps its storagePath and never throws.
+    // `||`, NOT `??`. takeoffStorage.ts:76 persists every saved page as
+    // `viewUrl: ''` on purpose (a signed URL must never reach a durable
+    // store) — and '' is not nullish, so under `??` the empty string WON and
+    // the publicUrl fallback described above was unreachable for exactly the
+    // rows it was written for. A reopened takeoff showed blank thumbnails on
+    // the one screen whose job is checking the machine's arithmetic against
+    // the drawing. Every value in this chain is a URL or absent, so there is
+    // no meaningful falsy-but-valid case for `||` to swallow.
     viewUrl: signed.get(p.storagePath)
-      ?? p.viewUrl
-      ?? (p as { publicUrl?: string }).publicUrl
-      ?? '',
+      || p.viewUrl
+      || (p as { publicUrl?: string }).publicUrl
+      || '',
   }));
 }
 
