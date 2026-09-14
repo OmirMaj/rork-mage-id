@@ -55,7 +55,7 @@ jobs:
     # 246 validators + typecheck + lint + jest + the CPM suite. Counted, not
     # guessed: an earlier version of this line said "247 validators" when there
     # were 245 on disk, and the check NAME is the thing a reviewer reads first.
-    name: ship-check — 255 checks (251 validators, typecheck, lint, jest)
+    name: ship-check — 256 checks (252 validators, typecheck, lint, jest)
     runs-on: ubuntu-latest
     # Measured at 4 jobs on an M-series laptop across several runs: 185-223s
     # end to end, of which test:smoke alone was 33-146s — it runs EXCLUSIVE, so

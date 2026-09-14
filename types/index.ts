@@ -4513,6 +4513,166 @@ export interface Warranty {
 // utils/ENTITY_REF.md for patterns.
 // ============================================================================
 
+// ============================================================================
+// FOLLOW-UPS — the derived-item engine.
+// ----------------------------------------------------------------------------
+// Built from the founder's own PM checklist: 173 follow-up controls across 18
+// categories, from his day job running commercial interior fit-outs. Six
+// independent passes over this codebase mapped all 173 against what MAGE
+// already holds, and every one came back with the same sentence:
+//
+//     the app already holds BOTH HALVES of the follow-up, and joins them
+//     with human memory instead of a key.
+//
+// It knows a sub's COI expiry AND that sub's first scheduled task. It knows a
+// delivery's arrival window AND the task that consumes it. It knows a change
+// order is out for approval AND the turnaround the owner agreed to. In place
+// of each join stands a field he fills in by hand.
+//
+// TWO FACES, DELIBERATELY SEPARATE.
+//   FollowUp      the DERIVED face. Recomputed from source records on every
+//                 run and NEVER persisted — persisting a derived list is how
+//                 it goes stale and starts lying.
+//   FollowUpHold  the HELD face. What the HUMAN did about it. The only thing
+//                 that is stored, because it is the only thing that cannot be
+//                 recomputed.
+// They are joined by a deterministic id, so the held face survives every
+// re-derive, every device and every cache wipe.
+//
+// A FollowUp is never created by a person. A rule mints one when a condition
+// over existing records becomes true and retires it when the close condition
+// becomes true. His only verbs are chase, close and defer.
+// ============================================================================
+
+/** His own 18 chapters, in his own order — the filter chips are his table of
+ *  contents, not a taxonomy we invented. */
+export type FollowUpCategory =
+  | 'scope' | 'budget' | 'change_order' | 'design' | 'rfi_submittal'
+  | 'schedule' | 'procurement' | 'permit' | 'insurance' | 'logistics'
+  | 'field' | 'mep' | 'mop' | 'ffe_tech' | 'inspection'
+  | 'punch_closeout' | 'meeting' | 'risk';
+
+/**
+ * Who owes the next move.
+ *
+ * The last three exist NOWHERE in the type system today: ContactRole is
+ * Client | Architect | Owner's Rep | Engineer | Sub | Supplier | Lender |
+ * Inspector | Other, and RFIBallInCourt is gc | architect | engineer | owner |
+ * sub | closed. On a tenant fit-out the landlord, the building engineer and
+ * the owner's own vendors make most of the claims a PM has to chase, and today
+ * they are one free-text string on a building-access row. Naming them here, in
+ * one union consumed by one engine, is far cheaper than widening ContactRole,
+ * which every contact surface reads.
+ */
+export type FollowUpBall =
+  | 'gc' | 'sub' | 'architect' | 'engineer' | 'owner' | 'supplier' | 'ahj'
+  | 'landlord' | 'building_engineer' | 'owner_vendor';
+
+/**
+ * Seven values, not his thirteen — on purpose.
+ *
+ * Seven of his (Not Started, Awaiting Information, Under Review, Awaiting
+ * Approval, Approved, Scheduled, At Risk) are properties of the SOURCE RECORD.
+ * A change order is already `under_review` on the ChangeOrder itself.
+ * Duplicating those here would create two truths that drift apart. A
+ * FollowUpStatus describes only HIS ENGAGEMENT with the item.
+ */
+export type FollowUpStatus =
+  | 'open'
+  | 'in_progress'
+  | 'chased'
+  | 'blocked'
+  | 'deferred_day2'
+  /** The rule's own close condition fired. Evidence closed it, not a person. */
+  | 'closed_verified'
+  /** He closed it while the rule still says open. Requires a reason. */
+  | 'closed_by_hand';
+
+/**
+ * Where a target date came from — the honesty chip, in the type system.
+ * Mirrors ScheduleTask.leadProvenance and utils/automation/learnedLeadTime.ts.
+ * `none` is a first-class value: an item with no basis is legitimate, it just
+ * can never be called late (guard G2).
+ */
+export type FollowUpBasis =
+  | { kind: 'stated'; field: string }
+  | { kind: 'derived'; from: string }
+  | { kind: 'learned'; n: number; medianDays: number; of: string }
+  | { kind: 'none' };
+
+/** One side of the join, and what it contributed. */
+export interface FollowUpEvidence {
+  ref: EntityRef;
+  /** What this record SAYS: "expires 2026-10-02", "no signed commitment",
+   *  "reported 100% complete by Sterling on 2026-09-11". */
+  says: string;
+}
+
+/** Whether the rule still matches the data this run. Absence is NOT closure
+ *  (guard G0) — a half-loaded cache must not silently close twenty items. */
+export type FollowUpPresence = 'live' | 'stale';
+
+export interface FollowUp {
+  /** `${ruleId}:${primaryKind}:${primaryId}`. The same condition on the same
+   *  records yields the same id on every device, forever. */
+  id: string;
+  ruleId: string;
+  projectId: string;
+  category: FollowUpCategory;
+  /** One line, in his words. */
+  title: string;
+  /** WHY the app minted it, naming both records. This is the grounding chip. */
+  because: string;
+  ball: FollowUpBall;
+  /** A real person or company. ABSENT when the app cannot name one — never
+   *  "the reviewer". Absence disables the drafted nudge (guard G4). */
+  ballName?: string;
+  targetDate?: string;
+  targetBasis: FollowUpBasis;
+  /** >= 2 for a join rule, enforced by the engine (guard G1). */
+  evidence: FollowUpEvidence[];
+  /** Only when a rule can compute it from stored amounts. Never estimated. */
+  costImpact?: { amount: number; basis: string };
+  /** Only from runCpm. floatDays is WORKING days, per the CPM contract. */
+  scheduleImpact?: { taskId: string; onCriticalPath: boolean; floatDays: number };
+  /** Null unless targetBasis.kind !== 'none' (guard G2). */
+  daysOverdue: number | null;
+  severity: 'critical' | 'high' | 'normal';
+  presence: FollowUpPresence;
+  /** True on a rule's first run against records older than the quiet window,
+   *  so installing the update does not produce 173 red rows (guard G6). */
+  preExisting: boolean;
+  /** Ready-to-send follow-up. Omitted when ballName is absent (guard G4). */
+  nudge?: string;
+}
+
+/**
+ * The HELD face — the only thing persisted. Keyed by FollowUp.id.
+ *
+ * Everything here is a decision a human made that the app could not have
+ * recomputed. Nothing derivable belongs in this record.
+ */
+export interface FollowUpHold {
+  /** Matches FollowUp.id. */
+  id: string;
+  projectId: string;
+  status: FollowUpStatus;
+  /** Who he put on it — free text, because it is often a person with no login. */
+  owner?: string;
+  /** His date, which overrides the rule's when set. */
+  targetDate?: string;
+  lastFollowUpAt?: string;
+  nextFollowUpAt?: string;
+  /** Required by the engine when status is 'closed_by_hand'. */
+  closeReason?: string;
+  /** His #26 / #72 / #103: closed because someone SAID so, or because it was
+   *  seen. A closeout that cannot say which is the thing he does not trust. */
+  verification?: { by: string; at: string; note?: string; sawItMyself: boolean };
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type EntityKind =
   | 'project'
   | 'task'
