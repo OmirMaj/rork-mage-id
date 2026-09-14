@@ -80,6 +80,7 @@ import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { showAlert } from '@/utils/alert';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
@@ -207,6 +208,11 @@ function EstimateWizardScreenInner() {
 
   const { projectId, onboarding } = useLocalSearchParams<{ projectId?: string; onboarding?: string }>();
   const isOnboarding = onboarding === '1';
+  // /cost-seed is gated on job_costing (Pro) — app/cost-seed.tsx:67 renders a
+  // paywall before its own body. Read it HERE so the card can say so before
+  // he taps, rather than after.
+  const { canAccess } = useTierAccess();
+  const seedNeedsUpgrade = !canAccess('job_costing');
   const scopedProject = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId, getProject]);
 
   const [step, setStep] = useState<number>(0);
@@ -1170,10 +1176,22 @@ function EstimateWizardScreenInner() {
                 >
                   <TrendingUp size={16} color={themeColors.accent} strokeWidth={2} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.seedPromptTitle}>Price this from your numbers</Text>
+                    <View style={styles.seedPromptTitleRow}>
+                      <Text style={styles.seedPromptTitle}>Price this from your numbers</Text>
+                      {/* The tier, BEFORE the tap. "Takes a minute" landed on a
+                          $29 wall — and it landed there ~90 seconds after the
+                          identical paste box was free during onboarding. A
+                          blocked action has to say why it is blocked. */}
+                      {seedNeedsUpgrade ? (
+                        <View style={styles.seedPromptTierPill}>
+                          <Text style={styles.seedPromptTierPillText}>PRO</Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <Text style={styles.seedPromptBody}>
-                      Paste or type the rates you already charge — takes a minute, and the next
-                      estimate is yours instead of the market&apos;s.
+                      {seedNeedsUpgrade
+                        ? 'Paste or type the rates you already charge and the next estimate is yours instead of the market\u2019s. Seeding your rates is part of Pro.'
+                        : 'Paste or type the rates you already charge \u2014 takes a minute, and the next estimate is yours instead of the market\u2019s.'}
                     </Text>
                   </View>
                   <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1515,22 +1533,27 @@ function EstimateWizardScreenInner() {
                 an estimate the GC is thinking about bid price; Win Optimizer
                 uses their win/loss history to recommend the price that
                 maximises expected profit. Cross-link here so it's
-                discoverable at the decision moment. */}
-            <TouchableOpacity
-              style={[styles.resultSecondaryBtn, { borderColor: themeColors.accent + '40' }]}
-              onPress={() => {
-                if (isOnboarding) {
-                  router.replace(ONBOARDING_PAYWALL_ROUTE);
-                } else {
-                  router.push('/win-optimizer' as never);
-                }
-              }}
-              activeOpacity={0.85}
-              testID="wizard-win-optimizer"
-            >
-              <TrendingUp size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={[styles.resultSecondaryText, { color: themeColors.accent }]}>Optimize your bid price</Text>
-            </TouchableOpacity>
+                discoverable at the decision moment.
+
+                HIDDEN DURING ONBOARDING. The onboarding branch did
+                router.replace(ONBOARDING_PAYWALL_ROUTE) — a REPLACE, so it
+                destroyed the very first estimate the contractor had just
+                built (this file states that estimate "is discarded the moment
+                they leave"), and landed him on a paywall that never names Win
+                Optimizer, so he could not tell what he had been asked to buy.
+                A brand-new user also has no win/loss history for it to read.
+                A missing link is honest; that one was not. */}
+            {!isOnboarding && (
+              <TouchableOpacity
+                style={[styles.resultSecondaryBtn, { borderColor: themeColors.accent + '40' }]}
+                onPress={() => router.push('/win-optimizer' as never)}
+                activeOpacity={0.85}
+                testID="wizard-win-optimizer"
+              >
+                <TrendingUp size={16} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={[styles.resultSecondaryText, { color: themeColors.accent }]}>Optimize your bid price</Text>
+              </TouchableOpacity>
+            )}
           </View>
             );
           })()}
@@ -2453,7 +2476,18 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
     marginTop: 8, minHeight: 56,
   },
+  seedPromptTitleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, flexWrap: 'wrap' as const },
   seedPromptTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.text },
+  seedPromptTierPill: {
+    paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4,
+    backgroundColor: themeColors.accent + '1A',
+  },
+  seedPromptTierPillText: {
+    // 700, not 800: scripts/validate-app-slop.ts ratchets the count of
+    // fontWeight '800' so it cannot grow, and a 10px pill does not need it.
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const,
+    letterSpacing: 0.4, color: themeColors.accentLabel,
+  },
   seedPromptBody: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16, marginTop: 2 },
   refineCard: { backgroundColor: themeColors.accent + '12', borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
   refineTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.accent },

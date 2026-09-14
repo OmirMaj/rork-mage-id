@@ -448,7 +448,19 @@ function ChangeOrderInner() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const branding = settings.branding ?? { companyName: 'MAGE ID', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
-      const owner = (project.clientPortal?.invites?.[0]?.name) ?? (project as { owner?: string }).owner ?? 'Owner';
+      // The owner is the portal invite, or nothing. Two terms were removed:
+      //   * `project.owner` — Project HAS NO `owner` FIELD. The only `owner:
+      //     string` in types/index.ts belongs to IncidentCorrectiveAction. It
+      //     compiled here purely by cast / `useProjects() as any`, and
+      //     evaluated to undefined on every render since it was written.
+      //   * `?? 'Owner'` — which printed the literal word "Owner" into the
+      //     Owner field of a G704/G714 the homeowner signs. field() in
+      //     utils/aiaForms.ts:125 renders `value || ' '`, a blank fill-in
+      //     line, which is the correct rendering of a field nobody has filled.
+      //     A form that looks completed and is not is worse than a blank.
+      // NOT added: project.primaryContact — only the two dev seeders ever
+      // write it, so no real project-creation path produces one.
+      const owner = project.clientPortal?.invites?.[0]?.name ?? '';
       const data: G714Data = {
         ownerName: owner,
         contractorName: branding.companyName,

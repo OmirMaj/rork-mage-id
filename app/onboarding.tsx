@@ -319,10 +319,13 @@ export default function OnboardingScreen() {
     router.push({ pathname: '/project-detail', params: { id: projectId } } as never);
   }, [addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, completeOnboarding, router]);
 
-  const handleSignIn = useCallback(() => {
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    router.push('/login' as never);
-  }, [router]);
+  // NO SIGN-IN LINK ON THIS SCREEN, deliberately. app/_layout.tsx:563 only
+  // routes here when `isAuthenticated` is already true — onboarding is a
+  // POST-auth flow — so "Already have an account? Sign in" was offered to
+  // someone who is signed in. Tapping it pushed /login, which has no sign-out
+  // path (grep signOut in app/login.tsx returns 0), so the root gate bounced
+  // him straight back with `step` reset to splash: a dead control that also
+  // threw away his place in the flow.
 
   // Terminal hand-off — lands the user inside the estimate wizard so they
   // price a real bid before anything asks them to upgrade. Called by both
@@ -373,12 +376,19 @@ export default function OnboardingScreen() {
   }, [goPriceFirstBid]);
 
   // Top-bar Skip — bails out of the whole flow without seeding rates.
-  // Goes straight to the paywall (not the estimate wizard) — a hard-skipper
-  // on the splash or preview steps shouldn't be forced into the wizard arc.
+  //
+  // Lands in the APP, not on the paywall. This used to be
+  // router.replace('/onboarding-paywall'), which asked a brand-new contractor
+  // for $29 having shown him nothing at all — the exact thing this file's own
+  // header forbids ("The paywall is AFTER the first-bid value, not before
+  // it") and the exact thing estimate-wizard.tsx:1893 already fixed for the
+  // wizard's Cancel, under a comment saying so. A hard-skipper still should
+  // not be forced into the wizard arc; he goes home. The paywall still owns
+  // every path that follows a real result.
   const handleSkip = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await completeOnboarding();
-    router.replace('/onboarding-paywall' as never);
+    router.replace('/(tabs)/(home)' as never);
   }, [router, completeOnboarding]);
 
   return (
@@ -467,13 +477,6 @@ export default function OnboardingScreen() {
             </Pressable>
           </Animated.View>
 
-          <Animated.View style={{ opacity: ctaOpacity, marginTop: 14 }}>
-            <TouchableOpacity onPress={handleSignIn} hitSlop={8}>
-              <Text style={styles.signInText}>
-                Already have an account?  <Text style={styles.signInLink}>Sign in</Text>
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
         </Animated.View>
       )}
 
@@ -572,16 +575,6 @@ export default function OnboardingScreen() {
             })()}
           </Animated.View>
 
-          {/* Sign-in link — consistent with splash. Returning users
-              who accidentally tap "Get started" can recover from any
-              step without going back. */}
-          <Animated.View style={{ opacity: ctaOpacity, marginTop: 14 }}>
-            <TouchableOpacity onPress={handleSignIn} hitSlop={8}>
-              <Text style={styles.signInText}>
-                Already have an account?  <Text style={styles.signInLink}>Sign in</Text>
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
         </Animated.View>
       )}
 

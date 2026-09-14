@@ -313,9 +313,39 @@ function InvoiceInner() {
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
+  /**
+   * Retainage seed, and where it came from.
+   *
+   * This invoice's own saved value wins. Otherwise it is carried from the most
+   * recent NON-DRAFT invoice on the same project, including a real 0% — the
+   * same rule app/aia-pay-app.tsx:305-310 adopted when an invented 10% fallback
+   * was deliberately removed from the G702.
+   *
+   * Why it matters: app/bill-from-estimate.tsx writes its Invoice literal with
+   * no `retentionPercent` at all and calls addInvoice BEFORE this editor
+   * mounts, so `existingInvoice.retentionPercent` is null on that path and this
+   * defaulted to '0'. A GC holding 10% retainage had to remember to re-type it
+   * on every progress invoice, and an invoice billed at 0% by omission is money
+   * he never asked for back.
+   *
+   * Nothing is INVENTED: with no prior invoice it still starts at 0.
+   */
+  const carriedRetention = useMemo(() => {
+    if (existingInvoice?.retentionPercent != null) return null;
+    const prior = existingInvoices
+      .filter(i => i.id !== invoiceId && i.status !== 'draft' && i.retentionPercent != null)
+      .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0];
+    return prior ? { pct: prior.retentionPercent as number, from: prior.number } : null;
+  }, [existingInvoice, existingInvoices, invoiceId]);
+
   const [retentionPercent, setRetentionPercent] = useState<string>(
-    existingInvoice?.retentionPercent != null ? String(existingInvoice.retentionPercent) : '0'
+    existingInvoice?.retentionPercent != null
+      ? String(existingInvoice.retentionPercent)
+      : carriedRetention ? String(carriedRetention.pct) : '0'
   );
+  // True until he changes it — so the screen can say where the number came from
+  // rather than presenting a carried figure as if he had chosen it.
+  const [retentionCarriedUntouched, setRetentionCarriedUntouched] = useState(carriedRetention != null);
   const [showRetentionModal, setShowRetentionModal] = useState(false);
   const [retentionReleaseAmount, setRetentionReleaseAmount] = useState('');
   const [retentionReleaseNote, setRetentionReleaseNote] = useState('');
@@ -1526,10 +1556,17 @@ function InvoiceInner() {
             </View>
             {!isLocked ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {/* Provenance, not a silent prefill. A carried number has to say
+                    it was carried, the same way aia-pay-app.tsx:1363 does. */}
+                {retentionCarriedUntouched && carriedRetention ? (
+                  <Text style={styles.retentionCarriedNote}>
+                    same as #{carriedRetention.from}
+                  </Text>
+                ) : null}
                 <TextInput
                   style={styles.retentionInput}
                   value={retentionPercent}
-                  onChangeText={setRetentionPercent}
+                  onChangeText={(v) => { setRetentionCarriedUntouched(false); setRetentionPercent(v); }}
                   keyboardType="decimal-pad"
                   placeholder="0"
                   placeholderTextColor={themeColors.textMuted}
@@ -2402,6 +2439,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   retentionInput: { minWidth: 60, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, textAlign: 'right' as const },
   retentionPct: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  retentionCarriedNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
   releaseRetentionBtn: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '15', borderWidth: 1, borderColor: themeColors.accent + '40' },
   releaseRetentionBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   releaseRetentionBtnMeta: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
