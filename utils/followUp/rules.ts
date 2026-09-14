@@ -281,7 +281,14 @@ export const workStartedWithoutCommitment: FollowUpRule = {
   id: 'work_started_without_commitment',
   category: 'budget',
   controls: [8, 13],
-  reads: ['tasks', 'commitments'],
+  // subcontractors IS declared, because mint() reads it for the sub's name.
+  // It was omitted at first, and G3 only checks DECLARED reads — so an
+  // unloaded sub vault produced no refusal and the rule silently degraded to
+  // assignedSubName. That is the precise failure G3 exists to prevent,
+  // committed inside the first four rules. scripts/validate-follow-up-engine.ts
+  // now scans each rule's source and fails on any ctx.<collection> that is
+  // not declared, so a rule author cannot make this mistake again.
+  reads: ['tasks', 'commitments', 'subcontractors'],
   joins: true,
   closeMode: 'evidence',
 

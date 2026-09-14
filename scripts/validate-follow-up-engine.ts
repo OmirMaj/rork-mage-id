@@ -380,6 +380,38 @@ console.log('\nranking puts what is actually burning first');
     JSON.stringify(rankFollowUps(run.items)) === JSON.stringify(ranked));
 }
 
+console.log('\nreads-completeness — a rule cannot touch what it did not declare');
+{
+  // G3 only refuses on DECLARED reads. A rule that quietly touches an
+  // undeclared collection therefore gets NO refusal when that collection is
+  // unloaded, and silently degrades — which is the exact thing G3 exists to
+  // stop. workStartedWithoutCommitment shipped with this bug: it declared
+  // ['tasks','commitments'] and read ctx.subcontractors. 68 assertions did not
+  // catch it, because nothing compared the declaration to the source.
+  const src = require('node:fs').readFileSync('utils/followUp/rules.ts', 'utf-8');
+  const COLLECTIONS = [
+    'changeOrders', 'rfis', 'submittals', 'tasks', 'deliveries', 'commitments',
+    'invoices', 'permits', 'planSheets', 'contacts', 'subcontractors', 'scheduleStartDate',
+  ];
+  const offenders: string[] = [];
+  for (const rule of FOLLOW_UP_RULES) {
+    // The rule's own source block, from its export to the closing brace.
+    const start = src.indexOf(`id: '${rule.id}'`);
+    if (start < 0) { offenders.push(`${rule.id}: source block not found`); continue; }
+    const end = src.indexOf('\n};', start);
+    const body = src.slice(start, end < 0 ? undefined : end);
+    const declared = new Set<string>(rule.reads as readonly string[]);
+    for (const c of COLLECTIONS) {
+      if (new RegExp(`ctx\\.${c}\\b`).test(body) && !declared.has(c)) {
+        offenders.push(`${rule.id} reads ctx.${c} but does not declare it`);
+      }
+    }
+  }
+  ok('every collection a rule touches is declared in its reads',
+    offenders.length === 0, offenders.join('; '));
+  ok('the scan actually found the rules', FOLLOW_UP_RULES.length >= 4);
+}
+
 console.log('\npurity — the engine has no clock of its own');
 {
   const engineSrc = require('node:fs').readFileSync('utils/followUp/engine.ts', 'utf-8');
