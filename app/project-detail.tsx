@@ -50,6 +50,7 @@ import {
   groupPhotosByDay,
   PHOTO_SHARE_MAX,
 } from '@/utils/photoShareToken';
+import { buildShareUrl } from '@/utils/webAppOrigin';
 import { NextStepHero } from '@/components/NextStepHero';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import { prefetchProjectPlans } from '@/utils/planPrefetch';
@@ -1092,10 +1093,8 @@ export default function ProjectDetailScreen() {
       return;
     }
     const token = encodePhotoShareToken(payload);
-    const base = Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.location.origin
-      : 'https://mageid.app';
-    const url = `${base}/shared-photos?t=${token}`;
+    const url = buildShareUrl('shared-photos', token,
+      Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null);
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     const extras: string[] = [];
     if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);

@@ -31,6 +31,7 @@ import { LivingFloorPlan } from './LivingFloorPlan';
 import { PlanZoneEditor } from './PlanZoneEditor';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
+import { buildShareUrl } from '@/utils/webAppOrigin';
 import DatePickerModal from '@/components/DatePickerModal';
 import { parseCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import {
@@ -765,10 +766,8 @@ function LivingFloorPlanContainer({
       return;
     }
     const token = encodePlanShareToken(payload);
-    const base = Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.location.origin
-      : 'https://mageid.app';
-    const url = `${base}/shared-plan?t=${token}`;
+    const url = buildShareUrl('shared-plan', token,
+      Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null);
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     const extras: string[] = [];
     if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);

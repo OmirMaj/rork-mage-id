@@ -119,6 +119,7 @@ import {
   UNDATED_SCHEDULE_TITLE,
   type NamedBaseline,
 } from '@/utils/scheduleOps';
+import { buildShareUrl, buildSnapshotShareUrl } from '@/utils/webAppOrigin';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import { supabase } from '@/lib/supabase';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
@@ -1622,9 +1623,17 @@ function ScheduleProScreenInner() {
     // Replaces the v2.3 P1 throw-on-oversize behavior with a graceful
     // fallback that produces a working URL for any schedule size.
     const result = tryEncodeShareToken(payload);
+    // The host is resolved ONCE, here, and both branches below produce an
+    // absolute URL. Previously the path was built bare and made absolute only
+    // inside the `Platform.OS === 'web'` branch further down — which has no
+    // else — so a native share handed the GC the string `/shared-schedule?t=…`
+    // with no host at all, under the words "Open this URL in a laptop browser".
+    const webOrigin = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.origin
+      : null;
     let url: string;
     if (result.kind === 'inline') {
-      url = `/shared-schedule?t=${result.token}`;
+      url = buildShareUrl('shared-schedule', result.token, webOrigin);
     } else {
       // Oversize — write snapshot to shared_schedule_snapshots. Anyone
       // with the resulting UUID-in-URL can fetch via the
@@ -1647,10 +1656,10 @@ function ScheduleProScreenInner() {
         );
         return;
       }
-      url = `/shared-schedule?s=${data.id}`;
+      // The snapshot variant keys on `?s=<row id>` rather than `?t=<token>`.
+      url = buildSnapshotShareUrl('shared-schedule', data.id, webOrigin);
     }
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      url = `${window.location.origin}${url}`;
       // Audit #31 — this used to be `navigator.clipboard?.writeText(url)`
       // followed by an unconditional "copied to clipboard" alert. Both of
       // its failure modes lied to the user: the un-awaited Promise rejected

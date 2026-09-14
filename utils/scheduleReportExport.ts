@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { ScheduleTask } from '@/types';
 import { exportTasksToCsv, buildSharePayload, tryEncodeShareToken } from '@/utils/scheduleOps';
+import { buildShareUrl } from '@/utils/webAppOrigin';
 
 export async function generateScheduleReportPdf(html: string, title: string): Promise<void> {
   if (Platform.OS === 'web') {
@@ -80,5 +81,8 @@ export function buildScheduleShareUrl(
   // Public web-app host (app.mageid.app serves the Expo /shared-schedule route).
   // This is the reachable host — distinct from the Expo Router `origin` pin in
   // app.json, which is only a deep-link resolution hint, not fetched at runtime.
-  return `https://app.mageid.app/shared-schedule?t=${encodeURIComponent(res.token)}`;
+  // Routed through buildShareUrl so the host lives in exactly one place: this
+  // call site was RIGHT while three others were wrong, and the fix was to give
+  // them all one source rather than to copy this line a fourth time.
+  return buildShareUrl('shared-schedule', res.token);
 }

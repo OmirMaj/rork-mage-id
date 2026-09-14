@@ -20,6 +20,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
+import { buildShareUrl } from '@/utils/webAppOrigin';
 import type { LinkedEstimate } from '@/types';
 import { CATEGORY_META } from '@/constants/materials';
 import { cartTotals } from '@/utils/estimateMarkup';
@@ -247,10 +248,8 @@ export default function EstimateReviewScreen() {
       paymentSchedule: defaultPaymentSchedule(clientView.projectTotal),
     });
     const token = encodeClientEstimateToken(payload);
-    const base = Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.location.origin
-      : 'https://mageid.app';
-    const url = `${base}/shared-estimate?t=${token}`;
+    const url = buildShareUrl('shared-estimate', token,
+      Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null);
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     track(AnalyticsEvents.ESTIMATE_SHARED, {
