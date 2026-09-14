@@ -142,9 +142,28 @@ export default function SubmitBidResponseScreen() {
   const [error, setError]                     = useState<string | null>(null);
 
   // ── Instant Bid state ──
+  // BID-DISCARD: app/_layout.tsx:1113 declares this route
+  // `presentation: 'modal'` with no gestureEnabled, so a natural pull-down
+  // while scrolling threw away a hand-tuned bid price and message with no
+  // prompt and no draft to recover. Five sibling modals are already guarded —
+  // schedule-wizard (_layout.tsx:717) and the three estimate modals
+  // (_layout.tsx:1424-1439), one of them under a comment reading "A natural
+  // pull-down while scrolling discarded the first bid with no prompt".
+  // Same shape as app/daily-report.tsx:1817.
   const [proposal, setProposal]         = useState<TieredProposal | null>(null);
   const [selectedTier, setSelectedTier] = useState<ProposalTierKey>('better');
   const [generating, setGenerating]     = useState(false);
+
+  /** Anything the contractor has typed or generated that a pull-down would
+   *  destroy. `submitting` is excluded — the write is already in flight. */
+  const isDirty = useMemo(
+    () => estimateAmount.trim().length > 0
+      || estimateSummary.trim().length > 0
+      || message.trim().length > 0
+      || viewSiteFirst
+      || proposal !== null,
+    [estimateAmount, estimateSummary, message, viewSiteFirst, proposal],
+  );
 
   const { data: rfp, isLoading, isError, isFetching, fetchStatus, refetch } = useQuery({
     queryKey: ['rfp-summary', bidId],
@@ -475,7 +494,7 @@ export default function SubmitBidResponseScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: !isDirty }} />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={goBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">

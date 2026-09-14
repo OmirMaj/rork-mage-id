@@ -1855,7 +1855,9 @@ function ScheduleProScreenInner() {
         </Text>
         <TouchableOpacity
           style={styles.primaryBtn}
-          onPress={() => router.replace('/(tabs)/schedule' as any)}
+          // The copy directly above promises "the classic schedule runs the
+          // SAME project" — so it has to be told which one.
+          onPress={() => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: projectId, focus: String(Date.now()) } } as any)}
           activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityLabel="Open classic schedule"

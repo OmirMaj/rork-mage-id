@@ -191,7 +191,7 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -1036,9 +1036,16 @@ export default function ProjectDetailScreen() {
 
   // Capture a jobsite photo straight into the project gallery. 'camera' opens
   // the device camera (falls back to the library on web, which has no camera
-  // capture); 'library' picks from the roll. Either way we GPS-stamp with the
-  // shared 3s-timeout helper (never blocks) and write through addProjectPhoto,
-  // so the new photo lands in the gallery + syncs like every other photo.
+  // capture); 'library' picks from the roll.
+  //
+  // The GPS stamp genuinely does not block now. It used to be
+  // `const stamp = await stampPhotoLocation();` directly beneath a comment
+  // asserting it "never blocks" — it blocked, for up to ~4.5s per shot (a 3s
+  // fix race plus a 1.5s reverse-geocode), and that worst case is the NORMAL
+  // case in the below-grade structure where the fix never lands. No spinner,
+  // no photo, four and a half seconds, times twenty shots. The photo is now
+  // written first and the coordinates are patched onto it by id if and when
+  // they arrive — the pattern app/daily-report.tsx:815 already documents.
   const handleCapturePhoto = useCallback(async (source: 'camera' | 'library') => {
     if (!project) return;
     try {
@@ -1053,28 +1060,37 @@ export default function ProjectDetailScreen() {
         result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
       }
       if (result.canceled || !result.assets[0]) return;
-      const stamp = await stampPhotoLocation();
+      const photoId = createId('photo');
       const now = new Date().toISOString();
       addProjectPhoto({
-        id: createId('photo'),
+        id: photoId,
         projectId: project.id,
         uri: result.assets[0].uri,
         timestamp: now,
         createdAt: now,
         tag: 'Progress',
-        ...(stamp ? {
-          latitude: stamp.latitude,
-          longitude: stamp.longitude,
-          locationAccuracyMeters: stamp.accuracyMeters,
-          locationLabel: stamp.label,
-        } : null),
       });
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Coordinates arrive on their own schedule and are patched on by id. A
+      // photo deleted while the fix was still running is simply not found, so
+      // a late stamp can never resurrect it. A photo that never gets a fix
+      // keeps no coordinates — the documented contract of stampPhotoLocation.
+      void stampPhotoLocation()
+        .then(stamp => {
+          if (!stamp) return;
+          updateProjectPhoto(photoId, {
+            latitude: stamp.latitude,
+            longitude: stamp.longitude,
+            locationAccuracyMeters: stamp.accuracyMeters,
+            locationLabel: stamp.label,
+          });
+        })
+        .catch(() => {/* stampPhotoLocation already swallows; belt and braces */});
     } catch (err) {
       console.log('[project-detail] Photo capture error:', err);
       showAlert('Could not add photo', 'Something went wrong capturing that photo. Please try again.');
     }
-  }, [project, addProjectPhoto]);
+  }, [project, addProjectPhoto, updateProjectPhoto]);
 
   const handleSharePhotoTimeline = useCallback(async () => {
     if (!project) return;
@@ -1749,7 +1765,11 @@ export default function ProjectDetailScreen() {
           {project.schedule && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.replace('/(tabs)/schedule' as any)}
+              // Carry the project. Without projectId + the `focus` nonce,
+              // MobileScheduleScreen keeps whichever project was last active
+              // there and its effect returns early — the P0 context drop the
+              // comment at :2335 already names and fixes for one call site.
+              onPress={() => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any)}
               activeOpacity={0.7}
               testID="project-view-schedule-btn"
             >
@@ -2149,7 +2169,9 @@ export default function ProjectDetailScreen() {
                 {project.schedule && (
                   <TouchableOpacity
                     style={styles.crossLinkBtn}
-                    onPress={() => navigateFromTile('/(tabs)/schedule' as any, 'replace')}
+                    // Same context drop as :2335 — this link's own label prints
+                    // THIS project's task count and then opened another project.
+                    onPress={() => navigateFromTile({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any, 'replace')}
                     activeOpacity={0.7}
                     testID="estimate-view-schedule-link"
                   >

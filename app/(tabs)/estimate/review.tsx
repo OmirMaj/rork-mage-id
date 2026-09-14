@@ -85,7 +85,13 @@ export default function EstimateReviewScreen() {
   const onTotalsBarLayout = useCallback((e: LayoutChangeEvent) => {
     setTotalsBarH(e.nativeEvent.layout.height);
   }, []);
-  const showTotalsBar = cart.length > 0 && mode === 'contractor';
+  // The WHOLE estimate, not just the materials cart. handleAddAssembly and
+  // handleLoadTemplate write only to assemblyCart/laborCart, so a real
+  // estimate could have a grand total, division rows and metrics computed
+  // below and still be counted as empty here. (itemCount is declared after
+  // this line, hence the inline sum.)
+  const hasAnyLineItem = cart.length + laborCart.length + assemblyCart.length > 0;
+  const showTotalsBar = hasAnyLineItem && mode === 'contractor';
   useBrainFabLift(showTotalsBar ? totalsBarH : 0);
   // Scrolling down slides the FAB away so it stops covering division rows.
   const fabScroll = useBrainFabScroll();
@@ -283,7 +289,7 @@ export default function EstimateReviewScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {cart.length === 0 ? (
+        {itemCount === 0 ? (
           <View style={styles.empty}>
             <PackageOpen size={40} color={colors.textMuted} strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>No line items yet</Text>

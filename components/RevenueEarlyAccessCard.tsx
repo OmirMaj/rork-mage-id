@@ -165,11 +165,19 @@ export function RevenueEarlyAccessCard(props: RevenueEarlyAccessCardProps) {
           )}
         </View>
         <Text style={styles.bodyText}>{body}</Text>
-        {footer && state !== 'done' && (
+        {/* The footer survives joining the list — it carries the ship window
+            ("shipping Q3 2026"), which is the thing he most wants to keep
+            seeing after he has opted in. It used to be deleted by the tap. */}
+        {footer && (
           <Text style={styles.footer}>{footer}</Text>
         )}
         {state === 'done' && (
-          <Text style={styles.footerDone}>We&apos;ll text you the moment this goes live.</Text>
+          // "let you know", not "text you". There is no SMS provider anywhere
+          // in this repo and the app never captures a phone number — signup is
+          // (email, password, name). The two siblings writing this same table
+          // are already channel-agnostic: TabComingSoon.tsx says "We'll let you
+          // know" and ReadyToBillCard.tsx says "we'll be in touch".
+          <Text style={styles.footerDone}>We&apos;ll let you know the moment this goes live.</Text>
         )}
         {state === 'error' && (
           <Text style={styles.footerError}>Tap to retry.</Text>

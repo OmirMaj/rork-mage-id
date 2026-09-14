@@ -180,8 +180,20 @@ console.log('\nschedule-pro width gate precedes the picker:');
   ok('narrow-screen gate runs before the project gate', widthAt !== -1 && widthAt < pickerAt,
     'Schedule Pro is unusable on a phone — redirect to the classic schedule ' +
       'first instead of asking which project to open a screen they cannot use');
+  // Keyed on the DESTINATION, not on the call's exact syntax. This assertion
+  // used to be /router\.replace\('\/\(tabs\)\/schedule' as any\)/ — a literal
+  // match on one call shape — so passing the project through as a param, which
+  // is strictly better, read as the offer having been removed. A guard that
+  // fails on an improvement is testing the spelling, not the behaviour.
   ok('the narrow-screen branch still offers the classic schedule',
-    /router\.replace\('\/\(tabs\)\/schedule' as any\)/.test(src));
+    /router\.replace\([^;]*'\/\(tabs\)\/schedule'/.test(src));
+  // And it must carry the project, or the classic schedule opens on whichever
+  // one was last active there (MobileScheduleScreen keeps projects[0] and its
+  // focus effect returns early without the param) — while the copy directly
+  // above the button promises "the classic schedule runs the SAME project".
+  ok('…and carries the project it promised to open',
+    /'\/\(tabs\)\/schedule'[^;]{0,160}projectId/.test(src),
+    'pass { projectId, focus } so the classic schedule opens on this project');
   ok('the old "Go back"-only dead end is gone',
     !/No project selected/.test(src),
     'that string was the finding — a screen with one button that goes backwards');

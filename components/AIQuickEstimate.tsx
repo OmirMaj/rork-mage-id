@@ -769,10 +769,16 @@ export default React.memo(function AIQuickEstimate({
         {step === 'result' && renderResult()}
       </KeyboardAvoidingView>
 
+      {/* No `subtitle` prop on purpose. EstimateLoadingOverlay's own default
+          already says the honest thing — the model is estimating from the
+          scope, "nothing is pulled from a price list". This call site used to
+          override it with "Usually 20-40 seconds. Pulling materials, labor,
+          and 2025 pricing", and no such lookup exists anywhere in the app.
+          estimate-wizard.tsx corrected the identical string; this sibling was
+          never updated. */}
       <EstimateLoadingOverlay
         visible={step === 'loading'}
         title="Generating estimate…"
-        subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
         onCancel={() => {
           setStep('input');
           setError('Cancelled. Tap Generate again to retry.');

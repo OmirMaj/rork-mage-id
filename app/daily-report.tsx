@@ -44,7 +44,7 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
-import { nailIt } from '@/components/animations/NailItToast';
+import { nailIt, oops } from '@/components/animations/NailItToast';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
@@ -629,7 +629,19 @@ export default function DailyReportScreen() {
       }
     } catch (err) {
       console.log('[DFR] Weather fetch failed:', err);
-      showAlert('Weather Unavailable', 'Could not fetch weather data. Please enter manually.');
+      // Only shout about a fetch he ASKED for. The mount effect below fires
+      // fetchWeather({ auto: true }) on every entry to this screen, so an
+      // offline jobsite — the normal condition — greeted the super with a
+      // modal about something he never tapped, before he had typed a word.
+      // The deliberate button keeps the alert; the unattended fetch degrades
+      // to the toast slot. This function already branches on opts?.auto a few
+      // lines above, and utils/location.ts:1-15 is this repo's own written
+      // rule against exactly this.
+      if (opts?.auto === true) {
+        oops('Weather unavailable — enter it manually.');
+      } else {
+        showAlert('Weather Unavailable', 'Could not fetch weather data. Please enter manually.');
+      }
     } finally {
       setWeatherLoading(false);
     }
