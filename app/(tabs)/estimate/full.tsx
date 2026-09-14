@@ -1146,8 +1146,13 @@ export default function EstimateScreen() {
     ]);
   }, [pendingLinkProject, buildLinkedEstimate, updateProject, router]);
 
+  // `totalItemCount`, not `cart.length`. handleAddAssembly and handleLoadTemplate
+  // write only to assemblyCart / laborCart, so loading a template produces a real
+  // estimate — right grand total on screen, PDF button rendered and enabled —
+  // whose materials cart is empty. The guard then returned silently and the
+  // button did nothing, twice, which is the dead-control class exactly.
   const handleOpenPDFPreSend = useCallback(() => {
-    if (cart.length === 0) return;
+    if (totalItemCount === 0) return;
     if (Platform.OS === 'ios') {
       setPendingCartModal('pdf');
       setShowCart(false);
@@ -1155,10 +1160,10 @@ export default function EstimateScreen() {
       setShowCart(false);
       setShowPDFPreSend(true);
     }
-  }, [cart.length]);
+  }, [totalItemCount]);
 
   const handlePDFSend = useCallback(async (options: PDFSendOptions) => {
-    if (cart.length === 0) return;
+    if (totalItemCount === 0) return;
     setShowPDFPreSend(false);
 
     if (options.method === 'email' && options.recipient.trim()) {
@@ -1170,7 +1175,8 @@ export default function EstimateScreen() {
         // Whole estimate, not just the materials cart: labor and assemblies
         // were silently missing from the figure in the email body.
         grandTotal,
-        itemCount: cart.length,
+        // The count must describe the same estimate as the total beside it.
+        itemCount: totalItemCount,
         message: options.message,
         contactName: branding.contactName,
         contactEmail: branding.email,
@@ -1293,9 +1299,22 @@ export default function EstimateScreen() {
       text += `${item.material.name}\n`;
       text += `  Qty: ${item.quantity} | $${base.toFixed(2)}/${item.material.unit} | Markup: ${item.markup}% | Total: $${lineTotal.toFixed(2)}\n`;
     });
-    text += `\nBase Cost: $${directCostTotal.toFixed(2)}\n`;
-    text += `Markup: +$${markupTotal.toFixed(2)}\n`;
-    text += `TOTAL: $${grandTotal.toFixed(2)}\n`;
+    // Labor and assemblies, on the SELL basis, at the same markup cartTotals()
+    // applies. Without these the body listed materials rows and then printed a
+    // TOTAL that included labor and assemblies — a document handed to a client
+    // that does not add up.
+    laborCart.forEach(item => {
+      const cost = item.adjustedRate * item.hours;
+      text += `${item.labor.trade}\n`;
+      text += `  ${item.hours} hrs | $${item.adjustedRate.toFixed(2)}/hr | Total: $${(cost * (1 + globalMarkup / 100)).toFixed(2)}\n`;
+    });
+    assemblyCart.forEach(item => {
+      text += `${item.assembly.name}\n`;
+      text += `  Qty: ${item.quantity} ${item.assembly.unit} | Total: $${(item.totalCost * (1 + globalMarkup / 100)).toFixed(2)}\n`;
+    });
+    // The cost/markup split is the contractor's own business. utils/estimateMarkup.ts
+    // states the house position: what he makes is not the client's line item.
+    text += `\nTOTAL: $${grandTotal.toFixed(2)}\n`;
     if (settings.branding?.contactName || settings.branding?.phone) {
       text += `\nContact: ${settings.branding?.contactName ?? ''} ${settings.branding?.phone ?? ''}\n`;
     }
@@ -1304,11 +1323,16 @@ export default function EstimateScreen() {
     Linking.openURL(url).catch(() => {
       showAlert('Unable to open email', 'Please check your email app is configured.');
     });
-  }, [cart, directCostTotal, grandTotal, markupTotal, settings]);
+  }, [cart, laborCart, assemblyCart, globalMarkup, grandTotal, settings]);
 
   const handleShareText = useCallback(() => {
     let body = 'MAGE ID Estimate\n';
-    body += `Total: $${cartTotal.toFixed(2)} (${cart.length} items)\n`;
+    // grandTotal / totalItemCount, NOT cartTotal / cart.length. cartTotal is the
+    // materials reduce declared above; it excludes labor and assemblies. This
+    // line texted a homeowner $9,020 for an estimate whose own footer read
+    // $36,960, and texted "Total: $0.00 (0 items)" for a labor-only job — the
+    // one message in the product whose entire content is the number.
+    body += `Total: $${grandTotal.toFixed(2)} (${totalItemCount} items)\n`;
     if (settings.branding?.companyName) body += `From: ${settings.branding.companyName}\n`;
     const url = Platform.OS === 'ios'
       ? `sms:&body=${encodeURIComponent(body)}`
@@ -1316,7 +1340,7 @@ export default function EstimateScreen() {
     Linking.openURL(url).catch(() => {
       showAlert('Unable to open messages', 'Please check your messaging app.');
     });
-  }, [cart, cartTotal, settings]);
+  }, [grandTotal, totalItemCount, settings]);
 
   const applyGlobalMarkup = useCallback((val: number) => {
     // Context cascades to all cart items in a single write.
@@ -2854,10 +2878,16 @@ export default function EstimateScreen() {
                 <FolderOpen size={14} color={Colors.textOnPrimary} strokeWidth={1.75} />
                 <Text style={dStyles.summaryActionText}>Save to Project</Text>
               </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" style={[dStyles.summaryActionBtn, { backgroundColor: Colors.primary + '12' }]} onPress={handleOpenPDFPreSend} activeOpacity={0.85}>
-                <FileText size={14} color={Colors.primary} strokeWidth={1.75} />
-                <Text style={[dStyles.summaryActionText, { color: Colors.primary }]}>Export PDF</Text>
-              </TouchableOpacity>
+              {/* Gated like its neighbours above. handleOpenPDFPreSend returns
+                  silently on an empty estimate, so an ungated button rendered
+                  fully enabled and did nothing at all — the dead-control class
+                  this codebase treats as its worst defect. */}
+              {grandTotal > 0 && (
+                <TouchableOpacity accessibilityRole="button" style={[dStyles.summaryActionBtn, { backgroundColor: Colors.primary + '12' }]} onPress={handleOpenPDFPreSend} activeOpacity={0.85}>
+                  <FileText size={14} color={Colors.primary} strokeWidth={1.75} />
+                  <Text style={[dStyles.summaryActionText, { color: Colors.primary }]}>Export PDF</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity accessibilityRole="button" style={[dStyles.summaryActionBtn, { backgroundColor: Colors.info + '12' }]} onPress={() => setShowComparison(true)} activeOpacity={0.85}>
                 <GitCompare size={14} color={Colors.infoLabel} strokeWidth={1.75} />
                 <Text style={[dStyles.summaryActionText, { color: Colors.infoLabel }]}>Compare</Text>

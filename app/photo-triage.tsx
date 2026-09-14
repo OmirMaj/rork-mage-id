@@ -131,6 +131,7 @@ function PhotoTriageInner() {
   const {
     getProject, getPhotosForProject, addPunchItems, addRFIs,
     addDailyReport, updateDailyReport, getDailyReportsForProject, settings,
+    addProjectPhoto,
   } = useProjects();
   const { tier } = useSubscription();
 
@@ -246,6 +247,7 @@ function PhotoTriageInner() {
     let punchAdded = 0;
     let rfiAdded = 0;
     let dfrAdded = 0;
+    let progressAdded = 0;
 
     try {
       // Punch items — direct insert, status=open by default. The trade
@@ -362,6 +364,39 @@ function PhotoTriageInner() {
         dfrAdded = grouped.dfr.length;
       }
 
+      // PROGRESS — the bucket this screen labels "Saved as a progress photo",
+      // gives a success-green badge, and lets him select per photo. It was
+      // built (`grouped.progress`), rendered, and never consumed:
+      // `addProjectPhoto` appeared ZERO times in this file while five sibling
+      // capture surfaces call it, and contexts/ProjectContext.tsx:60 lists photo
+      // triage BY NAME among the surfaces meant to share that behaviour. An
+      // in-app capture lives in cachesDirectory/ImagePicker and never reaches
+      // the camera roll, so every frame he chose to keep was simply destroyed —
+      // under a green badge and a count. Same call shape as app/cost-xray.tsx:186.
+      if (grouped.progress.length > 0) {
+        // A photo picked FROM the project (PickedPhoto.fromProject) carries the
+        // project photo's own uri, so re-triaging must not duplicate the row.
+        // ReviewEntry does not carry that flag, so match on the uri itself.
+        const alreadyInProject = new Set(
+          projectPhotos.flatMap(ph => [ph.uri, ph.localUri].filter(Boolean) as string[]),
+        );
+        for (const e of grouped.progress) {
+          if (!e.photoUri || alreadyInProject.has(e.photoUri)) continue;
+          const stamp = new Date().toISOString();
+          addProjectPhoto({
+            id: generateUUID(),
+            projectId: project.id,
+            uri: e.photoUri,
+            timestamp: stamp,
+            createdAt: stamp,
+            tag: 'Progress',
+            ...(e.editedLocation ? { location: e.editedLocation } : {}),
+          });
+          alreadyInProject.add(e.photoUri);
+          progressAdded += 1;
+        }
+      }
+
       // Records are created — lock the batch so a second Apply can't duplicate.
       setApplied(true);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -369,12 +404,13 @@ function PhotoTriageInner() {
         punchAdded > 0 ? `${punchAdded} punch item${punchAdded === 1 ? '' : 's'}` : null,
         rfiAdded > 0 ? `${rfiAdded} RFI${rfiAdded === 1 ? '' : 's'}` : null,
         dfrAdded > 0 ? `${dfrAdded} DFR observation${dfrAdded === 1 ? '' : 's'}` : null,
+        progressAdded > 0 ? `${progressAdded} progress photo${progressAdded === 1 ? '' : 's'}` : null,
       ].filter(Boolean).join(', ');
       showAlert(
         'Triage applied',
         summary
           ? `${summary}. Review them on the project screen.`
-          : 'Nothing to apply — every entry was classified as progress or noise.',
+          : 'Nothing to apply — every entry was discarded or classified as noise.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (err) {
@@ -385,6 +421,7 @@ function PhotoTriageInner() {
   }, [
     project, grouped, addPunchItems, addRFIs, addDailyReport, updateDailyReport,
     getDailyReportsForProject, settings, router, applying, applied,
+    addProjectPhoto, projectPhotos,
   ]);
 
   // ── Per-entry mutations ────────────────────────────────────────

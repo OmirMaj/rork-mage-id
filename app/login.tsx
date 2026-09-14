@@ -314,10 +314,10 @@ export default function LoginScreen() {
                 testID="login-apple"
               >
                 {isAppleLoading ? (
-                  <ActivityIndicator color={themeColors.surface} size="small" />
+                  <ActivityIndicator color={Colors.textOnAccent} size="small" />
                 ) : (
                   <>
-                    <Svg width={20} height={20} viewBox="0 0 24 24" fill={themeColors.surface}>
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill={Colors.textOnAccent}>
                       <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
                     </Svg>
                     <Text style={styles.appleAuthButtonText}>Continue with Apple</Text>
@@ -479,11 +479,11 @@ export default function LoginScreen() {
                   testID="login-submit"
                 >
                   {isSubmitting ? (
-                    <ActivityIndicator color={themeColors.surface} size="small" />
+                    <ActivityIndicator color={Colors.textOnAccent} size="small" />
                   ) : (
                     <>
                       <Text style={styles.loginButtonText}>Sign In</Text>
-                      <ArrowRight size={18} color={themeColors.surface} strokeWidth={2.5} />
+                      <ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
                     </>
                   )}
                 </TouchableOpacity>
@@ -701,10 +701,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loginButtonDisabled: {
     opacity: 0.7,
   },
+  // Colors.textOnAccent, NOT t.surface. This sits on a FIXED fill (ink #0B0D10 /
+  // Apple black / t.accentFill) that does not change with the theme, so the
+  // foreground must not either. In dark mode t.surface is #14181D: the Sign In
+  // label was 1.09:1 on its own button, and the page behind it is #0B0D10 too,
+  // so the button had no edge and the label no contrast. validate-contrast.ts
+  // passes on this file — it prints an explicit allowance for it.
   loginButtonText: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: t.surface,
+    color: Colors.textOnAccent,
   },
   biometricButton: {
     flexDirection: 'row',
@@ -765,7 +771,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   appleAuthButtonText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: t.surface,
+    color: Colors.textOnAccent,
   },
   googleAuthButton: {
     backgroundColor: t.surface,
@@ -846,7 +852,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   appleSocialButtonText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: t.surface,
+    color: Colors.textOnAccent,
   },
   signupRow: {
     flexDirection: 'row',
