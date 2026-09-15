@@ -235,7 +235,7 @@ expect('summary.generatedAt passthrough', full.summary.generatedAt, GENERATED_AT
 
 console.log('\nbuildAskHomePrompt validation:');
 
-import { buildAskHomePrompt, ASK_HOME_NOT_FOUND } from '../utils/passport/askHomePrompt';
+import { buildAskHomePrompt, ASK_HOME_NOT_FOUND, ASK_BUILDING_NOT_FOUND, askNotFoundLine } from '../utils/passport/askHomePrompt';
 
 const promptDocs = [
   { ref: 'Warranty — Trane HVAC', content: 'Warranty for Trane HVAC. Coverage ends May 1, 2036' },
@@ -266,7 +266,24 @@ expectTrue('commercial persona addresses the occupant / property manager',
 expectTrue('commercial grounding rule points at building records', c1.includes('ONLY the building records'));
 expectTrue('commercial record header matches', c1.includes('BUILDING RECORDS:') && !c1.includes('HOME RECORDS:'));
 // The guardrails are the point — they must survive the swap verbatim.
-expectTrue('commercial keeps the exact not-found line', c1.includes(ASK_HOME_NOT_FOUND));
+// The refusal line gets the commercial noun too. It is returned VERBATIM on
+// the zero-match short-circuit — which is the branch that actually fires while
+// memory_embeddings is empty — so it is the single most likely sentence a
+// commercial reader ever sees from this feature. A page headed YOUR BUILDING
+// PASSPORT answering "not in your home's records" is the contradiction this
+// pins shut.
+expectTrue('commercial swaps the refusal line to the building wording',
+  c1.includes(ASK_BUILDING_NOT_FOUND) && !c1.includes(ASK_HOME_NOT_FOUND));
+expectTrue('the residential refusal line is untouched',
+  buildAskHomePrompt('q', promptDocs).includes(ASK_HOME_NOT_FOUND));
+expectTrue('askNotFoundLine picks by property kind',
+  askNotFoundLine(false) === ASK_HOME_NOT_FOUND && askNotFoundLine(true) === ASK_BUILDING_NOT_FOUND);
+// (No `ASK_HOME_NOT_FOUND !== ASK_BUILDING_NOT_FOUND` assertion here: both are
+// `const` string literals, so tsc resolves the comparison statically and errors
+// on it either way — it is a tautology at runtime and the type checker is
+// already the guard. The assertions above and below test behaviour instead.)
+expectTrue('neither refusal line mentions the wrong property kind',
+  !ASK_HOME_NOT_FOUND.includes('building') && !ASK_BUILDING_NOT_FOUND.includes('home'));
 expectTrue('commercial keeps the invention ban', c1.toLowerCase().includes('never invent'));
 expectTrue('commercial keeps the citation instruction', c1.includes('cite the record reference'));
 expectTrue('commercial keeps every ref as a citation label',
@@ -288,6 +305,13 @@ const edgeSrc = readFileSync(
   'utf8',
 );
 expectTrue('edge fn embeds the exact not-found line', edgeSrc.includes(ASK_HOME_NOT_FOUND));
+expectTrue('edge fn embeds the commercial refusal line too', edgeSrc.includes(ASK_BUILDING_NOT_FOUND));
+// The zero-match short-circuit is the branch that fires in production today
+// (memory_embeddings is empty), so it must pick by property kind rather than
+// hard-coding the residential constant — otherwise the commercial line ships
+// but is unreachable on the only path that runs.
+expectTrue('edge fn picks the refusal line by property kind on the zero-match path',
+  /answer: askNotFoundLine\(proj\.type === "commercial"\)/.test(edgeSrc));
 // The grounding rule is now interpolated ("ONLY the ${place} records") so the
 // literal string is gone from the source. What must be pinned is that the rule
 // still exists and is still absolute — checking for the template AND that both

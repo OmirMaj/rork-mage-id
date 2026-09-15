@@ -13,6 +13,23 @@
 export const ASK_HOME_NOT_FOUND =
   "That's not in your home's records — ask your contractor.";
 
+/**
+ * The commercial twin. Without it the portal contradicted itself in the most
+ * visible place it could: a page headed YOUR BUILDING PASSPORT, with an Ask
+ * box labelled "Ask your building", answering "That's not in your home's
+ * records". The not-found line is ALSO the single most likely thing a
+ * commercial reader ever sees from this feature — it is returned verbatim on
+ * the zero-match short-circuit, before the model is called at all — so leaving
+ * it residential undid the wording change for exactly the case it was for.
+ */
+export const ASK_BUILDING_NOT_FOUND =
+  "That's not in this building's records — ask your contractor.";
+
+/** The refusal line for a property kind. */
+export function askNotFoundLine(commercial = false): string {
+  return commercial ? ASK_BUILDING_NOT_FOUND : ASK_HOME_NOT_FOUND;
+}
+
 export interface AskHomeDoc {
   ref: string;
   content: string;
@@ -52,7 +69,7 @@ export function buildAskHomePrompt(
     `${plainly}. Lead with the direct answer, ` +
     'and cite the record reference in parentheses for each fact, e.g. ' +
     '(Warranty — Trane HVAC). If the records do not contain the answer, reply ' +
-    `exactly: "${ASK_HOME_NOT_FOUND}" When unsure, prefer that reply over guessing.` +
+    `exactly: "${askNotFoundLine(opts.commercial)}" When unsure, prefer that reply over guessing.` +
     '\n\n' +
     `${opts.commercial ? 'BUILDING' : 'HOME'} RECORDS:\n${context}\n\n` +
     `QUESTION: ${question.trim()}`

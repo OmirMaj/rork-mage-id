@@ -45,6 +45,15 @@ const ALLOWED_SOURCES = new Set(["Home Passport", "Daily Report", "RFI"]);
 // scripts/validate-home-passport.ts asserts this file embeds the same
 // not-found line and grounding rule.
 const ASK_HOME_NOT_FOUND = "That's not in your home's records — ask your contractor.";
+// The commercial twin. This line is not a detail: it is returned VERBATIM on
+// the zero-match short-circuit below, before Gemini is called at all, so on a
+// portal with a thin memory index it is the only sentence this feature ever
+// produces. A page headed YOUR BUILDING PASSPORT that answers "not in your
+// home's records" undoes the wording change for precisely the reader it was
+// written for.
+const ASK_BUILDING_NOT_FOUND = "That's not in this building's records — ask your contractor.";
+const askNotFoundLine = (commercial: boolean) =>
+  commercial ? ASK_BUILDING_NOT_FOUND : ASK_HOME_NOT_FOUND;
 
 /**
  * `commercial` switches the nouns and nothing else. The refusal rule, the
@@ -77,7 +86,7 @@ function buildPrompt(
     `${plainly}. Lead with the direct answer, ` +
     "and cite the record reference in parentheses for each fact, e.g. " +
     "(Warranty — Trane HVAC). If the records do not contain the answer, reply " +
-    `exactly: "${ASK_HOME_NOT_FOUND}" When unsure, prefer that reply over guessing.` +
+    `exactly: "${askNotFoundLine(commercial)}" When unsure, prefer that reply over guessing.` +
     "\n\n" +
     `${commercial ? "BUILDING" : "HOME"} RECORDS:\n${context}\n\n` +
     `QUESTION: ${question.trim()}`
@@ -251,8 +260,11 @@ serve(async (req: Request) => {
     .slice(0, KEEP_MATCHES);
 
   if (matches.length === 0) {
-    // Nothing homeowner-safe matched — the honest answer, free of charge.
-    return json({ success: true, answer: ASK_HOME_NOT_FOUND, refs: [] });
+    // Nothing portal-safe matched — the honest answer, free of charge. This is
+    // the branch that actually fires today: memory_embeddings is empty in
+    // production, so match_project_memory returns nothing and this line — not
+    // a generated answer — is what a visitor gets.
+    return json({ success: true, answer: askNotFoundLine(proj.type === "commercial"), refs: [] });
   }
 
   // Grounded answer.
