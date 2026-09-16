@@ -5,7 +5,7 @@
   <title>MAGE ID — App Store Screenshot Builder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     /*
      * MAGE ID — App Store Screenshot Builder
@@ -26,10 +26,14 @@
       --h: 2796px;
 
       /* Brand */
-      --accent: #FF6A1A;
-      --accent-deep: #B83F00;
+      /* The canvas is ink, so accent TEXT takes the dark-UI green (7.5:1);
+       * the deep green is only 3:1 there. Filled chips carry white text,
+       * which needs the deep green underneath (6.39:1). */
+      --accent: #5DB36E;
+      --accent-fill: #2F6B3A;
+      --accent-deep: #24542D;
       --ink: #0B0D10;
-      --cream: #F4EFE6;
+      --cream: #ECEDE9;   /* legacy name; now the concrete ground */
       --muted: #8B9099;
 
       /* Phone bezel (proportions tuned to read as "iPhone-ish" without
@@ -56,16 +60,16 @@
       position: relative;
       overflow: hidden;
       margin: 32px auto;
-      background: linear-gradient(180deg, var(--ink) 0%, #1A1F26 60%, #2A1A0F 100%);
+      background: linear-gradient(180deg, var(--ink) 0%, #1A1F26 60%, #13201A 100%);
     }
 
-    /* Soft accent glows top-right + bottom-left so the canvas reads warm
+    /* Soft accent glows top-right + bottom-left so the canvas reads branded
      * even before the phone is dropped in. */
     .accent-glow {
       position: absolute;
       width: 1400px; height: 1400px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(255,106,26,0.25) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(93,179,110,0.25) 0%, transparent 70%);
       top: -200px; right: -400px;
       pointer-events: none;
     }
@@ -73,7 +77,7 @@
       top: auto; right: auto;
       bottom: -400px; left: -200px;
       width: 1200px; height: 1200px;
-      background: radial-gradient(circle, rgba(255,106,26,0.18) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(93,179,110,0.18) 0%, transparent 70%);
     }
 
     /* Faint blueprint grid behind everything. Construction tell. */
@@ -104,11 +108,11 @@
       margin-bottom: 28px;
     }
     .headline h1 {
-      font-family: 'Fraunces', Georgia, serif;
+      font-family: 'Barlow', 'Helvetica Neue', Arial, system-ui, sans-serif;
       font-size: 108px;
       font-weight: 700;
       line-height: 1.04;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
       color: var(--cream);
       margin: 0 0 28px;
     }
@@ -121,7 +125,7 @@
       font-size: 34px;
       font-weight: 500;
       line-height: 1.35;
-      color: rgba(244,239,230,0.72);
+      color: rgba(236,237,233,0.72);
       margin: 0;
       max-width: 1080px;
       margin-left: auto;
@@ -162,8 +166,8 @@
     .placeholder {
       width: 100%; height: 100%;
       background:
-        radial-gradient(circle at 30% 20%, rgba(255,106,26,0.15) 0%, transparent 50%),
-        linear-gradient(135deg, #F8F2E4, #FAEED1);
+        radial-gradient(circle at 30% 20%, rgba(47,107,58,0.15) 0%, transparent 50%),
+        linear-gradient(135deg, #F4F5F2, #E2E4DF);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -200,7 +204,7 @@
     /* Optional accent callout pin. Toggled per-preset. */
     .callout {
       position: absolute;
-      background: var(--accent);
+      background: var(--accent-fill);
       color: #fff;
       padding: 18px 26px;
       border-radius: 18px;
@@ -208,7 +212,7 @@
       font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.01em;
-      box-shadow: 0 16px 40px rgba(255,106,26,0.45);
+      box-shadow: 0 16px 40px rgba(47,107,58,0.45);
       z-index: 7;
       max-width: 360px;
     }
@@ -224,7 +228,7 @@
     }
     .callout.bottom-left::after {
       bottom: -22px; left: 40px;
-      border-top-color: var(--accent);
+      border-top-color: var(--accent-fill);
     }
     .callout.top-right {
       top: 880px; right: 60px;
@@ -232,7 +236,7 @@
     }
     .callout.top-right::after {
       top: -22px; right: 40px;
-      border-bottom-color: var(--accent);
+      border-bottom-color: var(--accent-fill);
     }
 
     /* Brand mark anchored to the bottom edge. */
@@ -244,7 +248,7 @@
       font-size: 22px;
       font-weight: 700;
       letter-spacing: 8px;
-      color: rgba(244,239,230,0.36);
+      color: rgba(236,237,233,0.36);
       z-index: 3;
     }
 
@@ -288,8 +292,8 @@
     }
     .controls button:hover { background: rgba(255,255,255,0.1); }
     .controls button.active {
-      background: var(--accent);
-      border-color: var(--accent);
+      background: var(--accent-fill);
+      border-color: var(--accent-fill);
       font-weight: 600;
     }
     .controls .tip {

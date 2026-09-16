@@ -47,9 +47,27 @@ function derivePrimaryDark(hex: string): string {
   return hslToHex(h, s, Math.max(l - 0.12, 0.1));
 }
 
-/** The MAGE brand hue. The seed for the accent family when the user has picked
- *  nothing, and the one hue whose family is hand-measured rather than solved. */
-export const BRAND_ACCENT = '#FF6A1A';
+/** The MAGE brand hue — deep equipment green. The seed for the accent family
+ *  when the user has picked nothing, and the one hue whose family is
+ *  hand-measured rather than solved.
+ *
+ *  Rebrand 2026-09-16: orange-on-cream with a serif display face
+ *  is one of the most recognisable generated-app looks there is, and MAGE was
+ *  exactly that template, so the ground and the display face moved with the
+ *  hue. #2F6B3A gives white 6.39:1 and measures 5.44:1 on the concrete bg —
+ *  unlike the orange it replaces, it is legible as TEXT and as a FILL under
+ *  white in the light theme without a darkened companion.
+ *
+ *  It is NOT the hue to paint on a dark ground: #2F6B3A on #151816 is 2.80:1.
+ *  Dark UI resolves the brand through BRAND_ACCENT_ON_DARK instead (see
+ *  BRAND_ACCENT_FAMILY.dark), and so should anything that picks a brand ink
+ *  by hand — a logo "ID" on a dark splash included. */
+export const BRAND_ACCENT = '#2F6B3A';
+
+/** The brand as it reads on the DARK ground — 6.93:1 on #151816, 5.66:1 on the
+ *  worst dark surface. Same hue family, lifted; this is what `accent` resolves
+ *  to in the dark theme when no custom hue is set. */
+export const BRAND_ACCENT_ON_DARK = '#5DB36E';
 
 // ─────────────────────────────────────────────────────────────────────
 // The user's brand hue — Settings → APP THEME.
@@ -57,9 +75,9 @@ export const BRAND_ACCENT = '#FF6A1A';
 // ONE hue, not two. The picker ships nine presets each carrying a `primary`
 // AND an `accent`, and before 2026-09-07 the second half fed `Colors.accent`
 // while the palette every screen is actually drawn in (`Theme.light.accent`
-// and its four siblings) was a frozen '#FF6A1A' literal. Picking Navy
+// and its four siblings) was a frozen brand-hue literal. Picking Navy
 // therefore repainted the 420 `Colors.primary|accent` reads and left the
-// 3,395 `t.accent*` reads orange — which is not "a themed app", it is a
+// 3,395 `t.accent*` reads on the brand — which is not "a themed app", it is a
 // broken-looking one (audit 2026-09-07, "Do next" 4). The palette is now a
 // single-hue FAMILY derived from `primary` (see deriveAccentPalette below),
 // so the two colour systems land on the same hue. The preset's second swatch
@@ -136,36 +154,49 @@ export function getColorTheme(): 'light' | 'dark' {
 }
 
 export const Colors = {
-  // Default brand is MAGE Orange. The forest-green that used to be the
-  // default is still available as a THEME_PRESETS option for users who
-  // explicitly want it. Anywhere downstream using `Colors.primary` now
-  // gets the brand orange unless the user has selected a theme that
+  // Default brand is MAGE equipment green. Anywhere downstream using
+  // `Colors.primary` gets the brand unless the user has selected a theme that
   // calls setCustomPrimary() with a different hue.
-  get primary() { return getCustomPrimary(); },
-  get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#FF8533'; },
-  get primaryDark() { return _customPrimary ? derivePrimaryDark(_customPrimary) : '#C44A0F'; },
-  // Accent paired with the brand-orange primary. Resolves through the SAME
-  // derived family as the themed `t.accent`, so the two colour systems cannot
-  // drift: before 2026-09-07 this returned the preset's second swatch, which
-  // meant saving even the DEFAULT preset quietly moved the app's accent from
-  // #FF6A1A to the lighter #FF8533 while every themed screen stayed #FF6A1A.
+  //
+  // With no custom hue the brand is THEME-AWARE here, not the static seed: the
+  // old orange read on both grounds, but #2F6B3A on the dark page is 2.80:1 —
+  // a primary-coloured icon or link that disappears in dark mode. A picked
+  // preset keeps returning its own seed, exactly as before the rebrand.
+  get primary() { return _customPrimary ?? (_currentTheme === 'dark' ? BRAND_ACCENT_ON_DARK : BRAND_ACCENT); },
+  // Literal fallbacks are derivePrimaryLight/Dark(BRAND_ACCENT) spelled out —
+  // same HSL move a custom hue gets (+12% / -12% lightness), so the default
+  // and a picked preset relate to their primary the same way.
+  get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#3D9A4E'; },
+  get primaryDark() { return _customPrimary ? derivePrimaryDark(_customPrimary) : '#1C4023'; },
+  // Accent paired with the brand primary. Resolves through the SAME derived
+  // family as the themed `t.accent`, so the two colour systems cannot drift:
+  // before 2026-09-07 this returned the preset's second swatch, which meant
+  // saving even the DEFAULT preset quietly moved the app's accent off the
+  // brand hue while every themed screen stayed on it.
   get accent() { return deriveAccentPalette(getCustomPrimary(), _currentTheme).accent; },
   accentLight: '#FFCC00',
   accentMuted: '#FFE0A0',
-  // Accent FILL under WHITE text — founder decision #1. The brand hue gives
-  // white only 2.87:1 (fails AA); its darkened companion clears 4.5:1 (white
-  // on #BC440C = 5.29:1). A GETTER mirroring `get accent()` so the five button
+  // Accent FILL under WHITE text — founder decision #1. The retired orange gave
+  // white only 2.87:1, which is why this token exists; the green brand gives
+  // white 6.39:1 on its own, and the dark theme needs a mid green that both
+  // carries white text and stays visible on the dark page (see
+  // BRAND_ACCENT_FAMILY). A GETTER mirroring `get accent()` so the five button
   // files that read `Colors.accentFill` (rather than the themed `t.accentFill`)
   // resolve it the same way — including when the user has picked a non-brand
   // hue, whose own fill is solved to the same budget.
   get accentFill() { return deriveAccentPalette(getCustomPrimary(), _currentTheme).accentFill; },
 
   // ── Surfaces — THEME-AWARE GETTERS (read _currentTheme at access) ──
-  get background()       { return _currentTheme === 'dark' ? '#0B0D10' : '#F2F2F7'; },
-  get surface()          { return _currentTheme === 'dark' ? '#14181D' : '#FFFFFF'; },
-  get surfaceAlt()       { return _currentTheme === 'dark' ? '#1A1F26' : '#F2F2F7'; },
-  get surfaceElevated()  { return _currentTheme === 'dark' ? '#1F252D' : '#FFFFFF'; },
-  get card()             { return _currentTheme === 'dark' ? '#14181D' : '#FFFFFF'; },
+  // Concrete grounds, the same values as Theme.light/.dark below — a screen on
+  // the static module and a themed screen next to it must sit on one page.
+  // (Before the 2026-09-16 rebrand this module carried Apple's #F2F2F7 while
+  // Theme carried cream, which was two apps.) Elevated is one step above
+  // surfaceAlt in dark, so a sheet still separates from the card it covers.
+  get background()       { return _currentTheme === 'dark' ? '#151816' : '#ECEDE9'; },
+  get surface()          { return _currentTheme === 'dark' ? '#1D211F' : '#FFFFFF'; },
+  get surfaceAlt()       { return _currentTheme === 'dark' ? '#252A27' : '#E2E4DF'; },
+  get surfaceElevated()  { return _currentTheme === 'dark' ? '#2B312D' : '#FFFFFF'; },
+  get card()             { return _currentTheme === 'dark' ? '#1D211F' : '#FFFFFF'; },
   // Card outline. Soft system-gray in light (Apple's default separator),
   // faint cream in dark. Same identity ("subtle border") either way.
   get cardBorder()       { return _currentTheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(60,60,67,0.18)'; },
@@ -177,14 +208,14 @@ export const Colors = {
   // 3.44:1 and 1.96:1 on white. Both tokens carry REAL CONTENT in this app —
   // counts ("3 active"), empty-state copy ("Nothing scheduled on site today.")
   // and the cash-flow caption — not decoration, so both must clear AA 4.5:1.
-  // Measured against this module's own grounds (surface #FFFFFF, background /
-  // surfaceAlt #F2F2F7), worst ground first:
-  //   textSecondary  light 0.82 → 5.88:1   dark 0.70 → 7.70:1
-  //   textMuted      light 0.75 → 4.85:1   dark 0.55 → 5.28:1
+  // Measured against this module's own grounds, worst first (re-measured on
+  // concrete 2026-09-16 — surfaceAlt #E2E4DF light, #252A27 dark):
+  //   textSecondary  light 0.82 → 5.34:1   dark 0.70 → 7.02:1
+  //   textMuted      light 0.77 → 4.70:1   dark 0.55 → 4.93:1
   // The hierarchy between them is now carried by a ~1.2× contrast step plus
   // size/weight rather than by making the quieter one illegible.
   get textSecondary()    { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.7)' : 'rgba(60,60,67,0.82)'; },
-  get textMuted()        { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.55)' : 'rgba(60,60,67,0.75)'; },
+  get textMuted()        { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.55)' : 'rgba(60,60,67,0.77)'; },
   textOnPrimary: '#FFFFFF',
   textOnAccent: '#FFFFFF',
 
@@ -225,21 +256,30 @@ export const Colors = {
   // own tint, and check 5b holds every FILL to a minimum separation from its
   // siblings, so neither half can be "fixed" at the other's expense again.
   //
-  // The BRAND orange is deliberately not in this set — founder decision #1
-  // keeps `accent` at #FF6A1A for large non-text chrome and routes text through
-  // accentLabel / accentFill. The pale `*Light` companions and `statusFills`
+  // The BRAND hue is deliberately not in this set — it is chrome and action,
+  // never state, and routes text through accentLabel / accentFill.
+  //
+  // SUCCESS IS TEAL, NOT GREEN (rebrand 2026-09-16). The old success green
+  // #2E7D44 sits CIE76 ΔE 9.2 from the new brand #2F6B3A — under the ~10 at
+  // which two colours read as one — so a primary "Walk the punch list" button
+  // and a "Paid" badge would have been the same swatch. Success moved to the
+  // teal family (#12806E, ΔE 21.6 from brand); scripts/validate-brand-color.ts
+  // fails the build under ΔE 18. Do not "harmonise" either one onto the other. The pale `*Light` companions and `statusFills`
   // (the Gantt bar palette, which picks its own label colour by fill
   // brightness) are literals and are unaffected.
 
   // Signal fills — static in both themes, as they have always been. A vivid
   // hue reads correctly as a dot/bar on either ground; it is only as TEXT that
   // the light theme needs the darker ink below.
-  success: '#34C759',
-  successLight: '#E8FAF0',
-  // Material-design dark variants — used as foreground text on a *Light
-  // tinted card (e.g. dark-green text on a pale-green chip). Audit found
-  // 26 inline `#2E7D32`s, 16 `#1E8E4A`s — both consolidate here.
-  successDark: '#2E7D32',
+  // #12806E is the founder's teal: 4.84:1 on white, 3.78:1 on the darkest
+  // light ground and ~3.9:1 on the dark page, so it holds 1.4.11's 3:1 as a
+  // bare dot in both themes — which is what a static fill has to do.
+  success: '#12806E',
+  successLight: '#E3F1EE',
+  // Dark teal used as foreground text on a *Light tinted card. Audit found
+  // 26 inline `#2E7D32`s, 16 `#1E8E4A`s — both consolidate here, and moved to
+  // teal with the rest of the success family (the solved light successLabel).
+  successDark: '#026354',
   warning: '#FF9500',
   warningLight: '#FFF3E0',
   warningDark: '#E65100',   // 19 inline uses
@@ -254,8 +294,8 @@ export const Colors = {
   // small icon beside text). Light values are the AA-verified companions this
   // file already ships as Theme.light.successLabel / .warningLabel /
   // .dangerLabel / .info; dark values mirror Theme.dark, where the vivid hues
-  // are already legible (8% tint over #14181D: 8.02 / 7.16 / 5.30 / 6.23).
-  get successLabel() { return _currentTheme === 'dark' ? '#4ED37A' : '#256B39'; },
+  // are already legible. successLabel is the teal pair from Theme below.
+  get successLabel() { return _currentTheme === 'dark' ? '#1ABCA2' : '#026354'; },
   get warningLabel() { return _currentTheme === 'dark' ? '#FF9500' : '#B84A00'; },
   // Named for the semantic, not for `error`, so it matches Theme.*.dangerLabel
   // — one name for one colour across both colour systems.
@@ -267,9 +307,11 @@ export const Colors = {
   purple: '#5856D6',
   purpleLight: '#EBEAFA',
 
-  // Apple iOS system orange (slightly cooler than warning). Used on
-  // chips that aren't strictly "warning" semantically.
-  orange: '#FF6A1A',        // 11 inline uses
+  // Apple iOS system orange. Used on chips that aren't strictly "warning"
+  // semantically. Until the 2026-09-16 rebrand this was the retired BRAND
+  // orange wearing the system name; it is now the real system value,
+  // which is the same hue the warning family already ships.
+  orange: '#FF9500',        // 11 inline uses
 
   // ── Shadows + overlays — theme-aware ──
   get shadow()           { return _currentTheme === 'dark' ? 'rgba(0,0,0,0.40)' : 'rgba(0,0,0,0.05)'; },
@@ -282,8 +324,9 @@ export const Colors = {
   // ── Status bar-fill colors — drive the Gantt "Color: Status" mode ──
   // SOLID, saturated fills (not the translucent chip tints) so a bar reads as
   // a strong block at any zoom. Semantics match GridPane's statusChip():
-  //   done         → green   (successDark #2E7D32 — darker than #34C759 so
-  //                           white bar labels clear WCAG on the fill)
+  //   done         → teal    (successDark #026354 — the success family, dark
+  //                           enough that white bar labels clear WCAG on it;
+  //                           green is the brand now, not "done")
   //   in_progress  → blue    (info #007AFF)
   //   on_hold      → amber   (warning #FF9500)
   //   not_started  → neutral (solid mid-gray; the translucent fillTertiary is
@@ -291,7 +334,7 @@ export const Colors = {
   // `barLabelColorFor()` picks black/white text per fill brightness, so these
   // stay legible without hardcoding a label color at the call site.
   statusFills: {
-    done:        '#2E7D32',
+    done:        '#026354',
     in_progress: '#007AFF',
     on_hold:     '#FF9500',
     not_started: '#8E9299',
@@ -299,10 +342,12 @@ export const Colors = {
 
   // ── Trade colors (Phase 27) — drive Gantt bar + Board phase-dot ──
   // Industry-conventional palette. Saturation-matched for dark mode
-  // contrast against `surface` #14181D. Brand amber anchors `general`
-  // so the most common bars still feel like MAGE ID.
+  // contrast against the dark surface. The brand green anchors `general` so
+  // the most common bars still feel like MAGE ID — at #357A42, a step lighter
+  // than BRAND_ACCENT so the bar does not sink into the dark page, and still
+  // far darker than `landscaping` #66BB6A so the two greens stay two trades.
   tradeColors: {
-    general:      '#FF6A1A',
+    general:      '#357A42',
     concrete:     '#90A4AE',
     framing:      '#8D6E63',
     electrical:   '#4FC3F7',
@@ -317,7 +362,8 @@ export const Colors = {
   } as const,
 
   // Status-pill semantic shortcuts (derived from existing tokens)
-  pillOnTrack:  '#4ED37A',
+  // On-track is a success state, so teal (the dark successLabel), not green.
+  pillOnTrack:  '#1ABCA2',
   pillAtRisk:   '#FFA726',
   pillLate:     '#FF5A51',
 };
@@ -389,19 +435,23 @@ export type ThemeBase = Omit<ThemeColors, keyof AccentPalette>;
 
 export const Theme: { light: ThemeBase; dark: ThemeBase } = {
   light: {
-    bg: '#FBF8F2',
+    // CONCRETE, not cream (rebrand 2026-09-16). A cool neutral with a trace of
+    // green in it, so the brand reads as part of the ground rather than a
+    // sticker on it. Cards stay pure white; `line` below is the hairline.
+    bg: '#ECEDE9',
     surface: '#FFFFFF',
-    surfaceAlt: '#F4EFE6',
+    surfaceAlt: '#E2E4DF',
     text: '#2B3038',
     // Runtime audit 2026-09-06 (VIS-04 / VIS-17). Sampled from the Release
     // build: textMuted rendered at 2.20:1 ("3 active", "CASH · 4WK") and
     // textSecondary at 3.82:1 — both below AA, and both carry real content
     // rather than decoration. Re-derived against the worst light ground
-    // (surfaceAlt #F4EFE6), so they hold on every surface:
-    //   textSecondary 0.78 → 6.05:1 worst, 6.56:1 on surface
-    //   textMuted     0.70 → 4.79:1 worst, 5.11:1 on surface
+    // (then the cream surfaceAlt), so they hold on every surface.
     textSecondary: 'rgba(43,48,56,0.78)',
-    textMuted: 'rgba(43,48,56,0.7)',
+    // Re-measured on concrete 2026-09-16: surfaceAlt #E2E4DF is darker than the
+    // cream it replaced, so 0.70 fell to 4.52:1. 0.72 → 4.72:1 worst ground.
+    // (textSecondary 0.78 is 5.63:1 there, unchanged.)
+    textMuted: 'rgba(43,48,56,0.72)',
     // A genuinely faint NEUTRAL fill — rgba of the ink (#2B3038 = 43,48,56) at
     // 6% alpha, a barely-there tint used DIRECTLY (no `+ 'NN'` suffix, so RN
     // renders it correctly). This replaces the broken `t.textMuted + '14'`
@@ -411,13 +461,26 @@ export const Theme: { light: ThemeBase; dark: ThemeBase } = {
     // textSecondary text on it at 6.15:1 — indistinguishable from the 6.56:1 it
     // reads on bare surface (the fill is nearly transparent).
     neutralSoft: 'rgba(43,48,56,0.06)',
-    line: 'rgba(43,48,56,0.12)',
-    success: '#2E7D44',
-    successSoft: 'rgba(46,125,68,0.12)',
-    // Caption-size green text (Custom badge, bulk labels) on successSoft sat at
-    // 4.34:1 with plain `success` — under AA 4.5:1. #256B39 is 5.53:1 on
-    // successSoft-over-white and 6.48:1 on white, still clearly green.
-    successLabel: '#256B39',
+    // The concrete hairline, opaque. The old rgba(ink, 0.12) composited to a
+    // different grey on every ground; one hex keeps card edges identical on
+    // white and on concrete. (The few `line + '60'` suffix sites now get a real
+    // 8-digit hex — RN drops the suffix on an rgba() string.)
+    line: '#D7DAD4',
+    // TEAL, not green — see the SUCCESS IS TEAL note on the Colors module. The
+    // founder's #12806E is the fill (`successSoft` is its wash). It is NOT the
+    // `success` value here, because Theme.*.success is also read as chip TEXT
+    // (scripts/validate-contrast.ts check 5), and #12806E on its own 8% tint
+    // over white is 4.36:1 — under AA. #0F7A69 is the same teal one lightness
+    // step darker: 5.24:1 on white, ≥4.5:1 on its own tint, still ΔE ≥18 from
+    // the brand (validate-brand-color.ts measures it).
+    success: '#0F7A69',
+    successSoft: 'rgba(18,128,110,0.12)',
+    // Caption-size teal text. #026354 clears 4.6:1 (4.88 worst) on every bare
+    // light ground, every successSoft wash and the 8% chip tint, AND sits
+    // ΔE 30.6 from taskStatusInk's not_started grey #5A6472 — the plain
+    // hue-solve (#0E6557) was ΔE 29.3, under check 14's 30, i.e. a "done" and
+    // a "not started" chip side by side reading as one muted colour.
+    successLabel: '#026354',
     warningSoft: 'rgba(255,149,0,0.12)',
     // Label tokens are applied at caption sizes, so they must clear AA 4.5:1
     // on both the page bg and their soft fill. The old #E65100 sat at ~3.4:1
@@ -432,15 +495,18 @@ export const Theme: { light: ThemeBase; dark: ThemeBase } = {
     info: '#1565C0',
   },
   dark: {
-    bg: '#0B0D10',
-    surface: '#14181D',
-    surfaceAlt: '#1A1F26',
+    // Green-black, the dark twin of concrete. Warmer-neutral than the old
+    // blue-black #0B0D10 so the green brand does not vibrate against it.
+    bg: '#151816',
+    surface: '#1D211F',
+    surfaceAlt: '#252A27',
     text: '#F4EFE6',
     textSecondary: '#9AA3AD',
     // 0.6 measured 3.22:1 on surfaceAlt — same VIS-04 defect as the light
-    // theme. 0.8 → 4.65:1 worst ground, 4.91:1 on surface. (textSecondary is
-    // already solid #9AA3AD at 6.48:1 worst, so it is unchanged.)
-    textMuted: 'rgba(154,163,173,0.8)',
+    // theme. 0.8 held on the old blue-black grounds but fell to 4.21:1 on the
+    // lighter green-black surfaceAlt #252A27 (rebrand 2026-09-16); 0.88 →
+    // 4.77:1 worst ground. (textSecondary is solid #9AA3AD, 5.71:1 worst.)
+    textMuted: 'rgba(154,163,173,0.88)',
     // Dark-theme twin of neutralSoft — rgba of the dark ink (#9AA3AD =
     // 154,163,173, the textSecondary hue) at 8% alpha. Used DIRECTLY (no
     // suffix). At 8% over surface #14181D it composites to ~rgb(31,35,41),
@@ -448,11 +514,13 @@ export const Theme: { light: ThemeBase; dark: ThemeBase } = {
     // barely-there tint, never the opaque slab the dropped-suffix bug produced.
     neutralSoft: 'rgba(154,163,173,0.08)',
     line: 'rgba(255,255,255,0.06)',
-    success: '#4ED37A',
-    successSoft: 'rgba(78,211,122,0.12)',
-    // Dark surfaces need bright ink; #4ED37A is 7.40:1 on dark successSoft, so
+    // Teal lifted for the dark ground — the #12806E hue solved to clear 4.6:1
+    // on every dark ground and its own wash. The old #4ED37A would now sit a
+    // few ΔE from the dark brand #5DB36E, the same collision as light theme.
+    success: '#1ABCA2',
+    successSoft: 'rgba(26,188,162,0.12)',
     // successLabel mirrors success here (as dangerLabel mirrors danger in dark).
-    successLabel: '#4ED37A',
+    successLabel: '#1ABCA2',
     warningSoft: 'rgba(255,149,0,0.16)',
     warningLabel: '#FF9500',
     dangerSoft: 'rgba(255,90,81,0.16)',
@@ -466,16 +534,16 @@ export const Theme: { light: ThemeBase; dark: ThemeBase } = {
 // The accent family — DERIVED per hue, never frozen.
 //
 // Until 2026-09-07 these five tokens sat inside the two objects above as
-// '#FF6A1A' literals, which is what made Settings → APP THEME a lie: the
+// brand-hue literals, which is what made Settings → APP THEME a lie: the
 // picker wrote a hue that reached `Colors.primary`/`Colors.accent` and could
 // not reach `t.accent`, so eight of the nine presets repainted about 9% of
-// the app and left the rest brand-orange. Building the family from the chosen
+// the app and left the rest on the brand hue. Building the family from the chosen
 // hue on every render is what makes the picker real.
 //
 // The values cannot be a table keyed by preset. `accentLabel` (coloured TEXT
 // on a light ground) and `accentFill` (WHITE text on a coloured fill) each
 // carry an AA 4.5:1 budget, and a lightness that is legible for the brand
-// orange is not legible for Navy — a hand-picked pair per preset would be
+// brand is not legible for Navy — a hand-picked pair per preset would be
 // nine unverified guesses. So both are SOLVED: walk the hue's HSL lightness,
 // hue and saturation untouched (the same hexToHsl → adjust l → hslToHex move
 // derivePrimaryDark makes above), until the ratio clears the budget on the
@@ -519,24 +587,22 @@ const SOFT_ALPHA = { light: 0.12, dark: 0.16 } as const;
 /**
  * Non-text chrome floor for `accent` itself (icons, burn bars, progress).
  *
- * Asymmetric on purpose, and the asymmetry is the honest number rather than a
- * tidy one. WCAG's non-text minimum is 3:1, which the brand orange clears in
- * the dark theme (5.78:1 on its worst dark ground) and does NOT clear in the
- * light theme — #FF6A1A measures 2.50:1 on surfaceAlt #F4EFE6, and founder
- * decision #1 keeps it there anyway, routing every TEXT use through
- * accentLabel/accentFill. So the light floor is the brand's own measured
- * visibility rounded down: no preset may be harder to see than the brand
- * already is. The dark presets genuinely vanish into the dark ground (Navy
- * #1B3A5C measures 1.42:1 on dark surfaceAlt, Charcoal #2C2C2E 1.19:1) and
- * have to be lightened, so there is no brand concession to inherit there —
- * but the floor they are lightened TO is 4.6, not WCAG's 3:1 for non-text.
+ * Light is WCAG's non-text 3:1. Until the 2026-09-16 rebrand it was 2.4: the
+ * retired orange measured 2.50:1 on the light surfaceAlt and founder decision
+ * #1 kept it anyway, so the floor was "no preset harder to see than the brand".
+ * The green brand is 4.99:1 on the worst concrete ground, so that concession
+ * has nothing left to protect and the floor is the spec's own number.
+ * (scripts/validate-contrast.ts still holds presets to its older 2.4 — a
+ * solver floor above the guard's is the safe direction.) The dark presets
+ * genuinely vanish into the dark ground (Navy #1B3A5C, Charcoal #2C2C2E) and
+ * have to be lightened, and the floor they are lightened TO is 4.6, not
+ * WCAG's 3:1 for non-text.
  *
  * That is an empirical number, not a stricter reading of the spec. Founder
  * decision #1 says accent is chrome and text goes through accentLabel; the
  * codebase does not obey it — 373 of the 588 `color: …accent` sites carry a
  * fontSize or a *Text/*Label style name. In the dark theme the brand hue is
- * legible as text anyway (5.78:1 on its worst dark ground, which is why
- * BRAND_ACCENT_FAMILY.dark sets accentLabel to the same #FF6A1A), so those
+ * legible as text anyway (#5DB36E is 5.66:1 on its worst dark ground), so those
  * 373 sites read fine today. Solving a picked hue to a bare 3:1 would have
  * dropped every one of them to ~3.05:1 (Navy #326CAB 3.05, Charcoal #69696E
  * 3.03) the moment a user chose any non-brand preset — an AA regression the
@@ -547,7 +613,7 @@ const SOFT_ALPHA = { light: 0.12, dark: 0.16 } as const;
  * 4.6 is AA_TARGET's value spelled out: AA_TARGET is declared below this and
  * would be in its TDZ here.
  */
-const CHROME_FLOOR = { light: 2.4, dark: 4.6 } as const;
+const CHROME_FLOOR = { light: 3.0, dark: 4.6 } as const;
 
 /**
  * Solve target for the two TEXT tokens. The budget the guard enforces is AA
@@ -664,53 +730,58 @@ function solveAccentPalette(primary: string, theme: 'light' | 'dark'): AccentPal
 /**
  * The brand family is measured, not solved.
  *
- * These are the five values the entire product is drawn in today, and the
- * ratios below were taken against every ground each token actually lands on.
- * Re-deriving them would shift every button and caption by a few points of
- * lightness to satisfy a refactor nobody asked for. This is ONE measured
+ * These are the five values the entire product is drawn in, and the ratios
+ * below were taken against every ground each token actually lands on. Re-
+ * deriving them on every boot would let a solver tweak restyle every button
+ * and caption in a refactor nobody reviewed as a redesign. This is ONE measured
  * default, not a per-preset table: the solver runs for every other hue, and
  * check 12 holds all nine presets — the brand included — to the same 4.5:1
  * budget, so the default is exempt from the recomputation, never from the
  * check.
  */
 const BRAND_ACCENT_FAMILY: Record<'light' | 'dark', AccentPalette> = {
+  // Spelled as literal hexes, not `BRAND_ACCENT`, because this table is what
+  // scripts/validate-brand-color.ts reads out of the source to re-measure the
+  // brand family — its token reader wants a plain quoted hex.
+  //
+  // Measured 2026-09-16 against the concrete grounds (bg #ECEDE9, surface
+  // #FFFFFF, surfaceAlt #E2E4DF) and the dark grounds (#151816 / #1D211F /
+  // #252A27). The derivations are the solver's own moves, run once and frozen.
   light: {
-    // Spelled as literal hexes, not `BRAND_ACCENT`, because this table is what
-    // scripts/validate-brand-orange.ts reads out of the source to re-measure
-    // founder decision #1 — its token reader wants a plain quoted hex.
-    accent: '#FF6A1A',
-    accentHot: '#FF8533',
-    accentSoft: 'rgba(255,106,26,0.12)',
-    // Orange TEXT on a light background (caption sizes included). The brand
-    // #FF6A1A measures only 2.87:1 on surface — unreadable as text. The old
-    // accentLabel #C44A0F cleared 4.5:1 on plain surface (4.85) and bg (4.57)
-    // but FELL BELOW it on the tinted surfaces the label actually lands on:
-    // 4.23:1 on surfaceAlt #F4EFE6, and 4.04:1 on accentSoft-over-bg (a chip
-    // tint). #B23E08 keeps the hue (HSL 19°, essentially the same orange as
-    // #FF6A1A's 21°) while clearing 4.5:1 on EVERY light backdrop it can sit on:
-    //   surface #FFFFFF 5.86 · bg #FBF8F2 5.53 · surfaceAlt #F4EFE6 5.11 ·
-    //   accentSoft/surface 5.16 · accentSoft/bg 4.89 · accentSoft/surfaceAlt 4.55.
-    accentLabel: '#B23E08',
-    // White TEXT on an orange FILL (buttons: "Next", "Mark paid", "Create your
-    // first project"). The brand #FF6A1A gives white only 2.87:1. accent stays
-    // #FF6A1A for large non-text chrome (icons, burn bars, progress) where the
-    // 3:1 rule applies; button fills that carry white text use this darker
-    // #BC440C, on which white measures 5.29:1. Same hue family (HSL 19°).
-    accentFill: '#BC440C',
+    // The brand itself. As chrome it is 4.99:1 on its worst light ground —
+    // the retired orange was 2.50:1 there, which is what CHROME_FLOOR.light
+    // used to concede.
+    accent: '#2F6B3A',
+    // derivePrimaryLight(#2F6B3A). Gradients / hover / tint borders, not text.
+    accentHot: '#3D9A4E',
+    accentSoft: 'rgba(47,107,58,0.12)',
+    // Green TEXT. The brand clears 4.5:1 on every bare light ground (4.99 worst)
+    // but NOT on its own accentSoft wash over surfaceAlt (4.25:1) — the chip
+    // idiom. #2C6436 is the brand hue one solver step darker and clears 4.6:1
+    // on all six backdrops (bare + wash over each ground).
+    accentLabel: '#2C6436',
+    // White TEXT on a green FILL (buttons: "Next", "Mark paid"). The brand
+    // gives white 6.39:1 and is 4.99:1 against the worst light ground, so the
+    // fill IS the brand — no darkened companion needed, unlike the orange.
+    accentFill: '#2F6B3A',
   },
   dark: {
-    accent: '#FF6A1A',
-    accentHot: '#FF8533',
-    accentSoft: 'rgba(255,106,26,0.16)',
-    // On dark surfaces the brand orange is already bright enough as text —
-    // #FF6A1A measures 6.22:1 on surface #14181D, 6.79:1 on bg #0B0D10,
-    // 5.78:1 on surfaceAlt #1A1F26, and 5.01:1 on accentSoft-over-surface —
-    // so accentLabel mirrors accent here (as successLabel/dangerLabel do).
-    accentLabel: '#FF6A1A',
-    // White text on an orange fill still needs 4.5:1; brand #FF6A1A gives white
-    // 2.87:1 in either theme, so the button fill darkens to #BC440C (white 5.29:1)
-    // in dark mode too. It still reads clearly orange against the dark surface.
-    accentFill: '#BC440C',
+    // BRAND_ACCENT_ON_DARK. #2F6B3A would be 2.80:1 on #151816; #5DB36E is
+    // 6.93:1 there and 5.66:1 on surfaceAlt, so it also carries the AA text
+    // budget the dark theme's 373 `color: accent` text sites lean on.
+    accent: '#5DB36E',
+    // derivePrimaryLight(#5DB36E).
+    accentHot: '#83CA91',
+    accentSoft: 'rgba(93,179,110,0.16)',
+    // #5DB36E on its own 16% wash over surfaceAlt is 4.29:1; one solver step
+    // lighter clears 4.6:1 on every dark backdrop.
+    accentLabel: '#69B979',
+    // A dark-theme BUTTON has two budgets pulling opposite ways: white text on
+    // it at 4.6:1, and the button visible on the dark page at 3:1. The brand
+    // #2F6B3A carries white (6.39) but is 2.28:1 on surfaceAlt — a slab you
+    // cannot see; #5DB36E is visible but gives white 2.58:1. #388046 is the
+    // nearest lightness of the brand hue that does both (solveNearest).
+    accentFill: '#388046',
   },
 };
 

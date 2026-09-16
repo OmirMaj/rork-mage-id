@@ -236,7 +236,7 @@ export default function ExtractSubmittalsScreen() {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <MageAIMark size={20} color={"#FF6A1A"} />
+                <MageAIMark size={20} color={themeColors.accent} />
               </View>
               <Text style={styles.heroTitle}>Spec book → submittal log</Text>
               <Text style={styles.heroBody}>
@@ -312,7 +312,7 @@ export default function ExtractSubmittalsScreen() {
                   <Switch
                     value={row.selected}
                     onValueChange={() => toggleRow(row.rowId)}
-                    trackColor={{ false: themeColors.line, true: "#FF6A1A" }}
+                    trackColor={{ false: themeColors.line, true: themeColors.accentFill }}
                     thumbColor="#FFF"
                   />
                 </View>
@@ -351,7 +351,9 @@ export default function ExtractSubmittalsScreen() {
 // dark mode the "low confidence" chip washed toward the surface it sits on
 // instead of away from it. neutralInk inverts with the ground.
 function confColor(c: 'high' | 'medium' | 'low', t: ThemeColors) {
-  if (c === 'high') return { backgroundColor: "#2E7D44" + '20' };
+  // Success TEAL, not the old success green #2E7D44 — that sat ΔE 9.2 from the
+  // brand green, so a "high" chip would have read as a brand-coloured control.
+  if (c === 'high') return { backgroundColor: t.success + '20' };
   if (c === 'medium') return { backgroundColor: Colors.warning + '20' };
   return { backgroundColor: neutralInk(t) + '20' };
 }

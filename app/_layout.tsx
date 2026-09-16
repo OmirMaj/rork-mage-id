@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
+import { useFonts } from "expo-font";
+import { Barlow_600SemiBold, Barlow_700Bold, Barlow_700Bold_Italic } from "@expo-google-fonts/barlow";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
@@ -1509,15 +1510,29 @@ function ThemeLoader({ children }: { children: React.ReactNode }) {
 }
 
 export default Sentry.wrap(function RootLayout() {
-  // Load Fraunces — used for the onboarding display headline + any future
-  // expressive serif moments. We wait for fonts before hiding the splash
-  // so the first paint already has the right typography. If the font load
-  // fails (network blip on first launch), we still hide the splash after
-  // a 1s timeout so the user is never blocked.
+  // Load the display faces. We wait for fonts before hiding the splash so the
+  // first paint already has the right typography. If the font load fails
+  // (network blip on first launch), we still hide the splash after a 1s
+  // timeout so the user is never blocked.
+  //
+  // Barlow is the display face since the 2026-09-16 rebrand (Type.serif* and
+  // DISPLAY_FONT in constants/typography.ts). SemiBold is what the tokens use;
+  // Bold is there for a wordmark. The expo-font plugin is registered bare in
+  // app.json, so these load at runtime and ship over OTA — no native build.
+  //
+  // Fraunces is no longer loaded. It stayed through the first pass of the
+  // rebrand because onboarding, persona-select, estimate-wizard and the native
+  // header face named it literally; all of them now name Barlow, and
+  // `grep -r Fraunces_ app components constants` returns only comments.
+  // Unloading a face something still names makes that text fall back to the
+  // system font SILENTLY, which is why the grep came first.
+  //
+  // Barlow_700Bold_Italic is here for the accent word in the onboarding and
+  // persona-select headlines, which were a Fraunces italic.
   const [fontsLoaded] = useFonts({
-    Fraunces_500Medium,
-    Fraunces_700Bold,
-    Fraunces_700Bold_Italic,
+    Barlow_600SemiBold,
+    Barlow_700Bold,
+    Barlow_700Bold_Italic,
     JetBrainsMono_400Regular,
     JetBrainsMono_500Medium,
   });
@@ -1525,7 +1540,7 @@ export default Sentry.wrap(function RootLayout() {
   // Splash hand-off state.
   //   nativeHidden — the pre-JS native splash (app.json level-line) has been
   //     dismissed. We hide it only once fonts are ready (or a failsafe fires)
-  //     so the animated BrandSplash below already has its Fraunces wordmark.
+  //     so the animated BrandSplash below already has its display wordmark.
   //   brandSplashDone — the animated BrandSplash has finished playing and the
   //     app should now be fully revealed. It plays exactly once per cold
   //     start (guarded by the fact this component mounts once).

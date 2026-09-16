@@ -195,7 +195,7 @@ function COIVaultInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={() => setActiveSubId(null)} hitSlop={10} style={styles.headerBack}>
-            <ChevronLeft size={22} color={"#FF6A1A"} strokeWidth={1.75} />
+            <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>All subs</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -398,8 +398,8 @@ function COICard({
           })}
         </View>
       ) : v?.overallStatus === 'pass' ? (
-        <View style={[styles.findingsCard, { borderColor: "#2E7D44" + '30' }]}>
-          <Text style={[styles.findingsLabel, { color: "#2E7D44" }]}>All required checks passed</Text>
+        <View style={[styles.findingsCard, { borderColor: themeColors.success + '30' }]}>
+          <Text style={[styles.findingsLabel, { color: themeColors.successLabel }]}>All required checks passed</Text>
           <Text style={styles.findingText}>Additional insured + waiver of subrogation present, coverage in date.</Text>
         </View>
       ) : null}
@@ -447,7 +447,9 @@ function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none', t: ThemeColors): 
   label: string;
 } {
   switch (s) {
-    case 'pass': return { Icon: ShieldCheck, color: "#2E7D44",        label: 'Valid' };
+    // Success TEAL (successLabel is its AA text ink), never the brand green —
+    // the old #2E7D44 was indistinguishable from a brand-green action.
+    case 'pass': return { Icon: ShieldCheck, color: t.successLabel,     label: 'Valid' };
     case 'warn': return { Icon: ShieldAlert, color: Colors.warningLabel,        label: 'Review needed' };
     case 'fail': return { Icon: ShieldX,     color: "#C84038",          label: 'Action required' };
     case 'none':

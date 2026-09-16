@@ -700,7 +700,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   budgetRow: { flexDirection: 'row', marginTop: 4 },
 
   // "You quoted" (QUOTE-PERSIST-1). successSoft/successLabel rather than the
-  // accent: #FF6A1A behind or under this size of type misses AA (2.87:1).
+  // accent: a quote the contractor has already sent is a DONE state, and the
+  // brand green would read as a button. Success is teal, distinct from brand.
   quotedCard: {
     marginTop: 14, padding: 12, borderRadius: Tokens.radius.md,
     backgroundColor: t.successSoft, borderWidth: 1, borderColor: t.line,

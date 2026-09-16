@@ -60,7 +60,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
       >
         <View style={styles.tileHead}>
           <View style={styles.tileIcon}>
-            <DollarSign size={14} color={"#FF6A1A"} strokeWidth={1.75} />
+            <DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.tileLabel}>Planned vs. Earned</Text>

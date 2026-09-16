@@ -50,7 +50,9 @@ type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
 const MIN_CALIBRATION_PX = 20;
 
 const PIN_COLORS: Record<DrawingPinKind, string> = {
-  note: '#FF6A1A',
+  // Brand for a plain note pin. A getter so it follows the theme and a picked
+  // hue. `rfi` below is ΔE 30 from the brand green, so the two stay apart.
+  get note() { return Colors.primary; },
   photo: '#3B82F6',
   punch: '#FF9500',
   rfi: '#2F6B6B',

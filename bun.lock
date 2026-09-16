@@ -5,6 +5,7 @@
     "": {
       "name": "expo-app",
       "dependencies": {
+        "@expo-google-fonts/barlow": "^0.4.1",
         "@expo-google-fonts/fraunces": "^0.4.1",
         "@expo-google-fonts/jetbrains-mono": "^0.4.1",
         "@expo/vector-icons": "^15.0.3",
@@ -292,6 +293,8 @@
     "@eslint/object-schema": ["@eslint/object-schema@2.1.7", "", {}, "sha512-VtAOaymWVfZcmZbp6E2mympDIHvyjXs/12LqWYjVw6qjrfF+VK+fyG33kChz3nnK+SU5/NeHOqrTEHS8sXO3OA=="],
 
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.4.1", "", { "dependencies": { "@eslint/core": "^0.17.0", "levn": "^0.4.1" } }, "sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA=="],
+
+    "@expo-google-fonts/barlow": ["@expo-google-fonts/barlow@0.4.1", "", {}, "sha512-ARAwBvQFGxOt2dfoQRVDRZghaStrXTIyI7oBD6/J4z2Iyr+0ME2HJq13RFhTuagCFrT4iapzuKHwOR3iLrNJrA=="],
 
     "@expo-google-fonts/fraunces": ["@expo-google-fonts/fraunces@0.4.1", "", {}, "sha512-gYc9P92ObyWvz1rWPOeWSvVKyBFIuA8hgOdhvo4DSiPBaWLbFA6v8uLIEIBwW+0oWTlXbBzjeBReHQI2H7UNjQ=="],
 

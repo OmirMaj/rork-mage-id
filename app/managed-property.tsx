@@ -18,7 +18,7 @@ import {
   ChevronLeft, Building2, MapPin, Plus, X, Wrench, ChevronRight, Trash2,
   Pencil, Check, AlertTriangle,
 } from 'lucide-react-native';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProperties } from '@/contexts/PropertyContext';
@@ -31,12 +31,14 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
+// Same getters as app/work-order.tsx — brand for `open`, success teal for
+// `done` — so one work order reads the same colour on both screens.
 const STATUS_COLORS: Record<WorkOrderStatus, string> = {
-  open: '#FF6A1A',
+  get open() { return Colors.primary; },
   posted_for_bids: '#0D6CB1',
   assigned: '#7A3FF2',
   in_progress: '#C99700',
-  done: '#16A34A',
+  get done() { return Colors.successLabel; },
   cancelled: '#9CA3AF',
 };
 

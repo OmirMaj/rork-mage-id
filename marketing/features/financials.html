@@ -22,7 +22,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
-  <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
+  <link rel="stylesheet" href="/styles.css?v=2026-09-16-green" />
   <style>
     /* Tier chips. Every SECTION on this page names the plan its feature is
        actually gated to, read off utils/featureTiers.ts, plus the three
@@ -47,9 +47,10 @@
       vertical-align: 1px;
       white-space: nowrap;
     }
-    .tier-chip-pro { color: var(--amber); border: 1px solid rgba(255, 106, 26, 0.5); }
+    .tier-chip-pro { color: var(--brand); border: 1px solid rgba(93, 179, 110, 0.5); }
     .tier-chip-biz { color: #9AA3AD; border: 1px solid rgba(154, 163, 173, 0.45); }
-    .tier-chip-free { color: #7FB88A; border: 1px solid rgba(127, 184, 138, 0.45); }
+    /* Free was green; it moved to blue so it cannot be read as the Pro brand green. */
+    .tier-chip-free { color: #8EC0FF; border: 1px solid rgba(142, 192, 255, 0.45); }
     /* PLACEHOLDER FRAMES REMOVED.
        This page carried "Preview coming" boxes where a screenshot should be —
        16 of them across four feature pages. An empty frame that promises an
@@ -503,6 +504,6 @@
       </p>
   </footer>
   <script src="/nav-mobile.js" defer></script>
-  <script src="/motion.js" defer></script>
+  <script src="/motion.js?v=2026-09-16-green" defer></script>
 </body>
 </html>

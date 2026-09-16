@@ -73,7 +73,7 @@ export default function EstimateHubScreen() {
             Discover is where both come from (its "Estimator" card and its
             sub-tab strip), so that is the label and the destination.
             OnInk.title, not the brand primary: this sits ON the opaque ink
-            field BrandBackdrop paints, where #FF6A1A is under 3:1. */}
+            field BrandBackdrop paints, where the light brand green is under 3:1. */}
         <HiddenTabBackLink
           label="Discover"
           href="/(tabs)/discover"

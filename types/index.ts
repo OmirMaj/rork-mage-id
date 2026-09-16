@@ -1198,19 +1198,31 @@ export interface ThemeColors {
 // scripts/validate-contrast.ts check 12 solves and re-measures the family for
 // every entry in this list and fails the build if a hue cannot make AA.
 export const THEME_PRESETS: { id: string; label: string; primary: string; accent: string }[] = [
-  // MAGE Orange — the brand default. Listed first so the Settings theme
-  // picker shows it as option #1; matches the icon-circle / accent
-  // treatment on Construction AI, AI Punch, and every CTA. Forest is
-  // still available for anyone who specifically wants green.
-  { id: 'mage', label: 'MAGE Orange', primary: '#FF6A1A', accent: '#FF8533' },
-  { id: 'forest', label: 'Forest Green', primary: '#1A6B3C', accent: '#FF9500' },
+  // MAGE Green — the brand default since the 2026-09-16 rebrand (was MAGE
+  // Orange #FF6A1A). Listed first so the picker shows it as option #1. The id
+  // stays 'mage' so a user on the default keeps the default.
+  //
+  // Two presets were REPLACED, not recoloured, because each now collided with
+  // a colour that carries meaning. Measured as CIE76 DeltaE, where under ~10
+  // two colours read as the same:
+  //   Forest Green #1A6B3C sat DeltaE 4.9 from the new brand green — a second
+  //     copy of the default, not a choice.
+  //   Teal #1A7A6D sat DeltaE 4.4 from the new SUCCESS teal #12806E — a user on
+  //     Teal would see every primary button and every "done" badge converge.
+  // Plum and Ochre each clear DeltaE 18 against every semantic colour and every
+  // kept preset, and carry white text at AA. They get NEW ids on purpose: a user
+  // who had saved Forest or Teal falls back to the default green at boot
+  // (app/_layout.tsx only applies a saved colour that is still a preset) — the
+  // nearest thing to what they chose — instead of being silently repainted.
+  { id: 'mage', label: 'MAGE Green', primary: '#2F6B3A', accent: '#3D9A4E' },
+  { id: 'plum', label: 'Plum', primary: '#5E3A6E', accent: '#8A5C9E' },
   { id: 'ocean', label: 'Ocean Blue', primary: '#0A5EB0', accent: '#FF6B35' },
   { id: 'slate', label: 'Slate', primary: '#3D4F5F', accent: '#E8A838' },
   { id: 'charcoal', label: 'Charcoal', primary: '#2C2C2E', accent: '#FF453A' },
   { id: 'terracotta', label: 'Terracotta', primary: '#B5562A', accent: '#2D8A4E' },
   { id: 'navy', label: 'Navy', primary: '#1B3A5C', accent: '#F5A623' },
   { id: 'burgundy', label: 'Burgundy', primary: '#722F37', accent: '#D4A574' },
-  { id: 'teal', label: 'Teal', primary: '#1A7A6D', accent: '#FF8C42' },
+  { id: 'ochre', label: 'Ochre', primary: '#7A5A12', accent: '#A87D24' },
 ];
 
 export interface PDFNamingSettings {

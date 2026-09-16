@@ -30,6 +30,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
+import { BRAND_ACCENT_ON_DARK } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
 import { showAlert } from '@/utils/alert';
@@ -43,14 +44,14 @@ import {
 // looks identical regardless of any custom-primary the user might set
 // later in Settings. Two screens, one continuous look.
 const BRAND = {
-  // Brand amber on ink (the green preset was off-brand).
-  green: '#FF6A1A',
-  greenDeep: '#0B0D10',
-  greenAccent: '#FF8533',
-  orange: '#FF6A1A',
-  orangeHot: '#FF8533',
+  // Equipment green on the dark ground (rebrand 2026-09-16). BRAND_ACCENT_ON_DARK,
+  // not BRAND_ACCENT: #2F6B3A on this ground is 2.80:1, #5DB36E is 6.93:1. The
+  // constant, not the themed accent, so a custom hue never reaches the splash.
+  brand: BRAND_ACCENT_ON_DARK,
+  // The dark ground BrandBackdrop paints (its INK_DEEP), so the root fill
+  // behind the gradient is the same colour as the gradient's edge.
+  ground: '#151816',
   cream: '#F4EFE6',
-  ink: '#0B0D10',
   fog: 'rgba(244,239,230,0.62)',
 };
 
@@ -273,7 +274,7 @@ export default function PersonaSelectScreen() {
                   testID={`persona-${role}`}
                 >
                   <View style={styles.roleIconWrap}>
-                    <Icon size={22} color={BRAND.orange} strokeWidth={2.2} />
+                    <Icon size={22} color={BRAND.brand} strokeWidth={2.2} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.roleLabel}>{USER_ROLE_LABELS[role]}</Text>
@@ -310,7 +311,7 @@ export default function PersonaSelectScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BRAND.greenDeep,
+    backgroundColor: BRAND.ground,
   },
 
   topBar: {
@@ -343,7 +344,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   eyebrowDot: {
-    color: BRAND.orange,
+    color: BRAND.brand,
   },
 
   headline: {
@@ -354,14 +355,14 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   headlineRoman: {
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Barlow_700Bold',
     fontWeight: '700',
   },
   headlineItalic: {
-    fontFamily: 'Fraunces_700Bold_Italic',
+    fontFamily: 'Barlow_700Bold_Italic',
     fontWeight: '700',
     fontStyle: 'italic',
-    color: BRAND.orange,
+    color: BRAND.brand,
   },
 
   lede: {
@@ -394,25 +395,25 @@ const styles = StyleSheet.create({
     minHeight: 84,
   },
   roleCardHover: {
-    backgroundColor: 'rgba(255,106,26,0.10)',
-    borderColor: BRAND.orange,
+    backgroundColor: 'rgba(93,179,110,0.10)',
+    borderColor: BRAND.brand,
   },
   roleCardPressed: {
-    backgroundColor: 'rgba(255,106,26,0.18)',
-    borderColor: BRAND.orange,
+    backgroundColor: 'rgba(93,179,110,0.18)',
+    borderColor: BRAND.brand,
   },
   roleCardActive: {
-    backgroundColor: 'rgba(255,106,26,0.22)',
-    borderColor: BRAND.orange,
+    backgroundColor: 'rgba(93,179,110,0.22)',
+    borderColor: BRAND.brand,
     opacity: 0.85,
   },
   roleIconWrap: {
     width: 40,
     height: 40,
     borderRadius: Tokens.radius.md,
-    backgroundColor: 'rgba(255,106,26,0.16)',
+    backgroundColor: 'rgba(93,179,110,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,106,26,0.3)',
+    borderColor: 'rgba(93,179,110,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },

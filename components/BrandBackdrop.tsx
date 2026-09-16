@@ -4,20 +4,27 @@
 // persona-select. Both screens used an identical 3-layer LinearGradient
 // recipe — extracted here so the two can't drift.
 //
-// Doctrine: accent (#FF6A1A) is an ACCENT, not a background. The large
-// field is ink (#0B0D10 → #14181D). The corner-glow layers carry the
-// brand warmth without flooding the frame in orange.
+// Doctrine: the brand green is an ACCENT, not a background. The large
+// field is the dark ground (#151816 → #1D211F). The corner-glow layers carry
+// the brand without flooding the frame in green.
 
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BRAND_ACCENT_ON_DARK } from '@/constants/colors';
 
-// Local brand palette — kept hardcoded so the splash looks identical
-// regardless of any custom-primary the user has set in Settings.
-const INK_DEEP = '#0B0D10';
-const INK_MID  = '#14181D';
-const ORANGE_HOT = '#FF8533';
-const ORANGE     = '#FF6A1A';
+// Local brand palette — pinned to the MAGE brand constants (not the themed
+// accent) so the backdrop looks identical regardless of any custom primary the
+// user has set in Settings. The grounds are the rebrand's dark ground/surface
+// (Theme.dark.bg / .surface, 2026-09-16) rather than the old blue-black ink, so
+// this hero sits on the same page as the dark theme it hands off to.
+//
+// The glow is BRAND_ACCENT_ON_DARK, not BRAND_ACCENT: #2F6B3A on this ground
+// is 2.80:1 and a 22% wash of it is invisible, while #5DB36E reads as the
+// brand on dark (6.93:1) and doubles as the eyebrow ink below.
+const INK_DEEP = '#151816';
+const INK_MID  = '#1D211F';
+const GREEN_ON_INK = BRAND_ACCENT_ON_DARK;
 
 /**
  * Foregrounds that are legible ON the ink field this component paints.
@@ -33,7 +40,8 @@ const ORANGE     = '#FF6A1A';
  * `onboarding.tsx` and `persona-select.tsx` already keep private `cream`/`ink`
  * constants for the same reason; this is that idea, shared.
  *
- * Measured against INK_MID: title 15.56:1, subtitle 10.17:1, eyebrow 7.35:1.
+ * Measured against INK_MID (#1D211F): title 14.22:1, subtitle 9.29:1,
+ * eyebrow (#5DB36E) 6.31:1.
  */
 export const OnInk = {
   /** Display/screen title on the ink field. */
@@ -41,17 +49,17 @@ export const OnInk = {
   /** Secondary line under the title. */
   subtitle: '#C9C3B8',
   /** Uppercase micro-label above the title. */
-  eyebrow: ORANGE_HOT,
+  eyebrow: GREEN_ON_INK,
 } as const;
 
 /**
- * Three-layer ink+amber backdrop.
+ * Three-layer ink+green backdrop.
  *
  * Layer 1 — base gradient: deep ink at edges, mid-ink in the center.
- *            This is the large field; it is NOT orange.
- * Layer 2 — top-right corner glow: faint orange (22% opacity) fading
- *            to transparent. Gives brand warmth without flooding.
- * Layer 3 — bottom-left corner wash: very faint orange (8% opacity).
+ *            This is the large field; it is NOT green.
+ * Layer 2 — top-right corner glow: faint brand green (22% opacity)
+ *            fading to transparent. Carries the brand without flooding.
+ * Layer 3 — bottom-left corner wash: very faint green (8% opacity).
  *            Echoes the glow without competing with content.
  *
  * All three use absoluteFillObject so they stack behind whatever is
@@ -68,14 +76,14 @@ export function BrandBackdrop() {
       />
       {/* Top-right accent glow */}
       <LinearGradient
-        colors={[ORANGE_HOT + '38', 'transparent']}
+        colors={[GREEN_ON_INK + '38', 'transparent']}
         start={{ x: 0.85, y: 0 }}
         end={{ x: 0.2, y: 0.6 }}
         style={StyleSheet.absoluteFillObject}
       />
       {/* Bottom-left echo */}
       <LinearGradient
-        colors={['transparent', ORANGE + '14']}
+        colors={['transparent', GREEN_ON_INK + '14']}
         start={{ x: 0.1, y: 0.7 }}
         end={{ x: 0.6, y: 1 }}
         style={StyleSheet.absoluteFillObject}

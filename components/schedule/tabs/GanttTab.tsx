@@ -297,8 +297,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
   },
   layoutBtnTextActive: {
-    // accentLabel, not accent: this is a caption-size LABEL on t.surface, where
-    // the brand #FF6A1A measures 2.87:1.
+    // accentLabel, not accent: this is a caption-size LABEL on t.surface. The
+    // retired orange brand measured 2.87:1 there; the green clears AA, but a
+    // user-picked hue may not, and accentLabel is solved to AA for any hue.
     color: t.accentLabel,
   },
   row: { flex: 1, flexDirection: 'row' },

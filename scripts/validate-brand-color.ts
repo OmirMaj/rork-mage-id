@@ -1,21 +1,36 @@
-// Brand-orange contrast guard — founder decision #1.
+// Brand-colour contrast + separation guard.
 //
-// The brand hue #FF6A1A is KEPT for large non-text chrome (icons, burn bars,
-// progress fills) where WCAG's 3:1 large/non-text rule applies. But as TEXT it
-// measures only 2.87:1 on white, and white ON it measures the same 2.87:1 — so
-// two derived companions carry the accessible cases:
+// Renamed from validate-brand-orange.ts in the 2026-09-16 rebrand (orange on
+// cream → deep equipment green on concrete). A guard called "brand-orange"
+// certifying a green brand would have been a lie in the file list, so the name
+// moved with the hue; the engine did not change.
 //
-//   accentLabel  — orange TEXT on a light background (captions included).
-//                  Must clear AA 4.5:1 on EVERY light backdrop it can land on:
-//                  surface #FFFFFF, bg #FBF8F2, surfaceAlt #F4EFE6, and the
-//                  accentSoft tint (rgba(255,106,26,0.12)) composited over each.
-//   accentFill   — the button FILL under WHITE text ("Next", "Mark paid",
-//                  "Create your first project"). White on it must clear 4.5:1.
+// THE SYSTEM this guard pins (founder decision, 2026-09-16):
+//   brand          #2F6B3A  light UI — white on it 6.39:1, 5.44:1 on concrete
+//   brand on dark  #5DB36E  dark UI  — 6.93:1 on #151816. The light brand on
+//                           the dark ground is 2.80:1, so the dark theme does
+//                           NOT reuse it.
+//   grounds        light #ECEDE9 / #FFFFFF / #E2E4DF, dark #151816 / #1D211F / #252A27
+//   success        TEAL (#12806E family), never green — see check 3.
 //
-// This guard COMPUTES real WCAG ratios (relative luminance + alpha compositing
-// over the actual rendered background) from the token hexes in constants/
-// colors.ts. It is not a source-text heuristic — it fails if anyone retints a
-// token below threshold, or reverts accentLabel/accentFill back to the raw hue.
+// What it computes, from the token hexes in constants/colors.ts (real WCAG
+// relative luminance + alpha compositing over the rendered ground — not a
+// source-text heuristic):
+//
+//   1. accentLabel  — brand TEXT. AA 4.5:1 on every ground of its theme AND on
+//                     the accentSoft wash of the brand over each (chip idiom).
+//   2. accentFill   — the button FILL under WHITE text ("Next", "Mark paid").
+//                     White on it ≥ 4.5:1, and the button itself ≥ 3:1 against
+//                     every ground (WCAG 1.4.11 — a control you can see).
+//      accent       — ≥ 4.5:1 on every ground of its theme: 373 of the 588
+//                     `color: …accent` sites are text, whatever the chrome rule
+//                     says.
+//   3. SEPARATION   — brand vs success, CIE76 ΔE ≥ 18. The old success green
+//                     #2E7D44 is ΔE 9.2 from the new brand: a primary action
+//                     and a "Paid" badge would be the same swatch. This is the
+//                     single most important assertion in the rebrand, and it is
+//                     mutation-tested (set Theme.light.success back to #2E7D44
+//                     and it goes red).
 //
 // Pure node:fs + a tiny colour engine — no react-native import (that crashes bun).
 
@@ -49,6 +64,25 @@ function ratio(fg: RGB, bg: RGB): number {
   const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1];
   return (hi + 0.05) / (lo + 0.05);
 }
+/** sRGB → CIE L*a*b* (D65). Same maths as scripts/validate-contrast.ts labOf. */
+function lab(hex: string): [number, number, number] {
+  const lin = hexToRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  const x = (lin[0] * 0.4124 + lin[1] * 0.3576 + lin[2] * 0.1805) / 0.95047;
+  const y = lin[0] * 0.2126 + lin[1] * 0.7152 + lin[2] * 0.0722;
+  const z = (lin[0] * 0.0193 + lin[1] * 0.1192 + lin[2] * 0.9505) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+/** CIE76 ΔE — Euclidean distance in L*a*b*. ~2.3 is a just-noticeable
+ *  difference side by side; under ~10 two swatches read as "the same colour"
+ *  at a glance, which is the failure check 3 exists for. */
+function deltaE(a: string, b: string): number {
+  const A = lab(a), B = lab(b);
+  return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
+}
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // ── Read the tokens straight out of the source of truth ─────────────────────
@@ -72,11 +106,10 @@ const darkBlock = (() => {
   return m[1];
 })();
 
-// The five accent tokens left the `Theme` object on 2026-09-07: they are now
+// The five accent tokens left the `Theme` object on 2026-09-07: they are
 // DERIVED per user-chosen hue (deriveAccentPalette), and the brand's own
-// family — the values founder decision #1 is about, and the ones this guard
-// measures — lives in the BRAND_ACCENT_FAMILY table below `Theme`. Without
-// this second block the guard did not merely lose coverage, it threw at
+// family lives in the BRAND_ACCENT_FAMILY table below `Theme`. Without this
+// second block the guard did not merely lose coverage, it threw at
 // `token('light','accent')` and took itself off ship-check entirely
 // (review 2026-09-07).
 const familyObj = (() => {
@@ -102,70 +135,134 @@ function token(theme: 'light' | 'dark', name: string): string {
   const m = re.exec(theme === 'light' ? lightBlock : darkBlock)
     ?? re.exec(theme === 'light' ? familyLight : familyDark);
   if (!m) throw new Error(`token ${theme}.${name} not found (or not a plain hex)`);
-  return m[1];
+  return m[1].toUpperCase();
 }
 
-const WHITE: RGB = [255, 255, 255];
+/** A top-level `export const NAME = '#…'` in colors.ts. */
+function exportedHex(name: string): string {
+  const m = new RegExp(`export const ${name}\\s*=\\s*'(#[0-9A-Fa-f]{6})'`).exec(colorsSrc);
+  if (!m) throw new Error(`export const ${name} not found in colors.ts (or not a plain hex)`);
+  return m[1].toUpperCase();
+}
 
-// Light-theme surfaces (the actual rendered backgrounds, per HOUSE RULES).
-const L = { surface: '#FFFFFF', bg: '#FBF8F2', surfaceAlt: '#F4EFE6' } as const;
-// Dark-theme surfaces.
-const D = { surface: '#14181D', bg: '#0B0D10', surfaceAlt: '#1A1F26' } as const;
+/** The static `Colors.success` signal fill — the first `success:` literal in
+ *  the file, which lives in the Colors object above `Theme`. Screens that never
+ *  migrated to useTheme() paint "Paid" badges with this one, so it has to be
+ *  as far from the brand as the themed token is. */
+const staticSuccess = (() => {
+  const m = /\n\s+success:\s*'(#[0-9A-Fa-f]{6})'/.exec(colorsSrc.slice(0, colorsSrc.indexOf('export const Theme')));
+  if (!m) throw new Error('Colors.success not found as a plain hex above `export const Theme`');
+  return m[1].toUpperCase();
+})();
+
+const WHITE: RGB = [255, 255, 255];
 
 let failures = 0;
 const rows: string[] = [];
 function assert(label: string, measured: number, min: number) {
   const pass = measured >= min;
   if (!pass) failures += 1;
-  rows.push(`  ${pass ? 'PASS' : 'FAIL'}  ${label.padEnd(56)} ${round2(measured).toFixed(2)}:1  (need ${min}:1)`);
+  rows.push(`  ${pass ? 'PASS' : 'FAIL'}  ${label.padEnd(60)} ${round2(measured).toFixed(2)}${min >= 10 ? ' ΔE' : ':1'}  (need ${min}${min >= 10 ? '' : ':1'})`);
+}
+function pin(label: string, got: string, want: string) {
+  const pass = got.toUpperCase() === want.toUpperCase();
+  if (!pass) failures += 1;
+  rows.push(`  ${pass ? 'PASS' : 'FAIL'}  ${label.padEnd(60)} ${got}${pass ? '' : `  (founder system says ${want})`}`);
 }
 
-console.log('\nbrand-orange contrast validation (computed WCAG ratios):');
+console.log('\nbrand-colour validation (computed WCAG ratios + CIE76 ΔE):');
 
-// ── accent stays the raw brand hue (used as large non-text chrome) ──────────
-const accentL = token('light', 'accent');
-if (accentL !== '#FF6A1A') { failures += 1; rows.push(`  FAIL  light accent must stay brand #FF6A1A, is ${accentL}`); }
+// ── 0. The system itself. Pinned, because every ratio below is only as honest
+//      as the grounds it is measured on — retint the concrete and the ratios
+//      would still "pass" against a page nobody ships.
+const BRAND = exportedHex('BRAND_ACCENT');
+const BRAND_DARK = exportedHex('BRAND_ACCENT_ON_DARK');
+pin('BRAND_ACCENT', BRAND, '#2F6B3A');
+pin('BRAND_ACCENT_ON_DARK', BRAND_DARK, '#5DB36E');
+const GROUND_NAMES = ['bg', 'surface', 'surfaceAlt'] as const;
+const FOUNDER_GROUNDS = {
+  light: { bg: '#ECEDE9', surface: '#FFFFFF', surfaceAlt: '#E2E4DF' },
+  dark: { bg: '#151816', surface: '#1D211F', surfaceAlt: '#252A27' },
+} as const;
+const G: Record<'light' | 'dark', Record<string, string>> = { light: {}, dark: {} };
+for (const theme of ['light', 'dark'] as const) {
+  for (const g of GROUND_NAMES) {
+    G[theme][g] = token(theme, g);
+    pin(`Theme.${theme}.${g}`, G[theme][g], FOUNDER_GROUNDS[theme][g]);
+  }
+}
+// The default family must actually BE the brand: accent is the brand hue in
+// light, the brand-on-dark hue in dark.
+pin('BRAND_ACCENT_FAMILY.light.accent', token('light', 'accent'), BRAND);
+pin('BRAND_ACCENT_FAMILY.dark.accent', token('dark', 'accent'), BRAND_DARK);
 
-// ── LIGHT: accentLabel (orange text) must clear 4.5:1 on every light backdrop ─
-const labelL = hexToRgb(token('light', 'accentLabel'));
-const softFill = hexToRgb('#FF6A1A'); // accentSoft is the brand hue at 0.12
-for (const [name, bg] of Object.entries(L)) {
-  const bgRgb = hexToRgb(bg);
-  assert(`light accentLabel on ${name}`, ratio(labelL, bgRgb), 4.5);
-  assert(`light accentLabel on accentSoft/${name}`, ratio(labelL, over(softFill, bgRgb, 0.12)), 4.5);
+// ── 1 + 2. Contrast, both themes ────────────────────────────────────────────
+const SOFT_ALPHA = { light: 0.12, dark: 0.16 } as const;
+for (const theme of ['light', 'dark'] as const) {
+  const accent = hexToRgb(token(theme, 'accent'));
+  const label = hexToRgb(token(theme, 'accentLabel'));
+  const fill = hexToRgb(token(theme, 'accentFill'));
+  for (const g of GROUND_NAMES) {
+    const bg = hexToRgb(G[theme][g]);
+    assert(`${theme} accent on ${g}`, ratio(accent, bg), 4.5);
+    assert(`${theme} accentLabel on ${g}`, ratio(label, bg), 4.5);
+    assert(`${theme} accentLabel on accentSoft/${g}`, ratio(label, over(accent, bg, SOFT_ALPHA[theme])), 4.5);
+    assert(`${theme} accentFill (button shape) on ${g}`, ratio(fill, bg), 3.0);
+  }
+  assert(`${theme} white on accentFill`, ratio(WHITE, fill), 4.5);
 }
 
-// ── LIGHT: white on accentFill must clear 4.5:1 ─────────────────────────────
-assert('light white on accentFill', ratio(WHITE, hexToRgb(token('light', 'accentFill'))), 4.5);
+// Sanity anchors — the two facts this family is built around. If either stops
+// being true the constants were edited without re-reading why they exist.
+const lightOnDark = ratio(hexToRgb(BRAND), hexToRgb(G.dark.bg));
+if (lightOnDark >= 3) { failures += 1; rows.push(`  FAIL  sanity: light brand ${BRAND} on dark bg should be <3:1 (why BRAND_ACCENT_ON_DARK exists), measured ${round2(lightOnDark)}`); }
+const whiteOnDarkBrand = ratio(WHITE, hexToRgb(BRAND_DARK));
+if (whiteOnDarkBrand >= 4.5) { failures += 1; rows.push(`  FAIL  sanity: white on ${BRAND_DARK} should be <4.5:1 (why dark accentFill differs), measured ${round2(whiteOnDarkBrand)}`); }
 
-// ── DARK: accentLabel must clear 4.5:1 on every dark backdrop ───────────────
-const labelD = hexToRgb(token('dark', 'accentLabel'));
-for (const [name, bg] of Object.entries(D)) {
-  const bgRgb = hexToRgb(bg);
-  assert(`dark accentLabel on ${name}`, ratio(labelD, bgRgb), 4.5);
-  assert(`dark accentLabel on accentSoft/${name}`, ratio(labelD, over(softFill, bgRgb, 0.16)), 4.5);
+// ── 3. Brand vs success separation ──────────────────────────────────────────
+//
+// ΔE 18 is not fitted to pass. The regression it exists for scores 9.2 (brand
+// #2F6B3A vs the old success #2E7D44); the founder's teal #12806E scores 21.6.
+// 18 sits clear of the collision with room for a darker AA companion of the
+// teal, and well under what any legitimate retint of either family would need.
+//
+// Every brand token a user can see as "the action" is held against every
+// success token a user can see as "the state" — the fill is what a button
+// paints, the label what a link or caption paints, and both themes' Theme
+// tokens plus the static Colors.success fill are the badges.
+const MIN_BRAND_SUCCESS_DELTA_E = 18;
+const SUCCESS_LIGHT = [
+  ['Theme.light.success', token('light', 'success')],
+  ['Theme.light.successLabel', token('light', 'successLabel')],
+  ['Colors.success', staticSuccess],
+] as const;
+for (const brandTok of ['accent', 'accentFill', 'accentLabel'] as const) {
+  for (const [sName, sHex] of SUCCESS_LIGHT) {
+    assert(`light ${brandTok} vs ${sName}`, deltaE(token('light', brandTok), sHex), MIN_BRAND_SUCCESS_DELTA_E);
+  }
 }
-
-// ── DARK: white on accentFill must clear 4.5:1 ──────────────────────────────
-assert('dark white on accentFill', ratio(WHITE, hexToRgb(token('dark', 'accentFill'))), 4.5);
-
-// ── The raw brand hue as TEXT/FILL-under-white must NOT be treated as passing.
-// (Documents the 2.87:1 failure this decision fixes; a sanity anchor.)
-const rawAsText = ratio(hexToRgb('#FF6A1A'), hexToRgb(L.surface));
-if (rawAsText >= 4.5) { failures += 1; rows.push(`  FAIL  sanity: raw #FF6A1A on white should be <4.5, measured ${round2(rawAsText)}`); }
+// Dark theme too: the same collision exists there (the old #4ED37A would sit
+// a handful of ΔE from #5DB36E), and a check that only looks at one theme is a
+// check the other theme can quietly fail.
+for (const brandTok of ['accent', 'accentFill', 'accentLabel'] as const) {
+  for (const sName of ['success', 'successLabel'] as const) {
+    assert(`dark ${brandTok} vs Theme.dark.${sName}`, deltaE(token('dark', brandTok), token('dark', sName)), MIN_BRAND_SUCCESS_DELTA_E);
+  }
+}
 
 console.log(rows.join('\n'));
 console.log('');
 
 // ═════════════════════════════════════════════════════════════════════════════
-// USAGE GUARD — completeness authority for founder decision #1.
+// USAGE GUARD — completeness authority for the accentFill rule.
 //
 // The token checks above prove the tokens are correct. They do NOT prove every
 // button ACTUALLY USES accentFill. This section is the second half of the
 // decision: it scans every StyleSheet in app/ + components/ and FAILS if any
 // button style paints white/near-white/cream TEXT on the RAW brand `accent`
-// fill (which measures only 2.87:1 for white — the very failure accentFill
-// exists to fix).
+// fill. In the light theme the green brand happens to carry white (6.39:1), but
+// the dark theme's accent #5DB36E gives white 2.58:1 — so a raw-accent button
+// is still a dark-mode failure, and accentFill is still the only safe fill.
 //
 // What counts as an offender (must clear 4.5:1, so must move to accentFill):
 //   a StyleSheet entry whose object literal has `backgroundColor: <tok>.accent`
@@ -431,7 +528,7 @@ function textSiblingCandidates(name: string): string[] {
   return [...out];
 }
 
-console.log('brand-orange USAGE guard (white text on raw accent fill):');
+console.log('brand-colour USAGE guard (white text on raw accent fill):');
 
 const SRC_ROOTS = ['app', 'components'];
 const offenders: { file: string; style: string; why: string }[] = [];

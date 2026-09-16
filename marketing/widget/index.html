@@ -19,7 +19,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 <!-- PostHog — same project key as the rest of the site so this page's pageview
      + copy-snippet event join the unified marketing funnel. The widget itself
      ships NO analytics; we don't install trackers on a customer's website. -->
@@ -34,11 +34,13 @@
   });
 </script>
 <style>
-  /* Brand-aligned palette (ink + amber + cream), matching mageid.app. */
+  /* Brand-aligned palette (ink + equipment green + concrete), matching
+     mageid.app. --brand #2F6B3A is 5.44:1 on the --bg concrete and 6.39:1 under
+     white button text; --brand-on-dark #5DB36E is the brand on --navy. */
   :root{
-    --navy:#0B0D10; --navyd:#14181D; --amber:#FF6A1A; --amber-l:#FFF1E6;
-    --ink:#1c2530; --muted:#5b6775; --line:#E8DFCD; --bg:#FAF7F0; --card:#ffffff;
-    --ff-serif:'Fraunces',Georgia,serif;
+    --navy:#0B0D10; --navyd:#14181D; --brand:#2F6B3A; --brand-on-dark:#5DB36E; --brand-l:#E3EEE5;
+    --ink:#1c2530; --muted:#5b6775; --line:#D7DAD4; --bg:#ECEDE9; --card:#ffffff;
+    --ff-display:'Barlow','Helvetica Neue',Arial,system-ui,sans-serif;
     --ff-sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     --ff-mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
   }
@@ -49,9 +51,9 @@
     padding:24px 16px 60px; -webkit-font-smoothing:antialiased;
   }
   .wrap{max-width:760px;margin:0 auto}
-  h1{font-family:var(--ff-serif);font-size:30px;line-height:1.15;color:var(--navyd);text-align:center;margin-bottom:10px;letter-spacing:-.015em}
+  h1{font-family:var(--ff-display);font-size:30px;line-height:1.15;color:var(--navyd);text-align:center;margin-bottom:10px;letter-spacing:-.015em}
   .sub{text-align:center;color:var(--muted);font-size:16px;margin:0 auto 28px;max-width:560px}
-  h2{font-family:var(--ff-serif);font-size:21px;color:var(--navyd);margin:0 0 12px;letter-spacing:-.01em}
+  h2{font-family:var(--ff-display);font-size:21px;color:var(--navyd);margin:0 0 12px;letter-spacing:-.01em}
   h3{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 6px}
   p{margin-bottom:12px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 1px 2px rgba(11,13,16,.04),0 8px 24px rgba(11,13,16,.06)}
@@ -66,20 +68,20 @@
   .steps li{counter-increment:s;position:relative;padding-left:38px;margin-bottom:18px}
   .steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
   .steps p{font-size:14px;color:var(--muted);margin:0}
-  pre{background:var(--navy);color:#EDE7DC;border-radius:12px;padding:16px 18px;overflow-x:auto;font-family:var(--ff-mono);font-size:12.5px;line-height:1.7;position:relative;-webkit-overflow-scrolling:touch}
-  pre .tag{color:#FFB37A}
+  pre{background:var(--navy);color:#E6E8E4;border-radius:12px;padding:16px 18px;overflow-x:auto;font-family:var(--ff-mono);font-size:12.5px;line-height:1.7;position:relative;-webkit-overflow-scrolling:touch}
+  pre .tag{color:#5DB36E}
   pre .atr{color:#9EC5FF}
-  pre .val{color:#B7E1A1}
+  pre .val{color:#C9B8F0}
   pre .cmt{color:#7C8794}
   .copy{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:var(--ff-sans);font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer}
-  .copy:hover{background:var(--amber);border-color:var(--amber)}
+  .copy:hover{background:var(--brand);border-color:var(--brand)}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   th,td{padding:10px 12px;text-align:left;border-top:1px solid var(--line);vertical-align:top}
   th{background:var(--bg);color:var(--navy);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
   td code,p code,li code{font-family:var(--ff-mono);font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--navyd);white-space:nowrap}
   .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
-  .note{background:var(--amber-l);border-left:5px solid var(--amber);border-radius:8px;padding:14px 16px;font-size:14px;color:var(--navyd)}
-  .note b{color:var(--amber)}
+  .note{background:var(--brand-l);border-left:5px solid var(--brand);border-radius:8px;padding:14px 16px;font-size:14px;color:var(--navyd)}
+  .note b{color:var(--brand)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:600px){.grid2{grid-template-columns:1fr}}
   .stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
@@ -88,19 +90,19 @@
   details{margin-top:12px;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
   summary{cursor:pointer;padding:14px 16px;font-weight:600;font-size:14px;color:var(--navy);list-style:none}
   summary::-webkit-details-marker{display:none}
-  summary::after{content:"＋";float:right;color:var(--amber);font-weight:700}
+  summary::after{content:"＋";float:right;color:var(--brand);font-weight:700}
   details[open] summary::after{content:"－"}
   details .body{padding:0 16px 16px}
-  .cta{margin-top:34px;background:var(--navy);border:1px solid rgba(255,106,26,0.35);border-radius:14px;padding:24px;color:#fff;text-align:center}
-  .cta h3{font-family:var(--ff-serif);font-size:19px;margin-bottom:6px;color:#fff}
+  .cta{margin-top:34px;background:var(--navy);border:1px solid rgba(93,179,110,0.35);border-radius:14px;padding:24px;color:#fff;text-align:center}
+  .cta h3{font-family:var(--ff-display);font-size:19px;margin-bottom:6px;color:#fff}
   .cta p{font-size:14px;opacity:.9;margin-bottom:14px}
   .cta a{display:inline-block;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:9px;font-size:15px}
-  .cta a.cta-primary{background:var(--amber);color:#fff}
+  .cta a.cta-primary{background:var(--brand);color:#fff}
   .cta a.cta-secondary{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.25);margin-top:10px;font-weight:600}
-  /* Site nav — matches the ink/amber brand, sized for this light page */
+  /* Site nav — matches the ink/green brand, sized for this light page */
   .sitenav{max-width:760px;margin:0 auto 22px;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .sitenav .brand{display:flex;align-items:center;gap:8px;text-decoration:none}
-  .sitenav .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+  .sitenav .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--brand)}
   .sitenav .brand span{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy);text-transform:uppercase}
   /* wrap, don't overflow: the nav went from three destinations to the site's
      six on 2026-09-11, which at 13px measures wider than this 760px bar
@@ -111,8 +113,8 @@
   .sitenav .nav-r{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end;row-gap:8px}
   .sitenav .nav-r a{text-decoration:none;font-size:13px;font-weight:600;color:var(--muted)}
   .sitenav .nav-r a:hover{color:var(--navy)}
-  .sitenav .nav-r a.start{color:var(--amber);border:1px solid rgba(255,106,26,0.5);border-radius:999px;padding:6px 14px}
-  .sitenav .nav-r a.start:hover{background:var(--amber);color:#fff}
+  .sitenav .nav-r a.start{color:var(--brand);border:1px solid rgba(47,107,58,0.5);border-radius:999px;padding:6px 14px}
+  .sitenav .nav-r a.start:hover{background:var(--brand);color:#fff}
   @media(max-width:480px){.sitenav .nav-r a:not(.start){display:none}}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
   .foot a{color:var(--muted)}
@@ -210,7 +212,7 @@
           <tr><td><code>data-mage-title</code></td><td>Get an instant ballpark</td><td>Headline above the form.</td></tr>
           <tr><td><code>data-mage-subtitle</code></td><td>A few details and…</td><td>Supporting line under the headline.</td></tr>
           <tr><td><code>data-mage-cta</code></td><td><code>Continue</code></td><td>Label on the first button.</td></tr>
-          <tr><td><code>data-mage-accent</code></td><td><code>#FF6A1A</code></td><td>Accent colour — set it to your brand colour.</td></tr>
+          <tr><td><code>data-mage-accent</code></td><td><code>#2F6B3A</code></td><td>Accent colour — set it to your brand colour.</td></tr>
           <tr><td><code>data-mage-target</code></td><td>—</td><td>CSS selector to mount into, instead of in-place.</td></tr>
           <tr><td><code>data-mage-demo</code></td><td>off</td><td>Prices for real but skips the contact step and records no lead. Used by the demo above.</td></tr>
         </tbody>
@@ -299,8 +301,9 @@
        `.trust-strip a` rule added next to `.foot a` above — this <nav> is a
        SIBLING of <p class="foot">, not a child, so it inherits nothing from
        it, and until 2026-09-12 the links rendered in the UA default blue.
-       var(--muted) #5b6775 measures 5.39:1 on this page's #FAF7F0 ground
-       (recomputed 2026-09-12), above the 4.5:1 AA floor at 12.5px. -->
+       var(--muted) #5b6775 measures 4.90:1 on this page's #ECEDE9 concrete
+       ground (recomputed 2026-09-16 for the rebrand), above the 4.5:1 AA
+       floor at 12.5px. -->
   <nav class="trust-strip" aria-label="About this company" style="max-width:900px;margin:26px auto 0;padding-top:16px;border-top:1px solid rgba(128,128,128,0.3);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;font-size:12.5px;line-height:1.7;">
     <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
     <a href="/who-built-this.html" style="font-weight:600">Who built this</a>

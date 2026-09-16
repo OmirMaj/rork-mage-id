@@ -60,7 +60,7 @@ function dayToDate(startDate: Date, day: number): string {
 // Labels only — the four INKS come from `taskStatusInk(themeColors)` at render
 // time. This table used to carry them, and all four were wrong on a light
 // screen: `not_started` was the dark theme's textSecondary (#9AA3AD, 2.55:1),
-// `in_progress` the raw brand accent (#FF6A1A, 2.87:1 — founder decision #1
+// `in_progress` the raw retired-orange brand accent (2.87:1 — founder decision #1
 // routes text through accentLabel), and `Colors.warningLabel` is a getter, so
 // it froze to whichever theme was active at import.
 const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: string }[] = [
@@ -176,7 +176,7 @@ export default function TaskInspector({
   return (
     <View style={styles.panel}>
       <View style={styles.header}>
-        <Info size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+        <Info size={16} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled task'}</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
       </View>
@@ -349,7 +349,7 @@ export default function TaskInspector({
               activeOpacity={0.85}
               testID="task-add-photo"
             >
-              <Camera size={18} color={"#FF6A1A"} strokeWidth={1.75} />
+              <Camera size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
             </TouchableOpacity>
             {Platform.OS !== 'web' && (
@@ -358,7 +358,7 @@ export default function TaskInspector({
                 onPress={() => handleAddPhoto('library')}
                 activeOpacity={0.85}
               >
-                <Plus size={18} color={"#FF6A1A"} strokeWidth={1.75} />
+                <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.photoAddLabel}>Library</Text>
               </TouchableOpacity>
             )}

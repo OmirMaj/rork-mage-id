@@ -25,7 +25,7 @@ import {
   ChevronLeft, Wrench, Building2, Send, UserCheck, X, Trash2, Check,
   AlertTriangle, Phone, Users,
 } from 'lucide-react-native';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProperties } from '@/contexts/PropertyContext';
@@ -39,12 +39,18 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
+// `open` and `done` are GETTERS over the colour module rather than literals:
+// `open` is the brand (Colors.primary follows the theme and a picked hue) and
+// `done` is the success TEAL (Colors.successLabel, AA as the pill text in both
+// themes). Before the 2026-09-16 rebrand these were orange and #16A34A — and
+// that green would now sit next to a brand-green "open" as the same colour.
+// Both getters return 6-digit hex, so the `+ '1A'` alpha suffixes still work.
 const STATUS_COLORS: Record<WorkOrderStatus, string> = {
-  open: '#FF6A1A',
+  get open() { return Colors.primary; },
   posted_for_bids: '#0D6CB1',
   assigned: '#7A3FF2',
   in_progress: '#C99700',
-  done: '#16A34A',
+  get done() { return Colors.successLabel; },
   cancelled: '#9CA3AF',
 };
 

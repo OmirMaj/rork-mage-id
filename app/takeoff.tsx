@@ -2098,7 +2098,11 @@ function sumOverridable<T extends { id: string }>(
 }
 
 function confidenceColor(c: TakeoffConfidence): string {
-  return c === 'high' ? '#16A34A' : c === 'medium' ? '#FF6A1A' : '#DC2626';
+  // Read by meaning: high = success TEAL, medium = WARNING (a figure to check,
+  // which the brand orange used to double as), low = danger. Label inks, since
+  // these also colour the pill text. Never the brand green for `high` — a
+  // confidence chip must not look like a button.
+  return c === 'high' ? Colors.successLabel : c === 'medium' ? Colors.warningLabel : '#DC2626';
 }
 
 function formatNum(n: number): string {

@@ -40,11 +40,15 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+// `new` is the brand (a getter, so it follows the theme and a picked hue) and
+// `won` the success TEAL. `qualified` was a dark green #1A6B3C — ΔE 4.9 from
+// the 2026-09-16 brand green, i.e. the same dot as `new` — so it takes the
+// mid-pipeline mustard the work-order and buyout maps use for work under way.
 const STAGE_COLORS: Record<LeadStage, string> = {
-  new: '#FF6A1A',
-  qualified: '#1A6B3C',
+  get new() { return Colors.primary; },
+  qualified: '#C99700',
   proposal: '#0D6CB1',
-  won: '#16A34A',
+  get won() { return Colors.success; },
   lost: '#9CA3AF',
 };
 

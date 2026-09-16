@@ -3697,7 +3697,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   // Screen title — Fraunces serif per the type rule in constants/typography.ts
   // (serif for screen titles + numbers that matter, system sans for everything
-  // else). No fontWeight override: Fraunces_700Bold already carries its weight.
+  // else). No fontWeight override: the display face already carries its weight.
   title: { ...Type.serifHeadline, color: themeColors.text },
   subtitle: { marginTop: 4, fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
 

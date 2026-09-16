@@ -25,12 +25,14 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
+  <link rel="stylesheet" href="/styles.css?v=2026-09-16-green" />
 
   <style>
-    /* ========== explorer hero ========== */
+    /* ========== explorer hero ==========
+       Secondary copy here sits on the ink ground, so it reads --fog (7.7:1);
+       --text-muted is the light-ground grey and measured ~3:1 on ink. */
     .ex-hero {
       padding: 80px 0 28px;
       text-align: center;
@@ -38,21 +40,21 @@
       border-bottom: 1px solid var(--border);
     }
     .ex-hero h1 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(36px, 6vw, 60px);
-      letter-spacing: -1.2px;
+      letter-spacing: -0.4px;
       line-height: 1.05;
       margin: 12px 0 14px;
     }
-    .ex-hero h1 em { color: var(--amber); font-style: normal; }
+    .ex-hero h1 em { color: var(--brand); font-style: normal; }
     .ex-hero p {
       font-size: 17px;
-      color: var(--text-muted);
+      color: var(--fog);
       line-height: 1.6;
       max-width: 640px;
       margin: 0 auto;
     }
-    .ex-hero .eyebrow { color: var(--amber); }
+    .ex-hero .eyebrow { color: var(--brand); }
 
     /* ========== sticky tab nav ========== */
     .ex-tabs {
@@ -80,7 +82,7 @@
       border-radius: 999px;
       font-size: 13px;
       font-weight: 600;
-      color: var(--text-muted);
+      color: var(--fog);
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border);
       cursor: pointer;
@@ -90,11 +92,13 @@
       align-items: center;
       gap: 6px;
     }
-    .ex-tab:hover { color: var(--text); border-color: var(--amber); }
+    .ex-tab:hover { color: var(--text); border-color: var(--brand); }
+    /* Filled states use the deep green with white text (6.39:1); the bright
+       dark-ground green stays for text and hairlines. */
     .ex-tab.is-active {
-      background: var(--amber);
-      color: #0B0D10;
-      border-color: var(--amber);
+      background: var(--brand-fill);
+      color: var(--on-brand);
+      border-color: var(--brand-fill);
     }
     .ex-tab .ex-tab-emoji { display: inline-flex; align-items: center; vertical-align: -2px; }
 
@@ -118,20 +122,20 @@
       font-weight: 800;
       letter-spacing: 1.5px;
       text-transform: uppercase;
-      color: var(--amber);
+      color: var(--brand);
       margin-bottom: 10px;
     }
     .ex-panel h2 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(32px, 5vw, 48px);
-      letter-spacing: -0.8px;
+      letter-spacing: -0.3px;
       line-height: 1.05;
       margin: 0 0 14px;
     }
-    .ex-panel h2 em { color: var(--amber); font-style: normal; }
+    .ex-panel h2 em { color: var(--brand); font-style: normal; }
     .ex-panel .lede {
       font-size: 17px;
-      color: var(--text-muted);
+      color: var(--fog);
       line-height: 1.6;
       margin: 0 0 36px;
     }
@@ -141,7 +145,7 @@
       margin-bottom: 36px;
     }
     .ex-section h3 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: 22px;
       margin: 0 0 14px;
       color: var(--text);
@@ -163,7 +167,7 @@
     }
     .ex-bullets li::before {
       content: '✓';
-      color: var(--amber);
+      color: var(--brand);
       font-weight: 800;
       flex-shrink: 0;
       font-size: 18px;
@@ -194,8 +198,8 @@
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: var(--amber);
-      color: #0B0D10;
+      background: var(--brand-fill);
+      color: var(--on-brand);
       font-weight: 800;
       font-size: 13px;
       display: flex;
@@ -205,8 +209,8 @@
 
     /* voice command boxes */
     .ex-voice {
-      background: rgba(255, 106, 26, 0.06);
-      border: 1px solid rgba(255, 106, 26, 0.28);
+      background: rgba(93, 179, 110, 0.06);
+      border: 1px solid rgba(93, 179, 110, 0.28);
       border-radius: 14px;
       padding: 16px 20px;
       margin: 12px 0;
@@ -220,7 +224,7 @@
     .ex-voice::before {
       content: 'Say:';
       display: block;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23FF6A1A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='11' rx='3'/%3E%3Cpath d='M5 10a7 7 0 0 0 14 0M12 17v4'/%3E%3C/svg%3E") no-repeat left center;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235DB36E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='11' rx='3'/%3E%3Cpath d='M5 10a7 7 0 0 0 14 0M12 17v4'/%3E%3C/svg%3E") no-repeat left center;
       padding-left: 17px;
       font-family: var(--ff-sans);
       font-style: normal;
@@ -228,14 +232,14 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       font-weight: 700;
-      color: var(--amber);
+      color: var(--brand);
       margin-bottom: 6px;
     }
 
     /* highlight callout */
     .ex-callout {
-      background: rgba(255, 106, 26, 0.08);
-      border-left: 4px solid var(--amber);
+      background: rgba(93, 179, 110, 0.08);
+      border-left: 4px solid var(--brand);
       padding: 14px 18px;
       margin: 18px 0;
       border-radius: 8px;
@@ -243,7 +247,7 @@
       color: var(--text);
       line-height: 1.6;
     }
-    .ex-callout strong { color: var(--amber); }
+    .ex-callout strong { color: var(--brand); }
 
     /* "Try it" cta */
     .ex-try {
@@ -269,14 +273,14 @@
       padding: 18px;
     }
     .ex-mini-card h4 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: 17px;
       margin: 0 0 6px;
       color: var(--text);
     }
     .ex-mini-card p {
       font-size: 13px;
-      color: var(--text-muted);
+      color: var(--fog);
       margin: 0;
       line-height: 1.5;
     }
@@ -315,7 +319,7 @@
   <main>
     <!-- ─────────── HERO ─────────── -->
     <section class="ex-hero">
-      <span class="eyebrow" style="color: var(--amber); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">The Explorer</span>
+      <span class="eyebrow" style="color: var(--brand); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">The Explorer</span>
       <h1>Every part of the app,<br><em>tab by tab.</em></h1>
       <p>
         Pick a section. See what it does, how to use it, and the exact words to say into the mic.
@@ -916,6 +920,6 @@
     })();
   </script>
   <script src="/nav-mobile.js" defer></script>
-  <script src="/motion.js" defer></script>
+  <script src="/motion.js?v=2026-09-16-green" defer></script>
 </body>
 </html>

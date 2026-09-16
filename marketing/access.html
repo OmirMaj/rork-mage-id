@@ -21,7 +21,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
 
@@ -39,13 +39,13 @@
     }
 
     .access-pitch h1 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(36px, 5vw, 56px);
       letter-spacing: -1px;
       line-height: 1.05;
       margin: 0 0 18px;
     }
-    .access-pitch h1 em { color: var(--amber); font-style: normal; }
+    .access-pitch h1 em { color: var(--brand); font-style: normal; }
     .access-pitch p.lede {
       font-size: 17px;
       color: var(--text-muted);
@@ -65,7 +65,7 @@
     }
     .access-bullets li::before {
       content: '✓';
-      color: var(--amber);
+      color: var(--brand);
       font-weight: 800;
       flex-shrink: 0;
       font-size: 18px;
@@ -87,11 +87,11 @@
       font-weight: 800;
       letter-spacing: 1.5px;
       text-transform: uppercase;
-      color: var(--amber);
+      color: var(--brand);
       margin-bottom: 8px;
     }
     .access-form-card h2 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: 28px;
       letter-spacing: -0.5px;
       line-height: 1.1;
@@ -128,15 +128,15 @@
     .access-form select:focus,
     .access-form textarea:focus {
       outline: none;
-      border-color: var(--amber);
-      background: rgba(255, 106, 26, 0.05);
+      border-color: var(--brand);
+      background: rgba(93, 179, 110, 0.05);
     }
     .access-form textarea { min-height: 88px; resize: vertical; }
     .access-form .field { display: flex; flex-direction: column; }
     .access-form button {
       margin-top: 8px;
-      background: var(--amber);
-      color: #0B0D10;
+      background: var(--brand-fill);
+      color: var(--on-brand);
       border: 0;
       border-radius: 12px;
       padding: 16px 20px;
@@ -149,14 +149,14 @@
       justify-content: center;
       gap: 8px;
     }
-    .access-form button:hover { background: #FF8540; }
+    .access-form button:hover { background: var(--brand-fill-hot); }
     .access-form .form-foot {
       font-size: 12px;
       color: var(--text-muted);
       margin: 12px 0 0;
       line-height: 1.5;
     }
-    .access-form .form-foot a { color: var(--amber); }
+    .access-form .form-foot a { color: var(--brand); }
   </style>
 </head>
 <body>
@@ -178,7 +178,7 @@
     <section class="access-shell">
       <!-- Pitch -->
       <div class="access-pitch">
-        <span class="eyebrow" style="color: var(--amber); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">Concierge onboarding</span>
+        <span class="eyebrow" style="color: var(--brand); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">Concierge onboarding</span>
         <h1>Tell us a little<br>about your work.<br><em>We onboard within 24 hours.</em></h1>
         <p class="lede">
           We build for residential GCs running $1M–$30M projects. We don't run a 90-minute discovery

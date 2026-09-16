@@ -48,8 +48,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import {
   pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfSectionHeader,
-  escHtml, fmtMoney, PDF_PALETTE,
-} from './pdfDesign';
+  escHtml, fmtMoney, PDF_PALETTE, PDF_FONT_DISPLAY } from './pdfDesign';
 import { formatCalendarDay } from './calendarDate';
 import { commitmentValue } from './jobCostEngine';
 import type { Commitment, CompanyBranding, Project, Subcontractor } from '@/types';
@@ -296,8 +295,8 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
       ${row('Sales tax', 'Not itemised — see terms', true)}
       <div style="height:1.5px;background:${PDF_PALETTE.ink};margin:8px 0"></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
-        <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">Order total</span>
-        <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:700;color:${PDF_PALETTE.amber};letter-spacing:-0.012em">${fmtMoney(doc.orderTotal, { decimals: 2 })}</span>
+        <span style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700">Order total</span>
+        <span class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:24px;font-weight:700;color:${PDF_PALETTE.amber};letter-spacing:-0.012em">${fmtMoney(doc.orderTotal, { decimals: 2 })}</span>
       </div>
       ${doc.adjustmentNote ? `<div style="margin-top:8px;font-size:11px;line-height:1.55;color:${PDF_PALETTE.text2}">${escHtml(doc.adjustmentNote)}</div>` : ''}
     </div>`;

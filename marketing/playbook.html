@@ -44,19 +44,19 @@
        subtle deviations from the rest of the site to keep it scannable.
        Everything here is additive — no overrides of base styles. */
 
-    /* Nav "Start free" — amber accent matching the homepage CTA, brand tokens only. */
+    /* Nav "Start free" — brand-green accent matching the homepage CTA, brand tokens only. */
     .nav-start-free {
-      color: var(--amber) !important;
-      border: 1px solid rgba(255, 106, 26, 0.5) !important;
+      color: var(--brand) !important;
+      border: 1px solid rgba(93, 179, 110, 0.5) !important;
       border-radius: 999px;
       padding: 7px 16px;
       font-weight: 600;
       transition: background 220ms ease, color 220ms ease, border-color 220ms ease;
     }
     .nav-start-free:hover {
-      background: var(--amber);
-      color: #0B0D10 !important;
-      border-color: var(--amber) !important;
+      background: var(--brand-fill);
+      color: var(--on-brand) !important;
+      border-color: var(--brand) !important;
     }
 
     .pb-toc {
@@ -87,7 +87,7 @@
       text-decoration: none;
       white-space: nowrap;
     }
-    .pb-toc a:hover { color: var(--text); border-color: var(--amber); }
+    .pb-toc a:hover { color: var(--text); border-color: var(--brand); }
 
     .pb-section { padding: 80px 0; border-top: 1px solid var(--border); }
     .pb-section:first-of-type { border-top: 0; }
@@ -98,8 +98,8 @@
       align-items: center; justify-content: center;
       width: 36px; height: 36px;
       border-radius: 50%;
-      background: var(--amber);
-      color: #0B0D10;
+      background: var(--brand-fill);
+      color: var(--on-brand);
       font-weight: 800;
       font-size: 16px;
       margin-right: 14px;
@@ -107,7 +107,7 @@
 
     .pb-section h2 {
       display: flex; align-items: center;
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(28px, 4vw, 40px);
       letter-spacing: -0.5px;
       margin: 0 0 8px 0;
@@ -118,7 +118,7 @@
       letter-spacing: 1.5px;
       font-size: 11px;
       font-weight: 700;
-      color: var(--amber);
+      color: var(--brand);
       margin-bottom: 12px;
     }
     .pb-section .pb-lede {
@@ -137,7 +137,7 @@
       margin: 16px 0;
     }
     .pb-card h3 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: 22px;
       margin: 0 0 8px 0;
       color: var(--text);
@@ -145,8 +145,8 @@
     .pb-card p { color: var(--text-muted); line-height: 1.6; margin: 0 0 12px 0; }
 
     .pb-voice {
-      background: linear-gradient(180deg, rgba(255, 106, 26, 0.10), rgba(255, 106, 26, 0.04));
-      border: 1px solid rgba(255, 106, 26, 0.30);
+      background: linear-gradient(180deg, rgba(93, 179, 110, 0.10), rgba(93, 179, 110, 0.04));
+      border: 1px solid rgba(93, 179, 110, 0.30);
       border-radius: 14px;
       padding: 18px 22px;
       margin: 12px 0;
@@ -168,12 +168,12 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       font-weight: 700;
-      color: var(--amber);
+      color: var(--brand);
       margin-bottom: 6px;
     }
     .pb-voice-result {
-      background: rgba(255, 106, 26, 0.06);
-      border: 1px solid rgba(255, 106, 26, 0.25);
+      background: rgba(93, 179, 110, 0.06);
+      border: 1px solid rgba(93, 179, 110, 0.25);
       border-radius: 14px;
       padding: 14px 18px;
       margin: 4px 0 16px 0;
@@ -188,7 +188,7 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       font-weight: 700;
-      color: #FF6A1A;
+      color: var(--brand);
       margin-bottom: 4px;
     }
 
@@ -201,8 +201,8 @@
     .pb-grid .pb-card { margin: 0; }
 
     .pb-pro-tip {
-      background: rgba(255, 106, 26, 0.10);
-      border-left: 4px solid #FF6A1A;
+      background: rgba(93, 179, 110, 0.10);
+      border-left: 4px solid var(--brand);
       padding: 14px 18px;
       margin: 16px 0;
       border-radius: 8px;
@@ -210,18 +210,18 @@
       color: var(--text);
       line-height: 1.6;
     }
-    .pb-pro-tip strong { color: #FF6A1A; }
+    .pb-pro-tip strong { color: var(--brand); }
 
     .pb-cheatsheet {
       background: var(--ink);
-      border: 1px solid var(--amber);
+      border: 1px solid var(--brand);
       border-radius: 16px;
       padding: 28px;
       margin: 24px 0;
     }
     .pb-cheatsheet h3 {
-      font-family: var(--ff-serif);
-      color: var(--amber);
+      font-family: var(--ff-display);
+      color: var(--brand);
       font-size: 20px;
       margin: 0 0 18px 0;
     }
@@ -235,20 +235,20 @@
       padding: 100px 0 60px;
       text-align: center;
       background:
-        radial-gradient(900px 500px at 50% 0%, rgba(255, 106, 26, 0.10), transparent 70%),
+        radial-gradient(900px 500px at 50% 0%, rgba(93, 179, 110, 0.10), transparent 70%),
         var(--bg);
       border-bottom: 1px solid var(--border);
     }
     .pb-hero h1 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(40px, 7vw, 72px);
       letter-spacing: -1.5px;
       line-height: 1;
       margin: 16px 0;
     }
-    .pb-hero h1 em { font-style: normal; color: var(--amber); }
+    .pb-hero h1 em { font-style: normal; color: var(--brand); }
     .pb-hero p { font-size: 18px; color: var(--text-muted); max-width: 640px; margin: 0 auto; line-height: 1.6; }
-    .pb-hero .eyebrow { color: var(--amber); }
+    .pb-hero .eyebrow { color: var(--brand); }
 
     .pb-stats {
       display: grid;
@@ -262,7 +262,7 @@
     .pb-stat .num {
       font-family: var(--ff-mono);
       font-size: 40px;
-      color: var(--amber);
+      color: var(--brand);
       font-weight: 700;
       line-height: 1;
     }
@@ -394,7 +394,7 @@
     </section>
 
     <!-- ─────────── THE MIC ─────────── -->
-    <section class="pb-section" id="mic" style="background: rgba(255,106,26,0.04);">
+    <section class="pb-section" id="mic" style="background: rgba(93, 179, 110,0.04);">
       <div class="wrap">
         <span class="pb-eyebrow">The Trick</span>
         <h2>The mic is your office.</h2>
@@ -520,7 +520,7 @@
     </section>
 
     <!-- ─────────── 3. SCHEDULE ─────────── -->
-    <section class="pb-section" id="schedule" style="background: rgba(255, 106, 26, 0.04);">
+    <section class="pb-section" id="schedule" style="background: rgba(93, 179, 110, 0.04);">
       <div class="wrap">
         <span class="pb-eyebrow"><span class="pb-step-num">3</span> Plan the work</span>
         <h2>A schedule, in 60 seconds.</h2>
@@ -617,7 +617,7 @@
     </section>
 
     <!-- ─────────── 5b. BUYOUT ─────────── -->
-    <section class="pb-section" id="buyout" style="background: rgba(255, 106, 26, 0.06); border-top: 1px solid rgba(255, 106, 26, 0.25);">
+    <section class="pb-section" id="buyout" style="background: rgba(93, 179, 110, 0.06); border-top: 1px solid rgba(93, 179, 110, 0.25);">
       <div class="wrap">
         <span class="pb-eyebrow"><span class="pb-step-num">5</span>b · Buyout — the margin lever</span>
         <h2>Turn estimate carry into signed subs.</h2>
@@ -686,7 +686,7 @@
     </section>
 
     <!-- ─────────── 5. CLIENT PORTAL ─────────── -->
-    <section class="pb-section" id="client" style="background: rgba(255, 106, 26, 0.04);">
+    <section class="pb-section" id="client" style="background: rgba(93, 179, 110, 0.04);">
       <div class="wrap">
         <span class="pb-eyebrow"><span class="pb-step-num">5</span> Keep the client in the loop</span>
         <h2>One link. Live, forever.</h2>
@@ -763,7 +763,7 @@
     </section>
 
     <!-- ─────────── 6b. AI PHOTO ANALYSIS ─────────── -->
-    <section class="pb-section" id="ai-photos" style="background: rgba(255, 106, 26, 0.06); border-top: 1px solid rgba(255, 106, 26, 0.25);">
+    <section class="pb-section" id="ai-photos" style="background: rgba(93, 179, 110, 0.06); border-top: 1px solid rgba(93, 179, 110, 0.25);">
       <div class="wrap">
         <span class="pb-eyebrow"><span class="pb-step-num">6</span>b · AI photo analysis</span>
         <h2>Take 5 photos.<br>Done with paperwork.</h2>
@@ -855,7 +855,7 @@
     </section>
 
     <!-- ─────────── BID CONFIDENCE (THE MOAT) ─────────── -->
-    <section class="pb-section" id="bid-confidence" style="background: rgba(255, 106, 26, 0.06); border-top: 1px solid rgba(255, 106, 26, 0.25);">
+    <section class="pb-section" id="bid-confidence" style="background: rgba(93, 179, 110, 0.06); border-top: 1px solid rgba(93, 179, 110, 0.25);">
       <div class="wrap">
         <span class="pb-eyebrow">The payoff · Bid Confidence</span>
         <h2>Every finished job makes your next bid smarter.</h2>
@@ -968,7 +968,7 @@
     </section>
 
     <!-- ─────────── CTA ─────────── -->
-    <section class="pb-section" style="background: linear-gradient(180deg, rgba(255,106,26,0.05), transparent);">
+    <section class="pb-section" style="background: linear-gradient(180deg, rgba(93, 179, 110,0.05), transparent);">
       <div class="wrap" style="text-align: center;">
         <span class="pb-eyebrow">Ready?</span>
         <h2 style="justify-content: center;">Run your next job from your phone.</h2>

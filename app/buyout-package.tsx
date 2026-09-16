@@ -77,10 +77,11 @@ function fmtInviteDay(iso: string | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// Same getters as app/buyout.tsx (brand `open`, success-teal `awarded`).
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
-  open: '#FF6A1A',
+  get open() { return Colors.primary; },
   leveling: '#0D6CB1',
-  awarded: '#16A34A',
+  get awarded() { return Colors.successLabel; },
   cancelled: '#9CA3AF',
 };
 

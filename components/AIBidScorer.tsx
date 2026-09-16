@@ -168,12 +168,13 @@ const makeSetupStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
     backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
   },
-  // accentFill, not the brand hue: white on #FF6A1A is 2.87:1 and fails AA —
-  // #BC440C clears it at 5.29:1 (founder decision #1, constants/colors.ts).
+  // accentFill, not the brand hue: accentFill is the fill SOLVED for white text
+  // at AA in both themes, whatever hue the theme picker set (constants/colors.ts
+  // deriveAccentPalette). The raw accent is chrome and carries no text budget.
   chipActive: { backgroundColor: t.accentFill, borderColor: t.accentFill },
   chipText: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '500' as const },
   // textOnAccent, not the themed `surface` — a dark-theme surface here would
-  // put near-black text on the orange chip.
+  // put near-black text on the accent chip.
   chipTextActive: { color: Colors.textOnAccent, fontWeight: '600' as const },
   saveBtn: {
     backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.card,

@@ -2,12 +2,12 @@
 //
 // The FIRST thing every user sees. Replaces the old AI-slop crest with the
 // app's real brand motif: an ink field, the "MAGE ID" wordmark in the app's
-// display face (Fraunces), and a thin amber spirit-level track whose bubble
+// display face (Barlow), and a thin green spirit-level track whose bubble
 // slides in off-centre, overshoots, and SETTLES DEAD CENTRE — the exact move
 // from components/PersonaSwitchOverlay.tsx and the marketing site.
 // Construction for "everything is level, you're ready to build."
 //
-// Ink + amber only. No illustration, crest, gradient, glow, blur, or emoji.
+// Ink + brand green only. No illustration, crest, gradient, glow, blur, or emoji.
 // Colours/type come strictly from constants/colors + typography + tokens.
 //
 // How it's wired (see app/_layout.tsx):
@@ -41,19 +41,30 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Type } from '@/constants/typography';
+import { Type, DISPLAY_FONT } from '@/constants/typography';
+import { BRAND_ACCENT_ON_DARK } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 
 // ── Brand tokens ────────────────────────────────────────────────────────────
 // The splash is a fixed BRAND moment — always the ink field regardless of the
 // user's light/dark preference. A splash that flashed cream-white in light
 // mode would be jarring and wouldn't match the ink native layer it hands off
-// from. These match constants/colors.ts Theme.dark + the marketing --ink.
+// from. INK deliberately STAYS the old blue-black #0B0D10 through the
+// 2026-09-16 rebrand, not Theme.dark.bg #151816: it must equal the NATIVE
+// splash backgroundColor in app.json, which only changes with a native build.
+// Move both together, or the cold start shows a visible step from one dark to
+// the other the moment this overlay mounts. CREAM is Theme.dark.text.
+//
+// GREEN is BRAND_ACCENT_ON_DARK, never BRAND_ACCENT: the light-UI brand
+// #2F6B3A measures 3.04:1 on this ground, so the bubble and the logo's "ID"
+// would sink into the field. #5DB36E is the founder's "ID on a dark ground"
+// value (7.54:1 on this ink). GREEN_SOFT is the same hue at 16% for the track/bloom —
+// an rgba string because RN has no hex-alpha-over-token helper here.
 const INK = '#0B0D10';
 const CREAM = '#F4EFE6';
 const FOG = 'rgba(244,239,230,0.62)';
-const AMBER = '#FF6A1A';
-const AMBER_SOFT = 'rgba(255,106,26,0.16)';
+const GREEN = BRAND_ACCENT_ON_DARK;
+const GREEN_SOFT = 'rgba(93,179,110,0.16)';
 const LINE = 'rgba(255,255,255,0.10)';
 const NOTCH = 'rgba(244,239,230,0.32)';
 
@@ -266,7 +277,9 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
         <Text style={styles.eyebrow}>
           <Text style={styles.eyebrowDot}>●</Text>  THE OPERATING SYSTEM FOR BUILDERS
         </Text>
-        <Text style={styles.wordmark} numberOfLines={1}>MAGE&nbsp;ID</Text>
+        <Text style={styles.wordmark} numberOfLines={1}>
+          MAGE&nbsp;<Text style={styles.wordmarkId}>ID</Text>
+        </Text>
 
         {/* The spirit level — bubble settles dead centre. */}
         <View style={styles.levelWrap}>
@@ -301,19 +314,26 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   eyebrowDot: {
-    color: AMBER,
+    color: GREEN,
   },
   wordmark: {
-    // Fraunces 700 Bold — the app's display face (loaded in _layout.tsx).
-    // Falls back to the platform serif if the font network-blips on first
-    // launch; the wordmark still reads.
-    fontFamily: 'Fraunces_700Bold',
+    // Barlow 700 Bold — the app's display face since the 2026-09-16 rebrand
+    // (loaded in _layout.tsx before this overlay mounts). Named through
+    // DISPLAY_FONT rather than spread from Type because the wordmark wants
+    // the bold cut, not Type.serif*'s semibold. Falls back to the platform
+    // sans if the font network-blips on first launch; the wordmark still reads.
+    fontFamily: DISPLAY_FONT.bold,
     fontSize: 44,
     lineHeight: 50,
     letterSpacing: 2,
     color: CREAM,
     textAlign: 'center',
     marginBottom: 28,
+  },
+  // The logo's "ID" carries the brand, as it does on every MAGE ground: on
+  // this dark field that is the on-dark green.
+  wordmarkId: {
+    color: GREEN,
   },
   levelWrap: {
     width: LEVEL_TRACK_W,
@@ -327,7 +347,7 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
     borderRadius: Tokens.radius.full,
-    backgroundColor: AMBER_SOFT,
+    backgroundColor: GREEN_SOFT,
   },
   levelNotch: {
     position: 'absolute',
@@ -350,13 +370,13 @@ const styles = StyleSheet.create({
     width: BUBBLE_W,
     height: 11,
     borderRadius: Tokens.radius.full,
-    backgroundColor: AMBER,
+    backgroundColor: GREEN,
   },
   bubbleGlow: {
     position: 'absolute',
     width: BUBBLE_W + 20,
     height: 24,
     borderRadius: Tokens.radius.full,
-    backgroundColor: AMBER_SOFT,
+    backgroundColor: GREEN_SOFT,
   },
 });

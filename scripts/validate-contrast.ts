@@ -1394,7 +1394,7 @@ for (const file of collectFiles(['app'])) {
 }
 
 ok(
-  'every native header title style carries the app typeface (Fraunces)',
+  'every native header title style carries the app typeface (Barlow)',
   headerFailures.length === 0,
   headerFailures.join('\n        '),
 );
@@ -1619,8 +1619,11 @@ if (!loaderCall) {
 // point the app calls (lowercase included: a `theme_colors` row could carry
 // either spelling).
 const BRAND_EXPECTED: Record<'light' | 'dark', Record<string, string>> = {
-  light: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.12)', accentLabel: '#B23E08', accentFill: '#BC440C' },
-  dark: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.16)', accentLabel: '#FF6A1A', accentFill: '#BC440C' },
+  // The green family since the 2026-09-16 rebrand. Read back from
+  // deriveAccentPalette(BRAND_ACCENT, theme) itself, not transcribed from a
+  // report — these are what the function returns.
+  light: { accent: '#2F6B3A', accentHot: '#3D9A4E', accentSoft: 'rgba(47,107,58,0.12)', accentLabel: '#2C6436', accentFill: '#2F6B3A' },
+  dark: { accent: '#5DB36E', accentHot: '#83CA91', accentSoft: 'rgba(93,179,110,0.16)', accentLabel: '#69B979', accentFill: '#388046' },
 };
 for (const theme of ['light', 'dark'] as const) {
   for (const seed of [BRAND_ACCENT, BRAND_ACCENT.toLowerCase()]) {

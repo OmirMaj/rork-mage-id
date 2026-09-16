@@ -78,8 +78,8 @@ interface Props {
 // whichever theme was active at import.
 function actionChips(t: ThemeColors): { key: ClarifierAction; label: string; Icon: typeof Percent; color: string }[] {
   return [
-    { key: 'update_progress', label: 'Update %',     Icon: Percent,      color: "#FF6A1A" },
-    { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: "#2E7D44" },
+    { key: 'update_progress', label: 'Update %',     Icon: Percent,      color: t.accentLabel },
+    { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: t.successLabel },
     { key: 'start_task',      label: 'Start',        Icon: Play,         color: "#1565C0" },
     { key: 'add_note',        label: 'Note',         Icon: StickyNote,   color: neutralInk(t) },
     { key: 'log_issue',       label: 'Issue',        Icon: AlertTriangle,color: t.warningLabel },
@@ -337,7 +337,7 @@ export default function QuickUpdateClarifier({
                     </View>
                     {active && (
                       <View style={styles.tick}>
-                        <CheckCircle2 size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                        <CheckCircle2 size={16} color={themeColors.accent} strokeWidth={1.75} />
                       </View>
                     )}
                   </TouchableOpacity>

@@ -3754,7 +3754,7 @@ export default function ProjectDetailScreen() {
                     )}
                     {(photo.markup?.length ?? 0) > 0 && (
                       <View style={styles.photoThumbMarkupBadge}>
-                        <Pencil size={10} color={themeColors.surface} strokeWidth={1.75} />
+                        <Pencil size={10} color={Colors.textOnAccent} strokeWidth={1.75} />
                       </View>
                     )}
                     <View style={styles.photoThumbDateOverlay}>
@@ -4581,7 +4581,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.85}
               testID="photo-lightbox-markup"
             >
-              <Pencil size={14} color={themeColors.surface} strokeWidth={1.75} />
+              <Pencil size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
               <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
             </TouchableOpacity>
           )}
@@ -5005,7 +5005,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   photoThumbMarkupBadge: {
     position: 'absolute' as const, top: 4, right: 4,
     width: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#FF6A1A', alignItems: 'center' as const, justifyContent: 'center' as const,
+    backgroundColor: themeColors.accentFill, alignItems: 'center' as const, justifyContent: 'center' as const,
   },
   lightboxOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center' as const, justifyContent: 'center' as const, padding: 16 },
   lightboxImageWrap: { width: '100%', height: '80%', alignItems: 'center' as const, justifyContent: 'center' as const, position: 'relative' as const },
@@ -5015,9 +5015,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     position: 'absolute' as const, bottom: 120, alignSelf: 'center' as const,
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
     paddingHorizontal: 18, paddingVertical: 12, borderRadius: Tokens.radius.full,
-    backgroundColor: 'rgba(255,106,26,0.95)',
+    // accentFill under white text, over the black lightbox scrim. Opaque (the
+    // old 0.95 alpha showed nothing through a 92% black scrim anyway).
+    backgroundColor: themeColors.accentFill,
   },
-  lightboxMarkupBtnText: { color: themeColors.surface, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
+  // textOnAccent, not surface: the fill is a brand green in both themes, and
+  // the dark surface on it would be dark-on-green.
+  lightboxMarkupBtnText: { color: Colors.textOnAccent, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
   lightboxPortalActions: {
     position: 'absolute' as const, bottom: 16, left: 16, right: 16,
     gap: 8,

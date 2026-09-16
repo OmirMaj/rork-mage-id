@@ -15,6 +15,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Animated, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
+import { Colors, BRAND_ACCENT } from '@/constants/colors';
 
 interface ConfettiParticleProps {
   startX: number;
@@ -24,7 +25,12 @@ interface ConfettiParticleProps {
   drift: number;
 }
 
-const COLORS = ['#FF6A1A', '#FFC83D', '#1E8E4A', '#1E5BC6', '#E5484D', '#9B59B6', '#F4F1E9'];
+// Brand green leads the burst; the old success green #1E8E4A that sat beside
+// the orange is now the success TEAL — left as green it would be a second,
+// near-identical brand swatch (ΔE ~9) rather than a distinct colour. Tokens,
+// not hexes: `BRAND_ACCENT` and `Colors.success` are both static, so reading
+// them at module load is safe (no theme getter is baked in here).
+const COLORS = [BRAND_ACCENT, '#FFC83D', Colors.success, '#1E5BC6', '#E5484D', '#9B59B6', '#F4F1E9'];
 
 function ConfettiParticle({ startX, delay, color, rotation, drift }: ConfettiParticleProps) {
   const fall = useRef(new Animated.Value(0)).current;

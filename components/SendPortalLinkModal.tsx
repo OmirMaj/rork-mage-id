@@ -237,6 +237,13 @@ export function SendPortalLinkModal({
 // Minimal HTML wrapper for the plain-text body. The portal-invite email
 // template (see contexts/AuthContext.tsx welcome flow) uses richer markup,
 // but the Share modal supports arbitrary callers so we keep this generic.
+//
+// The button colour is a LITERAL, not a theme token: this string is an email
+// body rendered by the recipient's mail client, which has no access to the
+// app's theme (or its dark mode). #2F6B3A is BRAND_ACCENT, pinned rather than
+// the user's picked hue so a client email always carries MAGE's brand. The
+// label is WHITE — the retired orange took near-black ink, but on the green
+// #0B0D10 is 3.04:1 and white is 6.39:1.
 function wrapPlainAsHtml(message: string, link: string): string {
   const safeMessage = message
     .replace(/&/g, '&amp;')
@@ -246,7 +253,7 @@ function wrapPlainAsHtml(message: string, link: string): string {
 <html><body style="font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;line-height:1.5;color:#0B0D10;max-width:560px;margin:0 auto;padding:24px;">
   <pre style="white-space:pre-wrap;font-family:inherit;font-size:15px;margin:0 0 20px;">${safeMessage}</pre>
   <p style="margin:24px 0;">
-    <a href="${link}" style="display:inline-block;background:#FF6A1A;color:#0B0D10;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;">Open the portal</a>
+    <a href="${link}" style="display:inline-block;background:#2F6B3A;color:#FFFFFF;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;">Open the portal</a>
   </p>
   <p style="font-size:12px;color:#6b6b6b;margin-top:32px;">
     Sent via MAGE ID

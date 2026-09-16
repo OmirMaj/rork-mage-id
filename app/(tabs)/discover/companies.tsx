@@ -430,8 +430,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
   emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
-  // accentFill, not accent: this button carries white text, and #FF6A1A is
-  // 2.87:1 behind white. Same pair the sibling bids tab uses.
+  // accentFill, not accent: this button carries white text, and the dark
+  // theme's accent is a light green white cannot sit on (accentFill is solved
+  // for both budgets). Same pair the sibling bids tab uses.
   retryButton: { marginTop: 14, backgroundColor: t.accentFill, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
   retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },

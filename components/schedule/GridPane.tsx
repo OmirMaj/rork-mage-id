@@ -1940,8 +1940,9 @@ const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
   radioActive: { borderColor: t.accent },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.accent },
   optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
-  // accentLabel, not accent: the selected option's label is TEXT, and the brand
-  // #FF6A1A is 2.87:1 on a light card.
+  // accentLabel, not accent: the selected option's label is TEXT. The retired
+  // orange brand was 2.87:1 on a light card; accentLabel is solved to AA for
+  // whatever hue is in force, so a user-picked preset stays legible too.
   optionLabelActive: { color: t.accentLabel },
   optionHelp: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
   dateRow: {
@@ -1979,8 +1980,9 @@ const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
   btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
   btnPrimary: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
-    // accentFill, not accent: btnPrimaryText below is white, and white on the
-    // brand #FF6A1A is 2.87:1. #BC440C carries it at 5.29:1.
+    // accentFill, not accent: btnPrimaryText below is white. On the dark theme
+    // the brand ink (#5DB36E) is too light to carry white; accentFill is the
+    // solved button fill (white 6.39:1 on the light green).
     backgroundColor: t.accentFill,
   },
   btnDisabled: { opacity: 0.45 },

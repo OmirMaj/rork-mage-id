@@ -46,7 +46,7 @@
       text-align: center;
     }
     .demo-hero h1 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(2.4rem, 5vw, 3.8rem);
       line-height: 1.05;
       letter-spacing: -0.02em;
@@ -55,7 +55,7 @@
     }
     .demo-hero h1 em {
       font-style: normal;
-      color: var(--amber);
+      color: var(--brand);
     }
     .demo-hero p.lede {
       font-size: clamp(1rem, 1.4vw, 1.15rem);
@@ -87,7 +87,7 @@
     }
     .tutorial-card:hover {
       transform: translateY(-2px);
-      border-color: rgba(255, 106, 26, 0.4);
+      border-color: rgba(93, 179, 110, 0.4);
     }
     .tutorial-card .tc-body {
       padding: 18px 20px 20px;
@@ -97,11 +97,11 @@
       font-weight: 800;
       letter-spacing: 1.4px;
       text-transform: uppercase;
-      color: var(--amber);
+      color: var(--brand);
       margin-bottom: 6px;
     }
     .tutorial-card h3 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: 1.15rem;
       margin: 0 0 6px;
       color: var(--cream);
@@ -114,14 +114,14 @@
       margin: 0;
     }
     .section-heading-light {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(1.8rem, 3.5vw, 2.6rem);
       letter-spacing: -0.02em;
       margin: 0 0 12px;
       color: var(--cream);
     }
     .section-heading-light em {
-      color: var(--amber);
+      color: var(--brand);
       font-style: normal;
     }
     .section-sub-light {
@@ -160,15 +160,15 @@
     }
     .help-card:hover {
       transform: translateY(-2px);
-      border-color: rgba(255, 106, 26, 0.4);
-      background: rgba(255, 106, 26, 0.04);
+      border-color: rgba(93, 179, 110, 0.4);
+      background: rgba(93, 179, 110, 0.04);
     }
     .help-card .hc-icon {
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: rgba(255, 106, 26, 0.14);
-      border: 1px solid rgba(255, 106, 26, 0.3);
+      background: rgba(93, 179, 110, 0.14);
+      border: 1px solid rgba(93, 179, 110, 0.3);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -177,7 +177,7 @@
     .help-card .hc-icon svg {
       width: 18px;
       height: 18px;
-      stroke: var(--amber);
+      stroke: var(--brand);
     }
     .help-card h4 {
       font-size: 14px;
@@ -197,13 +197,13 @@
       max-width: 880px;
       margin: 60px auto 80px;
       padding: 36px clamp(20px, 4vw, 40px);
-      background: linear-gradient(180deg, rgba(255, 106, 26, 0.16) 0%, rgba(255, 106, 26, 0.04) 100%);
-      border: 1px solid rgba(255, 106, 26, 0.4);
+      background: linear-gradient(180deg, rgba(93, 179, 110, 0.16) 0%, rgba(93, 179, 110, 0.04) 100%);
+      border: 1px solid rgba(93, 179, 110, 0.4);
       border-radius: 22px;
       text-align: center;
     }
     .demo-cta h2 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(1.8rem, 3.5vw, 2.4rem);
       letter-spacing: -0.02em;
       margin: 0 0 12px;
@@ -216,20 +216,20 @@
       margin: 0 auto 24px;
     }
 
-    /* Nav "Start free" — amber accent to match the homepage CTA, using the
+    /* Nav "Start free" — brand-green accent to match the homepage CTA, using the
        shared brand tokens (no shared-CSS edit). */
     .nav-start-free {
-      color: var(--amber) !important;
-      border: 1px solid rgba(255, 106, 26, 0.5) !important;
+      color: var(--brand) !important;
+      border: 1px solid rgba(93, 179, 110, 0.5) !important;
       border-radius: 999px;
       padding: 7px 16px;
       font-weight: 600;
       transition: background 220ms ease, color 220ms ease, border-color 220ms ease;
     }
     .nav-start-free:hover {
-      background: var(--amber);
-      color: var(--ink) !important;
-      border-color: var(--amber) !important;
+      background: var(--brand-fill);
+      color: var(--on-brand) !important;
+      border-color: var(--brand) !important;
     }
 
     /* Hero CTA row */
@@ -251,7 +251,7 @@
       border-radius: 18px;
       overflow: hidden;
       background:
-        radial-gradient(600px 300px at 50% 0%, rgba(255,106,26,0.10), transparent 70%),
+        radial-gradient(600px 300px at 50% 0%, rgba(93, 179, 110,0.10), transparent 70%),
         linear-gradient(135deg, #1A1D22 0%, #0B0D10 100%);
       border: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
@@ -284,7 +284,7 @@
       padding: 6px 12px;
       border-radius: 999px;
     }
-    .shot-caption .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+    .shot-caption .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
 
     /* Tutorial card screenshot — replaces the dead placeholder inside .video-frame */
     .tutorial-card .shot-frame {
@@ -305,8 +305,8 @@
       grid-template-columns: 1fr 1fr;
       gap: 28px;
       align-items: center;
-      background: linear-gradient(180deg, rgba(255,106,26,0.08) 0%, rgba(255,106,26,0.02) 100%);
-      border: 1px solid rgba(255, 106, 26, 0.30);
+      background: linear-gradient(180deg, rgba(93, 179, 110,0.08) 0%, rgba(93, 179, 110,0.02) 100%);
+      border: 1px solid rgba(93, 179, 110, 0.30);
       border-radius: 22px;
       padding: 28px;
     }
@@ -315,10 +315,10 @@
       font-size: 11px;
       letter-spacing: 1px;
       text-transform: uppercase;
-      color: var(--amber);
+      color: var(--brand);
     }
     .demo-moat-card h2 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(1.5rem, 3vw, 2rem);
       line-height: 1.1;
       letter-spacing: -0.01em;
@@ -370,7 +370,7 @@
     .faq-item summary::after {
       content: '+';
       font-size: 22px;
-      color: var(--amber);
+      color: var(--brand);
       transition: transform 220ms ease;
     }
     .faq-item[open] summary::after { transform: rotate(45deg); }
@@ -403,7 +403,7 @@
 
   <main>
     <section class="demo-hero">
-      <span class="eyebrow"><span style="color: var(--amber);">●</span> See it in motion</span>
+      <span class="eyebrow"><span style="color: var(--brand);">●</span> See it in motion</span>
       <h1>See how MAGE ID <em>actually works</em>.</h1>
       <p class="lede">
         Real screens from the app, walked through step by step &mdash; from a plan upload to a
@@ -451,7 +451,7 @@
       <p class="section-sub-light" style="margin: 20px auto 0;">
         The core loop, on real screens: drop a plan set, the AI reads it and prices a starting estimate,
         and every line carries the reasoning behind the number.
-        <a href="https://app.mageid.app" style="color: var(--amber); font-weight: 600;">Start free and try it on your own plans &rarr;</a>
+        <a href="https://app.mageid.app" style="color: var(--brand); font-weight: 600;">Start free and try it on your own plans &rarr;</a>
       </p>
     </section>
 
@@ -480,8 +480,8 @@
       <h2 class="section-heading-light">Feature by feature.</h2>
       <p class="section-sub-light">
         One real screen per feature, with what it does. Want to see any of these in motion on your
-        own project? <a href="https://app.mageid.app" style="color: var(--amber); font-weight: 600;">Start free</a>
-        or <a href="/access.html" style="color: var(--amber); font-weight: 600;">book a live demo</a>.
+        own project? <a href="https://app.mageid.app" style="color: var(--brand); font-weight: 600;">Start free</a>
+        or <a href="/access.html" style="color: var(--brand); font-weight: 600;">book a live demo</a>.
       </p>
 
       <div class="tutorials-grid">

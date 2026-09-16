@@ -46,6 +46,7 @@ import * as Haptics from 'expo-haptics';
 import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
+import { BRAND_ACCENT, BRAND_ACCENT_ON_DARK, deriveAccentPalette } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { mergedBidBranding } from '@/utils/bidDocumentIdentity';
 import { showAlert } from '@/utils/alert';
@@ -59,16 +60,18 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 // looks identical regardless of any custom-primary the user has set
 // later in Settings. The splash IS the brand.
 const BRAND = {
-  // Hero gradient is brand amber on ink (the green preset was off-brand — the
-  // documented brand is amber/ink; see constants/colors.ts).
-  green: '#FF6A1A',
-  greenDeep: '#0B0D10',
-  greenAccent: '#FF8533',
-  orange: '#FF6A1A',
-  orangeHot: '#FF8533',
-  orangeDeep: '#C2410C',
+  // Equipment green on the dark ground (rebrand 2026-09-16). The dark-UI brand
+  // family, not the light one: #2F6B3A on this ground is 2.80:1, #5DB36E is
+  // 6.93:1. Read from the brand constants rather than the themed accent, so a
+  // custom hue never reaches the splash.
+  brand: BRAND_ACCENT_ON_DARK,
+  // The brand's lifted companion (dark accentHot) — the rate hint's ink.
+  brandHot: deriveAccentPalette(BRAND_ACCENT, 'dark').accentHot,
+  // The dark ground BrandBackdrop paints (its INK_DEEP). `ink` is the same
+  // value used as a FOREGROUND on the cream CTA.
+  ground: '#151816',
   cream: '#F4EFE6',
-  ink: '#0B0D10',
+  ink: '#151816',
   fog: 'rgba(244,239,230,0.62)',
 };
 
@@ -521,7 +524,7 @@ export default function OnboardingScreen() {
                     testID={`onboarding-preview-card-${cardIndex}`}
                   >
                     <View style={styles.previewIcon}>
-                      <Icon size={18} color={BRAND.orange} strokeWidth={2.2} />
+                      <Icon size={18} color={BRAND.brand} strokeWidth={2.2} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.previewTitle}>{card.title}</Text>
@@ -677,7 +680,7 @@ export default function OnboardingScreen() {
               <Animated.View style={{ opacity: bodyOpacity }}>
                 <View style={styles.confirmCard}>
                   <View style={styles.confirmHeadRow}>
-                    <TrendingUp size={16} color={BRAND.orange} strokeWidth={2.2} />
+                    <TrendingUp size={16} color={BRAND.brand} strokeWidth={2.2} />
                     <Text style={styles.confirmCount}>
                       {rateReview.rows.length} rate{rateReview.rows.length === 1 ? '' : 's'} ready
                     </Text>
@@ -741,7 +744,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BRAND.greenDeep,
+    backgroundColor: BRAND.ground,
   },
 
   topBar: {
@@ -801,7 +804,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   eyebrowDot: {
-    color: BRAND.orange,
+    color: BRAND.brand,
   },
 
   headline: {
@@ -815,14 +818,14 @@ const styles = StyleSheet.create({
     // Fraunces 700 Bold — loaded in _layout.tsx via @expo-google-fonts.
     // Falls back to Georgia / serif when the font network-blips on first
     // launch (we never block the user on it).
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Barlow_700Bold',
     fontWeight: '700',
   },
   headlineItalic: {
-    fontFamily: 'Fraunces_700Bold_Italic',
+    fontFamily: 'Barlow_700Bold_Italic',
     fontWeight: '700',
     fontStyle: 'italic',
-    color: BRAND.orange,
+    color: BRAND.brand,
   },
 
   lede: {
@@ -856,7 +859,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.lg,
     ...continuousCorners, // iOS squircle — premium polish marker
     alignSelf: 'flex-start',
-    shadowColor: BRAND.orange,
+    shadowColor: BRAND.brand,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -934,9 +937,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.md,
-    backgroundColor: 'rgba(255,106,26,0.16)',
+    backgroundColor: 'rgba(93,179,110,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,106,26,0.3)',
+    borderColor: 'rgba(93,179,110,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1010,7 +1013,7 @@ const styles = StyleSheet.create({
   },
   rateHint: {
     fontSize: Type.footnote.fontSize,
-    color: BRAND.orangeHot,
+    color: BRAND.brandHot,
     lineHeight: 18,
     marginBottom: 12,
   },
