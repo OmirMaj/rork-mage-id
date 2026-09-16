@@ -21,6 +21,8 @@
 //
 // Run via: bun run test:crew-presence
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import {
   buildCrewPresence, findQuietTrades, summarizeCrewPresence,
   MIN_REPORTED_DAYS_TO_ESTABLISH, WENT_QUIET_AFTER_REPORTED_DAYS,
@@ -190,6 +192,26 @@ const volt = (headcount = 2, hoursWorked = 8): Crew =>
   ]);
   check('an unparseable date is skipped, not crashed on', junk.reportedDays === 1);
   check('a report with no manpower array is safe', junk.trades.length === 0);
+}
+
+// ── the roster this module reads has to arrive with real trade names ────────
+//
+// Everything above assumes `trade` distinguishes one sub from another. The DFR
+// seeds its roster from the schedule, and the seed's fallback used to be the
+// literal 'Crew': every production report written so far landed on trade
+// 'Crew' with an empty company, because a generated schedule fills `phase` and
+// leaves `crew` blank. normalizeTradeKey only lowercases, so all of them fold
+// into ONE anonymous bucket — every check in this file is then operating on a
+// single trade called "crew", and "Acme has not been on site for four days"
+// can never be said about anyone.
+{
+  const src = readFileSync(join(__dirname, '..', 'app', 'daily-report.tsx'), 'utf8');
+  check('the DFR crew seed falls back to the task PHASE before the anonymous "Crew"',
+    /t\.crew \|\| t\.assignedSubName \|\| t\.phase \|\| 'Crew'/.test(src));
+  check('the DFR says so while the seeded counts are still the app\'s assumption',
+    /Counts came from today&apos;s schedule and assume an 8-hour day/.test(src));
+  check('a seeded row can be corrected in place rather than deleted and retyped',
+    /prev\.map\(m => \(m\.id === mpEditingId \? \{ \.\.\.m, \.\.\.fields \} : m\)\)/.test(src));
 }
 
 if (failures > 0) {

@@ -79,6 +79,107 @@ function createId(_prefix: string): string {
  *  confirmed task + days. taskId null = unmatched, user must pick. */
 type DelayRow = { quote: string; deltaDays: number; taskId: string | null };
 
+// --- BEGIN appliedDelayRecord ---
+// scripts/validate-delay-rfi.ts extracts everything between these sentinels,
+// transpiles it and runs the REAL functions. This file is an Expo Router route
+// and cannot be imported outside Metro, so the sentinels are the guard's only
+// handle on the shipped code — moving or renaming them fails that guard loudly
+// rather than silently unpinning the double-apply guard. Same pattern as the
+// dfrDraft and carrySourceDayLabel regions above.
+//
+// DFR-DELAY-RECARRY (screen audit 2026-09-15). The applied-ripple marker used
+// to be keyed on the REPORT: `{ [reportId]: hash }`. A delay ripple is a set of
+// RELATIVE moves, so applying the same one twice slides the same tasks twice —
+// and "Copy from yesterday" copies `issuesAndDelays` verbatim into a report
+// whose id is a brand-new UUID. Monday: "inspector no-show, framing pushed 2
+// days" → scan → apply → framing moves 2 days, marker stored against Monday's
+// id. Tuesday: copy forward, scan the identical sentence, and the guard looks
+// up TUESDAY's id, finds nothing, and cheerfully moves framing another 2 days.
+// Once per carried-forward day, with no event and no trace except a finish date
+// that no longer matches the job — the number he orders materials and schedules
+// subs against.
+//
+// So the key is now (project + text hash): a delay note that has already moved
+// THIS project's schedule is recognised wherever it is sitting. The escape
+// hatch for a genuinely recurring delay — the same sentence on a real second
+// lost day — is the Re-arm control that already exists beside the notice, and
+// the notice now names the day the first apply came from so the super can tell
+// the two cases apart himself.
+//
+// The value carries that provenance. AppliedDelayMap (utils/delayScan/
+// appliedDelays.ts) is Record<string, string>, so the record travels as JSON in
+// the value slot; a legacy bare-hash value simply fails to decode and reads as
+// "not applied", which is the safe direction (it offers the ripple again rather
+// than silently refusing a real one).
+
+/** What one applied ripple remembers about itself. `deltaDays`/`taskIds` are
+ *  here for the delay-register handoff below, which would otherwise have to
+ *  re-derive them from rows that handleApplyRipple has already cleared. */
+interface AppliedDelayRecord {
+  /** hashDelayText of the issues text the applied scan was run on. */
+  hash: string;
+  /** The report the apply happened on — may not be the report reading it. */
+  reportId: string;
+  /** That report's date, so the notice can name a day instead of a sentence. */
+  reportDate: string;
+  /** The largest single slip that was applied, in days. */
+  deltaDays: number;
+  /** The schedule tasks the applied ops moved. */
+  taskIds: string[];
+}
+
+/** Store key for one applied ripple. Project-scoped, so the same sentence on
+ *  two different jobs is two different delays. */
+export function appliedDelayKey(projectId: string, hash: string): string {
+  return `${projectId}:${hash}`;
+}
+
+export function encodeAppliedDelay(rec: AppliedDelayRecord): string {
+  return JSON.stringify(rec);
+}
+
+/** Tolerant read. Anything that is not a full record — junk, a legacy bare
+ *  hash string, a half-written entry — returns null rather than throwing, and
+ *  null means "not applied". */
+export function decodeAppliedDelay(value: string | null | undefined): AppliedDelayRecord | null {
+  if (!value) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const r = parsed as Record<string, unknown>;
+    if (typeof r.hash !== 'string' || !r.hash) return null;
+    if (typeof r.reportId !== 'string' || !r.reportId) return null;
+    const deltaDays = typeof r.deltaDays === 'number' && Number.isFinite(r.deltaDays) ? r.deltaDays : 0;
+    return {
+      hash: r.hash,
+      reportId: r.reportId,
+      reportDate: typeof r.reportDate === 'string' ? r.reportDate : '',
+      deltaDays: Math.max(0, Math.round(deltaDays)),
+      taskIds: Array.isArray(r.taskIds) ? r.taskIds.filter((t): t is string => typeof t === 'string' && !!t) : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The delay CAUSE this report's own text plainly states, or null.
+ *
+ * The register defaults every event to 'other' and asks. Carrying a cause over
+ * is only honest when the super already wrote the word: 'rain, no pour' is
+ * weather because he said so, not because MAGE inferred it. Everything else
+ * arrives unset and he picks — types/index.ts is explicit that the app may
+ * suggest from a cause and may never decide one, and the register shows the
+ * picked cause in its own selector before anything is saved.
+ */
+export function inferDelayCauseFromText(text: string): 'weather' | null {
+  return /\b(rain|rained|raining|snow|snowed|storm|storms|stormed|lightning|hail|sleet|ice|iced|icy|frozen|freeze|freezing|wind|winds|windy|weather|downpour|washout)\b/i
+    .test(text)
+    ? 'weather'
+    : null;
+}
+// --- END appliedDelayRecord ---
+
 /** Photos one DFR can carry. Named because three separate places check it. */
 const MAX_DFR_PHOTOS = 10;
 
@@ -321,6 +422,11 @@ export default function DailyReportScreen() {
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
     getPhotosForProject, projects, commitments, getChangeOrdersForProject, updateProject,
+    // Company suggestions for the crew editor — the sub roster the GC already
+    // typed once. Trade suggestions come from the schedule and from this
+    // project's own prior reports (see tradeSuggestions below), NOT from
+    // Subcontractor.trade, which is a four-value coarse enum.
+    subcontractors,
   } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
@@ -432,10 +538,11 @@ export default function DailyReportScreen() {
   // Hash of the issues text at scan time — the rows are only valid for THIS
   // text; when the live text diverges the preview is disabled (stale guard).
   const [delayScannedHash, setDelayScannedHash] = useState<string | null>(null);
-  // Persisted applied-marker for this report (mageid_delay_applied store):
-  // hash of the issues text the last APPLIED ripple was scanned from. Guards
-  // against re-applying the same relative move ops across sessions.
-  const [appliedDelayHash, setAppliedDelayHash] = useState<string | null>(null);
+  // Persisted applied-markers (mageid_delay_applied store), decoded, keyed by
+  // appliedDelayKey(projectId, textHash). Guards against re-applying the same
+  // relative move ops across sessions AND across reports — see the
+  // DFR-DELAY-RECARRY note on the appliedDelayRecord region above.
+  const [appliedDelays, setAppliedDelays] = useState<Record<string, AppliedDelayRecord>>({});
   // Explicit user override: "yes, apply this same delay text again".
   const [delayReArmed, setDelayReArmed] = useState<boolean>(false);
   // Synchronous re-entry guard — state alone can't stop a double tap during
@@ -444,6 +551,13 @@ export default function DailyReportScreen() {
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
   const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? EMPTY_DFR_INCIDENT);
   const [showManpowerModal, setShowManpowerModal] = useState(false);
+  // Which crew row the modal is EDITING. null = the modal is adding a new one.
+  // Before this existed, correcting "4 framers" to 3 meant trash → confirm
+  // dialog → + → retype trade, company, headcount and hours: eight taps and
+  // four keyboard fields to change one digit, on the most-corrected block of
+  // the screen (the roster is seeded from the schedule, so nearly every row
+  // starts slightly wrong by design).
+  const [mpEditingId, setMpEditingId] = useState<string | null>(null);
   const [mpTrade, setMpTrade] = useState('');
   const [mpCompany, setMpCompany] = useState('');
   const [mpHeadcount, setMpHeadcount] = useState('');
@@ -540,10 +654,16 @@ export default function DailyReportScreen() {
   // yesterday's content (same subs, similar work areas, same crew sizes);
   // making the user re-type all of it every day is the #1 friction point
   // contractors cite in Raken / Procore reviews.
+  // Excludes THIS report by its stable id rather than by the route's reportId.
+  // Identical for a saved report (stableReportId is its id), but a brand-new
+  // report now also excludes itself once it has been written to disk — which
+  // happens without navigating away when the delay-event handoff below saves
+  // silently. Keyed on reportId, the screen would offer "Copy from earlier
+  // today" for the report currently open.
   const lastReport = useMemo(() => {
-    const others = reportId ? existingReports.filter(r => r.id !== reportId) : existingReports;
+    const others = existingReports.filter(r => r.id !== stableReportId);
     return [...others].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0];
-  }, [existingReports, reportId]);
+  }, [existingReports, stableReportId]);
 
   const [carryFormFromId, setCarryFormFromId] = useState<string | null>(null);
 
@@ -552,6 +672,16 @@ export default function DailyReportScreen() {
     // Copy the fields most likely to repeat day-to-day. We DON'T copy
     // weather (auto-fetched today is more accurate) or photos (different
     // photos today) or the incident block (must be re-attested per day).
+    //
+    // `issuesAndDelays` IS copied, deliberately — a delay rarely ends at
+    // midnight, and making him retype it is how a two-day slip gets logged as
+    // one. What used to make that dangerous is that a carried-forward note
+    // could ripple the schedule a second time: the applied-marker was keyed on
+    // the report id, and this report's id is new. That guard is now keyed on
+    // (project + text hash), so the copy arrives already showing APPLIED and
+    // the ripple is blocked with the day it was applied on named — with Re-arm
+    // beside it for the genuinely recurring delay ("rain again"). See the
+    // DFR-DELAY-RECARRY note at the top of this file.
     setManpower(lastReport.manpower ?? []);
     if (lastReport.workPerformed) setWorkPerformed(lastReport.workPerformed);
     setMaterialsDelivered(lastReport.materialsDelivered ?? []);
@@ -697,7 +827,14 @@ export default function DailyReportScreen() {
     // modal — this is a starting point, not a contract.
     const groups = new Map<string, { trade: string; company: string; headcount: number }>();
     for (const t of liveTasks) {
-      const trade = (t.crew || t.assignedSubName || 'Crew').trim() || 'Crew';
+      // The phase is the third fallback, ahead of the literal 'Crew'. Every
+      // saved report in production landed on 'Crew' with an empty company,
+      // because a generated schedule fills `phase` and leaves `crew` blank —
+      // and normalizeTradeKey (utils/brain/laborSamples.ts) only lowercases, so
+      // every trade on the job folded into one anonymous bucket and
+      // crewPresence's "this trade went quiet" chase had nothing to chase.
+      // 'Framing' is a trade the super recognises and can keep; 'Crew' is not.
+      const trade = (t.crew || t.assignedSubName || t.phase || 'Crew').trim() || 'Crew';
       const company = (t.assignedSubName || '').trim();
       const key = `${trade.toLowerCase()}|${company.toLowerCase()}`;
       const headcount = Math.max(1, t.crewSize ?? 1);
@@ -723,27 +860,43 @@ export default function DailyReportScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportDate]);
 
-  const handleAddManpower = useCallback(() => {
+  /** Open the crew modal — blank to add, or loaded with a row to correct it. */
+  const openManpowerEditor = useCallback((entry?: ManpowerEntry) => {
+    setMpEditingId(entry?.id ?? null);
+    setMpTrade(entry?.trade ?? '');
+    setMpCompany(entry?.company ?? '');
+    setMpHeadcount(entry ? String(entry.headcount) : '');
+    setMpHours(entry ? String(entry.hoursWorked) : '8');
+    setShowManpowerModal(true);
+  }, []);
+
+  const handleSaveManpower = useCallback(() => {
     const trade = mpTrade.trim();
     if (!trade) {
       showAlert('Missing Trade', 'Please enter a trade name.');
       return;
     }
-    const entry: ManpowerEntry = {
-      id: createId('mp'),
+    const fields = {
       trade,
       company: mpCompany.trim(),
       headcount: parseInt(mpHeadcount) || 1,
       hoursWorked: parseFloat(mpHours) || 8,
     };
-    setManpower(prev => [...prev, entry]);
+    // Edit keeps the row's id and its position in the list: headcount ×
+    // hoursWorked is what the owner reads on the portal and what the week's
+    // man-hours are summed from, so a correction has to land ON the row it
+    // corrects, not as a new row beside it.
+    setManpower(prev => mpEditingId
+      ? prev.map(m => (m.id === mpEditingId ? { ...m, ...fields } : m))
+      : [...prev, { id: createId('mp'), ...fields }]);
+    setMpEditingId(null);
     setMpTrade('');
     setMpCompany('');
     setMpHeadcount('');
     setMpHours('8');
     setShowManpowerModal(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [mpTrade, mpCompany, mpHeadcount, mpHours]);
+  }, [mpTrade, mpCompany, mpHeadcount, mpHours, mpEditingId]);
 
   const handleRemoveManpower = useCallback((id: string) => {
     const entry = manpower.find(m => m.id === id);
@@ -760,6 +913,81 @@ export default function DailyReportScreen() {
       ],
     );
   }, [manpower]);
+
+  /**
+   * ±1 on a crew row's headcount, from the row itself.
+   *
+   * The single most common correction on this screen — the roster is seeded
+   * from the schedule's `crewSize`, which is a planning number, so "4 framers"
+   * is regularly 3 who actually showed. One thumb tap, no keyboard, no dialog;
+   * the modal is still there for trade, company and hours.
+   *
+   * Stepping BELOW one is not 0 workers on site — it is "this trade wasn't
+   * here", which is the delete. Routed through the same confirm rather than
+   * disabled, so the minus never becomes a dead control the super taps twice
+   * wondering why nothing happened.
+   */
+  const adjustHeadcount = useCallback((id: string, delta: number) => {
+    const entry = manpower.find(m => m.id === id);
+    if (!entry) return;
+    if (delta < 0 && entry.headcount <= 1) {
+      handleRemoveManpower(id);
+      return;
+    }
+    setManpower(prev => prev.map(m => (m.id === id ? { ...m, headcount: Math.max(1, m.headcount + delta) } : m)));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+  }, [manpower, handleRemoveManpower]);
+
+  /**
+   * Trade names this project has actually used, newest first — the schedule's
+   * own `crew` / `assignedSubName` / phase labels plus every trade on a prior
+   * report for this job.
+   *
+   * Free text is still allowed (the field is a TextInput; these are chips above
+   * it), but a tap is what keeps the string CANONICAL. normalizeTradeKey
+   * (utils/brain/laborSamples.ts) only lowercases, so "Framer", "framing" and
+   * "Rough carpentry" are three different subs to everything downstream —
+   * crewPresence's went-quiet chase, the labor samples the cost book learns
+   * from, the man-hours rollup. Deliberately NOT sourced from
+   * Subcontractor.trade: that field is a four-value coarse enum (HVAC /
+   * Electrical / General / Other) and would seed a vocabulary the schedule
+   * never uses.
+   */
+  const tradeSuggestions = useMemo(() => {
+    const seen = new Map<string, string>();
+    const add = (raw: string | undefined | null) => {
+      const v = (raw ?? '').trim();
+      if (!v || seen.size >= 10) return;
+      const key = v.toLowerCase();
+      if (!seen.has(key)) seen.set(key, v);
+    };
+    for (const t of project?.schedule?.tasks ?? []) add(t.crew || t.assignedSubName || t.phase);
+    for (const r of existingReports) for (const m of r.manpower ?? []) add(m.trade);
+    return Array.from(seen.values());
+  }, [project?.schedule?.tasks, existingReports]);
+
+  /** Company names already on this account — the sub roster plus whoever the
+   *  schedule says is assigned here. Same reason: one spelling per sub. */
+  const companySuggestions = useMemo(() => {
+    const seen = new Map<string, string>();
+    const add = (raw: string | undefined | null) => {
+      const v = (raw ?? '').trim();
+      if (!v || seen.size >= 10) return;
+      const key = v.toLowerCase();
+      if (!seen.has(key)) seen.set(key, v);
+    };
+    for (const t of project?.schedule?.tasks ?? []) add(t.assignedSubName);
+    for (const s of subcontractors) add(s.companyName);
+    return Array.from(seen.values());
+  }, [project?.schedule?.tasks, subcontractors]);
+
+  /** True while the roster is still exactly what the schedule seeded — nobody
+   *  has corrected a number yet, so the block is showing the app's assumption
+   *  and has to say so. */
+  const manpowerIsUntouchedSeed = useMemo(
+    () => manpower.length > 0 && autoSeedRef.current != null && JSON.stringify(manpower) === autoSeedRef.current,
+    [manpower],
+  );
 
   const handleAddMaterial = useCallback(() => {
     const mat = newMaterial.trim();
@@ -1055,29 +1283,68 @@ export default function DailyReportScreen() {
     cpmOptions: delayCpmOptions,
   }), [project, tier, scheduleTasks, delayCpmOptions]);
 
-  // Hydrate the persisted applied-delay marker for this report. Cross-session
-  // guard: without it, reopening the report and re-running the (cached) scan
-  // would re-offer the already-applied delay with no memory of the apply.
+  // Hydrate the persisted applied-delay markers. Cross-session guard: without
+  // it, reopening the report and re-running the (cached) scan would re-offer
+  // the already-applied delay with no memory of the apply. The whole map is
+  // decoded rather than one report's entry, because the lookup is now by
+  // (project + text hash) — a delay carried forward into a different report is
+  // the same delay (DFR-DELAY-RECARRY, see the region at the top of the file).
   useEffect(() => {
     let cancelled = false;
     AsyncStorage.getItem(DELAY_APPLIED_STORE_KEY)
       .then(raw => {
         if (cancelled) return;
-        setAppliedDelayHash(parseAppliedDelayMap(raw)[stableReportId] ?? null);
+        const decoded: Record<string, AppliedDelayRecord> = {};
+        for (const [k, v] of Object.entries(parseAppliedDelayMap(raw))) {
+          const rec = decodeAppliedDelay(v);
+          if (rec) decoded[k] = rec;
+        }
+        setAppliedDelays(decoded);
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [stableReportId]);
+  }, []);
 
   const liveDelayHash = useMemo(() => hashDelayText(issuesAndDelays), [issuesAndDelays]);
   // Rows were scanned from different text than what's on screen now.
   const delayRowsStale = delayScannedHash != null && delayScannedHash !== liveDelayHash;
+  /** The applied ripple, if any, that this exact note already produced on this
+   *  project — whichever report it was applied from. */
+  const appliedForLiveText = useMemo(
+    () => (projectId && issuesAndDelays.trim().length > 0
+      ? appliedDelays[appliedDelayKey(projectId, liveDelayHash)] ?? null
+      : null),
+    [appliedDelays, projectId, liveDelayHash, issuesAndDelays],
+  );
+  /** Same lookup for the text the open rows were SCANNED from. */
+  const appliedForScannedText = useMemo(
+    () => (projectId && delayScannedHash ? appliedDelays[appliedDelayKey(projectId, delayScannedHash)] ?? null : null),
+    [appliedDelays, projectId, delayScannedHash],
+  );
   // This scan's text is exactly what was already applied to the schedule.
-  const delayAlreadyApplied = delayScannedHash != null && appliedDelayHash != null
-    && delayScannedHash === appliedDelayHash && !delayReArmed;
-  // APPLIED pill: applied this session, or the persisted marker matches the
-  // live text (report reopened after an apply, nothing edited since).
-  const showAppliedPill = delayApplied || (appliedDelayHash != null && appliedDelayHash === liveDelayHash);
+  const delayAlreadyApplied = appliedForScannedText != null && !delayReArmed;
+  // APPLIED pill: applied this session, or a persisted marker matches the
+  // live text (report reopened after an apply, or the note was carried
+  // forward from the report the ripple was applied on).
+  const showAppliedPill = delayApplied || appliedForLiveText != null;
+  /**
+   * Why the ripple is blocked, in the super's words.
+   *
+   * The generic "Already applied to the schedule." is right when he is looking
+   * at the report he applied it on. When the note arrived by "Copy from
+   * yesterday" it is not — he has no reason to believe today's report ever
+   * moved anything, so the block has to name the day it came from before the
+   * Re-arm button beside it means anything.
+   */
+  const appliedNoticeText = useMemo(() => {
+    const rec = appliedForScannedText;
+    if (!rec) return 'Already applied to the schedule.';
+    if (rec.reportId === stableReportId) return 'Already applied to the schedule.';
+    const day = carrySourceDayAbsolute(rec.reportDate);
+    const n = rec.taskIds.length;
+    const what = n === 0 ? 'the same tasks' : n === 1 ? 'that task' : `those ${n} tasks`;
+    return `Already applied to the schedule from ${day} — applying it again would move ${what} a second time.`;
+  }, [appliedForScannedText, stableReportId]);
 
   // Editing the issues text invalidates an open ripple preview — its ops were
   // built from rows that no longer describe the text.
@@ -1129,14 +1396,14 @@ export default function DailyReportScreen() {
       // Re-scanning unchanged, already-applied text keeps the applied flag;
       // new/changed text clears it. (Lives in the SUCCESS path so a failed
       // scan can't wipe the APPLIED pill.)
-      setDelayApplied(appliedDelayHash != null && scannedHash === appliedDelayHash);
+      setDelayApplied(appliedDelays[appliedDelayKey(projectId, scannedHash)] != null);
       if (!res.fromCache) void recordAIUsage('fast', 'delayScan');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } finally {
       delayScanBusyRef.current = false;
       setDelayScanning(false);
     }
-  }, [project, scheduleTasks, issuesAndDelays, tier, stableReportId, appliedDelayHash]);
+  }, [project, projectId, scheduleTasks, issuesAndDelays, tier, stableReportId, appliedDelays]);
 
   const confirmableRows = useMemo(
     () => (delayRows ?? []).filter((r): r is DelayRow & { taskId: string } => !!r.taskId && r.deltaDays > 0),
@@ -1190,15 +1457,37 @@ export default function DailyReportScreen() {
     setDelayApplied(true);
     setDelayReArmed(false);
     // Persist the applied marker (separate mageid_delay_applied store — NOT a
-    // report field, which sync rehydration would wipe) so reopening the report
-    // and re-scanning the same text renders "already applied" instead of
-    // re-offering the same ripple.
+    // report field, which sync rehydration would wipe) so re-scanning the same
+    // text renders "already applied" instead of re-offering the same ripple —
+    // in this report, and in any report the note is carried forward into.
+    //
+    // The record also carries what was applied. handleApplyRipple clears
+    // delayRows two lines above (the ops are relative moves, so live rows are
+    // a loaded gun), which means the moment "already applied" is true the days
+    // and the task ids are gone from state — and those are exactly the two
+    // facts the delay register asks for. Storing them here is what lets the
+    // handoff below stay enriched after the apply, and across a reopen.
     const appliedHash = delayScannedHash ?? hashDelayText(issuesAndDelays);
-    setAppliedDelayHash(appliedHash);
+    const appliedMoves = delayPreviewOps.filter((op): op is EditOp & { op: 'move'; task: string; deltaDays?: number } => op.op === 'move');
+    const appliedRecord: AppliedDelayRecord = {
+      hash: appliedHash,
+      reportId: stableReportId,
+      reportDate,
+      // The largest single slip, not the sum: the moves are parallel task
+      // shifts, so adding them up would claim more days than the schedule
+      // actually lost.
+      deltaDays: appliedMoves.reduce((max, op) => Math.max(max, op.deltaDays ?? 0), 0),
+      taskIds: appliedMoves.map(op => op.task),
+    };
+    const storeKey = appliedDelayKey(project.id, appliedHash);
+    setAppliedDelays(prev => ({ ...prev, [storeKey]: appliedRecord }));
     AsyncStorage.getItem(DELAY_APPLIED_STORE_KEY)
       .then(raw => AsyncStorage.setItem(
         DELAY_APPLIED_STORE_KEY,
-        JSON.stringify(withAppliedDelay(parseAppliedDelayMap(raw), stableReportId, appliedHash)),
+        // withAppliedDelay is a plain immutable upsert into a
+        // Record<string, string> — the key is ours, the value is the encoded
+        // record (see decodeAppliedDelay for what tolerates the legacy shape).
+        JSON.stringify(withAppliedDelay(parseAppliedDelayMap(raw), storeKey, encodeAppliedDelay(appliedRecord))),
       ))
       .catch(() => {});
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -1239,7 +1528,7 @@ export default function DailyReportScreen() {
         project.id,
       );
     } catch { /* G4 */ }
-  }, [project, delayPreviewOps, delayCpmOptions, updateProject, delayScannedHash, issuesAndDelays, stableReportId]);
+  }, [project, delayPreviewOps, delayCpmOptions, updateProject, delayScannedHash, issuesAndDelays, stableReportId, reportDate]);
 
   const totalManpower = useMemo(() => {
     return manpower.reduce((sum, m) => sum + m.headcount, 0);
@@ -1273,12 +1562,32 @@ export default function DailyReportScreen() {
     return manpower.reduce((sum, m) => sum + (m.headcount * m.hoursWorked), 0);
   }, [manpower]);
 
+  /**
+   * This screen's own record, once it exists — even when the route never
+   * carried a reportId.
+   *
+   * A brand-new report is saved under `stableReportId`, and `existingReport`
+   * only ever looks up the route param, so after a silent save (the
+   * delay-event handoff below) the screen still believed it had never been
+   * written. The next Save would take the CREATE branch again and
+   * addDailyReport would push a second row with the same id — a duplicate day
+   * locally and a primary-key collision on sync. Looking the id up in the live
+   * list answers the question directly.
+   */
+  const persistedSelf = useMemo(
+    () => existingReports.find(r => r.id === stableReportId) ?? null,
+    [existingReports, stableReportId],
+  );
+
   // `silent` writes the record and nothing else — no haptic, no toast, no
   // navigation. handleConfirmSend uses it to get the day on disk BEFORE it
   // tries to deliver anything, and owns the outcome message itself.
   const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string, opts?: { silent?: boolean }) => {
     if (!projectId) return;
     const silent = opts?.silent === true;
+    // The record to UPDATE, if there is one. See persistedSelf above: a report
+    // this screen already wrote silently is an update, not a second insert.
+    const savedRecord = existingReport ?? persistedSelf;
 
     const now = new Date().toISOString();
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
@@ -1294,8 +1603,8 @@ export default function DailyReportScreen() {
         }
       : undefined;
 
-    if (existingReport) {
-      updateDailyReport(existingReport.id, {
+    if (savedRecord) {
+      updateDailyReport(savedRecord.id, {
         date: reportDate,  // honor the user-picked date on edit too
         weather,
         manpower,
@@ -1317,7 +1626,7 @@ export default function DailyReportScreen() {
       // the report's already-saved photo ids so we don't re-add (duplicate)
       // photos that were mirrored on the original save. Same payload shape
       // as the create branch below.
-      const alreadyMirrored = new Set((existingReport.photos ?? []).map(p => p.id));
+      const alreadyMirrored = new Set((savedRecord.photos ?? []).map(p => p.id));
       for (const p of photos) {
         if (alreadyMirrored.has(p.id)) continue;
         addProjectPhoto({
@@ -1381,7 +1690,91 @@ export default function DailyReportScreen() {
     // whose timer is cancelled by the navigation on the next line.
     void AsyncStorage.removeItem(draftKey).catch(() => {});
     if (!silent) router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, draftKey]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, draftKey]);
+
+  /**
+   * "Log this as a delay event" — hand the register what this screen already
+   * worked out.
+   *
+   * The register opened blank: four params (project, date, the note, and an
+   * evidence pointer only when the report happened to be saved already). So it
+   * asked him how many days and which activities — the two numbers the screen
+   * directly above it had just calculated and, in the applied case, already
+   * moved his schedule by. He types a round number from memory or skips the
+   * field, and the register built to win the argument carries a weaker version
+   * of a fact the app had exactly right an hour earlier.
+   *
+   * Three things ride along now:
+   *   • claimedDays / impactedTaskIds — from the APPLIED record when there is
+   *     one (it survives the apply clearing the rows, and a reopen), otherwise
+   *     from the live confirmed rows. Nothing is sent when neither exists;
+   *     an empty field he fills in is honest, an invented number is not.
+   *   • cause — only when his own text names weather (inferDelayCauseFromText).
+   *   • evidence — always, by saving the report first. It used to be dropped
+   *     silently on an unsaved report, which is precisely the common case: he
+   *     writes the delay and logs it before he ever taps Save.
+   */
+  const handleLogDelayEvent = useCallback(() => {
+    const text = issuesAndDelays.trim();
+    if (!text) return;
+    if (!projectId) {
+      // Reached from the sidebar or a deep link with no project picked. Saying
+      // so beats a button that looks live and does nothing — the register
+      // itself refuses the same way ("A delay event has to belong to a job").
+      showAlert('Pick a project first', 'A delay event has to belong to a job — choose one at the top of this report.');
+      return;
+    }
+    // `silent` writes the record without a toast or a nav — the screen stays
+    // where it is and the evidence pointer below is real rather than hopeful.
+    if (!existingReport && !persistedSelf) handleSave('draft', undefined, undefined, { silent: true });
+    const claimedDays = appliedForLiveText
+      ? appliedForLiveText.deltaDays
+      : confirmableRows.reduce((max, r) => Math.max(max, r.deltaDays), 0);
+    const taskIds = appliedForLiveText ? appliedForLiveText.taskIds : confirmableRows.map(r => r.taskId);
+    const cause = inferDelayCauseFromText(text);
+    router.push({
+      pathname: '/delay-events',
+      params: {
+        projectId,
+        autoLog: '1',
+        firstObservedDate: reportDate,
+        description: text,
+        ...(cause ? { cause } : null),
+        ...(claimedDays > 0 ? { claimedDays: String(claimedDays) } : null),
+        // The one param the register does not read yet — its log form still
+        // writes impactedTaskIds: []. The ids are only knowable on this side,
+        // an unrecognised param is inert on arrival, and the reading half
+        // (plus a manual task multi-select for the events that don't come from
+        // a scan) belongs to app/delay-events.tsx.
+        ...(taskIds.length > 0 ? { impactedTaskIds: taskIds.join(',') } : null),
+        evidenceKind: 'daily_report',
+        evidenceId: stableReportId,
+        evidenceAt: reportDate,
+      },
+    });
+  }, [projectId, issuesAndDelays, reportDate, stableReportId, existingReport, persistedSelf, handleSave, appliedForLiveText, confirmableRows, router]);
+
+  /** What the delay-event button says it is carrying. Naming the numbers is
+   *  the difference between a button he trusts and one he re-checks. */
+  const delayEventBtnLabel = useMemo(() => {
+    if (appliedForLiveText) {
+      const n = appliedForLiveText.taskIds.length;
+      const d = appliedForLiveText.deltaDays;
+      const parts = [
+        d > 0 ? `${d} day${d === 1 ? '' : 's'}` : null,
+        n > 0 ? `${n} task${n === 1 ? '' : 's'}` : null,
+      ].filter(Boolean).join(', ');
+      return parts
+        ? `Log as a delay event — ${parts}, already applied to the schedule`
+        : 'Log as a delay event — already applied to the schedule';
+    }
+    if (confirmableRows.length > 0) {
+      const d = confirmableRows.reduce((max, r) => Math.max(max, r.deltaDays), 0);
+      const n = confirmableRows.length;
+      return `Log as a delay event — ${d} day${d === 1 ? '' : 's'}, ${n} task${n === 1 ? '' : 's'}`;
+    }
+    return 'Log this as a delay event';
+  }, [appliedForLiveText, confirmableRows]);
 
   // ─── The record lands before anything is delivered ───────────────────────
   //
@@ -2292,7 +2685,7 @@ export default function DailyReportScreen() {
               {!isLocked && (
                 <TouchableOpacity
                   style={styles.addSmallBtn}
-                  onPress={() => setShowManpowerModal(true)}
+                  onPress={() => openManpowerEditor()}
                   activeOpacity={0.7}
                   testID="add-manpower-btn" accessibilityRole="button" accessibilityLabel="Add">
                   <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -2317,14 +2710,62 @@ export default function DailyReportScreen() {
             {manpower.length === 0 && (
               <Text style={styles.emptyText}>No manpower entries yet — tap + to add a crew.</Text>
             )}
+            {/* The roster came from the schedule, not from the gate. Say so
+                while it is still untouched: crewSize is what was PLANNED and
+                the 8-hour day is a flat assumption, and both get read later as
+                man-hours on the owner's portal. The honesty chip goes away the
+                moment he corrects a number, because then it is his count. */}
+            {manpowerIsUntouchedSeed && !isLocked && (
+              <Text style={styles.mpSeedNote}>
+                Counts came from today&apos;s schedule and assume an 8-hour day — tap a row to correct it.
+              </Text>
+            )}
             {manpower.map((entry) => (
               <View key={entry.id} style={styles.mpRow}>
-                <View style={styles.mpInfo}>
+                {/* The row IS the edit control. Correcting four framers to
+                    three used to mean trash → confirm → + → four keyboard
+                    fields; the steppers below make the common case one thumb
+                    tap with gloves on, and this opens the rest. */}
+                <TouchableOpacity
+                  style={styles.mpInfo}
+                  onPress={() => openManpowerEditor(entry)}
+                  disabled={isLocked}
+                  activeOpacity={0.7}
+                  testID={`mp-edit-${entry.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${entry.trade}${entry.company ? `, ${entry.company}` : ''}, ${entry.headcount} workers, ${entry.hoursWorked} hours each`}
+                >
                   <Text style={styles.mpTrade}>{entry.trade}</Text>
                   <Text style={styles.mpMeta}>
                     {entry.company ? `${entry.company} · ` : ''}{entry.headcount} workers · {entry.hoursWorked}h each
                   </Text>
-                </View>
+                </TouchableOpacity>
+                {!isLocked && (
+                  <View style={styles.mpStepperRow}>
+                    <TouchableOpacity
+                      style={styles.mpStepBtn}
+                      onPress={() => adjustHeadcount(entry.id, -1)}
+                      hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+                      testID={`mp-minus-${entry.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={entry.headcount <= 1 ? `Remove ${entry.trade}` : `One fewer ${entry.trade}`}
+                      accessibilityHint={entry.headcount <= 1 ? 'Below one worker is no crew — this asks to remove the row' : undefined}
+                    >
+                      <Minus size={14} color={themeColors.text} strokeWidth={2} />
+                    </TouchableOpacity>
+                    <Text style={styles.mpStepValue}>{entry.headcount}</Text>
+                    <TouchableOpacity
+                      style={styles.mpStepBtn}
+                      onPress={() => adjustHeadcount(entry.id, 1)}
+                      hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+                      testID={`mp-plus-${entry.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`One more ${entry.trade}`}
+                    >
+                      <Plus size={14} color={themeColors.text} strokeWidth={2} />
+                    </TouchableOpacity>
+                  </View>
+                )}
                 {!isLocked && (
                   <TouchableOpacity onPress={() => handleRemoveManpower(entry.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
                     <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
@@ -2416,30 +2857,19 @@ export default function DailyReportScreen() {
             {issuesAndDelays.trim().length > 0 && (
               <TouchableOpacity
                 style={styles.delayEventBtn}
-                onPress={() => router.push({
-                  pathname: '/delay-events',
-                  params: {
-                    projectId,
-                    autoLog: '1',
-                    firstObservedDate: reportDate,
-                    description: issuesAndDelays.trim(),
-                    ...(existingReport
-                      ? { evidenceKind: 'daily_report', evidenceId: existingReport.id, evidenceAt: reportDate }
-                      : null),
-                  },
-                })}
+                onPress={handleLogDelayEvent}
                 testID="dfr-log-delay-event"
                 accessibilityRole="button"
                 accessibilityLabel="Log this as a delay event and start the notice countdown"
               >
                 <CalendarClock size={14} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.delayEventBtnText}>Log this as a delay event</Text>
+                <Text style={styles.delayEventBtnText}>{delayEventBtnLabel}</Text>
               </TouchableOpacity>
             )}
             {issuesAndDelays.trim().length > 0 && (
               <Text style={styles.delayEventHint}>
-                Starts the countdown against the notice window you set for this job, and links
-                this report as evidence.
+                Starts the countdown against the notice window you set for this job. Saves this
+                report first so it can be linked as the evidence for the day you first knew.
               </Text>
             )}
           </View>
@@ -2695,7 +3125,7 @@ export default function DailyReportScreen() {
                     // re-arm required to run it again.
                     <View style={dcStyles.appliedNotice}>
                       <CheckCircle2 size={15} color={themeColors.success} strokeWidth={1.75} />
-                      <Text style={dcStyles.appliedNoticeText}>Already applied to the schedule.</Text>
+                      <Text style={dcStyles.appliedNoticeText}>{appliedNoticeText}</Text>
                       <TouchableOpacity
                         style={dcStyles.reArmBtn}
                         onPress={() => setDelayReArmed(true)}
@@ -3233,7 +3663,7 @@ export default function DailyReportScreen() {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Manpower</Text>
+                <Text style={styles.modalTitle}>{mpEditingId ? 'Edit Crew' : 'Add Manpower'}</Text>
                 <TouchableOpacity onPress={() => setShowManpowerModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3246,6 +3676,28 @@ export default function DailyReportScreen() {
                 placeholder="e.g. Electrician, Plumber..."
                 placeholderTextColor={themeColors.textMuted}
               />
+              {/* Free text still wins — these are the spellings this job has
+                  already used. Tapping one keeps "Framing" from becoming
+                  "Framer" tomorrow, which is what fragments the same sub
+                  across the presence history and the labor samples. */}
+              {tradeSuggestions.length > 0 && (
+                <View style={styles.mpChipRow}>
+                  {tradeSuggestions.map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.mpChip, mpTrade.trim().toLowerCase() === s.toLowerCase() && styles.mpChipActive]}
+                      onPress={() => setMpTrade(s)}
+                      activeOpacity={0.7}
+                      testID={`mp-trade-suggest-${s}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Trade: ${s}`}
+                      accessibilityState={{ selected: mpTrade.trim().toLowerCase() === s.toLowerCase() }}
+                    >
+                      <Text style={styles.mpChipText} numberOfLines={1}>{s}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <Text style={styles.modalFieldLabel}>Company / Sub</Text>
               <TextInput
                 style={styles.modalInput}
@@ -3254,6 +3706,24 @@ export default function DailyReportScreen() {
                 placeholder="Company name (optional)"
                 placeholderTextColor={themeColors.textMuted}
               />
+              {companySuggestions.length > 0 && (
+                <View style={styles.mpChipRow}>
+                  {companySuggestions.map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.mpChip, mpCompany.trim().toLowerCase() === s.toLowerCase() && styles.mpChipActive]}
+                      onPress={() => setMpCompany(s)}
+                      activeOpacity={0.7}
+                      testID={`mp-company-suggest-${s}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Company: ${s}`}
+                      accessibilityState={{ selected: mpCompany.trim().toLowerCase() === s.toLowerCase() }}
+                    >
+                      <Text style={styles.mpChipText} numberOfLines={1}>{s}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <View style={styles.modalRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalFieldLabel}>Headcount</Text>
@@ -3278,8 +3748,15 @@ export default function DailyReportScreen() {
                   />
                 </View>
               </View>
-              <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddManpower} activeOpacity={0.85}>
-                <Text style={styles.modalAddBtnText}>Add Entry</Text>
+              <TouchableOpacity
+                style={styles.modalAddBtn}
+                onPress={handleSaveManpower}
+                activeOpacity={0.85}
+                testID="mp-save-btn"
+                accessibilityRole="button"
+                accessibilityLabel={mpEditingId ? 'Save changes' : 'Add entry'}
+              >
+                <Text style={styles.modalAddBtnText}>{mpEditingId ? 'Save changes' : 'Add Entry'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3667,6 +4144,22 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   mpInfo: { flex: 1, gap: 2 },
   mpTrade: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   mpMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  mpSeedNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, marginTop: 8, lineHeight: 17 },
+  mpStepperRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
+  // 30pt touch targets with hitSlop — the same size the delay steppers use,
+  // sized for a gloved thumb rather than a cursor.
+  mpStepBtn: {
+    width: 30, height: 30, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const,
+    backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
+  },
+  mpStepValue: { minWidth: 26, textAlign: 'center' as const, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  mpChipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: 8 },
+  mpChip: {
+    maxWidth: 180, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.full,
+    backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line,
+  },
+  mpChipActive: { backgroundColor: themeColors.accent + '15', borderColor: themeColors.accent + '55' },
+  mpChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.text },
   textArea: { minHeight: 80, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
   textInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
   readOnlyText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },

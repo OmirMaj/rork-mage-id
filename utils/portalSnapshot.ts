@@ -10,7 +10,7 @@
 import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
-  SavedAIAPayApp, PortalState,
+  SavedAIAPayApp, PortalState, ProjectSchedule,
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
@@ -352,8 +352,14 @@ export interface PortalSnapshot {
     // gradient.
     heroPhotoUrl?: string;
     // v2: optional schedule anchors. If we have a schedule we surface the
-    // first task's start date and the last task's end date so the portal can
-    // show "Started Mar 14 · Targeting Aug 22".
+    // project start date and the SCHEDULED FINISH so the portal can show
+    // "Mar 14 → Aug 22".
+    //
+    // `targetDate` is produced by `scheduleFinishDate` and by nothing else —
+    // it is the plan's last working day on the working-day calendar, the same
+    // day the GC sees in-app and the same day the portal's Gantt draws. It is
+    // never a guess: absent schedule data leaves it undefined and the hero
+    // degrades to "Started <date>".
     startDate?: string;
     targetDate?: string;
     // v3: an agreed-on contract value when no estimate exists yet. Falls
@@ -370,6 +376,12 @@ export interface PortalSnapshot {
       startDate?: string;
       workingDaysPerWeek?: number;
       totalDurationDays?: number;
+      // ISO YYYY-MM-DD days the crew does not work (holidays, rain days, site
+      // closures). Shipped so the portal's own Gantt can skip them the way
+      // addWorkingDays does in-app — without it the page's bars and its
+      // "PROJECT TIMELINE" header drift a day per suppressed day away from
+      // the hero's finish date, which is computed with them.
+      nonWorkingDates?: string[];
       tasks: {
         id: string; title: string; phase?: string; progress: number;
         status: string; durationDays: number;
@@ -993,6 +1005,91 @@ export function scheduleWorkComplete(project: Project): number | null {
 }
 
 /**
+ * PORTAL-FINISH — THE scheduled finish date of a schedule. One convention,
+ * one call site, so the hero and the Gantt lower down the SAME portal page
+ * cannot print two different days.
+ *
+ * Three separate things were wrong with what the hero used to do
+ * (`new Date(startDate).getTime() + totalDurationDays * 86400000`):
+ *
+ *  1. IT COUNTED CALENDAR DAYS OFF A WORKING-DAY NUMBER. `totalDurationDays`
+ *     is a WORKING-day ordinal — `buildSchedule` sets it to `projectFinishDay`
+ *     (utils/scheduleEngine.ts) and every other consumer advances it with
+ *     `addWorkingDays`, which skips weekends and `nonWorkingDates`. Adding it
+ *     as calendar days makes a 5-day-week job finish ~40% early: a
+ *     100-working-day project read roughly six weeks sooner than the schedule
+ *     actually said. This is the first date a homeowner reads on a page their
+ *     GC sent them, and it is the one they book a lease end, a move-out or a
+ *     closing around.
+ *  2. OFF BY ONE. It is an ordinal, not a count of days to add: day 1 IS the
+ *     start date, so the finish is `addWorkingDays(start, ordinal - 1, …)`.
+ *     Dropping the `- 1` pushes the date one working day past the plan — the
+ *     error the portal's own Gantt had, in the opposite direction.
+ *  3. IT IGNORED THE TASKS. `totalDurationDays` is a cached scalar that legacy
+ *     and hand-edited schedules can carry stale; the authored
+ *     `startDay`/`durationDays` ARE the plan (CPM is analysis). We derive the
+ *     finish ordinal from the tasks and fall back to the scalar only when the
+ *     schedule has no tasks to derive it from.
+ *
+ * The maths is DELIBERATELY identical to `buildOwnerConfidence`'s
+ * `projectedFinishISO` (utils/ownerConfidence.ts:87-104) — same
+ * `max(startDay + durationDays - 1)`, same `addWorkingDays(start, ordinal - 1,
+ * wpw, nonWorkingDates)`, same LOCAL-midnight anchor and local ISO formatting
+ * — so the date the homeowner reads is the date the GC reads in-app.
+ * scripts/validate-portal-owner.ts holds the two head-to-head, and holds the
+ * static portal page's hand-written copy of the same maths against both.
+ *
+ * Returns null when there is no usable start anchor or nothing to count.
+ * Callers MUST NOT substitute today: a guessed completion date presented as a
+ * known one is exactly the failure this function exists to end.
+ */
+export function scheduleFinishDate(
+  schedule: Pick<
+    ProjectSchedule,
+    'startDate' | 'tasks' | 'totalDurationDays' | 'workingDaysPerWeek' | 'nonWorkingDates'
+  > | null | undefined,
+): string | null {
+  if (!schedule) return null;
+  // Normalize first — `startDate` is documented as YYYY-MM-DD but older rows
+  // carry full ISO timestamps, and `new Date('2026-03-14')` is UTC midnight
+  // while addWorkingDays reads getDay()/setDate() in LOCAL time. West of UTC
+  // that pair lands on the previous calendar day and can skip a weekend it
+  // should not have. toCalendarDate gives us the plain day; we anchor it at
+  // local midnight so every step after this is in one timezone.
+  const anchor = toCalendarDate(schedule.startDate);
+  if (!anchor) return null;
+  const start = new Date(`${anchor}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const tasks = schedule.tasks ?? [];
+  let finishOrdinal = 0;
+  for (const t of tasks) {
+    const endDay = (t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 1) - 1);
+    if (endDay > finishOrdinal) finishOrdinal = endDay;
+  }
+  // No tasks to read (a schedule shell, or a snapshot that shipped only the
+  // scalar): fall back to the cached finish ordinal rather than returning
+  // nothing. Same ordinal scale, same -1 below.
+  if (finishOrdinal <= 0) finishOrdinal = schedule.totalDurationDays ?? 0;
+  if (finishOrdinal <= 0) return null;
+
+  try {
+    const finish = addWorkingDays(
+      start,
+      Math.max(0, finishOrdinal - 1),
+      schedule.workingDaysPerWeek ?? 5,
+      schedule.nonWorkingDates,
+    );
+    // Local formatting, to match the local anchor above. `.toISOString()`
+    // here would shift the day back across the date line for any user west
+    // of UTC — the same class of bug the anchor comment describes.
+    return `${finish.getFullYear()}-${String(finish.getMonth() + 1).padStart(2, '0')}-${String(finish.getDate()).padStart(2, '0')}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * WHEN was this invoice actually paid — as recorded, never as guessed.
  *
  * An `Invoice` has no paid-date column; the only evidence is `payments[]`. Two
@@ -1039,6 +1136,11 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       startDate: project.schedule.startDate,
       workingDaysPerWeek: project.schedule.workingDaysPerWeek,
       totalDurationDays: project.schedule.totalDurationDays,
+      // Omitted when empty so we don't grow every portal URL's base64 payload
+      // with `"nonWorkingDates":[]` — the page treats absent and empty alike.
+      ...(project.schedule.nonWorkingDates?.length
+        ? { nonWorkingDates: project.schedule.nonWorkingDates }
+        : {}),
       tasks: project.schedule.tasks.map(t => ({
         id: t.id,
         title: t.title,
@@ -1418,13 +1520,13 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   const sched = project.schedule;
   if (sched?.startDate) {
     startDate = sched.startDate;
-    if (sched.totalDurationDays != null && sched.totalDurationDays > 0) {
-      const start = new Date(sched.startDate);
-      if (!isNaN(start.getTime())) {
-        const end = new Date(start.getTime() + sched.totalDurationDays * 86400000);
-        targetDate = end.toISOString().slice(0, 10);
-      }
-    }
+    // ONE finish convention — see scheduleFinishDate above. This used to add
+    // `totalDurationDays` as calendar milliseconds, which printed a date up to
+    // six weeks before the plan and disagreed with the Gantt further down this
+    // very page. Stays undefined when the schedule gives us nothing to count:
+    // the hero then falls back to "Started <date>" rather than inventing a
+    // completion date for the homeowner to plan around.
+    targetDate = scheduleFinishDate(sched) ?? undefined;
   }
 
   // Show the "set your budget" card only when (a) the GC has opted in

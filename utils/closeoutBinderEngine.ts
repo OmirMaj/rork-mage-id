@@ -14,8 +14,10 @@ import {
 import type {
   CompanyBranding, Project, Commitment, ProjectPhoto, RFI,
   Submittal, Warranty as ProjectWarranty, SelectionCategory, LienWaiver,
+  Subcontractor, SubmittalStatus, RFIStatus,
 } from '@/types';
 import { WAIVER_LABELS } from './lienWaiverEngine';
+import { resolveTradeContacts } from './tradeContacts';
 
 export interface MaintenanceItem {
   id: string;
@@ -140,6 +142,15 @@ export interface BuildBinderInput {
   warranties: ProjectWarranty[];
   rfis: RFI[];
   submittals: Submittal[];
+  /**
+   * The sub roster, used to turn each subcontract commitment into a contact
+   * the client can actually dial. Optional only so an older call site cannot
+   * silently fail to compile — when it is absent the trade-contacts table
+   * still renders, with the phone and email cells blank and a line saying so,
+   * rather than back-filling those columns with some other field. See
+   * utils/tradeContacts.ts for what that mistake cost.
+   */
+  subcontractors?: Subcontractor[];
   /** Signed lien waivers — legal artifact for the binder. Residential
    *  needs unconditional finals from majors; commercial needs the full
    *  per-period conditional + unconditional set. AUD-008. */
@@ -147,7 +158,15 @@ export interface BuildBinderInput {
 }
 
 function buildBinderHtml(input: BuildBinderInput): string {
-  const { project, branding, binder, commitments, photos, selections, warranties, lienWaivers } = input;
+  const {
+    project, branding, binder, commitments, photos, selections, warranties, lienWaivers,
+    // rfis/submittals were declared on BuildBinderInput and filtered by the
+    // screen, and then this destructure never named them — so the full
+    // design-question and shop-drawing record was computed and thrown away on
+    // every export. They are the two logs a landlord or tenant holds retention
+    // over, and the GC was re-assembling them by hand from two other screens.
+    rfis, submittals, subcontractors,
+  } = input;
   const completionDate = project.closedAt ?? project.updatedAt;
 
   // Hero photo — most recent project photo if available.
@@ -162,16 +181,83 @@ function buildBinderHtml(input: BuildBinderInput): string {
     .map(c => ({ category: c.category, chosen: (c.options ?? []).find(o => o.isChosen) }))
     .filter(x => !!x.chosen);
 
-  const subContactRows = (commitments ?? [])
-    .filter(c => c.status !== 'draft')
-    .map(c => `
+  // Trade contacts — "who did my electrical", answered two years from now.
+  //
+  // This table used to print `fmtMoney(c.amount + (c.changeAmount ?? 0))` under
+  // a column headed "Email", and c.phase under a column headed "Phone". That is
+  // every subcontractor's contract value, including approved change orders, in
+  // the document handed to the client: subtract the column from the contract
+  // sum and the GC's margin is readable line by line. Sub contract values are a
+  // GC-side number and live on the buyout and job-cost screens; they have no
+  // business in a client-facing binder at all, so the amount cell is gone
+  // rather than relabelled. The resolver is shared with the client portal so
+  // the same table can never drift apart between the two surfaces.
+  const tradeContacts = resolveTradeContacts(commitments, subcontractors, project.id);
+  const subContactRows = tradeContacts.map(t => `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(c.vendorName ?? 'Subcontractor')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(c.description ?? c.type ?? '')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(c.phase ?? '')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtMoney(c.amount + (c.changeAmount ?? 0))}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(t.company)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.scope ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.phone ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.email ?? '')}</td>
       </tr>
     `).join('');
+  // Honesty line: a blank phone/email cell means we never captured it, not that
+  // the trade has no number. Say so under the table instead of letting the
+  // client read the gap as a data error — and tell them who to call meanwhile.
+  const missingContactCount = tradeContacts.filter(t => !t.phone && !t.email).length;
+  const tradeContactsNote = missingContactCount > 0 ? `
+    <p style="margin:8px 2px 0;font-size:11px;color:${PDF_PALETTE.textMuted};font-style:italic">
+      ${missingContactCount} of ${tradeContacts.length} trades ${missingContactCount === 1 ? 'has' : 'have'} no phone or email on file — we never captured one. Contact us and we'll put you in touch.
+    </p>
+  ` : '';
+
+  // ── RFI log ────────────────────────────────────────────────────────────────
+  // Every design question asked and where it landed. Void RFIs are withdrawn
+  // questions and are left out — a closeout log of things that were un-asked
+  // reads as noise, not as a record.
+  const RFI_STATUS_LABELS: Record<RFIStatus, string> = {
+    open: 'Open', answered: 'Answered', closed: 'Closed', void: 'Void',
+  };
+  const projectRfis = (rfis ?? [])
+    .filter(r => r.projectId === project.id && r.status !== 'void')
+    .sort((a, b) => a.number - b.number);
+  // Columns stop at status on purpose: dateResponded and `response` are null on
+  // most real rows, so a "Responded" column would print a page of dashes and
+  // make a complete log look incomplete.
+  const rfiRows = projectRfis.map(r => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">RFI-${escHtml(String(r.number).padStart(3, '0'))}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(r.subject)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${r.dateSubmitted ? fmtDate(r.dateSubmitted) : ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(RFI_STATUS_LABELS[r.status] ?? r.status)}</td>
+    </tr>
+  `).join('');
+
+  // ── Submittal log ──────────────────────────────────────────────────────────
+  // The shop-drawing record. Same reasoning on columns: the review-cycle
+  // reviewer and return date are empty on most rows, so the log prints the
+  // current disposition and stops there.
+  // These labels are already HTML (note the &amp;), so they are interpolated
+  // raw; the `?? escHtml(...)` fallback covers a status the map does not know.
+  const SUBMITTAL_STATUS_LABELS: Record<SubmittalStatus, string> = {
+    pending: 'Pending',
+    in_review: 'In review',
+    approved: 'Approved',
+    approved_as_noted: 'Approved as noted',
+    revise_resubmit: 'Revise &amp; resubmit',
+    rejected: 'Rejected',
+  };
+  const projectSubmittals = (submittals ?? [])
+    .filter(s => s.projectId === project.id)
+    .sort((a, b) => a.number - b.number);
+  const submittalRows = projectSubmittals.map(s => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">SUB-${escHtml(String(s.number).padStart(3, '0'))}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(s.specSection ?? '')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(s.title)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${SUBMITTAL_STATUS_LABELS[s.currentStatus] ?? escHtml(s.currentStatus)}</td>
+    </tr>
+  `).join('');
 
   const selectionRows = chosenSelections.map(s => `
     <tr>
@@ -279,6 +365,21 @@ function buildBinderHtml(input: BuildBinderInput): string {
       ['Company', 'Scope', 'Phone', 'Email'],
       subContactRows,
       'No subcontractors on file.')}
+    ${tradeContactsNote}
+
+    <!-- The two logs are rendered only when they have rows. Unlike the sections
+         above them, "no RFIs on this job" is a normal and common outcome on a
+         small job, and an empty table with a header reads as a broken feature
+         rather than as an honest zero. -->
+    ${rfiRows ? sectionTable('RFI log',
+      ['RFI', 'Subject', 'Submitted', 'Status'],
+      rfiRows,
+      '') : ''}
+
+    ${submittalRows ? sectionTable('Submittal log',
+      ['Submittal', 'Spec section', 'Title', 'Status'],
+      submittalRows,
+      '') : ''}
 
     <div style="margin-top:28px;padding:16px 18px;background:${PDF_PALETTE.amberTint};border:1px solid ${PDF_PALETTE.amber}40;border-radius:10px;font-size:12px;color:${PDF_PALETTE.text};line-height:1.6">
       <strong style="color:${PDF_PALETTE.ink};font-size:13px">If something breaks during the warranty period:</strong>

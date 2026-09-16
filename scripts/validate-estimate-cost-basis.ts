@@ -1579,6 +1579,236 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
       /Not saved to \{parkedProject\.name\}/.test(wizard),
       'dismissing the markup sheet must leave a visible "not attached yet", not a green check');
   }
+
+  // ── 12p. the AI takeoff prices at HIS markup, not at a screen default ────
+  //
+  // app/takeoff-estimate.tsx is the screen onboarding sells him on ("AI
+  // takeoffs from a PDF"): drop in plans, get a priced estimate, send it. It
+  // opened on `useState(15)` and offered four pills — 10/15/20/25 — so a GC
+  // whose real markup is 22% could not express it, and whichever pill happened
+  // to be lit was multiplied into every line and then written onto the project
+  // as `linkedEstimate.globalMarkup`. On a $250K takeoff that is ~$17,500 of
+  // overhead and profit given away in a document he believes MAGE priced from
+  // his own numbers — and because the value is SAVED, every margin figure the
+  // app later reports back to him inherits it.
+  //
+  // Structural because the defect is structural: there is no arithmetic to
+  // assert here, only "does this screen read the answer he already gave". The
+  // wizard, Quick Quote and the Full Estimator all read `markupDecided` +
+  // `globalMarkup` from MaterialCartContext; this screen read neither, and
+  // that is exactly what made it dangerous — every other estimating path gets
+  // it right, so he has no reason to check this one.
+  {
+    const takeoff = stripComments(read('app/takeoff-estimate.tsx'));
+    ok('the takeoff estimate does not seed a markup of its own',
+      !/useState\(15\)/.test(takeoff),
+      'the hardcoded 15% is back: a GC who told the wizard 22% ships this takeoff at 15%');
+    ok('…it reads the markup he already gave us',
+      /useMaterialCart\(\)/.test(takeoff),
+      'this screen must consume MaterialCartContext, not invent a percentage');
+    ok('…and only treats it as HIS when he actually answered',
+      /markupDecided === true \?/.test(takeoff),
+      'markupDecided is null while AsyncStorage answers; reading globalMarkup unconditionally asserts DEFAULT_MARKUP as his choice');
+    ok('…the pill ladder is the shared one, not a screen-local four',
+      /MARKUP_CHOICES/.test(takeoff) && !/\[10, 15, 20, 25\]/.test(takeoff),
+      '10/15/20/25 cannot express 22%, and a second ladder is a second menu for one decision');
+    ok('…a free-entry percent exists so any number is reachable',
+      /takeoff-markup-custom/.test(takeoff));
+    ok('…and every change routes through the single writer',
+      /recordMarkupDecision/.test(takeoff),
+      'answering here must also answer the wizard and Quick Quote — one decision, one writer');
+    // THE WRITE. This is the line that put a guessed percentage on the project.
+    ok('the saved estimate carries his markup, not a local default',
+      /globalMarkup: markupPct/.test(takeoff),
+      'linkedEstimate.globalMarkup is read by the proposal, the contract value and every margin figure downstream');
+    ok('…and the Replace path refuses to write an unanswered one',
+      /if \(!isMarkupSet\(markupPct\)\)/.test(takeoff),
+      'seeding the initial state alone still prices him at whatever pill is lit; the write itself has to refuse');
+    // A disabled control that does not say why is just a broken control.
+    ok('…with the blocked Save button stating why it is blocked',
+      /saveBlocked/.test(takeoff) && /Set your markup to save/.test(takeoff));
+    ok('…and the at-cost total says so instead of implying a markup',
+      /This total is your cost/.test(takeoff),
+      'a cost total with nothing saying so is the defect, not the zero');
+  }
+}
+
+// ── 13. the CHANGE ORDER prices at his rate, not at his cost ───────────────
+//
+// The last surface still selling at cost, and the most expensive one to get
+// wrong. A base contract gets competed down; the extras are where a small GC's
+// margin actually lives. app/change-order.tsx had three ways to put money on a
+// change order and all three opened at 0%:
+//
+//   "Add from Estimate"  copied LinkedEstimateItem.unitPrice — documented COST
+//                        per unit, never touched by the markup pass — straight
+//                        onto the CO line. Pulling three lines out of his own
+//                        estimate priced the added scope at exactly what it
+//                        costs him to build.
+//   "Add New Item"       had Name / Description / Quantity / Unit / Unit Price
+//                        and NO markup control at all, so whatever he typed was
+//                        the price. This is the path he uses when the change is
+//                        real work rather than a catalogue item.
+//   "Search Materials"   had the only markup box on the screen, defaulted to 0
+//                        and RESET to 0 after every add, so the percentage did
+//                        not survive between two lines of one change order.
+//
+// And the totals card showed one number, so a $12,000 CO at cost and a $12,000
+// CO at 30 points were visually identical — he had no way to notice.
+//
+// THE RATE ON AN ESTIMATE LINE IS THE LINE'S OWN. The fix deliberately does NOT
+// re-run a global markup over a copied estimate line: `lineTotal` already
+// carries the rate the owner signed for that item, including a line the
+// contractor hand-tuned to 40% in the estimator (the case applyMarkupToItems'
+// keep-your-own-markup clause exists to protect). The cart's answered markup is
+// the fallback for the two paths with no estimate line behind them.
+//
+// Structural, because bun cannot import a .tsx screen — same technique and same
+// reason as 12p above. The one arithmetic assertion pins the identity the
+// screen's division depends on, using the REAL applyMarkupToItems.
+{
+  const co = stripComments(read('app/change-order.tsx'));
+
+  // The identity the screen divides on. If lineTotal ever stops being
+  // "cost x qty x (1 + markup/100)" for the WHOLE quantity, `lineTotal / qty`
+  // silently stops being the signed per-unit rate and every CO copied from an
+  // estimate is mispriced by a factor of the quantity.
+  {
+    const priced = applyMarkupToItems([{
+      materialId: 'x', name: 'Tile', category: 'Finishes', unit: 'sf',
+      quantity: 250, unitPrice: 4, bulkPrice: 4, markup: 40, usesBulk: false,
+      lineTotal: 0, supplier: 'Acme',
+    }], 15)[0];
+    expect('an estimate line\u2019s lineTotal is the WHOLE quantity at its own rate',
+      priced.lineTotal, round2(4 * 250 * 1.4));
+    expect('\u2026so lineTotal / quantity is the per-unit price the owner signed',
+      round2(priced.lineTotal / priced.quantity), round2(4 * 1.4));
+    ok('\u2026and that is NOT the cost the CO screen used to copy',
+      round2(priced.lineTotal / priced.quantity) !== priced.unitPrice,
+      'if these two are ever equal the fixture has no markup and proves nothing');
+  }
+
+  // THE COPY ITSELF. Anchored on the picker row shape so a rename cannot leave
+  // a stale assertion passing on a field nobody reads any more.
+  ok('the estimate picker carries the SELL basis, not just the cost',
+    /unitSell: number \| null/.test(co) && /unitCost: number/.test(co),
+    'the memo used to emit unitPrice (cost) alone and drop lineTotal, markup ' +
+    'and quantity on the floor — there was nothing left to price the CO with');
+  ok('\u2026derived per unit from the line the owner signed',
+    /item\.lineTotal \/ qty/.test(co),
+    'the signed rate is lineTotal / quantity; anything else re-prices a line ' +
+    'the owner has already agreed to');
+  ok('\u2026with a fallback for a zero quantity, not a division by it',
+    /qty > 0 && Number\.isFinite\(item\.lineTotal\)/.test(co));
+  ok('\u2026and the add path takes that rate rather than re-running a global markup',
+    /pick\.unitSell\s*$/m.test(co) || /const price = pick\.unitSell/.test(co),
+    'flattening a hand-tuned 40% line to the cart default is the exact case ' +
+    'applyMarkupToItems refuses to do on an estimate');
+  ok('the CO screen no longer copies the estimate\u2019s cost onto a line',
+    !/unitPrice: item\.unitPrice,\s+total: item\.unitPrice,/.test(co),
+    'this is the literal line that sent added scope out at cost');
+
+  // THE TWO PATHS WITH NO ESTIMATE LINE BEHIND THEM.
+  ok('the from-scratch paths read the markup he already answered',
+    /useMaterialCart\(\)/.test(co),
+    'Add New Item and Search Materials must not invent a percentage, and must ' +
+    'not ask him a second, contradictory version of a question he has answered');
+  ok('\u2026and only treat it as his when he actually answered it',
+    /markupDecided === true \?/.test(co),
+    'markupDecided is null while AsyncStorage answers; reading globalMarkup ' +
+    'unconditionally asserts DEFAULT_MARKUP as his decision');
+  ok('the Add New Item modal has a markup control at all',
+    /testID="co-new-item-markup"/.test(co),
+    'without one, whatever he types in this modal IS the price — and this is ' +
+    'the modal he reaches for when the change is labour, not a catalogue item');
+  ok('\u2026and the materials markup box no longer resets to zero after each add',
+    !/setItemMarkup\('0'\)/.test(co),
+    'resetting to 0 meant the second line of a change order went on at cost ' +
+    'even when he had just set a percentage for the first');
+  ok('\u2026nor opens at a percentage he never chose',
+    !/useState\('0'\)/.test(co) && !/useState\(15\)/.test(co),
+    'the seed is his answered markup or nothing');
+
+  // THE TOTALS CARD. One number per change order is what made this invisible.
+  ok('the totals card splits cost from overhead & profit',
+    /Your cost/.test(co) && /Overhead &amp; profit/.test(co),
+    'a $12,000 CO at cost and a $12,000 CO at 30 points looked identical');
+  ok('\u2026and states the margin as well as the markup',
+    /marginFraction/.test(co) && /markup is a share of the cost/.test(co),
+    'a contractor who types 25 into a MARKUP field walks away with 20 points ' +
+    'of margin; printing one and calling it the other is the confusion itself');
+  ok('\u2026computed off a recorded cost basis, not off the price',
+    /i\.unitCost \?\? 0\) \* i\.quantity/.test(co),
+    'deriving cost from unitPrice makes every margin exactly zero by construction');
+  // Anchored on the DERIVATION, not on the word. A bare /basisKnown/ still
+  // matched after the flag was pinned to `true`, which re-creates the exact
+  // fabricated-0%-margin claim this assertion is here to forbid (caught while
+  // mutation-testing this guard).
+  ok('a line with NO recorded cost is reported as unknown, never as zero margin',
+    /basisKnown: unpriced\.length === 0/.test(co) &&
+    /coMargin && !coMargin\.basisKnown/.test(co) &&
+    /cannot be shown/.test(co),
+    'voice-dictated and allowance-prefill lines carry no cost basis; claiming ' +
+    '0% margin on them is an invented fact, which is worse than saying nothing');
+  ok('\u2026and an at-cost change order says so in the wizard\u2019s own words',
+    /This change order is your cost/.test(co) && /atCost/.test(co),
+    'the defect is a cost total with nothing saying so — not the zero itself, ' +
+    'which a contractor is entitled to choose');
+  ok('\u2026using the same half-cent floor as isAtCost',
+    /Math\.abs\(overheadProfit\) < 0\.005/.test(co),
+    'an exact equality reads rounding noise on a marked-up CO as at-cost');
+}
+
+// ── 14. the change order records WHO is approving it, and by WHEN ──────────
+//
+// Sending a CO opens a sheet that asks for the approver's name and email and
+// even offers the device Contacts. Those two values were used for exactly one
+// thing — the string "submitted for approval to Dave (dave@...)" in a toast —
+// and the saved ChangeOrder carried no `approvers` and no
+// `approvalDeadlineDays`. Four things that are already built went blind:
+// followUp/rules.ts R1 (basis 'none', and with no holder its drafted nudge is
+// suppressed by guard G4), systemOfAction's chase list, clientBook's
+// approval-speed stats, and aiaBilling's pay-application period dating.
+//
+// The shape is pinned to what app/client-view.tsx merges against, which is the
+// part that is easy to get subtly wrong: it finds the FIRST approver with
+// `role === 'Client' && status === 'pending'` and stamps the response onto that
+// row. Miss the predicate and the portal appends a second approver instead,
+// which breaks aiaBilling's last-signature rule.
+{
+  const co = stripComments(read('app/change-order.tsx'));
+  const portal = stripComments(read('app/client-view.tsx'));
+
+  ok('the CO screen writes the approver it just collected',
+    /approvers/.test(co) && /role: 'Client'/.test(co) && /status: 'pending'/.test(co),
+    'the name and email were collected, emailed, and dropped');
+  ok('\u2026in the shape the portal merges against',
+    /a\.role === 'Client' && a\.status === 'pending'/.test(co) &&
+    /a\.role === 'Client' && a\.status === 'pending'/.test(portal),
+    'the writer and the reader must agree on the predicate, or a portal ' +
+    'approval pushes a duplicate approver and aiaBilling dates the CO off it');
+  ok('\u2026on the UPDATE path too, not only on a brand-new change order',
+    /const idx = existing\.findIndex/.test(co),
+    're-sending a saved draft is the common case and recorded nothing at all');
+  ok('\u2026merging rather than replacing what is already there',
+    /\[\.\.\.existing, \{ \.\.\.pendingClientApprover\(\)/.test(co),
+    'an approver who has already answered is a signed record');
+  ok('\u2026and never clobbering it on a plain draft save',
+    /\.\.\.\(approversPatch \? \{ approvers: approversPatch \} : \{\}\)/.test(co),
+    'updateChangeOrder spreads the patch over the record, so an explicit ' +
+    'undefined key wipes the field');
+
+  ok('the send sheet asks how long this owner gets to respond',
+    /approvalDeadlineDays/.test(co) && /testID="co-turnaround-custom"/.test(co),
+    'approvalDeadlineDays existed in the type and in the row mapper and had ' +
+    'never once been written by the app');
+  ok('\u2026without inventing a default when he does not answer',
+    /parsedDeadline > 0 \? parsedDeadline : undefined/.test(co),
+    'an invented turnaround has the follow-up engine calling an owner late ' +
+    'against a deadline the owner never agreed to');
+  ok('\u2026and says plainly what happens when it is left blank',
+    /not call it late against a deadline nobody agreed to/.test(co),
+    'a blank field with no explanation reads as a field he forgot');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

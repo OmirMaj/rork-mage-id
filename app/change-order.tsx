@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, FlatList,
   type LayoutChangeEvent,
@@ -8,7 +8,7 @@ import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabS
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool,
+  Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool, AlertTriangle,
 } from 'lucide-react-native';
 import { MageChangeOrder } from '@/components/icons';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -20,6 +20,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
+import { isMarkupSet, marginOf, type MarkupPct } from '@/utils/estimateMarkup';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
@@ -32,7 +34,7 @@ import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import { generateG714PDF, type G714Data, type CCDPaymentBasis } from '@/utils/aiaForms';
-import type { ChangeOrderLineItem, ChangeOrder, ChangeOrderStatus } from '@/types';
+import type { ChangeOrderLineItem, ChangeOrder, ChangeOrderStatus, COApprover } from '@/types';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
@@ -52,6 +54,14 @@ const CO_PIPELINE_STAGES: PipelineStage<ChangeOrderStatus>[] = [
   { key: 'under_review', label: 'In Review' },
   { key: 'approved', label: 'Approved', terminal: true },
 ];
+
+// The turnarounds a residential/light-commercial owner is actually given on a
+// change-order decision. Offered as chips because typing a number into a modal
+// while you are trying to send something is friction that gets skipped — and a
+// skipped answer is the `basis: 'none'` state the follow-up engine has been
+// stuck in. Tapping the lit chip clears it back to "no turnaround agreed",
+// which must stay reachable: it is a real answer, not a missing one.
+const CO_TURNAROUND_CHOICES = [3, 5, 7, 14] as const;
 
 function mapCOStatus(s: ChangeOrderStatus): ChangeOrderStatus {
   if (s === 'rejected' || s === 'void') return 'submitted';
@@ -196,14 +206,57 @@ function ChangeOrderInner() {
   const [showMaterialSearch, setShowMaterialSearch] = useState(false);
   const [materialQuery, setMaterialQuery] = useState('');
   const [selectedPriceType, setSelectedPriceType] = useState<'retail' | 'bulk'>('bulk');
-  const [itemMarkup, setItemMarkup] = useState('0');
+  // A change order is where a small GC's margin actually lives — the base
+  // contract gets competed down, the extras do not. This screen used to open
+  // every add path at 0% and never mention it, so the fastest way to build a CO
+  // (pull the lines out of his own estimate, whose unitPrice is documented COST)
+  // priced the added scope at exactly what it costs him to build. The seed below
+  // is the markup HE already answered, read from the same pair the wizard, Quick
+  // Quote, the full estimator and the AI takeoff all read, so one decision drives
+  // every pricing surface in the app. Starts EMPTY, not '0' and not
+  // DEFAULT_MARKUP: `markupDecided` is null while AsyncStorage answers, and
+  // prefilling a percentage he never chose is the app setting his price for him.
+  const [itemMarkup, setItemMarkup] = useState('');
   const [overridePrice, setOverridePrice] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
   const [showSendRecipient, setShowSendRecipient] = useState(false);
   const [sendRecipientName, setSendRecipientName] = useState('');
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
+  // The turnaround this owner gets. Prefilled from the CO when one was already
+  // agreed (re-sending a saved draft is the common case), and left BLANK
+  // otherwise — never a default. See ChangeOrder.approvalDeadlineDays: an
+  // invented number would have the follow-up engine telling him his owner is
+  // late against a deadline the owner never agreed to.
+  const [approvalDeadlineStr, setApprovalDeadlineStr] = useState(
+    existingCO?.approvalDeadlineDays != null ? String(existingCO.approvalDeadlineDays) : ''
+  );
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
+
+  // His markup and whether he has ever been asked for it. Same pair
+  // app/estimate-wizard.tsx:258, app/quick-quote.tsx:65 and
+  // app/takeoff-estimate.tsx read, so a GC who told any one of them 22% is
+  // not asked a second, contradictory question here.
+  const { globalMarkup, markupDecided } = useMaterialCart();
+  /** The markup to price a from-scratch CO line at, or null when he has never
+   *  answered. null is NOT zero: null means "we must not assume", zero means
+   *  "he said none" and is a legitimate answer (a favour, cost-plus work). */
+  const seedMarkupPct: MarkupPct = markupDecided === true ? globalMarkup : null;
+  /** The seed as the markup box wants it — '' when there is nothing to seed. */
+  const seedMarkupStr = isMarkupSet(seedMarkupPct) && seedMarkupPct > 0
+    ? String(Math.round(seedMarkupPct)) : '';
+  // markupDecided is null until AsyncStorage answers, so the useState
+  // initializer above always runs before the answer arrives. Seed once, on
+  // hydration, and only while the box is still untouched — never clobber a
+  // percentage he has typed for this change order. (Same shape as
+  // app/quick-quote.tsx's markupSeededRef, deliberately.)
+  const markupSeededRef = useRef(false);
+  useEffect(() => {
+    if (markupSeededRef.current) return;
+    if (markupDecided !== true) return;
+    markupSeededRef.current = true;
+    if (globalMarkup > 0) setItemMarkup(String(Math.round(globalMarkup)));
+  }, [markupDecided, globalMarkup]);
 
   const { settings } = useProjects();
   const locationMultiplier = useMemo(() => getRegionMultiplier(settings.location), [settings.location]);
@@ -246,24 +299,119 @@ function ChangeOrderInner() {
   const changeTaxAmount = useMemo(() => changeAmount * (taxRatePct / 100), [changeAmount, taxRatePct]);
   const changeAmountWithTax = useMemo(() => changeAmount + changeTaxAmount, [changeAmount, changeTaxAmount]);
 
-  const estimateItems = useMemo(() => {
+  /** The Add New Item modal's live preview: what he typed, plus his markup. */
+  const newItemMarkupPct = Math.max(0, parseFloat(itemMarkup) || 0);
+  const newItemSellPrice = (parseFloat(newItemPrice) || 0) * (1 + newItemMarkupPct / 100);
+
+  /**
+   * What this change order actually makes him — or the honest admission that
+   * MAGE cannot tell.
+   *
+   * The screen showed exactly one number per change order, so a $12,000 CO at
+   * cost and a $12,000 CO at 30 points looked identical, and the at-cost one is
+   * the one the fast path produced. Every line added from here on records its
+   * cost basis (`ChangeOrderLineItem.unitCost`), so the split below is read off
+   * the lines rather than assumed.
+   *
+   * `basisKnown` is the grounding rule: lines dictated by voice, prefilled from
+   * an allowance overage, or saved before `unitCost` existed carry no cost
+   * basis. Treating a missing basis as "cost equals price" would report a
+   * confident 0% margin on a change order that may well be marked up — an
+   * invented fact, which this repo does not ship. When the basis is partial the
+   * card says which lines it cannot see instead of quoting a margin.
+   */
+  const coMargin = useMemo(() => {
+    if (lineItems.length === 0 || changeAmount <= 0) return null;
+    const unpriced = lineItems.filter(i => i.unitCost == null);
+    const cost = lineItems.reduce((sum, i) => sum + (i.unitCost ?? 0) * i.quantity, 0);
+    const overheadProfit = changeAmount - cost;
+    return {
+      basisKnown: unpriced.length === 0,
+      unpricedCount: unpriced.length,
+      cost,
+      overheadProfit,
+      /** Percent OF COST added on top — the arithmetic this app means by
+       *  "markup" (utils/estimateMarkup documents why). Realized, not the
+       *  percentage typed in any one box, because lines can carry their own. */
+      effectiveMarkupPct: cost > 0 ? (overheadProfit / cost) * 100 : 0,
+      /** Fraction OF PRICE kept as profit. A contractor who hears "25 points"
+       *  usually means this one, and it is five points below the markup that
+       *  produced it — so both are printed rather than one being left to be
+       *  misread as the other. */
+      marginFraction: changeAmount > 0 ? overheadProfit / changeAmount : 0,
+      /** Half-cent floor, same as utils/estimateMarkup.isAtCost, so rounding
+       *  noise on a genuinely marked-up CO never reads as at-cost. */
+      atCost: unpriced.length === 0 && Math.abs(overheadProfit) < 0.005,
+    };
+  }, [lineItems, changeAmount]);
+
+  /**
+   * One row of the "Add from Estimate" picker, carrying BOTH bases.
+   *
+   * This memo used to emit `{ name, unit, unitPrice, category }` and drop
+   * `lineTotal`, `markup` and `quantity` on the floor — which is precisely the
+   * data that says what the owner already agreed to pay for this line.
+   * `LinkedEstimateItem.unitPrice` is documented COST per unit (see
+   * utils/estimateMarkup: "unitPrice is COST per unit and is NEVER touched
+   * here; lineTotal is SELL"), so copying it onto a change order sold the added
+   * scope at cost.
+   */
+  type COEstimatePick = {
+    name: string;
+    unit: string;
+    category: string;
+    /** COST per unit, bulk-aware. Recorded on the CO line, never shown to the client. */
+    unitCost: number;
+    /** SELL per unit at the rate the owner already signed on THIS line, or null
+     *  when the estimate behind it carries no markup at all. */
+    unitSell: number | null;
+    /** The per-line percent that produced `unitSell`, for the picker's meta row. */
+    markupPct: number | null;
+  };
+
+  const estimateItems = useMemo((): COEstimatePick[] => {
     if (!project) return [];
     const linked = project.linkedEstimate;
     if (linked && linked.items.length > 0) {
-      return linked.items.map(item => ({
-        name: item.name,
-        unit: item.unit,
-        unitPrice: item.usesBulk ? item.bulkPrice : item.unitPrice,
-        category: item.category,
-      }));
+      return linked.items.map(item => {
+        const unitCost = item.usesBulk ? item.bulkPrice : item.unitPrice;
+        // lineTotal is written as cost × (1 + markup/100) for the WHOLE
+        // quantity (app/(tabs)/estimate/full.tsx), so the per-unit sell price
+        // is lineTotal / quantity. Deriving it from the line rather than
+        // re-running the cart's global markup is deliberate and matters twice:
+        // it preserves a line the contractor hand-tuned to 40% in the estimator
+        // instead of flattening it to a global default, and it prices the added
+        // scope at the same rate the owner already signed on the base contract —
+        // which is the rate he will be asked to defend if the CO is disputed.
+        // The fallback covers a zero/absent quantity, where the division is
+        // meaningless.
+        const qty = item.quantity ?? 0;
+        const unitSell = qty > 0 && Number.isFinite(item.lineTotal)
+          ? item.lineTotal / qty
+          : unitCost * (1 + (item.markup ?? 0) / 100);
+        return {
+          name: item.name,
+          unit: item.unit,
+          category: item.category,
+          unitCost,
+          unitSell,
+          markupPct: item.markup ?? 0,
+        };
+      });
     }
     const legacy = project.estimate;
     if (legacy) {
+      // The legacy EstimateBreakdown has no markup anywhere in its shape — its
+      // MaterialLineItem is cost only. There is no signed rate to inherit, so
+      // `unitSell` is null and the add path falls back to HIS answered markup
+      // (or, if he has never answered, to cost with the totals card saying so).
       return legacy.materials.map(item => ({
         name: item.name,
         unit: item.unit,
-        unitPrice: item.unitPrice,
         category: item.category,
+        unitCost: item.unitPrice,
+        unitSell: null,
+        markupPct: null,
       }));
     }
     return [];
@@ -286,6 +434,10 @@ function ChangeOrderInner() {
       quantity: qty,
       unit: newItemUnit.trim() || 'ea',
       unitPrice: finalPrice,
+      // What he typed IS the cost; finalPrice is that cost plus his markup.
+      // Keeping both is what lets the totals card below show him the margin
+      // instead of one number that looks right either way.
+      unitCost: price,
       total: qty * finalPrice,
       isNew: true,
     };
@@ -295,19 +447,29 @@ function ChangeOrderInner() {
     setNewItemUnit('');
     setNewItemPrice('');
     setNewItemDesc('');
-    setItemMarkup('0');
+    // Back to HIS markup, not to zero. The old reset to '0' meant the second
+    // line on a change order was priced at cost even when he had just set a
+    // percentage for the first one.
+    setItemMarkup(seedMarkupStr);
     setOverridePrice(false);
     setOverrideReason('');
     setShowAddItem(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [newItemName, newItemQty, newItemUnit, newItemPrice, newItemDesc, itemMarkup, overridePrice, overrideReason]);
+  }, [newItemName, newItemQty, newItemUnit, newItemPrice, newItemDesc, itemMarkup, overridePrice, overrideReason, seedMarkupStr]);
 
   const handleAddFromMaterials = useCallback((material: MaterialItem) => {
     const price = selectedPriceType === 'bulk' ? material.baseBulkPrice : material.baseRetailPrice;
     const markup = parseFloat(itemMarkup) || 0;
     const finalPrice = price * (1 + markup / 100);
-    const originalEstPrice = estimateItems.find(e => e.name === material.name)?.unitPrice;
-    const desc = originalEstPrice ? `Original estimate: ${originalEstPrice.toFixed(2)}/${material.unit}` : '';
+    // The comparison a GC wants here is against what this item is already
+    // SOLD at on the estimate, not against what it cost — a marked-up CO price
+    // next to a cost figure reads as a rip-off the contractor has to explain.
+    // The legacy estimate shape has no sell price, so that case says which
+    // basis it is instead of quietly mixing the two.
+    const origEst = estimateItems.find(e => e.name === material.name);
+    const desc = origEst
+      ? `Original estimate${origEst.unitSell == null ? ' (your cost)' : ''}: ${(origEst.unitSell ?? origEst.unitCost).toFixed(2)}/${material.unit}`
+      : '';
     const item: ChangeOrderLineItem = {
       id: createId('coli'),
       name: material.name,
@@ -315,6 +477,8 @@ function ChangeOrderInner() {
       quantity: 1,
       unit: material.unit,
       unitPrice: finalPrice,
+      // The catalogue price is the cost; the markup box is what he adds on top.
+      unitCost: price,
       total: finalPrice,
       isNew: true,
     };
@@ -322,21 +486,39 @@ function ChangeOrderInner() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [selectedPriceType, itemMarkup, estimateItems]);
 
-  const handleAddFromEstimate = useCallback((item: { name: string; unit: string; unitPrice: number }) => {
+  /**
+   * Pull a line out of the project's own estimate onto this change order.
+   *
+   * THE RATE COMES FROM THE LINE, not from the cart. `pick.unitSell` is what
+   * the owner already agreed to pay per unit for exactly this item — including
+   * the case where the contractor hand-tuned that one line to 40% in the
+   * estimator. Re-running a global markup over it would flatten that back to a
+   * default, which is the same class of mistake utils/estimateMarkup's
+   * keep-your-own-markup clause exists to prevent.
+   *
+   * Only when the estimate behind the line carries no markup at all (the legacy
+   * EstimateBreakdown shape, which is cost-only) do we fall back to the markup
+   * he answered elsewhere — and if he has never answered one, the line goes on
+   * at cost and the totals card says so out loud rather than pretending.
+   */
+  const handleAddFromEstimate = useCallback((pick: COEstimatePick) => {
+    const price = pick.unitSell
+      ?? (isMarkupSet(seedMarkupPct) ? pick.unitCost * (1 + seedMarkupPct / 100) : pick.unitCost);
     const newItem: ChangeOrderLineItem = {
       id: createId('coli'),
-      name: item.name,
+      name: pick.name,
       description: '',
       quantity: 1,
-      unit: item.unit,
-      unitPrice: item.unitPrice,
-      total: item.unitPrice,
+      unit: pick.unit,
+      unitPrice: price,
+      unitCost: pick.unitCost,
+      total: price,
       isNew: false,
     };
     setLineItems(prev => [...prev, newItem]);
     setShowEstimateItems(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+  }, [seedMarkupPct]);
 
   const handleRemoveItem = useCallback((id: string) => {
     setLineItems(prev => prev.filter(item => item.id !== id));
@@ -374,7 +556,63 @@ function ChangeOrderInner() {
     const parsedImpactDays = parseInt(scheduleImpactDays, 10);
     const impactDays = Number.isFinite(parsedImpactDays) && parsedImpactDays > 0 ? parsedImpactDays : undefined;
 
+    // ── The two facts the send sheet collected and then threw away ──────────
+    //
+    // The approver's name and email were used for exactly one thing: the string
+    // "submitted for approval to Dave (dave@…)" in the toast below. The saved
+    // ChangeOrder carried no `approvers` and no `approvalDeadlineDays`, and four
+    // things that are already built went blind as a result:
+    //
+    //   utils/followUp/rules.ts   R1 minted the item with basis 'none' ("nothing
+    //                             can call it late") and, with no holder, guard
+    //                             G4 suppressed the drafted chase message — the
+    //                             one feature that would have written the
+    //                             follow-up for him produced nothing to send.
+    //   utils/systemOfAction.ts   fell back to waitingOn: 'the owner', so the
+    //                             chase list could not name the human holding it.
+    //   utils/portfolio/clientBook.ts  computes rejection rate, counter rate and
+    //                             median days-to-approve entirely off
+    //                             approvers[].responseDate — all null.
+    //   utils/aiaBilling.ts       wants the approver's response date to put the
+    //                             CO in the right pay-application period.
+    //
+    // The shape below is pinned to what app/client-view.tsx merges against: it
+    // finds the first approver with `role === 'Client' && status === 'pending'`
+    // and stamps the response onto THAT row. Match the predicate and a portal
+    // approval closes the loop; miss it and the portal appends a second
+    // approver, which breaks aiaBilling's last-signature rule.
+    const recipient = (recipientName ?? '').trim();
+    const recipientAddr = (recipientEmail ?? '').trim();
+    const sending = status === 'submitted' && (recipient !== '' || recipientAddr !== '');
+
+    const parsedDeadline = parseInt(approvalDeadlineStr, 10);
+    /** undefined = no turnaround was agreed. NOT a default — see
+     *  ChangeOrder.approvalDeadlineDays and followUp/rules.ts R1. */
+    const deadlineDays = Number.isFinite(parsedDeadline) && parsedDeadline > 0 ? parsedDeadline : undefined;
+
+    const pendingClientApprover = (): COApprover => ({
+      id: createId('coapp'),
+      name: recipient,
+      email: recipientAddr,
+      role: 'Client',
+      required: true,
+      order: 0,
+      status: 'pending',
+    });
+
     if (existingCO) {
+      // Re-sending a saved draft is the COMMON case and recorded nothing at all
+      // before this. Merge rather than replace: an approver who has already
+      // answered is a signed record, and a second pending 'Client' row would be
+      // picked up as a duplicate by the portal merge.
+      let approversPatch: COApprover[] | undefined;
+      if (sending) {
+        const existing = existingCO.approvers ?? [];
+        const idx = existing.findIndex(a => a.role === 'Client' && a.status === 'pending');
+        approversPatch = idx >= 0
+          ? existing.map((a, i) => i === idx ? { ...a, name: recipient, email: recipientAddr } : a)
+          : [...existing, { ...pendingClientApprover(), order: existing.length }];
+      }
       updateChangeOrder(existingCO.id, {
         description: description.trim(),
         reason: reason.trim(),
@@ -385,6 +623,12 @@ function ChangeOrderInner() {
         status,
         scheduleImpactDays: impactDays,
         scheduleImpactTaskIds: aiAffectedTaskIds.length > 0 ? aiAffectedTaskIds : undefined,
+        // updateChangeOrder spreads the patch over the record, so an explicit
+        // `undefined` CLOBBERS. Both keys are therefore only present when this
+        // save is the one that knows about them — a plain "Save to Project"
+        // must not wipe an approver or a turnaround already on the CO.
+        ...(approversPatch ? { approvers: approversPatch } : {}),
+        ...(sending ? { approvalDeadlineDays: deadlineDays } : {}),
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
@@ -405,6 +649,8 @@ function ChangeOrderInner() {
         updatedAt: now,
         scheduleImpactDays: impactDays,
         scheduleImpactTaskIds: aiAffectedTaskIds.length > 0 ? aiAffectedTaskIds : undefined,
+        approvers: sending ? [pendingClientApprover()] : undefined,
+        approvalDeadlineDays: sending ? deadlineDays : undefined,
       };
       addChangeOrder(co);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -412,7 +658,7 @@ function ChangeOrderInner() {
     }
 
     router.back();
-  }, [projectId, description, reason, scheduleImpactDays, aiAffectedTaskIds, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
+  }, [projectId, description, reason, scheduleImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -703,6 +949,59 @@ function ChangeOrderInner() {
                 {changeAmount >= 0 ? '+' : ''}{formatCurrency(changeAmount)}
               </Text>
             </View>
+            {/* The margin split. Nothing on this card used to say whether the
+                number above carried any overhead or profit at all, which is how
+                a change order built the fast way went out at cost without the
+                contractor ever seeing it. Only renders on a charge: margin on a
+                credit CO is not a meaningful figure. */}
+            {coMargin && coMargin.basisKnown && (
+              <>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Your cost</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(coMargin.cost)}</Text>
+                </View>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    Overhead &amp; profit ({Math.round(coMargin.effectiveMarkupPct)}% markup)
+                  </Text>
+                  <Text style={[styles.totalValue, { color: coMargin.atCost ? themeColors.dangerLabel : themeColors.success }]}>
+                    {formatCurrency(coMargin.overheadProfit)}
+                  </Text>
+                </View>
+              </>
+            )}
+            {coMargin && coMargin.basisKnown && !coMargin.atCost && (
+              <Text style={styles.coMarginNote}>
+                That is {(coMargin.marginFraction * 100).toFixed(1)}% margin on this change order — margin is a share of the price, markup is a share of the cost, and they are never the same number.
+              </Text>
+            )}
+            {/* Honest when it cannot tell. A missing cost basis is not a zero
+                margin, and the card must not report one. */}
+            {coMargin && !coMargin.basisKnown && (
+              <Text style={styles.coMarginNote}>
+                {coMargin.unpricedCount === lineItems.length
+                  ? 'MAGE does not know what these lines cost you — they were dictated or typed as a finished price — so it cannot show the margin on this change order.'
+                  : `${coMargin.unpricedCount} of these ${lineItems.length} lines has no cost recorded against it, so the margin on this change order cannot be shown.`}
+              </Text>
+            )}
+            {/* THE AT-COST BAND. Same fact, same words as the estimate wizard's
+                band (app/estimate-wizard.tsx): a total that is his cost, with
+                nothing saying so, is the defect — not the zero itself, which a
+                contractor is entitled to choose. It does not block the send:
+                quoting a change at cost is a legitimate decision (a goodwill
+                fix, cost-plus work), and this screen's job is to make sure it
+                is a decision rather than an accident. */}
+            {coMargin && coMargin.atCost && (
+              <View style={styles.coAtCostBand}>
+                <AlertTriangle size={16} color={themeColors.dangerLabel} strokeWidth={2} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.coAtCostTitle}>This change order is your cost</Text>
+                  <Text style={styles.coAtCostBody}>
+                    No overhead and no profit on work that still carries your supervision, insurance and warranty. Set a markup on the lines above before you send it.
+                  </Text>
+                </View>
+              </View>
+            )}
             {taxRatePct > 0 && changeAmount !== 0 && (
               <>
                 <View style={styles.totalRow}>
@@ -1127,6 +1426,44 @@ function ChangeOrderInner() {
                 </>
               )}
 
+              {/* The turnaround. One question, asked where the decision is
+                  already being made, and NEVER pre-answered — the same rule
+                  Project.structuredAddress' zoning fields follow: an unknown
+                  fact stays unknown rather than becoming a plausible default.
+                  With an answer, the follow-up engine can say a change order is
+                  late and who is holding it. Without one, it still tracks the CO
+                  and says plainly that nothing can call it late. */}
+              <Text style={styles.modalFieldLabel}>How long does this owner get to respond? (days)</Text>
+              <View style={styles.deadlineRow}>
+                {CO_TURNAROUND_CHOICES.map(d => (
+                  <TouchableOpacity
+                    key={d}
+                    style={[styles.deadlineChip, approvalDeadlineStr === String(d) && styles.deadlineChipActive]}
+                    onPress={() => setApprovalDeadlineStr(prev => prev === String(d) ? '' : String(d))}
+                    activeOpacity={0.7}
+                    testID={`co-turnaround-${d}`}
+                  >
+                    <Text style={[styles.deadlineChipText, approvalDeadlineStr === String(d) && styles.deadlineChipTextActive]}>
+                      {d}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TextInput
+                  style={styles.deadlineInput}
+                  value={approvalDeadlineStr}
+                  onChangeText={setApprovalDeadlineStr}
+                  placeholder="—"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="numeric"
+                  testID="co-turnaround-custom"
+                />
+              </View>
+              <Text style={styles.modalHelperText}>
+                {approvalDeadlineStr.trim() && (parseInt(approvalDeadlineStr, 10) > 0)
+                  ? `MAGE will chase this change order once it is ${parseInt(approvalDeadlineStr, 10)} days old, and it will name ${sendRecipientName.trim() || 'the approver'} as the person holding it.`
+                  : 'Leave this blank if you never agreed a turnaround. MAGE will still track the change order as out for approval — it just will not call it late against a deadline nobody agreed to.'}
+              </Text>
+
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
                 <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
@@ -1178,10 +1515,36 @@ function ChangeOrderInner() {
                   <TextInput style={styles.modalInput} value={newItemUnit} onChangeText={setNewItemUnit} placeholder="ea, sq ft..." placeholderTextColor={themeColors.textMuted} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.modalFieldLabel}>Unit Price</Text>
-                  <TextInput style={styles.modalInput} value={newItemPrice} onChangeText={setNewItemPrice} placeholder="0.00" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
+                  <Text style={styles.modalFieldLabel}>Your cost</Text>
+                  <TextInput style={styles.modalInput} value={newItemPrice} onChangeText={setNewItemPrice} placeholder="0.00" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" testID="co-new-item-cost" />
+                </View>
+                {/* The control this modal never had. Name / Description /
+                    Quantity / Unit / Unit Price, and whatever he typed was the
+                    price — so the custom line, which is the one he reaches for
+                    when the change is real work rather than a catalogue item,
+                    went to the owner at cost every time. */}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalFieldLabel}>Markup %</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={itemMarkup}
+                    onChangeText={setItemMarkup}
+                    placeholder="0"
+                    placeholderTextColor={themeColors.textMuted}
+                    keyboardType="numeric"
+                    testID="co-new-item-markup"
+                  />
                 </View>
               </View>
+              {/* Says where the percentage came from, and says it plainly when
+                  it came from nowhere. Never asserts a markup he did not set. */}
+              <Text style={styles.modalHelperText}>
+                {newItemMarkupPct > 0
+                  ? `Client pays ${formatCurrency(newItemSellPrice)} per ${newItemUnit.trim() || 'unit'}${seedMarkupStr && itemMarkup === seedMarkupStr ? ' — your usual markup, carried over from your estimating settings' : ''}.`
+                  : seedMarkupStr
+                    ? 'At 0% this line goes to the client at what it costs you. Your usual markup is ' + seedMarkupStr + '%.'
+                    : 'At 0% this line goes to the client at what it costs you — no overhead, no profit.'}
+              </Text>
               <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddNewItem} activeOpacity={0.85}>
                 <Text style={styles.modalAddBtnText}>Add Item</Text>
               </TouchableOpacity>
@@ -1207,7 +1570,20 @@ function ChangeOrderInner() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.estimateItemName}>{item.name}</Text>
-                    <Text style={styles.estimateItemMeta}>{item.category} · {formatCurrency(item.unitPrice)}/{item.unit}</Text>
+                    {/* Shows the rate that will land on the change order, and
+                        where it came from. The row used to print the estimate's
+                        COST here and then add that same cost to the CO, so the
+                        screen was honest about a number that was wrong. */}
+                    <Text style={styles.estimateItemMeta}>
+                      {item.category} · {formatCurrency(item.unitSell ?? (isMarkupSet(seedMarkupPct) ? item.unitCost * (1 + seedMarkupPct / 100) : item.unitCost))}/{item.unit}
+                    </Text>
+                    <Text style={styles.estimateItemBasis}>
+                      {item.unitSell != null && item.markupPct != null && item.markupPct > 0
+                        ? `Your cost ${formatCurrency(item.unitCost)} + ${Math.round(item.markupPct)}% — the rate on the signed estimate`
+                        : isMarkupSet(seedMarkupPct) && seedMarkupPct > 0
+                          ? `Your cost ${formatCurrency(item.unitCost)} + your ${Math.round(seedMarkupPct)}% markup — this line carries none on the estimate`
+                          : `This is your cost. No markup is set, so it goes on the change order at what it costs you.`}
+                    </Text>
                   </View>
                   <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -1265,10 +1641,22 @@ function ChangeOrderInner() {
                   keyboardType="numeric"
                   placeholder="0"
                   placeholderTextColor={themeColors.textMuted}
+                  testID="co-material-markup"
                 />
                 <Text style={styles.matMarkupLabel}>markup</Text>
               </View>
             </View>
+
+            {/* This box used to open at 0 and reset to 0 after every add, so the
+                one place on the screen that COULD carry a markup lost it between
+                items. It now holds his answered percentage and says so. */}
+            <Text style={styles.matMarkupNote}>
+              {newItemMarkupPct > 0
+                ? `Every material added is priced at cost + ${Math.round(newItemMarkupPct)}%.`
+                : seedMarkupStr
+                  ? `At 0% materials go on at what they cost you. Your usual markup is ${seedMarkupStr}%.`
+                  : 'At 0% materials go on at what they cost you — no overhead, no profit.'}
+            </Text>
 
             <Text style={styles.matResultCount}>{filteredMaterials.length} results</Text>
 
@@ -1296,7 +1684,9 @@ function ChangeOrderInner() {
                         <Text style={styles.matResultSupplier}>{material.supplier}</Text>
                       </View>
                       {origEst && (
-                        <Text style={styles.matOriginalPrice}>Original estimate: {formatCurrency(origEst.unitPrice)}/{origEst.unit}</Text>
+                        <Text style={styles.matOriginalPrice}>
+                          Original estimate{origEst.unitSell == null ? ' (your cost)' : ''}: {formatCurrency(origEst.unitSell ?? origEst.unitCost)}/{origEst.unit}
+                        </Text>
                       )}
                     </View>
                     <View style={styles.matResultPrices}>
@@ -1392,6 +1782,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   grandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: themeColors.text },
   grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   coTaxNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, marginTop: 6, lineHeight: 15 },
+  coMarginNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 4, lineHeight: 15 },
+  // The at-cost band. `dangerSoft` fill under a `dangerLabel` foreground — the
+  // accent is never allowed to become the background (standing visual rule).
+  coAtCostBand: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10,
+    backgroundColor: themeColors.dangerSoft, borderRadius: Tokens.radius.card,
+    padding: 12, marginTop: 10,
+  },
+  coAtCostTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.dangerLabel },
+  coAtCostBody: { fontSize: Type.caption2.fontSize, color: themeColors.dangerLabel, lineHeight: 15, marginTop: 2 },
   fieldSection: { marginHorizontal: 20, marginTop: 18 },
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   helperText: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 6, fontStyle: 'italic' as const },
@@ -1468,11 +1868,19 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
   modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: themeColors.text },
   modalRow: { flexDirection: 'row', gap: 10 },
+  modalHelperText: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 6 },
+  deadlineRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 6 },
+  deadlineChip: { minWidth: 44, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line, alignItems: 'center' as const },
+  deadlineChipActive: { backgroundColor: themeColors.accentFill },
+  deadlineChipText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  deadlineChipTextActive: { color: "#FFFFFF" },
+  deadlineInput: { flex: 1, minHeight: 40, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 10, fontSize: Type.bodyCompact.fontSize, color: themeColors.text, textAlign: 'center' as const },
   modalAddBtn: { backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   estimateItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 12 },
   estimateItemName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
   estimateItemMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  estimateItemBasis: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2, lineHeight: 14 },
   addSearchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.successSoft },
   addSearchBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.success },
   matSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 44, borderWidth: 1, borderColor: themeColors.line },
@@ -1485,6 +1893,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   matMarkupRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' as const, backgroundColor: themeColors.line, borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 4 },
   matMarkupInput: { width: 36, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, textAlign: 'center' as const },
   matMarkupLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
+  matMarkupNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 6 },
   matResultCount: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 6, marginBottom: 4 },
   matResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 10 },
   matResultName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },

@@ -1322,9 +1322,40 @@ export interface ChangeOrderLineItem {
   description: string;
   quantity: number;
   unit: string;
+  /** SELL per unit — what the client is charged. Markup is folded IN, the same
+   *  way utils/estimateMarkup.priceCostBreakdown folds it into an estimate's
+   *  unit prices, because "Overhead & profit" is not the homeowner's line item. */
   unitPrice: number;
   total: number;
   isNew: boolean;
+  /**
+   * COST per unit, recorded at the moment the line was added. NEVER shown to
+   * the client; it exists so the CO screen can tell the contractor what he is
+   * actually making on the change, and so it can tell "priced at cost" apart
+   * from "MAGE has no idea what this cost you".
+   *
+   * WHY IT WAS ADDED. A change order used to carry one number per line and it
+   * was whatever got typed or copied in — with `unitPrice` doing double duty as
+   * cost and as price. Every one of the three add paths on app/change-order.tsx
+   * defaulted to 0% markup, so the fastest route (pull the lines out of the
+   * estimate, whose `LinkedEstimateItem.unitPrice` is documented COST) sent the
+   * added scope to the owner at exactly what it cost to build, on work carrying
+   * the same supervision, insurance and warranty as the base contract. Nothing
+   * on the screen could say so, because with one number there is no difference
+   * between a $12,000 CO at cost and a $12,000 CO at 30 points.
+   *
+   * OPTIONAL, AND ABSENCE IS MEANINGFUL. Lines dictated by voice, prefilled
+   * from an allowance overage, and every line written before this field existed
+   * have no recorded cost basis. The totals card must say that rather than
+   * assume `unitCost === unitPrice` and report a fabricated 0% margin — the
+   * same honesty rule utils/estimateMarkup states for UNSET_MARKUP: "he has not
+   * told us" is not the fact "he told us zero".
+   *
+   * A hand edit of `unitPrice` deliberately LEAVES this alone: changing what
+   * you charge does not change what it cost you, so the margin moves and the
+   * basis does not.
+   */
+  unitCost?: number;
   /** Optional CSI MasterFormat division code (2-digit, e.g. "03" for Concrete).
    *  When set, downstream tooling (job-cost, export, audit) can attribute this
    *  line item to a CSI division instead of falling back to free-text matching
@@ -1385,8 +1416,30 @@ export interface ChangeOrder {
    */
   scheduleAnchorTaskId?: string;
   status: ChangeOrderStatus;
+  /**
+   * Who was asked to approve this change order, and where each of them stands.
+   *
+   * Written by app/change-order.tsx when the CO is sent (one pending 'Client'
+   * row carrying the name and email the GC typed into the send sheet) and by
+   * app/client-view.tsx when the client answers from the portal — which finds
+   * the pending 'Client' row and stamps `responseDate` on it rather than
+   * appending a second approver. The two must keep matching that predicate:
+   * a duplicate approver breaks utils/aiaBilling's last-signature rule, which
+   * dates the CO into a pay-application period from the final response.
+   */
   approvers?: COApprover[];
   approvalMode?: 'sequential' | 'parallel';
+  /**
+   * The turnaround the GC and this owner agreed for a change-order decision,
+   * in days from the day it was sent. NEVER DEFAULTED — an absent value means
+   * no turnaround was ever agreed, which is a different fact from "zero days",
+   * and utils/followUp/rules.ts (R1) depends on the difference: with a stated
+   * deadline the follow-up carries basis 'stated' and a target date and can be
+   * called late; without one it still mints (the CO IS out for approval) with
+   * basis 'none' and copy that says nothing can call it late. An invented
+   * default here would have the app telling a contractor his owner is overdue
+   * against a deadline the owner never agreed to.
+   */
   approvalDeadlineDays?: number;
   auditTrail?: COAuditEntry[];
   revision?: number;
@@ -4696,6 +4749,37 @@ export interface FollowUp {
 }
 
 /**
+ * One chase that actually left the app.
+ *
+ * This is the record /waiting-on had nowhere to put. That screen drafted the
+ * follow-up, handed it to the share sheet, and remembered the fact in a
+ * `useState` Set — so navigating away lost every chase, and the same red row
+ * looked equally untouched on Tuesday as it had on Monday. The cost lands in
+ * both directions: he chases the architect twice and looks disorganised to the
+ * design team he depends on, or he is unsure whether he sent it and a second
+ * week goes by. And when the job goes sideways, "I chased RFI #12 four times
+ * over three weeks" has to be a document, not a memory.
+ *
+ * HONESTY (the grounding rule). `at` is the moment he TAPPED SEND. The app
+ * hands the text to the OS share sheet or to the clipboard and loses sight of
+ * it there — it cannot know the mail was sent, delivered, or read. Nothing
+ * reading these entries may say "delivered"; /waiting-on says "chased", and
+ * says on screen that chases are counted from the tap.
+ */
+export interface FollowUpChase {
+  /** ISO instant of the tap. */
+  at: string;
+  /** How the follow-up left: handed to the OS/Web share sheet, or copied for
+   *  him to paste. Both are the same claim — it left the app — and neither is
+   *  proof of delivery. The distinction matters for the delay-evidence export,
+   *  where "copied to clipboard" is a weaker record than a share. */
+  via: 'share' | 'clipboard';
+  /** The exact words that went out, so the log is EVIDENCE rather than a tally.
+   *  Absent only on entries written before this field existed. */
+  message?: string;
+}
+
+/**
  * The HELD face — the only thing persisted. Keyed by FollowUp.id.
  *
  * Everything here is a decision a human made that the app could not have
@@ -4710,6 +4794,17 @@ export interface FollowUpHold {
   owner?: string;
   /** His date, which overrides the rule's when set. */
   targetDate?: string;
+  /**
+   * Every chase he has sent, oldest first — the chase LOG.
+   *
+   * It lives here rather than being derived because nothing else in the app
+   * ever sees the tap: the share sheet is the OS's, and the message is gone
+   * the moment it is handed over. `chases.length` is the "chased 3×" count and
+   * `chases[chases.length - 1].at` is `lastFollowUpAt` below; the two are
+   * written together in one place (app/waiting-on.tsx recordChase) so they
+   * cannot drift into two truths.
+   */
+  chases?: FollowUpChase[];
   lastFollowUpAt?: string;
   nextFollowUpAt?: string;
   /** Required by the engine when status is 'closed_by_hand'. */

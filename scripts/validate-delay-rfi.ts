@@ -156,6 +156,153 @@ expect('empty hash is a no-op', withAppliedDelay({}, 'r1', ''), {});
 expect('null args never applied', isDelayApplied(applied, null, null), false);
 expect('withAppliedDelay does not mutate its input', (() => { const m = { a: 'b' }; withAppliedDelay(m, 'c', 'd'); return m; })(), { a: 'b' });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DFR-DELAY-RECARRY — the applied-ripple marker is keyed on the PROJECT + the
+// delay text, not on the report id.
+//
+// WHY THIS EXISTS. A delay ripple is a set of RELATIVE moves, and
+// "Copy from yesterday" (app/daily-report.tsx handleCarryForward) copies
+// `issuesAndDelays` verbatim into a report with a brand-new UUID. With the
+// marker keyed on the report id, Monday's "inspector no-show, framing pushed 2
+// days" applied on Monday, got copied to Tuesday, re-scanned, found no marker
+// under TUESDAY's id, and moved framing another two days. Once per
+// carried-forward day, compounding, with no event and no trace except a finish
+// date that no longer matches the job.
+//
+// app/daily-report.tsx is an Expo Router route and cannot be imported outside
+// Metro, so the key/record helpers are extracted from between their sentinel
+// comments, transpiled and executed here for real. Same technique as
+// scripts/validate-calendar-date.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Declared locally rather than pulled from `bun-types`: this repo has no bun
+// type package installed, and without this `npx tsc --noEmit` fails with
+// TS2867 "Cannot find name 'Bun'". Same pattern as validate-calendar-date.ts.
+declare const Bun: {
+  Transpiler: new (opts: { loader: 'ts' }) => { transformSync: (code: string) => string };
+};
+
+interface AppliedDelayRecordShape {
+  hash: string;
+  reportId: string;
+  reportDate: string;
+  deltaDays: number;
+  taskIds: string[];
+}
+
+const DFR_SCREEN = 'app/daily-report.tsx';
+const DFR_SRC = readFileSync(join(__dirname, '..', DFR_SCREEN), 'utf8');
+const AD_BEGIN = '// --- BEGIN appliedDelayRecord ---';
+const AD_END = '// --- END appliedDelayRecord ---';
+
+function loadAppliedDelayHelpers(): {
+  appliedDelayKey: (projectId: string, hash: string) => string;
+  encodeAppliedDelay: (rec: AppliedDelayRecordShape) => string;
+  decodeAppliedDelay: (value: string | null | undefined) => AppliedDelayRecordShape | null;
+  inferDelayCauseFromText: (text: string) => 'weather' | null;
+} {
+  const from = DFR_SRC.indexOf(AD_BEGIN);
+  const to = DFR_SRC.indexOf(AD_END);
+  if (from < 0 || to < 0 || to <= from) {
+    console.log(`  ✗ could not find the appliedDelayRecord sentinels in ${DFR_SCREEN}.`);
+    console.log('      Someone moved or renamed them, and the double-apply guard would go');
+    console.log('      unpinned. Restore the sentinels rather than deleting this.');
+    process.exit(1);
+  }
+  const js = new Bun.Transpiler({ loader: 'ts' })
+    .transformSync(DFR_SRC.slice(from, to))
+    .replace(/\bexport\s+function\b/g, 'function');
+  return new Function(
+    `${js}\nreturn { appliedDelayKey, encodeAppliedDelay, decodeAppliedDelay, inferDelayCauseFromText };`,
+  )() as ReturnType<typeof loadAppliedDelayHelpers>;
+}
+
+const ad = loadAppliedDelayHelpers();
+
+console.log('\nDFR applied-delay record (carry-forward double-apply guard):');
+
+const MON_TEXT = 'Inspector no-show — framing pushed 2 days.';
+const monHash = hashDelayText(MON_TEXT);
+const monRecord: AppliedDelayRecordShape = {
+  hash: monHash,
+  reportId: 'report-monday',
+  reportDate: '2026-09-14T17:00:00.000Z',
+  deltaDays: 2,
+  taskIds: ['task-framing', 'task-drywall'],
+};
+
+// The store round-trip, exactly as the screen does it: encode into the
+// Record<string,string> the shared util owns, stringify, parse back.
+const storeKey = ad.appliedDelayKey('proj-1', monHash);
+const storedRaw = JSON.stringify(withAppliedDelay({}, storeKey, ad.encodeAppliedDelay(monRecord)));
+const storedMap = parseAppliedDelayMap(storedRaw);
+
+expect('the key is project-scoped, not report-scoped', storeKey, `proj-1:${monHash}`);
+expect('the same note carried into TOMORROW\'S report is still already-applied',
+  ad.decodeAppliedDelay(storedMap[ad.appliedDelayKey('proj-1', hashDelayText(MON_TEXT))]) !== null, true);
+expect('...and the marker names the report it was applied FROM, not the one reading it',
+  ad.decodeAppliedDelay(storedMap[storeKey])?.reportId, 'report-monday');
+expect('...and the day, so the blocked Preview can say why',
+  ad.decodeAppliedDelay(storedMap[storeKey])?.reportDate, '2026-09-14T17:00:00.000Z');
+expect('...and what it moved, for the delay-register handoff',
+  [ad.decodeAppliedDelay(storedMap[storeKey])?.deltaDays, ad.decodeAppliedDelay(storedMap[storeKey])?.taskIds],
+  [2, ['task-framing', 'task-drywall']]);
+expect('the SAME sentence on another job is a different delay',
+  storedMap[ad.appliedDelayKey('proj-2', monHash)] ?? null, null);
+expect('an edited note is not already-applied (a real new slip still ripples)',
+  storedMap[ad.appliedDelayKey('proj-1', hashDelayText('Inspector no-show — framing pushed 3 days.'))] ?? null, null);
+
+expect('a legacy bare-hash value decodes to null (degrades to "not applied", never to a crash)',
+  ad.decodeAppliedDelay('h1nzk3'), null);
+expect('junk decodes to null', ad.decodeAppliedDelay('{nope'), null);
+expect('an array decodes to null', ad.decodeAppliedDelay('[1,2]'), null);
+expect('a number decodes to null', ad.decodeAppliedDelay('12345'), null);
+expect('empty decodes to null', ad.decodeAppliedDelay(''), null);
+expect('a record missing its reportId decodes to null',
+  ad.decodeAppliedDelay(JSON.stringify({ hash: 'h', deltaDays: 2 })), null);
+expect('a half-written record still yields usable defaults',
+  ad.decodeAppliedDelay(JSON.stringify({ hash: 'h', reportId: 'r' })),
+  { hash: 'h', reportId: 'r', reportDate: '', deltaDays: 0, taskIds: [] });
+expect('non-string task ids are dropped',
+  ad.decodeAppliedDelay(JSON.stringify({ ...monRecord, taskIds: ['a', 7, '', null] }))?.taskIds, ['a']);
+
+// The shipped call sites, pinned. The helpers can be perfect and the screen can
+// still look the marker up the old way.
+expect('the screen DERIVES the marker key from the project + the applied text hash',
+  /const storeKey = appliedDelayKey\(project\.id, appliedHash\);/.test(DFR_SRC), true);
+expect('the screen STORES under that key',
+  /withAppliedDelay\(parseAppliedDelayMap\(raw\), storeKey, encodeAppliedDelay\(/.test(DFR_SRC), true);
+expect('the screen READS by the same key builder (a lookup by report id is the bug)',
+  /appliedDelays\[appliedDelayKey\(projectId, /.test(DFR_SRC), true);
+expect('the stored record carries the applying report and ITS date — without them the block cannot name a day',
+  /reportId: stableReportId,\s*\n\s*reportDate,/.test(DFR_SRC), true);
+expect('the screen no longer keys the marker on the report id',
+  /parseAppliedDelayMap\(raw\)\[stableReportId\]/.test(DFR_SRC), false);
+expect('carry-forward still copies the delay note (the fix is the guard, not dropping the field)',
+  /setIssuesAndDelays\(lastReport\.issuesAndDelays\)/.test(DFR_SRC), true);
+expect('the blocked Preview names the day the ripple was applied on',
+  /Already applied to the schedule from \$\{day\}/.test(DFR_SRC), true);
+expect('Re-arm is still the escape hatch for a genuinely repeated delay',
+  /setDelayReArmed\(true\)/.test(DFR_SRC), true);
+
+console.log('\nDFR delay-register handoff:');
+
+expect('an explicit weather word carries the cause over', ad.inferDelayCauseFromText('Rain all morning, no pour.'), 'weather');
+expect('...including snow and wind', [ad.inferDelayCauseFromText('snow'), ad.inferDelayCauseFromText('high winds')], ['weather', 'weather']);
+expect('anything else stays unset — the register asks rather than the app guessing',
+  ad.inferDelayCauseFromText('Inspector no-show — framing pushed 2 days.'), null);
+expect('a word that merely contains a weather word does not count',
+  ad.inferDelayCauseFromText('Brainstorming session ran long'), null);
+expect('the handoff carries the days and the tasks the scan produced',
+  /claimedDays: String\(claimedDays\)/.test(DFR_SRC) && /impactedTaskIds: taskIds\.join\(','\)/.test(DFR_SRC), true);
+expect('the evidence pointer is no longer conditional on the report happening to be saved',
+  /evidenceKind: 'daily_report',\s*\n\s*evidenceId: stableReportId/.test(DFR_SRC), true);
+expect('...because the report is saved first, silently',
+  /handleSave\('draft', undefined, undefined, \{ silent: true \}\)/.test(DFR_SRC), true);
+
 import { isExcludedMemoryRecord } from '../utils/projectMemoryCore';
 
 console.log('\nprojectMemory isExcludedMemoryRecord (self-retrieval exclusion):');

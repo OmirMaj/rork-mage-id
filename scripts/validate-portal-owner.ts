@@ -36,7 +36,8 @@ import {
   ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION, DUE_SOON_DAYS,
   type OwnerDecision,
 } from '../utils/portalOwnerCore';
-import { buildPortalSnapshot, scheduleWorkComplete, maskPortalLinkToken, portalShareUrl, PORTAL_BASE_URL, PORTAL_SNAPSHOT_VERSION,
+import { buildOwnerConfidence } from '../utils/ownerConfidence';
+import { buildPortalSnapshot, scheduleWorkComplete, scheduleFinishDate, maskPortalLinkToken, portalShareUrl, PORTAL_BASE_URL, PORTAL_SNAPSHOT_VERSION,
   buildProposalConsentRecord, buildFeedbackAsk, proposalBlockReason,
   PROPOSAL_ESIGN_VERSION, PROPOSAL_DISCLOSURE_TEXT, PROPOSAL_NOT_A_CONTRACT_NOTE } from '../utils/portalSnapshot';
 import { toClientEstimateView } from '../utils/clientEstimateView';
@@ -1893,6 +1894,186 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
     expect('a pre-2026-09-06 snapshot\'s ambiguous progressPct: 0 stays unknown',
       portalDerive({ sections: {}, project: { progressPct: 0 } }), { known: false, pct: 0 });
   }
+}
+
+// ── ONE completion date, on three surfaces ─────────────────────────────────
+//
+// The portal hero used to print `startDate + totalDurationDays * 86400000`.
+// `totalDurationDays` is a WORKING-day ordinal, so on a 5-day week that landed
+// roughly 40% early — a 100-working-day job read about six weeks sooner than
+// the schedule said. It is the first date a homeowner sees, on a page their GC
+// sent them, and it is the one they book a lease end or a move-out around.
+//
+// Worse, the Gantt LOWER DOWN THE SAME PAGE printed a different day: it used
+// `startDay + durationDays` with no `- 1` and advanced by the full ordinal,
+// landing two working days late, and it never received `nonWorkingDates` at
+// all so it ran straight through holidays and rain days the app had already
+// suppressed. An attentive owner could scroll from one date to the other and
+// watch their own portal contradict itself.
+//
+// So this block does not check a formula — it holds the three surfaces head to
+// head on the same fixtures:
+//
+//   1. utils/portalSnapshot.ts scheduleFinishDate  (the hero)
+//   2. marketing/portal/index.html renderSchedule  (the Gantt header)
+//   3. utils/ownerConfidence.ts projectedFinishISO (what the GC sees in-app)
+//
+// All three must name the same calendar day. Any future edit that re-derives a
+// finish date in one of them and not the others turns this red.
+{
+  const isoOf = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // ── 1. The working-day/calendar-day confusion itself ────────────────────
+  // Mon 2026-05-04, 20 tasks of 3 days, last one ending on working day 59.
+  const hendersonFinish = scheduleFinishDate((henderson as any).schedule);
+  const naiveCalendar = isoOf(
+    new Date(new Date('2026-05-04T00:00:00').getTime() + 60 * 86400000),
+  );
+  ok('the old calendar-day formula really was weeks early on this fixture',
+    hendersonFinish != null
+    && Date.parse(hendersonFinish) - Date.parse(naiveCalendar) >= 14 * 86400000,
+    `scheduleFinishDate=${hendersonFinish} old formula=${naiveCalendar}`);
+  expect('the hero ships the working-day finish, not the calendar-day one',
+    hendersonSnap.project.targetDate, hendersonFinish ?? undefined);
+  // Source scan over CODE only — the comment that explains the defect is
+  // allowed to quote it, and should, or the next reader has no idea why the
+  // helper exists.
+  ok('portalSnapshot no longer multiplies a duration by 86400000',
+    !read('utils/portalSnapshot.ts').split('\n')
+      .some(l => !/^\s*(?:\/\/|\*|\/\*)/.test(l) && /DurationDays \* 86400000/.test(l)));
+
+  // ── 2. The off-by-one. Day 1 IS the start date ──────────────────────────
+  // A one-day job starting Mon 2026-05-04 finishes Mon 2026-05-04, not Tue.
+  const oneDay = {
+    startDate: '2026-05-04', workingDaysPerWeek: 5, totalDurationDays: 1,
+    tasks: [{ id: 'a', title: 'a', startDay: 1, durationDays: 1 }],
+  } as any;
+  expect('a one-day job finishes on the day it starts', scheduleFinishDate(oneDay), '2026-05-04');
+  // Five working days from Monday is Friday — crossing no weekend.
+  expect('a one-week job finishes Friday, not the following Monday',
+    scheduleFinishDate({ ...oneDay, totalDurationDays: 5, tasks: [{ id: 'a', title: 'a', startDay: 1, durationDays: 5 }] }),
+    '2026-05-08');
+  // Six working days from Monday steps over Sat+Sun to the next Monday.
+  expect('the sixth working day steps over the weekend',
+    scheduleFinishDate({ ...oneDay, totalDurationDays: 6, tasks: [{ id: 'a', title: 'a', startDay: 1, durationDays: 6 }] }),
+    '2026-05-11');
+  // A marked holiday inside the run pushes the finish by exactly one day.
+  expect('a non-working day inside the run pushes the finish out by one',
+    scheduleFinishDate({
+      ...oneDay, totalDurationDays: 5, nonWorkingDates: ['2026-05-06'],
+      tasks: [{ id: 'a', title: 'a', startDay: 1, durationDays: 5 }],
+    }),
+    '2026-05-11');
+  // No anchor = no date. A guessed completion date IS the bug.
+  expect('no start date means no finish date — never today', scheduleFinishDate({ ...oneDay, startDate: undefined }), null);
+  expect('no schedule at all means no finish date', scheduleFinishDate(undefined), null);
+  // The authored tasks are the plan; a stale cached scalar must not win.
+  expect('the tasks outrank a stale totalDurationDays',
+    scheduleFinishDate({ ...oneDay, totalDurationDays: 999, tasks: [{ id: 'a', title: 'a', startDay: 1, durationDays: 5 }] }),
+    '2026-05-08');
+
+  // ── 3. Same day as the GC's own app ─────────────────────────────────────
+  const finishCases: { name: string; project: Project }[] = [
+    { name: 'the Henderson fixture', project: henderson },
+    {
+      name: 'a 6-day week with two marked closures',
+      project: {
+        ...henderson,
+        schedule: {
+          ...(henderson as any).schedule,
+          workingDaysPerWeek: 6,
+          nonWorkingDates: ['2026-05-25', '2026-07-03'],
+        },
+      } as unknown as Project,
+    },
+    {
+      name: 'ragged task ends (the longest task is not the last one)',
+      project: {
+        ...henderson,
+        schedule: {
+          ...(henderson as any).schedule,
+          tasks: [
+            { id: 'a', title: 'a', phase: 'p', startDay: 1, durationDays: 40, progress: 0, status: 'not_started', crew: '', dependencies: [], notes: '' },
+            { id: 'b', title: 'b', phase: 'p', startDay: 10, durationDays: 5, progress: 0, status: 'not_started', crew: '', dependencies: [], notes: '' },
+            { id: 'm', title: 'm', phase: 'p', startDay: 41, durationDays: 0, progress: 0, status: 'not_started', isMilestone: true, crew: '', dependencies: [], notes: '' },
+          ],
+        },
+      } as unknown as Project,
+    },
+  ];
+  for (const c of finishCases) {
+    const inApp = buildOwnerConfidence({
+      project: c.project, changeOrders: [], invoices: [], nowMs: Date.parse('2026-06-01T12:00:00Z'),
+    }).projectedFinishISO;
+    expect(`the portal finish equals the in-app projected finish — ${c.name}`,
+      scheduleFinishDate((c.project as any).schedule), inApp);
+  }
+
+  // ── 4. …and the same day as the Gantt on the same page ──────────────────
+  // The static portal has no build step and cannot import TypeScript, so it
+  // carries a hand-written copy of this maths. Lift both halves out of the
+  // file and run them against the snapshot the page would actually receive.
+  const awdStart = portalHtml.indexOf('  function parseCalendarDate(value) {');
+  const awdStop = portalHtml.indexOf('  function fmtMonthShort(d) {', awdStart);
+  const finStart = portalHtml.indexOf('    function startOrdinal(t) {');
+  const finStop = portalHtml.indexOf('    // Geometry runs on a HALF-OPEN interval', finStart);
+  ok('the portal Gantt\'s finish maths is extractable for a head-to-head check',
+    awdStart >= 0 && awdStop > awdStart && finStart >= 0 && finStop > finStart,
+    `awd=${awdStart}..${awdStop} fin=${finStart}..${finStop}`);
+  if (awdStart >= 0 && awdStop > awdStart && finStart >= 0 && finStop > finStart) {
+    // eslint-disable-next-line no-new-func
+    const portalDateFns = new Function(
+      `${portalHtml.slice(awdStart, awdStop)}\nreturn { parseCalendarDate: parseCalendarDate, addWorkingDays: addWorkingDays };`,
+    )() as {
+      parseCalendarDate: (v: string) => Date;
+      addWorkingDays: (s: Date, d: number, dpw: number, nwd?: string[] | null) => Date;
+    };
+    const portalAddWorkingDays = portalDateFns.addWorkingDays;
+    // eslint-disable-next-line no-new-func
+    const portalGanttFinish = new Function(
+      'tasks', 'projectStart', 'dpw', 'nonWorking', 'addWorkingDays',
+      `${portalHtml.slice(finStart, finStop)}\nreturn projectEnd;`,
+    ) as (
+      tasks: unknown[], projectStart: Date, dpw: number, nonWorking: string[] | null,
+      awd: typeof portalAddWorkingDays,
+    ) => Date;
+
+    for (const c of finishCases) {
+      const snap = buildPortalSnapshot({ project: c.project, portal: portalSettings });
+      const section = snap.sections.schedule!;
+      // Anchor it exactly the way the page does — with the page's OWN
+      // parseCalendarDate, so a regression in the anchor (UTC vs local
+      // midnight, which silently moved the whole Gantt back a day for every
+      // viewer west of Greenwich) shows up here as a disagreement.
+      const drawn = portalGanttFinish(
+        section.tasks,
+        portalDateFns.parseCalendarDate(section.startDate!),
+        section.workingDaysPerWeek || 5,
+        section.nonWorkingDates || null,
+        portalAddWorkingDays,
+      );
+      expect(`hero and Gantt print the same finish day — ${c.name}`,
+        isoOf(drawn), snap.project.targetDate);
+    }
+
+    // The closures have to REACH the page, or the Gantt silently draws a
+    // different calendar from the hero that sits above it.
+    const closures = buildPortalSnapshot({ project: finishCases[1].project, portal: portalSettings });
+    expect('marked non-working days are shipped to the portal',
+      closures.sections.schedule!.nonWorkingDates, ['2026-05-25', '2026-07-03']);
+    ok('…and are omitted rather than shipped empty when there are none',
+      !Object.prototype.hasOwnProperty.call(hendersonSnap.sections.schedule!, 'nonWorkingDates'));
+  }
+
+  // The two specific shapes that were wrong, pinned as source so a rewrite
+  // that reintroduces either one fails even if a fixture stops covering it.
+  ok('the portal Gantt no longer advances by the full ordinal',
+    !/addWorkingDays\(projectStart, maxEndDay, dpw\)/.test(portalHtml));
+  ok('the portal Gantt passes the closures through to its date maths',
+    /addWorkingDays\(projectStart, Math\.max\(0, maxEndDay - 1\), dpw, nonWorking\)/.test(portalHtml));
+  ok('the hero labels the finish as the plan, not a bare arrow',
+    /scheduled finish/.test(portalHtml));
 }
 
 // ── The portal HTML must not read the retired figure, anywhere ─────────────

@@ -43,6 +43,10 @@
 // Run via: bun run test:money-definitions
 
 import { computeJobCost, describeVariance } from '../utils/jobCostEngine';
+import {
+  legacyEvmMetrics, buildEarnedValueSnapshot, evaluateCostBasis, describeCostBasisGap,
+  computeCollectedToDate, type ActualCostEvidence,
+} from '../utils/scheduleEarnedValue';
 import { computeLivingEstimate } from '../utils/livingEstimate';
 import { computeWIPReport, computeProfitReport } from '../utils/financialReports';
 import { suggestCostToDate, deriveEstimatedCostWithSource } from '../utils/wip';
@@ -2216,6 +2220,218 @@ console.log('\na sub bill buys down the subcontract (MONEY-AP-1):');
     unlinked.projectedFinal, 26_000);
   close('…linking it to the subcontract prices the job correctly',
     linked.projectedFinal, 20_000);
+}
+
+
+// ── 12. THE EVM ENGINE MEASURES THE SAME MONEY (MONEY-EVM-1) ──────────────
+//
+// The screen audit (2026-09-15) found the Budget Dashboard answering "am I
+// making money on this job" with the client's cheque book. Actual Cost there
+// was computeActualCostFromInvoices() — the sum of `Invoice.amountPaid` — fed
+// straight into CPI = EV/AC, Cost Variance = EV − AC, EAC = BAC/CPI, VAC, the
+// S-curve forecast and an AI prompt that labelled it "Actual Cost:". Money IN
+// used as money OUT, on the one screen that exists to answer the question.
+//
+// Every MAGE contract is seeded 25/25/25/25 (app/bill-from-estimate.tsx), so
+// the day the deposit cleared the screen printed CPI 0.00 and "Over budget so
+// far" in red by a quarter of the contract — on day one of a healthy job. The
+// inverse was worse: a GC behind on his billing read a green "Under budget so
+// far" while he bled on labour.
+//
+// Section 1 above pins the SAME rule inside utils/jobCostEngine. This section
+// pins it inside utils/scheduleEarnedValue so the two engines cannot answer
+// the question differently a second time, and pins the honest-absence rule
+// that goes with it: production holds jobs with no commitments and a couple of
+// permits, so simply swapping in the cost ledger would trade a wildly
+// pessimistic AC for a wildly optimistic one and print a glowing "Under
+// budget" on the same broken screen. No ledger → no cost number at all.
+
+console.log('\nEVM measures cost, and says so when it cannot (MONEY-EVM-1):');
+{
+  /** One $12,000 SELL line: $10,000 cost at 20% markup, per the estimate
+   *  invariant in utils/estimateMarkup.ts (unitPrice is COST, lineTotal SELL). */
+  const evmEstimate = {
+    id: 'est-evm',
+    items: [{
+      materialId: 'm-frame', name: 'Framing', category: 'Framing', unit: 'ls',
+      quantity: 1, unitPrice: 10_000, bulkPrice: 10_000, markup: 20,
+      usesBulk: false, lineTotal: 12_000, supplier: '',
+    }],
+    globalMarkup: 20, baseTotal: 10_000, markupTotal: 2_000, grandTotal: 12_000,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  } as unknown as LinkedEstimate;
+
+  const EVM_PROJECT = {
+    id: 'p-evm', name: 'Deposit Job', status: 'in_progress', type: 'renovation',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    linkedEstimate: evmEstimate,
+    schedule: {
+      id: 's1', name: 'Sched', projectId: 'p-evm', workingDaysPerWeek: 5, bufferDays: 0,
+      totalDurationDays: 10, criticalPathDays: 10, laborAlignmentScore: 0, riskItems: [],
+      tasks: [{
+        id: 't1', title: 'Frame', phase: 'Framing', durationDays: 10, startDay: 1,
+        progress: 50, crew: '', dependencies: [], notes: '', status: 'in_progress',
+        linkedEstimateItems: ['m-frame'],
+      }],
+    },
+  } as unknown as Project;
+
+  // The homeowner's 25% deposit on a $48,000 contract. Revenue.
+  const deposit = {
+    ...clientPaid(12_000), id: 'inv-evm', projectId: 'p-evm', status: 'paid',
+  } as unknown as Invoice;
+
+  // ── (a) the markup is charged ONCE ──────────────────────────────────────
+  // itemCarry returned `lineTotal × (1 + markup/100)`, and lineTotal is
+  // ALREADY sell. At 20% the job's budget read 1.44× cost instead of 1.20×,
+  // inflating BAC, EV, PV and the "Budget:" line at the top of the screen.
+  const noCost = legacyEvmMetrics(EVM_PROJECT, [deposit], EVM_PROJECT.schedule);
+  close('a task budget is the estimate line’s SELL price, markup counted once',
+    noCost.budgetAtCompletion, 12_000);
+  ok('…not the double-marked-up 1.44× figure',
+    noCost.budgetAtCompletion !== 14_400, `got ${noCost.budgetAtCompletion}`);
+  close('…so earned value at 50% complete is half of it', noCost.earnedValue, 6_000);
+
+  // ── (b) a client payment moves NOTHING on the cost side ─────────────────
+  ok('with no cost ledger there is no CPI at all', noCost.costPerformanceIndex === undefined,
+    `got ${noCost.costPerformanceIndex}`);
+  ok('…no actual cost', noCost.actualCost === undefined, `got ${noCost.actualCost}`);
+  ok('…no cost variance', noCost.costVariance === undefined, `got ${noCost.costVariance}`);
+  ok('…no estimate at completion', noCost.estimateAtCompletion === undefined,
+    `got ${noCost.estimateAtCompletion}`);
+  ok('…and no variance at completion', noCost.varianceAtCompletion === undefined,
+    `got ${noCost.varianceAtCompletion}`);
+  expect('…the basis says which answer is missing and why',
+    [noCost.costBasis.grounded, noCost.costBasis.reason], [false, 'no_cost_ledger']);
+  close('…the deposit is reported as money COLLECTED, not spent',
+    noCost.collectedToDate, 12_000);
+
+  // Doubling the client's payment may not move a single cost-side number.
+  const paidMore = legacyEvmMetrics(
+    EVM_PROJECT,
+    [{ ...deposit, amountPaid: 24_000 } as unknown as Invoice],
+    EVM_PROJECT.schedule,
+  );
+  expect('a bigger client payment moves nothing but the collected figure',
+    [paidMore.costPerformanceIndex, paidMore.actualCost, paidMore.costVariance,
+      paidMore.schedulePerformanceIndex, paidMore.budgetAtCompletion],
+    [noCost.costPerformanceIndex, noCost.actualCost, noCost.costVariance,
+      noCost.schedulePerformanceIndex, noCost.budgetAtCompletion]);
+  close('…which does move', paidMore.collectedToDate, 24_000);
+  close('computeCollectedToDate counts paid + partially paid client money',
+    computeCollectedToDate([
+      { amountPaid: 1_000, status: 'paid' },
+      { amountPaid: 500, status: 'partially_paid' },
+      { amountPaid: 9_999, status: 'sent' },
+    ]), 1_500);
+
+  // The snapshot underneath must refuse it too, not just the adapter on top:
+  // the adapter gates on costBasis, so an invoice fallback restored inside
+  // buildEarnedValueSnapshot would sit there unnoticed until the next screen
+  // read `snapshot.cpi` directly — which app/schedule-pro.tsx does.
+  const rawSnap = buildEarnedValueSnapshot(
+    EVM_PROJECT.schedule?.tasks ?? [], evmEstimate,
+    { dayCursor: 10, invoices: [deposit] },
+  );
+  ok('the snapshot itself reports no CPI off invoices alone', rawSnap.cpi === undefined,
+    `got ${rawSnap.cpi}`);
+  ok('…and no actual cost', rawSnap.actualCost === undefined, `got ${rawSnap.actualCost}`);
+  close('…while still reporting what the client paid', rawSnap.collectedToDate, 12_000);
+
+  // ── (c) the schedule side never depended on cost and still doesn’t ──────
+  close('SPI still renders without a cost ledger', noCost.schedulePerformanceIndex, 0.5);
+  close('…and so does planned value', noCost.plannedValue, 12_000);
+
+  // ── (d) with a real cost ledger the cost side comes back, from COST ─────
+  const framingSub = {
+    id: 'c-evm', projectId: 'p-evm', number: 'SC-1', type: 'subcontract',
+    description: 'Framing', amount: 10_000, paidToDate: 4_000, phase: 'Framing',
+    status: 'active', signedDate: '2026-01-01', createdAt: '2026-01-01', updatedAt: '2026-01-01',
+  } as unknown as Commitment;
+  const jc = computeJobCost({
+    project: EVM_PROJECT, commitments: [framingSub], changeOrders: [], invoices: [deposit],
+  });
+  const evidence: ActualCostEvidence = {
+    amount: jc.actual,
+    ledgers: {
+      commitments: jc.byPhase.flatMap(l => l.sources.commitments).length,
+      receipts: 0, timeEntries: 0, equipment: 0, permits: 0,
+    },
+  };
+  const grounded = legacyEvmMetrics(EVM_PROJECT, [deposit], EVM_PROJECT.schedule, evidence);
+  close('AC is the job-cost engine’s actual, to the dollar', grounded.actualCost ?? -1, jc.actual);
+  close('…which is the $4,000 paid to the sub, not the $12,000 deposit',
+    grounded.actualCost ?? -1, 4_000);
+  close('…CPI is EV / AC', grounded.costPerformanceIndex ?? -1, 1.5);
+  close('…cost variance is EV − AC', grounded.costVariance ?? -1, 2_000);
+  close('…EAC is BAC / CPI', grounded.estimateAtCompletion ?? -1, 8_000);
+  close('…and VAC keeps the EVM sign (positive = under)',
+    grounded.varianceAtCompletion ?? -1, 4_000);
+  ok('…with the basis marked grounded', grounded.costBasis.grounded);
+
+  // ── (e) records without dollars are their own answer, not zero ──────────
+  const unpriced = evaluateCostBasis({
+    amount: 0, ledgers: { commitments: 1, receipts: 0, timeEntries: 0, equipment: 0, permits: 0 },
+  });
+  expect('a signed sub nobody has paid yet is “no priced cost”, not “on budget”',
+    [unpriced.grounded, unpriced.reason], [false, 'no_priced_cost']);
+  const empty = evaluateCostBasis(undefined);
+  expect('…and no ledger at all is its own reason',
+    [empty.grounded, empty.reason], [false, 'no_cost_ledger']);
+  ok('…naming every cost stream that holds nothing',
+    ['sub & PO payments', 'material receipts', 'crew hours', 'equipment days', 'permit fees']
+      .every(l => empty.emptyLedgers.includes(l)),
+    empty.emptyLedgers.join(', '));
+  const gap = describeCostBasisGap(empty);
+  ok('the gap sentence says client payments are not cost',
+    /client payments are money in/i.test(gap), gap);
+  ok('…and names the ledgers to fill', /material receipts/.test(gap) && /crew hours/.test(gap), gap);
+  expect('…while a grounded basis apologises for nothing', describeCostBasisGap(grounded.costBasis), '');
+
+  // ── (f) the engine keeps no invoice→AC path at all ──────────────────────
+  const evmSrc = read('utils/scheduleEarnedValue.ts');
+  // Comments stripped: the header EXPLAINS the old name at length, which is
+  // the point of it. What must not exist is the code.
+  ok('the invoice-sum-as-actual-cost function is gone by name and by wiring',
+    !/computeActualCostFromInvoices/.test(stripComments(evmSrc)),
+    'computeActualCostFromInvoices is the exact call that made CPI measure revenue');
+  ok('…and the only AC in the snapshot comes from the caller’s cost evidence',
+    /const ac = costBasis\.grounded \? opts\.actualCost\?\.amount : undefined;/.test(evmSrc));
+  ok('…with no fallback that substitutes invoices for a missing ledger',
+    !/actualCost[\s\S]{0,80}:\s*\(opts\.invoices/.test(evmSrc));
+
+  // ── (g) the SCREEN passes the full cost bundle, and gates on evidence ───
+  // utils/financialReports.ts shipped the partial call (no receipts, no time
+  // entries) and reported a cost-to-date made of subcontracts only. Swapping
+  // "AC is client revenue" for "AC omits every material receipt, crew hour,
+  // equipment day and permit fee" is a wrong number that looks right.
+  const dash = read('app/budget-dashboard.tsx');
+  const callSite = dash.match(/computeJobCost\(\{[\s\S]{0,400}?\}\)/)?.[0] ?? '';
+  ok('the Budget Dashboard runs the cost engine at all', callSite.length > 0);
+  for (const field of ['receipts', 'timeEntries', 'laborRates', 'overtimeMultiplier',
+    'equipment', 'permits', 'subcontractors']) {
+    ok(`…forwarding ${field} rather than the four-argument shorthand`,
+      new RegExp(`\\b${field}\\b`).test(callSite), callSite);
+  }
+  ok('…and hands the EVM engine that evidence, not the invoices',
+    /legacyEvmMetrics\(project, projectInvoices, project\.schedule, costEvidence\)/.test(dash));
+  // Anchored on `if (`: the same condition also colours the progress bar, and
+  // an unanchored match let a mutation that ungated the CARD sail straight
+  // through this assertion (caught while mutation-testing this guard).
+  ok('…gating the CPI card on the ledger, not on a dollar total',
+    /if \(costGrounded && cpi != null\) \{/.test(dash));
+  ok('…the Cost Variance card too', /if \(costGrounded && cv != null\) \{/.test(dash));
+  ok('…the Est. at Completion card too',
+    /if \(costGrounded && metrics\.estimateAtCompletion != null\) \{/.test(dash));
+  ok('…and the Variance at Completion card too',
+    /if \(costGrounded && vac != null\) \{/.test(dash));
+  ok('…with the empty-ledger sentence rendered where they would have been',
+    /describeCostBasisGap\(metrics\.costBasis\)/.test(stripComments(dash)));
+  ok('…and a way to go fill it', /pathname: '\/job-costing'/.test(dash));
+  ok('the S-curve no longer labels client payments “Actual”',
+    !/actualCumulative/.test(dash) && />Collected</.test(stripComments(dash)));
+  ok('…and the AI prompt is told outright when there is no cost data',
+    /Actual Cost: NOT AVAILABLE/.test(dash) && /Never treat client payments as a cost/.test(dash));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

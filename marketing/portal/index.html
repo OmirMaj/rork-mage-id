@@ -3236,11 +3236,48 @@
   // Falls back to the simple list when the snapshot didn't include
   // schedule.startDate (older projects).
 
-  function addWorkingDays(start, days, dpw) {
+  function parseCalendarDate(value) {
+    // A schedule anchor is a CALENDAR DAY, not an instant. `new Date('2026-05-04')`
+    // is UTC midnight, which is May 3 at 17:00 in Los Angeles — so the whole
+    // Gantt used to shift back a day for every viewer west of Greenwich, and
+    // the weekend skip started counting from a Sunday that was really a Monday.
+    // The hero's finish date is computed in the app at LOCAL midnight
+    // (utils/portalSnapshot.ts scheduleFinishDate), so this has to match or the
+    // two halves of one page disagree again — by a day this time instead of
+    // six weeks, which is harder for anyone to notice.
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    var d = new Date(value);
+    if (isNaN(d)) return d;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function addWorkingDays(start, days, dpw, nonWorkingDates) {
     // Skip Sat/Sun when working days/week is 5. Mirrors the in-app
     // scheduleEngine helper. dpw=7 means calendar days.
+    //
+    // `nonWorkingDates` (ISO YYYY-MM-DD) are holidays / rain days / site
+    // closures the GC marked. They used not to reach this page at all, so a
+    // schedule with a two-week shutdown drew bars that ran straight through
+    // it while the hero's finish date — computed in the app WITH the closures
+    // — sat two weeks later. Same signature and same skip order as
+    // utils/scheduleEngine.ts addWorkingDays, deliberately: a homeowner
+    // reading one page must not be shown two calendars.
     var d = new Date(start);
-    if (!dpw || dpw >= 7) {
+    var blocked = (nonWorkingDates && nonWorkingDates.length)
+      ? nonWorkingDates
+      : null;
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    function isBlocked(dt) {
+      if (!blocked) return false;
+      // Built from LOCAL parts, not toISOString() — the whole Gantt walks the
+      // calendar in local time, and a UTC-formatted key would miss the
+      // closure by a day for every viewer west of UTC.
+      var iso = dt.getFullYear() + '-' + two(dt.getMonth() + 1) + '-' + two(dt.getDate());
+      return blocked.indexOf(iso) > -1;
+    }
+    if ((!dpw || dpw >= 7) && !blocked) {
       d.setDate(d.getDate() + days);
       return d;
     }
@@ -3248,8 +3285,12 @@
     while (added < days) {
       d.setDate(d.getDate() + 1);
       var day = d.getDay();
-      var isSkip = dpw === 5 ? (day === 0 || day === 6) : (day === 0);
-      if (!isSkip) added++;
+      var isSkip = (dpw && dpw < 7)
+        ? (dpw === 5 ? (day === 0 || day === 6) : (day === 0))
+        : false;
+      if (isSkip) continue;
+      if (isBlocked(d)) continue;
+      added++;
     }
     return d;
   }
@@ -3266,6 +3307,7 @@
     if (!tasks || !tasks.length) return emptyState('No schedule shared yet.');
 
     var dpw = scheduleSection.workingDaysPerWeek || 5;
+    var nonWorking = scheduleSection.nonWorkingDates || null;
 
     // The flat list view — every task with progress + pill. Always
     // built so users can flip into "Compact list" from the Gantt view.
@@ -3298,37 +3340,66 @@
     var startISO = scheduleSection.startDate;
     var inferredStart = false;
     if (!startISO) {
+      // Local parts, not toISOString() — a UTC string written in the evening
+      // west of Greenwich already names tomorrow, which would put the inferred
+      // anchor a day ahead of the "today" we just resolved.
       var today = new Date();
-      today.setHours(0,0,0,0);
-      startISO = today.toISOString();
+      startISO = today.getFullYear() + '-' +
+        ((today.getMonth() + 1) < 10 ? '0' : '') + (today.getMonth() + 1) + '-' +
+        (today.getDate() < 10 ? '0' : '') + today.getDate();
       inferredStart = true;
     }
 
-    var projectStart = new Date(startISO);
+    var projectStart = parseCalendarDate(startISO);
     if (isNaN(projectStart.getTime())) {
       // Last-ditch fallback — build only the list view.
       return wrapScheduleViews(renderList(), '', /*defaultGantt*/ false);
     }
 
-    // Compute end date = max(startDay + durationDays) across tasks
+    // ── THE finish ordinal, on the one convention this app has ─────────────
+    // `startDay` is a 1-based WORKING-day ordinal: day 1 IS the start date. So
+    // a task's last day is `startDay + durationDays - 1`, and the project's
+    // finish DATE is `addWorkingDays(projectStart, finishOrdinal - 1, …)`.
+    //
+    // This block used to read `startDay + durationDays` with no `- 1` and then
+    // advance by the full ordinal — two working days past the plan — while the
+    // hero at the top of this same page added `totalDurationDays` as CALENDAR
+    // days and landed weeks EARLIER. A homeowner could scroll from one date to
+    // the other and see their own portal contradict itself. Both now compute
+    // the same day, matching utils/portalSnapshot.ts scheduleFinishDate and
+    // utils/ownerConfidence.ts projectedFinishISO; the head-to-head is pinned
+    // in scripts/validate-portal-owner.ts.
+    //
+    // The two accessors below mirror utils/ownerConfidence.ts:93-97 EXACTLY,
+    // including its `?? 1` defaults — a missing startDay counts as day 1, a
+    // missing duration as one day. Any divergence here is a divergence between
+    // the homeowner's page and the GC's app.
+    function startOrdinal(t) { return t.startDay == null ? 1 : t.startDay; }
+    function durOrdinal(t) { return t.durationDays == null ? 1 : t.durationDays; }
     var maxEndDay = 0;
     tasks.forEach(function (t) {
-      var endDay = (t.startDay || 0) + (t.durationDays || 0);
+      var endDay = startOrdinal(t) + Math.max(0, durOrdinal(t) - 1);
       if (endDay > maxEndDay) maxEndDay = endDay;
     });
-    var projectEnd = addWorkingDays(projectStart, maxEndDay, dpw);
-    var totalCalendarDays = Math.max(1, Math.ceil((projectEnd - projectStart) / 86400000));
+    var projectEnd = addWorkingDays(projectStart, Math.max(0, maxEndDay - 1), dpw, nonWorking);
+
+    // Geometry runs on a HALF-OPEN interval while the labels are inclusive:
+    // the bar for the last working day still has to have width, so everything
+    // that measures pixels measures to the day AFTER the finish. `projectEnd`
+    // itself — the last day work actually happens — is what the header prints.
+    var projectEndEx = new Date(projectEnd.getTime() + 86400000);
+    var totalCalendarDays = Math.max(1, Math.round((projectEndEx - projectStart) / 86400000));
 
     // Build month ruler
     var rulerMonths = [];
     var cursor = new Date(projectStart);
     cursor.setDate(1);
-    while (cursor < projectEnd) {
+    while (cursor < projectEndEx) {
       var monthStart = new Date(cursor);
       var nextMonth = new Date(cursor);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       var visibleStart = monthStart < projectStart ? projectStart : monthStart;
-      var visibleEnd = nextMonth > projectEnd ? projectEnd : nextMonth;
+      var visibleEnd = nextMonth > projectEndEx ? projectEndEx : nextMonth;
       var widthPct = ((visibleEnd - visibleStart) / 86400000) / totalCalendarDays * 100;
       var leftPct  = ((visibleStart - projectStart) / 86400000) / totalCalendarDays * 100;
       rulerMonths.push({
@@ -3369,19 +3440,24 @@
     });
     var overallPct = weightedDen > 0 ? Math.round(weightedNum / weightedDen) : 0;
 
-    // Calendar offset of "today" from the project start (day 1 = startDate).
     var todayMid = new Date();
     todayMid.setHours(0, 0, 0, 0);
-    var todayOffset = Math.round((todayMid - projectStart) / 86400000) + 1;
 
-    // Next milestone = milestone task with the smallest startDay whose
-    // calendar date is today or later. Date = startDate + (startDay - 1) days.
+    // Next milestone = the soonest milestone whose date has not passed.
+    //
+    // This used to date a milestone as `projectStart + (startDay - 1)` CALENDAR
+    // days and then decide "has it passed?" by comparing its WORKING-day
+    // ordinal against a calendar-day offset of today. Both halves were the same
+    // mistake the hero's finish date was making, on the same card: on a 5-day
+    // week the printed milestone date ran ~40% early, and the "is it still
+    // ahead?" test drifted further out of step the longer the job ran. Dates
+    // here now come from addWorkingDays, like every other date on this page.
     var nextMilestone = null;
     tasks.forEach(function (t) {
       if (!t.isMilestone) return;
-      var sd = t.startDay || 0;
-      var msDate = new Date(projectStart.getTime() + (sd - 1) * 86400000);
-      if (sd >= todayOffset && (!nextMilestone || sd < nextMilestone.startDay)) {
+      var sd = startOrdinal(t);
+      var msDate = addWorkingDays(projectStart, Math.max(0, sd - 1), dpw, nonWorking);
+      if (msDate >= todayMid && (!nextMilestone || msDate < nextMilestone.date)) {
         nextMilestone = { startDay: sd, title: t.title, date: msDate };
       }
     });
@@ -3428,10 +3504,17 @@
     // Tasks grouped by phase
     var tasksHtml = phaseOrder.map(function (phase) {
       var phaseHtml = phaseGroups[phase].map(function (t, idx) {
-        var taskStart = addWorkingDays(projectStart, t.startDay || 0, dpw);
-        var taskEnd = addWorkingDays(taskStart, t.durationDays || 0, dpw);
+        // Same 1-based ordinal convention as the header above and as
+        // scheduleEngine.getTaskDateRange in-app: day 1 IS the start date, so
+        // the first task begins at `projectStart + 0` and a 10-day task ends
+        // on its 10th working day, not its 11th. The label prints that
+        // inclusive end; the bar is drawn to the day after it so a one-day
+        // task is still a visible block rather than a hairline.
+        var taskStart = addWorkingDays(projectStart, Math.max(0, startOrdinal(t) - 1), dpw, nonWorking);
+        var taskEnd = addWorkingDays(taskStart, Math.max(0, durOrdinal(t) - 1), dpw, nonWorking);
+        var taskEndEx = new Date(taskEnd.getTime() + 86400000);
         var leftPct = ((taskStart - projectStart) / 86400000) / totalCalendarDays * 100;
-        var widthPct = Math.max(0.5, ((taskEnd - taskStart) / 86400000) / totalCalendarDays * 100);
+        var widthPct = Math.max(0.5, ((taskEndEx - taskStart) / 86400000) / totalCalendarDays * 100);
         var progress = Math.max(0, Math.min(100, t.progress || 0));
         var done = progress >= 100 || ['completed','done','complete','closed'].indexOf(String(t.status||'').toLowerCase()) > -1;
         var critical = !!t.isCriticalPath;
@@ -6513,10 +6596,24 @@
     var metaItems = [];
     if (project.address) metaItems.push({ icon: 'mapPin', text: project.address });
     if (project.type) metaItems.push({ icon: 'home', text: statusLabel(project.type) });
+    // The dates a homeowner plans their life around, so they are labelled for
+    // what they are. A bare "Mar 14 → Aug 22" reads as a promise; it is the
+    // current plan, and the plan is what the Gantt further down this page and
+    // the GC's own app both show (all three now derive the finish through the
+    // same working-day maths — see scheduleFinishDate in utils/portalSnapshot).
+    //
+    // fmtCalendarDate, not fmtDateShort: both values are DATE-ONLY strings, and
+    // new Date('2026-08-22') is UTC midnight, which renders as Aug 21 for every
+    // viewer west of Greenwich. Losing a day here would put this chip back out
+    // of step with the Gantt for exactly the audience least able to tell why.
     if (project.startDate && project.targetDate) {
-      metaItems.push({ icon: 'calendar', text: fmtDateShort(project.startDate) + ' → ' + fmtDateShort(project.targetDate) });
+      metaItems.push({
+        icon: 'calendar',
+        text: 'Started ' + fmtCalendarDate(project.startDate)
+          + ' → scheduled finish ' + fmtCalendarDate(project.targetDate),
+      });
     } else if (project.startDate) {
-      metaItems.push({ icon: 'calendar', text: 'Started ' + fmtDate(project.startDate) });
+      metaItems.push({ icon: 'calendar', text: 'Started ' + fmtCalendarDate(project.startDate, true) });
     }
     if (project.status) metaItems.push({ icon: 'tool', text: statusLabel(project.status) });
 

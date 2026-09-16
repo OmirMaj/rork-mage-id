@@ -10,6 +10,7 @@ import Paywall from '@/components/Paywall';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, TrendingDown, DollarSign, Clock, Target, BarChart3,
+  Activity, Wallet, AlertTriangle, ChevronRight,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -21,7 +22,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
-import { legacyEvmMetrics, buildCashFlow } from '@/utils/scheduleEarnedValue';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { computeJobCost } from '@/utils/jobCostEngine';
+import {
+  legacyEvmMetrics, buildCashFlow, describeCostBasisGap, type ActualCostEvidence,
+} from '@/utils/scheduleEarnedValue';
 import { mageAI } from '@/utils/mageAI';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -91,7 +97,17 @@ function BudgetDashboardScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { projects, getProject, invoices, getChangeOrdersForProject } = useProjects();
+  const {
+    projects, getProject, invoices, getChangeOrdersForProject,
+    // MONEY-EVM-1: the cost ledger. Actual Cost on this screen used to be the
+    // client's paid invoices — money IN read as money OUT — so every cost-side
+    // card was measuring the wrong money (see utils/scheduleEarnedValue.ts).
+    // These are the same arrays app/job-costing.tsx feeds computeJobCost.
+    commitments, changeOrders, equipment, permits, subcontractors,
+  } = useProjects();
+  const { receipts } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const projectInvoices = useMemo(() => invoices.filter(inv => inv.projectId === (projectId ?? '')), [invoices, projectId]);
@@ -106,15 +122,68 @@ function BudgetDashboardScreenInner() {
     [projectChangeOrders],
   );
 
+  // The FULL cost bundle, not the four-argument shorthand. utils/
+  // financialReports.ts called computeJobCost without receipts and time
+  // entries and reported a cost-to-date made of subcontracts only (the
+  // 2026-09-07 audit flagged it); doing that here would swap "AC is client
+  // revenue" for "AC omits every material receipt, crew hour, equipment day
+  // and permit fee" — a wrong number that looks right. `subcontractors` is
+  // load-bearing too: it is the only signal that joins an in-app subcontract
+  // to the estimate line it bought out (JOBCOST-PHASE-1).
+  const jobCost = useMemo(() => {
+    if (!project) return null;
+    return computeJobCost({
+      project, commitments, changeOrders, receipts, timeEntries, laborRates,
+      overtimeMultiplier, equipment, permits, subcontractors,
+    });
+  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates,
+      overtimeMultiplier, equipment, permits, subcontractors]);
+
+  // Actual Cost WITH the records that produced it. The counts are the union of
+  // JobCostLine.sources across every phase, deduped — a receipt that splits
+  // over three categories names itself on three lines and is still one record.
+  //
+  // The counts, not the dollars, decide whether CPI / Cost Variance / EAC get
+  // rendered at all. Production holds jobs with zero commitments and a handful
+  // of permits, so gating on `actual > 0` alone would simply trade a wildly
+  // pessimistic AC (the client's money) for a wildly optimistic one (nothing
+  // recorded) and print a glowing green "Under budget" on the same broken
+  // screen. An empty ledger is a missing answer, and it gets said out loud.
+  const costEvidence: ActualCostEvidence | undefined = useMemo(() => {
+    if (!jobCost) return undefined;
+    const seen = {
+      commitments: new Set<string>(), receipts: new Set<string>(),
+      timeEntries: new Set<string>(), equipment: new Set<string>(),
+      permits: new Set<string>(),
+    };
+    for (const line of jobCost.byPhase) {
+      for (const id of line.sources.commitments) seen.commitments.add(id);
+      for (const id of line.sources.receipts) seen.receipts.add(id);
+      for (const id of line.sources.timeEntries) seen.timeEntries.add(id);
+      for (const id of line.sources.equipment) seen.equipment.add(id);
+      for (const id of line.sources.permits) seen.permits.add(id);
+    }
+    return {
+      amount: jobCost.actual,
+      ledgers: {
+        commitments: seen.commitments.size,
+        receipts: seen.receipts.size,
+        timeEntries: seen.timeEntries.size,
+        equipment: seen.equipment.size,
+        permits: seen.permits.size,
+      },
+    };
+  }, [jobCost]);
+
   const metrics = useMemo(() => {
     if (!project) return null;
-    return legacyEvmMetrics(project, projectInvoices, project.schedule);
-  }, [project, projectInvoices]);
+    return legacyEvmMetrics(project, projectInvoices, project.schedule, costEvidence);
+  }, [project, projectInvoices, costEvidence]);
 
   const cashFlowData = useMemo(() => {
     if (!project) return [];
-    return buildCashFlow(project, projectInvoices, project.schedule, 10);
-  }, [project, projectInvoices]);
+    return buildCashFlow(project, projectInvoices, project.schedule, 10, costEvidence);
+  }, [project, projectInvoices, costEvidence]);
 
   const [forecast, setForecast] = useState('');
   const [forecastLoading, setForecastLoading] = useState(false);
@@ -124,22 +193,36 @@ function BudgetDashboardScreenInner() {
     setForecastLoading(true);
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // The model gets the cost half ONLY when a real cost ledger produced it.
+      // It used to be handed the client's paid invoices under the label
+      // "Actual Cost" and asked for root-cause analysis of the variance, so it
+      // wrote three confident paragraphs about an overrun that was a deposit
+      // (MONEY-EVM-1). When there is no ledger we say so in the prompt and
+      // forbid the cost assessment outright rather than leaving the model to
+      // fill the silence.
+      const costBlock = metrics.costBasis.grounded
+        ? `Actual Cost (money paid OUT — sub/PO payments, material receipts, crew hours, equipment, permits): ${formatCurrency(metrics.actualCost ?? 0)}
+CPI: ${metrics.costPerformanceIndex}
+Cost Variance: ${formatCurrency(metrics.costVariance ?? 0)}
+Estimate at Completion: ${formatCurrency(metrics.estimateAtCompletion ?? 0)}`
+        : `Actual Cost: NOT AVAILABLE. ${describeCostBasisGap(metrics.costBasis)}
+Do NOT assess cost performance, CPI, cost variance or final cost — there is no cost data for this job. Say plainly that cost tracking is not set up yet and what the contractor should record to get it.`;
+
       const prompt = `You are a construction project financial analyst. Analyze these Earned Value Management metrics for a ${project.type} project named "${project.name}" with a budget of ${formatCurrency(metrics.budgetAtCompletion)}:
 
-CPI: ${metrics.costPerformanceIndex}
 SPI: ${metrics.schedulePerformanceIndex}
-Cost Variance: ${formatCurrency(metrics.costVariance)}
 Schedule Variance: ${formatCurrency(metrics.scheduleVariance)}
-Estimate at Completion: ${formatCurrency(metrics.estimateAtCompletion)}
 Percent Complete: ${metrics.percentComplete}%
-Actual Cost: ${formatCurrency(metrics.actualCost)}
+Earned Value (work completed, priced at the estimate): ${formatCurrency(metrics.earnedValue)}
+Collected from the client to date (revenue, NOT a cost): ${formatCurrency(metrics.collectedToDate)}
+${costBlock}
 
 Write a 3-paragraph project financial health summary covering:
 1. Current status assessment
 2. Root cause analysis of any variance
 3. Recommended corrective actions
 
-Be specific and actionable. Use construction industry terminology.`;
+Never treat client payments as a cost. Be specific and actionable. Use construction industry terminology.`;
 
       const aiResult = await mageAI({ prompt, tier: 'fast', feature: 'fullBudgetDashboard' });
       if (!aiResult.success) {
@@ -157,28 +240,34 @@ Be specific and actionable. Use construction industry terminology.`;
   }, [project, metrics]);
 
   const chartPath = useMemo(() => {
-    if (cashFlowData.length === 0) return { planned: '', actual: '', forecast: '' };
+    if (cashFlowData.length === 0) return { planned: '', collected: '', forecast: '' };
+
+    // A forecast point is null on a job with no grounded CPI — there is
+    // nothing to divide the plan by. The dashed curve is then not drawn at
+    // all, rather than drawn on top of Planned and labelled "Forecast"
+    // (MONEY-EVM-1).
+    const hasForecast = cashFlowData.every(d => d.forecastCumulative !== null);
 
     const maxVal = Math.max(
-      ...cashFlowData.map(d => Math.max(d.plannedCumulative, d.actualCumulative, d.forecastCumulative)),
+      ...cashFlowData.map(d => Math.max(d.plannedCumulative, d.collectedCumulative, d.forecastCumulative ?? 0)),
       1,
     );
 
     const toX = (i: number) => CHART_PADDING + (i / (cashFlowData.length - 1)) * (chartWidth - CHART_PADDING * 2);
     const toY = (v: number) => CHART_HEIGHT - CHART_PADDING - ((v / maxVal) * (CHART_HEIGHT - CHART_PADDING * 2));
 
-    const buildPath = (key: 'plannedCumulative' | 'actualCumulative' | 'forecastCumulative') => {
+    const buildPath = (pick: (d: typeof cashFlowData[number]) => number) => {
       return cashFlowData.map((d, i) => {
         const x = toX(i);
-        const y = toY(d[key]);
+        const y = toY(pick(d));
         return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
       }).join(' ');
     };
 
     return {
-      planned: buildPath('plannedCumulative'),
-      actual: buildPath('actualCumulative'),
-      forecast: buildPath('forecastCumulative'),
+      planned: buildPath(d => d.plannedCumulative),
+      collected: buildPath(d => d.collectedCumulative),
+      forecast: hasForecast ? buildPath(d => d.forecastCumulative ?? 0) : '',
     };
   }, [cashFlowData, chartWidth]);
 
@@ -231,7 +320,9 @@ Be specific and actionable. Use construction industry terminology.`;
           message={`${project.name} has no estimate, so there's no planned budget to measure earned value (CPI / SPI) against.`}
           steps={[
             'Open the project and build or import an estimate.',
-            'Log invoices and commitments as the job runs.',
+            // Not "log invoices": a client invoice is money IN and buys you no
+            // cost performance here (MONEY-EVM-1). Costs are what CPI needs.
+            'Record what the job costs as it runs — sub and PO payments, material receipts, crew hours.',
             'Come back here to see CPI / SPI against that plan.',
           ]}
           actionLabel="Open project"
@@ -244,11 +335,36 @@ Be specific and actionable. Use construction industry terminology.`;
   // Plain-language caption under each acronym so a jobsite user doesn't need
   // to know EVM theory. Captions translate the number into "what it means for
   // your money," using the actual value (self-explaining pattern).
+  //
+  // MONEY-EVM-1: the four COST cards (CPI, Cost Variance, Est. at Completion,
+  // Variance at Comp.) are built only when a real cost ledger backs them. They
+  // are not defaulted, not greyed out and not shown with a footnote — a
+  // confident "Over budget so far" in red is exactly as wrong whether or not
+  // there is small print under it, and this screen printed that on day one of
+  // a healthy job every time a deposit cleared. The gap card below the section
+  // title says which ledger is empty and links to the screen that fills it.
+  // SPI, Schedule Variance, Earned Value and Collected to date need no cost
+  // ledger and always render.
+  const costGrounded = metrics.costBasis.grounded;
   const cpi = metrics.costPerformanceIndex;
   const spi = metrics.schedulePerformanceIndex;
-  const cpiSpend = cpi > 0 ? (1 / cpi) : 0; // $ spent per $1 of work earned
-  const metricCards = [
-    {
+  const cv = metrics.costVariance;
+  const vac = metrics.varianceAtCompletion;
+  const cpiSpend = cpi && cpi > 0 ? (1 / cpi) : 0; // $ spent per $1 of work earned
+  // Billed-vs-earned: the comparison the collected figure exists to make.
+  const billingGap = metrics.collectedToDate - metrics.earnedValue;
+
+  type MetricCard = {
+    label: string;
+    value: string;
+    icon: typeof DollarSign;
+    color: string;
+    caption: string;
+  };
+  const metricCards: MetricCard[] = [];
+
+  if (costGrounded && cpi != null) {
+    metricCards.push({
       label: 'CPI',
       value: cpi.toFixed(2),
       icon: DollarSign,
@@ -256,43 +372,65 @@ Be specific and actionable. Use construction industry terminology.`;
       caption: cpi >= 1
         ? `On budget — spending $${cpiSpend.toFixed(2)} for every $1 of work earned`
         : `Over budget — spending $${cpiSpend.toFixed(2)} for every $1 of work earned`,
-    },
-    {
-      label: 'SPI',
-      value: spi.toFixed(2),
-      icon: Clock,
-      color: getMetricColor(spi, themeColors),
-      caption: spi >= 1 ? 'On or ahead of schedule' : 'Behind schedule — work is landing slower than planned',
-    },
-    {
+    });
+  }
+  metricCards.push({
+    label: 'SPI',
+    value: spi.toFixed(2),
+    icon: Clock,
+    color: getMetricColor(spi, themeColors),
+    caption: spi >= 1 ? 'On or ahead of schedule' : 'Behind schedule — work is landing slower than planned',
+  });
+  if (costGrounded && cv != null) {
+    metricCards.push({
       label: 'Cost Variance',
-      value: formatCurrency(metrics.costVariance),
-      icon: metrics.costVariance >= 0 ? TrendingUp : TrendingDown,
-      color: metrics.costVariance >= 0 ? themeColors.success : themeColors.danger,
-      caption: metrics.costVariance >= 0 ? 'Under budget so far' : 'Over budget so far',
-    },
-    {
-      label: 'Schedule Variance',
-      value: formatCurrency(metrics.scheduleVariance),
-      icon: metrics.scheduleVariance >= 0 ? TrendingUp : TrendingDown,
-      color: metrics.scheduleVariance >= 0 ? themeColors.success : themeColors.danger,
-      caption: metrics.scheduleVariance >= 0 ? 'Ahead of plan in dollar terms' : 'Behind plan in dollar terms',
-    },
-    {
+      value: formatCurrency(cv),
+      icon: cv >= 0 ? TrendingUp : TrendingDown,
+      color: cv >= 0 ? themeColors.success : themeColors.danger,
+      caption: cv >= 0 ? 'Under budget so far' : 'Over budget so far',
+    });
+  }
+  metricCards.push({
+    label: 'Schedule Variance',
+    value: formatCurrency(metrics.scheduleVariance),
+    icon: metrics.scheduleVariance >= 0 ? TrendingUp : TrendingDown,
+    color: metrics.scheduleVariance >= 0 ? themeColors.success : themeColors.danger,
+    caption: metrics.scheduleVariance >= 0 ? 'Ahead of plan in dollar terms' : 'Behind plan in dollar terms',
+  });
+  if (costGrounded && metrics.estimateAtCompletion != null) {
+    metricCards.push({
       label: 'Est. at Completion',
       value: formatCurrency(metrics.estimateAtCompletion),
       icon: Target,
       color: themeColors.info,
       caption: 'What this job will really cost if the current pace holds',
-    },
-    {
+    });
+  }
+  if (costGrounded && vac != null) {
+    metricCards.push({
       label: 'Variance at Comp.',
-      value: formatCurrency(metrics.varianceAtCompletion),
+      value: formatCurrency(vac),
       icon: BarChart3,
-      color: metrics.varianceAtCompletion >= 0 ? themeColors.success : themeColors.danger,
-      caption: metrics.varianceAtCompletion >= 0 ? 'Projected to finish under budget' : 'Projected to finish over budget',
-    },
-  ];
+      color: vac >= 0 ? themeColors.success : themeColors.danger,
+      caption: vac >= 0 ? 'Projected to finish under budget' : 'Projected to finish over budget',
+    });
+  }
+  metricCards.push({
+    label: 'Earned Value',
+    value: formatCurrency(metrics.earnedValue),
+    icon: Activity,
+    color: themeColors.info,
+    caption: `The work you've completed, priced at your estimate — ${metrics.percentComplete.toFixed(0)}% of the budget`,
+  });
+  metricCards.push({
+    label: 'Collected to date',
+    value: formatCurrency(metrics.collectedToDate),
+    icon: Wallet,
+    color: themeColors.accent,
+    caption: billingGap >= 0
+      ? `Client payments in — ${formatCurrency(billingGap)} ahead of the work you've earned`
+      : `Client payments in — ${formatCurrency(Math.abs(billingGap))} behind the work you've earned`,
+  });
 
   return (
     <View style={styles.container}>
@@ -332,12 +470,33 @@ Be specific and actionable. Use construction industry terminology.`;
             </View>
           )}
           <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: `${Math.min(metrics.percentComplete, 100)}%` as any, backgroundColor: getMetricColor(metrics.costPerformanceIndex, themeColors) }]} />
+            {/* The bar took its colour from CPI, which is absent on a job with
+                no cost ledger — a neutral accent bar beats a green one that
+                claims a cost verdict nobody computed. */}
+            <View style={[styles.progressBar, { width: `${Math.min(metrics.percentComplete, 100)}%` as any, backgroundColor: costGrounded && cpi != null ? getMetricColor(cpi, themeColors) : themeColors.accent }]} />
           </View>
           <Text style={styles.progressText}>{metrics.percentComplete.toFixed(1)}% Complete</Text>
         </View>
 
         <Text style={styles.sectionTitle}>EVM Metrics</Text>
+        {!costGrounded && (
+          <View style={styles.costGapCard} testID="cost-basis-gap">
+            <View style={styles.costGapHeader}>
+              <AlertTriangle size={16} color={themeColors.warningLabel} />
+              <Text style={styles.costGapTitle}>Cost performance is hidden on this job</Text>
+            </View>
+            <Text style={styles.costGapBody}>{describeCostBasisGap(metrics.costBasis)}</Text>
+            <TouchableOpacity
+              style={styles.costGapBtn}
+              onPress={() => router.push({ pathname: '/job-costing' as never, params: { projectId: project.id } as never })}
+              activeOpacity={0.85}
+              testID="cost-basis-gap-action"
+            >
+              <Text style={styles.costGapBtnText}>Record costs in Job Costing</Text>
+              <ChevronRight size={16} color={themeColors.accentLabel} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.metricsGrid}>
           {metricCards.map((card) => (
             <View key={card.label} style={[styles.metricCard, isDesktop && styles.metricCardDesktop, { borderLeftColor: card.color }]}>
@@ -358,7 +517,7 @@ Be specific and actionable. Use construction industry terminology.`;
             <Line x1={CHART_PADDING} y1={CHART_PADDING} x2={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
 
             {chartPath.planned && <Path d={chartPath.planned} stroke={themeColors.info} strokeWidth={2.5} fill="none" />}
-            {chartPath.actual && <Path d={chartPath.actual} stroke={themeColors.success} strokeWidth={2.5} fill="none" />}
+            {chartPath.collected && <Path d={chartPath.collected} stroke={themeColors.success} strokeWidth={2.5} fill="none" />}
             {chartPath.forecast && <Path d={chartPath.forecast} stroke={themeColors.accent} strokeWidth={2} fill="none" strokeDasharray="6,4" />}
           </Svg>
           <View style={styles.chartLegend}>
@@ -367,14 +526,24 @@ Be specific and actionable. Use construction industry terminology.`;
               <Text style={styles.legendText}>Planned</Text>
             </View>
             <View style={styles.legendItem}>
+              {/* Was labelled "Actual" beside "Planned", which read as spend —
+                  it has always been the client's payments. Same curve, honest
+                  name (MONEY-EVM-1). */}
               <View style={[styles.legendDot, { backgroundColor: themeColors.success }]} />
-              <Text style={styles.legendText}>Actual</Text>
+              <Text style={styles.legendText}>Collected</Text>
             </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: themeColors.accent }]} />
-              <Text style={styles.legendText}>Forecast</Text>
-            </View>
+            {!!chartPath.forecast && (
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: themeColors.accent }]} />
+                <Text style={styles.legendText}>Forecast</Text>
+              </View>
+            )}
           </View>
+          {!chartPath.forecast && (
+            <Text style={styles.chartNote}>
+              No forecast curve: projecting the final cost needs a cost performance index, and this job has no recorded costs to build one from.
+            </Text>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>AI Forecast</Text>
@@ -492,6 +661,55 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.text,
     marginBottom: 12,
+  },
+  // The "why this is hidden" card that stands in for the four cost cards. It
+  // is a full-width panel rather than a seventh tile on purpose: a tile reads
+  // as one more metric, and the point is that four metrics are absent.
+  costGapCard: {
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.panel,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderLeftWidth: 4,
+    borderLeftColor: t.warningLabel,
+    padding: 14,
+    gap: 8,
+    marginBottom: 12,
+  },
+  costGapHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  costGapTitle: {
+    flex: 1,
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: t.text,
+  },
+  costGapBody: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textSecondary,
+    lineHeight: 19,
+  },
+  costGapBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    alignSelf: 'flex-start' as const,
+    gap: 4,
+    paddingVertical: 6,
+  },
+  costGapBtnText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: t.accentLabel,
+  },
+  chartNote: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
+    lineHeight: 15,
+    marginTop: 10,
+    textAlign: 'center' as const,
   },
   metricsGrid: {
     flexDirection: 'row' as const,

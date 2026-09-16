@@ -388,9 +388,14 @@ export default function CloseoutBinderScreen() {
         commitments: projectCommitments,
         photos: projectPhotosArr,
         selections,
-        warranties: warranties ?? [],
+        // The sub roster is what turns a commitment into a phone number the
+        // client can dial. Without it the binder's "Trade contacts" table has
+        // no contacts in it — which is how that table ended up printing each
+        // sub's contract value under the column headed "Email".
+        subcontractors: subcontractors ?? [],
         rfis: projectRfis,
         submittals: projectSubmittals,
+        warranties: warranties ?? [],
         lienWaivers,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -399,7 +404,7 @@ export default function CloseoutBinderScreen() {
     } finally {
       setExporting(false);
     }
-  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties, lienWaivers]);
+  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties, lienWaivers, subcontractors]);
 
   const addMaintenance = useCallback(() => {
     setMaintenance(prev => [...prev, { id: generateUUID(), task: '', frequency: 'Annual', notes: '' }]);

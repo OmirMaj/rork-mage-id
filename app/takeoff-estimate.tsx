@@ -41,7 +41,7 @@ import CraneLoader from '@/components/CraneLoader';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Save, Plus, Trash2, AlertTriangle,
-  RefreshCw, Pencil, Check, Calculator,
+  RefreshCw, Pencil, Check, Calculator, Percent,
 } from 'lucide-react-native';
 import { MageAIMark, MageCostDb } from '@/components/icons';
 
@@ -58,6 +58,10 @@ import { Tokens } from '@/constants/designTokens';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
+import {
+  MARKUP_CHOICES, isMarkupSet, marginOf, type MarkupPct,
+} from '@/utils/estimateMarkup';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -307,7 +311,36 @@ function TakeoffEstimateInner() {
   const [lines, setLines] = useState<PricedLine[]>([]);
   useBrainFabLift(!pricing && lines.length > 0 ? bottomBarH : 0);
 
-  const [globalMarkup, setGlobalMarkup] = useState(15); // % default
+  // ── WHAT HE CHARGES IS NOT THIS SCREEN'S TO GUESS ───────────────────────
+  //
+  // This line used to be `useState(15)`, and the four pills below offered
+  // 10/15/20/25 — so a GC whose real markup is 22% could not even express it,
+  // and whichever pill happened to be lit was multiplied into every line and
+  // then written onto the project as `linkedEstimate.globalMarkup` (doReplace,
+  // below). That number is what the proposal, the contract value and every
+  // margin figure MAGE later reports back to him all read. On a $250K takeoff
+  // the gap between his real 22% and this screen's 15% is ~$17,500 of overhead
+  // and profit, given away inside a document he believes MAGE priced from his
+  // own numbers.
+  //
+  // He already told us. MaterialCartContext persists the answer (MARKUP_KEY)
+  // and `markupDecided` records that he was ASKED and answered — the estimate
+  // wizard, Quick Quote and the Full Estimator all honour it. This screen was
+  // the one estimating path that did not consume it, which is precisely what
+  // made it dangerous: every other path gets it right, so he has no reason to
+  // check this one.
+  //
+  // `markupDecided` is null while AsyncStorage answers, so `markupPct` is
+  // UNSET_MARKUP (null) both while hydrating and when he has genuinely never
+  // been asked. Both states mean the same thing here — we do not know what he
+  // charges — and the bar below says so rather than quietly asserting 15%.
+  const { globalMarkup: savedMarkup, markupDecided, recordMarkupDecision } = useMaterialCart();
+  const markupPct: MarkupPct = markupDecided === true ? savedMarkup : null;
+  // The free-entry percent, so 22% is expressible. Deliberately NOT seeded
+  // from `savedMarkup`: his real number renders as its own lit pill below
+  // (see `markupOptions`), and prefilling this box would put a number he has
+  // to delete in front of a man who only wants to change it.
+  const [markupInput, setMarkupInput] = useState('');
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -428,13 +461,40 @@ function TakeoffEstimateInner() {
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
-    const markup = subtotal * (globalMarkup / 100);
+    // An unanswered markup adds NOTHING, rather than the 15% this screen used
+    // to invent. The grand total then equals the subtotal, which is the truth:
+    // it is his cost. The at-cost band in the totals bar names that out loud —
+    // a cost total with nothing saying so is the defect, not the zero.
+    const markup = isMarkupSet(markupPct) ? subtotal * (markupPct / 100) : 0;
     return {
       subtotal,
       markup,
       grandTotal: subtotal + markup,
     };
-  }, [lines, globalMarkup]);
+  }, [lines, markupPct]);
+
+  // The pill ladder, plus HIS number when it is not one of them. A GC who told
+  // the wizard 22% must see 22% lit here — not an unselected row that looks
+  // like he never answered. MARKUP_CHOICES is the shared ladder the wizard's
+  // markup sheet offers, so the two surfaces never present two different menus
+  // for the same decision.
+  const markupOptions = useMemo(() => {
+    const base: number[] = [...MARKUP_CHOICES];
+    if (isMarkupSet(markupPct) && !base.includes(markupPct)) {
+      return [...base, markupPct].sort((a, b) => a - b);
+    }
+    return base;
+  }, [markupPct]);
+
+  // Answering here answers everywhere: `recordMarkupDecision` is the single
+  // writer of the markup decision (MaterialCartContext), the same one the
+  // wizard's sheet and the estimator's chips call. One answer, one place, and
+  // this screen stops being the odd one out.
+  const chooseMarkup = useCallback((pct: number) => {
+    if (!Number.isFinite(pct) || pct < 0 || pct > 200) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    recordMarkupDecision(pct);
+  }, [recordMarkupDecision]);
 
   // Group lines by CSI division so the GC can scan by trade.
   const grouped = useMemo(() => {
@@ -531,13 +591,32 @@ function TakeoffEstimateInner() {
   // it's recoverable from history — but the user is warned first (below).
   const doReplace = useCallback(() => {
     if (!project) return;
+    // THE GATE. Replace is the path that stamps a markup onto the project, and
+    // an unanswered markup must never become an asserted one: `globalMarkup`
+    // below is read by the proposal, the contract value, utils/jobCostEngine's
+    // budget seed and every margin figure downstream. Refusing here is the
+    // whole point of the fix — seeding the initial state alone would still
+    // price him at whatever pill happened to be lit.
+    //
+    // The wizard parks the tap behind a modal sheet (estimate-wizard's
+    // requireMarkup + pendingAfterMarkupRef) because its markup control lives
+    // inside that sheet. Here the control is inline, permanently visible, two
+    // rows above the button he just pressed — so there is nothing to park and
+    // nothing to re-open. Say why, and point at it.
+    if (!isMarkupSet(markupPct)) {
+      showAlert(
+        'Set your markup first',
+        `These ${lines.length} line${lines.length === 1 ? ' is' : 's are'} priced at your COST. Saving now would write a markup you never chose onto ${project.name} — and the proposal, the contract value and every margin figure MAGE reports back read that number. Pick your markup on the row above the Save button; we'll remember it for the estimate wizard and Quick Quote too.`,
+      );
+      return;
+    }
     setSaving(true);
     try {
-      const items = buildItems(globalMarkup);
+      const items = buildItems(markupPct);
       const linkedEstimate: LinkedEstimate = {
         id: generateUUID(),
         items,
-        globalMarkup,
+        globalMarkup: markupPct,
         baseTotal: totals.subtotal,
         markupTotal: totals.markup,
         grandTotal: totals.grandTotal,
@@ -561,7 +640,7 @@ function TakeoffEstimateInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, buildItems, globalMarkup, totals, updateProject, router, lines.length]);
+  }, [project, buildItems, markupPct, totals, updateProject, router, lines.length]);
 
   // Append: add the takeoff lines onto the existing estimate, preserving its
   // items and applying its effective markup ratio to the new base (matches
@@ -573,9 +652,19 @@ function TakeoffEstimateInner() {
       const est = project.linkedEstimate;
       // Reuse the estimate's effective markup ratio so permits/contingency
       // and current markup carry over instead of being recomputed.
-      const ratio = est.baseTotal > 0 ? est.markupTotal / est.baseTotal : (globalMarkup / 100);
-      const markupPct = ratio * 100;
-      const newItems = buildItems(markupPct);
+      // Unchanged semantics: the existing estimate's own ratio wins, so the
+      // permits/contingency and markup already in it carry over. The fallback
+      // only fires on a degenerate estimate with no cost base at all, and it
+      // now falls back to NOTHING rather than to a guessed 15% — appending to
+      // an empty base must not invent a markup either.
+      const ratio = est.baseTotal > 0
+        ? est.markupTotal / est.baseTotal
+        : (isMarkupSet(markupPct) ? markupPct / 100 : 0);
+      // Named apart from the screen's `markupPct`: this one is the EXISTING
+      // estimate's realized rate, not his stated markup, and shadowing the
+      // outer name here is how the fallback above would silently read itself.
+      const inheritedMarkupPct = ratio * 100;
+      const newItems = buildItems(inheritedMarkupPct);
       const addedBase = totals.subtotal;
       const addedMarkup = addedBase * ratio;
       const next: LinkedEstimate = {
@@ -601,7 +690,7 @@ function TakeoffEstimateInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, buildItems, totals.subtotal, globalMarkup, updateProject, router, lines.length]);
+  }, [project, buildItems, totals.subtotal, markupPct, updateProject, router, lines.length]);
 
   const handleSave = useCallback(() => {
     if (!project) {
@@ -617,19 +706,44 @@ function TakeoffEstimateInner() {
     // matching the semantics area-takeoff and cost-xray already use.
     const existing = project.linkedEstimate;
     if (existing && existing.items.length > 0) {
+      // Append is still honest with no markup on file — it inherits the
+      // EXISTING estimate's realized ratio (doAppend, above) rather than
+      // asserting a percentage of its own. So when he has not answered, offer
+      // that path and say why the other one is missing, instead of putting a
+      // Replace button in front of him that doReplace will only refuse.
+      const blocked = !isMarkupSet(markupPct);
       showAlert(
         'This project already has an estimate',
-        `${project.name} has a ${formatMoney(existing.grandTotal ?? 0)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). Replace it, or append these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} to it?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Append these lines', onPress: doAppend },
-          { text: 'Replace', style: 'destructive', onPress: doReplace },
-        ],
+        `${project.name} has a ${formatMoney(existing.grandTotal ?? 0)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). ${blocked
+          ? `Appending these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} carries that estimate's own markup across. Replacing it needs your markup first — set it on the row above the Save button.`
+          : `Replace it, or append these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} to it?`}`,
+        blocked
+          ? [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Append these lines', onPress: doAppend },
+          ]
+          : [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Append these lines', onPress: doAppend },
+            { text: 'Replace', style: 'destructive', onPress: doReplace },
+          ],
       );
       return;
     }
     doReplace();
-  }, [project, lines.length, doReplace, doAppend]);
+  }, [project, lines.length, doReplace, doAppend, markupPct]);
+
+  // Save is the Replace path when the project has no estimate yet, and that
+  // path cannot run without his markup. A control that does nothing when
+  // pressed is worse than one that is visibly off and says why, so the button
+  // goes off and the reason sits under it.
+  const appendable = !!project?.linkedEstimate && project.linkedEstimate.items.length > 0;
+  const markupUnset = !isMarkupSet(markupPct);
+  // `!!project` keeps the standalone case reading true: with no project linked
+  // nothing can be written at all, and handleSave's "Run the takeoff against a
+  // project first" is the answer he needs — telling him to set a markup there
+  // would be true and useless.
+  const saveBlocked = !!project && markupUnset && !appendable;
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -776,39 +890,98 @@ function TakeoffEstimateInner() {
             <Text style={styles.totalsLabel}>Subtotal</Text>
             <Text style={styles.totalsValue}>{formatMoney(totals.subtotal)}</Text>
           </View>
+          {/* The honesty band. With no answer on file this estimate carries
+              nothing on top, and the number under it is his cost — said in as
+              many words, the same way the wizard's at-cost band says it,
+              rather than a silent 15%. */}
+          {markupUnset && (
+            <View style={styles.atCostBand}>
+              <AlertTriangle size={16} color={themeColors.dangerLabel} strokeWidth={2} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.atCostTitle}>This total is your cost</Text>
+                <Text style={styles.atCostBody}>
+                  You haven&apos;t told us what you add on top, so we aren&apos;t adding anything. Pick your markup below — we&apos;ll remember it for the estimate wizard and Quick Quote too.
+                </Text>
+              </View>
+            </View>
+          )}
           <View style={styles.totalsRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.totalsLabel}>Markup</Text>
-              <View style={styles.markupPickerRow}>
-                {[10, 15, 20, 25].map(m => (
-                  <TouchableOpacity
-                    key={m}
-                    onPress={() => setGlobalMarkup(m)}
-                    style={[styles.markupPill, globalMarkup === m && styles.markupPillActive]}
-                  >
-                    <Text style={[styles.markupPillText, globalMarkup === m && styles.markupPillTextActive]}>{m}%</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <Percent size={13} color={themeColors.accent} strokeWidth={2} />
+              <Text style={styles.totalsLabel}>
+                {isMarkupSet(markupPct)
+                  ? `Your markup · ${(marginOf(markupPct) * 100).toFixed(0)}% margin`
+                  : 'Markup — not set'}
+              </Text>
             </View>
             <Text style={styles.totalsValue}>{formatMoney(totals.markup)}</Text>
           </View>
+          {/* The ladder, plus his own number, plus free entry. 22% used to be
+              unreachable on this screen; every change here routes through
+              recordMarkupDecision, so answering it also answers the wizard. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.markupPickerRow}
+          >
+            {markupOptions.map(m => (
+              <TouchableOpacity
+                key={m}
+                onPress={() => chooseMarkup(m)}
+                style={[styles.markupPill, markupPct === m && styles.markupPillActive]}
+                accessibilityRole="button"
+                accessibilityLabel={`${m} percent markup, a ${(marginOf(m) * 100).toFixed(0)} percent margin`}
+                testID={`takeoff-markup-${m}`}
+              >
+                <Text style={[styles.markupPillText, markupPct === m && styles.markupPillTextActive]}>{m}%</Text>
+              </TouchableOpacity>
+            ))}
+            <View style={styles.markupCustom}>
+              <TextInput
+                style={styles.markupCustomInput}
+                value={markupInput}
+                onChangeText={(v) => {
+                  setMarkupInput(v);
+                  const n = parseFloat(v);
+                  if (Number.isFinite(n) && n >= 0 && n <= 200) chooseMarkup(n);
+                }}
+                keyboardType="decimal-pad"
+                placeholder="Custom"
+                placeholderTextColor={themeColors.textMuted}
+                testID="takeoff-markup-custom"
+              />
+              <Text style={styles.markupCustomSuffix}>%</Text>
+            </View>
+          </ScrollView>
           <View style={[styles.totalsRow, styles.totalsRowGrand]}>
             <Text style={styles.totalsGrandLabel}>Grand Total</Text>
             <Text style={styles.totalsGrandValue}>{formatMoney(totals.grandTotal)}</Text>
           </View>
           <TouchableOpacity
-            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+            style={[styles.saveBtn, (saving || saveBlocked) && styles.saveBtnOff]}
             onPress={handleSave}
-            disabled={saving}
+            disabled={saving || saveBlocked}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: saving || saveBlocked }}
+            accessibilityLabel={saveBlocked
+              ? 'Set your markup before saving. Saving would write a markup you never chose onto this project.'
+              : project ? `Save this estimate to ${project.name}` : 'Save this estimate'}
+            testID="takeoff-estimate-save"
           >
             {saving
               ? <ActivityIndicator size="small" color={themeColors.surface} />
               : <Save size={16} color={themeColors.surface} strokeWidth={1.75} />}
             <Text style={styles.saveBtnText}>
-              {saving ? 'Saving…' : project ? `Save to ${project.name}` : 'Save Estimate'}
+              {saving ? 'Saving…' : saveBlocked ? 'Set your markup to save' : project ? `Save to ${project.name}` : 'Save Estimate'}
             </Text>
           </TouchableOpacity>
+          {/* A disabled button that does not say why is just a broken button. */}
+          {saveBlocked && (
+            <Text style={styles.saveBlockedWhy}>
+              Saving writes your markup onto the project — it&apos;s what the proposal and every margin figure read. Pick it above first.
+            </Text>
+          )}
         </View>
       )}
     </View>
@@ -1252,15 +1425,48 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   totalsGrandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.text },
   totalsGrandValue: { fontSize: Type.title3.fontSize, fontWeight: '900' as const, color: t.accent, letterSpacing: -0.3 },
 
-  markupPickerRow: { flexDirection: 'row', gap: 4, marginLeft: 4 },
+  markupPickerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 4 },
   markupPill: {
-    paddingHorizontal: 8, paddingVertical: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
     backgroundColor: t.surfaceAlt,
   },
   markupPillActive: { backgroundColor: t.accentFill },
-  markupPillText: { fontSize: 11, fontWeight: '700' as const, color: t.textSecondary },
+  markupPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textSecondary },
   markupPillTextActive: { color: t.surface },
+  // Free entry, so a 22% GC can say 22. Same shape as the estimator's custom
+  // percent box (app/(tabs)/estimate/full.tsx) — one decision, one control.
+  markupCustom: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8,
+    borderRadius: Tokens.radius.sm,
+    borderWidth: 0.5, borderColor: t.line,
+    backgroundColor: t.surfaceAlt,
+  },
+  markupCustomInput: {
+    minWidth: 52, paddingVertical: 6,
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.text,
+  },
+  markupCustomSuffix: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textSecondary },
+
+  // The at-cost band. Same ink and tint as the wizard's, because it is the
+  // same statement: nothing has been added on top of these numbers.
+  atCostBand: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.danger + '55',
+    backgroundColor: t.dangerSoft,
+  },
+  atCostTitle: {
+    // '700', matching the wizard's atCostTitle exactly — same statement, same
+    // ink, same weight. (It is also the top of the four-weight ladder
+    // constants/typography.ts documents; scripts/validate-app-slop.ts ratchets
+    // '800' down and a new one here would push it back up.)
+    fontSize: Type.caption1.fontSize, fontWeight: '700' as const,
+    color: t.dangerLabel, marginBottom: 2,
+  },
+  atCostBody: { fontSize: Type.caption2.fontSize, color: t.dangerLabel, lineHeight: 15 },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1270,6 +1476,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     shadowColor: t.accent, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
   },
   saveBtnText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.surface, letterSpacing: 0.2 },
+  saveBtnOff: { opacity: 0.6 },
+  saveBlockedWhy: {
+    fontSize: Type.caption2.fontSize, color: t.textSecondary,
+    textAlign: 'center' as const, lineHeight: 15,
+  },
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

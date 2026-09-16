@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
   Search, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
-  Wallet, CloudOff,
+  Wallet, CloudOff, MapPin,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -271,6 +271,23 @@ export default function HomeScreen() {
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
+  // Jobsite address and size. Both used to be hardcoded at write time
+  // (`location: 'United States'`, `squareFootage: 0`) because this modal had
+  // no field for either — see handleCreateProject for what that placeholder
+  // cost every document the job would ever produce. Blank is the honest
+  // starting value: we never pre-fill an address nobody told us.
+  const [projectLocation, setProjectLocation] = useState('');
+  const [projectSqft, setProjectSqft] = useState('');
+  // The contractor's default market from Settings ("Houston, TX"). Offered as
+  // a ONE-TAP fill, never as a pre-filled value: it is where they usually
+  // work, not necessarily where this job is, and silently stamping it on a
+  // project would be the same lie as 'United States' with a better ZIP —
+  // only harder to spot, because it looks like a real address. 'United
+  // States' is the settings field's own placeholder, so it is never offered.
+  const usualArea = useMemo(() => {
+    const l = settings?.location?.trim() ?? '';
+    return l && l !== 'United States' ? l : null;
+  }, [settings?.location]);
   const [_createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [showNextStepModal, setShowNextStepModal] = useState(false);
   const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
@@ -425,12 +442,35 @@ export default function HomeScreen() {
     // existed in local AsyncStorage; on the next refetch the project
     // disappeared because the server didn't have it.
     const id = generateUUID();
+    // The jobsite address, and blank STAYS blank — it is never backfilled with
+    // a placeholder. This modal used to write `location: 'United States'`
+    // verbatim, and because Project.location is the one string 30+ surfaces
+    // read, that single literal became: "Location: United States" on every
+    // proposal, invoice and closeout binder (utils/pdfGenerator.ts), the
+    // ship-to on purchase orders sent to real suppliers
+    // (utils/purchaseOrderPdf.ts), and the jurisdiction the permit roadmap
+    // searched (utils/permitRoadmap.ts), which returned permits for nowhere.
+    // Worst of all it geocoded SUCCESSFULLY: shouldGeocode accepts any string
+    // over three characters, so "United States" resolved to the country
+    // centroid and the job then reported real, unlabelled weather for rural
+    // Kansas. An empty string is under that threshold, so no address now means
+    // no coordinates, and the schedule correctly falls through to the marked
+    // simulated-weather path instead of quietly inventing a site.
+    const location = projectLocation.trim();
+    // Digits only — contractors type "2,400" and "2400 sq ft".
+    const sqftDigits = projectSqft.replace(/[^0-9]/g, '');
+    const squareFootage = sqftDigits ? Number.parseInt(sqftDigits, 10) : 0;
     const newProject: Project = {
       id,
       name,
       type: projectType,
-      location: 'United States',
-      squareFootage: 0,
+      location,
+      squareFootage: Number.isFinite(squareFootage) ? squareFootage : 0,
+      // `quality` is a genuine default, not a stand-in for an answer we
+      // skipped: 'standard' is also the estimate wizard's own default, it is
+      // never printed as a stated fact, and the wizard asks for it properly.
+      // Unlike location and squareFootage above, nothing downstream mistakes
+      // it for something the contractor told us.
       quality: 'standard',
       description: projectDescription.trim(),
       createdAt: now,
@@ -447,7 +487,9 @@ export default function HomeScreen() {
     setProjectName('');
     setProjectDescription('');
     setProjectType('renovation');
-  }, [projectName, projectDescription, projectType, addProject]);
+    setProjectLocation('');
+    setProjectSqft('');
+  }, [projectName, projectDescription, projectType, projectLocation, projectSqft, addProject]);
 
   const handleNextStep = useCallback((step: 'estimate' | 'schedule' | 'later') => {
     setShowNextStepModal(false);
@@ -1074,6 +1116,18 @@ export default function HomeScreen() {
                     if (partial.name) setProjectName(prev => prev || partial.name);
                     if (partial.notes) setProjectDescription(prev => prev || partial.notes);
                     if (partial.type) setProjectType(partial.type as ProjectType);
+                    // The parser has always returned `location` — it is right
+                    // there in the suggestion copy above ("at 123 Main Street
+                    // San Diego") — and this handler dropped it on the floor
+                    // because there was nowhere to put it. There is now.
+                    if (partial.location) setProjectLocation(prev => prev || partial.location);
+                    // `partial.targetBudget` is still deliberately NOT applied
+                    // here. project.targetBudget is what the client portal
+                    // renders as "Contract Value", so turning a number said
+                    // out loud into one is a product decision, not a parsing
+                    // one — it belongs on the screens that already own that
+                    // field (estimate wizard, client-portal-setup). Left
+                    // unapplied rather than half-applied behind the GC's back.
                   }}
                 />
 
@@ -1087,6 +1141,36 @@ export default function HomeScreen() {
                   autoFocus
                   testID="project-name-input"
                 />
+
+                <Text style={styles.fieldLabel}>Jobsite Address</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projectLocation}
+                  onChangeText={setProjectLocation}
+                  placeholder="e.g. 123 Main St, San Diego, CA"
+                  placeholderTextColor={themeColors.textMuted}
+                  testID="project-location-input"
+                />
+                {usualArea && !projectLocation.trim() ? (
+                  <TouchableOpacity
+                    style={styles.fieldChip}
+                    onPress={() => setProjectLocation(usualArea)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use my usual area, ${usualArea}`}
+                    testID="project-location-usual"
+                  >
+                    <MapPin size={13} color={themeColors.accent} strokeWidth={1.9} />
+                    <Text style={styles.fieldChipLabel}>Use my usual area — {usualArea}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {!projectLocation.trim() ? (
+                  <Text style={styles.fieldHint}>
+                    Optional — but this is the address your proposals, invoices and purchase orders
+                    print, and what permit lookups and site weather run on. Left blank they stay
+                    blank rather than guess; you can add it any time in Project Details.
+                  </Text>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Description</Text>
                 <TextInput
@@ -1113,6 +1197,21 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                <Text style={styles.fieldLabel}>Square Footage</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projectSqft}
+                  onChangeText={setProjectSqft}
+                  placeholder="e.g. 2400 — leave blank if you don't know yet"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="number-pad"
+                  testID="project-sqft-input"
+                />
+                <Text style={styles.fieldHint}>
+                  Sizes the estimate wizard's per-square-foot benchmarks. Blank is recorded as
+                  unknown, so the wizard asks instead of pricing against zero.
+                </Text>
                 <View style={{ height: 20 }} />
               </ScrollView>
 
@@ -1562,6 +1661,28 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: Type.callout.fontSize,
     color: t.text,
+  },
+  fieldHint: {
+    fontSize: Type.caption1.fontSize,
+    lineHeight: Type.caption1.lineHeight,
+    color: t.textMuted,
+    marginTop: 8,
+  },
+  fieldChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: t.surfaceAlt,
+  },
+  fieldChipLabel: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: t.accentLabel,
   },
   descInput: {
     minHeight: 90,
