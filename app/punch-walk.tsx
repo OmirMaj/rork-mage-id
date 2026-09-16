@@ -13,13 +13,23 @@
 //     through alternatives.
 //   • Location is free-text — we remember the last entry and stick it
 //     in the next item, because supers say "hall 2, hall 2, hall 2" as
-//     they walk the corridor.
+//     they walk the corridor. ONE TAP to change it: the rooms this
+//     project already has (utils/punchLocations) plus the rooms Plan
+//     Intelligence read off the drawings (hooks/usePlanRooms) render as
+//     chips above the input. Typing "Unit 4B — master bath" with gloves
+//     on was the slowest thing in the flow; the input stays as the
+//     escape hatch for a room that is on neither list.
+//   • The location banner says HOW the current location got there. On a
+//     finishing walk the worst outcome is not a missing field, it is
+//     twenty items filed to the corridor he left ten minutes ago — so a
+//     location that merely carried forward is labelled as carried, and
+//     the count of items filed there THIS walk sits next to it.
 //   • Everything is captured locally first; `addPunchItem` is called on
 //     every save so the offline queue can flush when we're back online.
 //   • Session roll-up at the bottom: "captured 7 items this walk" with
 //     undo. The list clears when the user leaves the screen.
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Image, KeyboardAvoidingView,
 } from 'react-native';
@@ -31,6 +41,10 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Camera, Mic, Check, X, Undo2, MapPin,
   AlertTriangle, ChevronRight, Plus, Flag,
+  // Aliased: a bare `Map` import would shadow the global Map constructor for
+  // the whole module, which is the kind of thing nobody notices until someone
+  // adds a lookup table here two months from now.
+  Map as PlanRoomIcon,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -46,6 +60,17 @@ import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { inferTradeFromText, pickSubForTrade } from '@/utils/tradeInference';
+// The ONE answer to "what locations exist on this project?" — shared with
+// app/punch-list.tsx so the chips he taps here and the rooms he filters by
+// there cannot drift into two different spellings of one corridor.
+import {
+  buildPunchLocationOptions, normalizeLocation,
+  type PunchLocationOption,
+} from '@/utils/punchLocations';
+// Rooms Plan Intelligence already read off this project's drawings. A bonus,
+// never a requirement: most projects have no analysed plans, and that is the
+// normal case rather than an error state.
+import { usePlanRooms } from '@/hooks/usePlanRooms';
 import { parsePunchFromTranscript, sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/types';
@@ -76,6 +101,41 @@ function aiTradeToSubTrade(aiTrade: string): SubTrade {
 }
 
 const TRADE_ORDER: SubTrade[] = SUB_TRADES;
+
+/**
+ * How many location chips sit in the inline rail before the rest move behind
+ * "All rooms". A finishing job has thirty-plus rooms; a rail that long is a
+ * scroll hunt with one gloved thumb, and the rail is recency-ordered so the
+ * rooms he is actually walking are the ones that stay in it.
+ */
+const LOCATION_CHIP_LIMIT = 10;
+
+/**
+ * Ink for text and icons sitting ON `accentFill`. Not a theme token on
+ * purpose: `accentFill` is derived per theme specifically to clear 4.6:1
+ * against WHITE (see constants/colors), so an inverting token here would
+ * break the one pairing the fill was computed for.
+ */
+const ON_ACCENT_INK = '#FFFFFF';
+
+/**
+ * How the location currently on the draft got there.
+ *
+ * WHY THIS IS TRACKED. Carrying the last location forward is the single
+ * biggest speed win on this screen and also its single biggest failure mode:
+ * he files five items in Hall 2, walks into Unit 4B, and the next twenty items
+ * land in Hall 2 because the field never changed and nothing on screen said
+ * so. The banner reads this to label a carried-forward room AS carried
+ * forward, rather than showing it identically to one he just chose.
+ *
+ *   'none'    — empty; the item will save as "Unspecified"
+ *   'picked'  — he tapped a chip or a row in the All-rooms sheet
+ *   'typed'   — he typed it into the input
+ *   'voice'   — the transcript parser pulled it out of his dictation
+ *   'gps'     — seeded from the photo's GPS label, because nothing else was set
+ *   'carried' — held over from the item he just saved; HE HAS NOT CONFIRMED IT
+ */
+type LocationOrigin = 'none' | 'picked' | 'typed' | 'voice' | 'gps' | 'carried';
 
 // ─────────────────────────────────────────────────────────────
 
@@ -157,8 +217,8 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   // Look up the project for AI-context (description -> location/trade/priority).
-  // We only need it for the voice parser; the rest of WalkInner uses projectName.
-  const { getProject } = useProjects();
+  // The voice parser needs the project; `punchItems` feeds the location chips.
+  const { getProject, punchItems } = useProjects();
   const project = getProject(projectId);
 
   // Draft — what the user is building right now. Each save clears it
@@ -173,13 +233,88 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     /** GPS stamp from when the photo was captured. Stored on the draft so a
      *  subsequent edit doesn't drop it on save. */
     photoStamp?: PhotoGeoStamp;
-  }>({ description: '', location: '', trade: 'General', priority: 'medium' });
+    /** Drives the banner. See LocationOrigin — a carried-forward room must
+     *  never look the same as one he chose for this item. */
+    locationOrigin: LocationOrigin;
+  }>({ description: '', location: '', trade: 'General', priority: 'medium', locationOrigin: 'none' });
 
   // Session history — everything saved in this walk, in reverse-chron.
   // Kept on-screen so the user can undo a mistaken save.
   const [session, setSession] = useState<SessionCapture[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [showTradeOverride, setShowTradeOverride] = useState(false);
+  const [showAllLocations, setShowAllLocations] = useState(false);
+
+  // ── Locations ────────────────────────────────────────────────────────────
+  // Two sources, merged and deduped by utils/punchLocations: rooms already
+  // used on this project's punch items (always available — no plans, no AI, no
+  // signal, which is the whole point on a jobsite) and rooms Plan Intelligence
+  // confirmed off the drawings. `getSession` returns null for a project that
+  // was never analysed, and every function downstream is correct when it does.
+  const { getSession: getPlanRoomSession } = usePlanRooms();
+  const planRooms = getPlanRoomSession(projectId)?.rooms;
+
+  // Filter from the raw `punchItems` array rather than calling
+  // getPunchItemsForProject(): that helper builds a fresh sorted array on every
+  // call, so it would invalidate the memo below on every keystroke.
+  const projectItems = useMemo(
+    () => punchItems.filter(i => i.projectId === projectId),
+    [punchItems, projectId],
+  );
+
+  // Recomputed as he saves, so the room he is standing in stays first in the
+  // rail without him doing anything. `onAdd` writes straight into the context,
+  // so this reorders on the save that just happened, not on the next refresh.
+  const locationOptions = useMemo(
+    () => buildPunchLocationOptions(projectItems, planRooms),
+    [projectItems, planRooms],
+  );
+
+  const activeLocationKey = normalizeLocation(draft.location);
+
+  // The rail is the first LOCATION_CHIP_LIMIT options — EXCEPT that the room
+  // currently on the draft is always in it. Without that, picking a room from
+  // the All-rooms sheet could leave the rail showing ten chips, none of them
+  // the one that is actually selected, which reads as "nothing is selected".
+  const railOptions = useMemo(() => {
+    const head = locationOptions.slice(0, LOCATION_CHIP_LIMIT);
+    if (!activeLocationKey || head.some(o => o.key === activeLocationKey)) return head;
+    const active = locationOptions.find(o => o.key === activeLocationKey);
+    return active ? [active, ...head.slice(0, LOCATION_CHIP_LIMIT - 1)] : head;
+  }, [locationOptions, activeLocationKey]);
+
+  // The anti-drift number. Not "items at this location on the project" — items
+  // filed here during THIS walk. A climbing count next to a room name he is no
+  // longer standing in is the thing that catches the mistake.
+  const filedHereThisWalk = useMemo(() => {
+    if (!activeLocationKey) return 0;
+    return session.filter(c => normalizeLocation(c.location) === activeLocationKey).length;
+  }, [session, activeLocationKey]);
+
+  /**
+   * One tap to move rooms.
+   *
+   * Sets the location and NOTHING ELSE. In particular the room name is never
+   * run through `inferTradeFromText`: that matcher works on bare substrings,
+   * so "Roof Deck" would route the item to Roofing and "Panel Room" to
+   * Electrical, silently overwriting a trade he set by hand. The trade on the
+   * draft is left exactly as it was — the description is the only thing that
+   * has ever been allowed to move it.
+   *
+   * `label` is the user's own spelling from the option list, so his
+   * capitalisation survives onto the saved item.
+   */
+  const handlePickLocation = useCallback((label: string) => {
+    setDraft(d => ({ ...d, location: label, locationOrigin: 'picked' }));
+    setShowAllLocations(false);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  const handleClearLocation = useCallback(() => {
+    setDraft(d => ({ ...d, location: '', locationOrigin: 'none' }));
+    setShowAllLocations(false);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
 
   // Auto-infer trade whenever description changes. Doesn't fire on
   // every keystroke — the inference is stable and cheap, but we want
@@ -207,6 +342,10 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     setIsTranscribing(true);
     try {
       const parsed = await parsePunchFromTranscript(text, project ?? null);
+      // Title-case so "master bath" -> "Master Bath". Computed once so the
+      // location and its origin below cannot disagree about whether the
+      // dictation actually contained a room.
+      const spokenLocation = titleCase(parsed.location || '');
       setDraft(d => ({
         ...d,
         // Description: append so multiple dictations stack (e.g.
@@ -217,8 +356,12 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
           ? (d.description ? `${d.description} ${sentenceCase(parsed.description)}`.trim() : sentenceCase(parsed.description))
           : (d.description ? `${d.description} ${sentenceCase(text)}`.trim() : sentenceCase(text.trim())),
         // Location: only fill if the user hasn't already typed one.
-        // Title-case so "master bath" -> "Master Bath".
-        location: d.location || titleCase(parsed.location || ''),
+        location: d.location || spokenLocation,
+        // A room he SAID counts as set for this item — it stops reading as
+        // "carried forward" the moment his own dictation names it.
+        locationOrigin: d.location
+          ? d.locationOrigin
+          : (spokenLocation ? 'voice' : d.locationOrigin),
         // Trade: only overwrite when AI gives us something specific
         // and the user hasn't manually picked.
         trade: (parsed.trade && parsed.trade !== 'General' && d.trade === 'General')
@@ -265,6 +408,12 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
         // If the user hasn't typed a location yet, seed it with the geo
         // label so the punch still has SOMETHING for the closeout report.
         location: d.location || stamp?.label || '',
+        // Say where that came from. A reverse-geocoded street label is not a
+        // room he chose, and the banner labels it "from photo GPS" rather than
+        // letting it pass as one.
+        locationOrigin: d.location
+          ? d.locationOrigin
+          : (stamp?.label ? 'gps' : d.locationOrigin),
       }));
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -332,7 +481,17 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     // Reset draft but KEEP the location. The whole point of walk mode
     // is the super stays in one room and captures 5 items before moving.
     // photoStamp is dropped \u2014 next photo gets its own fresh fix.
-    setDraft({ description: '', location: draft.location, trade: 'General', priority: 'medium' });
+    //
+    // The origin drops to 'carried': the room survives, his confirmation of it
+    // does not. That is what the banner reads to stop the next item inheriting
+    // a corridor he has already walked out of.
+    setDraft({
+      description: '',
+      location: draft.location,
+      trade: 'General',
+      priority: 'medium',
+      locationOrigin: draft.location.trim() ? 'carried' : 'none',
+    });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [draft, subcontractors, projectId, onAdd]);
@@ -346,6 +505,22 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   const priorityColor =
     draft.priority === 'high' ? themeColors.danger :
     draft.priority === 'low' ? themeColors.textSecondary : Colors.warning;
+
+  // The banner states a FACT about where this location came from — it never
+  // guesses. 'carried' and 'none' both get the amber label ink: one means he
+  // has not confirmed the room for this item, the other means there is no room
+  // to confirm. Everything he actually chose reads in accent.
+  const locationIsSet = draft.location.trim().length > 0;
+  const locationNeedsAttention = !locationIsSet || draft.locationOrigin === 'carried';
+  const locationTone = locationNeedsAttention ? themeColors.warningLabel : themeColors.accent;
+  // Kept SHORT on purpose. The eyebrow renders uppercase at 1.4 letter-spacing
+  // and shares its row with the count; a longer sentence truncates on a 320pt
+  // phone, and "CARRIED FROM LAST IT…" is worse than no warning at all.
+  const locationEyebrow =
+    !locationIsSet ? 'No location set'
+    : draft.locationOrigin === 'carried' ? 'Carried from last item'
+    : draft.locationOrigin === 'gps' ? 'From photo GPS'
+    : 'Location';
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -371,22 +546,121 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
       >
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
 
-          {/* Location — sticky context bar */}
-          <View style={styles.locationRow}>
-            <MapPin size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <TextInput
-              style={styles.locationInput}
-              value={draft.location}
-              onChangeText={(v) => setDraft(d => ({ ...d, location: v }))}
-              placeholder="Location (e.g. Hall 2, Unit 204, Kitchen)"
-              placeholderTextColor={themeColors.textMuted}
-              autoCapitalize="sentences"
-              testID="walk-location"
-            />
-            {draft.location.length > 0 && (
-              <TouchableOpacity onPress={() => setDraft(d => ({ ...d, location: '' }))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-              </TouchableOpacity>
+          {/* Location — the context bar he files every item against.
+              Three parts, top to bottom: what room this is and how it got
+              here, one-tap chips for the rooms this job already has, and the
+              free-text input as the escape hatch for one it doesn't. */}
+          <View style={[styles.locationCard, locationNeedsAttention && styles.locationCardAttention]}>
+            <View style={styles.locationHeadRow}>
+              {locationIsSet
+                ? <MapPin size={13} color={locationTone} strokeWidth={2} />
+                : <AlertTriangle size={13} color={locationTone} strokeWidth={2} />}
+              <Text style={[styles.locationEyebrow, { color: locationTone }]} numberOfLines={1}>
+                {locationEyebrow}
+              </Text>
+              {filedHereThisWalk > 0 && (
+                <Text style={styles.locationCount}>
+                  {filedHereThisWalk} this walk
+                </Text>
+              )}
+            </View>
+
+            {/* Chips. Recency-ordered by utils/punchLocations, so the room he
+                is standing in stays leftmost as he saves. */}
+            {railOptions.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                // Without this a chip tap while the keyboard is open only
+                // dismisses the keyboard — the first tap of two, with gloves on.
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.chipRail}
+              >
+                {railOptions.map(o => {
+                  const isActive = o.key === activeLocationKey;
+                  return (
+                    <TouchableOpacity
+                      key={o.key}
+                      style={[styles.locChip, isActive && styles.locChipActive]}
+                      onPress={() => handlePickLocation(o.label)}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
+                      accessibilityLabel={o.source === 'plan'
+                        ? `${o.label}, from your plans, no punch items yet`
+                        : `${o.label}, ${o.count} punch item${o.count === 1 ? '' : 's'}`}
+                      testID={`walk-location-chip-${o.key}`}
+                    >
+                      {/* A plan room has no count to show — the icon says why
+                          the number is missing instead of printing a bare 0. */}
+                      {o.source === 'plan' && (
+                        <PlanRoomIcon
+                          size={11}
+                          color={isActive ? ON_ACCENT_INK : themeColors.textMuted}
+                          strokeWidth={2}
+                        />
+                      )}
+                      <Text style={[styles.locChipText, isActive && styles.locChipTextActive]} numberOfLines={1}>
+                        {o.label}
+                      </Text>
+                      {o.count > 0 && (
+                        <Text style={[styles.locChipCount, isActive && styles.locChipTextActive]}>
+                          {o.count}
+                        </Text>
+                      )}
+                      {isActive && <Check size={11} color={ON_ACCENT_INK} strokeWidth={2.5} />}
+                    </TouchableOpacity>
+                  );
+                })}
+                {locationOptions.length > railOptions.length && (
+                  <TouchableOpacity
+                    style={styles.locChipAll}
+                    onPress={() => setShowAllLocations(true)}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Show all ${locationOptions.length} rooms on this job`}
+                    testID="walk-location-all"
+                  >
+                    <Text style={styles.locChipAllText}>All {locationOptions.length}</Text>
+                    <ChevronRight size={11} color={themeColors.accent} strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            ) : (
+              // No punch items yet and no analysed plans. Say what will fix it
+              // rather than showing an empty strip that looks broken.
+              <Text style={styles.chipRailEmpty}>
+                No rooms on this job yet {'—'} type one below and it becomes a one-tap chip.
+              </Text>
+            )}
+
+            <View style={styles.locationInputRow}>
+              <TextInput
+                style={styles.locationInput}
+                value={draft.location}
+                onChangeText={(v) => setDraft(d => ({
+                  ...d,
+                  location: v,
+                  // Typing is him setting the room for THIS item, so it stops
+                  // reading as carried forward the moment he touches it.
+                  locationOrigin: v.trim() ? 'typed' : 'none',
+                }))}
+                placeholder="Type a room (e.g. Hall 2, Unit 204, Kitchen)"
+                placeholderTextColor={themeColors.textMuted}
+                autoCapitalize="words"
+                testID="walk-location"
+              />
+              {draft.location.length > 0 && (
+                <TouchableOpacity onPress={handleClearLocation} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear location">
+                  <X size={15} color={themeColors.textMuted} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {!locationIsSet && (
+              <Text style={styles.locationWarnNote}>
+                This item files under {'“'}Unspecified{'”'} {'—'} it won{'’'}t group with a room on the punch list or in a sub{'’'}s handoff.
+              </Text>
             )}
           </View>
 
@@ -503,7 +777,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
           </TouchableOpacity>
 
           <Text style={styles.hint}>
-            Location stays between saves — tap X to clear it when you move rooms. Mic appends to the description so you can keep dictating.
+            The room stays between saves and is labelled {'“'}carried{'”'} until you confirm it {'—'} tap a chip when you move, X to clear. Mic appends to the description so you can keep dictating.
           </Text>
 
           {/* Session roll-up */}
@@ -565,8 +839,74 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
           </View>
         </View>
       </Modal>
+
+      {/* All-rooms sheet — the overflow behind the chip rail. Every location
+          this job has, in the same order, with the counts spelled out so he
+          can tell a room he has already worked from one he hasn't. */}
+      <Modal visible={showAllLocations} animationType="slide" transparent onRequestClose={() => setShowAllLocations(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rooms on this job</Text>
+              <TouchableOpacity onPress={() => setShowAllLocations(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 12 }} keyboardShouldPersistTaps="handled">
+              {locationIsSet && (
+                <TouchableOpacity
+                  style={styles.locRow}
+                  onPress={handleClearLocation}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear the location on this item"
+                >
+                  <X size={14} color={themeColors.textMuted} strokeWidth={2} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.locRowTitle}>No location</Text>
+                    <Text style={styles.locRowSub}>Files under {'“'}Unspecified{'”'}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              {locationOptions.map(o => {
+                const isActive = o.key === activeLocationKey;
+                return (
+                  <TouchableOpacity
+                    key={o.key}
+                    style={[styles.locRow, isActive && styles.locRowActive]}
+                    onPress={() => handlePickLocation(o.label)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isActive }}
+                    accessibilityLabel={o.label}
+                  >
+                    {o.source === 'plan'
+                      ? <PlanRoomIcon size={14} color={themeColors.textMuted} strokeWidth={2} />
+                      : <MapPin size={14} color={themeColors.accent} strokeWidth={2} />}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.locRowTitle} numberOfLines={1}>{o.label}</Text>
+                      <Text style={styles.locRowSub}>{describeLocationOption(o)}</Text>
+                    </View>
+                    {isActive && <Check size={14} color={themeColors.accent} strokeWidth={2.5} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
+}
+
+/**
+ * The sub-line under a room in the All-rooms sheet. Only counts that exist —
+ * a plan room genuinely has no items, and printing "0 items" for it would read
+ * as a finished room rather than an untouched one.
+ */
+function describeLocationOption(o: PunchLocationOption): string {
+  if (o.source === 'plan') return 'From your plans · nothing filed here yet';
+  const items = `${o.count} item${o.count === 1 ? '' : 's'}`;
+  const open = o.openCount > 0 ? `${o.openCount} open` : 'all closed';
+  return o.onPlan ? `${items} · ${open} · on your plans` : `${items} · ${open}`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -661,12 +1001,64 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   sessionChipText: { color: '#FFFFFF', fontWeight: '800', fontSize: Type.caption1.fontSize },
 
-  locationRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 14,
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: t.line,
+  // The location card. A 1.5pt accent edge, not a hairline: this is the field
+  // that decides whether a sub can find the defect, and on a bright jobsite
+  // screen a hairline border is not a signal at all.
+  locationCard: {
+    marginHorizontal: 14, marginTop: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
+    paddingHorizontal: 12, paddingVertical: 10, gap: 8,
+    borderWidth: 1.5, borderColor: t.accent,
   },
-  locationInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text },
+  // Carried-forward, or not set at all. Same card, amber edge — he has not
+  // confirmed the room for this item.
+  locationCardAttention: { borderColor: t.warningLabel },
+  locationHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  locationEyebrow: { ...Type.eyebrow, flexShrink: 1 },
+  // The anti-drift count, pushed right so it reads as a separate fact from the
+  // room name rather than part of the label.
+  locationCount: {
+    marginLeft: 'auto', fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600',
+  },
+
+  chipRail: { gap: 6, paddingRight: 4 },
+  locChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 11, paddingVertical: 9,
+    borderRadius: Tokens.radius.full, backgroundColor: Colors.fillSecondary,
+    maxWidth: 190,
+  },
+  locChipActive: { backgroundColor: t.accentFill },
+  locChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text, flexShrink: 1 },
+  locChipTextActive: { color: ON_ACCENT_INK },
+  locChipCount: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted },
+  locChipAll: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 11, paddingVertical: 9,
+    borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.accent,
+  },
+  locChipAllText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
+  chipRailEmpty: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
+
+  locationInputRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderTopWidth: 1, borderTopColor: t.line, paddingTop: 8,
+  },
+  // Bigger and heavier than the old row: the room name is the thing he has to
+  // be able to read at a glance between items.
+  locationInput: {
+    flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text,
+    paddingVertical: 2,
+  },
+  locationWarnNote: { fontSize: Type.caption2.fontSize, color: t.warningLabel, lineHeight: 15 },
+
+  locRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.md,
+  },
+  locRowActive: { backgroundColor: `${t.accent}15` },
+  locRowTitle: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '700' },
+  locRowSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
 
   descCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16, marginHorizontal: 14, marginTop: 12,

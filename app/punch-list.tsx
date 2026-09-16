@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image,
+  FlatList, type ListRenderItemInfo,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
   Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter, MapPin,
-  Camera,
+  Camera, Square, SquareCheck, Users, Send, Layers, List, ArrowUpDown,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -35,6 +37,15 @@ import { showAlert } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
 import { nailIt } from '@/components/animations/NailItToast';
+import { usePlanRooms } from '@/hooks/usePlanRooms';
+import {
+  buildPunchLocationOptions,
+  groupPunchItemsByLocation,
+  filterByLocationKey,
+  normalizeLocation,
+  UNPLACED_LOCATION_GROUP,
+  type PunchLocationOption,
+} from '@/utils/punchLocations';
 
 // Top-level row IDs (punch items) become Supabase PKs and MUST be UUIDs —
 // the punch_items.id column rejects anything else with "invalid input syntax
@@ -90,6 +101,356 @@ function getPriorityConfig(t: ThemeColors, p: PunchItemPriority): { label: strin
     case 'high': return { label: 'High', color: t.danger };
   }
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// How the list is laid out, remembered between visits
+// ───────────────────────────────────────────────────────────────────────────
+//
+// A punch walk is not one sitting. He captures 100+ items on Thursday morning
+// and closes them out over the next two weeks, reopening this screen a dozen
+// times. Making him re-pick "group by room" on every entry is the same tax as
+// re-typing the room — so the choice is stored.
+//
+// DEVICE-scoped, not project-scoped: it is a way of reading a list, not a fact
+// about a job. `mageid_` prefix so utils/localCacheKeys.ts's prefix sweep wipes
+// it on a tenant switch without anybody having to remember it exists.
+const PUNCH_VIEW_PREF_KEY = 'mageid_punch_list_view';
+
+type PunchGroupOrder = 'recent' | 'alpha';
+
+interface PunchViewPref {
+  grouped: boolean;
+  order: PunchGroupOrder;
+}
+
+/** Narrow whatever is on disk. A half-written or older blob must not crash the
+ *  screen he is standing in a building to use — it just falls back. */
+function parseViewPref(raw: string | null): PunchViewPref | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<PunchViewPref>;
+    if (typeof v?.grouped !== 'boolean') return null;
+    return { grouped: v.grouped, order: v.order === 'alpha' ? 'alpha' : 'recent' };
+  } catch {
+    return null;
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Rows
+// ───────────────────────────────────────────────────────────────────────────
+//
+// The list used to be `filteredItems.map(...)` inside a ScrollView: every punch
+// card — a thumbnail, five Texts, a status badge and up to three action buttons
+// — mounted before the first frame. That is fine at 12 items and it is the
+// whole screen at 200, which is the size of the walk this was rebuilt for.
+//
+// Section headers and item cards are flattened into ONE stream so a FlatList
+// can own the scroll axis. A VirtualizedList nested inside a same-axis
+// ScrollView gets unbounded height and mounts everything anyway — the same
+// lesson components/schedule/mobile/MobileScheduleList.tsx learned.
+
+type PunchRowData =
+  | {
+      kind: 'section';
+      /** FlatList key — namespaced so it can never collide with an item id. */
+      key: string;
+      /** The NORMALISED location key, which is what collapse + select-all
+       *  address. Kept separate from `key` so the two can't drift. */
+      sectionKey: string;
+      label: string;
+      /** The name also appears on the analysed plans. A fact, not a guess. */
+      onPlan: boolean;
+      openCount: number;
+      total: number;
+      collapsed: boolean;
+      /** Every item in this room is already selected — drives the checkbox. */
+      allSelected: boolean;
+      itemCount: number;
+    }
+  | {
+      kind: 'item';
+      key: string;
+      item: PunchItem;
+      selected: boolean;
+      selectMode: boolean;
+      /** Its photo URL already failed to load once this session. */
+      photoFailed: boolean;
+    };
+
+type PunchStyles = ReturnType<typeof makeStyles>;
+
+/** Stable across renders (built once from refs) so React.memo on the rows
+ *  actually holds — a changing callback identity makes memo a no-op. */
+interface PunchRowActions {
+  onEdit: (item: PunchItem) => void;
+  onAdvance: (item: PunchItem) => void;
+  onStatus: (item: PunchItem, next: PunchItemStatus) => void;
+  onReject: (item: PunchItem) => void;
+  onDelete: (item: PunchItem) => void;
+  onOpenPhoto: (item: PunchItem) => void;
+  onPhotoFailed: (uri: string) => void;
+  onOpenPlan: (item: PunchItem) => void;
+  onToggleSelect: (id: string) => void;
+  onStartSelecting: (id: string) => void;
+}
+
+interface PunchSectionActions {
+  onToggleCollapse: (key: string) => void;
+  onToggleSectionSelect: (key: string) => void;
+}
+
+const LocationSectionHeader = React.memo(function LocationSectionHeader({
+  row, styles, themeColors, actions, selectMode,
+}: {
+  row: Extract<PunchRowData, { kind: 'section' }>;
+  styles: PunchStyles;
+  themeColors: ThemeColors;
+  actions: PunchSectionActions;
+  selectMode: boolean;
+}) {
+  const done = row.openCount === 0 && row.total > 0;
+  return (
+    <View style={styles.sectionHeader}>
+      <TouchableOpacity
+        style={styles.sectionHeaderMain}
+        onPress={() => actions.onToggleCollapse(row.sectionKey)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: !row.collapsed }}
+        accessibilityLabel={`${row.label}, ${row.openCount} open of ${row.total}`}
+        accessibilityHint={row.collapsed ? 'Expands this location' : 'Collapses this location'}
+        testID={`punch-section-${row.key}`}
+      >
+        {row.collapsed
+          ? <ChevronRight size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+          : <ChevronDown size={16} color={themeColors.textSecondary} strokeWidth={1.75} />}
+        <Text style={styles.sectionHeaderLabel} numberOfLines={1}>{row.label}</Text>
+        {/* Only shown when the room name is genuinely on the analysed plans —
+            usePlanRooms says so or it is not drawn. */}
+        {row.onPlan ? <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} /> : null}
+        <View style={{ flex: 1 }} />
+        <Text style={[styles.sectionHeaderCount, done && { color: themeColors.success }]}>
+          {done ? `all ${row.total} closed` : `${row.openCount} open / ${row.total}`}
+        </Text>
+      </TouchableOpacity>
+      {/* "This whole room is done" in one tap — the reason grouping exists. */}
+      <TouchableOpacity
+        style={styles.sectionSelectBtn}
+        onPress={() => actions.onToggleSectionSelect(row.sectionKey)}
+        hitSlop={8}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: row.allSelected }}
+        accessibilityLabel={row.allSelected
+          ? `Deselect all ${row.itemCount} items in ${row.label}`
+          : `Select all ${row.itemCount} items in ${row.label}`}
+        testID={`punch-section-select-${row.key}`}
+      >
+        {row.allSelected
+          ? <SquareCheck size={18} color={themeColors.accent} strokeWidth={1.75} />
+          : <Square size={18} color={selectMode ? themeColors.textSecondary : themeColors.textMuted} strokeWidth={1.75} />}
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+const PunchRow = React.memo(function PunchRow({
+  row, styles, themeColors, actions,
+}: {
+  row: Extract<PunchRowData, { kind: 'item' }>;
+  styles: PunchStyles;
+  themeColors: ThemeColors;
+  actions: PunchRowActions;
+}) {
+  const { item, selected, selectMode, photoFailed } = row;
+  const sc = getStatusConfig(themeColors, item.status);
+  const pc = getPriorityConfig(themeColors, item.priority);
+  return (
+    <View style={[styles.punchCard, selected && styles.punchCardSelected]}>
+      <View style={styles.punchCardTop}>
+        {/* In selection mode the checkbox replaces the priority dot rather than
+            crowding beside it — one hand, gloves, and the dot is decoration
+            while the box is the thing being aimed at. */}
+        {selectMode ? (
+          <TouchableOpacity
+            onPress={() => actions.onToggleSelect(item.id)}
+            hitSlop={10}
+            style={styles.rowCheckbox}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: selected }}
+            accessibilityLabel={`${selected ? 'Deselect' : 'Select'}: ${item.description}`}
+            testID={`punch-select-${item.id}`}
+          >
+            {selected
+              ? <SquareCheck size={20} color={themeColors.accent} strokeWidth={1.75} />
+              : <Square size={20} color={themeColors.textMuted} strokeWidth={1.75} />}
+          </TouchableOpacity>
+        ) : (
+          <View style={[styles.priorityDot, { backgroundColor: pc.color }]} />
+        )}
+        {/* The deficiency's evidence. A local `file://` still sitting
+            in the upload queue is rendered too — it is valid on this
+            device, and waiting for the round-trip would blank the
+            thumbnail on exactly the walk that just shot it. */}
+        {item.photoUri && !photoFailed ? (
+          <TouchableOpacity
+            onPress={() => actions.onOpenPhoto(item)}
+            activeOpacity={0.8}
+            accessibilityRole="imagebutton"
+            accessibilityLabel={`Photo for ${item.description}`}
+            accessibilityHint="Opens the photo full screen"
+            testID={`punch-photo-${item.id}`}
+          >
+            <Image
+              source={{ uri: item.photoUri }}
+              style={styles.punchThumb}
+              onError={() => item.photoUri && actions.onPhotoFailed(item.photoUri)}
+            />
+          </TouchableOpacity>
+        ) : null}
+        <View style={{ flex: 1 }}>
+          {/* Tapping the item's own text opens it for editing. This is
+              the affordance the row was missing — without it nothing
+              ever put a real item in `editingItem`, so the edit sheet
+              could only create and its status breadcrumb was dead code.
+              Same gesture app/permits.tsx uses on its cards.
+
+              Scoped to the description + location deliberately. Wrapping
+              the whole card would make it one accessibility element on
+              iOS and swallow the status badge ("tap to advance") and the
+              "On plan" chip, which are their own affordances. They stay
+              siblings; the action row below stays outside too.
+
+              While selecting, the same tap toggles the checkbox: opening an
+              edit sheet mid-selection is how a 30-item selection gets lost.
+              A long press starts selecting from any row — the one-handed way
+              in, with no mode switch to find first. */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => (selectMode ? actions.onToggleSelect(item.id) : actions.onEdit(item))}
+            onLongPress={() => actions.onStartSelecting(item.id)}
+            delayLongPress={350}
+            accessibilityRole="button"
+            accessibilityLabel={selectMode
+              ? `${selected ? 'Deselect' : 'Select'}: ${item.description}`
+              : `Edit punch item: ${item.description}`}
+            accessibilityHint={selectMode ? undefined : 'Opens this item for editing. Long press to start selecting.'}
+            testID={`punch-item-${item.id}`}
+          >
+            <Text style={styles.punchDesc}>{item.description}</Text>
+            {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
+          </TouchableOpacity>
+          {/* Where the PHONE was when the photo was taken — written by
+              punch-walk and ai-punch on every stamped capture and, until now,
+              rendered on no screen at all. Labelled as GPS rather than merged
+              into the location line: it is a street address or a lat/lng, not
+              the room he typed, and showing one as the other is a guess. */}
+          {item.photoLocationLabel ? (
+            <View style={styles.geoChip}>
+              <MapPin size={10} color={themeColors.textSecondary} strokeWidth={1.75} />
+              <Text style={styles.geoChipText} numberOfLines={1}>
+                Photo GPS · {item.photoLocationLabel}
+              </Text>
+            </View>
+          ) : null}
+          {item.planSheetId ? (
+            <TouchableOpacity
+              style={styles.onPlanChip}
+              onPress={() => actions.onOpenPlan(item)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="View this item on the plan"
+              testID="punch-on-plan"
+            >
+              <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.onPlanChipText}>On plan</Text>
+              <ChevronRight size={11} color={themeColors.accent} strokeWidth={1.75} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <TouchableOpacity
+          style={[styles.punchBadge, { backgroundColor: sc.bg }, item.status !== 'closed' && styles.punchBadgeTappable]}
+          onPress={() => actions.onAdvance(item)}
+          disabled={item.status === 'closed'}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={item.status === 'closed' ? `Status: ${sc.label}` : `Status: ${sc.label}, tap to advance`}
+          accessibilityHint={item.status === 'closed' ? undefined : 'Advances status one step'}
+        >
+          <Text style={[styles.punchBadgeText, { color: sc.color }]}>{sc.label}</Text>
+          {item.status !== 'closed' && (
+            <Text style={[styles.punchBadgeChevron, { color: sc.color }]}>›</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.punchMeta}>
+        {item.assignedSub ? <Text style={styles.punchMetaText}>Sub: {item.assignedSub}</Text> : null}
+        {/* dueDate is declared 'YYYY-MM-DD' but Supabase-synced rows
+            carry a full ISO timestamp — openEditForm already slices
+            for exactly that reason. This printed the raw field, so one
+            item read "Due: 2026-08-30" locally and
+            "Due: 2026-08-30T00:00:00.000Z" after a sync. */}
+        {item.dueDate ? <Text style={styles.punchMetaText}>Due: {formatCalendarDay(item.dueDate)}</Text> : null}
+        <Text style={[styles.punchMetaText, { color: pc.color }]}>{pc.label} Priority</Text>
+      </View>
+
+      {item.linkedTaskName ? (
+        <View style={styles.linkedTaskBadge}>
+          <Link2 size={11} color={themeColors.accent} strokeWidth={1.75} />
+          <Text style={styles.linkedTaskBadgeText} numberOfLines={1}>Task: {item.linkedTaskName}</Text>
+        </View>
+      ) : null}
+
+      {item.rejectionNote ? (
+        <View style={styles.rejectionBox}>
+          <MessageSquare size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
+          <Text style={styles.rejectionText}>{item.rejectionNote}</Text>
+        </View>
+      ) : null}
+
+      {/* The per-row action rail is hidden while selecting. Fourteen small
+          targets competing with a checkbox is how the wrong item gets closed
+          on a bright screen; the bulk bar owns the verbs in that mode. */}
+      {selectMode ? null : (
+        <View style={styles.punchActions}>
+          {item.status === 'open' && (
+            <TouchableOpacity style={styles.punchActionBtn} onPress={() => actions.onStatus(item, 'in_progress')}>
+              <Clock size={14} color={themeColors.info} strokeWidth={1.75} />
+              <Text style={[styles.punchActionText, { color: themeColors.info }]}>Start</Text>
+            </TouchableOpacity>
+          )}
+          {item.status === 'in_progress' && (
+            <TouchableOpacity style={styles.punchActionBtn} onPress={() => actions.onStatus(item, 'ready_for_review')}>
+              <Eye size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={[styles.punchActionText, { color: themeColors.accent }]}>Submit for Review</Text>
+            </TouchableOpacity>
+          )}
+          {item.status === 'ready_for_review' && (
+            <>
+              <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.successSoft }]} onPress={() => actions.onStatus(item, 'closed')}>
+                <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
+                <Text style={[styles.punchActionText, { color: themeColors.success }]}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.dangerSoft }]} onPress={() => actions.onReject(item)}>
+                <X size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                <Text style={[styles.punchActionText, { color: themeColors.dangerLabel }]}>Reject</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <TouchableOpacity
+            style={styles.punchDeleteBtn}
+            onPress={() => actions.onDelete(item)}
+            accessibilityRole="button"
+            accessibilityLabel="Delete"
+          >
+            <Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+});
 
 export default function PunchListScreen() {
   const router = useRouter();
@@ -211,7 +572,12 @@ function PunchListScreenInner() {
   // high or critical priority"). Empty string = "any" for that axis.
   const [filterSub, setFilterSub] = useState<string>('');         // matches PunchItem.assignedSub
   const [filterPriority, setFilterPriority] = useState<PunchItemPriority | 'all'>('all');
-  const [filterLocation, setFilterLocation] = useState<string>(''); // free-text contains
+  // Was a free-text "location contains" box. A substring match is what made
+  // "hall" also return "Hall bath" — on a 100+ item list that silently hands a
+  // sub the wrong room's work. This now holds a NORMALISED location key from
+  // utils/punchLocations (or UNPLACED_LOCATION_GROUP), picked from a chip, and
+  // matched exactly.
+  const [filterLocationKey, setFilterLocationKey] = useState<string>('');
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
   // The saved item's own photo, opened full-screen from its row thumbnail.
@@ -281,12 +647,10 @@ function PunchListScreenInner() {
     if (filterStatus !== 'all') out = out.filter(i => i.status === filterStatus);
     if (filterSub) out = out.filter(i => (i.assignedSub ?? '').toLowerCase() === filterSub.toLowerCase());
     if (filterPriority !== 'all') out = out.filter(i => i.priority === filterPriority);
-    if (filterLocation) {
-      const needle = filterLocation.toLowerCase();
-      out = out.filter(i => (i.location ?? '').toLowerCase().includes(needle));
-    }
+    // Exact, normalised match through the shared module — see filterLocationKey.
+    if (filterLocationKey) out = filterByLocationKey(out, filterLocationKey);
     return out;
-  }, [items, filterStatus, filterSub, filterPriority, filterLocation]);
+  }, [items, filterStatus, filterSub, filterPriority, filterLocationKey]);
 
   // Distinct values for the filter chip rows. Drawn live from the items
   // so as the GC adds new subs / priorities, the filter row picks them
@@ -300,19 +664,224 @@ function PunchListScreenInner() {
     return Array.from(set).sort();
   }, [items]);
 
+  // ── Locations ────────────────────────────────────────────────────────────
+  // One source for every location on this project: the rooms already on punch
+  // items (always available — no plans, no AI, no signal), merged with the room
+  // names from the saved Plan Intelligence session when the project has one.
+  // A project with no analysed plans is the normal case, not an error state.
+  const { getSession: getPlanRoomSession } = usePlanRooms();
+  const planRooms = useMemo(
+    () => (projectId ? getPlanRoomSession(projectId)?.rooms : undefined),
+    [projectId, getPlanRoomSession],
+  );
+  const locationOptions = useMemo(
+    () => buildPunchLocationOptions(items, planRooms),
+    [items, planRooms],
+  );
+  /** Only rooms that actually hold items can be filtered TO — a chip that
+   *  always yields an empty list is a trap, not a filter. Plan rooms with no
+   *  punch items stay out; `onPlan` on the ones that do have items is how the
+   *  plans still show up. */
+  const filterableLocations = useMemo(
+    () => locationOptions.filter(o => o.count > 0),
+    [locationOptions],
+  );
+  const filterLocationLabel = useMemo(() => {
+    if (!filterLocationKey) return '';
+    if (filterLocationKey === UNPLACED_LOCATION_GROUP) return 'No location given';
+    return filterableLocations.find(o => o.key === filterLocationKey)?.label ?? filterLocationKey;
+  }, [filterLocationKey, filterableLocations]);
+  /** Items captured with no location at all — they get their own filter chip
+   *  and their own trailing group, because they are the ones that get lost. */
+  const unplacedCount = useMemo(
+    () => items.filter(i => normalizeLocation(i.location) === '').length,
+    [items],
+  );
+  /** Which of the used rooms are also on the plans, for the section headers. */
+  const onPlanKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of locationOptions) if (o.onPlan) set.add(o.key);
+    return set;
+  }, [locationOptions]);
+
   const activeFilterCount = useMemo(() => {
     return (filterStatus !== 'all' ? 1 : 0)
       + (filterSub ? 1 : 0)
       + (filterPriority !== 'all' ? 1 : 0)
-      + (filterLocation ? 1 : 0);
-  }, [filterStatus, filterSub, filterPriority, filterLocation]);
+      + (filterLocationKey ? 1 : 0);
+  }, [filterStatus, filterSub, filterPriority, filterLocationKey]);
 
   const clearAllFilters = useCallback(() => {
     setFilterStatus('all');
     setFilterSub('');
     setFilterPriority('all');
-    setFilterLocation('');
+    setFilterLocationKey('');
   }, []);
+
+  // ── Grouped vs flat, remembered ──────────────────────────────────────────
+  // Defaults to GROUPED. On the walk this was rebuilt for, a flat list of 100+
+  // items cannot be closed out room by room, which is the only order a building
+  // is actually walked in. The flat list is one tap away and the choice sticks.
+  const [grouped, setGrouped] = useState(true);
+  const [groupOrder, setGroupOrder] = useState<PunchGroupOrder>('recent');
+  /** Nothing is written back until the stored value has been read (or the user
+   *  has overruled it), so mounting the screen cannot persist the defaults over
+   *  what he chose last time. */
+  const viewPrefSettled = useRef(false);
+  /** He tapped a view control. AsyncStorage is async, and on a cold start the
+   *  read can land AFTER a fast first tap — without this the disk would quietly
+   *  undo the choice he just made and watched happen. */
+  const viewPrefTouched = useRef(false);
+
+  const chooseGrouped = useCallback((next: boolean) => {
+    viewPrefTouched.current = true;
+    viewPrefSettled.current = true;
+    setGrouped(next);
+  }, []);
+
+  const toggleGroupOrder = useCallback(() => {
+    viewPrefTouched.current = true;
+    viewPrefSettled.current = true;
+    setGroupOrder(o => (o === 'recent' ? 'alpha' : 'recent'));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      let stored: PunchViewPref | null = null;
+      try {
+        stored = parseViewPref(await AsyncStorage.getItem(PUNCH_VIEW_PREF_KEY));
+      } catch {
+        // Storage unavailable (private browsing on web, a wedged disk). The
+        // default view is a perfectly good screen — never block the list on it.
+        stored = null;
+      }
+      if (cancelled || viewPrefTouched.current) return;
+      if (stored) {
+        setGrouped(stored.grouped);
+        setGroupOrder(stored.order);
+      }
+      viewPrefSettled.current = true;
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!viewPrefSettled.current) return;
+    void AsyncStorage.setItem(
+      PUNCH_VIEW_PREF_KEY,
+      JSON.stringify({ grouped, order: groupOrder } satisfies PunchViewPref),
+    ).catch(() => { /* a remembered preference is not worth an error toast */ });
+  }, [grouped, groupOrder]);
+
+  /** Collapsed location sections, by normalised key. Session-scoped on purpose:
+   *  collapsing a room is a "I'm done looking at this right now" gesture, and
+   *  reopening the screen tomorrow to a list of closed accordions would hide
+   *  work. */
+  const [collapsed, setCollapsed] = useState<Record<string, true>>({});
+  const toggleCollapse = useCallback((key: string) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setCollapsed(prev => {
+      const next = { ...prev };
+      if (next[key]) delete next[key]; else next[key] = true;
+      return next;
+    });
+  }, []);
+
+  // ── Selection ────────────────────────────────────────────────────────────
+  // Assigning 30 items to a drywaller one row at a time is 30 round trips
+  // through an edit sheet. Selection is the whole point of this screen at 100+
+  // items, so it is reachable two ways: the Select button in the header, and a
+  // long press on any row (one hand, no mode hunt).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Record<string, true>>({});
+  const selectedIdList = useMemo(() => Object.keys(selectedIds), [selectedIds]);
+  const selectedCount = selectedIdList.length;
+  /** Resolved against ALL items, not the filtered view: a bulk status change
+   *  can push an item out of the current filter mid-run, and the run must still
+   *  finish the work it was asked to do. */
+  const selectedItems = useMemo(
+    () => items.filter(i => selectedIds[i.id]),
+    [items, selectedIds],
+  );
+
+  const toggleSelect = useCallback((id: string) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setSelectedIds(prev => {
+      const next = { ...prev };
+      if (next[id]) delete next[id]; else next[id] = true;
+      return next;
+    });
+  }, []);
+
+  const startSelecting = useCallback((id: string) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectMode(true);
+    setSelectedIds(prev => (prev[id] ? prev : { ...prev, [id]: true }));
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds({});
+    setSelectMode(false);
+  }, []);
+
+  // ── The rows ─────────────────────────────────────────────────────────────
+  // Grouping is done by the shared module so this screen and punch-walk can
+  // never disagree about which items belong to which room.
+  const sections = useMemo(
+    () => (grouped ? groupPunchItemsByLocation(filteredItems, { order: groupOrder }) : []),
+    [grouped, groupOrder, filteredItems],
+  );
+
+  const selectAllInSection = useCallback((key: string) => {
+    const section = sections.find(s => s.key === key);
+    if (!section) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const allSelected = section.items.every(i => selectedIds[i.id]);
+    setSelectMode(true);
+    setSelectedIds(prev => {
+      const next = { ...prev };
+      for (const i of section.items) {
+        if (allSelected) delete next[i.id]; else next[i.id] = true;
+      }
+      return next;
+    });
+  }, [sections, selectedIds]);
+
+  const rows = useMemo<PunchRowData[]>(() => {
+    const out: PunchRowData[] = [];
+    const itemRow = (item: PunchItem): PunchRowData => ({
+      kind: 'item',
+      key: item.id,
+      item,
+      selected: !!selectedIds[item.id],
+      selectMode,
+      photoFailed: !!(item.photoUri && failedPhotoUris[item.photoUri]),
+    });
+
+    if (!grouped) {
+      for (const item of filteredItems) out.push(itemRow(item));
+      return out;
+    }
+
+    for (const section of sections) {
+      out.push({
+        kind: 'section',
+        key: `section:${section.key}`,
+        sectionKey: section.key,
+        label: section.label,
+        onPlan: !section.isUnplaced && onPlanKeys.has(section.key),
+        openCount: section.openCount,
+        total: section.total,
+        collapsed: !!collapsed[section.key],
+        allSelected: section.items.length > 0 && section.items.every(i => selectedIds[i.id]),
+        itemCount: section.items.length,
+      });
+      if (collapsed[section.key]) continue;   // a collapsed room costs one row
+      for (const item of section.items) out.push(itemRow(item));
+    }
+    return out;
+  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys]);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
@@ -530,6 +1099,210 @@ function PunchListScreenInner() {
     ]);
   }, [allClosed, projectId, updateProject, router]);
 
+  // ── Bulk writes ──────────────────────────────────────────────────────────
+  //
+  // WHY THIS IS A QUEUE AND NOT A `for` LOOP. `updatePunchItem` /
+  // `deletePunchItem` in contexts/ProjectContext.tsx derive the next array from
+  // the `punchItems` captured in their own closure, NOT from the ref the batch
+  // insert uses. Calling either thirty times inside one handler therefore has
+  // all thirty start from the SAME array, and the last `setPunchItems` wins:
+  // twenty-nine changes vanish locally (and from AsyncStorage) while the
+  // Supabase writes all land — a list that is right on the server and wrong in
+  // his hand, which is worse than an error.
+  //
+  // So the run is spread one item per render: each pass gets a freshly-closed
+  // `updatePunchItem` that can see the previous write. Every item still goes
+  // through the SAME context action a single edit uses, so utils/offlineQueue
+  // covers the whole batch on bad signal. Thirty items is ~30 frames, and the
+  // bar counts them off so it never looks stuck.
+  //
+  // The proper fix is a batch action beside `addPunchItems` in ProjectContext
+  // (one setState, one persist, N queued writes). That file is not this
+  // change's to edit — handed off.
+  //
+  // Each step is IDEMPOTENT (an update re-applies the same fields; a delete of
+  // an already-gone id is a no-op filter), so a double-invoked effect costs
+  // nothing but a wasted frame.
+  const [bulkRun, setBulkRun] = useState<{
+    kind: 'update' | 'delete';
+    ids: string[];
+    updates: Partial<PunchItem>;
+    done: number;
+    /** Past tense, for the toast: "30 items reassigned." */
+    label: string;
+  } | null>(null);
+  const bulkBusy = bulkRun !== null;
+
+  useEffect(() => {
+    if (!bulkRun) return;
+    if (bulkRun.done >= bulkRun.ids.length) {
+      const n = bulkRun.ids.length;
+      const label = bulkRun.label;
+      setBulkRun(null);
+      clearSelection();
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      nailIt(`${n} item${n === 1 ? '' : 's'} ${label}.`);
+      return;
+    }
+    const id = bulkRun.ids[bulkRun.done];
+    if (bulkRun.kind === 'delete') deletePunchItem(id);
+    else updatePunchItem(id, bulkRun.updates);
+    setBulkRun(prev => (prev === bulkRun ? { ...prev, done: prev.done + 1 } : prev));
+  }, [bulkRun, updatePunchItem, deletePunchItem, clearSelection]);
+
+  const [showBulkSubPicker, setShowBulkSubPicker] = useState(false);
+  const [showBulkStatusPicker, setShowBulkStatusPicker] = useState(false);
+
+  const bulkAssignTo = useCallback((companyName: string, subId?: string) => {
+    if (bulkBusy || selectedIdList.length === 0) return;
+    setShowBulkSubPicker(false);
+    setBulkRun({
+      kind: 'update',
+      ids: [...selectedIdList],
+      updates: { assignedSub: companyName, ...(subId ? { assignedSubId: subId } : {}) },
+      done: 0,
+      label: `assigned to ${companyName}`,
+    });
+  }, [bulkBusy, selectedIdList]);
+
+  const bulkSetStatus = useCallback((next: PunchItemStatus) => {
+    if (bulkBusy || selectedIdList.length === 0) return;
+    setShowBulkStatusPicker(false);
+    const cfg = getStatusConfig(themeColors, next);
+    setBulkRun({
+      kind: 'update',
+      ids: [...selectedIdList],
+      // Stamped once for the whole batch: these were closed in one gesture, and
+      // thirty closedAt values a millisecond apart is noise in the closeout.
+      updates: { status: next, ...(next === 'closed' ? { closedAt: new Date().toISOString() } : {}) },
+      done: 0,
+      label: `moved to ${cfg.label}`,
+    });
+  }, [bulkBusy, selectedIdList, themeColors]);
+
+  const bulkDelete = useCallback(() => {
+    if (bulkBusy || selectedIdList.length === 0) return;
+    const n = selectedIdList.length;
+    // The one irreversible verb on this bar, so it says the number out loud.
+    showAlert(
+      `Delete ${n} punch item${n === 1 ? '' : 's'}?`,
+      'They are removed from this project and from the closeout packet. This cannot be undone.',
+      [
+        { text: 'Keep them', style: 'cancel' },
+        {
+          text: `Delete ${n}`,
+          style: 'destructive',
+          onPress: () => setBulkRun({ kind: 'delete', ids: [...selectedIdList], updates: {}, done: 0, label: 'deleted' }),
+        },
+      ],
+    );
+  }, [bulkBusy, selectedIdList]);
+
+  // ── Handing a sub their list ─────────────────────────────────────────────
+  // The sub portal already exists and already scopes punch items to one sub
+  // (utils/subPortalSnapshot.ts). Nothing on this screen mentioned it, so the
+  // one built-in way to hand a sub his share was invisible at the exact moment
+  // he wanted it. Offered when the view is about EXACTLY one sub — the list is
+  // filtered to them, or every selected item is theirs.
+  const portalTarget = useMemo(() => {
+    const pool = selectedCount > 0 ? selectedItems : (filterSub ? filteredItems : []);
+    if (pool.length === 0) return null;
+    const names = new Set<string>();
+    let assignedId: string | undefined;
+    for (const i of pool) {
+      const n = (i.assignedSub ?? '').trim();
+      if (!n) return null;                 // one unassigned item means "not one sub"
+      names.add(n.toLowerCase());
+      if (i.assignedSubId) assignedId = i.assignedSubId;
+    }
+    if (names.size !== 1) return null;
+    const name = (pool[0].assignedSub ?? '').trim();
+    // Prefer the id already on the item; fall back to matching the free-text
+    // company name, which is what templates and older rows carry.
+    const sub = subcontractors.find(s => s.id === assignedId)
+      ?? subcontractors.find(s => (s.companyName ?? '').trim().toLowerCase() === name.toLowerCase());
+    return { name, sub, count: pool.length };
+  }, [selectedCount, selectedItems, filterSub, filteredItems, subcontractors]);
+
+  const openSubPortal = useCallback(() => {
+    if (!portalTarget?.sub || !projectId) return;
+    router.push({
+      pathname: '/sub-portal-setup' as never,
+      params: { projectId, subId: portalTarget.sub.id } as never,
+    });
+  }, [portalTarget, projectId, router]);
+
+  // ── Stable row callbacks ─────────────────────────────────────────────────
+  // Every handler above closes over state that changes on nearly every render,
+  // so passing them straight to a memoized row would make React.memo a no-op —
+  // 200 cards re-rendering on each checkbox tap. The latest-ref indirection
+  // gives the rows ONE object identity for the life of the screen.
+  const latestActions = useRef({
+    openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
+    setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
+    setShowRejectModal, setRejectionNote, router,
+  });
+  latestActions.current = {
+    openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
+    setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
+    setShowRejectModal, setRejectionNote, router,
+  };
+
+  const rowActions = useMemo<PunchRowActions>(() => ({
+    onEdit: item => latestActions.current.openEditForm(item),
+    onAdvance: item => latestActions.current.advanceStatus(item),
+    onStatus: (item, next) => latestActions.current.handleStatusChange(item, next),
+    onReject: item => {
+      latestActions.current.setShowRejectModal(item.id);
+      latestActions.current.setRejectionNote('');
+    },
+    onDelete: item => {
+      showAlert('Delete', 'Delete this punch item?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => latestActions.current.deletePunchItem(item.id) },
+      ]);
+    },
+    onOpenPhoto: item => latestActions.current.setViewerItem(item),
+    onPhotoFailed: uri => latestActions.current.markPhotoFailed(uri),
+    onOpenPlan: item => latestActions.current.router.push({
+      pathname: '/plan-viewer' as never,
+      params: { sheetId: item.planSheetId ?? '', punchId: item.id } as never,
+    }),
+    onToggleSelect: id => latestActions.current.toggleSelect(id),
+    onStartSelecting: id => latestActions.current.startSelecting(id),
+  }), []);
+
+  const latestSectionActions = useRef({ toggleCollapse, selectAllInSection });
+  latestSectionActions.current = { toggleCollapse, selectAllInSection };
+  const sectionActions = useMemo<PunchSectionActions>(() => ({
+    onToggleCollapse: key => latestSectionActions.current.toggleCollapse(key),
+    onToggleSectionSelect: key => latestSectionActions.current.selectAllInSection(key),
+  }), []);
+
+  const renderRow = useCallback(({ item: row }: ListRenderItemInfo<PunchRowData>) => (
+    row.kind === 'section'
+      ? (
+        <LocationSectionHeader
+          row={row}
+          styles={styles}
+          themeColors={themeColors}
+          actions={sectionActions}
+          selectMode={selectMode}
+        />
+      )
+      : (
+        <PunchRow row={row} styles={styles} themeColors={themeColors} actions={rowActions} />
+      )
+  ), [styles, themeColors, sectionActions, rowActions, selectMode]);
+
+  const keyExtractor = useCallback((row: PunchRowData) => row.key, []);
+
+  /** Measured, so the Brain FAB rides above the bulk bar instead of sitting on
+   *  its buttons — no per-screen magic number. */
+  const [bulkBarHeight, setBulkBarHeight] = useState(0);
+  const fabLift = selectMode ? bulkBarHeight : 0;
+  useBrainFabLift(fabLift);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -551,316 +1324,409 @@ function PunchListScreenInner() {
     );
   }
 
+  // The list chrome, as ELEMENTS rather than components. FlatList renders a
+  // passed element in place, so it reconciles like any other child — passing an
+  // inline function component instead would remount the whole header on every
+  // render and drop focus / scroll position inside it.
+  const listHeader = (
+    <View>
+      <View style={styles.progressSection}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Completion</Text>
+          <Text style={styles.progressPercent}>{progressPercent}%</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+        </View>
+        <Text style={styles.progressSub}>{closedCount} of {totalCount} items closed</Text>
+      </View>
+
+      <View style={styles.filterBar}>
+        {/* styles.filterScroll is load-bearing — see the note on the style
+            itself. Without it this ScrollView sizes to the full intrinsic
+            width of the five status chips and shoves the "More filters"
+            button off the row. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterRow}
+        >
+          {(['all', 'open', 'in_progress', 'ready_for_review', 'closed'] as const).map(s => {
+            const count = s === 'all' ? items.length : items.filter(i => i.status === s).length;
+            const config = s === 'all' ? { label: 'All', color: themeColors.text, bg: themeColors.line } : getStatusConfig(themeColors, s);
+            return (
+              <TouchableOpacity
+                key={s}
+                style={[styles.filterChip, filterStatus === s && { backgroundColor: config.color }]}
+                onPress={() => setFilterStatus(s)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: filterStatus === s }}
+                accessibilityLabel={`${s === 'all' ? 'All' : config.label}, ${count} items`}
+              >
+                <Text style={[styles.filterChipText, filterStatus === s && { color: '#fff' }]}>
+                  {s === 'all' ? 'All' : config.label} ({count})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        {/* "More filters" trigger — opens a drawer with sub /
+            priority / location filters. Badge shows the count of
+            non-status active filters so the GC sees at a glance
+            that their list is filtered. */}
+        <TouchableOpacity
+          style={[styles.moreFiltersBtn, activeFilterCount > 0 && { borderColor: themeColors.accent }]}
+          onPress={() => setShowFilterDrawer(true)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="More filters"
+        >
+          <Filter size={14} color={activeFilterCount > 0 ? themeColors.accent : themeColors.textSecondary} strokeWidth={1.75} />
+          {activeFilterCount > 0 && (
+            <View style={styles.moreFiltersBadge}>
+              <Text style={styles.moreFiltersBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Active-filter summary row — when any non-status filter is on,
+          show pills the GC can tap to remove. Saves a trip into the
+          drawer for the common "I forgot what I'm filtering on" case. */}
+      {(filterSub || filterPriority !== 'all' || filterLocationKey) && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeFiltersRow}>
+          {filterSub && (
+            <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterSub('')} accessibilityRole="button" accessibilityLabel={`Remove the ${filterSub} filter`}>
+              <Text style={styles.activeFilterPillText}>Sub: {filterSub}</Text>
+              <X size={11} color={themeColors.accent} strokeWidth={1.75} />
+            </TouchableOpacity>
+          )}
+          {filterPriority !== 'all' && (
+            <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterPriority('all')} accessibilityRole="button" accessibilityLabel="Remove the priority filter">
+              <Text style={styles.activeFilterPillText}>Priority: {filterPriority}</Text>
+              <X size={11} color={themeColors.accent} strokeWidth={1.75} />
+            </TouchableOpacity>
+          )}
+          {filterLocationKey && (
+            <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterLocationKey('')} accessibilityRole="button" accessibilityLabel="Remove the location filter">
+              <Text style={styles.activeFilterPillText}>Location: {filterLocationLabel}</Text>
+              <X size={11} color={themeColors.accent} strokeWidth={1.75} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: themeColors.line }]} accessibilityRole="button" accessibilityLabel="Clear all filters">
+            <Text style={[styles.activeFilterPillText, { color: themeColors.textSecondary }]}>Clear all</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {/* ── How the list reads ───────────────────────────────────────────
+          Grouped by location is the default because a building is walked
+          room by room; the flat list is one tap away and the choice is
+          remembered for the next visit. */}
+      {items.length > 0 ? (
+        <View style={styles.viewBar}>
+          <TouchableOpacity
+            style={[styles.viewChip, grouped && styles.viewChipActive]}
+            onPress={() => chooseGrouped(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityState={{ selected: grouped }}
+            accessibilityLabel="Group the list by location"
+            testID="punch-view-grouped"
+          >
+            <Layers size={13} color={grouped ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
+            <Text style={[styles.viewChipText, grouped && styles.viewChipTextActive]}>By location</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.viewChip, !grouped && styles.viewChipActive]}
+            onPress={() => chooseGrouped(false)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !grouped }}
+            accessibilityLabel="Show one flat list"
+            testID="punch-view-flat"
+          >
+            <List size={13} color={!grouped ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
+            <Text style={[styles.viewChipText, !grouped && styles.viewChipTextActive]}>Flat</Text>
+          </TouchableOpacity>
+          {grouped ? (
+            <TouchableOpacity
+              style={styles.viewChip}
+              onPress={toggleGroupOrder}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={groupOrder === 'recent'
+                ? 'Rooms are ordered most recent first. Switch to A to Z.'
+                : 'Rooms are ordered A to Z. Switch to most recent first.'}
+              testID="punch-group-order"
+            >
+              <ArrowUpDown size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
+              <Text style={styles.viewChipText}>{groupOrder === 'recent' ? 'Recent' : 'A–Z'}</Text>
+            </TouchableOpacity>
+          ) : null}
+          <View style={{ flex: 1 }} />
+          {filteredItems.length > 0 ? (
+            <TouchableOpacity
+              style={[styles.viewChip, selectMode && styles.viewChipActive]}
+              onPress={() => (selectMode ? clearSelection() : setSelectMode(true))}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectMode }}
+              accessibilityLabel={selectMode ? 'Stop selecting' : 'Select several items'}
+              testID="punch-select-mode"
+            >
+              <SquareCheck size={13} color={selectMode ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
+              <Text style={[styles.viewChipText, selectMode && styles.viewChipTextActive]}>
+                {selectMode ? 'Done' : 'Select'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* ── Hand this sub their list ─────────────────────────────────────
+          Only when the view is about exactly one sub. The portal itself
+          already exists and already scopes punch items to them; this is the
+          door to it, at the moment he wants it. */}
+      {!selectMode && portalTarget ? (
+        portalTarget.sub ? (
+          <TouchableOpacity
+            style={styles.portalBanner}
+            onPress={openSubPortal}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Build the sub portal link for ${portalTarget.name}`}
+            testID="punch-sub-portal"
+          >
+            <Send size={14} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.portalBannerText} numberOfLines={2}>
+              Hand {portalTarget.name} their {portalTarget.count} item{portalTarget.count === 1 ? '' : 's'} — open their portal link
+            </Text>
+            <ChevronRight size={14} color={themeColors.accent} strokeWidth={1.75} />
+          </TouchableOpacity>
+        ) : (
+          // Blocked, and it says why: the portal is keyed to a subcontractor
+          // record, and this name only exists as free text on the items.
+          <View style={styles.portalBannerOff}>
+            <Send size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.portalBannerOffText}>
+              No portal for &quot;{portalTarget.name}&quot; — that name is typed on the items but isn&apos;t in your subcontractor list. Add them under Subs and reassign to build a link.
+            </Text>
+          </View>
+        )
+      ) : null}
+    </View>
+  );
+
+  const listEmpty = (
+    <View style={{ minHeight: 360 }}>
+      <EmptyState
+        icon={<CheckCircle size={36} color={themeColors.accent} strokeWidth={1.75} />}
+        title={activeFilterCount > 0 ? 'Nothing matches those filters' : 'No punch items yet'}
+        message={activeFilterCount > 0
+          ? 'Nothing is left after the filters above. Clear one to see the rest of the list.'
+          : 'Walk the project, snap photos of anything that needs touch-up, and add the items here. They\'ll roll into your closeout packet automatically.'}
+        actionLabel={activeFilterCount > 0 ? 'Clear all filters' : 'Add first punch item'}
+        onAction={activeFilterCount > 0 ? clearAllFilters : () => { resetForm(); setShowForm(true); }}
+      />
+    </View>
+  );
+
+  const listFooter = (
+    <View>
+      <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item" accessibilityRole="button" accessibilityLabel="Add punch item">
+        <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
+        <Text style={styles.addItemBtnText}>Add Punch Item</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.addItemBtn}
+        onPress={() => setShowTemplates(true)}
+        activeOpacity={0.7}
+        testID="apply-punch-template"
+        accessibilityRole="button"
+        accessibilityLabel="Apply a trade template"
+      >
+        <MagePunch size={16} color={themeColors.accent} />
+        <Text style={styles.addItemBtnText}>Apply trade template</Text>
+      </TouchableOpacity>
+
+      {/* Burst capture. Sits above voice Walk Mode because a photo walk is
+          what a super does first — he shoots the floor, then describes it. */}
+      <TouchableOpacity
+        style={styles.walkBtn}
+        onPress={() => { void startPhotoWalk(); }}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Start a photo walk"
+        testID="start-photo-walk"
+      >
+        <Camera size={16} color={"#FFFFFF"} strokeWidth={1.75} />
+        <Text style={styles.walkBtnText}>
+          {walkShots.length > 0
+            ? `Photo walk — ${walkShots.length} waiting for a line`
+            : 'Photo walk — shoot the whole floor'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.walkBtn}
+        onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '' } as never })}
+        activeOpacity={0.85}
+        testID="open-punch-walk"
+        accessibilityRole="button"
+        accessibilityLabel="Walk mode, voice capture"
+      >
+        <Mic size={16} color={"#FFFFFF"} strokeWidth={1.75} />
+        <Text style={styles.walkBtnText}>Walk Mode — voice capture</Text>
+      </TouchableOpacity>
+
+      {allClosed && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
+        <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Close project">
+          <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
+          <Text style={styles.closeProjectBtnText}>Close Project</Text>
+        </TouchableOpacity>
+      )}
+
+      {(project.status === 'completed' || project.status === 'closed') && (
+        <View style={styles.projectClosedNote}>
+          <CheckCircle size={16} color={themeColors.success} strokeWidth={1.75} />
+          <Text style={styles.projectClosedNoteText}>Project closed — punch list is archived.</Text>
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Punch List — ${project.name}` }} />
-      <ScrollView
+      <FlatList
         {...fabScroll}
-        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        data={rows}
+        keyExtractor={keyExtractor}
+        renderItem={renderRow}
+        // The FlatList OWNS the scroll axis. Nesting it in a ScrollView would
+        // give it unbounded height and mount all 200 cards anyway — the header
+        // and footer ride along as list chrome instead.
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
+        ListEmptyComponent={listEmpty}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE,
+        }}
         showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.progressSection}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Completion</Text>
-            <Text style={styles.progressPercent}>{progressPercent}%</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-          </View>
-          <Text style={styles.progressSub}>{closedCount} of {totalCount} items closed</Text>
-        </View>
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        // A punch card is a fixed-ish height block with no swipeable and no
+        // text input, so clipping off-screen ones is free. Not on web, where
+        // RN-web implements it as overflow trickery that can blank rows.
+        removeClippedSubviews={Platform.OS !== 'web'}
+        keyboardShouldPersistTaps="handled"
+        testID="punch-list"
+      />
 
-        <View style={styles.filterBar}>
-          {/* styles.filterScroll is load-bearing — see the note on the style
-              itself. Without it this ScrollView sizes to the full intrinsic
-              width of the five status chips and shoves the "More filters"
-              button off the row. */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterScroll}
-            contentContainerStyle={styles.filterRow}
-          >
-            {(['all', 'open', 'in_progress', 'ready_for_review', 'closed'] as const).map(s => {
-              const count = s === 'all' ? items.length : items.filter(i => i.status === s).length;
-              const config = s === 'all' ? { label: 'All', color: themeColors.text, bg: themeColors.line } : getStatusConfig(themeColors, s);
-              return (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.filterChip, filterStatus === s && { backgroundColor: config.color }]}
-                  onPress={() => setFilterStatus(s)}
-                >
-                  <Text style={[styles.filterChipText, filterStatus === s && { color: '#fff' }]}>
-                    {s === 'all' ? 'All' : config.label} ({count})
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          {/* "More filters" trigger — opens a drawer with sub /
-              priority / location filters. Badge shows the count of
-              non-status active filters so the GC sees at a glance
-              that their list is filtered. */}
-          <TouchableOpacity
-            style={[styles.moreFiltersBtn, activeFilterCount > 0 && { borderColor: themeColors.accent }]}
-            onPress={() => setShowFilterDrawer(true)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="More filters"
-          >
-            <Filter size={14} color={activeFilterCount > 0 ? themeColors.accent : themeColors.textSecondary} strokeWidth={1.75} />
-            {activeFilterCount > 0 && (
-              <View style={styles.moreFiltersBadge}>
-                <Text style={styles.moreFiltersBadgeText}>{activeFilterCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Active-filter summary row — when any non-status filter is on,
-            show pills the GC can tap to remove. Saves a trip into the
-            drawer for the common "I forgot what I'm filtering on" case. */}
-        {(filterSub || filterPriority !== 'all' || filterLocation) && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeFiltersRow}>
-            {filterSub && (
-              <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterSub('')}>
-                <Text style={styles.activeFilterPillText}>Sub: {filterSub}</Text>
-                <X size={11} color={themeColors.accent} strokeWidth={1.75} />
-              </TouchableOpacity>
-            )}
-            {filterPriority !== 'all' && (
-              <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterPriority('all')}>
-                <Text style={styles.activeFilterPillText}>Priority: {filterPriority}</Text>
-                <X size={11} color={themeColors.accent} strokeWidth={1.75} />
-              </TouchableOpacity>
-            )}
-            {filterLocation && (
-              <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterLocation('')}>
-                <Text style={styles.activeFilterPillText}>Location: {filterLocation}</Text>
-                <X size={11} color={themeColors.accent} strokeWidth={1.75} />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: themeColors.line }]}>
-              <Text style={[styles.activeFilterPillText, { color: themeColors.textSecondary }]}>Clear all</Text>
+      {/* ── Bulk action bar ──────────────────────────────────────────────
+          Fixed to the bottom because the selection it acts on is spread over
+          a list he is scrolling: a bar that scrolls away with the header means
+          scrolling back up after every room. */}
+      {selectMode ? (
+        <View
+          style={[styles.bulkBar, { paddingBottom: insets.bottom + 12 }]}
+          onLayout={e => setBulkBarHeight(e.nativeEvent.layout.height)}
+        >
+          <View style={styles.bulkBarTop}>
+            <Text style={styles.bulkBarCount}>
+              {bulkBusy
+                ? `Saving ${Math.min((bulkRun?.done ?? 0) + 1, bulkRun?.ids.length ?? 0)} of ${bulkRun?.ids.length ?? 0}…`
+                : `${selectedCount} selected`}
+            </Text>
+            <TouchableOpacity
+              onPress={clearSelection}
+              disabled={bulkBusy}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: bulkBusy }}
+              accessibilityLabel={bulkBusy ? 'Cannot cancel while items are saving' : 'Done selecting'}
+              testID="punch-bulk-done"
+            >
+              <Text style={[styles.bulkBarDone, bulkBusy && { color: themeColors.textMuted }]}>Done</Text>
             </TouchableOpacity>
-          </ScrollView>
-        )}
+          </View>
 
-        {filteredItems.map(item => {
-          const sc = getStatusConfig(themeColors, item.status);
-          const pc = getPriorityConfig(themeColors, item.priority);
-          return (
-            <View key={item.id} style={styles.punchCard}>
-              <View style={styles.punchCardTop}>
-                <View style={[styles.priorityDot, { backgroundColor: pc.color }]} />
-                {/* The deficiency's evidence. A local `file://` still sitting
-                    in the upload queue is rendered too — it is valid on this
-                    device, and waiting for the round-trip would blank the
-                    thumbnail on exactly the walk that just shot it. */}
-                {item.photoUri && !failedPhotoUris[item.photoUri] ? (
-                  <TouchableOpacity
-                    onPress={() => setViewerItem(item)}
-                    activeOpacity={0.8}
-                    accessibilityRole="imagebutton"
-                    accessibilityLabel={`Photo for ${item.description}`}
-                    accessibilityHint="Opens the photo full screen"
-                    testID={`punch-photo-${item.id}`}
-                  >
-                    <Image
-                      source={{ uri: item.photoUri }}
-                      style={styles.punchThumb}
-                      onError={() => item.photoUri && markPhotoFailed(item.photoUri)}
-                    />
-                  </TouchableOpacity>
-                ) : null}
-                <View style={{ flex: 1 }}>
-                  {/* Tapping the item's own text opens it for editing. This is
-                      the affordance the row was missing — without it nothing
-                      ever put a real item in `editingItem`, so the edit sheet
-                      could only create and its status breadcrumb was dead code.
-                      Same gesture app/permits.tsx uses on its cards.
+          {/* Nothing selected yet: say what the bar is for instead of showing
+              four dead buttons. */}
+          {selectedCount === 0 ? (
+            <Text style={styles.bulkBarHint}>
+              Tap items to select them, or use a location&apos;s checkbox to take a whole room at once.
+            </Text>
+          ) : (
+            <View style={styles.bulkBarActions}>
+              <TouchableOpacity
+                style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                onPress={() => setShowBulkSubPicker(true)}
+                disabled={bulkBusy}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: bulkBusy }}
+                accessibilityLabel={bulkBusy ? 'Assign is unavailable while items are saving' : `Assign ${selectedCount} items to a sub`}
+                testID="punch-bulk-assign"
+              >
+                <Users size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
+                <Text style={styles.bulkBtnText}>Assign</Text>
+              </TouchableOpacity>
 
-                      Scoped to the description + location deliberately. Wrapping
-                      the whole card would make it one accessibility element on
-                      iOS and swallow the status badge ("tap to advance") and the
-                      "On plan" chip, which are their own affordances. They stay
-                      siblings; the action row below stays outside too. */}
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => openEditForm(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Edit punch item: ${item.description}`}
-                    accessibilityHint="Opens this item for editing"
-                    testID={`punch-item-${item.id}`}
-                  >
-                    <Text style={styles.punchDesc}>{item.description}</Text>
-                    {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
-                  </TouchableOpacity>
-                  {item.planSheetId ? (
-                    <TouchableOpacity
-                      style={styles.onPlanChip}
-                      onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: item.planSheetId!, punchId: item.id } as never })}
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      accessibilityLabel="View this item on the plan"
-                      testID="punch-on-plan"
-                    >
-                      <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.onPlanChipText}>On plan</Text>
-                      <ChevronRight size={11} color={themeColors.accent} strokeWidth={1.75} />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
+              <TouchableOpacity
+                style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                onPress={() => setShowBulkStatusPicker(true)}
+                disabled={bulkBusy}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: bulkBusy }}
+                accessibilityLabel={bulkBusy ? 'Status is unavailable while items are saving' : `Set status on ${selectedCount} items`}
+                testID="punch-bulk-status"
+              >
+                <ListChecks size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
+                <Text style={styles.bulkBtnText}>Status</Text>
+              </TouchableOpacity>
+
+              {/* Only when every selected item belongs to the same sub AND that
+                  sub exists as a record — otherwise there is no portal to open
+                  and a button here would be a dead end. */}
+              {portalTarget?.sub ? (
                 <TouchableOpacity
-                  style={[styles.punchBadge, { backgroundColor: sc.bg }, item.status !== 'closed' && styles.punchBadgeTappable]}
-                  onPress={() => advanceStatus(item)}
-                  disabled={item.status === 'closed'}
-                  activeOpacity={0.7}
+                  style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                  onPress={openSubPortal}
+                  disabled={bulkBusy}
+                  activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={item.status === 'closed' ? `Status: ${sc.label}` : `Status: ${sc.label}, tap to advance`}
-                  accessibilityHint={item.status === 'closed' ? undefined : 'Advances status one step'}
+                  accessibilityState={{ disabled: bulkBusy }}
+                  accessibilityLabel={`Open the sub portal for ${portalTarget.name}`}
+                  testID="punch-bulk-portal"
                 >
-                  <Text style={[styles.punchBadgeText, { color: sc.color }]}>{sc.label}</Text>
-                  {item.status !== 'closed' && (
-                    <Text style={[styles.punchBadgeChevron, { color: sc.color }]}>›</Text>
-                  )}
+                  <Send size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
+                  <Text style={styles.bulkBtnText} numberOfLines={1}>Portal</Text>
                 </TouchableOpacity>
-              </View>
-
-              <View style={styles.punchMeta}>
-                {item.assignedSub ? <Text style={styles.punchMetaText}>Sub: {item.assignedSub}</Text> : null}
-                {/* dueDate is declared 'YYYY-MM-DD' but Supabase-synced rows
-                    carry a full ISO timestamp — openEditForm already slices
-                    for exactly that reason (:200-203). This printed the raw
-                    field, so one item read "Due: 2026-08-30" locally and
-                    "Due: 2026-08-30T00:00:00.000Z" after a sync. */}
-                {item.dueDate ? <Text style={styles.punchMetaText}>Due: {formatCalendarDay(item.dueDate)}</Text> : null}
-                <Text style={[styles.punchMetaText, { color: pc.color }]}>{pc.label} Priority</Text>
-              </View>
-
-              {item.linkedTaskName ? (
-                <View style={styles.linkedTaskBadge}>
-                  <Link2 size={11} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.linkedTaskBadgeText} numberOfLines={1}>Task: {item.linkedTaskName}</Text>
-                </View>
               ) : null}
 
-              {item.rejectionNote ? (
-                <View style={styles.rejectionBox}>
-                  <MessageSquare size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                  <Text style={styles.rejectionText}>{item.rejectionNote}</Text>
-                </View>
-              ) : null}
-
-              <View style={styles.punchActions}>
-                {item.status === 'open' && (
-                  <TouchableOpacity style={styles.punchActionBtn} onPress={() => handleStatusChange(item, 'in_progress')}>
-                    <Clock size={14} color={themeColors.info} strokeWidth={1.75} />
-                    <Text style={[styles.punchActionText, { color: themeColors.info }]}>Start</Text>
-                  </TouchableOpacity>
-                )}
-                {item.status === 'in_progress' && (
-                  <TouchableOpacity style={styles.punchActionBtn} onPress={() => handleStatusChange(item, 'ready_for_review')}>
-                    <Eye size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={[styles.punchActionText, { color: themeColors.accent }]}>Submit for Review</Text>
-                  </TouchableOpacity>
-                )}
-                {item.status === 'ready_for_review' && (
-                  <>
-                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.successSoft }]} onPress={() => handleStatusChange(item, 'closed')}>
-                      <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
-                      <Text style={[styles.punchActionText, { color: themeColors.success }]}>Close</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.dangerSoft }]} onPress={() => { setShowRejectModal(item.id); setRejectionNote(''); }}>
-                      <X size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                      <Text style={[styles.punchActionText, { color: themeColors.dangerLabel }]}>Reject</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-                <TouchableOpacity style={styles.punchDeleteBtn} onPress={() => {
-                  showAlert('Delete', 'Delete this punch item?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => deletePunchItem(item.id) },
-                  ]);
-                }} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[styles.bulkBtnDanger, bulkBusy && styles.bulkBtnOff]}
+                onPress={bulkDelete}
+                disabled={bulkBusy}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: bulkBusy }}
+                accessibilityLabel={bulkBusy ? 'Delete is unavailable while items are saving' : `Delete ${selectedCount} items`}
+                testID="punch-bulk-delete"
+              >
+                <Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                <Text style={[styles.bulkBtnText, { color: themeColors.dangerLabel }]}>Delete</Text>
+              </TouchableOpacity>
             </View>
-          );
-        })}
-
-        {filteredItems.length === 0 && (
-          <View style={{ minHeight: 360 }}>
-            <EmptyState
-              icon={<CheckCircle size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={filterStatus !== 'all' ? 'Nothing matches that filter' : 'No punch items yet'}
-              message={filterStatus !== 'all'
-                ? `No items currently sit in "${filterStatus.replace(/_/g, ' ')}". Switch filters above to see the rest.`
-                : 'Walk the project, snap photos of anything that needs touch-up, and add the items here. They\'ll roll into your closeout packet automatically.'}
-              actionLabel={filterStatus === 'all' ? 'Add first punch item' : undefined}
-              onAction={filterStatus === 'all' ? () => { resetForm(); setShowForm(true); } : undefined}
-            />
-          </View>
-        )}
-
-        <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item">
-          <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Add Punch Item</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.addItemBtn}
-          onPress={() => setShowTemplates(true)}
-          activeOpacity={0.7}
-          testID="apply-punch-template"
-        >
-          <MagePunch size={16} color={themeColors.accent} />
-          <Text style={styles.addItemBtnText}>Apply trade template</Text>
-        </TouchableOpacity>
-
-        {/* Burst capture. Sits above voice Walk Mode because a photo walk is
-            what a super does first — he shoots the floor, then describes it. */}
-        <TouchableOpacity
-          style={styles.walkBtn}
-          onPress={() => { void startPhotoWalk(); }}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Start a photo walk"
-          testID="start-photo-walk"
-        >
-          <Camera size={16} color={"#FFFFFF"} strokeWidth={1.75} />
-          <Text style={styles.walkBtnText}>
-            {walkShots.length > 0
-              ? `Photo walk — ${walkShots.length} waiting for a line`
-              : 'Photo walk — shoot the whole floor'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.walkBtn}
-          onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '' } as never })}
-          activeOpacity={0.85}
-          testID="open-punch-walk"
-        >
-          <Mic size={16} color={"#FFFFFF"} strokeWidth={1.75} />
-          <Text style={styles.walkBtnText}>Walk Mode — voice capture</Text>
-        </TouchableOpacity>
-
-        {allClosed && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
-          <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85}>
-            <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
-            <Text style={styles.closeProjectBtnText}>Close Project</Text>
-          </TouchableOpacity>
-        )}
-
-        {(project.status === 'completed' || project.status === 'closed') && (
-          <View style={styles.projectClosedNote}>
-            <CheckCircle size={16} color={themeColors.success} strokeWidth={1.75} />
-            <Text style={styles.projectClosedNoteText}>Project closed — punch list is archived.</Text>
-          </View>
-        )}
-      </ScrollView>
+          )}
+        </View>
+      ) : null}
 
       {/* ── Photo-walk review ────────────────────────────────────────────
           One row per frame: the photo, one line of what is wrong, and where.
@@ -1298,16 +2164,71 @@ function PunchListScreenInner() {
                 </View>
               </View>
 
-              {/* Location free-text filter */}
+              {/* Location filter — a tap, not a typed substring.
+                  Every chip is a room that actually holds items on THIS
+                  project, ordered the way utils/punchLocations orders them
+                  (most recently worked first), with its open/total count so he
+                  can see which room still has work before he opens it. */}
               <View>
-                <Text style={styles.filterSectionLabel}>Location contains</Text>
-                <TextInput
-                  style={styles.filterDrawerInput}
-                  value={filterLocation}
-                  onChangeText={setFilterLocation}
-                  placeholder="e.g. Kitchen, 2nd floor, Master bath"
-                  placeholderTextColor={themeColors.textMuted}
-                />
+                <Text style={styles.filterSectionLabel}>Location</Text>
+                <View style={styles.filterChipsWrap}>
+                  <TouchableOpacity
+                    style={[styles.filterDrawerChip, !filterLocationKey && styles.filterDrawerChipActive]}
+                    onPress={() => setFilterLocationKey('')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: !filterLocationKey }}
+                    accessibilityLabel="Any location"
+                  >
+                    <Text style={[styles.filterDrawerChipText, !filterLocationKey && styles.filterDrawerChipTextActive]}>Any</Text>
+                  </TouchableOpacity>
+                  {filterableLocations.map((opt: PunchLocationOption) => {
+                    const on = filterLocationKey === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.filterDrawerChip, on && styles.filterDrawerChipActive]}
+                        onPress={() => setFilterLocationKey(on ? '' : opt.key)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        accessibilityLabel={`${opt.label}, ${opt.openCount} open of ${opt.count}`}
+                        testID={`punch-loc-${opt.key}`}
+                      >
+                        {/* "on plan" is drawn only when the saved Plan
+                            Intelligence session actually names this room. */}
+                        {opt.onPlan ? (
+                          <MapPin size={10} color={on ? themeColors.surface : themeColors.textMuted} strokeWidth={1.75} />
+                        ) : null}
+                        <Text style={[styles.filterDrawerChipText, on && styles.filterDrawerChipTextActive]}>
+                          {opt.label} ({opt.openCount}/{opt.count})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {unplacedCount > 0 ? (
+                    <TouchableOpacity
+                      style={[styles.filterDrawerChip, filterLocationKey === UNPLACED_LOCATION_GROUP && styles.filterDrawerChipActive]}
+                      onPress={() => setFilterLocationKey(
+                        filterLocationKey === UNPLACED_LOCATION_GROUP ? '' : UNPLACED_LOCATION_GROUP,
+                      )}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: filterLocationKey === UNPLACED_LOCATION_GROUP }}
+                      accessibilityLabel={`No location given, ${unplacedCount} items`}
+                      testID="punch-loc-unplaced"
+                    >
+                      <Text style={[
+                        styles.filterDrawerChipText,
+                        filterLocationKey === UNPLACED_LOCATION_GROUP && styles.filterDrawerChipTextActive,
+                      ]}>
+                        No location ({unplacedCount})
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {filterableLocations.length === 0 && unplacedCount === 0 && (
+                    <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, padding: 4 }}>
+                      No locations on any item yet. Walk Mode fills these in as you capture.
+                    </Text>
+                  )}
+                </View>
               </View>
             </ScrollView>
 
@@ -1321,6 +2242,96 @@ function PunchListScreenInner() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Bulk: assign to a sub ────────────────────────────────────────
+          Assign only. There is deliberately no bulk "unassign": clearing
+          `assignedSubId` would send an empty value at a uuid column, and a
+          write that fails quietly in the offline queue is worse than a verb
+          that isn't offered. Clear one on the item's own edit sheet. */}
+      <Modal visible={showBulkSubPicker} transparent animationType="slide" onRequestClose={() => setShowBulkSubPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '80%' as const, paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Assign {selectedCount} item{selectedCount === 1 ? '' : 's'}</Text>
+              <TouchableOpacity onPress={() => setShowBulkSubPicker(false)} style={{ padding: 4 }} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {subcontractors.map(s => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={styles.pickerOption}
+                  onPress={() => bulkAssignTo(s.companyName, s.id)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Assign to ${s.companyName}`}
+                  testID={`punch-bulk-sub-${s.id}`}
+                >
+                  <Text style={styles.pickerOptionText}>{s.companyName}</Text>
+                  {s.trade ? <Text style={styles.pickerOptionMeta}>{s.trade}</Text> : null}
+                </TouchableOpacity>
+              ))}
+              {/* Trades already typed on items but with no subcontractor record
+                  — templates write these. Offered so a bulk assign still works
+                  before the address book is filled in. */}
+              {subsInList
+                .filter(name => !subcontractors.some(s => (s.companyName ?? '').trim().toLowerCase() === name.toLowerCase()))
+                .map(name => (
+                  <TouchableOpacity
+                    key={`free-${name}`}
+                    style={styles.pickerOption}
+                    onPress={() => bulkAssignTo(name)}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Assign to ${name}`}
+                  >
+                    <Text style={styles.pickerOptionText}>{name}</Text>
+                    <Text style={styles.pickerOptionMeta}>Typed on items — not in your subs list</Text>
+                  </TouchableOpacity>
+                ))}
+              {subcontractors.length === 0 && subsInList.length === 0 ? (
+                <Text style={[styles.rejectDesc, { padding: 20, textAlign: 'center' as const }]}>
+                  No subcontractors yet. Add one under Subs, then come back and assign the whole room at once.
+                </Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Bulk: set status ─────────────────────────────────────────────── */}
+      <Modal visible={showBulkStatusPicker} transparent animationType="slide" onRequestClose={() => setShowBulkStatusPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Move {selectedCount} item{selectedCount === 1 ? '' : 's'} to</Text>
+              <TouchableOpacity onPress={() => setShowBulkStatusPicker(false)} style={{ padding: 4 }} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            {(['open', 'in_progress', 'ready_for_review', 'closed'] as const).map(s => {
+              const cfg = getStatusConfig(themeColors, s);
+              return (
+                <TouchableOpacity
+                  key={s}
+                  style={styles.pickerOption}
+                  onPress={() => bulkSetStatus(s)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${selectedCount} items to ${cfg.label}`}
+                  testID={`punch-bulk-status-${s}`}
+                >
+                  <View style={{ flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 }}>
+                    <View style={[styles.statusSwatch, { backgroundColor: cfg.color }]} />
+                    <Text style={styles.pickerOptionText}>{cfg.label}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </Modal>
@@ -1395,6 +2406,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   filterChipsWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 },
   filterDrawerChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: 16,
     backgroundColor: themeColors.line,
@@ -1433,6 +2445,91 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -0.3 },
+  // ── Grouping / selection / bulk ────────────────────────────────────────
+  viewBar: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    paddingHorizontal: 20, paddingBottom: 12,
+  },
+  viewChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5,
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: Tokens.radius.panel,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 0.5, borderColor: themeColors.line,
+  },
+  // accentSoft + accentLabel is the pairing that stays readable in both themes;
+  // accent behind white fails AA (see walkFileBtn's note).
+  viewChipActive: { backgroundColor: themeColors.accentSoft, borderColor: themeColors.accent },
+  viewChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  viewChipTextActive: { color: themeColors.accentLabel },
+  sectionHeader: {
+    flexDirection: 'row' as const, alignItems: 'center' as const,
+    marginHorizontal: 20, marginTop: 6, marginBottom: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt,
+  },
+  sectionHeaderMain: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, minHeight: 24 },
+  sectionHeaderLabel: {
+    fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text,
+    flexShrink: 1,
+  },
+  sectionHeaderCount: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  sectionSelectBtn: { paddingLeft: 12, paddingVertical: 2 },
+  rowCheckbox: { marginTop: 1 },
+  punchCardSelected: { borderColor: themeColors.accent, backgroundColor: themeColors.accentSoft },
+  geoChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    alignSelf: 'flex-start' as const, marginTop: 4,
+  },
+  geoChipText: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, flexShrink: 1 },
+  portalBanner: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    marginHorizontal: 20, marginBottom: 12,
+    paddingHorizontal: 12, paddingVertical: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accentSoft,
+    borderWidth: 1, borderColor: themeColors.accent + '33',
+  },
+  portalBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accentLabel, lineHeight: 18 },
+  portalBannerOff: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
+    marginHorizontal: 20, marginBottom: 12,
+    paddingHorizontal: 12, paddingVertical: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt,
+  },
+  portalBannerOffText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  bulkBar: {
+    position: 'absolute' as const, left: 0, right: 0, bottom: 0,
+    paddingHorizontal: 16, paddingTop: 12,
+    backgroundColor: themeColors.surface,
+    borderTopWidth: 0.5, borderTopColor: themeColors.line,
+    gap: 10,
+  },
+  bulkBarTop: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
+  bulkBarCount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  bulkBarDone: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  bulkBarHint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17 },
+  bulkBarActions: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  bulkBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    flexGrow: 1, justifyContent: 'center' as const,
+    minHeight: 44, paddingHorizontal: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accentSoft,
+  },
+  bulkBtnDanger: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    flexGrow: 1, justifyContent: 'center' as const,
+    minHeight: 44, paddingHorizontal: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.dangerSoft,
+  },
+  bulkBtnOff: { opacity: 0.45 },
+  bulkBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
+  statusSwatch: { width: 10, height: 10, borderRadius: Tokens.radius.full },
+
   punchCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   punchCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },

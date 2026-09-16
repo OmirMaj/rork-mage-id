@@ -55,9 +55,15 @@ const daysAgo = (n: number) =>
 
 const project = { id: 'p1', name: 'Alder Street', status: 'in_progress' } as Project;
 
+// `dateSubmitted` matters: rfiAttention will not name a consultant on an RFI
+// that never went out, because chasing someone for a question still in your
+// drafts is the one way this surface can actively damage a relationship. This
+// fixture is a SENT, overdue RFI — the case the assertions below are about —
+// so it carries the date every real RFI carries (all 3 in production do).
 const overdueRfi = {
   id: 'r1', projectId: 'p1', number: 7, subject: 'Shower niche detail',
   status: 'open', assignedTo: 'Kestrel Architects', dateRequired: daysAgo(23),
+  dateSubmitted: daysAgo(30),
 } as RFI;
 
 const staleSubmittal: Submittal = {
@@ -97,11 +103,25 @@ describe('the attention layer sees what the verdicts claim on', () => {
     expect(items[0].message).toContain('Kestrel Architects'); // says who to call
   });
 
+  it('an RFI he never sent does NOT name the consultant', () => {
+    // The item still appears — the question is late and that is real — but the
+    // architect has never seen it, so naming her would send him chasing
+    // somebody who owes him nothing.
+    const unsent = { ...overdueRfi, dateSubmitted: '' } as RFI;
+    const items = rfiAttention(project, [unsent], NOW_MS);
+    expect(items).toHaveLength(1);
+    expect(items[0].message).toContain('23d past due');
+    expect(items[0].message).not.toContain('Kestrel Architects');
+    expect(items[0].message).toMatch(/never sent/i);
+  });
+
   it('an RFI that is not yet due, or already answered, produces nothing', () => {
     const notYet = { ...overdueRfi, dateRequired: '2026-06-10' } as RFI;
     expect(rfiAttention(project, [notYet], NOW_MS)).toHaveLength(0);
     const answered = { ...overdueRfi, status: 'answered' } as RFI;
     expect(rfiAttention(project, [answered], NOW_MS)).toHaveLength(0);
+    const voided = { ...overdueRfi, status: 'void' } as RFI;
+    expect(rfiAttention(project, [voided], NOW_MS)).toHaveLength(0);
   });
 
   it('a submittal stale in review produces an item; a fresh one does not', () => {
