@@ -69,6 +69,8 @@ interface PortalRow {
   portal_id: string;
   project_id: string | null;
   expires_at: string | null;
+  /** NULL = until handover; otherwise the 7 / 30 / 90 days the GC chose. */
+  link_duration_days: number | null;
 }
 
 type Kind = "portal_link_expiring" | "portal_link_expired";
@@ -97,10 +99,13 @@ serve(async (req) => {
   const nowMs = Date.now();
   const soonIso = new Date(nowMs + EXPIRING_SOON_DAYS * 86_400_000).toISOString();
 
-  // Only rows that actually carry an expiry. NULL = never expires, by design.
+  // Only rows that actually carry an expiry. NULL = open. An until-handover
+  // link (link_duration_days NULL) carries one only after the job is closed out
+  // — migration 20260916140000 stamps closed_at + 30 days — so it is read here
+  // too, and gets its own advice below.
   const pr = await rest(
     `portal_snapshots?expires_at=not.is.null&expires_at=lte.${encodeURIComponent(soonIso)}` +
-    `&select=portal_id,project_id,expires_at`,
+    `&select=portal_id,project_id,expires_at,link_duration_days`,
   );
   if (!pr.ok) return json({ error: `Could not read portals (${pr.status})` }, 502);
   const portals = (await pr.json()) as PortalRow[];
@@ -129,9 +134,15 @@ serve(async (req) => {
     const title = kind === "portal_link_expired"
       ? `Client portal link expired — ${proj.name}`
       : `Client portal link expires in ${daysLeft}d — ${proj.name}`;
+    // "Never expire" is retired (2026-09-16): the choices are now until
+    // handover or 7 / 30 / 90 days. A handover link is closing because the job
+    // was closed out, so the only way to keep it open is a fixed duration.
+    const untilHandover = p.link_duration_days == null;
     const body = kind === "portal_link_expired"
       ? "Your client's link no longer opens. Generate a new one so they aren't left chasing you."
-      : "Share a fresh link, or set this portal to never expire, before your client hits a dead end.";
+      : untilHandover
+        ? "This job was closed out, so its client link is closing. If your client still needs it, pick 7, 30 or 90 days in the portal settings."
+        : "Generate a fresh link, or switch it to stay open until handover, before your client hits a dead end.";
 
     const ins = await rest("notification_outbox", {
       method: "POST",

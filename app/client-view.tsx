@@ -106,7 +106,7 @@ function portalFailureCopy(
       const when = state.kind === 'expired' ? `${state.label}. ` : '';
       return {
         title: 'This link has expired',
-        body: `${when}Your contractor set this link to stop working after a set time. Ask them to send you a new one — your project is still there.`,
+        body: `${when}Project links stay open for the whole job and close 30 days after it is handed over, or on a date your contractor set. Ask them to send you a new one — your project is still there.`,
       };
     }
     case 'revoked':

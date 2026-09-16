@@ -2614,6 +2614,10 @@
     transition: background 0.15s;
   }
   .cta:hover { background: var(--ink-2); }
+  /* The Retry action on the "could not load" screen is a <button>, not a
+     link — reset the UA button chrome so it matches the anchor CTAs. */
+  button.cta { width: 100%; border: 0; cursor: pointer; font-family: inherit; text-align: center; }
+  button.cta[disabled] { opacity: 0.6; cursor: default; }
   .cta.secondary {
     background: var(--surface); color: var(--text);
     border: 1.5px solid var(--bone);
@@ -2654,14 +2658,21 @@
     </div>
   </div>
 
-  <!-- Fallback (no data in URL) -->
+  <!-- Fallback — every screen the page shows instead of a portal. The static
+       copy is the "no portal id in the path" case; showPortalProblem() rewrites
+       the title/body/actions for each other reason (incomplete link, rejected
+       link, not published, could not load, genuinely expired). The heading
+       deliberately does NOT say "expired": it used to, for every failure, and
+       homeowners chased contractors over links the server had never expired. -->
   <div id="fallback" class="fallback" style="display:none">
-    <div class="fallback-card">
+    <div class="fallback-card" role="alert">
       <div class="gate-logo" style="margin-bottom:18px">M</div>
-      <h1>Portal link expired</h1>
-      <p>This link doesn't include any project data — it may have been truncated. Ask your contractor for a fresh portal link from the MAGE ID app.</p>
-      <a class="cta" href="mailto:help@mageid.app?subject=Portal%20Help">Contact support</a>
-      <a class="cta secondary" href="/">Visit mageid.app</a>
+      <h1 id="fallback-title">This doesn't look like a portal link</h1>
+      <p id="fallback-body">The address you opened is missing the part that points to a project. Open the link your contractor sent you again, or ask them to send it to you from the MAGE ID app.</p>
+      <div id="fallback-actions">
+        <a class="cta" href="mailto:help@mageid.app?subject=Portal%20Help">Contact support</a>
+        <a class="cta secondary" href="/">Visit mageid.app</a>
+      </div>
     </div>
   </div>
 
@@ -7894,7 +7905,11 @@
   //      builds one, so even a bookmarked old link with no hash will
   //      pull current data.
   //
-  //   3. Only if BOTH paths fail do we show the "expired" fallback.
+  //   3. Only if BOTH paths fail do we show a fallback — and it names the
+  //      reason (see PORTAL_PROBLEM_COPY). It used to say "Portal link
+  //      expired" for every failure, including links the server had never
+  //      expired, which is exactly the complaint that sent GCs re-sending
+  //      links that were fine.
   //
   // The Supabase URL + anon key are public — fine to hardcode here so
   // we can fetch the snapshot before we have any portalApi config.
@@ -7904,6 +7919,115 @@
 
   function showFallback() {
     document.getElementById('fallback').style.display = 'flex';
+  }
+
+  // ───────── Why the portal could not open ─────────
+  // One screen per reason, because each has a different fix and a homeowner
+  // who is not technical should be told the one that applies:
+  //
+  //   not_a_portal   no /portal/{id} in the path at all
+  //   no_token       path has an id but the URL has no ?t= — the link was
+  //                  shortened, cut off in a text message, or retyped
+  //   denied         the server refused the token (portal_denied, 401/403).
+  //                  The server deliberately collapses "wrong token", "portal
+  //                  switched off" and "no such portal" into one answer, and
+  //                  so does this copy — we say no more than the RPC does.
+  //                  NOT "expired": a rotated/reset link is not an expired one.
+  //   not_published  token is good, contractor hasn't published a snapshot yet
+  //   unavailable    network error, 5xx, anything we can't classify — the only
+  //                  one with a Retry, since it is the only one a retry can fix
+  //   expired        handled by showLinkExpired() below (server said so, with
+  //                  a date)
+  //
+  // Telling no_token apart from denied reveals nothing: the URL is already in
+  // the holder's hand. The token itself is never printed or logged anywhere
+  // on these screens.
+  var PORTAL_PROBLEM_COPY = {
+    not_a_portal: {
+      title: "This doesn't look like a portal link",
+      body: 'The address you opened is missing the part that points to a project. Open the link your contractor sent you again, or ask them to send it to you from the MAGE ID app.',
+    },
+    no_token: {
+      title: 'This link is incomplete',
+      body: 'Part of the link is missing — this usually happens when a link gets shortened, cut off in a text message, or retyped by hand. Ask your contractor to send it again using Copy link or Share in the MAGE ID app, and open it straight from their message.',
+    },
+    denied: {
+      title: 'This link is no longer valid',
+      body: 'Your contractor may have reset the link to this project. Ask them to send you a fresh one from the MAGE ID app — your project and its records are unaffected.',
+    },
+    not_published: {
+      title: 'Your portal is not ready yet',
+      body: "Your contractor hasn't finished setting up this project portal. The link itself is fine — please try again later, or let your contractor know you're waiting.",
+    },
+    unavailable: {
+      title: "We couldn't load your project",
+      body: 'Something went wrong while loading this portal — often a weak or dropped connection. Check that you are online and try again. If it keeps happening, contact support.',
+    },
+  };
+
+  function hideForProblemScreen() {
+    // The fast path may have rendered the portal (or put up the passcode gate)
+    // before the server answered; a problem screen must not sit alongside it.
+    var portalEl = document.getElementById('portal');
+    if (portalEl) portalEl.style.display = 'none';
+    var gateEl = document.getElementById('gate');
+    if (gateEl) gateEl.style.display = 'none';
+  }
+
+  function supportLink() {
+    var a = document.createElement('a');
+    a.className = 'cta secondary';
+    a.href = 'mailto:help@mageid.app?subject=Portal%20Help';
+    a.textContent = 'Contact support';
+    return a;
+  }
+
+  // Fills the static fallback card (same look as before) by reason. Built with
+  // textContent, never innerHTML, so nothing from the URL or server can inject.
+  // `onRetry` is supplied only for 'unavailable' / 'not_published'.
+  function showPortalProblem(reason, onRetry) {
+    var copy = PORTAL_PROBLEM_COPY[reason] || PORTAL_PROBLEM_COPY.unavailable;
+    var titleEl = document.getElementById('fallback-title');
+    var bodyEl = document.getElementById('fallback-body');
+    var actionsEl = document.getElementById('fallback-actions');
+    if (!titleEl || !bodyEl || !actionsEl) { showFallback(); return; }
+    hideForProblemScreen();
+    titleEl.textContent = copy.title;
+    bodyEl.textContent = copy.body;
+    actionsEl.innerHTML = '';
+    if (typeof onRetry === 'function') {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cta';
+      btn.textContent = 'Try again';
+      btn.addEventListener('click', function () {
+        // Disabled while the load runs, and the label says why.
+        btn.disabled = true;
+        btn.textContent = 'Trying again…';
+        onRetry();
+      });
+      actionsEl.appendChild(btn);
+    }
+    actionsEl.appendChild(supportLink());
+    if (reason === 'not_a_portal') {
+      var home = document.createElement('a');
+      home.className = 'cta secondary';
+      home.href = '/';
+      home.textContent = 'Visit mageid.app';
+      actionsEl.appendChild(home);
+    }
+    showFallback();
+  }
+
+  function showPortalLoading() {
+    var titleEl = document.getElementById('fallback-title');
+    var bodyEl = document.getElementById('fallback-body');
+    var actionsEl = document.getElementById('fallback-actions');
+    if (!titleEl || !bodyEl || !actionsEl) return;
+    titleEl.textContent = 'Loading your project…';
+    bodyEl.textContent = 'This takes a moment on a slow connection.';
+    actionsEl.innerHTML = '';
+    showFallback();
   }
 
   // Pull portal_id from the URL path: /portal/{portalId} or
@@ -7946,35 +8070,72 @@
     });
   }
 
+  // Resolves to { snapshot, reason, env } — NEVER rejects, and never collapses
+  // a failure to a bare null. `reason` is one of 'ok' | 'no_token' | 'denied' |
+  // 'not_published' | 'expired' | 'unavailable' (see PORTAL_PROBLEM_COPY).
+  // `snapshot` is set only when reason === 'ok'. Callers decide what to show;
+  // this function no longer paints any screen itself.
+  function snapshotResult(reason, snapshot, env) {
+    return { reason: reason, snapshot: snapshot || null, env: env || null };
+  }
+
+  // A non-2xx from PostgREST. The RPCs raise 'portal_denied' (PostgREST turns
+  // a plain RAISE into a 400 whose JSON body carries the message); a revoked
+  // grant comes back 401/403. Anything else — 5xx, gateway errors, a 400 that
+  // is not portal_denied — is "unavailable", which offers Retry rather than
+  // telling the homeowner their link is bad. The body is inspected only for
+  // that one marker and is never logged.
+  function classifyFailedResponse(r) {
+    if (r.status === 401 || r.status === 403) return Promise.resolve('denied');
+    return r.text().then(
+      function (body) { return /portal_denied/.test(String(body || '')) ? 'denied' : 'unavailable'; },
+      function () { return 'unavailable'; }
+    );
+  }
+
   function fetchSnapshotFromServer(portalId) {
-    if (!portalId) return Promise.resolve(null);
+    if (!portalId) return Promise.resolve(snapshotResult('not_a_portal'));
     var token = getPortalToken();
-    if (!token) return Promise.resolve(null);
+    if (!token) return Promise.resolve(snapshotResult('no_token'));
 
     return callSnapshotRpc(RPC_SNAPSHOT_V2, portalId, token)
       .then(function (r) {
         if (r.status === 404) {
-          // v2 migration not applied to this database yet.
+          // v2 migration not applied to this database yet. v1 has no envelope:
+          // a good token with nothing published returns null, and it has no
+          // way to say "expired" (it refuses those as portal_denied).
           return callSnapshotRpc(RPC_SNAPSHOT_V1, portalId, token)
-            .then(function (r1) { return r1.ok ? r1.json() : null; })
-            .then(function (snap) { return snap ? { status: 'ok', snapshot: snap } : null; });
+            .then(function (r1) {
+              if (!r1.ok) return classifyFailedResponse(r1).then(function (why) { return snapshotResult(why); });
+              return r1.json().then(function (snap) {
+                return snap ? snapshotResult('ok', snap) : snapshotResult('not_published');
+              });
+            });
         }
-        return r.ok ? r.json() : null;
+        if (!r.ok) return classifyFailedResponse(r).then(function (why) { return snapshotResult(why); });
+        return r.json().then(function (env) {
+          if (!env) return snapshotResult('unavailable');
+          if (!env.status) return snapshotResult('ok', env); // bare v1-shaped snapshot
+          if (env.status === 'expired') return snapshotResult('expired', null, env);
+          if (env.status === 'not_published') return snapshotResult('not_published');
+          if (env.status === 'ok') {
+            return env.snapshot ? snapshotResult('ok', env.snapshot, env) : snapshotResult('not_published');
+          }
+          return snapshotResult('unavailable');
+        });
       })
-      .then(function (env) {
-        if (!env) return null;
-        if (!env.status) return env; // bare v1 snapshot
-        if (env.status === 'expired') { showLinkExpired(env); return null; }
-        if (env.status !== 'ok') return null;
-        return env.snapshot || null;
-      })
-      .catch(function () { return null; });
+      // fetch() rejects only on a network failure / CORS / abort; r.json()
+      // rejects on a truncated body. Both are "could not load", not "bad link".
+      .catch(function () { return snapshotResult('unavailable'); });
   }
 
-  // Distinct from showFallback(): this link WAS valid and has lapsed, so the
-  // homeowner needs a new one — not to think the page is broken. The old copy
-  // blamed "expired or invalid" for every failure, which sent people chasing
-  // their contractor over links that were merely unpublished.
+  // Distinct from the other problem screens: this link WAS valid and the server
+  // has closed it (v2 returned status 'expired' with the date). Portal links
+  // now stay open for the whole job and close a set time after the project is
+  // handed over — but a portal can also carry an older, contractor-chosen
+  // expiry date, and the envelope does not say which applied. So the copy
+  // states the policy and the real date, and does NOT assert this particular
+  // project was closed out (that would be a guess shown as fact).
   function showLinkExpired(env) {
     try {
       // v2 returns camelCase `expiresAt`; accept snake_case too so a future
@@ -7982,23 +8143,46 @@
       var raw = env && (env.expiresAt || env.expires_at);
       var when = raw ? new Date(raw) : null;
       var whenText = when && !isNaN(when.getTime())
-        ? ' It expired on ' + when.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) + '.'
+        ? ' This one closed on ' + when.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) + '.'
         : '';
-      var el = document.getElementById('fallback') || document.body;
-      el.innerHTML =
-        '<div style="max-width:520px;margin:15vh auto;padding:0 24px;text-align:center;'
-        + 'font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif">'
-        + '<h1 style="font-size:22px;margin:0 0 12px">This link has expired</h1>'
-        + '<p style="font-size:15px;line-height:1.55;color:#5b6067;margin:0">'
-        + 'Your contractor set this project link to expire.' + whenText
-        + ' Ask them to send a new one — everything is still there.'
-        + '</p></div>';
-      if (el.style) el.style.display = 'block';
+      var titleEl = document.getElementById('fallback-title');
+      var bodyEl = document.getElementById('fallback-body');
+      var actionsEl = document.getElementById('fallback-actions');
+      if (!titleEl || !bodyEl || !actionsEl) { showFallback(); return; }
+      hideForProblemScreen();
+      titleEl.textContent = 'This link has expired';
+      bodyEl.textContent =
+        'Project portal links stay open for the whole job and close 30 days after the project is handed over'
+        + ' (or on a date your contractor set).' + whenText
+        + ' If you still need access, ask your contractor to send you a new link — your project records are still kept.';
+      actionsEl.innerHTML = '';
+      actionsEl.appendChild(supportLink());
+      showFallback();
     } catch (e) { showFallback(); }
   }
 
+  // Paints the screen for a non-ok result. Retry is offered where waiting or
+  // reconnecting can actually change the answer; a rejected or incomplete link
+  // gets no Retry, because retrying it would fail identically and teach the
+  // homeowner the page is broken rather than that they need a new link.
+  function showResultProblem(result, portalId) {
+    if (result.reason === 'expired') { showLinkExpired(result.env); return; }
+    var retryable = result.reason === 'unavailable' || result.reason === 'not_published';
+    showPortalProblem(result.reason, retryable ? function () { loadFromServer(portalId); } : null);
+  }
+
+  function loadFromServer(portalId) {
+    return fetchSnapshotFromServer(portalId).then(function (result) {
+      if (result.reason === 'ok' && result.snapshot) { boot(result.snapshot); return; }
+      showResultProblem(result, portalId);
+    });
+  }
+
   function boot(data) {
-    if (!data) { showFallback(); return; }
+    if (!data) { showPortalProblem('unavailable'); return; }
+    // A Retry that succeeds lands here with the problem card still up.
+    var fb = document.getElementById('fallback');
+    if (fb) fb.style.display = 'none';
     // Stash for the click handlers attached during boot — they need
     // access to data.portalApi to write back selection picks +
     // contract signatures.
@@ -8015,7 +8199,15 @@
     boot(data);
     var portalIdForRefresh = parsePortalIdFromPath();
     if (portalIdForRefresh) {
-      void fetchSnapshotFromServer(portalIdForRefresh).then(function (fresh) {
+      void fetchSnapshotFromServer(portalIdForRefresh).then(function (result) {
+        // Expiry is the one server answer that overrides the hash: the
+        // contractor's link has closed, so the page honours it here too.
+        // Every other failure (older hash-only links with no ?t=, a blip on
+        // the network) keeps the already-rendered hash snapshot — the
+        // homeowner is looking at a working page and a background refresh
+        // must not replace it with an error.
+        if (result.reason === 'expired') { showLinkExpired(result.env); return; }
+        var fresh = result.snapshot;
         // Only re-render when the server snapshot actually differs from the
         // hash one — otherwise re-rendering identical data just flickers.
         if (fresh && JSON.stringify(fresh) !== JSON.stringify(data)) {
@@ -8032,11 +8224,13 @@
       });
     }
   } else {
-    // Slow path: hash missing or corrupt. Show a tiny loader, fetch
-    // from the server, then render.
+    // Slow path: hash missing or corrupt. Show a loading card, fetch from the
+    // server, then render — or say exactly why not.
     var portalId = parsePortalIdFromPath();
-    if (!portalId) { showFallback(); return; }
-    fetchSnapshotFromServer(portalId).then(function (fresh) { boot(fresh); });
+    if (!portalId) { showPortalProblem('not_a_portal'); return; }
+    if (!getPortalToken()) { showPortalProblem('no_token'); return; }
+    showPortalLoading();
+    void loadFromServer(portalId);
   }
 
 })();

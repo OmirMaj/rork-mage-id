@@ -43,10 +43,11 @@ import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { LANGUAGES } from '@/utils/portalLanguages';
 import {
-  linkState, expiresAtFromDuration, durationLabel,
-  PORTAL_LINK_DURATION_OPTIONS, DEFAULT_PORTAL_LINK_DURATION_DAYS,
+  linkState, expiresAtFromDuration, expiresAtForPolicy, durationLabel, isHandedOver,
+  PORTAL_LINK_DURATION_OPTIONS, DEFAULT_PORTAL_LINK_DURATION_DAYS, HANDOVER_GRACE_DAYS,
 } from '@/utils/portalLinkExpiry';
-import type { PortalLinkStateKind } from '@/utils/portalLinkExpiry';
+import type { PortalLinkStateKind, PortalLinkDuration } from '@/utils/portalLinkExpiry';
+import { useAuth } from '@/contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -59,10 +60,59 @@ const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
 // The GC's last link-duration pick, remembered across PROJECTS. A GC who
 // always gives clients 90 days should not re-pick it on every new job, and the
 // per-project value alone can't carry that. Device-scoped preference, so it is
-// correct for the tenant sweep to wipe it on sign-out (next tenant gets 30).
+// correct for the tenant sweep to wipe it on sign-out (next tenant gets the
+// default, until handover).
 const LINK_DURATION_PREF_KEY = 'mageid_portal_link_duration_days';
-/** Sentinel for "No expiry" — AsyncStorage only stores strings. */
-const NO_EXPIRY_PREF = 'none';
+/** Sentinel for "Until handover" — AsyncStorage only stores strings. */
+const UNTIL_HANDOVER_PREF = 'until_handover';
+/**
+ * What "No expiry" was stored as before 2026-09-16. That option is retired and
+ * its meaning (a link that outlives a long job) is now until-handover, so a
+ * stored 'none' reads as until-handover and is rewritten once to the new
+ * sentinel — nobody's remembered choice silently falls back to a fixed clock.
+ */
+const LEGACY_NO_EXPIRY_PREF = 'none';
+
+/**
+ * Who this account is to the project, for the purpose of the share link.
+ * 'unknown' is a cache that predates `ownerUserId` (or no session yet) — the
+ * heal confirms against the server before it reads any credential.
+ */
+type PortalOwnership = 'owner' | 'collaborator' | 'unknown';
+function portalOwnershipOf(ownerUserId: string | undefined, userId: string | null): PortalOwnership {
+  if (!ownerUserId || !userId) return 'unknown';
+  return ownerUserId === userId ? 'owner' : 'collaborator';
+}
+
+/**
+ * The token the SERVER holds for this project's portal, or null when it has
+ * none. `ok: false` means the read itself failed (offline, RLS refused) — a
+ * different state from "none", and never a reason to write anything.
+ *
+ * Only ever called for a project this account owns: the server row carries the
+ * homeowner's credential, and a collaborator's copy is stripped on purpose
+ * (AUTH-F5). The token is never logged.
+ */
+async function readServerPortalToken(
+  projectId: string,
+): Promise<{ ok: true; token: string | null } | { ok: false }> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('client_portal')
+    .eq('id', projectId)
+    .maybeSingle();
+  if (error) return { ok: false };
+  const raw = (data?.client_portal as { accessToken?: unknown } | null | undefined)?.accessToken;
+  return { ok: true, token: typeof raw === 'string' && raw.length > 0 ? raw : null };
+}
+
+/**
+ * How long to wait between read-backs after the empty-token write. The write
+ * rides the offline queue, so the trigger's token lands whenever the queue
+ * flushes — a few spaced reads cover a normal connection without hammering a
+ * bad one; past the last one the GC gets a Retry, not an endless spinner.
+ */
+const TOKEN_READBACK_DELAYS_MS = [1500, 4000, 10000, 20000];
 // Supabase URL + anon key are public — fine to bake into the static portal
 // page so it can POST a budget proposal back to the GC. RLS gates access.
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
@@ -224,6 +274,8 @@ function ClientPortalSetupScreenInner() {
     getAIAPayAppsForProject,
     getCommitmentsForProject, getWarrantiesForProject, getPermitsForProject,
   } = useProjects();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   // Reached from the sidebar, universal search or a deep link there is no
   // project id, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -327,9 +379,10 @@ function ClientPortalSetupScreenInner() {
 
   // How long the NEXT generated link stays open. Distinct from
   // portal.linkExpiresAt, which describes the link that already exists — the
-  // GC can be looking at a never-expiring link while the picker sits on 30.
-  // `null` is a real choice ("No expiry"), so `??` (not `||`) preserves it.
-  const [durationChoice, setDurationChoice] = useState<number | null>(
+  // GC can be looking at an until-handover link while the picker sits on 30.
+  // `null` is a real choice (until handover, and the default), so `??` (not
+  // `||`) preserves it.
+  const [durationChoice, setDurationChoice] = useState<PortalLinkDuration>(
     portal.linkDurationDays ?? DEFAULT_PORTAL_LINK_DURATION_DAYS,
   );
   // A tap must outrank the async preference load, which can land after the
@@ -339,16 +392,24 @@ function ClientPortalSetupScreenInner() {
     if (durationTouchedRef.current) return;
     // This project's own choice is the more specific answer, and it can land
     // after mount (the `portal` state above is lazy-initialised once, so a
-    // project that hydrates late would otherwise be stuck on the 30 default).
+    // project that hydrates late would otherwise be stuck on the default).
     const persisted = project?.clientPortal?.linkDurationDays;
     if (persisted !== undefined) { setDurationChoice(persisted); return; }
     let cancelled = false;
     void AsyncStorage.getItem(LINK_DURATION_PREF_KEY)
       .then(raw => {
         if (cancelled || raw === null || durationTouchedRef.current) return;
-        if (raw === NO_EXPIRY_PREF) { setDurationChoice(null); return; }
+        if (raw === UNTIL_HANDOVER_PREF) { setDurationChoice(null); return; }
+        if (raw === LEGACY_NO_EXPIRY_PREF) {
+          // Migrate once: the retired "No expiry" pick is until-handover now.
+          setDurationChoice(null);
+          void AsyncStorage.setItem(LINK_DURATION_PREF_KEY, UNTIL_HANDOVER_PREF).catch(() => {});
+          return;
+        }
+        // Only a duration the picker still offers — a stale number would leave
+        // no chip selected, which reads as "nothing chosen".
         const parsed = Number(raw);
-        if (Number.isFinite(parsed) && parsed > 0) setDurationChoice(parsed);
+        if (PORTAL_LINK_DURATION_OPTIONS.includes(parsed)) setDurationChoice(parsed);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -358,11 +419,27 @@ function ClientPortalSetupScreenInner() {
   // clock for as long as the screen stays mounted, so a link that lapses while
   // the GC has the app open would keep reading "expires in 1 day". Recomputing
   // per render is a handful of arithmetic ops.
-  const linkExpiry = linkState(portal.linkExpiresAt);
+  //
+  // The date shown is the one the policy resolves to, not just the stored one:
+  // an until-handover link on a closed-out job closes HANDOVER_GRACE_DAYS after
+  // closeout even if this device never stored that date. Same resolver as the
+  // snapshot push below, so the label and the database agree.
+  const untilHandover = portal.linkDurationDays == null;
+  const resolvedExpiresAt = expiresAtForPolicy({
+    linkDurationDays: portal.linkDurationDays,
+    linkExpiresAt: portal.linkExpiresAt,
+    projectStatus: project?.status,
+    closedAt: project?.closedAt,
+  });
+  const linkExpiry = linkState(resolvedExpiresAt, Date.now(), { untilHandover });
+  // A closed-out job's until-handover link cannot be revived by regenerating
+  // another until-handover link — the policy resolves to the same closing
+  // date. The expired copy has to say so instead of promising a fix.
+  const handoverClosed = untilHandover && isHandedOver(project?.status);
   // Badge + status colours per state. The pill here used to read "Active" in
   // green unconditionally, which is exactly the lie this track exists to fix.
   const linkTone: Record<PortalLinkStateKind, { badge: string; ink: string; short: string }> = {
-    never:         { badge: themeColors.neutralSoft, ink: themeColors.textSecondary, short: 'Always on' },
+    never:         { badge: themeColors.neutralSoft, ink: themeColors.textSecondary, short: 'Open' },
     active:        { badge: themeColors.successSoft, ink: themeColors.successLabel,  short: 'Active' },
     expiring_soon: { badge: themeColors.warningSoft, ink: themeColors.warningLabel,  short: 'Expiring' },
     expired:       { badge: themeColors.dangerSoft,  ink: themeColors.dangerLabel,   short: 'Expired' },
@@ -473,53 +550,176 @@ function ClientPortalSetupScreenInner() {
     return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, undefined, portal.accessToken);
   }, [portal.portalId, portal.accessToken]);
 
-  // The decision access token gates the share link. A DB trigger sets one
-  // server-side, but the local-first optimistic write never reads it back, so
-  // `accessToken` stayed undefined on the client forever — leaving Copy/Share
-  // permanently blocked by `linkPending`. Fix: generate the token on the CLIENT
-  // when the (persisted) portal is enabled but has no token. The trigger only
-  // sets when empty, so it preserves ours. Keyed on the PERSISTED portal (not
-  // the local `portal` whose DEFAULT_PORTAL.enabled is true) so we never
-  // accidentally enable a portal on mere screen visit. Auto-heals portals
-  // enabled before this fix.
-  const tokenHealRef = useRef(false);
+  // ── The share link's access token: READ it, never make it.
+  //
+  // The token gates the homeowner's decisions and is a capability secret. A
+  // DB trigger (portal_set_access_token) mints one server-side the first time
+  // a portal is written with an EMPTY token, and on every later UPDATE with an
+  // empty token it keeps the old one. So an empty write is always safe, and a
+  // NON-EMPTY write always wins.
+  //
+  // WHY THIS WAS REWRITTEN (2026-09-16, "the links always expire"). The old
+  // heal minted a token on the client whenever the local portal was enabled
+  // without one, and wrote it. But local state lacks the token in normal
+  // situations — the optimistic write never reads the server's token back, and
+  // a collaborator's copy is stripped on purpose (AUTH-F5) — so the heal wrote
+  // a fresh non-empty token OVER the real one, and every link the GC had
+  // already sent stopped working. Production carried the proof: one portal
+  // with a 64-char client-minted token among 48-char trigger tokens.
+  //
+  // Now, for a project this account OWNS whose persisted portal is enabled but
+  // has no token here:
+  //   1. read the token back from the server; if it has one, use it locally
+  //      and write NOTHING;
+  //   2. only if the server truly has none, write the portal with the token
+  //      left EMPTY (the trigger mints) and read back until it lands.
+  // A collaborator's project is never healed: the owner holds the credential,
+  // and the link area says so instead of promising a wait that never ends.
+  // Keyed on the PERSISTED portal (not the local `portal`, whose
+  // DEFAULT_PORTAL.enabled is true) so a screen visit never enables a portal.
+  const persistedToken = project?.clientPortal?.accessToken;
   useEffect(() => {
-    const persisted = project?.clientPortal;
-    if (!id || !persisted?.enabled || persisted.accessToken || tokenHealRef.current) return;
-    tokenHealRef.current = true;
-    const token = (generateUUID() + generateUUID()).replace(/-/g, '');
-    setPortal(p => ({ ...p, accessToken: token }));
-    updateProject(id, { clientPortal: { ...persisted, accessToken: token } });
-  }, [id, project?.clientPortal, updateProject]);
+    // A token the loader already delivered for an owned project is the real
+    // one — adopt it when the lazy `portal` initialiser ran before hydration.
+    if (!persistedToken || portal.accessToken) return;
+    const serverToken = persistedToken;
+    setPortal(p => (p.accessToken ? p : { ...p, accessToken: serverToken }));
+  }, [persistedToken, portal.accessToken]);
 
-  // The decision access token must be present for the share link to authorize
-  // client decisions. The heal effect above generates it; until it lands the
-  // first time, Copy/Share/Email guard rather than hand out a token-less link.
+  const localOwnership = portalOwnershipOf(project?.ownerUserId, userId);
+  // Filled in by the heal when the local cache cannot say (no ownerUserId).
+  const [confirmedOwnership, setConfirmedOwnership] = useState<PortalOwnership>('unknown');
+  const ownership: PortalOwnership = localOwnership !== 'unknown' ? localOwnership : confirmedOwnership;
+  const isCollaborator = ownership === 'collaborator';
+
+  const [tokenHeal, setTokenHeal] = useState<'idle' | 'working' | 'failed'>('idle');
+  // Bumped by Retry; the ref makes one attempt per (project, retry) pair so a
+  // re-render mid-flight cannot start a second, overlapping heal.
+  const [healAttempt, setHealAttempt] = useState(0);
+  const healRunRef = useRef<string | null>(null);
+  const persistedPortalEnabled = !!project?.clientPortal?.enabled;
+  useEffect(() => {
+    if (!id || !persistedPortalEnabled || persistedToken || portal.accessToken) return;
+    // Not owned: the credential is stripped for collaborators on purpose. Never
+    // read it, never write a portal on the owner's behalf.
+    if (localOwnership === 'collaborator') return;
+    if (!isSupabaseConfigured || !userId) { setTokenHeal('failed'); return; }
+    const runKey = `${id}:${healAttempt}`;
+    if (healRunRef.current === runKey) return;
+    healRunRef.current = runKey;
+
+    let cancelled = false;
+    const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+    setTokenHeal('working');
+    void (async () => {
+      try {
+        // Ownership first, when the cache predates ownerUserId — confirmed from
+        // user_id alone, BEFORE anything that carries the credential is read.
+        if (localOwnership !== 'owner') {
+          const { data, error } = await supabase
+            .from('projects').select('user_id').eq('id', id).maybeSingle();
+          if (cancelled) return;
+          if (error) { setTokenHeal('failed'); return; }
+          if (data && data.user_id !== userId) {
+            setConfirmedOwnership('collaborator');
+            setTokenHeal('idle');
+            return;
+          }
+          setConfirmedOwnership('owner');
+        }
+
+        const adopt = (serverToken: string) => {
+          setPortal(p => ({ ...p, accessToken: serverToken }));
+          setTokenHeal('idle');
+        };
+
+        const first = await readServerPortalToken(id);
+        if (cancelled) return;
+        if (!first.ok) { setTokenHeal('failed'); return; }
+        if (first.token) { adopt(first.token); return; }
+
+        // The server truly has none. Write the persisted portal with the token
+        // stripped — EMPTY, so the trigger mints one and nothing of ours can
+        // ever overwrite a token that exists by the time the write lands.
+        const persisted = project?.clientPortal;
+        if (!persisted) { setTokenHeal('failed'); return; }
+        const { accessToken: _none, ...portalWithoutToken } = persisted;
+        updateProject(id, { clientPortal: portalWithoutToken });
+
+        for (const delay of TOKEN_READBACK_DELAYS_MS) {
+          await wait(delay);
+          if (cancelled) return;
+          const back = await readServerPortalToken(id);
+          if (cancelled) return;
+          if (back.ok && back.token) { adopt(back.token); return; }
+        }
+        setTokenHeal('failed');
+      } catch {
+        if (!cancelled) setTokenHeal('failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      // Let the same attempt run again if this one was torn down mid-flight
+      // (project switch, unmount-remount) — otherwise it would never finish.
+      if (healRunRef.current === runKey) healRunRef.current = null;
+    };
+    // project?.clientPortal is read inside only for the write; keying on it
+    // would restart the heal on every optimistic update it causes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, persistedPortalEnabled, persistedToken, portal.accessToken, localOwnership, userId, healAttempt]);
+
+  const retryTokenHeal = useCallback(() => {
+    setTokenHeal('idle');
+    setHealAttempt(n => n + 1);
+  }, []);
+
+  // The access token must be present for the share link to authorize client
+  // decisions. Until it is, Copy/Share/Email guard rather than hand out a
+  // token-less link — and each reason it can be missing gets its own words.
   const linkPending = portal.enabled && !portal.accessToken;
 
-  // …but there are TWO reasons it can be missing, and only one of them is a
-  // wait. `portal.enabled` is true from the moment this screen mounts
-  // (DEFAULT_PORTAL.enabled — see the state initializer), while the heal
-  // effect above is keyed on the PERSISTED `project.clientPortal.enabled` and
-  // returns immediately when the portal has never been saved. So on a brand
-  // new portal nothing is syncing and nothing ever will: telling the GC the
-  // link "unlocks in a moment" is a promise the app does not keep, and with
-  // Copy, Share and Email all now guarded, it leaves them stuck behind it.
-  // Name the actual next step instead.
+  // A collaborator never holds the token (AUTH-F5), so for them this is not a
+  // wait: only the owner can share the client link. It OUTRANKS linkNeedsSave
+  // wherever the two are read (hint, alert), because a collaborator's Save
+  // does not write the portal either — "tap Save" would be another dead end.
+  const linkOwnerOnly = linkPending && isCollaborator;
+
+  // `portal.enabled` is true from the moment this screen mounts
+  // (DEFAULT_PORTAL.enabled — see the state initializer), while the heal is
+  // keyed on the PERSISTED `project.clientPortal.enabled` and does nothing
+  // when the portal has never been saved. On a brand new portal nothing is
+  // syncing: name the actual next step instead of promising a moment.
   const linkNeedsSave = linkPending && !project?.clientPortal?.enabled;
+
+  // The heal gave up (offline, the read was refused, the key never landed).
+  // Says so, with a Retry, rather than "syncing" forever.
+  const linkHealFailed = linkPending && !linkOwnerOnly && !linkNeedsSave && tokenHeal === 'failed';
 
   // Shared guard for the three doors the link goes out of. Returns true when
   // it took over, so callers bail — same contract as warnIfExpired().
   const warnIfLinkPending = useCallback((): boolean => {
     if (!linkPending) return false;
-    showAlert(
-      linkNeedsSave ? 'Save this portal first' : 'Finalizing secure link',
-      linkNeedsSave
-        ? 'The security key that lets your client sign change orders is created when you save. Tap Save, then Copy or Share.'
-        : 'Your portal’s secure link is still syncing — try again in a moment.',
-    );
+    if (linkOwnerOnly) {
+      showAlert(
+        'Only the project owner can share this link',
+        'The client link carries the key that lets your client sign change orders, and that key stays with the project owner’s account. Ask the owner to send it.',
+      );
+    } else if (linkNeedsSave) {
+      showAlert(
+        'Save this portal first',
+        'The security key that lets your client sign change orders is created when you save. Tap Save, then Copy or Share.',
+      );
+    } else if (linkHealFailed) {
+      showAlert(
+        'Couldn’t get the secure link',
+        'This link’s security key didn’t come back from the server. Check your connection, then tap Retry under the link.',
+      );
+    } else {
+      showAlert('Finalizing secure link', 'Fetching your portal’s security key from the server — try again in a moment.');
+    }
     return true;
-  }, [linkPending, linkNeedsSave]);
+  }, [linkPending, linkOwnerOnly, linkNeedsSave, linkHealFailed]);
 
   // The full base64-hash URL is kept around as a backup for clients
   // whose snapshot cache hasn't propagated yet (e.g., right after
@@ -564,12 +764,20 @@ function ClientPortalSetupScreenInner() {
           project_id: project.id,
           snapshot: snapshot as unknown as Record<string, unknown>,
           updated_at: new Date().toISOString(),
-          // Local state is the source of truth for link lifetime (the GC sets
-          // it here), so it rides along with every snapshot push rather than
-          // needing its own write. `undefined` -> null is correct: null is the
-          // column's "never expires" value, which is exactly what a portal
-          // that predates the expiry migration should keep.
-          expires_at: portal.linkExpiresAt ?? null,
+          // Link lifetime rides along with every snapshot push rather than
+          // needing its own write — so it MUST be the policy's answer, not the
+          // raw stored date. An until-handover link on a closed-out job closes
+          // HANDOVER_GRACE_DAYS after closeout; pushing the stored null here
+          // would reopen it on every refresh, fighting the database trigger
+          // (portal_snapshots_link_expiry_policy) that computes the same rule.
+          // link_duration_days stays NULL for until-handover: that NULL is how
+          // the database knows the date is its to compute.
+          expires_at: expiresAtForPolicy({
+            linkDurationDays: portal.linkDurationDays,
+            linkExpiresAt: portal.linkExpiresAt,
+            projectStatus: project.status,
+            closedAt: project.closedAt,
+          }),
           link_duration_days: portal.linkDurationDays ?? null,
         }, { onConflict: 'portal_id' })
         .then(({ error }) => {
@@ -578,7 +786,7 @@ function ClientPortalSetupScreenInner() {
         });
     }, initialDelay);
     return () => clearTimeout(t);
-  }, [snapshot, project?.id, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
+  }, [snapshot, project?.id, project?.status, project?.closedAt, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
 
   const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
     // Same rule as portalLinkWithHash: the fallback keeps the access token.
@@ -706,7 +914,7 @@ function ClientPortalSetupScreenInner() {
     });
   }, [project?.name, settings, portal, portalLink]);
 
-  const handlePickDuration = useCallback((days: number | null) => {
+  const handlePickDuration = useCallback((days: PortalLinkDuration) => {
     durationTouchedRef.current = true;
     setDurationChoice(days);
     if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
@@ -723,8 +931,20 @@ function ClientPortalSetupScreenInner() {
   // Persists immediately rather than waiting for Save: the GC's next move is
   // to re-send the link, and a lifetime that only exists in local state until
   // some later tap is a link that lapses again for no reason.
+  //
+  // The expiry goes through the same policy resolver as the snapshot push: a
+  // fixed duration starts a fresh clock, and until-handover resolves against
+  // the job — open (null) while it runs, closeout + HANDOVER_GRACE_DAYS once it
+  // is closed out. Minting null for a closed job here would be overwritten by
+  // the database on the next push anyway; storing the real date keeps the
+  // label on this screen honest in the meantime.
   const handleGenerateLink = useCallback(() => {
-    const nextExpiry = expiresAtFromDuration(durationChoice);
+    const nextExpiry = expiresAtForPolicy({
+      linkDurationDays: durationChoice,
+      linkExpiresAt: expiresAtFromDuration(durationChoice),
+      projectStatus: project?.status,
+      closedAt: project?.closedAt,
+    });
     const next: ClientPortalSettings = {
       ...portal,
       linkDurationDays: durationChoice,
@@ -735,16 +955,21 @@ function ClientPortalSetupScreenInner() {
     if (id) updateProject(id, { clientPortal: next });
     void AsyncStorage.setItem(
       LINK_DURATION_PREF_KEY,
-      durationChoice === null ? NO_EXPIRY_PREF : String(durationChoice),
+      durationChoice === null ? UNTIL_HANDOVER_PREF : String(durationChoice),
     ).catch(() => {});
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const nextState = linkState(nextExpiry, Date.now(), { untilHandover: durationChoice === null });
     showAlert(
       'Link refreshed',
-      nextExpiry
+      durationChoice !== null
         ? `Same URL, new clock — it stays open for ${durationLabel(durationChoice)}. Send it again if your client lost the old message.`
-        : 'Same URL — this link now stays open with no expiry date.',
+        : nextState.kind === 'never'
+          ? `Same URL — it stays open for the whole job, however long it runs, and closes ${HANDOVER_GRACE_DAYS} days after you close the project out.`
+          : nextState.kind === 'expired'
+            ? `This project was closed out, so an until-handover link is already closed (${nextState.label}). Pick 7, 30 or 90 days to reopen it for your client.`
+            : `Same URL — the job is closed out, so it stays open until then: ${nextState.label}.`,
     );
-  }, [durationChoice, portal, id, updateProject]);
+  }, [durationChoice, portal, id, updateProject, project?.status, project?.closedAt]);
 
   // Stop an expired link from being handed out silently. This is the in-app
   // half of "the contractor should be notified" — the background notification
@@ -1033,17 +1258,34 @@ function ClientPortalSetupScreenInner() {
               {linkPending ? `${PORTAL_BASE_URL}/${portal.portalId}` : maskPortalLinkToken(portalLink)}
             </Text>
           </View>
-          {/* Three states, and the pending one must not promise a wait that
-              is not happening: on a portal that has never been saved the heal
-              effect never runs (it is keyed on the persisted portal), so the
-              key arrives when the GC taps Save and not a moment before. */}
-          <Text style={styles.linkHint}>
-            {linkNeedsSave
-              ? 'Tap Save to finish securing this link — that is when the key your client needs to sign change orders is created.'
-              : linkPending
-                ? 'Securing this link — the key that lets your client sign change orders is still syncing. Copy and Share unlock in a moment.'
-                : 'Ends in a security key that lets your client sign change orders — part of it is hidden here so a screenshot can\u2019t give it away. Use Copy: a shortened or retyped link opens the portal but cannot approve anything.'}
+          {/* Each pending reason gets its own words, and none promises a wait
+              that is not happening: a collaborator never gets the key (the
+              owner shares the link); on a never-saved portal the key arrives
+              when the GC taps Save; a heal that gave up says so, with Retry. */}
+          <Text style={styles.linkHint} testID="portal-link-hint">
+            {linkOwnerOnly
+              ? 'Only the project owner can share the client link. It carries the key that lets your client sign change orders, and that key stays with the owner\u2019s account \u2014 ask them to send it.'
+              : linkNeedsSave
+                ? 'Tap Save to finish securing this link — that is when the key your client needs to sign change orders is created.'
+                : linkHealFailed
+                  ? 'Couldn\u2019t get this link\u2019s security key from the server. Check your connection and tap Retry — Copy and Share stay locked until it arrives.'
+                  : linkPending
+                    ? 'Fetching this link\u2019s security key from the server — Copy and Share unlock when it arrives.'
+                    : 'Ends in a security key that lets your client sign change orders — part of it is hidden here so a screenshot can\u2019t give it away. Use Copy: a shortened or retyped link opens the portal but cannot approve anything.'}
           </Text>
+          {linkHealFailed && (
+            <TouchableOpacity
+              style={styles.generateLinkBtn}
+              onPress={retryTokenHeal}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Retry fetching the secure link"
+              testID="portal-link-retry-btn"
+            >
+              <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.generateLinkBtnText}>Retry</Text>
+            </TouchableOpacity>
+          )}
           {/* The shared link is now short — `/portal/<id>` with no
               base64 hash. The portal page fetches the snapshot from
               the server, so SMS / email truncation is no longer an
@@ -1104,7 +1346,9 @@ function ClientPortalSetupScreenInner() {
             </View>
             {linkExpiry.kind === 'expired' && (
               <Text style={styles.expiryHint}>
-                Your client sees a dead page until you generate a new one. The URL doesn&apos;t change, so the link they already have starts working again.
+                {handoverClosed
+                  ? `This job was closed out, and the link closed ${HANDOVER_GRACE_DAYS} days later. To reopen it for your client, pick a number of days below and generate — the URL doesn\u2019t change, so the link they already have starts working again.`
+                  : 'Your client sees a dead page until you generate a new one. The URL doesn\u2019t change, so the link they already have starts working again.'}
               </Text>
             )}
 
@@ -1130,19 +1374,31 @@ function ClientPortalSetupScreenInner() {
               })}
             </View>
 
+            {/* Says what the selected policy really does. "Until handover" is
+                the default and the least obvious: it is not "forever". */}
+            <Text style={styles.expiryHint} testID="portal-link-duration-explainer">
+              {durationChoice === null
+                ? `Open for the whole job, however long it runs. It closes on its own ${HANDOVER_GRACE_DAYS} days after you close the project out \u2014 time for the final invoice and closeout paperwork.`
+                : `Closes ${durationLabel(durationChoice)} after you generate it, whatever stage the job is at.`}
+            </Text>
+
             <TouchableOpacity
-              style={styles.generateLinkBtn}
+              style={[styles.generateLinkBtn, isCollaborator && styles.generateLinkBtnDisabled]}
               onPress={handleGenerateLink}
+              disabled={isCollaborator}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Generate new link"
+              accessibilityState={{ disabled: isCollaborator }}
               testID="portal-generate-link-btn"
             >
-              <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.generateLinkBtnText}>Generate new link</Text>
+              <RefreshCw size={14} color={isCollaborator ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} />
+              <Text style={[styles.generateLinkBtnText, isCollaborator && { color: themeColors.textMuted }]}>Generate new link</Text>
             </TouchableOpacity>
             <Text style={styles.expiryHint}>
-              Same URL either way — generating only resets the clock, so nobody you&apos;ve already sent it to loses access.
+              {isCollaborator
+                ? 'Only the project owner can change how long the client link stays open.'
+                : 'Same URL either way — generating only resets the clock, so nobody you\u2019ve already sent it to loses access.'}
             </Text>
           </View>
         </View>
@@ -1804,6 +2060,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accentSoft, borderWidth: 1, borderColor: t.accent + '30',
   },
   generateLinkBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
+  // Collaborator: the control stays visible (so the setting is discoverable)
+  // but reads as unavailable; the line under it says why.
+  generateLinkBtnDisabled: { backgroundColor: t.surface, borderColor: t.line },
 
   section: { paddingHorizontal: 16, marginBottom: 24 },
   sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text, marginBottom: 4 },

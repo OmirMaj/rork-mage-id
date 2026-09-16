@@ -334,15 +334,22 @@ export default function CloseoutBinderScreen() {
             });
             if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             // Connector: flip the project to 'closed' on first delivery.
-            // Only on first delivery (not re-deliver) and only if the
-            // project isn't already past the active phase. Asks the GC
-            // first because some projects keep working after binder
-            // delivery (e.g., warranty work, punch follow-ups).
+            // Only on first delivery (not re-deliver) and only if it isn't
+            // closed already. Asks the GC first because some projects keep
+            // working after binder delivery (e.g., warranty work, punch
+            // follow-ups).
+            //
+            // 'completed' used to skip the question, as if it were already
+            // past this point. It isn't: 'closed' is handover, and the client
+            // portal link (until-handover, migration 20260916140000) closes
+            // 30 days after it. A job marked completed and then handed over
+            // never became closed, so its portal link stayed open forever —
+            // on exactly the jobs that were finished.
             const wasFirstDeliver = !sentAt;
-            if (wasFirstDeliver && project.status !== 'closed' && project.status !== 'completed') {
+            if (wasFirstDeliver && project.status !== 'closed') {
               showAlert(
                 'Mark project as closed?',
-                'Now that the binder is delivered, do you want to mark the whole project as closed? You can still come back to it for warranty work, punch follow-ups, or invoice tracking.',
+                'Now that the binder is delivered, do you want to mark the whole project as closed? You can still come back to it for warranty work, punch follow-ups, or invoice tracking. The client portal link stays open for 30 more days, then closes.',
                 [
                   { text: 'Keep open', style: 'cancel' },
                   {
