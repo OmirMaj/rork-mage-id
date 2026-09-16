@@ -56,6 +56,8 @@ function normaliseThroughDate(value: string | undefined): string {
   return calendarDayOf(value) ?? todayCalendarDay();
 }
 
+const LIEN_WAIVER_TYPES: LienWaiverType[] = ['conditional_partial', 'unconditional_partial', 'conditional_final', 'unconditional_final'];
+
 export default function LienWaiversScreen() {
   const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { canAccess } = useTierAccess();
@@ -83,11 +85,23 @@ function LienWaiversScreenInner() {
   // UX-F18: Back must work when this screen is the first route of a fresh
   // web tab or a cold-start deep link (nothing to pop).
   const goBack = useSafeBack();
-  const { projectId, prefillFromInvoice, prefillAmount, prefillThroughDate } = useLocalSearchParams<{
+  const {
+    projectId, prefillFromInvoice, prefillAmount, prefillThroughDate,
+    prefillSubName, prefillSubEmail, prefillSubCompanyId, prefillCommitmentId,
+    prefillInvoiceId, prefillWaiverType, prefillWaiverReason,
+  } = useLocalSearchParams<{
     projectId: string;
     prefillFromInvoice?: string;
     prefillAmount?: string;
     prefillThroughDate?: string;
+    // Explicit identity — the sub portal's "Collect release" (see below).
+    prefillSubName?: string;
+    prefillSubEmail?: string;
+    prefillSubCompanyId?: string;
+    prefillCommitmentId?: string;
+    prefillInvoiceId?: string;
+    prefillWaiverType?: string;
+    prefillWaiverReason?: string;
   }>();
   const { getProject, settings, getInvoicesForProject, getCommitmentsForProject, subcontractors } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
@@ -102,7 +116,30 @@ function LienWaiversScreenInner() {
   // is opened with `prefillFromInvoice` query params (the "Collect a
   // lien waiver" CTA on a paid invoice). Resolves the sub from the
   // invoice's commitmentId so the GC doesn't have to retype the name.
+  //
+  // EXPLICIT PARAMS WIN. Screen audit 2026-09-16: the commitmentId walk below
+  // reads a field the owner `Invoice` type does not have, so this CTA has only
+  // ever opened with a blank sub name — and it cannot resolve a sub-submitted
+  // invoice at all (no reader for that table here). The sub portal already
+  // holds the sub it is paying, so it passes name / email / ids / waiver type
+  // straight through, and nothing is looked up that could silently miss.
   const prefillSeed = useMemo(() => {
+    if (prefillSubName) {
+      const type = LIEN_WAIVER_TYPES.find(t => t === prefillWaiverType);
+      return {
+        invoiceId: prefillInvoiceId || prefillFromInvoice || undefined,
+        commitmentId: prefillCommitmentId || undefined,
+        subName: prefillSubName,
+        subEmail: prefillSubEmail || undefined,
+        subCompanyId: prefillSubCompanyId || undefined,
+        paidAmount: prefillAmount && Number.isFinite(Number(prefillAmount)) ? Number(prefillAmount) : 0,
+        throughDate: normaliseThroughDate(prefillThroughDate),
+        waiverType: type,
+        // Why that type was picked, shown under the type chips — a default the
+        // GC cannot see the reason for is a default he cannot check.
+        waiverReason: type ? (prefillWaiverReason || undefined) : undefined,
+      };
+    }
     if (!prefillFromInvoice) return null;
     const invoice = (getInvoicesForProject(projectId ?? '') ?? []).find((i: any) => i.id === prefillFromInvoice);
     if (!invoice) return null;
@@ -136,7 +173,9 @@ function LienWaiversScreenInner() {
       // paid), a bare day is kept.
       throughDate: normaliseThroughDate(prefillThroughDate),
     };
-  }, [prefillFromInvoice, projectId, prefillAmount, prefillThroughDate, getInvoicesForProject, getCommitmentsForProject, subcontractors]);
+  }, [prefillFromInvoice, projectId, prefillAmount, prefillThroughDate, prefillSubName, prefillSubEmail, prefillSubCompanyId,
+    prefillCommitmentId, prefillInvoiceId, prefillWaiverType, prefillWaiverReason,
+    getInvoicesForProject, getCommitmentsForProject, subcontractors]);
 
   // Auto-open the modal when arriving with prefill params.
   useEffect(() => {
@@ -669,7 +708,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
   onClose: () => void;
   onCreate: (input: { waiverType: LienWaiverType; subName: string; subEmail?: string; throughDate: string; paidAmount: number; notes?: string }) => void;
   /** Optional prefill from a "Create lien waiver" CTA on a paid invoice. */
-  seed?: { subName?: string; subEmail?: string; paidAmount?: number; throughDate?: string } | null;
+  seed?: { subName?: string; subEmail?: string; paidAmount?: number; throughDate?: string; waiverType?: LienWaiverType; waiverReason?: string } | null;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -681,7 +720,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
 
   useEffect(() => {
     if (visible) {
-      setType('unconditional_partial');
+      setType(seed?.waiverType ?? 'unconditional_partial');
       setSubName(seed?.subName ?? '');
       setSubEmail(seed?.subEmail ?? '');
       setThroughDate(seed?.throughDate ?? todayCalendarDay());
@@ -723,7 +762,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
 
           <Text style={styles.modalLabel}>Type</Text>
           <View style={styles.typeRow}>
-            {(['conditional_partial', 'unconditional_partial', 'conditional_final', 'unconditional_final'] as LienWaiverType[]).map(t => (
+            {LIEN_WAIVER_TYPES.map(t => (
               <TouchableOpacity
                 key={t}
                 style={[styles.typeChip, type === t && styles.typeChipActive]}
@@ -734,6 +773,9 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
             ))}
           </View>
           <Text style={styles.typeHint}>{WAIVER_LABELS[type].description}</Text>
+          {seed?.waiverType && seed.waiverReason && type === seed.waiverType && (
+            <Text style={styles.typeHint}>Picked for this payment: {seed.waiverReason}</Text>
+          )}
 
           <Text style={styles.modalLabel}>Subcontractor name *</Text>
           <TextInput

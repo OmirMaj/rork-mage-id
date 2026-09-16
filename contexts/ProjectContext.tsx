@@ -451,6 +451,8 @@ type DocsDataValue = {
   getPermitsForProject: (projectId: string) => Permit[];
   subPortalLinks: SubPortalLink[];
   upsertSubPortalLink: (link: SubPortalLink) => SubPortalLink;
+  /** Store the server's access token on a local link. Local only — no write. */
+  adoptSubPortalToken: (id: string, accessToken: string) => void;
   deleteSubPortalLink: (id: string) => void;
   getSubPortalLinkFor: (projectId: string, subcontractorId: string) => SubPortalLink | undefined;
   getSubPortalLinksForProject: (projectId: string) => SubPortalLink[];
@@ -2053,6 +2055,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               createdAt: r.created_at as string,
               updatedAt: r.updated_at as string,
               lastSharedAt: r.last_shared_at as string | undefined,
+              // The token the sub-portal RPCs compare against. This mapper used
+              // to drop it, so every load from the server erased it locally and
+              // the next upsert minted a DIFFERENT one on the phone — which the
+              // plain insert then failed to write (duplicate id), leaving the
+              // app sharing a token the server had never seen.
+              accessToken: (r.access_token as string | null) || undefined,
             }));
             await saveLocal(SUB_PORTAL_LINKS_KEY, mapped);
             return mapped;
@@ -4832,44 +4840,52 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // a stable id so the share URL doesn't change when the GC tweaks settings.
   const upsertSubPortalLink = useCallback((link: SubPortalLink) => {
     // The sub-portal RPCs (sub_portal_get_snapshot / sub_portal_submit_invoice)
-    // require `access_token = p_access_token`. The column has a DB default, but
-    // the local-first optimistic write never reads it back — so the app never
-    // knew the token and every invoice submit fell back to mailto. Fix: mirror
-    // the client-portal token heal — when the link is enabled and has no token,
-    // generate one app-side and write the column explicitly so the value the
-    // app holds is exactly what the RPC compares against. An existing token is
-    // preserved (never regenerated), so previously-issued share links stay valid.
-    let resolved = link;
-    if (link.enabled && !link.accessToken) {
-      const token = (generateUUID() + generateUUID()).replace(/-/g, '');
-      resolved = { ...link, accessToken: token };
-    }
-    const filtered = subPortalLinks.filter(l => l.id !== resolved.id);
-    const updated = [resolved, ...filtered];
+    // require `access_token = p_access_token`, so the token the app shares must
+    // be the one the server holds. The token is the SERVER's to mint: the
+    // column is NOT NULL with a random default, so a row written without it
+    // gets one, and app/sub-portal-setup.tsx reads it back and adopts it.
+    //
+    // This used to mint a token here whenever local state had none and write
+    // it with a plain INSERT. Local state had none after every server load (the
+    // mapper dropped the column), and the insert of an existing id fails as a
+    // duplicate — which the queue treats as "already landed". So the phone
+    // shared a token the server never saw, AND no edit after the first save
+    // (disabling the link, a new passcode) ever reached the server.
+    //
+    // Now an UPSERT on the id, so edits land; `access_token` only when we hold
+    // the server's own value, so the update never touches the column otherwise
+    // (PostgREST updates only the columns it is sent).
+    const filtered = subPortalLinks.filter(l => l.id !== link.id);
+    const updated = [link, ...filtered];
     setSubPortalLinks(updated);
     saveSubPortalLinksMutation.mutate(updated);
     if (canSync && userId) {
-      void supabaseWrite('sub_portal_links', 'insert', {
-        id: resolved.id,
+      void supabaseWrite('sub_portal_links', 'upsert', {
+        id: link.id,
         user_id: userId,
-        project_id: resolved.projectId,
-        subcontractor_id: resolved.subcontractorId,
-        passcode: resolved.passcode ?? null,
-        require_passcode: !!resolved.requirePasscode,
-        enabled: resolved.enabled,
-        welcome_message: resolved.welcomeMessage ?? null,
-        // Write the token explicitly (only when we hold one) so it matches what
-        // the RPC checks — the DB default only fills when the column is empty,
-        // so writing our value keeps app and server in agreement.
-        ...(resolved.accessToken ? { access_token: resolved.accessToken } : {}),
-        commitment_ids: resolved.commitmentIds ?? null,
-        created_at: resolved.createdAt,
-        updated_at: resolved.updatedAt,
-        last_shared_at: resolved.lastSharedAt ?? null,
+        project_id: link.projectId,
+        subcontractor_id: link.subcontractorId,
+        passcode: link.passcode ?? null,
+        require_passcode: !!link.requirePasscode,
+        enabled: link.enabled,
+        welcome_message: link.welcomeMessage ?? null,
+        ...(link.accessToken ? { access_token: link.accessToken } : {}),
+        commitment_ids: link.commitmentIds ?? null,
+        created_at: link.createdAt,
+        updated_at: link.updatedAt,
+        last_shared_at: link.lastSharedAt ?? null,
       });
     }
-    return resolved;
+    return link;
   }, [subPortalLinks, saveSubPortalLinksMutation, canSync, userId]);
+
+  const adoptSubPortalToken = useCallback((id: string, accessToken: string) => {
+    setSubPortalLinks(prev => {
+      const next = prev.map(l => (l.id === id && l.accessToken !== accessToken ? { ...l, accessToken } : l));
+      saveSubPortalLinksMutation.mutate(next);
+      return next;
+    });
+  }, [saveSubPortalLinksMutation]);
 
   const deleteSubPortalLink = useCallback((id: string) => {
     const updated = subPortalLinks.filter(l => l.id !== id);
@@ -6104,12 +6120,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const docsData = useMemo<DocsDataValue>(() => ({
     rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject,
     permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
-    subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
+    subPortalLinks, upsertSubPortalLink, adoptSubPortalToken, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
     submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
     portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
-  }), [rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
+  }), [rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, adoptSubPortalToken, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
 
   const stableActions = useMemo<StableActionsValue>(() => ({
     completeOnboarding,

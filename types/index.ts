@@ -482,6 +482,13 @@ export interface LienWaiver {
   projectId: string;
   userId: string;
   commitmentId?: string;
+  /**
+   * The invoice this release was collected against: the GC's owner `Invoice`
+   * (app/invoice.tsx) or a `SubSubmittedInvoice` (the sub portal's "Collect
+   * release"). Both are uuids and `invoice_id` has no foreign key, so one
+   * column holds either; the sub portal reads it back to show "released" next
+   * to "paid" on the row it came from.
+   */
   invoiceId?: string;
   waiverType: LienWaiverType;
   subCompanyId?: string;

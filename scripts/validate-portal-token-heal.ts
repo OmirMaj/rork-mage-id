@@ -259,5 +259,38 @@ ok('5c. the GC-facing copy says what until-handover does',
   /Open for the whole job/.test(src) && /HANDOVER_GRACE_DAYS\}\s*days after you close the project out/.test(src));
 ok('5c. the retired "no expiry" promise is gone from the copy', !/no expiry date/i.test(src) && !/'Always on'/.test(src));
 
+// ── 6. The SUB portal had the same bug, one layer further in ────────────────
+// ProjectContext.upsertSubPortalLink minted a token on the phone whenever local
+// state had none — and local state had none after EVERY server load, because
+// the loader's mapper dropped access_token. The mint went out as a plain INSERT
+// of an id that already existed, the queue read the duplicate as "already
+// landed", and the app shared a token the server never saw. The same plain
+// insert meant no edit after the first save (disable, passcode) ever synced.
+{
+  const ctx = stripTsComments(readFileSync(join(ROOT, 'contexts/ProjectContext.tsx'), 'utf8'));
+  const fnStart = ctx.indexOf('const upsertSubPortalLink = useCallback(');
+  const fnEnd = ctx.indexOf('const deleteSubPortalLink = useCallback(', fnStart);
+  const upsertFn = fnStart >= 0 && fnEnd > fnStart ? ctx.slice(fnStart, fnEnd) : '';
+  ok('6a. upsertSubPortalLink found', upsertFn.length > 0);
+  ok('6a. …never mints a token on the phone', upsertFn.length > 0 && !/generateUUID|Math\.random|getRandomValues|randomUUID/.test(upsertFn));
+  ok("6b. …writes with 'upsert', so edits after the first save reach the server",
+    /supabaseWrite\(\s*'sub_portal_links'\s*,\s*'upsert'/.test(upsertFn) && !/supabaseWrite\(\s*'sub_portal_links'\s*,\s*'insert'/.test(ctx));
+  ok('6c. …sends access_token only when it holds the server value',
+    /\.\.\.\(\s*link\.accessToken\s*\?\s*\{\s*access_token:\s*link\.accessToken\s*\}\s*:\s*\{\s*\}\s*\)/.test(upsertFn));
+  const loader = ctx.slice(ctx.indexOf(".from('sub_portal_links').select('*')"), ctx.indexOf('SUB_PORTAL_LINKS_KEY, mapped'));
+  ok('6d. the loader carries access_token into the local link', /accessToken:\s*\(?\s*r\.access_token/.test(loader));
+
+  const sub = stripTsComments(readFileSync(join(ROOT, 'app/sub-portal-setup.tsx'), 'utf8'));
+  ok('6e. sub-portal-setup never mints a token',
+    !/generateUUID\s*\(\s*\)\s*\+\s*generateUUID/.test(sub)
+    && !sub.split('\n').some(l => /accessToken|access_token/.test(l) && /generateUUID|randomUUID|getRandomValues|Math\.random/.test(l)));
+  ok("6e. …reads the server's token back", /\.from\('sub_portal_links'\)\s*\.select\('access_token'\)\s*\.eq\('id',\s*link\.id\)/.test(sub));
+  for (const door of ['handleCopy', 'handleShare', 'handleEmailInvite']) {
+    const at = sub.indexOf(`const ${door} = useCallback(`);
+    const body = at >= 0 ? sub.slice(at, at + 400) : '';
+    ok(`6f. ${door} refuses to hand out a token-less link`, /if \(warnIfTokenPending\(\)\) return;/.test(body));
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

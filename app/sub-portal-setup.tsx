@@ -1,19 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Platform} from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Copy, Send, Link, Check, X, RefreshCw, Lock,
-  HardHat, Building2, FileText, Inbox, Mail,
+  HardHat, Building2, FileText, Inbox, Mail, FileSignature,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { SubPortalLink } from '@/types';
+import type { LienWaiver, SubPortalLink } from '@/types';
+import { fetchLienWaiversForProject, WAIVER_LABELS } from '@/utils/lienWaiverEngine';
 import { shareText } from '@/utils/shareText';
 import { generateUUID } from '@/utils/generateId';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
@@ -26,6 +27,7 @@ import {
 } from '@/utils/subPortalSnapshot';
 import { formatMoney } from '@/utils/formatters';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { sendEmail } from '@/utils/emailService';
 import {
   wrapEmailHtml, emailDivider, emailQuote,
@@ -119,6 +121,124 @@ export function computeSubOverpayment(args: {
 }
 // --- END computeSubOverpayment ---
 
+/** Minimal shapes the release prefill needs — structural for the same reason. */
+interface ReleaseInvoice extends OverpaymentInvoice {
+  retentionAmount?: number;
+  /** The day money left the account (YYYY-MM-DD). */
+  paidOn?: string;
+  /** When the GC recorded the payment (ISO instant). */
+  paidAt?: string;
+  createdAt?: string;
+}
+interface ReleaseSub {
+  id: string;
+  companyName: string;
+  email?: string;
+}
+
+// --- BEGIN subPaymentReleasePrefill (extracted + executed by
+//     scripts/validate-sub-overpayment.ts — keep the sentinels) ---
+/**
+ * The lien-waiver prefill for ONE sub invoice, as /lien-waivers route params.
+ *
+ * Screen audit 2026-09-16 (subs-network): the GC paid the sub from this screen
+ * and nothing asked for the release, although app/lien-waivers.tsx can build
+ * and email one. An unwaived payment is how a second-tier supplier or the
+ * sub's own crew liens the owner's property AFTER the sub was paid; the moment
+ * the sub is motivated to sign is before or as the money moves, not at
+ * closeout.
+ *
+ * Identity is passed EXPLICITLY (name, email, sub id, commitment id) rather
+ * than as an invoice id for the waiver screen to resolve: that screen reads
+ * owner `Invoice` rows, has no reader for sub_submitted_invoices, and its
+ * commitment walk depends on a field `Invoice` does not carry — a lookup would
+ * silently open a blank form.
+ *
+ * Waiver type follows what has actually happened to the money:
+ *   approved, not yet paid → CONDITIONAL (the release takes effect only when
+ *                            the payment clears — asking for an unconditional
+ *                            one before paying is asking him to waive for
+ *                            money he does not have)
+ *   paid                   → UNCONDITIONAL
+ *   …_FINAL only when this draw brings the commitment to its full value AND
+ *   no retainage is held on any of its invoices — retainage still owed means
+ *   the sub has not been paid in full, and a final release would waive it.
+ *   No commitment on the invoice (the portal lets a sub bill "whole
+ *   contract") → partial, because final-draw arithmetic is not available and
+ *   a guessed "final" would be a waiver of rights nobody computed.
+ */
+export function subPaymentReleasePrefill(args: {
+  projectId: string;
+  invoice: ReleaseInvoice;
+  sub: ReleaseSub;
+  commitment: OverpaymentCommitment | null;
+  siblings: ReleaseInvoice[];
+}): Record<string, string> & { prefillWaiverType: string; prefillWaiverReason: string } {
+  const { projectId, invoice, sub, commitment, siblings } = args;
+  const paid = invoice.status === 'paid';
+  const thisAmount = invoice.amount ?? 0;
+
+  let isFinal = false;
+  let finalReason = '';
+  if (invoice.commitmentId && commitment) {
+    const commitmentTotal = (commitment.amount ?? 0) + (commitment.changeAmount ?? 0);
+    const onCommitment = siblings.filter(i => i.commitmentId === invoice.commitmentId
+      && (i.status === 'approved' || i.status === 'paid'));
+    const localOthers = onCommitment
+      .filter(i => i.id !== invoice.id)
+      .reduce((sum, i) => sum + (i.amount ?? 0), 0);
+    // The release is only offered on approved/paid invoices, and the
+    // paid_to_date rollup already counts those — take this draw back out so it
+    // is added exactly once (the computeSubOverpayment double-count, again).
+    const rollupOthers = typeof commitment.paidToDate === 'number'
+      ? Math.max(0, commitment.paidToDate - thisAmount)
+      : 0;
+    const billedThrough = Math.max(localOthers, rollupOthers) + thisAmount;
+    // Through the one retainage definition (utils/invoiceBilling), not the raw
+    // column — a sub invoice carries only the stored amount, so this is that
+    // amount floored at zero, but it stays one answer if the row ever grows a
+    // percent or a release.
+    const retainageHeld = [invoice, ...onCommitment].some(i => pendingRetentionHeld({ retentionAmount: i.retentionAmount }) > 0);
+    if (commitmentTotal > 0 && billedThrough >= commitmentTotal - 0.005) {
+      if (retainageHeld) finalReason = 'This draw completes the contract, but retainage is still held, so the release stays partial until it is paid.';
+      else { isFinal = true; finalReason = 'This draw brings the contract to its full value.'; }
+    }
+  } else {
+    finalReason = 'This invoice is not tied to a commitment, so the app cannot tell whether it is the last draw.';
+  }
+
+  const waiverType = `${paid ? 'unconditional' : 'conditional'}_${isFinal ? 'final' : 'partial'}`;
+  const moneyReason = paid
+    ? 'You recorded this payment, so the release is unconditional.'
+    : 'Not paid yet, so the release is conditional on the payment clearing.';
+
+  const params: Record<string, string> = {
+    projectId,
+    prefillSubName: sub.companyName,
+    prefillSubCompanyId: sub.id,
+    prefillInvoiceId: invoice.id,
+    prefillAmount: String(thisAmount),
+    // The day the money moved when recorded, else when the payment was logged,
+    // else the day the sub billed. lien-waivers normalises an instant to its
+    // LOCAL calendar day.
+    prefillThroughDate: invoice.paidOn || invoice.paidAt || invoice.createdAt || '',
+    prefillWaiverType: waiverType,
+    prefillWaiverReason: [moneyReason, finalReason].filter(Boolean).join(' '),
+  };
+  if (sub.email) params.prefillSubEmail = sub.email;
+  if (invoice.commitmentId) params.prefillCommitmentId = invoice.commitmentId;
+  return params as Record<string, string> & { prefillWaiverType: string; prefillWaiverReason: string };
+}
+// --- END subPaymentReleasePrefill ---
+
+/**
+ * Read-backs after writing a link that has no token yet. The write rides the
+ * offline queue, so the server's default lands whenever the queue flushes; past
+ * the last read the GC gets "Try again" rather than an endless wait.
+ */
+const SUB_TOKEN_READBACK_DELAYS_MS = [1200, 3000, 8000, 20000];
+const SUB_TOKEN_WRITE_GRACE_MS = 800;
+
 export default function SubPortalSetupScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -155,7 +275,7 @@ function SubPortalSetupScreenInner() {
   const {
     getProject, subcontractors, settings,
     getCommitmentsForProject, getPunchItemsForProject,
-    getSubPortalLinkFor, upsertSubPortalLink,
+    getSubPortalLinkFor, upsertSubPortalLink, adoptSubPortalToken,
     commitments: allCommitments,
   } = useProjects();
 
@@ -184,6 +304,46 @@ function SubPortalSetupScreenInner() {
   });
 
   const submitted = useSubSubmittedInvoices({ subPortalId: link.id });
+
+  // Lien releases already collected on this job, keyed by the sub invoice they
+  // were collected against, so each row can show "paid" and "released" as the
+  // two different facts they are. Re-read on focus: the release is created on
+  // /lien-waivers and this screen is what the GC comes back to.
+  const [releases, setReleases] = useState<LienWaiver[]>([]);
+  useFocusEffect(useCallback(() => {
+    if (!projectId) return;
+    let live = true;
+    void fetchLienWaiversForProject(projectId)
+      .then(list => { if (live) setReleases(list); })
+      .catch(() => { /* no row → the row offers "Collect release", which is the safe reading */ });
+    return () => { live = false; };
+  }, [projectId]));
+  const releasesByInvoice = useMemo(() => {
+    const m = new Map<string, LienWaiver[]>();
+    for (const w of releases) {
+      if (!w.invoiceId || w.status === 'voided') continue;
+      m.set(w.invoiceId, [...(m.get(w.invoiceId) ?? []), w]);
+    }
+    return m;
+  }, [releases]);
+
+  /** `asPaid` — the payment was JUST recorded and the invoice list has not
+   *  re-rendered with it yet, so read the invoice as paid on that day. */
+  const openRelease = useCallback((invoiceId: string, asPaid?: { paidOn?: string }) => {
+    const found = submitted.invoices.find(i => i.id === invoiceId);
+    if (!found || !sub || !projectId) return;
+    const inv = asPaid
+      ? { ...found, status: 'paid' as const, paidOn: asPaid.paidOn ?? found.paidOn, paidAt: found.paidAt ?? new Date().toISOString() }
+      : found;
+    const params = subPaymentReleasePrefill({
+      projectId,
+      invoice: inv,
+      sub: { id: sub.id, companyName: sub.companyName, email: sub.email },
+      commitment: inv.commitmentId ? allCommitments.find(c => c.id === inv.commitmentId) ?? null : null,
+      siblings: submitted.invoices,
+    });
+    router.push({ pathname: '/lien-waivers', params } as never);
+  }, [submitted.invoices, sub, projectId, allCommitments, router]);
   /** Invoice id whose payment sheet is open (mark-paid or detail correction). */
   const [payingId, setPayingId] = useState<string | null>(null);
 
@@ -238,31 +398,100 @@ function SubPortalSetupScreenInner() {
     return () => clearTimeout(t);
   }, [snapshot, project?.id, link.id]);
 
-  // Auto-heal: a link enabled before the access-token wiring landed carries no
-  // `?t=` token in local state, so its share link would ship token-less and the
-  // sub's submits would fall back to mailto. Mirror client-portal-setup's heal —
-  // on mount, if the link is enabled but token-less, run it through
-  // upsertSubPortalLink (which mints + preserves the token) and adopt the
-  // resolved, token-bearing link. Ref-guarded so it fires once per screen.
-  const tokenHealRef = React.useRef(false);
+  // The link's `?t=` token is the SERVER's (sub_portal_links.access_token has a
+  // random default). If this screen's copy has none — a brand-new link, or one
+  // cached before the loader carried the token — write the link (an upsert;
+  // `access_token` is omitted, so an existing token is untouched and a new row
+  // gets the default) and read the token back until it lands. Never mint one
+  // here: a phone-made token is one the server never agreed to, and every link
+  // shared with it fails on the sub's first invoice.
+  //
+  // Also adopt the loaded link when the context delivers it after this screen
+  // mounted (its lazy initialiser only sees what was loaded at mount) — for the
+  // same id, and for a stand-in id this screen never wrote.
+  const wroteLinkRef = React.useRef(false);
+  const latestLinkRef = React.useRef(link);
+  latestLinkRef.current = link;
   useEffect(() => {
-    if (tokenHealRef.current) return;
+    if (!existing) return;
+    if (existing.id === link.id) {
+      if (existing.accessToken && existing.accessToken !== link.accessToken) {
+        const serverToken = existing.accessToken;
+        setLink(l => ({ ...l, accessToken: serverToken }));
+      }
+    } else if (!wroteLinkRef.current) {
+      setLink(existing);
+    }
+  }, [existing, link.id, link.accessToken]);
+
+  const [tokenState, setTokenState] = useState<'idle' | 'working' | 'failed'>('idle');
+  const [tokenAttempt, setTokenAttempt] = useState(0);
+  useEffect(() => {
     if (!link.enabled || link.accessToken) return;
-    tokenHealRef.current = true;
-    const resolved = upsertSubPortalLink(link);
-    setLink(resolved);
-  }, [link, upsertSubPortalLink]);
+    if (!isSupabaseConfigured) { setTokenState('failed'); return; }
+    let cancelled = false;
+    setTokenState('working');
+    const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    void (async () => {
+      // A beat before writing: if the saved links load in the meantime, the
+      // adopt effect swaps in the real link (new id or a token), this run is
+      // cancelled, and no stand-in duplicate is written for the same sub.
+      await wait(SUB_TOKEN_WRITE_GRACE_MS);
+      if (cancelled) return;
+      wroteLinkRef.current = true;
+      upsertSubPortalLink(latestLinkRef.current);
+      for (const delay of SUB_TOKEN_READBACK_DELAYS_MS) {
+        await wait(delay);
+        if (cancelled) return;
+        const { data, error } = await supabase
+          .from('sub_portal_links').select('access_token').eq('id', link.id).maybeSingle();
+        if (cancelled) return;
+        const token = !error && typeof data?.access_token === 'string' && data.access_token ? data.access_token : null;
+        if (token) {
+          setLink(l => (l.id === link.id ? { ...l, accessToken: token } : l));
+          adoptSubPortalToken(link.id, token);
+          setTokenState('idle');
+          return;
+        }
+      }
+      if (!cancelled) setTokenState('failed');
+    })();
+    return () => { cancelled = true; };
+    // Keyed on id/enabled/token and the Retry counter — not the whole link, or
+    // every keystroke in the welcome message would restart the read-back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [link.id, link.enabled, link.accessToken, tokenAttempt]);
+
+  // Copy / Share / Email all hand out portalUrl. Without the token that URL
+  // opens a portal the sub cannot submit an invoice from, so each door stops
+  // here and says why instead.
+  const tokenPending = link.enabled && !link.accessToken;
+  const warnIfTokenPending = useCallback((): boolean => {
+    if (!tokenPending) return false;
+    if (tokenState === 'failed') {
+      showAlert(
+        "Couldn't set up the secure link",
+        "The link's security key hasn't come back from the server — you may be offline. The sub couldn't submit invoices from the link as it is.",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Try again', onPress: () => setTokenAttempt(n => n + 1) },
+        ],
+      );
+    } else {
+      showAlert(
+        'Setting up the secure link',
+        "The link's security key is on its way from the server. Try again in a few seconds.",
+      );
+    }
+    return true;
+  }, [tokenPending, tokenState]);
 
   const persist = useCallback((updates: Partial<SubPortalLink>) => {
     const next = { ...link, ...updates, updatedAt: new Date().toISOString() };
-    // upsertSubPortalLink mints + returns the `?t=` access token the first
-    // time the link is enabled without one. Adopt the RESOLVED link (not our
-    // pre-token `next`) as local state, mirroring client-portal-setup — so the
-    // token-bearing link is what buildSubPortalUrl reads on the next render.
-    // Otherwise the share link would ship token-less and every submit would
-    // fall back to mailto.
-    const resolved = upsertSubPortalLink(next);
-    setLink(resolved);
+    // The token is never minted here — the read-back effect above fetches the
+    // server's. `next` keeps whatever token this link already holds.
+    wroteLinkRef.current = true;
+    setLink(upsertSubPortalLink(next));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [link, upsertSubPortalLink]);
 
@@ -276,18 +505,20 @@ function SubPortalSetupScreenInner() {
   );
 
   const handleCopy = useCallback(async () => {
+    if (warnIfTokenPending()) return;
     const ok = await copyToClipboard(portalUrl);
     if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
       ok ? 'Copied' : 'Copy failed',
       ok ? 'The sub portal link has been copied.' : 'Could not copy the link.',
     );
-  }, [portalUrl]);
+  }, [portalUrl, warnIfTokenPending]);
 
   const handleShare = useCallback(() => {
+    if (warnIfTokenPending()) return;
     setShowSendModal(true);
     persist({ lastSharedAt: new Date().toISOString() });
-  }, [persist]);
+  }, [persist, warnIfTokenPending]);
 
   // Email-the-link path. Routes through the send-email edge function
   // (Resend) so the invite arrives from noreply@mageid.app with the
@@ -297,6 +528,7 @@ function SubPortalSetupScreenInner() {
   const [emailing, setEmailing] = useState(false);
   const handleEmailInvite = useCallback(async () => {
     if (!sub || !project) return;
+    if (warnIfTokenPending()) return;
     const recipientEmail = (sub.email ?? '').trim();
     if (!recipientEmail || !recipientEmail.includes('@')) {
       showAlert(
@@ -364,7 +596,7 @@ function SubPortalSetupScreenInner() {
     } finally {
       setEmailing(false);
     }
-  }, [sub, project, settings, portalUrl, link, persist]);
+  }, [sub, project, settings, portalUrl, link, persist, warnIfTokenPending]);
 
   // Sub overpayment guard. Before approving or marking-paid a sub-submitted
   // invoice, check whether this invoice + everything previously approved/paid
@@ -445,11 +677,30 @@ function SubPortalSetupScreenInner() {
     const target = submitted.invoices.find(i => i.id === id);
     // Already paid → this is a detail correction, which must NOT re-stamp
     // paid_at (that would overwrite when the payment was actually recorded).
-    if (target?.status === 'paid' && detail) submitted.reconcile(id, detail);
-    else submitted.markPaid(id, detail);
+    if (target?.status === 'paid' && detail) {
+      submitted.reconcile(id, detail);
+      setPayingId(null);
+      return;
+    }
+    submitted.markPaid(id, detail);
     setPayingId(null);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [payingId, submitted]);
+    // Ask for the release NOW. Screen audit 2026-09-16: marking paid used to
+    // close the sheet and say nothing, and a release chased at closeout is a
+    // signature on money that left months ago — the sub has no reason to sign.
+    // Skipped when an unconditional release is already on file for this
+    // invoice (collected ahead of the payment).
+    const onFile = releasesByInvoice.get(id) ?? [];
+    if (onFile.some(w => w.waiverType.startsWith('unconditional'))) return;
+    showAlert(
+      'Collect the lien release?',
+      `${sub?.companyName ?? 'The sub'} is paid. A signed release tied to this payment is your proof of it when a supplier or his crew files a lien on the owner's property, and the one he is most likely to sign is the one asked for today. The waiver opens pre-filled from this invoice, ready to send him to sign.`,
+      [
+        { text: 'Later', style: 'cancel' },
+        { text: 'Collect release', style: 'default', onPress: () => openRelease(id, { paidOn: detail?.paidOn }) },
+      ],
+    );
+  }, [payingId, submitted, releasesByInvoice, sub, openRelease]);
 
   if (!project || !sub) {
     return (
@@ -737,6 +988,59 @@ function SubPortalSetupScreenInner() {
                               testID={`recon-add-${inv.id}`}
                             >
                               <Text style={styles.reconBtnText}>Add detail</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      );
+                    })()}
+                    {/* Lien release — "paid" is not "released". Offered from
+                        approval on, because a conditional release collected
+                        BEFORE the money moves is the one the sub is motivated
+                        to sign. */}
+                    {(inv.status === 'approved' || inv.status === 'paid') && (() => {
+                      const onFile = releasesByInvoice.get(inv.id) ?? [];
+                      const unconditional = onFile.find(w => w.waiverType.startsWith('unconditional'));
+                      const shown = unconditional ?? onFile[0];
+                      // Paid against a conditional release only: the payment has
+                      // cleared, so the unconditional one is now the document
+                      // that ends a claim.
+                      const needsUnconditional = inv.status === 'paid' && !unconditional;
+                      const signed = shown && (shown.status === 'signed' || shown.status === 'received');
+                      return (
+                        <View style={styles.reconRow}>
+                          <FileSignature
+                            size={13}
+                            color={shown && signed ? themeColors.successLabel : Colors.warningLabel}
+                            strokeWidth={1.75}
+                          />
+                          <Text
+                            style={[styles.reconLabel, { color: shown && signed ? themeColors.successLabel : Colors.warningLabel }]}
+                            numberOfLines={2}
+                          >
+                            {shown
+                              ? `${WAIVER_LABELS[shown.waiverType].short} release ${shown.status === 'requested' ? (shown.signRequestedAt ? 'sent, not signed' : 'drafted, not sent') : shown.status}`
+                              : inv.status === 'paid' ? 'Paid · no lien release collected' : 'No lien release yet'}
+                            {shown && needsUnconditional ? ' · unconditional still needed' : ''}
+                          </Text>
+                          {(!shown || needsUnconditional) ? (
+                            <TouchableOpacity
+                              onPress={() => openRelease(inv.id)}
+                              style={styles.reconBtn}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Collect lien release for invoice ${inv.invoiceNumber}`}
+                              testID={`release-collect-${inv.id}`}
+                            >
+                              <Text style={styles.reconBtnText}>Collect release</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity
+                              onPress={() => router.push({ pathname: '/lien-waivers', params: { projectId: projectId ?? '' } } as never)}
+                              style={styles.reconBtn}
+                              accessibilityRole="button"
+                              accessibilityLabel="Open lien waivers"
+                              testID={`release-open-${inv.id}`}
+                            >
+                              <Text style={styles.reconBtnText}>View</Text>
                             </TouchableOpacity>
                           )}
                         </View>

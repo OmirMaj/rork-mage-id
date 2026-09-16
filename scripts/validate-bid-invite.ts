@@ -661,13 +661,20 @@ ok('and the ones that cannot be resolved get a control instead of a shrug',
 // went through the red "Award & accept risk" screen — which a GC stops reading
 // in a month, and that is when the genuinely lapsed COI goes through.
 const awardBody = screenSrc.slice(screenSrc.indexOf('const handleAward'), screenSrc.indexOf('const handleGenerateSubcontract'));
-ok('the award gate reads the COI/licence dates the app actually keeps',
-  /getComplianceStatus\(/.test(awardBody));
+// Screen audit 2026-09-16: it then gated on getComplianceStatus, which is
+// 'unknown' when EITHER date is missing — so a current vault COI with no typed
+// licence date was still blocked. The gate is now the split-leg
+// reviewAwardCompliance (rules pinned in scripts/validate-sub-network.ts).
+ok('the award gate reads the COI the app actually keeps, COI and licence as separate legs',
+  /reviewAwardCompliance\(/.test(awardBody) && /subCoiExpiryAcross\(/.test(awardBody)
+  && !/getComplianceStatus\(/.test(awardBody),
+  'getComplianceStatus answers the chip question (both documents); as an award gate it blocks every sub whose licence date was never typed');
 ok('a missing prequal packet on a compliant sub is a NOTE, not a blocker',
   /notes\.push\([^)]*No prequal packet/.test(awardBody)
   && !/blockers\.push\([^)]*No prequal packet/.test(awardBody),
   'the destructive double-confirm is reserved for an expired or absent COI/licence');
-ok('an expired document IS a blocker', /blockers\.push\([^)]*expired/.test(awardBody));
+ok('an expired or absent COI IS a blocker — the gate\'s COI blockers reach the dialog',
+  /blockers\.push\(\.\.\.award\.blockers\)/.test(awardBody));
 ok('and an unlinked bid is a blocker with a one-tap fix rather than a dead sentence',
   /Pick the sub/.test(awardBody));
 

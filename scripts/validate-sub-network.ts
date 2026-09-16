@@ -19,8 +19,13 @@ import type { Commitment, Project, PunchItem, Subcontractor } from '../types';
 import {
   getComplianceStatus,
   complianceLabel,
+  reviewAwardCompliance,
+  formatExpiryDay,
   type ComplianceState,
 } from '../utils/subCompliance';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -386,6 +391,80 @@ expect('a date in the past → expired',
     roster.filter(x => getComplianceStatus(x, CNOW) === 'compliant').length, 1);
   expect('the other two are counted as unknown, not green',
     roster.filter(x => getComplianceStatus(x, CNOW) === 'unknown').length, 2);
+}
+
+// ── The AWARD gate (utils/subCompliance.reviewAwardCompliance) ──────────────
+//
+// Screen audit 2026-09-16 (subs-network). The award dialog in
+// app/buyout-package.tsx gated on getComplianceStatus above — correct for the
+// chip, wrong for an award: 'unknown' whenever EITHER date is missing, and the
+// licence date is the one nobody types. A sub with a current, vault-verified
+// COI and licenseExpiry '' was blocked with a destructive double-confirm and
+// an "Awarded despite" line on the commitment. These pin the split legs: the
+// COI alone decides the blocker; the licence is a named note.
+console.log('\naward compliance gate (split COI / licence legs):');
+{
+  const ANOW = Date.parse('2026-09-16T12:00:00Z');
+  const aSub = (o: Partial<Subcontractor> = {}): Subcontractor =>
+    mkSub({ id: 's-a', companyName: 'Volt Edge Electric', ...o });
+
+  // The case the finding indicts: current vault COI, NO licence date typed.
+  const vaultOnly = reviewAwardCompliance(
+    aSub({ licenseExpiry: '', coiExpiry: '2026-11-04', coiVerifiedAt: '2026-09-04T15:00:00Z' }),
+    ANOW, { vaultCoiExpiry: '2026-11-04', vaultCertCount: 1 },
+  );
+  expect('current vault COI + no licence date is NOT blocked', vaultOnly.blockers, [] as string[]);
+  expect('...and the COI leg reads current', vaultOnly.coi, 'current');
+  expect('...the dialog cites the date and the evidence',
+    vaultOnly.notes.some(n => n.includes('COI current through Nov 4, 2026') && n.includes('COI vault') && n.includes('verified 11d ago')), true);
+  expect('...and names the missing licence as its own line',
+    vaultOnly.notes.some(n => n.startsWith('No licence expiry on file')), true);
+  // The chip rule is unchanged — this is the exact divergence being pinned.
+  expect('(the chip still says unknown for the same sub — different question)',
+    getComplianceStatus(aSub({ licenseExpiry: '', coiExpiry: '2026-11-04' }), ANOW), 'unknown' as ComplianceState);
+
+  const noCoi = reviewAwardCompliance(aSub(), ANOW);
+  expect('no COI anywhere is a blocker', noCoi.coi, 'none');
+  expect('...that says no COI was ever uploaded', noCoi.blockers.length === 1 && noCoi.blockers[0].startsWith('No COI on file'), true);
+
+  const certNoDate = reviewAwardCompliance(aSub(), ANOW, { vaultCoiExpiry: undefined, vaultCertCount: 2 });
+  expect('certs in the vault with no readable date still block, and say so',
+    certNoDate.blockers.length === 1 && certNoDate.blockers[0].includes('2 certificates in the COI vault'), true);
+
+  const expired = reviewAwardCompliance(aSub({ licenseExpiry: '2027-06-01', coiExpiry: '2026-08-14' }), ANOW);
+  expect('expired COI blocks', expired.coi, 'expired');
+  expect('...naming the date (UTC day, not the day before)',
+    expired.blockers.length === 1 && expired.blockers[0].includes('COI expired Aug 14, 2026'), true);
+
+  const soon = reviewAwardCompliance(aSub({ licenseExpiry: '2027-06-01', coiExpiry: '2026-10-01' }), ANOW);
+  expect('COI inside 30 days warns but does not block', [soon.coi, soon.blockers.length], ['expiring_soon', 0]);
+  expect('...and the warning names the date', soon.notes.some(n => n.includes('expires Oct 1, 2026')), true);
+
+  const licExpired = reviewAwardCompliance(aSub({ licenseExpiry: '2026-01-01', coiExpiry: '2027-01-01' }), ANOW);
+  expect('an expired LICENCE is a named note, never a blocker',
+    [licExpired.blockers.length, licExpired.notes.some(n => n.includes('licence expiry on file is Jan 1, 2026'))], [0, true]);
+
+  // A renewal typed on the record that is later than the vault's certificates
+  // is not overruled by the older vault date (and vice versa).
+  const typedRenewal = reviewAwardCompliance(aSub({ coiExpiry: '2027-03-01' }), ANOW,
+    { vaultCoiExpiry: '2026-08-01', vaultCertCount: 1 });
+  expect('the later of vault and record wins', [typedRenewal.coi, typedRenewal.blockers.length], ['current', 0]);
+  const staleRecord = reviewAwardCompliance(aSub({ coiExpiry: '2026-08-01' }), ANOW,
+    { vaultCoiExpiry: '2027-03-01', vaultCertCount: 1 });
+  expect('a stale record date does not override a newer vault cert', staleRecord.coi, 'current');
+
+  expect('a date-only expiry formats as its own day', formatExpiryDay('2026-08-14'), 'Aug 14, 2026');
+  expect('empty-string expiry formats as nothing', formatExpiryDay(''), null);
+
+  // Source pin: the award dialog must use the split gate, not the chip rule.
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const buyout = readFileSync(join(ROOT, 'app/buyout-package.tsx'), 'utf8');
+  const awardFrom = buyout.indexOf('const handleAward = useCallback');
+  const awardBody = buyout.slice(awardFrom, buyout.indexOf('const isRisky', awardFrom));
+  expect('handleAward was located', awardFrom >= 0 && awardBody.length > 0, true);
+  expect('handleAward gates on reviewAwardCompliance', /reviewAwardCompliance\(/.test(awardBody), true);
+  expect('handleAward does NOT gate on getComplianceStatus (both-legs rule)', /getComplianceStatus\(/.test(awardBody), false);
+  expect('handleAward feeds the COI vault certificates into the gate', /subCoiExpiryAcross\(/.test(awardBody), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -105,3 +105,131 @@ export function complianceLabel(status: ComplianceState, sub?: Subcontractor): s
   }
   return 'Expired';
 }
+
+// ─── The AWARD gate ──────────────────────────────────────────────────────────
+//
+// Screen audit 2026-09-16 (subs-network): "the award compliance check ignores
+// the COI the app itself keeps up to date". The award dialog in
+// app/buyout-package.tsx ran `getComplianceStatus` above as its gate — and
+// that rule is right for the Subs-tab CHIP but wrong for an award. It returns
+// 'unknown' whenever EITHER date is missing, and licence dates are the field a
+// GC skips: the phone form writes '' for them (production's 'Trail' row). So a
+// sub with a current, vault-verified COI and no typed licence date got a red
+// "No license … cannot tell you he is covered" blocker, a destructive
+// double-confirm, and an "Awarded despite" line on the commitment — the gate
+// crying wolf on a GC who did everything right, until he stops reading it.
+//
+// The COI is the insurance exposure the gate exists for, and it is the one
+// document the app keeps current by itself (the COI vault's syncSubCoiExpiry
+// recomputes `coiExpiry` from every certificate and stamps `coiVerifiedAt`).
+// So the award evaluates the two documents SEPARATELY:
+//   COI      none / expired      → blocker, naming which
+//            inside the warn window → a note naming the date
+//            current             → a note saying so, and on what evidence
+//   licence  never a blocker — a named note (missing, expired, or expiring),
+//            because the app has no source that keeps it current and a
+//            blocker built on a field nobody types fires on every award.
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** What the award gate concluded about the COI leg alone. */
+export type AwardCoiState = 'none' | 'expired' | 'expiring_soon' | 'current';
+
+export interface AwardComplianceReview {
+  coi: AwardCoiState;
+  /** Epoch ms of the COI expiry the review used, or null when there was none. */
+  coiExpiryMs: number | null;
+  /** Things that make the award a risk override. COI only. */
+  blockers: string[];
+  /** Things the GC should read but that do not gate the award. */
+  notes: string[];
+}
+
+/**
+ * Human date for an expiry. A bare `YYYY-MM-DD` parses as UTC midnight, so it
+ * is formatted in UTC — formatted local it prints the PREVIOUS day on every US
+ * jobsite, and a COI "expired Aug 13" that actually runs through Aug 14 is a
+ * wrong fact on the one dialog that has to be right.
+ */
+export function formatExpiryDay(raw: string | undefined | null): string | null {
+  const ms = parseExpiry(raw);
+  if (ms === null) return null;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test((raw ?? '').trim());
+  return new Date(ms).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    ...(dateOnly ? { timeZone: 'UTC' } : {}),
+  });
+}
+
+/** "verified today" / "verified 12d ago", or null when never verified. */
+function verifiedAgo(raw: string | undefined, nowMs: number): string | null {
+  const ms = parseExpiry(raw);
+  if (ms === null) return null;
+  const days = Math.max(0, Math.floor((nowMs - ms) / DAY_MS));
+  return days === 0 ? 'verified today' : `verified ${days}d ago`;
+}
+
+/**
+ * The award gate. Pure; pinned by scripts/validate-sub-network.ts.
+ *
+ * @param opts.vaultCoiExpiry the sub's expiry as derived from the certificates
+ *   actually in the COI vault (`subCoiExpiryAcross`). The later of this and
+ *   `sub.coiExpiry` is used: the vault is what the app has seen, but a GC who
+ *   typed a renewal date onto the record before scanning it is not wrong.
+ * @param opts.vaultCertCount how many certificates are in the vault for him,
+ *   so the dialog can say where the date came from.
+ */
+export function reviewAwardCompliance(
+  sub: Subcontractor,
+  nowMs: number = Date.now(),
+  opts: { vaultCoiExpiry?: string; vaultCertCount?: number } = {},
+): AwardComplianceReview {
+  const blockers: string[] = [];
+  const notes: string[] = [];
+  const who = sub.companyName || 'This sub';
+  const warnWindow = COMPLIANCE_WARN_DAYS * DAY_MS;
+
+  // ── COI leg ──
+  const recordMs = parseExpiry(sub.coiExpiry);
+  const vaultMs = parseExpiry(opts.vaultCoiExpiry);
+  const useVault = vaultMs !== null && (recordMs === null || vaultMs >= recordMs);
+  const coiRaw = useVault ? opts.vaultCoiExpiry : sub.coiExpiry;
+  const coiMs = useVault ? vaultMs : recordMs;
+  const certs = opts.vaultCertCount ?? 0;
+  const evidence = useVault
+    ? [`from ${certs === 1 ? 'the certificate' : `${certs} certificates`} in your COI vault`, verifiedAgo(sub.coiVerifiedAt, nowMs)]
+        .filter(Boolean).join(', ')
+    : certs > 0
+      ? 'typed on his record — the certificates in your vault carry no readable expiry'
+      : 'typed on his record, not checked against a certificate';
+
+  let coi: AwardCoiState;
+  if (coiMs === null) {
+    coi = 'none';
+    blockers.push(certs > 0
+      ? `${who} has ${certs === 1 ? 'a certificate' : `${certs} certificates`} in the COI vault but none with a readable expiry date, so the app cannot tell you his insurance is in force. Open the COI vault and add the coverage dates.`
+      : `No COI on file for ${who} — nothing in the COI vault and no expiry on his record, so the app cannot tell you he is insured.`);
+  } else if (coiMs < nowMs) {
+    coi = 'expired';
+    blockers.push(`${who}'s COI expired ${formatExpiryDay(coiRaw)} (${evidence}).`);
+  } else if (coiMs - nowMs < warnWindow) {
+    coi = 'expiring_soon';
+    const days = Math.ceil((coiMs - nowMs) / DAY_MS);
+    notes.push(`${who}'s COI is current but expires ${formatExpiryDay(coiRaw)}, in ${days} day${days === 1 ? '' : 's'} (${evidence}). Ask for the renewal before he starts.`);
+  } else {
+    coi = 'current';
+    notes.push(`COI current through ${formatExpiryDay(coiRaw)} (${evidence}).`);
+  }
+
+  // ── Licence leg — named, never blocking ──
+  const licMs = parseExpiry(sub.licenseExpiry);
+  if (licMs === null) {
+    notes.push(`No licence expiry on file for ${who}${sub.licenseNumber?.trim() ? ` (licence #${sub.licenseNumber.trim()})` : ''} — check the state board if this trade needs one.`);
+  } else if (licMs < nowMs) {
+    notes.push(`${who}'s licence expiry on file is ${formatExpiryDay(sub.licenseExpiry)}, which has passed. Check the state board before he starts.`);
+  } else if (licMs - nowMs < warnWindow) {
+    notes.push(`${who}'s licence expires ${formatExpiryDay(sub.licenseExpiry)}.`);
+  }
+
+  return { coi, coiExpiryMs: coiMs, blockers, notes };
+}

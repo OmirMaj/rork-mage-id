@@ -10,13 +10,13 @@
 // Sub side is `app/prequal-form.tsx` — reached via the emailed magic link,
 // no auth. See that file for the data-entry UI.
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import {
   ShieldCheck, ShieldAlert, ShieldX, Clock, Send, ChevronRight,
@@ -121,6 +121,24 @@ function PrequalManagerInner() {
 
   const [reviewingPacket, setReviewingPacket] = useState<PrequalPacket | null>(null);
   const [invitingSub, setInvitingSub] = useState<Subcontractor | null>(null);
+
+  // `inviteSubId` — the award dialog in app/buyout-package.tsx offers "Request
+  // prequal" for a sub with no packet, so the answer to that note is one tap
+  // rather than finding him in this list. Opens the invite sheet once, when
+  // the roster has loaded; a packet that already exists is opened for review
+  // instead, because re-inviting would mint a new token and kill the link the
+  // sub may already be filling in.
+  const { inviteSubId } = useLocalSearchParams<{ inviteSubId?: string }>();
+  const handledInviteParam = useRef(false);
+  useEffect(() => {
+    if (!inviteSubId || handledInviteParam.current) return;
+    const target = subcontractors.find(s => s.id === inviteSubId);
+    if (!target) return;
+    handledInviteParam.current = true;
+    const existing = getPrequalPacketForSub(target.id);
+    if (existing) setReviewingPacket(existing);
+    else setInvitingSub(target);
+  }, [inviteSubId, subcontractors, getPrequalPacketForSub]);
 
   // Build a row per sub with packet+status+review info.
   const rows = useMemo(() => {

@@ -64,7 +64,8 @@ import {
   type BidInviteRecord, type InviteRecipient,
 } from '@/utils/bidInviteCore';
 import { canGenerateScope, estimateItemsToScope } from '@/utils/estimateItemsToScope';
-import { complianceLabel, getComplianceStatus, parseExpiry } from '@/utils/subCompliance';
+import { complianceLabel, getComplianceStatus, reviewAwardCompliance } from '@/utils/subCompliance';
+import { subCoiExpiryAcross } from '@/utils/projectContextPure';
 import { matchSubForPhase } from '@/utils/subTradeMatch';
 import { normalizeTradeKey } from '@/utils/laborSamples';
 
@@ -98,7 +99,7 @@ export default function BuyoutPackageScreen() {
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
     awardBidPackage, getProject, prequalPackets, getSubcontractor, subcontractors,
-    updateCommitment, getCommitmentsForProject,
+    updateCommitment, getCommitmentsForProject, getCOIsForSub,
     settings,
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
@@ -583,10 +584,15 @@ export default function BuyoutPackageScreen() {
   // award for three months stops reading it, which is exactly when the one sub
   // whose COI really has lapsed goes through.
   //
-  // So: the licence and COI dates the app keeps up to date on the roster are
-  // the evidence. Expired or absent is a blocker — it is the thing the gate is
-  // for. Current dates with no prequal packet is a NOTE: it is paperwork the
-  // GC may deliberately not run on a small job, not an insurance exposure.
+  // So: the COI the app keeps up to date is the evidence — read from the
+  // certificates in the COI vault, falling back to the date on the roster
+  // record. Absent or expired is a blocker; it is the thing the gate is for.
+  // The licence leg and a missing prequal packet are NOTES. Screen audit
+  // 2026-09-16: this used to gate on `getComplianceStatus`, which returns
+  // 'unknown' when EITHER date is missing — so a sub with a current,
+  // vault-verified COI and no typed licence date (the common case) was still
+  // blocked. utils/subCompliance.reviewAwardCompliance splits the legs and is
+  // pinned by scripts/validate-sub-network.ts.
   const handleAward = useCallback((bid: BidPackageBid) => {
     if (!pkg) return;
     const total = bid.amount + (bid.normalizedAdjustment ?? 0);
@@ -602,32 +608,29 @@ export default function BuyoutPackageScreen() {
     const blockers: string[] = [];
     const notes: string[] = [];
     const now = Date.now();
-    const compliance = sub ? getComplianceStatus(sub, now) : null;
+    const subCerts = sub ? getCOIsForSub(sub.id) : [];
+    const award = sub
+      ? reviewAwardCompliance(sub, now, {
+          vaultCoiExpiry: subCoiExpiryAcross(subCerts),
+          vaultCertCount: subCerts.length,
+        })
+      : null;
 
     if (!sub) {
       // Actionable, not a shrug: the bid card carries the control that fixes it.
       blockers.push('This bid is not linked to a sub on your roster, so no licence or COI has been checked — and the commitment it creates cannot be given a sub portal. Use "Link this bid to a sub" on the bid card first.');
-    } else if (compliance === 'expired') {
-      const licMs = parseExpiry(sub.licenseExpiry);
-      const coiMs = parseExpiry(sub.coiExpiry);
-      if (coiMs !== null && coiMs < now) blockers.push(`${sub.companyName}'s COI expired ${new Date(coiMs).toLocaleDateString()}.`);
-      if (licMs !== null && licMs < now) blockers.push(`${sub.companyName}'s licence expired ${new Date(licMs).toLocaleDateString()}.`);
-    } else if (compliance === 'unknown') {
-      blockers.push(`${complianceLabel('unknown', sub)} for ${sub.companyName} — the app has never seen that paperwork, so it cannot tell you he is covered.`);
-    } else {
-      if (compliance === 'expiring_soon') {
-        const coiMs = parseExpiry(sub.coiExpiry);
-        const licMs = parseExpiry(sub.licenseExpiry);
-        const soonest = [coiMs, licMs].filter((m): m is number => m !== null).sort((a, b) => a - b)[0];
-        notes.push(`${sub.companyName}'s paperwork is current but expires ${new Date(soonest).toLocaleDateString()} — ask for the renewal before he starts.`);
-      }
+    } else if (award) {
+      blockers.push(...award.blockers);
+      notes.push(...award.notes);
       if (!packet) {
-        notes.push(`No prequal packet on file for ${sub.companyName}. His licence and COI dates are current, so this is paperwork you may have chosen not to run — not an uninsured sub.`);
+        // A note, not a blocker: the prequal form is a separate invite the bid
+        // invite never mentioned. Offered as one tap below ("Request prequal").
+        notes.push(`No prequal packet on file for ${sub.companyName} — paperwork you may have chosen not to run on this job, not an insurance gap.`);
       } else if (review && review.overall !== 'pass') {
         for (const f of review.findings) {
           if (!f.passed && f.severity === 'blocker') blockers.push(f.note ? `${f.label} — ${f.note}` : f.label);
         }
-        if (blockers.length === 0) notes.push(`Prequal not approved: ${review.summary}`);
+        if (!review.findings.some(f => !f.passed && f.severity === 'blocker')) notes.push(`Prequal not approved: ${review.summary}`);
       }
     }
     const isRisky = blockers.length > 0;
@@ -673,6 +676,12 @@ export default function BuyoutPackageScreen() {
         lines.join('\n'),
         [
           { text: 'Cancel', style: 'cancel' },
+          // The answer to "no prequal packet" is one tap, not a trip to another
+          // screen: prequal-manager opens its invite sheet for this sub.
+          ...(sub && !packet ? [{
+            text: 'Request prequal', style: 'default' as const,
+            onPress: () => router.push({ pathname: '/prequal-manager', params: { inviteSubId: sub.id } } as never),
+          }] : []),
           { text: 'Award', style: 'default', onPress: doAward },
         ],
       );
@@ -693,6 +702,10 @@ export default function BuyoutPackageScreen() {
           // rather than sending him down the destructive path to work around a
           // blocker that is really a missing join.
           ...(!sub ? [{ text: 'Pick the sub', style: 'default' as const, onPress: () => setLinkTargetBidId(bid.id) }] : []),
+          // Same for a missing or lapsed COI: the vault is where the fix lives.
+          ...(award && (award.coi === 'none' || award.coi === 'expired')
+            ? [{ text: 'Open COI vault', style: 'default' as const, onPress: () => router.push('/coi-vault' as never) }]
+            : []),
           {
             text: 'Review override',
             style: 'destructive',
@@ -708,7 +721,7 @@ export default function BuyoutPackageScreen() {
         ],
       );
     }
-  }, [pkg, awardBidPackage, getSubcontractor, prequalPackets, allowanceItems, updateCommitment, getCommitmentsForProject]);
+  }, [pkg, awardBidPackage, getSubcontractor, getCOIsForSub, prequalPackets, allowanceItems, updateCommitment, getCommitmentsForProject, router]);
 
   // Generate A401-styled subcontract PDF for the awarded sub. Pulls
   // scope, contract sum, and CSI division from the bid package; pulls

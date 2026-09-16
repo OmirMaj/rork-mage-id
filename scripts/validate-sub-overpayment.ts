@@ -39,6 +39,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pendingRetentionHeld } from '../utils/invoiceBilling';
 
 // Declared locally rather than pulled from `bun-types`: this repo has no bun
 // type package installed, and without this `npx tsc --noEmit` fails with
@@ -209,6 +210,89 @@ ok('the guard still subtracts an already-counted invoice out of paidToDate',
   /countedInRollup\s*\?\s*thisAmount\s*:\s*0/.test(region),
   'The paidToDate rollup already contains approved+paid invoices. Adding\n'
   + '      thisAmount on top of it double-counts the draw being paid.');
+
+// ── the lien release asked for at payment (screen audit 2026-09-16) ─────────
+// Paying a sub from the portal used to close the sheet and say nothing; the
+// app could build the waiver but nothing on this screen routed to it. These
+// run the SHIPPED prefill (same sentinel extraction as above) and pin that
+// the payment path asks.
+console.log('\nLien release at payment (app/sub-portal-setup.tsx):');
+{
+  const RB = '// --- BEGIN subPaymentReleasePrefill';
+  const RE = '// --- END subPaymentReleasePrefill ---';
+  const rf = screenSrc.indexOf(RB), rt = screenSrc.indexOf(RE);
+  ok('subPaymentReleasePrefill sentinels are present', rf >= 0 && rt > rf);
+  type RInv = Inv & { retentionAmount?: number; paidOn?: string; paidAt?: string; createdAt?: string };
+  type Prefill = (a: {
+    projectId: string; invoice: RInv; sub: { id: string; companyName: string; email?: string };
+    commitment: Com | null; siblings: RInv[];
+  }) => Record<string, string>;
+  const rjs = new Bun.Transpiler({ loader: 'ts' })
+    .transformSync(screenSrc.slice(rf, rt))
+    .replace(/\bexport\s+function\b/, 'function');
+  // The prefill asks utils/invoiceBilling whether retainage is held; the
+  // extracted body is handed that same shipped helper.
+  const prefill = new Function('pendingRetentionHeld', `${rjs}\nreturn subPaymentReleasePrefill;`)(pendingRetentionHeld) as Prefill;
+  const SUB = { id: 'sub-1', companyName: 'Volt Edge Electric', email: 'sam@voltedge.test' };
+
+  const mid: RInv = { id: 'i2', amount: 10000, status: 'paid', commitmentId: 'c1', paidOn: '2026-09-12', paidAt: '2026-09-14T20:00:00Z' };
+  const p1 = prefill({ projectId: 'p1', invoice: mid, sub: SUB,
+    commitment: { amount: 50000, paidToDate: 20000 }, siblings: [paidDraw(1), mid] });
+  eq('a paid mid-contract draw → unconditional partial', p1.prefillWaiverType, 'unconditional_partial');
+  eq('identity is passed explicitly, not left for a lookup that misses',
+    [p1.prefillSubName, p1.prefillSubEmail, p1.prefillSubCompanyId, p1.prefillCommitmentId, p1.prefillInvoiceId],
+    ['Volt Edge Electric', 'sam@voltedge.test', 'sub-1', 'c1', 'i2']);
+  eq('amount and the day the money moved (paidOn beats paidAt)', [p1.prefillAmount, p1.prefillThroughDate], ['10000', '2026-09-12']);
+
+  const approved: RInv = { id: 'i3', amount: 10000, status: 'approved', commitmentId: 'c1', createdAt: '2026-09-10T15:00:00Z' };
+  eq('approved but not yet paid → CONDITIONAL, never unconditional',
+    prefill({ projectId: 'p1', invoice: approved, sub: SUB, commitment: { amount: 50000, paidToDate: 30000 }, siblings: [approved] }).prefillWaiverType,
+    'conditional_partial');
+
+  eq('the draw that completes the commitment → final',
+    prefill({ projectId: 'p1', invoice: finalDraw, sub: SUB, commitment: { amount: 50000, paidToDate: 50000 }, siblings: fullyBilled }).prefillWaiverType,
+    'conditional_final');
+  const finalPaid = { ...finalDraw, status: 'paid' };
+  eq('...and unconditional final once paid',
+    prefill({ projectId: 'p1', invoice: finalPaid, sub: SUB, commitment: { amount: 50000, paidToDate: 50000 },
+      siblings: [paidDraw(1), paidDraw(2), paidDraw(3), paidDraw(4), finalPaid] }).prefillWaiverType,
+    'unconditional_final');
+
+  // Retainage still held means the sub has NOT been paid in full; a final
+  // release would waive the retainage he is still owed.
+  const heldDraw: RInv = { ...paidDraw(2), retentionAmount: 1000 };
+  eq('retainage held anywhere on the commitment keeps the release partial',
+    prefill({ projectId: 'p1', invoice: finalPaid, sub: SUB, commitment: { amount: 50000, paidToDate: 50000 },
+      siblings: [paidDraw(1), heldDraw, paidDraw(3), paidDraw(4), finalPaid] }).prefillWaiverType,
+    'unconditional_partial');
+
+  // The static portal lets a sub bill "whole contract" with no commitment.
+  const loose: RInv = { id: 'l', amount: 90000, status: 'paid' };
+  const pl = prefill({ projectId: 'p1', invoice: loose, sub: SUB, commitment: null, siblings: [loose] });
+  eq('no commitment → partial, never a guessed final', pl.prefillWaiverType, 'unconditional_partial');
+  ok('...and the reason says why', /not tied to a commitment/.test(pl.prefillWaiverReason ?? ''));
+  ok('no commitment id is sent when there is none', !('prefillCommitmentId' in pl));
+  eq('no email on the sub → no empty email param', 'prefillSubEmail' in prefill({ projectId: 'p1', invoice: mid, sub: { id: 's', companyName: 'X' },
+    commitment: null, siblings: [] }), false);
+
+  // Source pins: the payment path asks, the row shows it, and the waiver
+  // screen prefers the explicit identity over its owner-invoice lookup.
+  const commitFrom = screenSrc.indexOf('const commitPayment = useCallback');
+  const commitBody = screenSrc.slice(commitFrom, screenSrc.indexOf('if (!project || !sub)', commitFrom));
+  ok('marking paid asks for the lien release',
+    /markPaid\(/.test(commitBody) && /'Collect the lien release\?'/.test(commitBody) && /openRelease\(/.test(commitBody),
+    'commitPayment must offer the release after markPaid — the finding was that nothing asked.');
+  ok('a detail correction on an already-paid invoice does NOT re-ask',
+    /reconcile\(id, detail\);\s*setPayingId\(null\);\s*return;/.test(commitBody));
+  ok('the invoice row offers "Collect release"', /release-collect-\$\{inv\.id\}/.test(screenSrc));
+  const waiverScreen = read('app/lien-waivers.tsx');
+  const seedFrom = waiverScreen.indexOf('const prefillSeed = useMemo');
+  const seedBody = waiverScreen.slice(seedFrom, waiverScreen.indexOf('if (!prefillFromInvoice) return null;', seedFrom));
+  ok('lien-waivers builds the seed from explicit params BEFORE the invoice lookup',
+    seedFrom >= 0 && /if \(prefillSubName\)/.test(seedBody) && /subName: prefillSubName/.test(seedBody));
+  ok('the New Waiver modal starts on the seeded waiver type',
+    /setType\(seed\?\.waiverType \?\? 'unconditional_partial'\)/.test(waiverScreen));
+}
 
 // ── finding #29: the "Advance requested" confirmation ───────────────────────
 console.log('\nAdvance-interest write (components/home/ReadyToBillCard.tsx):');
