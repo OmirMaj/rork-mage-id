@@ -522,7 +522,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 16,
   },
   heroCardDone: {
-    backgroundColor: 'rgba(30,142,74,0.08)', borderColor: 'rgba(30,142,74,0.35)',
+    backgroundColor: 'rgba(18,128,110,0.08)', borderColor: 'rgba(18,128,110,0.35)',
   },
   heroHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   heroTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.accent, letterSpacing: -0.2 },

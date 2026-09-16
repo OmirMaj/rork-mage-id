@@ -813,9 +813,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: '#1E8E4A' + '12',
+    backgroundColor: '#12806E' + '12',
     borderWidth: 1,
-    borderColor: '#1E8E4A' + '40',
+    borderColor: '#12806E' + '40',
   },
   magicLinkSuccessText: {
     fontSize: Type.footnote.fontSize,

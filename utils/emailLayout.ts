@@ -393,7 +393,7 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
             ${isCobranded ? `<p style="margin:3px 0 0;font-family:${FONT_STACK};font-size:11px;color:#9AA3AD;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;">via MAGE ID</p>` : ''}
           </td>
           <td align="right" valign="middle">
-            <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${opts.accent ?? BRAND_ON_INK};color:#0B0D10;font-family:${FONT_STACK};font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">MAGE&nbsp;ID</span>
+            <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${BRAND_ON_INK};color:#0B0D10;font-family:${FONT_STACK};font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">MAGE&nbsp;ID</span>
           </td>
         </tr>
       </table>

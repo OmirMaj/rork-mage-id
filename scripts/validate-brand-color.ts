@@ -588,4 +588,76 @@ if (offenders.length === 0) {
   console.log('');
 }
 
+// ── 5. The retired palette in places the token file cannot reach ────────────
+// Emails are rendered by the recipient's mail client, so every edge function
+// that builds one carries LITERAL hexes — eight files, none of which import
+// constants/colors.ts. The rebrand first missed all eight. And the header pill
+// is MAGE's mark on the ink bar: a caller's milestone accent (success teal,
+// danger) under ink text fails contrast, so it must always be the on-ink green.
+console.log('brand-colour RETIRED-PALETTE guard (edge emails, marketing cache):');
+// walk() above collects .tsx only; these scans need every file type.
+function walkAll(dir: string, acc: string[] = []): string[] {
+  let ents: string[];
+  try { ents = readdirSync(dir); } catch { return acc; }
+  for (const name of ents) {
+    if (name === 'node_modules' || name === '.git') continue;
+    const full = join(dir, name);
+    let st;
+    try { st = statSync(full); } catch { continue; }
+    if (st.isDirectory()) walkAll(full, acc); else acc.push(full);
+  }
+  return acc;
+}
+const RETIRED = [/#FF6A1A/i, /#F4EFE6/i, /#E8DFCD/i, /Fraunces/, /Georgia,\s*'Times New Roman',\s*serif/];
+const edgeHits: string[] = [];
+const edgeFiles = walkAll(join(ROOT, 'supabase/functions')).filter((f) => /\.(ts|tsx|html)$/.test(f));
+for (const f of edgeFiles) {
+  const src = readFileSync(f, 'utf8');
+  src.split('\n').forEach((line, i) => {
+    if (/^\s*\/\//.test(line)) return;
+    for (const re of RETIRED) if (re.test(line)) edgeHits.push(`${f.slice(ROOT.length + 1)}:${i + 1}  ${re.source}`);
+  });
+}
+if (edgeFiles.length < 20) { failures++; console.log(`  FAIL  scanned only ${edgeFiles.length} edge files — the walk is broken, not the palette clean`); }
+else if (edgeHits.length === 0) console.log(`  PASS  no retired orange / cream / serif in ${edgeFiles.length} supabase/functions files`);
+else { failures += edgeHits.length; console.log(`  FAIL  ${edgeHits.length} retired-palette literal(s) in emails:\n          ` + edgeHits.join('\n          ')); }
+
+for (const rel of ['supabase/functions/_shared/email.ts', 'utils/emailLayout.ts']) {
+  const src = readFileSync(join(ROOT, rel), 'utf8');
+  const pill = src.match(/background:\$\{([^}]*)\};color:#0B0D10;[^<]*MAGE&nbsp;ID/);
+  if (pill && pill[1].trim() === 'BRAND_ON_INK') console.log(`  PASS  ${rel}: the MAGE ID pill is always BRAND_ON_INK`);
+  else { failures++; console.log(`  FAIL  ${rel}: the MAGE ID pill paints ${pill ? pill[1] : '(not found)'} under ink text — pin it to BRAND_ON_INK`); }
+}
+
+// netlify.toml serves /*.css, /*.js and /assets/* with a ONE-YEAR immutable
+// cache. A changed file at an unchanged URL never reaches a returning visitor,
+// and the rebrand shipped with 18 pages still on styles.css?v=2026-07-14. So:
+// every page that references one of these assets uses a ?v=, and every page uses
+// the SAME ?v= for the same asset — one page left behind is one page in orange.
+const CACHED = ['styles.css', 'landing.css', 'motion.js', 'assets/logo-mark-light.png', 'assets/logo-mark.png', 'assets/og-image.png', 'assets/favicon-16.png', 'assets/favicon-32.png', 'assets/favicon-180.png', 'assets/favicon-512.png'];
+const versions: Record<string, Map<string, string[]>> = {};
+const marketingPages = walkAll(join(ROOT, 'marketing')).filter((f) => f.endsWith('.html'));
+for (const f of marketingPages) {
+  const src = readFileSync(f, 'utf8');
+  const rel = f.slice(ROOT.length + 1);
+  for (const a of CACHED) {
+    const re = new RegExp(`(?:https://mageid\\.app)?/${a.replace(/\./g, '\\.')}(\\?v=[^"'\\s)]*)?(?=["'\\s)])`, 'g');
+    for (const m of src.matchAll(re)) {
+      const v = m[1] ?? '(unversioned)';
+      (versions[a] ??= new Map()).set(v, [...((versions[a].get(v)) ?? []), rel]);
+    }
+  }
+}
+if (marketingPages.length < 20) { failures++; console.log(`  FAIL  scanned only ${marketingPages.length} marketing pages — the walk is broken`); }
+for (const a of CACHED) {
+  const vs = versions[a];
+  if (!vs) continue;
+  const n = [...vs.values()].reduce((t, l) => t + l.length, 0);
+  if (vs.size === 1 && !vs.has('(unversioned)')) { console.log(`  PASS  /${a}: ${n} reference(s), one version ${[...vs.keys()][0]}`); continue; }
+  failures++;
+  console.log(`  FAIL  /${a} is referenced at ${vs.size} version(s) — returning visitors keep the stale one:`);
+  for (const [v, files] of vs) console.log(`          ${v}  ×${files.length}  e.g. ${[...new Set(files)].slice(0, 3).join(', ')}`);
+}
+console.log('');
+
 process.exit(failures === 0 ? 0 : 1);

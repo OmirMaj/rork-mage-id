@@ -218,9 +218,9 @@ function buildDigestEmail(opts: {
       : '';
 
     return `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;background:#FAFAF7;border:1px solid #E8DFCD;border-radius:12px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;background:#FAFAF7;border:1px solid #D7DAD4;border-radius:12px;">
         <tr><td style="padding:14px 18px;">
-          <p style="margin:0 0 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:11px;font-weight:800;color:#FF6A1A;letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(meta?.label ?? g.key)}${g.count > 1 ? ` · ${g.count} today` : ''}</p>
+          <p style="margin:0 0 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:11px;font-weight:800;color:#2F6B3A;letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(meta?.label ?? g.key)}${g.count > 1 ? ` · ${g.count} today` : ''}</p>
           <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;font-weight:600;color:#0B0D10;line-height:1.4;">${escapeHtml(detail || (projectName || 'Activity logged'))}</p>
           ${projectName && projectName !== detail ? `<p style="margin:2px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:12px;color:#9AA3AD;">${escapeHtml(projectName)}</p>` : ''}
         </td></tr>
