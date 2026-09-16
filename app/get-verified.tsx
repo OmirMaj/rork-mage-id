@@ -8,13 +8,21 @@
 // created in contractor_licenses. The notify-nearby-contractors fan-out
 // then treats that contractor as verified for verified-only RFPs.
 //
-// This screen ONLY submits the request (via the send-email edge function).
+// This screen submits the request (via the send-email edge function) AND keeps
+// what the contractor told it. It used to do only the former: licence number
+// and issuing state were typed here, emailed to support@, and discarded — while
+// the bid gate in utils/bidDocumentIdentity.ts, which exists to keep a CA/FL/AZ
+// licence number on the proposal, sat waiting for exactly those two answers.
+// The number now prefills from and writes back to settings.branding, and the
+// state is a picker (free text like "CSLB" or "Calif." normalises to nothing
+// and would leave the gate dead while the form looked filled in) that prefills
+// from, and writes back to, the same profile the gate reads.
 // Approval + the contractor_licenses insert happen on the MAGE ID side.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, ActivityIndicator, Image,
+  Platform, ActivityIndicator, Image, Modal,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +30,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  ChevronLeft, ShieldCheck, Camera, X, CheckCircle2, AlertTriangle, Send,
+  ChevronLeft, ShieldCheck, Camera, X, CheckCircle2, AlertTriangle, Send, ChevronDown, Check,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -33,6 +41,13 @@ import { useCompanies } from '@/contexts/CompaniesContext';
 import { sendEmail } from '@/utils/emailService';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useProjects } from '@/contexts/ProjectContext';
+import { US_STATES } from '@/constants/regions';
+import { resolvePricingMarket } from '@/constants/materials';
+import { normalizeState, splitLocationText } from '@/utils/codeJurisdiction';
+import {
+  bidLicenceRuleForState, bidStateFromBranding, licenceStateMarketEdit, mergedBidBranding,
+} from '@/utils/bidDocumentIdentity';
 
 // Where verification submissions land for manual review. Kept in sync with
 // OWNER_EMAILS (utils/owner.ts) — support@ is the staffed inbox.
@@ -55,9 +70,15 @@ export default function GetVerifiedScreen() {
   const { companies } = useCompanies();
   const company = useMemo(() => companies[0], [companies]);
 
-  const [licenseNumber, setLicenseNumber] = useState('');
+  const { settings, updateSettings } = useProjects();
+  // Prefilled from the profile, so a contractor who already gave his number and
+  // state is confirming them, not typing them a third time.
+  const [licenseNumber, setLicenseNumber] = useState(settings?.branding?.licenseNumber ?? '');
   const [licenseType, setLicenseType]     = useState('');
-  const [jurisdiction, setJurisdiction]   = useState('');
+  // A two-letter USPS code, never free text — see the header.
+  const [jurisdiction, setJurisdiction]   = useState(() => bidStateFromBranding(settings?.branding, settings?.location));
+  const [showStatePicker, setShowStatePicker] = useState(false);
+  const [profileNote, setProfileNote]     = useState<string | null>(null);
   const [expires, setExpires]             = useState('');
   const [docUri, setDocUri]               = useState<string | null>(null);
   const [submitting, setSubmitting]       = useState(false);
@@ -78,7 +99,7 @@ export default function GetVerifiedScreen() {
 
   const validate = useCallback((): string | null => {
     if (!licenseNumber.trim()) return 'Enter your license number.';
-    if (!jurisdiction.trim()) return 'Enter the issuing state / jurisdiction.';
+    if (!normalizeState(jurisdiction)) return 'Choose the state that issued your license.';
     return null;
   }, [licenseNumber, jurisdiction]);
 
@@ -87,6 +108,41 @@ export default function GetVerifiedScreen() {
     const v = validate();
     if (v) { setError(v); return; }
     if (!user) { setError('Sign in first.'); return; }
+
+    // Keep the answers on the profile before sending, so a failed send still
+    // leaves the bid gate fed. The number goes onto branding; the state goes
+    // where bidStateFromBranding reads it — the company address when that
+    // already carries a state (left alone), otherwise the pricing market, and
+    // only when saving it there would not silently re-price his work.
+    const code = normalizeState(jurisdiction);
+    const notes: string[] = [];
+    const typedNumber = licenseNumber.trim();
+    if (typedNumber && typedNumber !== (settings?.branding?.licenseNumber ?? '').trim()) {
+      updateSettings({ branding: mergedBidBranding(settings?.branding, { licenseNumber: typedNumber }) });
+      notes.push('License number saved to your company profile.');
+    }
+    const addressState = splitLocationText(settings?.branding?.address ?? '').state;
+    if (addressState) {
+      if (addressState !== code) {
+        notes.push(`Your company address says ${addressState}, so bids still follow ${addressState}\u2019s rules. Edit the address in Company Profile if that is wrong.`);
+      }
+    } else {
+      const edit = licenceStateMarketEdit(settings?.location, code, resolvePricingMarket);
+      if (edit.ok) {
+        // A second updateSettings in the same tick would merge onto the stale
+        // settings and undo the licence number above — carry it along.
+        if (edit.location !== settings?.location) {
+          updateSettings({
+            location: edit.location,
+            branding: mergedBidBranding(settings?.branding, { licenseNumber: typedNumber || undefined }),
+          });
+          notes.push(`${code} saved as your licensing state.`);
+        }
+      } else {
+        notes.push(`Licensing state not saved to your profile: ${edit.reason}`);
+      }
+    }
+    setProfileNote(notes.length ? notes.join(' ') : null);
 
     setSubmitting(true);
     try {
@@ -97,7 +153,7 @@ export default function GetVerifiedScreen() {
         ['User ID', user.id],
         ['License #', licenseNumber.trim()],
         ['License type', licenseType.trim() || '—'],
-        ['Jurisdiction', jurisdiction.trim()],
+        ['Jurisdiction', `${US_STATES.find(st => st.code === code)?.name ?? code} (${code})`],
         ['Expires', expires.trim() || '—'],
         ['Document attached', docUri ? 'Yes' : 'No'],
       ];
@@ -133,7 +189,7 @@ export default function GetVerifiedScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, user, company, licenseNumber, licenseType, jurisdiction, expires, docUri]);
+  }, [validate, user, company, licenseNumber, licenseType, jurisdiction, expires, docUri, settings, updateSettings]);
 
   if (submitted) {
     return (
@@ -146,6 +202,7 @@ export default function GetVerifiedScreen() {
             Our team will review your license and verify your account, usually within 1–2 business days.
             Once verified, you&apos;ll be eligible for &quot;Verified pros only&quot; projects.
           </Text>
+          {profileNote ? <Text style={styles.successBody} testID="get-verified-profile-note">{profileNote}</Text> : null}
           <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()} activeOpacity={0.85}>
             <Text style={styles.doneBtnText}>Done</Text>
           </TouchableOpacity>
@@ -202,14 +259,25 @@ export default function GetVerifiedScreen() {
             placeholderTextColor={themeColors.textMuted}
           />
 
-          <Text style={[styles.label, { marginTop: 14 }]}>Issuing state / jurisdiction *</Text>
-          <TextInput
-            style={styles.input}
-            value={jurisdiction}
-            onChangeText={setJurisdiction}
-            placeholder="e.g. California"
-            placeholderTextColor={themeColors.textMuted}
-          />
+          <Text style={[styles.label, { marginTop: 14 }]}>Issuing state *</Text>
+          <TouchableOpacity
+            style={[styles.input, styles.selectInput]}
+            onPress={() => setShowStatePicker(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Issuing state"
+            testID="get-verified-state"
+          >
+            <Text style={jurisdiction ? styles.selectText : styles.selectPlaceholder}>
+              {US_STATES.find(st => st.code === jurisdiction)?.name ?? 'Choose a state'}
+            </Text>
+            <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+          {bidLicenceRuleForState(jurisdiction) ? (
+            <Text style={[styles.helper, { marginTop: 6, marginBottom: 0 }]}>
+              {`${bidLicenceRuleForState(jurisdiction)?.citation} requires this number on ${bidLicenceRuleForState(jurisdiction)?.requirement}. Saved to your profile, it prints on every bid.`}
+            </Text>
+          ) : null}
 
           <Text style={[styles.label, { marginTop: 14 }]}>Expiration date</Text>
           <TextInput
@@ -219,6 +287,11 @@ export default function GetVerifiedScreen() {
             placeholder="YYYY-MM-DD"
             placeholderTextColor={themeColors.textMuted}
           />
+          {/* Honest about scope: the profile has no field for type or expiry
+              yet, so these two go to the reviewer and nowhere else. */}
+          <Text style={[styles.helper, { marginTop: 6, marginBottom: 0 }]}>
+            License type and expiration go to our reviewer only — MAGE does not track your own license expiry yet.
+          </Text>
         </View>
 
         <View style={styles.card}>
@@ -267,6 +340,37 @@ export default function GetVerifiedScreen() {
           We verify your license against public records. Submitting false credentials gets your account banned.
         </Text>
       </ScrollView>
+
+      <Modal visible={showStatePicker} transparent animationType="slide" onRequestClose={() => setShowStatePicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Issuing state</Text>
+              <TouchableOpacity onPress={() => setShowStatePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {US_STATES.map(st => {
+                const active = st.code === jurisdiction;
+                return (
+                  <TouchableOpacity
+                    key={st.code}
+                    style={styles.stateRow}
+                    onPress={() => { setJurisdiction(st.code); setShowStatePicker(false); }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.stateRowText, active && styles.stateRowTextActive]}>{st.name}</Text>
+                    {active ? <Check size={16} color={themeColors.accent} strokeWidth={1.75} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -302,6 +406,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
+
+  selectInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  selectText: { fontSize: Type.bodyCompact.fontSize, color: t.text },
+  selectPlaceholder: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: {
+    backgroundColor: t.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, maxHeight: '80%',
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: t.text },
+  stateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.line,
+  },
+  stateRowText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text },
+  stateRowTextActive: { color: t.accent, fontWeight: '700' },
 
   docPick: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

@@ -143,7 +143,7 @@ export function pathToDocumentTitle(pathname: string): string | null {
     '/claim-crew': 'Claim profile',
     '/sub-portals': 'Sub portals',
     '/sub-portal-setup': 'Sub portal',
-    '/public-profile-setup': 'Public profile',
+    '/public-profile-setup': 'Project page',
     '/integrations': 'Integrations',
     '/handover': 'Handover',
     '/weekly-snapshot': 'Weekly snapshot',

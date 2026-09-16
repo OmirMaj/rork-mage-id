@@ -34,10 +34,12 @@ import {
   getCatalogPrices,
   marketForSelection,
   resolvePricingMarket,
+  METRO_STATE,
   type MaterialItem,
   type PriceTargetStatus,
 } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
+import { splitLocationText } from '@/utils/codeJurisdiction';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { REGIONS, CITY_ADJUSTMENTS } from '@/constants/regions';
@@ -73,7 +75,7 @@ export default function MaterialsScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { priceAlerts, updatePriceAlert, deletePriceAlert, settings } = useProjects();
+  const { priceAlerts, updatePriceAlert, deletePriceAlert, settings, updateSettings } = useProjects();
   // Shared cart — count comes from MaterialCartContext so the badge stays
   // live as the user adds items from a category screen.
   const { cart } = useMaterialCart();
@@ -94,6 +96,39 @@ export default function MaterialsScreen() {
     () => (override ? marketForSelection(override.regionId, override.city) : homeMarket),
     [override, homeMarket],
   );
+
+  // ── A PICK IS HIS ANSWER, NOT A BROWSE ───────────────────────────────────
+  // This picker used to set a screen-local override and nothing else, so the
+  // one structured "where do you work" control in the app was forgotten on the
+  // next visit — and the Full Estimator, change orders and takeoff kept pricing
+  // at whatever settings.location said (the 'United States' default, for most
+  // accounts). A pick now SAVES as settings.location, written as text that
+  // resolvePricingMarket turns back into exactly the market picked ("San
+  // Francisco, CA", not a free-text "San Francisco" a typo can break). The save
+  // is checked by that round trip; a selection no single location string can
+  // name — a multi-state region he is not in, or "US average" — stays a
+  // browse-only view of this screen and the banner says it was not saved.
+  const locationForSelection = useCallback((regionId: PricingRegion | null, city: string | null): string | null => {
+    if (city) return METRO_STATE[city] ? `${city}, ${METRO_STATE[city]}` : null;
+    const region = REGIONS.find(r => r.id === regionId);
+    if (!region) return null; // US average: never overwrite his market with "no market"
+    const currentState = splitLocationText(settings.location).state;
+    if (currentState && region.states.includes(currentState)) return currentState;
+    return region.states.length === 1 ? region.states[0] : null;
+  }, [settings.location]);
+
+  const pickMarket = useCallback((regionId: PricingRegion | null, city: string | null) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    const want = marketForSelection(regionId, city);
+    const candidate = locationForSelection(regionId, city);
+    const got = candidate ? resolvePricingMarket(candidate) : null;
+    if (candidate && got && got.resolved && got.label === want.label && got.multiplier === want.multiplier) {
+      if (candidate !== settings.location) updateSettings({ location: candidate });
+      setOverride(null);
+      return;
+    }
+    setOverride({ regionId, city });
+  }, [locationForSelection, settings.location, updateSettings]);
 
   // ── THE PRICES ───────────────────────────────────────────────────────────
   // Deterministic. Browse over BASE products only: getCatalogPrices returns the
@@ -346,10 +381,7 @@ export default function MaterialsScreen() {
                 Without it every selection was an uplift the user could not undo. */}
             <TouchableOpacity
               style={[styles.pickerChip, !market.resolved && styles.pickerChipActive]}
-              onPress={() => {
-                setOverride({ regionId: null, city: null });
-                if (Platform.OS !== 'web') void Haptics.selectionAsync();
-              }}
+              onPress={() => pickMarket(null, null)}
               testID="market-us-average"
             >
               <Text style={[styles.pickerChipText, !market.resolved && styles.pickerChipTextActive]}>US average</Text>
@@ -361,10 +393,7 @@ export default function MaterialsScreen() {
                 <TouchableOpacity
                   key={region.id}
                   style={[styles.pickerChip, active && styles.pickerChipActive]}
-                  onPress={() => {
-                    setOverride({ regionId: region.id, city: null });
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                  }}
+                  onPress={() => pickMarket(region.id, null)}
                 >
                   <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>
                     {region.label}
@@ -388,8 +417,7 @@ export default function MaterialsScreen() {
                     // marketForSelection derives the region from the metro, so
                     // the city↔state table lives in constants/materials.ts
                     // where it can be tested instead of inline here.
-                    setOverride({ regionId: null, city });
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    pickMarket(null, city);
                   }}
                 >
                   <Text style={[styles.pickerChipText, active && styles.pickerChipTextActive]}>{city}</Text>
@@ -401,6 +429,17 @@ export default function MaterialsScreen() {
             })}
           </ScrollView>
         </View>
+      )}
+      {/* Says which of the two a pick did — saved as his market, or a view of
+          this screen only — so a browse is never mistaken for a setting. */}
+      {showLocationPicker && (
+        <Text style={styles.marketSavedNote} testID="materials-market-saved">
+          {override
+            ? `Showing ${market.label} on this screen only — not saved as your market. Pick a metro, or set Location in Settings to a city and state, to price estimates and change orders there.`
+            : market.resolved
+              ? `${market.label} is saved as your market — estimates and change orders price here too.`
+              : 'No market saved — everything prices at the US average. Pick a metro or your region.'}
+        </Text>
       )}
 
       {/* Replaces "Prices updated 9:20 PM · New York City rates · Pull to
@@ -556,7 +595,7 @@ export default function MaterialsScreen() {
         </Text>
       )}
     </View>
-  ), [insets.top, searchQuery, showTargets, priceAlerts, targetStatus, metTargets, filteredCategories.length, totalCount, updatePriceAlert, deletePriceAlert, market, showLocationPicker, cartCount, router, provenance, staleMonths, avgBulkDiscount, styles, themeColors]);
+  ), [insets.top, searchQuery, showTargets, priceAlerts, targetStatus, metTargets, filteredCategories.length, totalCount, updatePriceAlert, deletePriceAlert, market, override, pickMarket, showLocationPicker, cartCount, router, provenance, staleMonths, avgBulkDiscount, styles, themeColors]);
 
   return (
     <View style={styles.container}>
@@ -613,6 +652,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   alertBadgeText: { fontSize: 9, fontWeight: '700' as const, color: '#fff' },
   updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 20, marginBottom: 12 },
   updatedText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted },
+  marketSavedNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginHorizontal: 20, marginTop: -4, marginBottom: 10 },
   searchWrap: { paddingHorizontal: 16, marginBottom: 12 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 40 },
   searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: t.text },

@@ -38,7 +38,10 @@ import type { CostDatabase } from '@/utils/costDatabase';
 import {
   BID_LICENCE_RULES, PDF_VENDOR_PLACEHOLDER,
   bidIdentityGap, bidLicenceRuleForState, bidStateFromBranding, mergedBidBranding,
+  bidLicenceStateSource, licenceStateMarketEdit,
 } from '@/utils/bidDocumentIdentity';
+import { splitLocationText } from '@/utils/codeJurisdiction';
+import { resolvePricingMarket } from '@/constants/materials';
 import {
   decidePushAsk, pushAskCopy, PUSH_ASK_MOMENTS, PUSH_ASK_COPY,
   type PushAskMoment,
@@ -557,6 +560,142 @@ for (const idx of sites) {
   ok(`call site at ${idx} is inside the non-onboarding branch`,
     ifIdx >= 0 && elseIdx > ifIdx && between.includes('ONBOARDING_PAYWALL_ROUTE'),
     'a permission dialog raised mid-onboarding spends the one iOS prompt with nothing on screen to justify it');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nITEM 21 — the profile surface that feeds the bid and the price (2026-09-16 screen audit):');
+// ═════════════════════════════════════════════════════════════════════════════
+// Five findings, one theme: a control on the profile surface that asked for a
+// value and then did nothing with it.
+//   (a) the bid licence gate read ONLY a state parsed from the company address,
+//       whose placeholder taught "123 Main St, City" — so it never fired for a
+//       new CA/FL/AZ account; Get Verified asked for the state and emailed it away.
+//   (b) Location / tax / contingency were saved only by a "Save Changes" button
+//       ten sections below them, so leaving the tab dropped them silently.
+//   (c) Contingency Rate was validated, synced, and read by nobody.
+//   (d) "Edit public profile" pushed a per-project route with no project id.
+//   (e) the Materials market picker was the one structured "where do you work"
+//       control and it forgot the pick on the next visit.
+{
+  // (a) pure — the market is the second source, the address still wins.
+  const NEW_CA = { companyName: 'Ortiz Builders', address: '', licenseNumber: '' };
+  eq('a new account with no address but a CA market is asked for the licence',
+    bidIdentityGap(NEW_CA, 'San Francisco, CA').needsLicence, true);
+  eq('…from the market, and says so',
+    bidLicenceStateSource(NEW_CA, 'San Francisco, CA'), { state: 'CA', source: 'market' });
+  ok('…and the reason tells him where the state was read, so he can correct it',
+    /pricing market/i.test(bidIdentityGap(NEW_CA, 'Phoenix, AZ').reason), bidIdentityGap(NEW_CA, 'Phoenix, AZ').reason);
+  eq('the United States default names no state, so nothing is asked',
+    bidIdentityGap(NEW_CA, 'United States').blocking, false);
+  eq('an address state wins over the market (licensed where the office is)',
+    bidStateFromBranding(TXT, 'San Francisco, CA'), 'TX');
+  eq('no market passed behaves exactly as before',
+    bidStateFromBranding(NEW_CA), '');
+
+  // The profile's state pick lands on settings.location — refused when it
+  // would silently re-price his work.
+  const edit = (loc: string, code: string) => licenceStateMarketEdit(loc, code, resolvePricingMarket);
+  eq('picking CA on the default market saves the state', edit('United States', 'CA'), { ok: true, location: 'CA' });
+  eq('picking CA keeps an unpriced city', edit('Sacramento', 'CA'), { ok: true, location: 'Sacramento, CA' });
+  ok('picking CA on a Houston market is refused, with a reason',
+    (() => { const r = edit('Houston', 'CA'); return !r.ok && /re-price/.test(r.reason); })(),
+    JSON.stringify(edit('Houston', 'CA')));
+  eq('a state that is not a state is refused', edit('United States', 'Calif.').ok, false);
+
+  // (a) structural — every gate call in the wizard carries the market. A call
+  // without it re-opens the hole for exactly the accounts the fix is for.
+  const gapCalls = [...stripComments(wizard).matchAll(/bidIdentityGap\(([^;]*?)\)\s*;/g)].map(m => m[1]);
+  ok('the wizard calls the gate at all four sites', gapCalls.length === 4, `found ${gapCalls.length}`);
+  ok('every wizard gate call passes settings?.location',
+    gapCalls.length > 0 && gapCalls.every(args => /,\s*settings\?\.location\s*$/.test(args)),
+    gapCalls.filter(a => !/,\s*settings\?\.location\s*$/.test(a)).join(' | '));
+
+  const profile = stripComments(read('app/company-profile.tsx'));
+  const addrIdx = profile.indexOf('testID="branding-address"');
+  const addrInput = addrIdx >= 0 ? profile.slice(profile.lastIndexOf('<TextInput', addrIdx), addrIdx) : '';
+  const placeholder = addrInput.match(/placeholder="([^"]*)"/)?.[1] ?? '';
+  ok('the company address placeholder teaches a shape that carries a state',
+    splitLocationText(placeholder).state.length === 2 && bidStateFromBranding({ address: placeholder }) !== '',
+    `placeholder "${placeholder}" parses to no state — typing what the box shows switches the licence check off`);
+  ok('the company profile shows the licensing state and where it came from',
+    profile.includes('testID="branding-license-state"') && profile.includes('bidLicenceStateSource('));
+  ok('the licence "why" renders only when a cited rule exists',
+    /\{licenceRule \? \(/.test(profile) && profile.includes('testID="branding-license-why"'),
+    'a TX contractor must never be told of a requirement his board does not have');
+
+  const verified = stripComments(read('app/get-verified.tsx'));
+  const submit = callbackBody(verified, 'handleSubmit');
+  ok('Get Verified has no free-text jurisdiction box',
+    !verified.includes('onChangeText={setJurisdiction}'),
+    '"CSLB" / "Calif." normalise to nothing — the gate stays dead while the form looks filled in');
+  ok('Get Verified validates the state through normalizeState',
+    /normalizeState\(jurisdiction\)/.test(callbackBody(verified, 'validate')));
+  // The number's write must stand on its own, ahead of the state branch: the
+  // state path writes branding too, but only when the market changes, so a
+  // scan for "any updateSettings" passed with the number's own write deleted.
+  const numberWriteIdx = submit.indexOf('updateSettings({ branding: mergedBidBranding(settings?.branding, { licenseNumber: typedNumber }) })');
+  const stateBranchIdx = submit.indexOf('const addressState');
+  const stateWriteIdx = submit.indexOf('licenceStateMarketEdit(');
+  const sendIdx2 = submit.indexOf('sendEmail(');
+  ok('Get Verified writes the licence number back to the profile, unconditionally on the state, before it sends',
+    numberWriteIdx >= 0 && stateBranchIdx > numberWriteIdx && sendIdx2 > stateBranchIdx,
+    `numberWrite@${numberWriteIdx} stateBranch@${stateBranchIdx} send@${sendIdx2} — emailing the answers and discarding them is the bug`);
+  ok('Get Verified writes the state back through licenceStateMarketEdit before it sends',
+    stateWriteIdx > stateBranchIdx && sendIdx2 > stateWriteIdx
+    && /if \(edit\.ok\) \{[^]*?updateSettings\(\{\s*location: edit\.location/.test(submit),
+    `stateWrite@${stateWriteIdx} send@${sendIdx2}`);
+  ok('Get Verified prefills from the profile',
+    /useState\(settings\?\.branding\?\.licenseNumber/.test(verified) && /bidStateFromBranding\(settings\?\.branding, settings\?\.location\)/.test(verified));
+
+  // (b) the settings screen: no orphan "Save Changes"; location commits itself;
+  // the numerics' save sits under them and leaving with an edit asks.
+  const settingsSrc = stripComments(read('app/(tabs)/settings/index.tsx'));
+  ok('the mid-screen "Save Changes" button is gone', !settingsSrc.includes('testID="save-settings"'));
+  const locInputStart = settingsSrc.indexOf('testID="settings-location"');
+  const locInput = locInputStart >= 0 ? settingsSrc.slice(settingsSrc.lastIndexOf('<TextInput', locInputStart), locInputStart) : '';
+  ok('Location commits on blur and on return',
+    locInput.includes('onBlur={commitLocation}') && locInput.includes('onSubmitEditing={commitLocation}'),
+    locInput.slice(0, 200));
+  ok('commitLocation actually writes', /commitScreen\(\{ location: next \}\)/.test(callbackBody(settingsSrc, 'commitLocation')));
+  const contIdx = settingsSrc.indexOf('testID="settings-contingency"');
+  const saveDefaultsIdx = settingsSrc.indexOf('testID="save-estimate-defaults"');
+  const nextHeaderIdx = settingsSrc.indexOf('<Text style={styles.sectionHeader}>', contIdx);
+  ok('the estimate-defaults save sits directly under the fields it saves',
+    contIdx >= 0 && saveDefaultsIdx > contIdx && (nextHeaderIdx < 0 || saveDefaultsIdx < nextHeaderIdx),
+    `contingency@${contIdx} save@${saveDefaultsIdx} nextSection@${nextHeaderIdx}`);
+  const saveDefaults = callbackBody(settingsSrc, 'saveEstimateDefaults');
+  ok('the save validates both ranges before writing',
+    saveDefaults.indexOf('tax > 30') >= 0 && saveDefaults.indexOf('cont > 50') >= 0
+    && saveDefaults.indexOf('commitScreen(') > saveDefaults.indexOf('cont > 50'));
+  ok('leaving the tab with an unsaved edit asks instead of dropping it',
+    /useFocusEffect\(\s*useCallback\(\(\) => \(\) => \{[^]*?guard\.dirty[^]*?showAlert\(/.test(settingsSrc));
+
+  // (c) contingency has a reader, and it is the number on the estimate.
+  const gen = callbackBody(wizard, 'generate');
+  const contLine = gen.slice(gen.indexOf('const contingency ='), gen.indexOf(';', gen.indexOf('const contingency =')));
+  ok('the wizard builds contingency from settings.contingencyRate',
+    /settings\?\.contingencyRate/.test(gen) && /subtotal \* rate \/ 100/.test(contLine),
+    `${contLine} — a validated, synced, unread setting is a control that does nothing`);
+  ok('the totals block names the rate it used',
+    wizard.includes('testID="wizard-contingency-label"') && wizard.includes('contingencyRateUsed'));
+
+  // (d) the public page row cannot land on "Project not found."
+  const publicSetup = stripComments(read('app/public-profile-setup.tsx'));
+  const noProject = balancedFrom(publicSetup, publicSetup.indexOf('if (!project) {'));
+  ok('opened with no project, the page asks which job instead of erroring',
+    !noProject.includes('Project not found') && noProject.includes('router.setParams({ id: p.id })'),
+    noProject.slice(0, 200));
+  ok('Settings no longer promises a company profile the route does not build',
+    !settingsSrc.includes('Used in the sub directory + bid award notifications'));
+
+  // (e) a market pick persists, checked by the resolver round trip.
+  const materials = stripComments(read('app/(tabs)/materials/index.tsx'));
+  const pick = callbackBody(materials, 'pickMarket');
+  ok('a market pick saves settings.location when the resolver reads it back as the same market',
+    pick.includes('updateSettings({ location: candidate })') && pick.includes('resolvePricingMarket(candidate)'),
+    pick.slice(0, 200));
+  ok('no picker chip bypasses pickMarket', !/setOverride\(\{ regionId: (region\.id|null), city/.test(materials.replace(pick, '')),
+    'a chip that only sets the override is a pick that is forgotten on the next visit');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

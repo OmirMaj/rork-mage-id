@@ -1,11 +1,11 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TextInput, Switch, TouchableOpacity, Platform} from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Globe, Copy, Send, Eye, Quote,
+  ChevronLeft, Globe, Copy, Send, Eye, Quote, ChevronRight,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -35,7 +35,7 @@ export default function PublicProfileSetupScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getProject, updateProject, settings, getPhotosForProject } = useProjects();
+  const { getProject, updateProject, settings, getPhotosForProject, projects } = useProjects();
 
   const project = useMemo(() => id ? getProject(id) : undefined, [id, getProject]);
   const photos = useMemo(() => id ? getPhotosForProject(id) : [], [id, getPhotosForProject]);
@@ -48,6 +48,21 @@ export default function PublicProfileSetupScreen() {
       publicBody: '',
     };
   });
+  // The project can arrive after mount — picked from the list below, or loaded
+  // after a cold start — and the initializer above only ever saw the first one.
+  useEffect(() => {
+    if (!project) return;
+    setProfile(project.publicProfile ?? {
+      enabled: false, slug: slugify(project.name), publicHeadline: '', publicBody: '',
+    });
+  }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Finished jobs first: a portfolio page is for work that is done, but a job
+  // still in progress is not hidden — he may want the page ready for handover.
+  const pickable = useMemo(() => {
+    const rank = (st: string) => (st === 'completed' || st === 'closed' ? 0 : 1);
+    return [...projects].sort((a, b) => rank(a.status) - rank(b.status) || a.name.localeCompare(b.name));
+  }, [projects]);
 
   const persist = useCallback((updates: Partial<PublicProfileSettings>) => {
     if (!id || !project) return;
@@ -94,11 +109,57 @@ export default function PublicProfileSetupScreen() {
   }, [publicUrl, project, persist]);
 
   if (!project) {
+    // Opened with no project — Settings' row used to land every tap here on a
+    // bare "Project not found." This page publishes ONE job, so ask which.
+    // An id that does not resolve (a deleted job) says so above the list.
     return (
-      <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Public Profile' }} />
-        <Text style={styles.muted}>Project not found.</Text>
-      </View>
+      <>
+        <Stack.Screen options={{ title: 'Project page' }} />
+        <ScrollView
+          {...fabScroll}
+          style={styles.container}
+          contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        >
+          <View style={styles.hero}>
+            <View style={styles.heroIcon}>
+              <Globe size={20} color={themeColors.accent} strokeWidth={1.75} />
+            </View>
+            <Text style={styles.heroEyebrow}>Free portfolio page</Text>
+            <Text style={styles.heroTitle}>Which job do you want to show off?</Text>
+            <Text style={styles.heroBody}>
+              {id
+                ? 'That project is no longer on this account. Pick another one below.'
+                : 'A public page for one project — photos, scope and your company name — that you can link from your website or send to a prospect.'}
+            </Text>
+          </View>
+          <View style={styles.section}>
+            {pickable.length === 0 ? (
+              <Text style={styles.muted}>No projects yet. Create one, add photos as the job goes, and publish its page when it is done.</Text>
+            ) : (
+              <View style={styles.togglesCard}>
+                {pickable.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.pickRow}
+                    onPress={() => router.setParams({ id: p.id })}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    testID={`public-profile-pick-${p.id}`}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.toggleLabel}>{p.name}</Text>
+                      <Text style={styles.toggleDesc}>
+                        {p.publicProfile?.enabled ? 'Published' : p.status === 'completed' || p.status === 'closed' ? 'Finished · not published' : 'In progress · not published'}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </>
     );
   }
 
@@ -319,6 +380,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   togglesCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: t.line, overflow: 'hidden',
+  },
+  pickRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 13,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },

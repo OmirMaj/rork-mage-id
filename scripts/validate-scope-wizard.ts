@@ -40,6 +40,11 @@ expect('timeline range advances', stepCanAdvance(5, { ...base, timelineWeeks: '6
 expect('timeline optional — text advances', stepCanAdvance(5, { ...base, timelineWeeks: 'soon' }), true);
 expect('timeline optional — empty advances', stepCanAdvance(5, { ...base, timelineWeeks: '' }), true);
 
+console.log('\nscope wizard — the prompt asks for the GC\'s own contingency:');
+expect('rate 8 → the prompt says 8%', buildEstimatePrompt(base, [], { contingencyRate: 8 }).includes('- contingency: 8% of subtotal'), true);
+expect('no rate → the generic ~10% line', buildEstimatePrompt(base).includes('- contingency: ~10% of subtotal'), true);
+expect('a rate Settings would refuse (NaN / 75) → generic line', [NaN, 75].every(r => buildEstimatePrompt(base, [], { contingencyRate: r }).includes('~10% of subtotal')), true);
+
 console.log('\nscope wizard — stepBlockReason (never a silent dead end):');
 expect('advancing step → null reason', stepBlockReason(1, base), null);
 expect('blocked size names the fix', (stepBlockReason(1, { ...base, sizeSqft: 'big' }) ?? '').includes('number'), true);

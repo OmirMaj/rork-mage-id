@@ -29,7 +29,8 @@ import { platformFeeLabel } from '@/utils/platformFees';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
 import { THEME_PRESETS } from '@/types';
-import type { PDFNamingSettings } from '@/types';
+import type { AppSettings, PDFNamingSettings } from '@/types';
+import { resolvePricingMarket } from '@/constants/materials';
 import SignaturePad from '@/components/SignaturePad';
 import Tutorial from '@/components/Tutorial';
 import Paywall from '@/components/Paywall';
@@ -209,9 +210,31 @@ export default function SettingsScreen() {
     }).catch(() => {});
   }, [tier]);
 
+  // ── THE THREE NUMBERS THAT PRICE EVERY JOB ────────────────────────────────
+  // Location, sales tax and contingency used to be local drafts committed ONLY
+  // by a "Save Changes" button parked between NOTIFICATIONS and PAYMENTS, five
+  // screens below them — while the Units switch two rows down wrote instantly.
+  // A GC typed his city, watched Units respond, reasonably concluded the page
+  // saves itself, and left: every catalog price and change-order multiplier
+  // stayed at the 'United States' default and his tax stayed 0, with nothing on
+  // screen to say so. Now:
+  //   - Location commits on blur / return, like Units. It is free text with no
+  //     range to violate, so there is no half-typed value to fear.
+  //   - Tax and contingency keep an explicit save, because a blur after typing
+  //     the "3" of "35" would persist 3% — but the button sits directly under
+  //     them, names its scope, says when there is nothing to save, and leaving
+  //     the tab with an unsaved edit asks instead of dropping it.
+  // Every draft re-syncs when the saved value changes elsewhere (the Materials
+  // market picker writes settings.location too).
   const [location, setLocation] = useState(settings.location);
   const [taxRate, setTaxRate] = useState(settings.taxRate.toString());
   const [contingency, setContingency] = useState(settings.contingencyRate.toString());
+  useEffect(() => { setLocation(settings.location); }, [settings.location]);
+  useEffect(() => { setTaxRate(settings.taxRate.toString()); }, [settings.taxRate]);
+  useEffect(() => { setContingency(settings.contingencyRate.toString()); }, [settings.contingencyRate]);
+  const locationMarket = useMemo(() => resolvePricingMarket(location), [location]);
+  const estimateDefaultsDirty =
+    parseFloat(taxRate) !== settings.taxRate || parseFloat(contingency) !== settings.contingencyRate;
 
   const branding = settings.branding ?? {
     companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
@@ -240,6 +263,9 @@ export default function SettingsScreen() {
     return match?.id ?? 'mage';
   });
   const [biometricsEnabled, setBiometricsEnabled] = useState(settings.biometricsEnabled ?? false);
+  // Carried on every write from this screen (commitScreen), so it must track a
+  // change made elsewhere rather than write a stale value back over it.
+  useEffect(() => { setBiometricsEnabled(settings.biometricsEnabled ?? false); }, [settings.biometricsEnabled]);
 
   const defaultPdfNaming: PDFNamingSettings = {
     enabled: false,
@@ -349,18 +375,17 @@ export default function SettingsScreen() {
     autoSaveBranding({ sig: undefined });
   }, [autoSaveBranding]);
 
-  const handleSave = useCallback(() => {
-    const tax = parseFloat(taxRate);
-    const cont = parseFloat(contingency);
-    if (isNaN(tax) || tax < 0 || tax > 30) {
-      showAlert('Invalid Tax Rate', 'Please enter a rate between 0 and 30%.');
-      return;
-    }
-    if (isNaN(cont) || cont < 0 || cont > 50) {
-      showAlert('Invalid Contingency', 'Please enter a rate between 0 and 50%.');
-      return;
-    }
-    const themePreset = THEME_PRESETS.find(t => t.id === selectedTheme);
+  // Every write from this screen carries the auto-committed fields' CURRENT
+  // values. updateSettings merges onto the `settings` its closure captured, so
+  // a Location blur followed in the same tick by a tap on another row (the tap
+  // is what blurs the field) would otherwise write the old location straight
+  // back over the one just committed.
+  //
+  // themeColors is deliberately NOT carried: the preset chip state defaults to
+  // 'mage' when the saved hue matches no preset (a custom colour from
+  // Settings → Appearance), and carrying it would overwrite that colour on
+  // every Location blur. Only a chip tap writes the theme.
+  const commitScreen = useCallback((extra: Partial<AppSettings>) => {
     // Branding (company name, logo, signature, etc.) lives on
     // /company-profile now and is saved there. We deliberately do NOT
     // include `branding` in this call — the local state vars on this
@@ -368,12 +393,70 @@ export default function SettingsScreen() {
     // in the dedicated screen with stale values.
     updateSettings({
       location: location.trim() || 'United States',
-      taxRate: tax,
-      contingencyRate: cont,
-      themeColors: themePreset ? { primary: themePreset.primary, accent: themePreset.accent } : undefined,
       biometricsEnabled,
       pdfNaming: pdfNaming.enabled ? pdfNaming : undefined,
+      ...extra,
     });
+  }, [location, biometricsEnabled, pdfNaming, updateSettings]);
+
+  const commitLocation = useCallback(() => {
+    const next = location.trim() || 'United States';
+    if (next === settings.location) return;
+    commitScreen({ location: next });
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [location, settings.location, commitScreen]);
+
+  /** Validates and saves tax + contingency. Returns false (having said why)
+   *  when a value is out of range, so the leave-guard can keep the draft. */
+  const saveEstimateDefaults = useCallback((): boolean => {
+    const tax = parseFloat(taxRate);
+    const cont = parseFloat(contingency);
+    if (isNaN(tax) || tax < 0 || tax > 30) {
+      showAlert('Invalid Tax Rate', 'Please enter a rate between 0 and 30%.');
+      return false;
+    }
+    if (isNaN(cont) || cont < 0 || cont > 50) {
+      showAlert('Invalid Contingency', 'Please enter a rate between 0 and 50%.');
+      return false;
+    }
+    commitScreen({ taxRate: tax, contingencyRate: cont });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    return true;
+  }, [taxRate, contingency, commitScreen]);
+
+  // Leaving the tab with an unsaved tax/contingency edit asks rather than
+  // silently dropping it — the failure this section used to have. Refs, so the
+  // focus effect does not re-subscribe (and re-fire) on every keystroke.
+  const defaultsGuardRef = React.useRef({ dirty: false, save: saveEstimateDefaults, discard: () => {} });
+  defaultsGuardRef.current = {
+    dirty: estimateDefaultsDirty,
+    save: saveEstimateDefaults,
+    discard: () => {
+      setTaxRate(settings.taxRate.toString());
+      setContingency(settings.contingencyRate.toString());
+    },
+  };
+  useFocusEffect(
+    useCallback(() => () => {
+      const guard = defaultsGuardRef.current;
+      if (!guard.dirty) return;
+      showAlert(
+        'Estimate defaults not saved',
+        'You changed your sales tax or contingency rate and left before saving. Every new estimate, invoice and change order uses these.',
+        [
+          { text: 'Discard', style: 'destructive', onPress: () => guard.discard() },
+          // An out-of-range value is refused with its own alert and the draft
+          // is kept, so nothing he typed is lost either way.
+          { text: 'Save', onPress: () => { guard.save(); } },
+        ],
+      );
+    }, []),
+  );
+
+  const selectTheme = useCallback((themeId: string) => {
+    setSelectedTheme(themeId);
+    const themePreset = THEME_PRESETS.find(t => t.id === themeId);
+    commitScreen({ themeColors: themePreset ? { primary: themePreset.primary, accent: themePreset.accent } : undefined });
     if (themePreset) {
       // Only the hue: the accent family (accent / accentHot / accentSoft /
       // accentLabel / accentFill) is derived from it, and ThemeContext is
@@ -382,9 +465,25 @@ export default function SettingsScreen() {
       // below asked for a restart that could not have finished the job either.
       setCustomPrimary(themePreset.primary);
     }
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Saved', 'Your settings have been updated.');
-  }, [location, taxRate, contingency, updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, selectedTheme, biometricsEnabled, pdfNaming]);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [commitScreen]);
+
+  const setBiometrics = useCallback((val: boolean) => {
+    setBiometricsEnabled(val);
+    commitScreen({ biometricsEnabled: val });
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [commitScreen]);
+
+  // PDF naming is a cluster of switches, chips and two text boxes. It used to
+  // be saved only by the same buried button; it now writes itself, debounced so
+  // typing a prefix is one write, not one per keystroke.
+  const pdfNamingSaved = JSON.stringify(settings.pdfNaming ?? null);
+  useEffect(() => {
+    const next = pdfNaming.enabled ? pdfNaming : undefined;
+    if (JSON.stringify(next ?? null) === pdfNamingSaved) return;
+    const t = setTimeout(() => commitScreen({ pdfNaming: next }), 600);
+    return () => clearTimeout(t);
+  }, [pdfNaming, pdfNamingSaved, commitScreen]);
 
   const handleClearAll = useCallback(() => {
     showAlert('Clear All Data', 'This permanently deletes every project, estimate, and cached record this app stored on this device — change orders, invoices, daily reports, photos, bids, and the rest — INCLUDING any changes not yet synced and jobsite photos not yet uploaded, which cannot be recovered. Your appearance/theme setting is kept. This cannot be undone.', [
@@ -783,12 +882,24 @@ export default function SettingsScreen() {
               style={styles.inlineInput}
               value={location}
               onChangeText={setLocation}
+              onBlur={commitLocation}
+              onSubmitEditing={commitLocation}
+              returnKeyType="done"
               placeholder="City, State"
               placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="settings-location"
             />
           </View>
+          {/* Echo what the text actually resolves to. Free text is the trap:
+              "New York" does not contain the metro key "New York City", so it
+              silently prices at the state's region index. Saying which market
+              landed is the only way he can see that. */}
+          <Text style={styles.marketNote} testID="settings-location-market">
+            {locationMarket.resolved
+              ? `Materials and change orders priced for ${locationMarket.label} (${locationMarket.multiplier >= 1 ? '+' : ''}${Math.round((locationMarket.multiplier - 1) * 100)}% vs US average). Saves when you leave the field.`
+              : 'US average — no market adjustment. Type a city and state (e.g. Houston, TX) or pick a market on the Materials tab. Saves when you leave the field.'}
+          </Text>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleToggleUnits} activeOpacity={0.6}>
             <View style={styles.iconWrap}>
@@ -826,6 +937,9 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionHeader}>ESTIMATE DEFAULTS</Text>
+        <Text style={styles.sectionSubtext}>
+          Sales tax is applied to invoices and change orders. Contingency is added to every AI estimate at this percentage of the line items.
+        </Text>
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={styles.iconWrap}>
@@ -867,6 +981,22 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+        {/* The save for exactly the two rows above, and nothing else — the
+            old "Save Changes" sat ten sections down and silently governed
+            these. Disabled when there is nothing to save, and says so. */}
+        <TouchableOpacity
+          style={[styles.saveButton, !estimateDefaultsDirty && styles.saveButtonIdle]}
+          onPress={() => { void saveEstimateDefaults(); }}
+          disabled={!estimateDefaultsDirty}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !estimateDefaultsDirty }}
+          testID="save-estimate-defaults"
+        >
+          <Text style={[styles.saveButtonText, !estimateDefaultsDirty && styles.saveButtonTextIdle]}>
+            {estimateDefaultsDirty ? 'Save estimate defaults' : 'Estimate defaults saved'}
+          </Text>
+        </TouchableOpacity>
 
         {/* COMPANY BRANDING / LOGO / SIGNATURE moved to /company-profile.
             Settings now points at it via the tappable profile hero at
@@ -1083,15 +1213,11 @@ export default function SettingsScreen() {
                     key={theme.id}
                     style={[
                       styles.themeChip,
-                      // The selected chip is outlined in the hue it WOULD apply,
-                      // not the one currently in force, so the choice previews
-                      // itself before Save.
+                      // The selected chip is outlined in the hue it applies —
+                      // a tap commits and repaints the app, like Units.
                       selectedTheme === theme.id && [styles.themeChipActive, { borderColor: preview.accent }],
                     ]}
-                    onPress={() => {
-                      setSelectedTheme(theme.id);
-                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                    }}
+                    onPress={() => selectTheme(theme.id)}
                     activeOpacity={0.7}
                   >
                     {/* The button fill only earns its OWN swatch when it is a
@@ -1131,10 +1257,7 @@ export default function SettingsScreen() {
             <View style={styles.group}>
               <TouchableOpacity
                 style={styles.row}
-                onPress={() => {
-                  setBiometricsEnabled(!biometricsEnabled);
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                }}
+                onPress={() => setBiometrics(!biometricsEnabled)}
                 activeOpacity={0.6}
               >
                 <View style={styles.iconWrap}>
@@ -1143,10 +1266,7 @@ export default function SettingsScreen() {
                 <Text style={styles.rowLabel}>Face ID / Touch ID</Text>
                 <Switch
                   value={biometricsEnabled}
-                  onValueChange={(val) => {
-                    setBiometricsEnabled(val);
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                  }}
+                  onValueChange={setBiometrics}
                   trackColor={{ false: themeColors.line, true: themeColors.accent }}
                   thumbColor={themeColors.surface}
                   ios_backgroundColor={themeColors.line}
@@ -1174,10 +1294,6 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.8} testID="save-settings">
-          <Text style={styles.saveButtonText}>Save Changes</Text>
-        </TouchableOpacity>
 
         <Text style={styles.sectionHeader}>PAYMENTS</Text>
         <Text style={styles.sectionSubtext}>
@@ -1259,12 +1375,17 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Public profile — was an orphan route until May 2026 audit
-            wiring. Lets the GC publish a public-facing profile snapshot
-            (used for leads / sub directory listings). */}
-        <Text style={styles.sectionHeader}>PUBLIC PROFILE</Text>
+        {/* /public-profile-setup is a PER-PROJECT portfolio page publisher,
+            not a company profile. This row used to promise "your public-facing
+            snapshot, used in the sub directory + bid award notifications" —
+            neither of which reads it (project.publicProfile has one reader,
+            utils/publicProfileSnapshot.ts) — and pushed the route with no
+            project id, so every tap landed on "Project not found." The copy
+            now says what it does, and the screen asks which job when opened
+            from here. */}
+        <Text style={styles.sectionHeader}>PROJECT PAGES & VERIFICATION</Text>
         <Text style={styles.sectionSubtext}>
-          Build your public-facing snapshot. Used in the sub directory + bid award notifications.
+          Publish a finished job as a public portfolio page you can link from your website or send to a prospect.
         </Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1276,7 +1397,7 @@ export default function SettingsScreen() {
             <View style={styles.iconWrap}>
               <UserCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Edit public profile</Text>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Publish a project page</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -2449,6 +2570,25 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '600' as const,
     color: '#fff',
     letterSpacing: -0.2,
+  },
+  // Nothing to save: flat and quiet, so the only loud button on the section is
+  // one that would actually do something.
+  saveButtonIdle: {
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  saveButtonTextIdle: {
+    color: themeColors.textMuted,
+  },
+  marketNote: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.textMuted,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    lineHeight: 16,
   },
   dangerNote: {
     fontSize: Type.caption1.fontSize,

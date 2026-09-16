@@ -248,6 +248,10 @@ function EstimateWizardScreenInner() {
   // ONE place and no downstream reader can be forgotten. That is the whole
   // reason it is derived rather than a second piece of state.
   const [costResult, setCostResult] = useState<EstimateResult | null>(null);
+  // The contingency rate THIS estimate was built at (null = the model's own
+  // figure). Held beside the result rather than re-read from settings, so the
+  // label cannot name a rate changed after the estimate was generated.
+  const [contingencyRateUsed, setContingencyRateUsed] = useState<number | null>(null);
 
   // His markup, and whether he has ever been asked for it. Lives in
   // MaterialCartContext because that is already where the estimator keeps
@@ -366,6 +370,21 @@ function EstimateWizardScreenInner() {
       }));
     }
   }, [scopedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A standalone estimate (no ?projectId) used to open step 3 blank, so he
+  // retyped his own city on every run while the app held it one screen away in
+  // settings.location — the same market that already prices his catalog and
+  // change orders. Seed it as a visible, editable starting answer (the job may
+  // be somewhere else; the field is still his to change), never over anything
+  // already typed, and never the 'United States' default, which names no market.
+  const homeMarketSeed = useMemo(() => {
+    const loc = (settings?.location ?? '').trim();
+    return loc && loc !== 'United States' ? loc : '';
+  }, [settings?.location]);
+  useEffect(() => {
+    if (projectId || !homeMarketSeed) return;
+    setAnswers((prev) => (prev.location.trim() ? prev : { ...prev, location: homeMarketSeed }));
+  }, [projectId, homeMarketSeed]);
 
   // Read the lifetime counter once on mount so the number is on screen BEFORE
   // he spends one. getFreeTrialsRemaining only reads storage — recordAIUsage is
@@ -502,7 +521,7 @@ function EstimateWizardScreenInner() {
     // loader (during) and the chip + seed CTA (after) describe this run.
     const used = groundingFor(a);
     setGroundingUsed(used);
-    const prompt = buildEstimatePrompt(a, used.facts);
+    const prompt = buildEstimatePrompt(a, used.facts, { contingencyRate: Number(settings?.contingencyRate) });
 
     // The cache key is the PROMPT (re-review B2). The prompt already carries
     // every answer — including timeline, budget and the special requirements
@@ -546,7 +565,18 @@ function EstimateWizardScreenInner() {
           return { ...li, quantity, unitCost, total: round(quantity * unitCost) };
         });
         const subtotal = lineItems.reduce((s, li) => s + li.total, 0);
-        const contingency = round(raw.contingency);
+        // Contingency is HIS number. Settings → Estimate Defaults has asked for
+        // a contingency rate since launch, validated it 0-50 and synced it as
+        // profiles.contingency_rate — and nothing read it: the prompt tells the
+        // model "~10% of subtotal", so a GC who runs 8% shipped bids at
+        // whatever the model rounded to and had no reason to suspect it. The
+        // rate is a percentage of the recomputed subtotal, so it is applied
+        // here, deterministically, like every other total on this sheet — and
+        // the totals block names the rate and where it came from. Only a rate
+        // outside what Settings accepts falls back to the model's figure.
+        const rate = Number(settings?.contingencyRate);
+        const rateUsable = Number.isFinite(rate) && rate >= 0 && rate <= 50;
+        const contingency = rateUsable ? round(subtotal * rate / 100) : round(raw.contingency);
         const permits = round(raw.permits);
         const total = subtotal + contingency + permits;
 
@@ -559,6 +589,7 @@ function EstimateWizardScreenInner() {
         }
 
         const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
+        setContingencyRateUsed(rateUsable ? rate : null);
         setCostResult(data);
 
         // Activation funnel: enriched aha event — attaches whether THIS
@@ -628,7 +659,7 @@ function EstimateWizardScreenInner() {
       // Only the run that owns the screen may take the loader down.
       if (runRef.current === runId) setLoading(false);
     }
-  }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, markupPct, markupDecided, commitAutoLink]);
+  }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, markupPct, markupDecided, commitAutoLink, settings?.contingencyRate]);
 
   // Escape hatch for the loading screen. The in-flight fetch is not aborted
   // (the AbortController is internal to mageAI); bumping runRef orphans it,
@@ -777,7 +808,7 @@ function EstimateWizardScreenInner() {
     const go = (pct: number) => {
       const priced = priceCostBreakdown(costResult, pct);
       const branding = savedBranding();
-      const gap = bidIdentityGap(branding);
+      const gap = bidIdentityGap(branding, settings?.location);
       if (gap.blocking) {
         // Blocked, and the block says why — this is a document a homeowner will
         // be holding, not a form field we want filled for its own sake.
@@ -798,13 +829,13 @@ function EstimateWizardScreenInner() {
     // with nobody's profit in it.
     if (!requireMarkup(go)) return;
     go(markupPct as number);
-  }, [costResult, savedBranding, generateAndSharePdf, requireMarkup, markupPct]);
+  }, [costResult, savedBranding, generateAndSharePdf, requireMarkup, markupPct, settings?.location]);
 
   // Save what they typed to the profile — once, so the second bid never asks —
   // and send the PDF built from those exact values.
   const saveIdentityAndShare = useCallback(() => {
     const merged = mergedBidBranding(settings?.branding, identityDraft);
-    const gap = bidIdentityGap(merged);
+    const gap = bidIdentityGap(merged, settings?.location);
     if (gap.blocking) { setIdentityHint(gap.reason); return; }
     updateSettings({ branding: merged });
     setShowIdentityModal(false);
@@ -813,10 +844,11 @@ function EstimateWizardScreenInner() {
     // any markup answered on the way in has long since flushed. Guarded anyway
     // — an unpriced send is the one outcome this screen must not have.
     if (result) void generateAndSharePdf(merged, result);
-  }, [settings?.branding, identityDraft, updateSettings, generateAndSharePdf, result]);
+  }, [settings?.branding, settings?.location, identityDraft, updateSettings, generateAndSharePdf, result]);
 
   const reset = useCallback(() => {
-    setAnswers(INITIAL_SCOPE);
+    // Same seed as mount: "start over" must not un-learn his market.
+    setAnswers(!projectId && homeMarketSeed ? { ...INITIAL_SCOPE, location: homeMarketSeed } : INITIAL_SCOPE);
     setCostResult(null);
     setGroundingUsed(null);
     setStep(0);
@@ -824,7 +856,7 @@ function EstimateWizardScreenInner() {
     setCommittedProjectId(null);
     setAutoLinkParked(false);
     pendingAutoLinkRef.current = null;
-  }, []);
+  }, [projectId, homeMarketSeed]);
 
   // Attach the just-generated estimate to an EXISTING project, then jump to
   // it. Reuses commitEstimatePatch (same revision-history behavior as the
@@ -1323,7 +1355,17 @@ function EstimateWizardScreenInner() {
 
           <View style={styles.totalsBlockNew}>
             <View style={styles.totalRow}><Text style={styles.totalLabel}>Line items subtotal</Text><Text style={styles.totalValue}>${result.subtotal.toLocaleString()}</Text></View>
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Contingency</Text><Text style={styles.totalValue}>${result.contingency.toLocaleString()}</Text></View>
+            <View style={styles.totalRow}>
+              {/* Names the rate and its source, so an 8% line is defensible
+                  when a client asks — and so a GC who never set one can see
+                  the 10% default is a setting, not the model's judgment. */}
+              <Text style={styles.totalLabel} testID="wizard-contingency-label">
+                {contingencyRateUsed != null
+                  ? `Contingency · ${contingencyRateUsed}% (your default in Settings)`
+                  : 'Contingency'}
+              </Text>
+              <Text style={styles.totalValue}>${result.contingency.toLocaleString()}</Text>
+            </View>
             <View style={styles.totalRow}><Text style={styles.totalLabel}>Permits & fees</Text><Text style={styles.totalValue}>${result.permits.toLocaleString()}</Text></View>
             <View style={[styles.totalRow, styles.totalRowGrand]}>
               <View>
@@ -1740,8 +1782,8 @@ function EstimateWizardScreenInner() {
             <View style={styles.saveOverlay}>
               <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
                 {(() => {
-                  const gap = bidIdentityGap(mergedBidBranding(settings?.branding, identityDraft));
-                  const savedGap = bidIdentityGap(savedBranding());
+                  const gap = bidIdentityGap(mergedBidBranding(settings?.branding, identityDraft), settings?.location);
+                  const savedGap = bidIdentityGap(savedBranding(), settings?.location);
                   return (
                     <>
                       <View style={styles.saveHeader}>

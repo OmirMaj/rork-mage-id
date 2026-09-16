@@ -11,7 +11,7 @@
 // so anywhere else in the app that reads settings.branding (PDF estimates,
 // portal-invite emails, etc.) keeps working with no other change.
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal, Dimensions,
 } from 'react-native';
@@ -24,7 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   ChevronLeft, Building2, Type as TypeIcon, User, Phone, Mail,
   MapPin, Award, Image as ImageIcon, Camera, Trash2, PenTool, X,
-  FileText, Save,
+  FileText, Save, Landmark, Check,
 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -35,6 +35,12 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { US_STATES } from '@/constants/regions';
+import { resolvePricingMarket } from '@/constants/materials';
+import {
+  bidLicenceRuleForState, bidLicenceStateSource, licenceStateMarketEdit,
+} from '@/utils/bidDocumentIdentity';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -47,6 +53,7 @@ export default function CompanyProfileScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { settings, updateSettings } = useProjects();
+  const { user } = useAuth();
 
   const branding = settings.branding ?? {
     companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
@@ -54,7 +61,12 @@ export default function CompanyProfileScreen() {
 
   const [companyName, setCompanyName] = useState(branding.companyName);
   const [contactName, setContactName] = useState(branding.contactName);
-  const [brandingEmail, setBrandingEmail] = useState(branding.email);
+  // branding.email is the reply-to on every document this app sends and the
+  // contact line on the proposal header (utils/pdfDesign.ts drops it when
+  // blank). A blank one used to stay blank even though the signed-in account's
+  // address was one context away — so the first bid a homeowner got had no way
+  // to write back. Offered as the starting value; nothing saves until Save.
+  const [brandingEmail, setBrandingEmail] = useState(branding.email || user?.email || '');
   const [brandingPhone, setBrandingPhone] = useState(branding.phone);
   const [brandingAddress, setBrandingAddress] = useState(branding.address);
   const [licenseNumber, setLicenseNumber] = useState(branding.licenseNumber);
@@ -62,6 +74,44 @@ export default function CompanyProfileScreen() {
   const [logoUri, setLogoUri] = useState<string | undefined>(branding.logoUri);
   const [signatureData, setSignatureData] = useState<string[] | undefined>(branding.signatureData);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [showStatePicker, setShowStatePicker] = useState(false);
+
+  // ── WHICH STATE LICENSES HIM ─────────────────────────────────────────────
+  // The bid gate (utils/bidDocumentIdentity.ts) keeps a CA/FL/AZ contractor's
+  // licence number on his proposal — the three states whose statutes put it on
+  // the bid itself — and until now its only input was a state parsed out of the
+  // address box below, whose placeholder taught "123 Main St, City": no state,
+  // so the gate never fired for anyone who typed what the box showed him.
+  // It now also reads his pricing market, and this row shows which state it
+  // resolved and WHERE from, so he can see it and correct it. Read off the
+  // address as he types, so the row answers for what is on screen.
+  const licenceWhere = useMemo(
+    () => bidLicenceStateSource({ address: brandingAddress }, settings.location),
+    [brandingAddress, settings.location],
+  );
+  const licenceRule = useMemo(() => bidLicenceRuleForState(licenceWhere.state), [licenceWhere.state]);
+  const licenceStateName = US_STATES.find(st => st.code === licenceWhere.state)?.name ?? '';
+
+  const handleLicenceStateRow = useCallback(() => {
+    if (licenceWhere.source === 'address') {
+      // Disabled, and says why: the address is the stronger answer (it is the
+      // office on the letterhead), so a pick here could not take effect.
+      showAlert('Read from your address', `${licenceStateName} comes from the state in your company address. Edit the address to change it.`);
+      return;
+    }
+    setShowStatePicker(true);
+  }, [licenceWhere.source, licenceStateName]);
+
+  const pickLicenceState = useCallback((code: string) => {
+    // CompanyBranding has no state column, so the pick is saved onto the next
+    // field the gate reads — his pricing market — and refused when that would
+    // silently re-price his work (see licenceStateMarketEdit).
+    const edit = licenceStateMarketEdit(settings.location, code, resolvePricingMarket);
+    if (!edit.ok) { showAlert('Not saved', edit.reason); return; }
+    if (edit.location !== settings.location) updateSettings({ location: edit.location });
+    setShowStatePicker(false);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [settings.location, updateSettings]);
 
   // Logo + signature auto-save: when the user picks a logo or saves a
   // signature, we don't want them to also tap Save afterward. Branding
@@ -279,7 +329,10 @@ export default function CompanyProfileScreen() {
               style={styles.inlineInput}
               value={brandingAddress}
               onChangeText={setBrandingAddress}
-              placeholder="123 Main St, City"
+              // Teaches the shape that carries a state. The old "123 Main St,
+              // City" had none, and a stateless address is what kept the
+              // statutory licence check switched off.
+              placeholder="123 Main St, Sacramento, CA 95814"
               placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="branding-address"
@@ -301,6 +354,41 @@ export default function CompanyProfileScreen() {
               testID="branding-license"
             />
           </View>
+          {/* The why, only where a statute exists — a TX or NV contractor is
+              never told of a requirement his board does not have (an absent
+              BID_LICENCE_RULES row is a correct answer). */}
+          {licenceRule ? (
+            <Text
+              style={[styles.licenceWhy, !licenseNumber.trim() && styles.licenceWhyMissing]}
+              testID="branding-license-why"
+            >
+              {`${licenceRule.citation} requires your ${licenceRule.authority} licence number on ${licenceRule.requirement}. It prints under your company name${licenseNumber.trim() ? '.' : ' — and bids are held until it is filled in.'}`}
+            </Text>
+          ) : null}
+          <View style={styles.rowSeparator} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={handleLicenceStateRow}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel="Licensing state"
+            testID="branding-license-state"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.surfaceAlt }]}>
+              <Landmark size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Licensing state</Text>
+              <Text style={styles.rowSubtext}>
+                {licenceWhere.source === 'address'
+                  ? 'From your company address'
+                  : licenceWhere.source === 'market'
+                    ? `From your pricing market (${settings.location})`
+                    : 'Not set — decides which state\u2019s licence rules your bids follow'}
+              </Text>
+            </View>
+            <Text style={styles.rowValue}>{licenceStateName || 'Choose'}</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionHeader}>COMPANY LOGO</Text>
@@ -401,6 +489,48 @@ export default function CompanyProfileScreen() {
       </ScrollView>
 
       <Modal
+        visible={showStatePicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowStatePicker(false)}
+      >
+        <View style={styles.sigModalOverlay}>
+          <View style={[styles.sigModalCard, styles.stateModalCard]}>
+            <View style={styles.sigModalHeader}>
+              <Text style={styles.sigModalTitle}>Which state licenses you?</Text>
+              <TouchableOpacity onPress={() => setShowStatePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.sigModalDesc}>
+              Saved as the state of your pricing market in Settings, so it also sets which regional prices your materials use.
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {US_STATES.map(st => {
+                const active = st.code === licenceWhere.state;
+                return (
+                  <TouchableOpacity
+                    key={st.code}
+                    style={styles.stateRow}
+                    onPress={() => pickLicenceState(st.code)}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.stateRowText, active && styles.stateRowTextActive]}>{st.name}</Text>
+                    {bidLicenceRuleForState(st.code) ? (
+                      <Text style={styles.stateRowMeta}>{bidLicenceRuleForState(st.code)?.authority} · number required on bids</Text>
+                    ) : null}
+                    {active ? <Check size={16} color={themeColors.accent} strokeWidth={1.75} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={showSignatureModal}
         transparent
         animationType="slide"
@@ -466,6 +596,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   rowSeparator: { height: 1, backgroundColor: t.line, marginLeft: 50 },
   rowLabel: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '500' as const, minWidth: 110 },
+  rowSubtext: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
+  rowValue: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
+  licenceWhy: {
+    fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17,
+    paddingLeft: 54, paddingRight: 14, paddingBottom: 12, marginTop: -6,
+  },
+  licenceWhyMissing: { color: t.warningLabel },
+  stateModalCard: { maxHeight: '80%' as const },
+  stateRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.line,
+  },
+  stateRowText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text },
+  stateRowTextActive: { color: t.accent, fontWeight: '700' as const },
+  stateRowMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   iconWrap: {
     width: 28, height: 28, borderRadius: 8,
     alignItems: 'center' as const, justifyContent: 'center' as const,

@@ -28,7 +28,7 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseCOFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
-import { getLivePrices, getRegionMultiplier, CATEGORY_META, type MaterialItem } from '@/constants/materials';
+import { getLivePrices, resolvePricingMarket, catalogProvenanceLine, CATEGORY_META, type MaterialItem } from '@/constants/materials';
 import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
 import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
 import { nailIt } from '@/components/animations/NailItToast';
@@ -259,7 +259,13 @@ function ChangeOrderInner() {
   }, [markupDecided, globalMarkup]);
 
   const { settings } = useProjects();
-  const locationMultiplier = useMemo(() => getRegionMultiplier(settings.location), [settings.location]);
+  // The market, not just its multiplier: this screen used to multiply and print,
+  // so a GC whose market never resolved priced every CO material at the US
+  // average with nothing on screen saying so. The search sheet now states the
+  // market and the book's age the same way the Materials tab and the Full
+  // Estimator already do (catalogProvenanceLine is the one wording).
+  const pricingMarket = useMemo(() => resolvePricingMarket(settings.location), [settings.location]);
+  const locationMultiplier = pricingMarket.multiplier;
   const allMaterials = useMemo(() => getLivePrices(Date.now() / 10000, locationMultiplier), [locationMultiplier]);
 
   const filteredMaterials = useMemo(() => {
@@ -1658,6 +1664,10 @@ function ChangeOrderInner() {
                   : 'At 0% materials go on at what they cost you — no overhead, no profit.'}
             </Text>
 
+            <Text style={styles.matMarketLine} testID="co-material-market">
+              {catalogProvenanceLine(pricingMarket.resolved ? pricingMarket.label : null)}
+              {pricingMarket.resolved ? '' : ' — set your market in Settings → Location or on the Materials tab.'}
+            </Text>
             <Text style={styles.matResultCount}>{filteredMaterials.length} results</Text>
 
             <FlatList
@@ -1895,6 +1905,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   matMarkupLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
   matMarkupNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 6 },
   matResultCount: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 6, marginBottom: 4 },
+  matMarketLine: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 6 },
   matResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 10 },
   matResultName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   matResultMeta: { flexDirection: 'row', gap: 8, marginTop: 2 },

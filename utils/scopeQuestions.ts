@@ -150,7 +150,18 @@ export const estimateSchema = z.object({
 });
 export type EstimateResult = z.infer<typeof estimateSchema>;
 
-export function buildEstimatePrompt(a: WizardAnswers, groundingFacts?: string[]): string {
+export interface EstimatePromptOptions {
+  /** The GC's own contingency percentage (Settings). The wizard applies it to
+   *  the subtotal itself; the prompt carries it so the model's own figure and
+   *  any note it writes about contingency agree with what the GC will see. */
+  contingencyRate?: number;
+}
+
+export function buildEstimatePrompt(a: WizardAnswers, groundingFacts?: string[], opts: EstimatePromptOptions = {}): string {
+  const rate = opts.contingencyRate;
+  const contingencyLine = typeof rate === 'number' && Number.isFinite(rate) && rate >= 0 && rate <= 50
+    ? `${rate}% of subtotal (this contractor's own contingency rate)`
+    : '~10% of subtotal';
   const grounding = groundingFacts && groundingFacts.length > 0
     ? `\n\nTHIS CONTRACTOR'S OWN COST HISTORY (price with these rates wherever the trade matches — they beat any regional average):\n${groundingFacts.map((f) => `- ${f}`).join('\n')}\n`
     : '';
@@ -173,7 +184,7 @@ Return JSON with:
 - summary: one paragraph plain-English overview
 - lineItems: array of { category, description, quantity, unit, unitCost, total } (total = quantity * unitCost)
 - subtotal: sum of all lineItems totals
-- contingency: ~10% of subtotal
+- contingency: ${contingencyLine}
 - permits: rough permit/fees estimate for the location
 - total: subtotal + contingency + permits
 - notes: array of caveats (e.g. "assumes standard finishes")

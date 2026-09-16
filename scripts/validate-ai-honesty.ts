@@ -233,7 +233,7 @@ console.log('\nsource assertions:');
   ok('wizard: no longer counts groundingFacts.length as learned rates', !/groundingFacts\.length\} learned rate/.test(wizard));
   ok('wizard: grounds through selectGroundingEntries, not entries.slice(0, 6)', /selectGroundingEntries\(/.test(wizard) && !/costDb\.entries\.slice\(0, 6\)/.test(wizard));
   ok('wizard (review B1): grounding is computed inside generate from the answers actually sent', /const used = groundingFor\(a\)/.test(wizard) && /selectGroundingEntries\(costDb\.entries, hintsFrom\(a\), 6\)/.test(wizard));
-  ok('wizard (review B1): the prompt is built from that same bundle', /buildEstimatePrompt\(a, used\.facts\)/.test(wizard));
+  ok('wizard (review B1): the prompt is built from that same bundle', /buildEstimatePrompt\(a, used\.facts(, \{[^}]*\})?\)/.test(wizard));
   ok('wizard (re-review B2): the cache key is derived from the PROMPT string — not scopeCacheKey + a facts hash', /const cacheKey = 'wizard::' \+ stableHash\(prompt\)/.test(wizard) && !/scopeCacheKey/.test(wizard) && !/used\.facts\.join/.test(wizard));
   ok('wizard (review B1): chip, seed CTA and loader key on the stored bundle, not a memo', (wizard.match(/\(groundingUsed \?\? EMPTY_GROUNDING\)\.counts/g) ?? []).length >= 2 && /groundingUsed\?\.selectedCount \?\? 0/.test(wizard) && !/groundingFacts/.test(wizard) && !/useMemo<string\[\]>/.test(wizard));
   ok('wizard (re-review B1): loader copy comes from estimateThinkingSteps on the bundle COUNTS — never selectedCount, no local copy', /thinkingSteps=\{estimateThinkingSteps\(\(groundingUsed \?\? EMPTY_GROUNDING\)\.counts\)\}/.test(wizard) && !/ESTIMATE_THINKING_STEPS_GROUNDED/.test(wizard) && !/selectedCount \?\? 0\) > 0 \?/.test(wizard) && !/Pricing from your history/.test(wizard));
