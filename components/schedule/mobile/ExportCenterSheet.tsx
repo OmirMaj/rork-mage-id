@@ -3,7 +3,7 @@ import {
   Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, FileText, Hammer, FileStack, Sheet, Share as ShareIcon, CalendarPlus } from 'lucide-react-native';
+import { X, FileText, Hammer, FileStack, Sheet, Share as ShareIcon, CalendarPlus, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -33,9 +33,15 @@ interface Props {
   baseline?: ScheduleBaseline | null;
   nonWorkingDates?: string[];
   onExportIcal: () => void;
+  /** True when no plan is locked. Every report's Slippages section and each
+   *  milestone's variance come from the baseline, so without one they print
+   *  empty — the row below says so and offers the lock, rather than letting a
+   *  blank section read as "nothing slipped". */
+  canLockPlan?: boolean;
+  onLockPlan?: () => void;
 }
 
-export function ExportCenterSheet({ visible, onClose, project, tasks, startDateIso, cpm, baseline, nonWorkingDates, onExportIcal }: Props) {
+export function ExportCenterSheet({ visible, onClose, project, tasks, startDateIso, cpm, baseline, nonWorkingDates, onExportIcal, canLockPlan, onLockPlan }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -95,6 +101,9 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
         <View style={styles.grab} />
         <View style={styles.headRow}><Text style={styles.title}>Export schedule</Text><TouchableOpacity onPress={onClose}><X size={20} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity></View>
         <ScrollView showsVerticalScrollIndicator={false}>
+          {canLockPlan && onLockPlan && (
+            <Preset icon={<Lock size={18} color={colors.accent} strokeWidth={1.75} />} label="Lock this plan first" sub="No plan is locked, so reports have no slippage or variance to show" onPress={onLockPlan} styles={styles} />
+          )}
           <Text style={styles.section}>One-tap</Text>
           <Preset icon={<FileText size={18} color={colors.accent} strokeWidth={1.75} />} label="Client Report" sub="A3 · summary + gantt · for the owner" onPress={() => runReport({ paperSizeChoice: 'a3', secs: ['kpis','critPath','risks','milestones','gantt','phaseProgress'] })} styles={styles} />
           <Preset icon={<Hammer size={18} color={colors.accent} strokeWidth={1.75} />} label="Field Gantt" sub="Arch D · look-ahead + big gantt · trailer wall" onPress={() => runReport({ paperSizeChoice: 'arch_d', secs: ['kpis','lookahead','risks','gantt'], singleWallSheet: true })} styles={styles} />

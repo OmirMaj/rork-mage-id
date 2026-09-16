@@ -1,10 +1,17 @@
 // ScheduleAuditModal — a read-only viewer over the schedule audit log.
 //
-// Every CPM-affecting edit (task create/delete/edit, dependency changes,
-// progress updates, baselines, reflows, voice commands, sub updates) is
-// appended to AsyncStorage by utils/scheduleAudit. This modal renders that
-// log grouped by day so a user can see "who changed what, when" — the
-// history P6's audit famously can't show for logic changes.
+// Renders the log utils/scheduleAudit keeps in AsyncStorage, grouped by day, so
+// a user can see "who changed what, when" — the history P6's audit famously
+// can't show for logic changes.
+//
+// This header used to claim every CPM-affecting edit was logged. It was not:
+// the phone schedule — the primary platform — wrote nothing. The writers, as
+// they actually are:
+//   * app/schedule-pro.tsx — task edit/create/delete, leveling (desktop)
+//   * components/schedule/mobile/MobileScheduleScreen.tsx — every task write,
+//     the catch-up and its undo, start-date changes, baseline locks (phone)
+//   * contexts/ProjectContext.tsx — the CO schedule reflow (any platform)
+// Mounted from both schedule-pro and the phone's finish-date sheet.
 
 import React, { useEffect, useState } from 'react';
 import {
@@ -85,11 +92,17 @@ export function ScheduleAuditModal(props: {
                         </View>
                       </View>
                       <Text style={styles.entrySummary}>{entry.summary}</Text>
-                      {entry.before && entry.after && (
-                        <Text style={styles.entryDiff}>
-                          {summarizeTaskDiff(entry.before, entry.after)}
-                        </Text>
-                      )}
+                      {(() => {
+                        // The field diff only for TASK snapshots, and only when
+                        // the summary does not already say it. A reflow's
+                        // before/after hold finish numbers and id lists, which
+                        // the diff renders as "projectFinishDay changed" noise;
+                        // the phone's task summaries embed the diff verbatim.
+                        if (!entry.before || !entry.after || !entry.taskId || entry.kind === 'reflow') return null;
+                        const diff = summarizeTaskDiff(entry.before, entry.after);
+                        if (entry.summary.includes(diff)) return null;
+                        return <Text style={styles.entryDiff}>{diff}</Text>;
+                      })()}
                     </View>
                   ))}
                 </View>

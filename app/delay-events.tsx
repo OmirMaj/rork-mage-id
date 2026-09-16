@@ -39,6 +39,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { generateUUID } from '@/utils/generateId';
+import { loadAuditFromAsyncStorage } from '@/utils/scheduleAudit';
 import {
   buildNoticeStatus, noticeSummary, nextDelayEventNumber, formatDelayEventNumber,
   suggestClassification, noticeMethodWarning, noticeViolations, noticeMethodLabel,
@@ -50,7 +51,7 @@ import {
 } from '@/utils/noticeClock';
 import type {
   DelayCause, DelayClassification, DelayEvent, DelayEvidenceKind, DelayEvidenceRef,
-  DelayNotice, DelayNoticeMethod, Project,
+  DelayNotice, DelayNoticeMethod, Project, ScheduleAuditEntry,
 } from '@/types';
 
 const CAUSES: DelayCause[] = [
@@ -95,6 +96,61 @@ const EVIDENCE_KIND_LABEL: Record<DelayEvidenceKind, string> = {
   schedule_audit: 'Schedule change',
   change_order: 'Change order',
 };
+
+/**
+ * How far either side of "first observed" an ordinary schedule edit is offered
+ * as evidence. The audit log keeps up to 500 rows per job, most of them routine
+ * (a progress tick, a crew name); listing all of them would bury the one edit
+ * that moved the date. Change-order reflows ignore this window — see
+ * scheduleAuditEvidence.
+ */
+const SCHEDULE_AUDIT_WINDOW_DAYS = 30;
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * The schedule audit log as delay evidence, in the order a delay register
+ * needs it.
+ *
+ * 'schedule_audit' was declared as an evidence kind, with an icon and a label,
+ * but nothing ever produced one — so the one record that shows a date MOVED,
+ * on the day it moved, could not be attached to the delay it moved for.
+ *
+ * FIRST: entries tied to an approved change (`changeOrderId`, written by the CO
+ * reflow in utils/coScheduleReflowCore.ts) or recorded as a reflow. Those
+ * answer the register's actual question — which change moved this date — and
+ * their summary already carries "finish <before> → <after>". They are offered
+ * whatever their date, because a CO approved weeks after the delay was first
+ * seen is still the change that moved it.
+ * THEN: every other edit within SCHEDULE_AUDIT_WINDOW_DAYS of `aroundDate`,
+ * nearest first.
+ */
+function scheduleAuditEvidence(entries: ScheduleAuditEntry[], aroundDate: string): DelayEvidenceRef[] {
+  const toRef = (e: ScheduleAuditEntry): DelayEvidenceRef => ({
+    kind: 'schedule_audit',
+    id: e.id,
+    capturedAt: e.at,
+    // The title rides along only when the summary does not already name it —
+    // the CO reflow summary quotes the task, the phone's does too.
+    note: e.taskTitle && !e.summary.includes(e.taskTitle) ? `${e.taskTitle}: ${e.summary}` : e.summary,
+  });
+  const isDateMover = (e: ScheduleAuditEntry) => e.kind === 'reflow' || !!e.changeOrderId;
+  const movers = entries
+    .filter(isDateMover)
+    .sort((a, b) => b.at.localeCompare(a.at));
+  // Local midnight of the observed day, the same calendar-day reading the
+  // form's date field uses. An unparseable date falls back to "now" so the
+  // window still means "recent" rather than silently offering nothing.
+  const [y, m, d] = aroundDate.split('-').map((n) => Number.parseInt(n, 10));
+  const anchorMs = Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
+    ? new Date(y, m - 1, d).getTime()
+    : Date.now();
+  const distance = (e: ScheduleAuditEntry) => Math.abs(new Date(e.at).getTime() - anchorMs);
+  const nearby = entries
+    .filter((e) => !isDateMover(e) && Number.isFinite(new Date(e.at).getTime())
+      && distance(e) <= SCHEDULE_AUDIT_WINDOW_DAYS * MS_PER_DAY)
+    .sort((a, b) => distance(a) - distance(b));
+  return [...movers, ...nearby].map(toRef);
+}
 
 function todayISO(): string {
   const d = new Date();
@@ -285,6 +341,19 @@ export default function DelayEventsScreen() {
   }, [projectId, formDesc, formCause, formDate, formClaimed, formConcurrent, pendingEvidence, events, addDelayEvent, resetForm, period.days]);
 
   // ── Evidence ──────────────────────────────────────────────────────────────
+  // The schedule audit log lives in AsyncStorage (utils/scheduleAudit), not in
+  // a context, so it is read here. Re-read each time the picker opens: an edit
+  // made on the schedule a minute ago is exactly the one being attached.
+  const [scheduleAudit, setScheduleAudit] = useState<ScheduleAuditEntry[]>([]);
+  useEffect(() => {
+    if (!projectId) { setScheduleAudit([]); return; }
+    let cancelled = false;
+    void loadAuditFromAsyncStorage(projectId).then((entries) => {
+      if (!cancelled) setScheduleAudit(entries);
+    });
+    return () => { cancelled = true; };
+  }, [projectId, showEvidencePicker]);
+
   // Every entry is a POINTER — {kind, id, capturedAt}. Nothing is copied: a
   // copy is a second version of a fact that can drift from the first.
   const availableEvidence = useMemo<DelayEvidenceRef[]>(() => {
@@ -317,8 +386,14 @@ export default function DelayEventsScreen() {
         note: `${w.dates.length} evidenced day${w.dates.length === 1 ? '' : 's'} · source: ${w.source}${w.source === 'mixed' ? ' (some days simulated — excluded)' : ''}`,
       });
     }
-    return out.sort((a, b) => (b.capturedAt ?? '').localeCompare(a.capturedAt ?? ''));
-  }, [projectId, project, getPhotosForProject, getDailyReportsForProject, getRFIsForProject, getFieldTicketsForProject, getChangeOrdersForProject]);
+    // Schedule changes lead the list (their own order — see
+    // scheduleAuditEvidence); everything else stays newest-first. The window is
+    // centred on the delay being worked on: the open event's first-observed
+    // date, or the date typed into the log form.
+    const aroundDate = openEvent?.firstObservedDate ?? formDate;
+    out.sort((a, b) => (b.capturedAt ?? '').localeCompare(a.capturedAt ?? ''));
+    return [...scheduleAuditEvidence(scheduleAudit, aroundDate), ...out];
+  }, [projectId, project, getPhotosForProject, getDailyReportsForProject, getRFIsForProject, getFieldTicketsForProject, getChangeOrdersForProject, scheduleAudit, openEvent?.firstObservedDate, formDate]);
 
   const attachEvidence = useCallback((ref: DelayEvidenceRef) => {
     haptic();
@@ -769,6 +844,12 @@ export default function DelayEventsScreen() {
               <Text style={styles.fieldHint}>
                 Evidence is linked, never copied — the original record stays the authority, so
                 nothing here can drift out of step with it.
+              </Text>
+              {/* Says why an older schedule edit is missing, so a short list is
+                  not read as "the app never recorded it". */}
+              <Text style={styles.fieldHint}>
+                Schedule changes listed: every re-date tied to a change order or a reflow, plus
+                other edits made within{` ${SCHEDULE_AUDIT_WINDOW_DAYS} `}days of when this delay was first observed.
               </Text>
               {availableEvidence.length === 0 ? (
                 <Text style={styles.emptyText}>Nothing captured on this job yet.</Text>

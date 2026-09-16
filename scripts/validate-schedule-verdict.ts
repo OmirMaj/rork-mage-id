@@ -1,8 +1,22 @@
 // scripts/validate-schedule-verdict.ts — pure-fn validator for utils/scheduleVerdict.ts.
 // Run via `bun run scripts/validate-schedule-verdict.ts`. No jest in this repo.
 import { scheduleVerdict } from '../utils/scheduleVerdict';
-import { finishDriverTitle, pacedScheduleVerdict, verdictToneTokens } from '../utils/scheduleOps';
+import {
+  finishDriverTitle, pacedScheduleVerdict, verdictToneTokens,
+  captureBaseline, applyBaselineToTasks, baselineFinishDayWorkingScale,
+} from '../utils/scheduleOps';
+import { runCpm, workingDaysBetween } from '../utils/cpm';
+import { summarizeTaskDiff } from '../utils/scheduleAudit';
 import type { ScheduleTask } from '../types';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Bun's global is not in the app tsconfig's types (tsc covers scripts/), so it
+// is declared locally — same pattern as validate-calendar-date.ts.
+declare const Bun: {
+  Transpiler: new (opts: { loader: 'ts' | 'tsx' }) => { transformSync(code: string): string };
+};
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -133,6 +147,114 @@ console.log('\nthe finish-date driver is the task whose finish IS the finish:');
   expect('without a CPM result it uses the latest authored end',
     finishDriverTitle(tasks, { criticalTaskIds: ['long', 'permits'] }), 'long');
   expect('no tasks, no claim', finishDriverTitle([], { criticalTaskIds: [] }), undefined);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The phone can LOCK a plan, and what it locks is what the verdict reads.
+// ─────────────────────────────────────────────────────────────────────────────
+// Point 2 above was the symptom; this is the fix. A phone-only GC had no way to
+// capture a baseline (the only captures were desktop-only), so the "N days
+// behind plan" branch could never render for him. MobileScheduleScreen.lockPlan
+// now captures into baselines[] with the schedule calendar and stamps the
+// per-task fields. The trap the audit's sharpening named: writing the legacy
+// singular `schedule.baseline` (scheduleEngine.saveBaseline) instead would
+// LOOK fixed and change nothing, because no slip, verdict or health check
+// reads it.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const readSrc = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+const MOBILE = 'components/schedule/mobile/MobileScheduleScreen.tsx';
+
+console.log('\nlocking a plan on the phone:');
+{
+  const T = (id: string, startDay: number, durationDays: number, deps: string[] = []): ScheduleTask => ({
+    id, title: id, phase: 'General', startDay, durationDays, progress: 0, crew: '',
+    dependencies: deps, notes: '', status: 'not_started',
+  } as ScheduleTask);
+  const scale = { scheduleStartDate: '2026-03-02', workingDaysPerWeek: 5, nonWorkingDates: [] as string[] };
+  const tasks = [T('A', 1, 10), T('B', 11, 10, ['A']), T('C', 21, 5, ['B'])];
+  const cpm = runCpm(tasks, scale);
+  // The exact call lockPlan makes.
+  const snap = captureBaseline(tasks, 'v1', 'Locked from the phone schedule', { scale, cpm });
+  // The exact slip MobileScheduleScreen derives from baselines[].
+  const slipOf = (live: ScheduleTask[]) => {
+    const base = baselineFinishDayWorkingScale(snap, scale);
+    return base == null ? null : workingDaysBetween(base, runCpm(live, scale).projectFinish, scale);
+  };
+  expect('the moment after locking, the plan is exactly on plan (no phantom slip)', slipOf(tasks), 0);
+  expect('  …so the verdict states it against the plan', pacedScheduleVerdict({
+    slipDaysVsBaseline: slipOf(tasks), finishDateLabel: 'Apr 3, 2026', overdueCount: 0, pace: 'behind', pctComplete: 10,
+  }).headline, 'On pace — finishing about Apr 3, 2026');
+  const grown = tasks.map((t) => (t.id === 'A' ? { ...t, durationDays: 13 } : t));
+  expect('a 3-day overrun upstream reads as 3 days behind plan', slipOf(grown), 3);
+  const stamped = applyBaselineToTasks(tasks, snap);
+  expect('every task carries the per-task baseline the health checks filter on',
+    stamped.every((t) => t.baselineStartDay != null && t.baselineEndDay != null), true);
+
+  const src = readSrc(MOBILE);
+  const lock = src.slice(src.indexOf('const lockPlan = useCallback'), src.indexOf('const requestLockPlan = useCallback'));
+  expect('lockPlan captures with the schedule calendar and its CPM run',
+    /captureBaseline\(schedule\.tasks, [^)]*\{\s*scale, cpm/.test(lock), true);
+  expect('lockPlan appends to baselines[] (what the slip reads)',
+    /baselines: \[\.\.\.existing, snap\]/.test(lock), true);
+  expect('lockPlan stamps the per-task baseline fields', /applyBaselineToTasks\(schedule\.tasks, snap\)/.test(lock), true);
+  expect('the phone never writes the legacy singular baseline that nothing reads',
+    /\bsaveBaseline\s*\(|import[^;]*\bsaveBaseline\b/.test(src), false);
+  expect('the finish-date sheet exposes the lock', /onLockPlan=\{requestLockPlan\}/.test(src), true);
+  expect('setting a start date offers the lock on the schedule it just wrote',
+    /lockPlan\(nextSchedule\)/.test(src), true);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phone edits are LOGGED. Every write on the phone schedule goes through
+// saveTasks, and it wrote no audit row — so a date moved on an iPhone left no
+// record of who moved it or when. describeMobileScheduleEdit is lifted out of
+// the screen and transpiled (the .tsx imports react-native, which crashes bun),
+// so the shipped text is what runs here.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nphone schedule edits land in the audit log:');
+{
+  const src = readSrc(MOBILE);
+  const save = src.slice(src.indexOf('const saveTasks = useCallback'), src.indexOf('const onUpdateTask = useCallback'));
+  expect('saveTasks appends an audit entry for the write it makes',
+    /appendAuditToAsyncStorage\(selectedProject\.id, buildAuditEntry\(auditDraft\)\)/.test(save), true);
+  expect('  …built from the tasks on BOTH sides of that write',
+    /describeMobileScheduleEdit\(\{[\s\S]*prev: prevTasks,[\s\S]*next: nextTasks/.test(save), true);
+  expect('the phone mounts the History viewer', /<ScheduleAuditModal/.test(src), true);
+
+  const start = src.indexOf('const AUDIT_IGNORED_KEYS');
+  const end = src.indexOf('// Mobile-native "Schedule Pro"');
+  expect('describeMobileScheduleEdit is where this guard expects it', start >= 0 && end > start, true);
+  if (start >= 0 && end > start) {
+    const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(
+      `${src.slice(start, end)}\nglobalThis.__describe = describeMobileScheduleEdit;`);
+    new Function('summarizeTaskDiff', js)(summarizeTaskDiff);
+    type Draft = { kind: string; summary: string; taskId?: string } | null;
+    const describe = (globalThis as unknown as { __describe: (i: unknown) => Draft }).__describe;
+    const T = (id: string, over: Partial<ScheduleTask> = {}): ScheduleTask => ({
+      id, title: id, phase: 'General', startDay: 1, durationDays: 5, progress: 0, crew: '',
+      dependencies: ['X'], notes: '', status: 'not_started', ...over,
+    } as ScheduleTask);
+    const fmt = (d: number) => `day ${d}`;
+    const base = { finishBefore: 20, finishAfter: 20, formatFinish: fmt, user: 'gc@example.com' };
+    const prev = [T('Drywall'), T('Paint')];
+
+    const moved = describe({ ...base, prev, next: [T('Drywall', { startDay: 5 }), prev[1]], finishAfter: 24 });
+    expect('a moved task logs a dated movement with the finish before → after',
+      moved && { kind: moved.kind, summary: moved.summary, taskId: moved.taskId },
+      { kind: 'task_edit', summary: 'Drywall: start day 1 → 5 — finish day 20 → day 24', taskId: 'Drywall' });
+    expect('a CPM-derived critical flag alone is not an edit anyone made',
+      describe({ ...base, prev, next: [T('Drywall', { isCriticalPath: true }), prev[1]] }), null);
+    expect('an identical dependency array re-created by the sheet is not "dependencies changed"',
+      describe({ ...base, prev, next: [T('Drywall', { dependencies: ['X'] }), prev[1]] }), null);
+    expect('a status tap logs as a progress update',
+      describe({ ...base, prev, next: [T('Drywall', { status: 'in_progress', progress: 10 }), prev[1]] })?.kind, 'progress_update');
+    expect('an added task is logged', describe({ ...base, prev, next: [...prev, T('Trim')] })?.summary, 'Added "Trim" (5d)');
+    expect('a removed task is logged', describe({ ...base, prev, next: [prev[0]] })?.kind, 'task_delete');
+    const bulk = describe({ ...base, prev, next: [T('Drywall', { startDay: 9 }), T('Paint', { startDay: 14 })], finishAfter: 28, reason: 'Brought the plan up to date' });
+    expect('the catch-up is ONE reflow row naming the decision and the finish movement',
+      bulk && { kind: bulk.kind, summary: bulk.summary },
+      { kind: 'reflow', summary: 'Brought the plan up to date: 2 tasks changed — finish day 20 → day 28' });
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Bell, Check, ChevronDown, ChevronRight, FolderOpen, CalendarDays, CalendarOff, Download, FileInput, Flag, Mic, RefreshCw, X } from 'lucide-react-native';
+import { Bell, Check, ChevronDown, ChevronRight, FolderOpen, CalendarDays, CalendarOff, Download, FileInput, Flag, History, Lock, Mic, RefreshCw, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -11,7 +11,10 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { Project, ScheduleTask } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Project, ProjectSchedule, ScheduleAuditEntry, ScheduleTask } from '@/types';
+import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
+import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
 import { buildScheduleFromTasks, mergeEditedSchedule, createId } from '@/utils/scheduleEngine';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
@@ -40,6 +43,7 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { parseCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import {
   resolveScheduleAnchor, startDayNumberFor,
+  captureBaseline, applyBaselineToTasks,
   baselineFinishDayWorkingScale, finishDriverTitle, pacedScheduleVerdict, planCatchUpToToday,
   taskCalendarRange,
   UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
@@ -67,6 +71,126 @@ import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
 const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living Plan'], ['progress', 'Progress'], ['team', 'Team']];
 
+// ---------------------------------------------------------------------------
+// The phone's schedule audit entry.
+//
+// ScheduleAuditModal promises "every CPM-affecting edit" is logged, but the only
+// writers were schedule-pro (desktop-only, behind the 900pt gate) and the CO
+// reflow. Every date, duration and status change made HERE — the primary
+// platform — left no record of who changed it or when, which is the record a
+// delay claim is argued from months later. Every write on this screen funnels
+// through saveTasks, so the entry is built there, from the task arrays on
+// either side of the write.
+//
+// The summary copies the CO reflow's shape (utils/coScheduleReflowCore.ts):
+// what changed, then "finish <before> → <after>" when the finish moved, so the
+// row reads as a dated movement on its own when it is attached to a delay.
+// ---------------------------------------------------------------------------
+
+/** Derived by saveTasks' own CPM run on every write — a change in it is not an
+ *  edit anybody made, and listing it would put "isCriticalPath changed" on
+ *  every row. */
+const AUDIT_IGNORED_KEYS = new Set(['isCriticalPath']);
+/** Fields a status tap or a progress stepper writes (stampActuals included). */
+const PROGRESS_KEYS = new Set(['progress', 'status', 'actualStartDate', 'actualEndDate', 'actualStartDay', 'actualEndDay']);
+
+/**
+ * Before/after snapshots holding only what really changed. summarizeTaskDiff
+ * compares with `===`, so an array or object re-created with the same contents
+ * (dependencies, links) would otherwise read as "dependencies changed".
+ */
+function materialTaskDiff(before: ScheduleTask, after: ScheduleTask): { keys: string[]; after: Record<string, unknown> } {
+  const b = before as unknown as Record<string, unknown>;
+  const a = after as unknown as Record<string, unknown>;
+  const snapshot: Record<string, unknown> = { ...b };
+  const keys: string[] = [];
+  for (const k of new Set([...Object.keys(b), ...Object.keys(a)])) {
+    if (AUDIT_IGNORED_KEYS.has(k) || b[k] === a[k]) continue;
+    if (JSON.stringify(b[k]) === JSON.stringify(a[k])) continue;
+    snapshot[k] = a[k];
+    keys.push(k);
+  }
+  return { keys, after: snapshot };
+}
+
+function describeMobileScheduleEdit(input: {
+  prev: ScheduleTask[];
+  next: ScheduleTask[];
+  finishBefore: number;
+  finishAfter: number;
+  /** Renders a CPM finish index — a date when the schedule is dated, a day
+   *  number when it is not. Never an invented date. */
+  formatFinish: (day: number) => string;
+  /** Names a bulk write the user made on purpose ("Brought the plan up to date"). */
+  reason?: string;
+  user: string;
+}): Omit<ScheduleAuditEntry, 'id' | 'at'> | null {
+  const { prev, next, finishBefore, finishAfter, formatFinish, reason, user } = input;
+  const prevById = new Map(prev.map((t) => [t.id, t]));
+  const nextIds = new Set(next.map((t) => t.id));
+  const created = next.filter((t) => !prevById.has(t.id));
+  const deleted = prev.filter((t) => !nextIds.has(t.id));
+  const edited: { task: ScheduleTask; before: ScheduleTask; keys: string[]; after: Record<string, unknown> }[] = [];
+  for (const t of next) {
+    const before = prevById.get(t.id);
+    if (!before || before === t) continue;
+    const diff = materialTaskDiff(before, t);
+    if (diff.keys.length > 0) edited.push({ task: t, before, ...diff });
+  }
+  const total = created.length + deleted.length + edited.length;
+  if (total === 0) return null;
+
+  const finishMoved = finishBefore !== finishAfter && finishBefore > 0 && finishAfter > 0;
+  const finishClause = finishMoved ? ` — finish ${formatFinish(finishBefore)} → ${formatFinish(finishAfter)}` : '';
+
+  if (total === 1 && !reason) {
+    if (created.length === 1) {
+      const t = created[0];
+      return {
+        user, taskId: t.id, taskTitle: t.title, kind: 'task_create',
+        summary: `Added "${t.title}" (${t.durationDays}d)${finishClause}`,
+      };
+    }
+    if (deleted.length === 1) {
+      const t = deleted[0];
+      return {
+        user, taskId: t.id, taskTitle: t.title, kind: 'task_delete',
+        summary: `Removed "${t.title}"${finishClause}`,
+      };
+    }
+    const e = edited[0];
+    const kind: ScheduleAuditEntry['kind'] = e.keys.some((k) => k === 'dependencies' || k === 'dependencyLinks')
+      ? 'dependency_edit'
+      : e.keys.every((k) => PROGRESS_KEYS.has(k)) ? 'progress_update' : 'task_edit';
+    const before = e.before as unknown as Record<string, unknown>;
+    return {
+      user, taskId: e.task.id, taskTitle: e.task.title, kind,
+      summary: `${e.task.title}: ${summarizeTaskDiff(before, e.after)}${finishClause}`,
+      before,
+      after: e.after,
+    };
+  }
+
+  // A bulk write (the catch-up, its undo). One row, not one per task: the
+  // user made one decision, and the finish movement belongs to that decision.
+  const parts: string[] = [];
+  if (edited.length > 0) parts.push(`${edited.length} task${edited.length === 1 ? '' : 's'} changed`);
+  if (created.length > 0) parts.push(`${created.length} added`);
+  if (deleted.length > 0) parts.push(`${deleted.length} removed`);
+  return {
+    user,
+    kind: 'reflow',
+    summary: `${reason ?? 'Schedule edited'}: ${parts.join(', ')}${finishClause}`,
+    before: { projectFinishDay: finishBefore },
+    after: {
+      projectFinishDay: finishAfter,
+      changedTaskIds: edited.map((e) => e.task.id),
+      addedTaskIds: created.map((t) => t.id),
+      removedTaskIds: deleted.map((t) => t.id),
+    },
+  };
+}
+
 // Mobile-native "Schedule Pro" — touch-first gantt + task-detail sheet +
 // sub-tabs, rendered on phones (web/tablet keep the desktop schedule screen).
 export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef?: React.MutableRefObject<string | null> } = {}) {
@@ -79,6 +203,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   } = useProjects();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { user } = useAuth();
+  // Same actor string schedule-pro writes, so the History viewer attributes a
+  // phone edit and a laptop edit to the same person.
+  const auditUser = user?.email ?? user?.name ?? 'anonymous';
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
 
@@ -235,19 +363,32 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
    * (baselineFinishDayWorkingScale + workingDaysBetween off the last entry of
    * `baselines[]`), so the phone and the laptop can never quote two different
    * slips for the same job. Null when no baseline was ever captured, which on
-   * a phone-only account is always: `saveBaseline` has one caller and it never
-   * renders on a phone. The verdict handles null by falling back to pace.
+   * a phone-only account used to be always (the only capture was desktop-only);
+   * lockPlan below is the phone's own capture. The verdict handles null by
+   * falling back to pace.
    */
-  const slipDaysVsBaseline = useMemo<number | null>(() => {
+  const activeBaseline = useMemo<NamedBaseline | null>(() => {
     const list = activeSchedule?.baselines;
     if (!list || list.length === 0) return null;
     // Cast at the boundary, as types/index.ts documents: ProjectSchedule stores
     // baselines structurally to avoid a circular type import.
-    const active = list[list.length - 1] as unknown as NamedBaseline;
-    const baseFinish = baselineFinishDayWorkingScale(active, scheduleCalendar);
-    if (baseFinish == null) return null;
-    return workingDaysBetween(baseFinish, reportCpm.projectFinish, scheduleCalendar);
-  }, [activeSchedule?.baselines, scheduleCalendar, reportCpm.projectFinish]);
+    return list[list.length - 1] as unknown as NamedBaseline;
+  }, [activeSchedule?.baselines]);
+  const baselineFinishDay = useMemo<number | null>(
+    () => (activeBaseline ? baselineFinishDayWorkingScale(activeBaseline, scheduleCalendar) : null),
+    [activeBaseline, scheduleCalendar],
+  );
+  const slipDaysVsBaseline = useMemo<number | null>(() => {
+    if (baselineFinishDay == null) return null;
+    return workingDaysBetween(baselineFinishDay, reportCpm.projectFinish, scheduleCalendar);
+  }, [baselineFinishDay, scheduleCalendar, reportCpm.projectFinish]);
+  /** The locked plan's own finish, as a date — what "behind plan" is measured
+   *  from. Null when undated: an index with no anchor is not a date. */
+  const baselineFinishLabel = useMemo(() => {
+    if (!anchor.date || baselineFinishDay == null) return null;
+    return calendarDayToDate(anchor.date, baselineFinishDay)
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [anchor.date, baselineFinishDay]);
 
   /**
    * The pace read, from the same function the owner-facing surfaces use. Only
@@ -306,7 +447,17 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
 
   const [showFinishSheet, setShowFinishSheet] = useState(false);
 
-  const saveTasks = useCallback((nextTasks: ScheduleTask[]) => {
+  /**
+   * The tasks as of the LATEST render, for the audit diff only. The catch-up's
+   * Undo button runs a `saveTasks` captured before the catch-up was written, so
+   * its closed-over `tasks` IS the array it restores — diffing that against
+   * itself logged nothing, and the undo (which moves every date back) left no
+   * row. The ref holds what is actually on disk when the button is tapped.
+   */
+  const latestTasksRef = useRef(tasks);
+  latestTasksRef.current = tasks;
+
+  const saveTasks = useCallback((nextTasks: ScheduleTask[], opts: { reason?: string } = {}) => {
     if (!selectedProject) return;
     const name = activeSchedule?.name ?? `${selectedProject.name} Schedule`;
     // Mobile Pro is a MANUAL scheduler — startDay is user-authoritative (drag +
@@ -323,6 +474,26 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       scheduleStartDate: activeSchedule?.startDate,
       workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
       nonWorkingDates: activeSchedule?.nonWorkingDates,
+    });
+    // The audit row, built from the arrays on both sides of THIS write (see
+    // describeMobileScheduleEdit). The "before" finish is run on the same
+    // calendar as the "after" one so the two numbers are comparable.
+    const prevTasks = latestTasksRef.current;
+    const cpmBefore = runCpm(prevTasks, {
+      scheduleStartDate: activeSchedule?.startDate,
+      workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule?.nonWorkingDates,
+    });
+    const auditDraft = describeMobileScheduleEdit({
+      prev: prevTasks,
+      next: nextTasks,
+      finishBefore: cpmBefore.projectFinish,
+      finishAfter: cpm.projectFinish,
+      formatFinish: (day) => (anchor.date
+        ? calendarDayToDate(anchor.date, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : `day ${day}`),
+      reason: opts.reason,
+      user: auditUser,
     });
     const critical = new Set(cpm.criticalPath);
     const flagged = nextTasks.map((t) => (critical.has(t.id) !== !!t.isCriticalPath ? { ...t, isCriticalPath: critical.has(t.id) } : t));
@@ -351,7 +522,8 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       ? mergeEditedSchedule(activeSchedule, next, { projectId: selectedProject.id })
       : { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() };
     updateProject(selectedProject.id, { schedule: merged });
-  }, [selectedProject, activeSchedule, updateProject]);
+    if (auditDraft) void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry(auditDraft));
+  }, [selectedProject, activeSchedule, updateProject, anchor.date, auditUser]);
 
   const onUpdateTask = useCallback((next: ScheduleTask) => {
     // Pace flywheel: this is a full-object sink — `next` spreads the previous
@@ -438,7 +610,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   const applyCatchUp = useCallback(() => {
     if (!catchUp || catchUp.changes.length === 0) return;
     const before = tasks;
-    saveTasks(catchUp.tasks);
+    saveTasks(catchUp.tasks, { reason: 'Brought the plan up to date' });
     setShowFinishSheet(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const moved = catchUp.changes.length;
@@ -446,7 +618,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       'Plan brought up to date',
       `${moved} task${moved === 1 ? '' : 's'} re-dated so the work that is left starts today. Finished work kept its actual dates, and nothing moved earlier.`,
       [
-        { text: 'Undo', style: 'cancel', onPress: () => saveTasks(before) },
+        { text: 'Undo', style: 'cancel', onPress: () => saveTasks(before, { reason: 'Undid "Bring the plan up to date"' }) },
         { text: 'Keep it' },
       ],
     );
@@ -480,6 +652,84 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
    * The scalars are still refreshed against the new anchor so the header does
    * not read a stale finish until the next edit.
    */
+  /**
+   * Lock a plan as the baseline — the phone's own capture.
+   *
+   * Before this, a GC who built his schedule on his iPhone could never lock
+   * one: the only captures lived in schedule-pro and the tablet/web tab, and
+   * both are unreachable under 900pt. `baselines[]` stayed empty, so
+   * slipDaysVsBaseline was null forever and "behind plan" could not be said.
+   *
+   * It writes what the READERS read, not the legacy singular
+   * `schedule.baseline` (`scheduleEngine.saveBaseline`), which no KPI, verdict
+   * or health check looks at:
+   *   * `baselines[]` via captureBaseline with the schedule calendar — the
+   *     exact call BaselineManagerModal and the CO reflow make, so a phone lock
+   *     and a laptop lock are one comparable history, and the slip right after
+   *     locking is zero rather than a phantom;
+   *   * each task's baselineStartDay/baselineEndDay via applyBaselineToTasks,
+   *     which the health score's baseline_drift and CPLI checks filter on.
+   *
+   * Takes the schedule explicitly because the start-date prompt calls it with
+   * the schedule it has JUST written, before this render's `activeSchedule`
+   * has caught up — locking the stale one would erase the start date.
+   */
+  const lockPlan = useCallback((schedule: ProjectSchedule) => {
+    if (!selectedProject || schedule.tasks.length === 0) return;
+    const planAnchor = resolveScheduleAnchor(schedule);
+    // An undated plan has no finish DATE to promise; the UI disables the lock
+    // and says so, and this refuses rather than trusting every caller to.
+    if (!planAnchor.dated || !planAnchor.date) return;
+    const scale = {
+      scheduleStartDate: planAnchor.iso ?? undefined,
+      workingDaysPerWeek: schedule.workingDaysPerWeek,
+      nonWorkingDates: schedule.nonWorkingDates,
+    };
+    const cpm = runCpm(schedule.tasks, scale);
+    const existing = schedule.baselines ?? [];
+    const snap = captureBaseline(schedule.tasks, `v${existing.length + 1}`, 'Locked from the phone schedule', {
+      scale, cpm, capturedBy: auditUser,
+    });
+    updateProject(selectedProject.id, {
+      schedule: {
+        ...schedule,
+        projectId: selectedProject.id,
+        tasks: applyBaselineToTasks(schedule.tasks, snap),
+        baselines: [...existing, snap],
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    const finishLabel = cpm.projectFinish > 0
+      ? calendarDayToDate(planAnchor.date, cpm.projectFinish)
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+    void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
+      user: auditUser,
+      kind: 'baseline_capture',
+      summary: `Locked the plan as baseline ${snap.name}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+    }));
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [selectedProject, updateProject, auditUser]);
+
+  /** The sheet's button. A first lock is the obvious act; a RE-lock moves the
+   *  yardstick every later "behind plan" is measured from, so it asks first. */
+  const requestLockPlan = useCallback(() => {
+    if (!activeSchedule) return;
+    if (!activeBaseline) { lockPlan(activeSchedule); return; }
+    const lockedOn = new Date(activeBaseline.savedAt)
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    showAlert(
+      'Re-lock the plan?',
+      `Slip is measured from the newest lock. ${activeBaseline.name} (locked ${lockedOn}) stays in the baseline history, but "behind plan" will count from today's dates instead.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Re-lock', onPress: () => lockPlan(activeSchedule) },
+      ],
+    );
+  }, [activeSchedule, activeBaseline, lockPlan]);
+
+  const [showHistory, setShowHistory] = useState(false);
+
   const applyStartDate = useCallback((pickedIso: string) => {
     if (!selectedProject || !activeSchedule) return;
     const day = parseCalendarDay(pickedIso);
@@ -491,20 +741,43 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       workingDaysPerWeek: activeSchedule.workingDaysPerWeek,
       nonWorkingDates: activeSchedule.nonWorkingDates,
     });
-    updateProject(selectedProject.id, {
-      schedule: {
-        ...activeSchedule,
-        projectId: selectedProject.id,
-        tasks: nextTasks,
-        startDate: iso,
-        totalDurationDays: cpm.projectFinish,
-        criticalPathDays: cpm.projectFinish,
-        updatedAt: new Date().toISOString(),
-      },
-    });
+    const nextSchedule: ProjectSchedule = {
+      ...activeSchedule,
+      projectId: selectedProject.id,
+      tasks: nextTasks,
+      startDate: iso,
+      totalDurationDays: cpm.projectFinish,
+      criticalPathDays: cpm.projectFinish,
+      updatedAt: new Date().toISOString(),
+    };
+    updateProject(selectedProject.id, { schedule: nextSchedule });
     setShowStartDatePicker(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [selectedProject, activeSchedule, updateProject]);
+    // Moving the anchor moves every calendar date on the job — log it.
+    const finishLabel = cpm.projectFinish > 0
+      ? calendarDayToDate(day, cpm.projectFinish).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+    void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
+      user: auditUser,
+      kind: 'reflow',
+      summary: `Start date ${activeSchedule.startDate ? `moved ${activeSchedule.startDate} → ${iso}` : `set to ${iso}`}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+    }));
+    // THE MOMENT TO LOCK. A start date plus a task list is the first time this
+    // schedule has a finish DATE — the date he is promising. Asked once, here,
+    // and only when nothing is locked yet; declining leaves the button in the
+    // finish sheet. The locked schedule is `nextSchedule`, not the stale
+    // `activeSchedule` (see lockPlan).
+    if (nextTasks.length > 0 && (activeSchedule.baselines?.length ?? 0) === 0 && finishLabel) {
+      showAlert(
+        'Lock this as the plan?',
+        `Every task now has a date, and the finish is ${finishLabel} — the date you are promising. Lock it, and later the schedule can say how many days behind or ahead of this plan you are, not just how the pace looks.`,
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Lock the plan', onPress: () => lockPlan(nextSchedule) },
+        ],
+      );
+    }
+  }, [selectedProject, activeSchedule, updateProject, auditUser, lockPlan]);
 
   // Explicit project picker (sim-audit #11): tapping the title used to
   // silently CYCLE through projects — zero affordance, and with several
@@ -792,6 +1065,18 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         onSetStartDate={() => { setShowFinishSheet(false); setShowStartDatePicker(true); }}
         onApplyCatchUp={applyCatchUp}
         onPressTask={(t) => { setShowFinishSheet(false); setDetailTask(t); }}
+        activeBaseline={activeBaseline}
+        baselineFinishLabel={baselineFinishLabel}
+        onLockPlan={requestLockPlan}
+        // Close first, then open: presenting a second Modal over a dismissing
+        // one is the iOS stacking bug (same order as onSetStartDate).
+        onShowHistory={() => { setShowFinishSheet(false); setShowHistory(true); }}
+      />
+
+      <ScheduleAuditModal
+        visible={showHistory}
+        projectId={selectedProject.id}
+        onClose={() => setShowHistory(false)}
       />
 
       <ExportCenterSheet
@@ -801,7 +1086,13 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         tasks={tasks}
         startDateIso={anchor.iso ?? anchor.unanchoredPreviewIso}
         cpm={reportCpm}
-        baseline={activeSchedule?.baseline ?? null}
+        // The ACTIVE named baseline first — the one the verdict measures slip
+        // from. The legacy singular `baseline` stores an exclusive endDay
+        // (startDay + duration) that the report reads as inclusive; it stays
+        // only as the fallback for a schedule locked before baselines[].
+        baseline={activeBaseline ?? activeSchedule?.baseline ?? null}
+        canLockPlan={!activeBaseline && tasks.length > 0}
+        onLockPlan={() => { setShowExport(false); requestLockPlan(); }}
         nonWorkingDates={activeSchedule?.nonWorkingDates}
         onExportIcal={() => { void exportScheduleIcal({ project: selectedProject }); }}
       />
@@ -856,6 +1147,7 @@ function FinishDateSheet({
   visible, onClose, verdict, finishDateLabel, tasks, cpm, anchorDate,
   workingDaysPerWeek, nonWorkingDates, catchUp, hasDataDate,
   onSetStartDate, onApplyCatchUp, onPressTask,
+  activeBaseline, baselineFinishLabel, onLockPlan, onShowHistory,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -871,6 +1163,10 @@ function FinishDateSheet({
   onSetStartDate: () => void;
   onApplyCatchUp: () => void;
   onPressTask: (task: ScheduleTask) => void;
+  activeBaseline: NamedBaseline | null;
+  baselineFinishLabel: string | null;
+  onLockPlan: () => void;
+  onShowHistory: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -1017,6 +1313,81 @@ function FinishDateSheet({
               </>
             )}
           </View>
+
+          {/* THE PLAN THIS IS MEASURED AGAINST. Without a lock there is no
+              "behind plan", only pace — this is where the phone gets one. */}
+          <Text style={styles.section}>THE PLAN YOU ARE MEASURED AGAINST</Text>
+          <View style={styles.finishCard}>
+            {!hasDataDate ? (
+              <>
+                {/* A blocked button says why. */}
+                <Text style={styles.finishEmpty}>
+                  {UNDATED_SCHEDULE_TITLE}, so there is no finish date to lock as the plan yet.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.finishBtn, styles.finishBtnDisabled]}
+                  disabled
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: true }}
+                  accessibilityLabel={`Lock this plan as the baseline. Unavailable: ${UNDATED_SCHEDULE_TITLE}.`}
+                  testID="lock-plan-disabled"
+                >
+                  <Lock size={16} color={colors.textMuted} strokeWidth={2} />
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Lock this plan as the baseline</Text>
+                </TouchableOpacity>
+              </>
+            ) : !activeBaseline ? (
+              <>
+                <Text style={styles.finishBody}>
+                  No plan is locked, so this schedule can only read pace — it cannot say how many days behind or ahead of plan you are.
+                </Text>
+                <Text style={styles.finishNote}>
+                  Locking records every task’s dates{finishDateLabel !== '—' ? ` and the ${finishDateLabel} finish` : ''} as the plan later dates are compared with.
+                </Text>
+                <TouchableOpacity
+                  style={styles.finishBtn}
+                  activeOpacity={0.85}
+                  onPress={onLockPlan}
+                  accessibilityRole="button"
+                  accessibilityLabel="Lock this plan as the baseline"
+                  testID="lock-plan"
+                >
+                  <Lock size={16} color={colors.accentLabel} strokeWidth={2} />
+                  <Text style={styles.finishBtnText}>Lock this plan as the baseline</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.finishBody}>
+                  {`${activeBaseline.name}, locked ${new Date(activeBaseline.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                  {baselineFinishLabel ? ` — planned finish ${baselineFinishLabel}.` : '.'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.finishLink}
+                  activeOpacity={0.7}
+                  onPress={onLockPlan}
+                  accessibilityRole="button"
+                  accessibilityLabel="Re-lock with today's plan"
+                  testID="relock-plan"
+                >
+                  <Text style={styles.finishLinkAccent}>Re-lock with today’s plan</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.prowRow, styles.historyRow]}
+            activeOpacity={0.7}
+            onPress={onShowHistory}
+            accessibilityRole="button"
+            accessibilityLabel="Schedule history. Every change, who made it, and when."
+            testID="open-schedule-history"
+          >
+            <History size={16} color={colors.textSecondary} strokeWidth={2} />
+            <Text style={styles.prowName}>Schedule history</Text>
+            <ChevronRight size={16} color={colors.textMuted} strokeWidth={2} />
+          </TouchableOpacity>
         </ScrollView>
       </View>
     </Modal>
@@ -1228,6 +1599,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   finishBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accentLabel },
   finishLink: { alignItems: 'center' as const, paddingVertical: 10 },
   finishLinkText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.warningLabel },
+  finishLinkAccent: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  historyRow: { paddingHorizontal: 4, marginBottom: 8 },
   prowRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, paddingVertical: 10 },
   rowDivider: { borderTopWidth: 1, borderTopColor: t.line },
   prowName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },

@@ -36,6 +36,12 @@ import {
 } from '../utils/noticeClock';
 import type { DelayEvent, DelayNotice, Project } from '../types';
 
+// Bun's global is not in the app tsconfig's types (tsc covers scripts/), so it
+// is declared locally — same pattern as validate-calendar-date.ts.
+declare const Bun: {
+  Transpiler: new (opts: { loader: 'ts' | 'tsx' }) => { transformSync(code: string): string };
+};
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
@@ -647,6 +653,66 @@ ok('the reminder disclaimer is one short line, not a wall of text',
   ok('the delay register renders the reminder disclaimer',
     (screen.match(/NOTICE_REMINDER_DISCLAIMER/g) ?? []).length >= 3,
     'it must appear wherever a derived notice date is shown, not just in the footer');
+}
+
+// ── Schedule changes are attachable evidence ─────────────────────────────────
+// 'schedule_audit' was a declared DelayEvidenceKind with an icon and a label,
+// and availableEvidence never produced one: the dated record that shows a
+// date MOVED was the one piece of evidence nobody could attach. The ordering
+// rule is the finding's sharpening — entries tied to a change order, or
+// recorded as a reflow, come FIRST and ignore the date window, because they
+// answer "which change moved this date".
+//
+// The function lives in the screen (a .tsx that imports react-native, which
+// crashes bun), so its source is lifted out and transpiled here. That tests the
+// shipped text itself, not a copy of it.
+console.log('\nschedule changes as delay evidence');
+{
+  const screen = read('app/delay-events.tsx');
+  const start = screen.indexOf('const SCHEDULE_AUDIT_WINDOW_DAYS');
+  const end = screen.indexOf('function todayISO(');
+  ok('the delay register defines scheduleAuditEvidence above todayISO', start >= 0 && end > start);
+  const evidenceBody = screen.slice(
+    screen.indexOf('const availableEvidence = useMemo'),
+    screen.indexOf('const attachEvidence = useCallback'),
+  );
+  ok('availableEvidence folds the schedule audit log in',
+    /scheduleAuditEvidence\(scheduleAudit,/.test(evidenceBody),
+    'without this the schedule_audit kind is unattachable by construction again');
+  ok('the log is read from the audit store for THIS project',
+    /loadAuditFromAsyncStorage\(projectId\)/.test(screen));
+
+  if (start >= 0 && end > start) {
+    const ts = `${screen.slice(start, end)}\nglobalThis.__scheduleAuditEvidence = scheduleAuditEvidence;`;
+    const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(ts);
+    new Function(js)();
+    type Ref = { kind: string; id: string; capturedAt: string; note?: string };
+    const fn = (globalThis as unknown as { __scheduleAuditEvidence: (e: unknown[], d: string) => Ref[] })
+      .__scheduleAuditEvidence;
+    const entries = [
+      { id: 'edit-near', at: '2026-08-02T15:00:00', user: 'u', kind: 'task_edit', taskTitle: 'Drywall', summary: 'Drywall: start day 10 → 14 — finish Aug 14 → Aug 20' },
+      { id: 'edit-far', at: '2026-05-01T15:00:00', user: 'u', kind: 'progress_update', taskTitle: 'Framing', summary: 'Framing: progress 10% → 20%' },
+      { id: 'co-late', at: '2026-10-20T10:00:00', user: 'u', kind: 'reflow', changeOrderId: 'co1', taskTitle: 'Drywall', summary: 'CO #4 approved: +4 days on "Drywall" (named). 3 task(s) shifted, finish 60 → 64.' },
+      { id: 'edit-mid', at: '2026-08-20T09:00:00', user: 'u', kind: 'task_edit', taskTitle: 'Paint', summary: 'duration 3d → 5d' },
+    ];
+    const refs = fn(entries, '2026-08-01');
+    ok('every entry becomes a schedule_audit ref pointing at the audit row',
+      refs.every((r) => r.kind === 'schedule_audit') && refs.some((r) => r.id === 'edit-near'),
+      JSON.stringify(refs));
+    ok('the change-order reflow is offered FIRST, even months outside the window',
+      refs[0]?.id === 'co-late', JSON.stringify(refs.map((r) => r.id)));
+    ok('ordinary edits follow, nearest to first-observed first',
+      JSON.stringify(refs.map((r) => r.id)) === JSON.stringify(['co-late', 'edit-near', 'edit-mid']),
+      JSON.stringify(refs.map((r) => r.id)));
+    ok('an ordinary edit far outside the window is not offered',
+      !refs.some((r) => r.id === 'edit-far'));
+    ok('capturedAt is the moment the schedule changed, not the moment it was attached',
+      refs.find((r) => r.id === 'edit-near')?.capturedAt === '2026-08-02T15:00:00');
+    ok('the note carries the summary, with the task named once',
+      refs.find((r) => r.id === 'edit-mid')?.note === 'Paint: duration 3d → 5d'
+        && refs.find((r) => r.id === 'edit-near')?.note === entries[0].summary,
+      JSON.stringify(refs));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
