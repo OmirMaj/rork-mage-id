@@ -1,6 +1,7 @@
 import type {
   Project, Invoice, ChangeOrder, DailyFieldReport, PunchItem, ProjectPhoto, RFI,
 } from '@/types';
+import { punchListTypeOf } from '@/types';
 import { mageAI } from './mageAI';
 import { invoiceOutstanding, pendingRetentionHeld } from './invoiceBilling';
 
@@ -247,8 +248,13 @@ export function gatherWeeklyContext(
       .filter(c => c.projectId === project.id && (since(c.updatedAt) || since(c.createdAt))),
     invoices: allInvoices
       .filter(i => i.projectId === project.id && (since(i.updatedAt) || since(i.issueDate))),
+    // Formal punch only. This update is EMAILED TO THE CLIENT, and a crew-list
+    // item is internal by definition — the punch list screen tells the builder
+    // it is "never shown to your client". Counting crew chores here would put
+    // "sweep the corridor" into the client's open-items number and break that
+    // promise. Filtered at the source so no section below can reintroduce it.
     punchItems: allPunchItems
-      .filter(p => p.projectId === project.id),
+      .filter(p => p.projectId === project.id && punchListTypeOf(p) === 'punch'),
     rfis: allRfis
       .filter(r => r.projectId === project.id),
     weekEndingISO: new Date().toISOString(),

@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import type {
   Project, CompanyBranding, ChangeOrder, Invoice, DailyFieldReport, PunchItem, Warranty, ProjectPhoto,
 } from '@/types';
+import { punchListTypeOf } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { effectiveRetentionHeld } from '@/utils/invoiceBilling';
 
@@ -81,7 +82,12 @@ function selectBeforeAfterPhotos(photos: ProjectPhoto[]): { before: ProjectPhoto
 }
 
 function buildCloseoutHtml(data: CloseoutPacketData): string {
-  const { project, branding, changeOrders, invoices, dailyReports, punchItems, warranties } = data;
+  const { project, branding, changeOrders, invoices, dailyReports, warranties } = data;
+  // Formal punch only. The closeout packet is the document handed to the client
+  // at handover, so an internal crew-list item must not appear in its punch
+  // section or count toward its "N% complete". Narrowed once here so the
+  // completion maths and the rendered section can never disagree.
+  const punchItems = data.punchItems.filter(p => punchListTypeOf(p) === 'punch');
 
   const approvedCOs = changeOrders.filter(co => co.status === 'approved');
   const totalCOValue = approvedCOs.reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);

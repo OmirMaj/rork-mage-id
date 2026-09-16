@@ -2715,6 +2715,33 @@ export interface PrequalPacket {
 export type PunchItemStatus = 'open' | 'in_progress' | 'ready_for_review' | 'closed';
 export type PunchItemPriority = 'low' | 'medium' | 'high';
 
+/**
+ * Which list a punch item belongs to — two lists, one table.
+ *
+ *   'punch' — the FORMAL punch list: what the owner / client / architect walks
+ *             and holds the builder to. Rendered in the client portal.
+ *   'crew'  — the crew list: touch-ups, cleanup, "while you're in there" items
+ *             the builder's own crew and subs handle. INTERNAL — it must never
+ *             reach the client portal (see utils/portalSnapshot.ts). The sub
+ *             portal still shows a sub their crew items; that is their work.
+ *
+ * Every row that predates this split is a formal punch item: the column is
+ * NOT NULL DEFAULT 'punch' (migration 20260916120000_punch_list_type.sql), and
+ * an item cached locally before the field existed has no value at all — read it
+ * through punchListTypeOf, never `item.listType` directly.
+ */
+export type PunchListType = 'punch' | 'crew';
+
+/**
+ * Resolve an item's list, treating absent (or anything unrecognised) as
+ * 'punch'. One place owns the default so no consumer re-implements it — and
+ * the safe direction is 'punch': a mis-read item stays VISIBLE to the client
+ * rather than silently vanishing from a portal they were already looking at.
+ */
+export function punchListTypeOf(item: { listType?: PunchListType | null } | null | undefined): PunchListType {
+  return item?.listType === 'crew' ? 'crew' : 'punch';
+}
+
 export interface PunchItem {
   id: string;
   projectId: string;
@@ -2748,6 +2775,9 @@ export interface PunchItem {
   planSheetId?: string;
   pinX?: number;
   pinY?: number;
+  /** Formal punch list vs internal crew list. Absent means 'punch' — resolve
+   *  with punchListTypeOf, never read raw. */
+  listType?: PunchListType;
   rejectionNote?: string;
   closedAt?: string;
   createdAt: string;

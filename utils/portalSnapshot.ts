@@ -12,6 +12,7 @@ import type {
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
   SavedAIAPayApp, PortalState, ProjectSchedule, Permit, Warranty,
 } from '@/types';
+import { punchListTypeOf } from '@/types';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { roundCents } from '@/utils/aiaBilling';
@@ -1626,8 +1627,18 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   if (portal.showPunchList && punchItems.length) {
     // Exclude completed work ('closed'); only surface actionable items
     // (open, in-progress, ready-for-review) to the client portal.
+    //
+    // And only the FORMAL punch list. A crew-list item ("sweep the corridor",
+    // "patch the scuff behind the door") is the builder's internal working
+    // checklist — publishing it would put housekeeping on the client's project
+    // page and dilute the list they are actually holding the builder to.
+    // punchListTypeOf resolves an absent value to 'punch', so every item that
+    // predates the split stays on the portal exactly as before. The SUB portal
+    // (utils/subPortalSnapshot.ts) deliberately does NOT filter this: a crew
+    // item assigned to a sub is precisely that sub's work.
     const activePunch = punchItems.filter(
-      p => p.status === 'open' || p.status === 'in_progress' || p.status === 'ready_for_review'
+      p => punchListTypeOf(p) === 'punch'
+        && (p.status === 'open' || p.status === 'in_progress' || p.status === 'ready_for_review')
     );
     if (activePunch.length) {
       sections.punchList = activePunch.map(p => ({

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus } from '@/types';
+import { punchListTypeOf } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus, PunchListType } from '@/types';
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
@@ -1525,6 +1526,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               photoLongitude: r.photo_longitude == null ? undefined : Number(r.photo_longitude),
               photoLocationAccuracyMeters: r.photo_accuracy_meters == null ? undefined : Number(r.photo_accuracy_meters),
               photoLocationLabel: (r.photo_location_label as string | null) ?? undefined,
+              // Formal punch vs internal crew list. Read back for the same reason
+              // as the pin above — a refetch that dropped it would let the next
+              // save write 'punch' over a crew item and publish "sweep the
+              // corridor" to the client's portal. Resolved through the one
+              // default, so a pre-migration NULL reads as 'punch'.
+              listType: punchListTypeOf({ listType: r.list_type as PunchListType | null }),
               rejectionNote: r.rejection_note as string | undefined,
               closedAt: r.closed_at as string | undefined, createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               };
@@ -4274,6 +4281,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     photo_latitude: item.photoLatitude, photo_longitude: item.photoLongitude,
     photo_accuracy_meters: item.photoLocationAccuracyMeters,
     photo_location_label: item.photoLocationLabel,
+    // Always an explicit value, resolved through the one default — an absent
+    // listType is a formal punch item (migration 20260916120000_punch_list_type.sql).
+    list_type: punchListTypeOf(item),
     rejection_note: item.rejectionNote, closed_at: item.closedAt,
     created_at: item.createdAt, updated_at: item.updatedAt,
   }), [userId]);
@@ -4328,6 +4338,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           photo_latitude: pi.photoLatitude, photo_longitude: pi.photoLongitude,
           photo_accuracy_meters: pi.photoLocationAccuracyMeters,
           photo_location_label: pi.photoLocationLabel,
+          // Moving an item between the punch list and the crew list is an
+          // EDIT, so the update must carry it — without this the move survives
+          // locally and silently reverts on the next refetch.
+          list_type: punchListTypeOf(pi),
           rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
         });
       }

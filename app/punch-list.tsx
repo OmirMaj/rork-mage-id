@@ -12,6 +12,7 @@ import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
   Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter, MapPin,
   Camera, Square, SquareCheck, Users, Send, Layers, List, ArrowUpDown,
+  ArrowLeftRight, EyeOff, Wrench, CalendarClock,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -26,15 +27,17 @@ import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
-import type { PunchItem, PunchItemStatus, PunchItemPriority, SubTrade } from '@/types';
+import type { PunchItem, PunchItemStatus, PunchItemPriority, PunchListType, SubTrade } from '@/types';
+import { punchListTypeOf } from '@/types';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import { generateUUID } from '@/utils/generateId';
 import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
 import { showAlert } from '@/utils/alert';
-import { formatCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
 import { nailIt } from '@/components/animations/NailItToast';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
@@ -103,6 +106,77 @@ function getPriorityConfig(t: ThemeColors, p: PunchItemPriority): { label: strin
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Two lists, one table
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Every punch item is on exactly one of two lists (PunchListType):
+//   PUNCH     — the formal list the owner / architect walks. Its open items are
+//               what the client portal renders (utils/portalSnapshot.ts), so it
+//               is written to read as watched: due dates up front, overdue red.
+//   CREW LIST — touch-ups, cleanup, "while you're in there". Internal; the
+//               client portal filters it out. Written to read as a calm working
+//               checklist: overdue still shown, but in ink, not alarm.
+// Same rows, same data, same bulk verbs — the difference is weight, and weight
+// is the whole request.
+//
+// What the copy may claim: "your client sees this" is only TRUE when the
+// project's client portal is on AND its punch-list section is on, so every
+// line that says so is gated on that (see `clientSeesPunch`). Nothing here
+// says an item blocks payment or holds retainage — this screen has no such
+// gate to point at, and a claim the app cannot back is worse than no claim.
+
+const LIST_LABEL: Record<PunchListType, string> = { punch: 'Punch', crew: 'Crew list' };
+
+function otherList(list: PunchListType): PunchListType {
+  return list === 'punch' ? 'crew' : 'punch';
+}
+
+/** Whole days until the item is due (negative = past), or null when it has no
+ *  due date or is already closed — a closed item is not late. dueDate is
+ *  declared 'YYYY-MM-DD' but synced rows carry a full ISO timestamp, so it is
+ *  sliced to the day first (same reason openEditForm slices). */
+function daysUntilDue(item: PunchItem): number | null {
+  if (item.status === 'closed' || !item.dueDate) return null;
+  return daysUntilCalendarDay(item.dueDate.slice(0, 10));
+}
+
+function pluralDays(n: number): string {
+  return `${n} day${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * The confirmation for moving items between lists. The two directions are
+ * NOT symmetric in consequence, so the copy isn't either: onto the punch list
+ * puts an item in front of the client; onto the crew list takes it away. Both
+ * are confirmed — a formal item quietly vanishing from the owner's view is as
+ * much a surprise as a chore appearing on it.
+ */
+function moveConfirmCopy(
+  target: PunchListType,
+  count: number,
+  clientSeesPunch: boolean,
+): { title: string; message: string; confirm: string } {
+  const noun = count === 1 ? 'this item' : `${count} items`;
+  const them = count === 1 ? 'It' : 'They';
+  if (target === 'punch') {
+    return {
+      title: `Put ${noun} on the punch list?`,
+      message: clientSeesPunch
+        ? `Your client will be able to see ${count === 1 ? 'it' : 'them'} — the client portal shows every punch item that is not closed.`
+        : `${them} join the formal punch list. Punch list sharing is off in this project's client portal, so your client won't see ${count === 1 ? 'it' : 'them'} until that is turned on.`,
+      confirm: 'Move to punch',
+    };
+  }
+  return {
+    title: `Move ${noun} to the crew list?`,
+    message: clientSeesPunch
+      ? `${them} come${count === 1 ? 's' : ''} off the punch list and out of your client's portal. Crew list items are never shown to the client.`
+      : `${them} come${count === 1 ? 's' : ''} off the formal punch list. Crew list items are never shown in the client portal.`,
+    confirm: 'Move to crew list',
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // How the list is laid out, remembered between visits
 // ───────────────────────────────────────────────────────────────────────────
 //
@@ -121,6 +195,11 @@ type PunchGroupOrder = 'recent' | 'alpha';
 interface PunchViewPref {
   grouped: boolean;
   order: PunchGroupOrder;
+  /** Which of the two lists was showing. Rides in the same blob (and so the
+   *  same `mageid_` key the tenant sweep already covers) rather than a second
+   *  key: it is the same kind of fact — how he last read this screen. Absent
+   *  on a blob written before the split, which reads as 'punch'. */
+  list: PunchListType;
 }
 
 /** Narrow whatever is on disk. A half-written or older blob must not crash the
@@ -130,7 +209,13 @@ function parseViewPref(raw: string | null): PunchViewPref | null {
   try {
     const v = JSON.parse(raw) as Partial<PunchViewPref>;
     if (typeof v?.grouped !== 'boolean') return null;
-    return { grouped: v.grouped, order: v.order === 'alpha' ? 'alpha' : 'recent' };
+    return {
+      grouped: v.grouped,
+      order: v.order === 'alpha' ? 'alpha' : 'recent',
+      // Through the one default in types/index.ts — anything unrecognised is
+      // the formal list, the list whose items someone is watching.
+      list: punchListTypeOf({ listType: v.list }),
+    };
   } catch {
     return null;
   }
@@ -176,6 +261,8 @@ type PunchRowData =
       selectMode: boolean;
       /** Its photo URL already failed to load once this session. */
       photoFailed: boolean;
+      /** Which list is showing — decides how loud the row is, not what it holds. */
+      variant: PunchListType;
     };
 
 type PunchStyles = ReturnType<typeof makeStyles>;
@@ -193,6 +280,7 @@ interface PunchRowActions {
   onOpenPlan: (item: PunchItem) => void;
   onToggleSelect: (id: string) => void;
   onStartSelecting: (id: string) => void;
+  onMove: (item: PunchItem) => void;
 }
 
 interface PunchSectionActions {
@@ -262,11 +350,23 @@ const PunchRow = React.memo(function PunchRow({
   themeColors: ThemeColors;
   actions: PunchRowActions;
 }) {
-  const { item, selected, selectMode, photoFailed } = row;
+  const { item, selected, selectMode, photoFailed, variant } = row;
   const sc = getStatusConfig(themeColors, item.status);
   const pc = getPriorityConfig(themeColors, item.priority);
+  const formal = variant === 'punch';
+  const dueIn = daysUntilDue(item);
+  const overdue = dueIn !== null && dueIn < 0;
+  const moveTo = otherList(variant);
   return (
-    <View style={[styles.punchCard, selected && styles.punchCardSelected]}>
+    <View style={[
+      styles.punchCard,
+      // Formal items carry a left rule — red once they are late, so a scroll
+      // down a 100-item list shows the late ones without reading a word. Crew
+      // items drop the border and sit on the quieter ground.
+      formal ? styles.punchCardFormal : styles.punchCardCrew,
+      formal && overdue && styles.punchCardFormalOverdue,
+      selected && styles.punchCardSelected,
+    ]}>
       <View style={styles.punchCardTop}>
         {/* In selection mode the checkbox replaces the priority dot rather than
             crowding beside it — one hand, gloves, and the dot is decoration
@@ -337,7 +437,7 @@ const PunchRow = React.memo(function PunchRow({
             accessibilityHint={selectMode ? undefined : 'Opens this item for editing. Long press to start selecting.'}
             testID={`punch-item-${item.id}`}
           >
-            <Text style={styles.punchDesc}>{item.description}</Text>
+            <Text style={[styles.punchDesc, !formal && styles.punchDescCrew]}>{item.description}</Text>
             {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
           </TouchableOpacity>
           {/* Where the PHONE was when the photo was taken — written by
@@ -384,14 +484,47 @@ const PunchRow = React.memo(function PunchRow({
         </TouchableOpacity>
       </View>
 
+      {/* PUNCH: the due date is the headline of the meta line, as a chip —
+          red and counted when late, amber inside two days. Someone is holding
+          the builder to these dates, so they are the first thing read. */}
+      {formal && item.dueDate ? (
+        <View style={[
+          styles.dueChip,
+          overdue ? styles.dueChipOverdue : (dueIn !== null && dueIn <= 2 ? styles.dueChipSoon : null),
+        ]}>
+          <CalendarClock
+            size={12}
+            color={overdue ? themeColors.dangerLabel : (dueIn !== null && dueIn <= 2 ? themeColors.warningLabel : themeColors.textSecondary)}
+            strokeWidth={1.75}
+          />
+          <Text style={[
+            styles.dueChipText,
+            overdue ? { color: themeColors.dangerLabel } : (dueIn !== null && dueIn <= 2 ? { color: themeColors.warningLabel } : null),
+          ]}>
+            {overdue
+              ? `Overdue ${pluralDays(-(dueIn as number))} · was due ${formatCalendarDay(item.dueDate)}`
+              : dueIn === 0
+                ? `Due today · ${formatCalendarDay(item.dueDate)}`
+                : `Due ${formatCalendarDay(item.dueDate)}`}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.punchMeta}>
         {item.assignedSub ? <Text style={styles.punchMetaText}>Sub: {item.assignedSub}</Text> : null}
         {/* dueDate is declared 'YYYY-MM-DD' but Supabase-synced rows
             carry a full ISO timestamp — openEditForm already slices
             for exactly that reason. This printed the raw field, so one
             item read "Due: 2026-08-30" locally and
-            "Due: 2026-08-30T00:00:00.000Z" after a sync. */}
-        {item.dueDate ? <Text style={styles.punchMetaText}>Due: {formatCalendarDay(item.dueDate)}</Text> : null}
+            "Due: 2026-08-30T00:00:00.000Z" after a sync.
+
+            CREW: the date stays in the quiet meta line. Late is still SAID —
+            hiding it would be its own lie — but in secondary ink, no fill. */}
+        {!formal && item.dueDate ? (
+          <Text style={[styles.punchMetaText, overdue && styles.punchMetaTextLate]}>
+            Due {formatCalendarDay(item.dueDate)}{overdue ? ` · ${pluralDays(-(dueIn as number))} past` : ''}
+          </Text>
+        ) : null}
         <Text style={[styles.punchMetaText, { color: pc.color }]}>{pc.label} Priority</Text>
       </View>
 
@@ -438,6 +571,25 @@ const PunchRow = React.memo(function PunchRow({
               </TouchableOpacity>
             </>
           )}
+          {/* One tap to the other list. Confirmed in onMove, because the move
+              changes what the client can see. */}
+          <TouchableOpacity
+            style={styles.punchActionBtn}
+            onPress={() => actions.onMove(item)}
+            accessibilityRole="button"
+            accessibilityLabel={moveTo === 'punch'
+              ? `Move to the punch list: ${item.description}`
+              : `Move to the crew list: ${item.description}`}
+            accessibilityHint={moveTo === 'punch'
+              ? 'Asks first. Punch items can be shown in the client portal.'
+              : 'Asks first. Crew list items are never shown in the client portal.'}
+            testID={`punch-move-${item.id}`}
+          >
+            <ArrowLeftRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            <Text style={[styles.punchActionText, { color: themeColors.textSecondary }]}>
+              {moveTo === 'punch' ? 'To punch' : 'To crew'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.punchDeleteBtn}
             onPress={() => actions.onDelete(item)}
@@ -497,7 +649,42 @@ function PunchListScreenInner() {
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
-  const items = useMemo(() => getPunchItemsForProject(projectId ?? ''), [projectId, getPunchItemsForProject]);
+  /** Both lists. Closeout ("is every item done?") and selection resolution
+   *  read this — a crew touch-up left open is still work left on the job. */
+  const allItems = useMemo(() => getPunchItemsForProject(projectId ?? ''), [projectId, getPunchItemsForProject]);
+
+  // ── Which list is showing ────────────────────────────────────────────────
+  // Defaults to the formal punch list: it is the list with consequences, and
+  // the one every pre-split item is on. The stored choice is restored below
+  // alongside the grouping preference.
+  const [activeList, setActiveList] = useState<PunchListType>('punch');
+  /** The list on screen. Everything list-shaped below — counts, filters,
+   *  location chips, sections, progress — reads THIS, so the two lists never
+   *  bleed into each other's numbers. */
+  const items = useMemo(
+    () => allItems.filter(i => punchListTypeOf(i) === activeList),
+    [allItems, activeList],
+  );
+  /** Open (not closed) and overdue counts for both lists, for the switch and
+   *  the header. One pass, not one per chip. */
+  const listStats = useMemo(() => {
+    const out: Record<PunchListType, { open: number; overdue: number; total: number }> = {
+      punch: { open: 0, overdue: 0, total: 0 },
+      crew: { open: 0, overdue: 0, total: 0 },
+    };
+    for (const i of allItems) {
+      const s = out[punchListTypeOf(i)];
+      s.total += 1;
+      if (i.status !== 'closed') s.open += 1;
+      const due = daysUntilDue(i);
+      if (due !== null && due < 0) s.overdue += 1;
+    }
+    return out;
+  }, [allItems]);
+  /** "Your client sees this list" is only true when the portal is on AND its
+   *  punch-list section is on — the same two flags buildPortalSnapshot and
+   *  client-view gate the section on. Every client-facing line reads this. */
+  const clientSeesPunch = !!(project?.clientPortal?.enabled && project.clientPortal.showPunchList);
 
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<PunchItem | null>(null);
@@ -506,6 +693,9 @@ function PunchListScreenInner() {
   const [assignedSub, setAssignedSub] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<PunchItemPriority>('medium');
+  /** The add/edit sheet's own list choice. Seeded from the list showing (new)
+   *  or the item (edit); he can flip it explicitly in the sheet. */
+  const [formListType, setFormListType] = useState<PunchListType>('punch');
   const [linkedTaskId, setLinkedTaskId] = useState<string>('');
   // Optional photo URI to attach when creating a new item — comes from
   // the photo annotator's "Add to Punch List" flow. Surfaces in the
@@ -550,6 +740,9 @@ function PunchListScreenInner() {
         dueDate: '',
         priority: item.priority,
         status: 'open',
+        // Onto whichever list he applied it from — a trade checklist dropped
+        // into the crew list must not surface on the client's portal.
+        listType: activeList,
         createdAt: now,
         updatedAt: now,
       };
@@ -560,9 +753,9 @@ function PunchListScreenInner() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
       'Template applied',
-      `Added ${added} item${added === 1 ? '' : 's'} from "${template.label}". Edit or remove any that don't apply to this project.`,
+      `Added ${added} item${added === 1 ? '' : 's'} from "${template.label}" to the ${activeList === 'punch' ? 'punch list' : 'crew list'}. Edit or remove any that don't apply to this project.`,
     );
-  }, [projectId, addPunchItem]);
+  }, [projectId, addPunchItem, activeList]);
   const [rejectionNote, setRejectionNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<PunchItemStatus | 'all'>('all');
@@ -600,6 +793,14 @@ function PunchListScreenInner() {
     setFailedPhotoUris(prev => (prev[uri] ? prev : { ...prev, [uri]: true }));
   }, []);
 
+  // The screen can open (prefilled from the photo annotator) before the stored
+  // list choice has loaded. Follow the list until he is editing a real item,
+  // so a new item still lands on the list he ends up looking at.
+  useEffect(() => {
+    if (!editingItem) setFormListType(activeList);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeList]);
+
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
 
@@ -607,10 +808,12 @@ function PunchListScreenInner() {
     setDescription(''); setLocation(''); setAssignedSub('');
     setDueDate(''); setPriority('medium'); setEditingItem(null);
     setLinkedTaskId('');
+    // A new item lands on the list he is looking at.
+    setFormListType(activeList);
     // Clear any attached photo so a cancelled form doesn't silently carry
     // it into the next new item.
     setAttachedPhotoUri(undefined);
-  }, []);
+  }, [activeList]);
 
   // The only path that puts a REAL item in `editingItem`. Before this every
   // route into the sheet ran resetForm() first, which meant `editingItem` was
@@ -628,6 +831,7 @@ function PunchListScreenInner() {
     // than seeding the input with a value it doesn't accept.
     setDueDate((item.dueDate ?? '').slice(0, 10));
     setPriority(item.priority);
+    setFormListType(punchListTypeOf(item));
     setLinkedTaskId(item.linkedTaskId ?? '');
     // The sheet has no photo control — only a preview for the annotator's
     // "Add to Punch List" prefill — and handleSave's update branch does not
@@ -637,10 +841,13 @@ function PunchListScreenInner() {
     setShowForm(true);
   }, []);
 
+  // Progress is per list — "18 of 40 punch items closed" is the number that
+  // means something on the punch list; blending in crew chores would dilute it.
   const closedCount = items.filter(i => i.status === 'closed').length;
   const totalCount = items.length;
   const progressPercent = totalCount > 0 ? Math.round((closedCount / totalCount) * 100) : 0;
-  const allClosed = totalCount > 0 && closedCount === totalCount;
+  // Closing the PROJECT is across both lists: an open crew item is still work.
+  const allClosed = allItems.length > 0 && allItems.every(i => i.status === 'closed');
 
   const filteredItems = useMemo(() => {
     let out = items;
@@ -745,6 +952,9 @@ function PunchListScreenInner() {
     setGroupOrder(o => (o === 'recent' ? 'alpha' : 'recent'));
   }, []);
 
+  // chooseList is declared below the selection block — switching lists has to
+  // drop the selection, and that state lives there.
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -760,6 +970,7 @@ function PunchListScreenInner() {
       if (stored) {
         setGrouped(stored.grouped);
         setGroupOrder(stored.order);
+        setActiveList(stored.list);
       }
       viewPrefSettled.current = true;
     })();
@@ -770,9 +981,9 @@ function PunchListScreenInner() {
     if (!viewPrefSettled.current) return;
     void AsyncStorage.setItem(
       PUNCH_VIEW_PREF_KEY,
-      JSON.stringify({ grouped, order: groupOrder } satisfies PunchViewPref),
+      JSON.stringify({ grouped, order: groupOrder, list: activeList } satisfies PunchViewPref),
     ).catch(() => { /* a remembered preference is not worth an error toast */ });
-  }, [grouped, groupOrder]);
+  }, [grouped, groupOrder, activeList]);
 
   /** Collapsed location sections, by normalised key. Session-scoped on purpose:
    *  collapsing a room is a "I'm done looking at this right now" gesture, and
@@ -801,8 +1012,8 @@ function PunchListScreenInner() {
    *  can push an item out of the current filter mid-run, and the run must still
    *  finish the work it was asked to do. */
   const selectedItems = useMemo(
-    () => items.filter(i => selectedIds[i.id]),
-    [items, selectedIds],
+    () => allItems.filter(i => selectedIds[i.id]),
+    [allItems, selectedIds],
   );
 
   const toggleSelect = useCallback((id: string) => {
@@ -824,6 +1035,19 @@ function PunchListScreenInner() {
     setSelectedIds({});
     setSelectMode(false);
   }, []);
+
+  /** Switch lists. The selection is dropped: a selection made on the punch
+   *  list, still live but invisible behind the crew list, is how a bulk verb
+   *  lands on items he can no longer see. */
+  const chooseList = useCallback((next: PunchListType) => {
+    if (next === activeList) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    viewPrefTouched.current = true;
+    viewPrefSettled.current = true;
+    setSelectedIds({});
+    setSelectMode(false);
+    setActiveList(next);
+  }, [activeList]);
 
   // ── The rows ─────────────────────────────────────────────────────────────
   // Grouping is done by the shared module so this screen and punch-walk can
@@ -857,6 +1081,7 @@ function PunchListScreenInner() {
       selected: !!selectedIds[item.id],
       selectMode,
       photoFailed: !!(item.photoUri && failedPhotoUris[item.photoUri]),
+      variant: activeList,
     });
 
     if (!grouped) {
@@ -881,7 +1106,7 @@ function PunchListScreenInner() {
       for (const item of section.items) out.push(itemRow(item));
     }
     return out;
-  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys]);
+  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList]);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
@@ -890,31 +1115,54 @@ function PunchListScreenInner() {
       return;
     }
     const linkedTaskName = linkedTask?.title;
-    if (editingItem) {
-      updatePunchItem(editingItem.id, {
-        description: desc, location: location.trim(), assignedSub: assignedSub.trim(),
-        dueDate, priority,
-        linkedTaskId: linkedTaskId || undefined,
-        linkedTaskName: linkedTaskName || undefined,
-      });
-    } else {
-      const item: PunchItem = {
-        id: createId('punch'), projectId: projectId ?? '', description: desc,
-        location: location.trim(), assignedSub: assignedSub.trim(), dueDate,
-        priority, status: 'open',
-        linkedTaskId: linkedTaskId || undefined,
-        linkedTaskName: linkedTaskName || undefined,
-        photoUri: attachedPhotoUri,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      addPunchItem(item);
+    const commit = () => {
+      if (editingItem) {
+        updatePunchItem(editingItem.id, {
+          description: desc, location: location.trim(), assignedSub: assignedSub.trim(),
+          dueDate, priority,
+          listType: formListType,
+          linkedTaskId: linkedTaskId || undefined,
+          linkedTaskName: linkedTaskName || undefined,
+        });
+      } else {
+        const item: PunchItem = {
+          id: createId('punch'), projectId: projectId ?? '', description: desc,
+          location: location.trim(), assignedSub: assignedSub.trim(), dueDate,
+          priority, status: 'open',
+          listType: formListType,
+          linkedTaskId: linkedTaskId || undefined,
+          linkedTaskName: linkedTaskName || undefined,
+          photoUri: attachedPhotoUri,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        addPunchItem(item);
+      }
+      setShowForm(false);
+      setAttachedPhotoUri(undefined);
+      resetForm();
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // A new item filed onto the OTHER list vanishes from the screen he is
+      // on the instant it saves. Say where it went instead of letting it
+      // look lost.
+      if (formListType !== activeList) {
+        nailIt(`Saved to the ${formListType === 'punch' ? 'punch list' : 'crew list'}.`);
+      }
+    };
+    // Changing an EXISTING item's list in the sheet is a move, and a move
+    // changes what the client can see — same confirmation as the row action.
+    // A new item needs none: the sheet's list picker already says it in words
+    // right under the choice, before anything exists to be exposed.
+    if (editingItem && punchListTypeOf(editingItem) !== formListType) {
+      const copy = moveConfirmCopy(formListType, 1, clientSeesPunch);
+      showAlert(copy.title, copy.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: copy.confirm, onPress: commit },
+      ]);
+      return;
     }
-    setShowForm(false);
-    setAttachedPhotoUri(undefined);
-    resetForm();
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [description, location, assignedSub, dueDate, priority, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri]);
+    commit();
+  }, [description, location, assignedSub, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -994,6 +1242,8 @@ function PunchListScreenInner() {
       dueDate: '',
       priority: 'medium' as const,
       status: 'open' as const,
+      // The walk files onto the list that is showing, like every other add.
+      listType: activeList,
       photoUri: shot.uri,
       createdAt: now,
       updatedAt: now,
@@ -1010,7 +1260,7 @@ function PunchListScreenInner() {
     nailIt(leftover.length === 0
       ? `${filed} punch item${filed === 1 ? '' : 's'} added.`
       : `${filed} added. ${leftover.length} photo${leftover.length === 1 ? '' : 's'} still need a line.`);
-  }, [describedWalkShots, walkShots, addPunchItems, projectId]);
+  }, [describedWalkShots, walkShots, addPunchItems, projectId, activeList]);
 
   // Released only once the filed shots have actually LEFT `walkShots`. Clearing
   // it at the end of fileWalkShots would make the latch useless — the second
@@ -1029,7 +1279,8 @@ function PunchListScreenInner() {
     // project would stay 'in_progress' indefinitely. Now we prompt right
     // when they hit the milestone, while the closeout intent is fresh.
     if (newStatus === 'closed' && projectId && project) {
-      const others = items.filter((p: PunchItem) => p.projectId === projectId && p.id !== item.id);
+      // Across BOTH lists — the project is not done while a crew item is open.
+      const others = allItems.filter((p: PunchItem) => p.projectId === projectId && p.id !== item.id);
       const allOthersClosed = others.length > 0 && others.every((p: PunchItem) => p.status === 'closed');
       const wasLastOpen = others.length === 0 || allOthersClosed;
       if (wasLastOpen && project.status === 'in_progress') {
@@ -1038,7 +1289,7 @@ function PunchListScreenInner() {
         setTimeout(() => {
           showAlert(
             'All punch items closed',
-            `Nice — ${project.name}'s punch list is wrapped. Close the project so it stops showing in your active list?`,
+            `Nice — every punch and crew list item on ${project.name} is closed. Close the project so it stops showing in your active list?`,
             [
               { text: 'Not yet', style: 'cancel' },
               {
@@ -1056,7 +1307,7 @@ function PunchListScreenInner() {
         }, 250);
       }
     }
-  }, [updatePunchItem, projectId, project, items, updateProject]);
+  }, [updatePunchItem, projectId, project, allItems, updateProject]);
 
   // Tap-the-badge quick toggle: advance to the next stage in the linear flow.
   // open → in_progress → ready_for_review → closed. Closed is terminal.
@@ -1180,6 +1431,51 @@ function PunchListScreenInner() {
     });
   }, [bulkBusy, selectedIdList, themeColors]);
 
+  /** Move every selected item to the OTHER list, through the same one-per-render
+   *  runner as every other bulk verb — never a loop of updatePunchItem (see the
+   *  stale-closure note above the runner). Confirmed first, with the client
+   *  consequence spelled out. */
+  const bulkMove = useCallback(() => {
+    if (bulkBusy || selectedIdList.length === 0) return;
+    const target = otherList(activeList);
+    // Only the items not already there — a no-op write is still a queued
+    // Supabase round trip on a phone with one bar.
+    const ids = selectedItems.filter(i => punchListTypeOf(i) !== target).map(i => i.id);
+    if (ids.length === 0) return;
+    const copy = moveConfirmCopy(target, ids.length, clientSeesPunch);
+    showAlert(copy.title, copy.message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: copy.confirm,
+        onPress: () => setBulkRun({
+          kind: 'update',
+          ids,
+          updates: { listType: target },
+          done: 0,
+          label: target === 'punch' ? 'moved to the punch list' : 'moved to the crew list',
+        }),
+      },
+    ]);
+  }, [bulkBusy, selectedIdList, selectedItems, activeList, clientSeesPunch]);
+
+  /** Single-item move from the row rail. Same confirmation as the bulk verb. */
+  const moveItem = useCallback((item: PunchItem) => {
+    const target = otherList(punchListTypeOf(item));
+    const copy = moveConfirmCopy(target, 1, clientSeesPunch);
+    showAlert(copy.title, copy.message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: copy.confirm,
+        onPress: () => {
+          updatePunchItem(item.id, { listType: target });
+          if (Platform.OS !== 'web') void Haptics.selectionAsync();
+          // The row leaves this list the moment it saves; say where it went.
+          nailIt(`Moved to the ${target === 'punch' ? 'punch list' : 'crew list'}.`);
+        },
+      },
+    ]);
+  }, [clientSeesPunch, updatePunchItem]);
+
   const bulkDelete = useCallback(() => {
     if (bulkBusy || selectedIdList.length === 0) return;
     const n = selectedIdList.length;
@@ -1240,12 +1536,12 @@ function PunchListScreenInner() {
   const latestActions = useRef({
     openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
     setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
-    setShowRejectModal, setRejectionNote, router,
+    setShowRejectModal, setRejectionNote, router, moveItem,
   });
   latestActions.current = {
     openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
     setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
-    setShowRejectModal, setRejectionNote, router,
+    setShowRejectModal, setRejectionNote, router, moveItem,
   };
 
   const rowActions = useMemo<PunchRowActions>(() => ({
@@ -1270,6 +1566,7 @@ function PunchListScreenInner() {
     }),
     onToggleSelect: id => latestActions.current.toggleSelect(id),
     onStartSelecting: id => latestActions.current.startSelecting(id),
+    onMove: item => latestActions.current.moveItem(item),
   }), []);
 
   const latestSectionActions = useRef({ toggleCollapse, selectAllInSection });
@@ -1328,17 +1625,100 @@ function PunchListScreenInner() {
   // passed element in place, so it reconciles like any other child — passing an
   // inline function component instead would remount the whole header on every
   // render and drop focus / scroll position inside it.
+  const punchStats = listStats.punch;
+  const crewStats = listStats.crew;
   const listHeader = (
     <View>
+      {/* ── Punch | Crew list ────────────────────────────────────────────
+          The first thing on the screen, because it decides what every number
+          below it means. Each side carries its open count so he can see the
+          other list has work without switching to it. Locked while a bulk
+          run is saving — switching mid-run would change what the bar is
+          acting on out from under the counter. */}
+      <View style={styles.listSwitch} accessibilityRole="tablist">
+        {(['punch', 'crew'] as const).map(list => {
+          const on = activeList === list;
+          const stats = list === 'punch' ? punchStats : crewStats;
+          return (
+            <TouchableOpacity
+              key={list}
+              style={[
+                styles.listSwitchSeg,
+                on && (list === 'punch' ? styles.listSwitchSegPunchOn : styles.listSwitchSegCrewOn),
+              ]}
+              onPress={() => chooseList(list)}
+              disabled={bulkBusy}
+              activeOpacity={0.8}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on, disabled: bulkBusy }}
+              accessibilityLabel={bulkBusy
+                ? `${LIST_LABEL[list]} — unavailable while selected items are saving`
+                : `${LIST_LABEL[list]}, ${stats.open} open`}
+              testID={`punch-list-switch-${list}`}
+            >
+              <Text style={[styles.listSwitchLabel, on && styles.listSwitchLabelOn]}>{LIST_LABEL[list]}</Text>
+              <View style={[
+                styles.listSwitchCount,
+                on && list === 'punch' && stats.overdue > 0 && styles.listSwitchCountAlarm,
+              ]}>
+                <Text style={[
+                  styles.listSwitchCountText,
+                  on && list === 'punch' && stats.overdue > 0 && { color: themeColors.dangerLabel },
+                ]}>
+                  {stats.open} open
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* ── What this list IS ────────────────────────────────────────────
+          PUNCH: consequential, and only as consequential as is TRUE — the
+          client line appears only when the portal actually shows this list.
+          CREW: calm, and explicit that it stays internal. */}
+      {activeList === 'punch' ? (
+        <View style={styles.listBannerPunch} testID="punch-list-banner-punch">
+          <View style={styles.listBannerRow}>
+            <Eye size={15} color={themeColors.text} strokeWidth={2} />
+            <Text style={styles.listBannerPunchTitle}>
+              {clientSeesPunch ? 'Your client sees this list' : 'Formal punch list'}
+            </Text>
+          </View>
+          <Text style={styles.listBannerPunchBody}>
+            {clientSeesPunch
+              ? 'Every item here that is not closed shows in their client portal, with its status. These are the items you are being held to.'
+              : 'What the owner walks and holds you to. Punch list sharing is off in this project\'s client portal, so your client does not see it yet.'}
+          </Text>
+          {punchStats.open > 0 ? (
+            <Text style={styles.listBannerPunchStats}>
+              {punchStats.open} open
+              {punchStats.overdue > 0 ? (
+                <Text style={styles.listBannerOverdue}>{`  ·  ${punchStats.overdue} overdue`}</Text>
+              ) : null}
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.listBannerCrew} testID="punch-list-banner-crew">
+          <EyeOff size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+          <Text style={styles.listBannerCrewText}>
+            Internal working list for your crew and subs — never shown in the client portal. A sub still sees the items assigned to them in their own sub portal.
+          </Text>
+        </View>
+      )}
+
       <View style={styles.progressSection}>
         <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>Completion</Text>
+          <Text style={styles.progressTitle}>{activeList === 'punch' ? 'Punch list completion' : 'Crew list completion'}</Text>
           <Text style={styles.progressPercent}>{progressPercent}%</Text>
         </View>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
         </View>
-        <Text style={styles.progressSub}>{closedCount} of {totalCount} items closed</Text>
+        <Text style={styles.progressSub}>
+          {closedCount} of {totalCount} {activeList === 'punch' ? 'punch' : 'crew list'} items closed
+        </Text>
       </View>
 
       <View style={styles.filterBar}>
@@ -1523,11 +1903,17 @@ function PunchListScreenInner() {
     <View style={{ minHeight: 360 }}>
       <EmptyState
         icon={<CheckCircle size={36} color={themeColors.accent} strokeWidth={1.75} />}
-        title={activeFilterCount > 0 ? 'Nothing matches those filters' : 'No punch items yet'}
+        title={activeFilterCount > 0
+          ? 'Nothing matches those filters'
+          : activeList === 'punch' ? 'No punch items yet' : 'Nothing on the crew list'}
         message={activeFilterCount > 0
           ? 'Nothing is left after the filters above. Clear one to see the rest of the list.'
-          : 'Walk the project, snap photos of anything that needs touch-up, and add the items here. They\'ll roll into your closeout packet automatically.'}
-        actionLabel={activeFilterCount > 0 ? 'Clear all filters' : 'Add first punch item'}
+          : activeList === 'punch'
+            ? 'Walk the project, snap photos of anything that needs touch-up, and add the items here. They\'ll roll into your closeout packet automatically.'
+            : 'Touch-ups, cleanup and "while you\'re in there" fixes for your own crew and subs. Nothing added here is shown to your client.'}
+        actionLabel={activeFilterCount > 0
+          ? 'Clear all filters'
+          : activeList === 'punch' ? 'Add first punch item' : 'Add first crew item'}
         onAction={activeFilterCount > 0 ? clearAllFilters : () => { resetForm(); setShowForm(true); }}
       />
     </View>
@@ -1535,9 +1921,9 @@ function PunchListScreenInner() {
 
   const listFooter = (
     <View>
-      <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item" accessibilityRole="button" accessibilityLabel="Add punch item">
+      <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item" accessibilityRole="button" accessibilityLabel={activeList === 'punch' ? 'Add punch item' : 'Add crew list item'}>
         <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.addItemBtnText}>Add Punch Item</Text>
+        <Text style={styles.addItemBtnText}>{activeList === 'punch' ? 'Add Punch Item' : 'Add Crew List Item'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -1572,7 +1958,10 @@ function PunchListScreenInner() {
 
       <TouchableOpacity
         style={styles.walkBtn}
-        onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '' } as never })}
+        // `list` hands Walk Mode the list that is showing, so a voice walk
+        // started from the crew list files crew items (app/punch-walk.tsx
+        // reads it; an absent value starts on 'punch').
+        onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList } as never })}
         activeOpacity={0.85}
         testID="open-punch-walk"
         accessibilityRole="button"
@@ -1689,6 +2078,26 @@ function PunchListScreenInner() {
               >
                 <ListChecks size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
                 <Text style={styles.bulkBtnText}>Status</Text>
+              </TouchableOpacity>
+
+              {/* To the other list. The confirmation (bulkMove) says what the
+                  client will or won't see before anything is written. */}
+              <TouchableOpacity
+                style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                onPress={bulkMove}
+                disabled={bulkBusy}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: bulkBusy }}
+                accessibilityLabel={bulkBusy
+                  ? 'Move is unavailable while items are saving'
+                  : `Move ${selectedCount} items to the ${activeList === 'punch' ? 'crew list' : 'punch list'}`}
+                testID="punch-bulk-move"
+              >
+                <ArrowLeftRight size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
+                <Text style={styles.bulkBtnText} numberOfLines={1}>
+                  {activeList === 'punch' ? 'To crew' : 'To punch'}
+                </Text>
               </TouchableOpacity>
 
               {/* Only when every selected item belongs to the same sub AND that
@@ -1830,7 +2239,9 @@ function PunchListScreenInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editingItem ? 'Edit Item' : 'New Punch Item'}</Text>
+                  <Text style={styles.formTitle}>
+                    {editingItem ? 'Edit Item' : formListType === 'punch' ? 'New Punch Item' : 'New Crew List Item'}
+                  </Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -1876,6 +2287,40 @@ function PunchListScreenInner() {
                     </View>
                   </View>
                 ) : null}
+
+                {/* Which list — chosen explicitly, seeded from the list showing.
+                    The line under it says the consequence in words, so the
+                    choice is never a silent one. */}
+                <Text style={styles.fieldLabel}>List</Text>
+                <View style={styles.formListRow} accessibilityRole="radiogroup">
+                  {(['punch', 'crew'] as const).map(list => {
+                    const on = formListType === list;
+                    return (
+                      <TouchableOpacity
+                        key={list}
+                        style={[styles.formListBtn, on && styles.formListBtnOn]}
+                        onPress={() => setFormListType(list)}
+                        activeOpacity={0.8}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: on }}
+                        accessibilityLabel={LIST_LABEL[list]}
+                        testID={`punch-form-list-${list}`}
+                      >
+                        {list === 'punch'
+                          ? <Eye size={14} color={on ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
+                          : <Wrench size={14} color={on ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />}
+                        <Text style={[styles.formListBtnText, on && styles.formListBtnTextOn]}>{LIST_LABEL[list]}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={styles.formListNote}>
+                  {formListType === 'crew'
+                    ? 'Internal — never shown in the client portal.'
+                    : clientSeesPunch
+                      ? 'Shown to your client in their portal until it is closed.'
+                      : 'Formal punch list. Punch list sharing is off in the client portal, so your client does not see it yet.'}
+                </Text>
 
                 <Text style={styles.fieldLabel}>Description *</Text>
                 <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
@@ -2531,6 +2976,72 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   statusSwatch: { width: 10, height: 10, borderRadius: Tokens.radius.full },
 
   punchCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
+  // ── Two lists, two weights ─────────────────────────────────────────────
+  // Formal: a solid left rule in body ink — the card reads as a record.
+  punchCardFormal: { borderLeftWidth: 3, borderLeftColor: themeColors.text },
+  // Late on the formal list: the rule turns danger and the border follows.
+  punchCardFormalOverdue: { borderLeftColor: themeColors.danger, borderColor: themeColors.danger },
+  // Crew: no border, quieter ground, tighter — a checklist line, not a record.
+  punchCardCrew: { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.surfaceAlt, padding: 14, marginBottom: 8, gap: 8 },
+  punchDescCrew: { fontWeight: '500' as const },
+  dueChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5,
+    alignSelf: 'flex-start' as const, marginLeft: 18,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: themeColors.neutralSoft,
+  },
+  dueChipSoon: { backgroundColor: themeColors.warningSoft },
+  dueChipOverdue: { backgroundColor: themeColors.dangerSoft },
+  dueChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  punchMetaTextLate: { color: themeColors.textSecondary },
+  listSwitch: {
+    flexDirection: 'row' as const, gap: 6,
+    marginHorizontal: 20, marginTop: 16, padding: 4,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: themeColors.surfaceAlt,
+  },
+  listSwitchSeg: {
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
+    minHeight: 44, paddingHorizontal: 10,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.surfaceAlt,
+  },
+  listSwitchSegPunchOn: { backgroundColor: themeColors.surface, borderColor: themeColors.text },
+  listSwitchSegCrewOn: { backgroundColor: themeColors.surface, borderColor: themeColors.line },
+  listSwitchLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  listSwitchLabelOn: { color: themeColors.text, fontWeight: '700' as const },
+  listSwitchCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: themeColors.neutralSoft },
+  listSwitchCountAlarm: { backgroundColor: themeColors.dangerSoft },
+  listSwitchCountText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  listBannerPunch: {
+    ...cardSurface(themeColors, { radius: 'md', pad: 'none' }),
+    marginHorizontal: 20, marginTop: 12, gap: 4,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderLeftWidth: 3, borderLeftColor: themeColors.text,
+  },
+  listBannerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  listBannerPunchTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  listBannerPunchBody: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
+  listBannerPunchStats: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text, marginTop: 2 },
+  listBannerOverdue: { color: themeColors.dangerLabel },
+  listBannerCrew: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
+    marginHorizontal: 20, marginTop: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt,
+  },
+  listBannerCrewText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
+  formListRow: { flexDirection: 'row' as const, gap: 8 },
+  formListBtn: {
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line,
+  },
+  formListBtnOn: { backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.accent },
+  formListBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  formListBtnTextOn: { color: themeColors.accentLabel },
+  formListNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
   punchCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   // surfaceAlt backs the frame so a slow-loading remote photo shows a neutral

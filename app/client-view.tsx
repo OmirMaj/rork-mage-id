@@ -27,6 +27,7 @@ import { hydratePortalSnapshot } from '@/utils/portalSnapshotHydrate';
 import { formatMoney } from '@/utils/formatters';
 import { calendarDayStart } from '@/utils/calendarDate';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
+import { punchListTypeOf } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
 import { documentTypeInfo } from '@/mocks/documents';
 import { fetchActiveContract } from '@/utils/contractEngine';
@@ -285,7 +286,13 @@ export default function ClientViewScreen() {
     [localProject, getDailyReportsForProject, hydrated],
   );
   const punchItems = useMemo(
-    () => (localProject ? getPunchItemsForProject(localProject.id) : hydrated?.punchItems ?? []),
+    // The LOCAL path is filtered to formal punch here. The hydrated path already
+    // is: it is built from the portal snapshot, which excludes crew items. Without
+    // this, the builder's "preview as your client" showed crew items the real
+    // portal hides — a preview that lies about what the client sees.
+    () => (localProject
+      ? getPunchItemsForProject(localProject.id).filter(p => punchListTypeOf(p) === 'punch')
+      : hydrated?.punchItems ?? []),
     [localProject, getPunchItemsForProject, hydrated],
   );
   const photos = useMemo(

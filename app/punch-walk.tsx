@@ -26,6 +26,14 @@
 //     the count of items filed there THIS walk sits next to it.
 //   • Everything is captured locally first; `addPunchItem` is called on
 //     every save so the offline queue can flush when we're back online.
+//   • Every item is filed to ONE of two lists, chosen on the card above the
+//     location: the formal PUNCH list (what the owner/architect walks, and
+//     what the client portal renders) or the internal CREW list (touch-ups,
+//     cleanup — never shown to the client). Like the location, the choice
+//     sticks between saves, because he walks a stretch of chores and then a
+//     stretch of formal items. And like the location, the active list is
+//     painted loud: twenty formal items filed to the crew list vanish from the
+//     client's view, twenty chores filed to the punch list land in front of it.
 //   • Session roll-up at the bottom: "captured 7 items this walk" with
 //     undo. The list clears when the user leaves the screen.
 
@@ -40,7 +48,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Camera, Mic, Check, X, Undo2, MapPin,
-  AlertTriangle, ChevronRight, Plus, Flag,
+  AlertTriangle, ChevronRight, Plus, Flag, Eye, EyeOff,
   // Aliased: a bare `Map` import would shadow the global Map constructor for
   // the whole module, which is the kind of thing nobody notices until someone
   // adds a lookup table here two months from now.
@@ -73,11 +81,11 @@ import {
 import { usePlanRooms } from '@/hooks/usePlanRooms';
 import { parsePunchFromTranscript, sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
-import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/types';
+import type { PunchItem, PunchItemPriority, PunchListType, SubTrade, Subcontractor } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { neutralInk } from '@/components/ui/ink';
+import { neutralInk, labelOn } from '@/components/ui/ink';
 import { showAlert } from '@/utils/alert';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
@@ -137,6 +145,21 @@ const ON_ACCENT_INK = '#FFFFFF';
  */
 type LocationOrigin = 'none' | 'picked' | 'typed' | 'voice' | 'gps' | 'carried';
 
+/**
+ * Read the list a caller asked walk mode to start on. The punch list screen
+ * passes `list` when it opens walk mode while its Crew view is showing, so he
+ * does not have to re-pick the list he was just looking at.
+ *
+ * Only an explicit 'crew' starts on crew. Anything else — no param, a typo, an
+ * old deep link — starts on 'punch', the same default punchListTypeOf applies
+ * to stored items: a mis-filed item then stays VISIBLE to the client rather
+ * than silently missing from the portal.
+ */
+function listFromParam(raw: string | string[] | undefined): PunchListType {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return v === 'crew' ? 'crew' : 'punch';
+}
+
 // ─────────────────────────────────────────────────────────────
 
 export default function PunchWalkScreen() {
@@ -165,8 +188,11 @@ function PunchWalkScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const params = useLocalSearchParams<{ projectId?: string }>();
+  const params = useLocalSearchParams<{ projectId?: string; list?: string; listType?: string }>();
   const projectId = typeof params.projectId === 'string' ? params.projectId : undefined;
+  // `listType` accepted as an alias so a caller spelling it after the field
+  // name still lands on the right list.
+  const initialList = listFromParam(params.list ?? params.listType);
   const { projects, getProject, subcontractors, addPunchItem, deletePunchItem } = useProjects();
 
   // If no projectId was passed, show a project picker. Walk mode is
@@ -174,13 +200,16 @@ function PunchWalkScreenInner() {
   const project = projectId ? getProject(projectId) : null;
 
   if (!projectId || !project) {
-    return <ProjectPicker projects={projects} onPick={(p) => router.replace({ pathname: '/punch-walk' as never, params: { projectId: p } as never })} onBack={() => router.back()} />;
+    // Carry the list through the picker, or opening walk mode from the Crew
+    // view without a project would quietly restart him on the punch list.
+    return <ProjectPicker projects={projects} onPick={(p) => router.replace({ pathname: '/punch-walk' as never, params: { projectId: p, list: initialList } as never })} onBack={() => router.back()} />;
   }
 
   return (
     <WalkInner
       projectName={project.name}
       projectId={projectId}
+      initialList={initialList}
       subcontractors={subcontractors}
       onAdd={addPunchItem}
       onDelete={deletePunchItem}
@@ -197,13 +226,15 @@ interface SessionCapture {
   location: string;
   trade: SubTrade;
   priority: PunchItemPriority;
+  listType: PunchListType;
   photoUri?: string;
   capturedAt: string;
 }
 
-function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, onBack }: {
+function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd, onDelete, onBack }: {
   projectName: string;
   projectId: string;
+  initialList: PunchListType;
   subcontractors: Subcontractor[];
   onAdd: (item: PunchItem) => void;
   onDelete: (id: string) => void;
@@ -237,6 +268,13 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
      *  never look the same as one he chose for this item. */
     locationOrigin: LocationOrigin;
   }>({ description: '', location: '', trade: 'General', priority: 'medium', locationOrigin: 'none' });
+
+  // The list each saved item is filed to. Deliberately NOT part of the draft:
+  // the draft is rebuilt on every save, and the list has to survive that the
+  // same way the location does — he captures a stretch of crew chores, then a
+  // stretch of formal punch, and re-picking it per item is how items get
+  // mis-filed. It only changes when he taps the toggle.
+  const [listType, setListType] = useState<PunchListType>(initialList);
 
   // Session history — everything saved in this walk, in reverse-chron.
   // Kept on-screen so the user can undo a mistaken save.
@@ -308,6 +346,15 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     setDraft(d => ({ ...d, location: label, locationOrigin: 'picked' }));
     setShowAllLocations(false);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  const handlePickList = useCallback((next: PunchListType) => {
+    setListType(prev => {
+      // A real change gets a heavier tap than a room change: moving an item
+      // between client-facing and internal is the consequential switch here.
+      if (prev !== next && Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      return next;
+    });
   }, []);
 
   const handleClearLocation = useCallback(() => {
@@ -456,6 +503,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
       dueDate: due,
       priority: draft.priority,
       status: 'open',
+      listType,
       photoUri: draft.photoUri,
       ...(draft.photoStamp ? {
         photoLatitude: draft.photoStamp.latitude,
@@ -474,6 +522,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
       location: item.location,
       trade: draft.trade,
       priority: item.priority,
+      listType,
       photoUri: item.photoUri,
       capturedAt: now,
     }, ...s]);
@@ -494,13 +543,32 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [draft, subcontractors, projectId, onAdd]);
+  }, [draft, listType, subcontractors, projectId, onAdd]);
 
   const handleUndo = useCallback((id: string) => {
     onDelete(id);
     setSession(s => s.filter(c => c.id !== id));
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [onDelete]);
+
+  // ── The active list, stated as facts the app can back ────────────────────
+  // "Your client sees this list" is only TRUE when this project's portal is on
+  // AND shows the punch list (utils/portalSnapshot renders open formal items
+  // only under both). When it is off we say the list is the client-facing one
+  // but is not being shown right now — never a claim about payment or
+  // retainage, which nothing here gates on punch closure.
+  const portal = project?.clientPortal;
+  const clientSeesPunch = !!portal?.enabled && !!portal?.showPunchList;
+  const isPunch = listType === 'punch';
+  const listInk = isPunch ? themeColors.dangerLabel : themeColors.textSecondary;
+  const crewFill = neutralInk(themeColors);
+  const listStake = isPunch
+    ? (clientSeesPunch
+        ? 'Your client sees this list in their portal.'
+        : 'The formal list your client walks. Their portal punch list is off for this job.')
+    : 'Internal. Never shown to your client.';
+  const sessionPunchCount = session.filter(c => c.listType === 'punch').length;
+  const sessionCrewCount = session.length - sessionPunchCount;
 
   const priorityColor =
     draft.priority === 'high' ? themeColors.danger :
@@ -530,7 +598,11 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
+          {/* The eyebrow names the ACTIVE list, in its own ink, so the list is
+              readable even with the card scrolled off screen. */}
+          <Text style={[styles.headerEyebrow, { color: listInk }]}>
+            Walk Mode · {isPunch ? 'Punch list' : 'Crew list'}
+          </Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
         </View>
         {session.length > 0 && (
@@ -545,6 +617,49 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
         style={{ flex: 1 }}
       >
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
+
+          {/* List — which list this item is filed to. Above the location
+              because it is the more expensive mistake: a wrong room is
+              findable, a formal item on the internal list is invisible to the
+              person who will hold him to it. The card itself changes weight
+              with the list: a red edge and tint for the watched punch list, a
+              plain card for the crew's working checklist. */}
+          <View
+            style={[styles.listCard, isPunch ? styles.listCardPunch : styles.listCardCrew]}
+            testID={`walk-list-card-${listType}`}
+          >
+            <View style={styles.listToggle} accessibilityRole="tablist">
+              {(['punch', 'crew'] as const).map(l => {
+                const active = listType === l;
+                const fill = l === 'punch' ? themeColors.danger : crewFill;
+                const ink = active ? labelOn(fill) : themeColors.text;
+                const Icon = l === 'punch' ? Eye : EyeOff;
+                return (
+                  <TouchableOpacity
+                    key={l}
+                    style={[styles.listSeg, active && { backgroundColor: fill }]}
+                    onPress={() => handlePickList(l)}
+                    activeOpacity={0.85}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={l === 'punch'
+                      ? `Punch list${clientSeesPunch ? ', your client sees this list' : ', client-facing'}`
+                      : 'Crew list, internal, never shown to your client'}
+                    testID={`walk-list-${l}`}
+                  >
+                    <Icon size={14} color={active ? ink : themeColors.textMuted} strokeWidth={2} />
+                    <Text style={[styles.listSegText, { color: ink }]}>
+                      {l === 'punch' ? 'Punch list' : 'Crew list'}
+                    </Text>
+                    {active && <Check size={13} color={ink} strokeWidth={2.5} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={[styles.listStake, { color: listInk }]} numberOfLines={2}>
+              {listStake}
+            </Text>
+          </View>
 
           {/* Location — the context bar he files every item against.
               Three parts, top to bottom: what room this is and how it got
@@ -773,23 +888,32 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             testID="walk-save"
           >
             <Check size={18} color={'#FFFFFF'} strokeWidth={1.75} />
-            <Text style={styles.saveBtnText}>Save & keep walking</Text>
+            {/* Names the list, so the last thing he reads before the tap is
+                where the item is going. */}
+            <Text style={styles.saveBtnText}>Save to {isPunch ? 'punch list' : 'crew list'}</Text>
           </TouchableOpacity>
 
           <Text style={styles.hint}>
-            The room stays between saves and is labelled {'“'}carried{'”'} until you confirm it {'—'} tap a chip when you move, X to clear. Mic appends to the description so you can keep dictating.
+            The list and the room stay between saves; the room is labelled {'“'}carried{'”'} until you confirm it {'—'} tap a chip when you move, X to clear. Mic appends to the description so you can keep dictating.
           </Text>
 
           {/* Session roll-up */}
           {session.length > 0 && (
             <View style={styles.sessionCard}>
-              <Text style={styles.sessionTitle}>Captured this walk · {session.length}</Text>
+              <Text style={styles.sessionTitle}>
+                Captured this walk · {sessionPunchCount} punch · {sessionCrewCount} crew
+              </Text>
               {session.map(c => (
                 <View key={c.id} style={styles.sessionRow}>
                   <View style={[styles.sessionDot, { backgroundColor: tradeColor(c.trade, themeColors) }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sessionDesc} numberOfLines={2}>{c.description}</Text>
-                    <Text style={styles.sessionMeta}>{c.location} · {c.trade} · {c.priority}</Text>
+                    <Text style={styles.sessionMeta}>
+                      <Text style={{ color: c.listType === 'punch' ? themeColors.dangerLabel : themeColors.textSecondary, fontWeight: '700' }}>
+                        {c.listType === 'punch' ? 'Punch' : 'Crew'}
+                      </Text>
+                      {' · '}{c.location} · {c.trade} · {c.priority}
+                    </Text>
                   </View>
                   <TouchableOpacity onPress={() => handleUndo(c.id)} hitSlop={12}>
                     <Undo2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1000,6 +1124,24 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accentFill, alignItems: 'center', justifyContent: 'center',
   },
   sessionChipText: { color: '#FFFFFF', fontWeight: '800', fontSize: Type.caption1.fontSize },
+
+  // The list card. Punch gets the danger edge and tint — it is the list
+  // somebody else is checking. Crew is a plain hairline card on purpose: the
+  // point of the split is that chores stop reading as urgent.
+  listCard: {
+    marginHorizontal: 14, marginTop: 14,
+    borderRadius: Tokens.radius.card, padding: 8, gap: 8,
+  },
+  listCardPunch: { backgroundColor: t.dangerSoft, borderWidth: 1.5, borderColor: t.danger },
+  listCardCrew: { backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line },
+  listToggle: { flexDirection: 'row', gap: 6 },
+  // 44pt tall: this is tapped with a gloved thumb mid-walk.
+  listSeg: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary,
+  },
+  listSegText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  listStake: { fontSize: Type.caption1.fontSize, fontWeight: '600', paddingHorizontal: 4, lineHeight: 16 },
 
   // The location card. A 1.5pt accent edge, not a hairline: this is the field
   // that decides whether a sub can find the defect, and on a bright jobsite
