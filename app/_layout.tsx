@@ -1,8 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useFonts } from "expo-font";
-import { Barlow_600SemiBold, Barlow_700Bold, Barlow_700Bold_Italic } from "@expo-google-fonts/barlow";
+// useFonts comes from the font package, as the Fraunces import did — not from
+// expo-font directly. The two are different hooks, and with expo-font's the
+// smoke harness never gets job costing past "Checking your access…" or cash
+// flow past a $0 balance (bisected to this one import, 2026-09-16).
+import { useFonts, Barlow_600SemiBold, Barlow_700Bold, Barlow_700Bold_Italic } from "@expo-google-fonts/barlow";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
