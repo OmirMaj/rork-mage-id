@@ -32,7 +32,7 @@ import type {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
-import { isOshaRecordable } from '@/utils/safety/osha';
+import { isOshaRecordable, describeRecordability } from '@/utils/safety/osha';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from '@/lib/supabase';
 import { PhotoThumbGrid, burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
 import { queuePhotoUpload, cancelPhotoUpload } from '@/utils/photoUploadQueue';
@@ -432,6 +432,15 @@ function SafetyIncidentsInner() {
     }
   }, [draftNotes, tier]);
 
+  /** Live 1904 answer for whatever is in the form right now. Shown under the
+   *  toggles so the classification is visible while it is being decided, not
+   *  only after the case is saved. */
+  const liveVerdict = useMemo(() => describeRecordability({
+    type, treatment,
+    daysAway: Number(daysAway) || 0,
+    restrictedDuty, lostConsciousness, fatality,
+  }), [type, treatment, daysAway, restrictedDuty, lostConsciousness, fatality]);
+
   const handleSave = useCallback(() => {
     const desc = description.trim();
     if (!desc) { showAlert('Missing description', 'Describe what happened.'); return; }
@@ -754,6 +763,22 @@ function SafetyIncidentsInner() {
                   </View>
                 </TouchableOpacity>
 
+                {/* The determination, named. The empty state promises OSHA status
+                    is "classified automatically" and the form duly computed it —
+                    but only ever showed the answer as a badge on the saved card,
+                    so the safety manager could not see WHICH 1904 criterion
+                    flipped it while he was still filling the form. Same helper
+                    the daily report's Safety block uses, so the two surfaces can
+                    never say different things about the same case. */}
+                <View style={[styles.verdictBox, liveVerdict.recordable ? styles.verdictBoxHot : null]} testID="incident-recordability">
+                  {liveVerdict.recordable
+                    ? <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} />
+                    : <Check size={14} color={themeColors.textSecondary} strokeWidth={2} />}
+                  <Text style={[styles.verdictText, liveVerdict.recordable ? styles.verdictTextHot : null]}>
+                    {liveVerdict.reason}
+                  </Text>
+                </View>
+
                 {/* Corrective actions */}
                 <View style={styles.stepsHeader}>
                   <Text style={styles.fieldLabel}>Corrective actions</Text>
@@ -860,6 +885,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   segText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   segTextActive: { color: themeColors.accent, fontWeight: '700' as const },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, marginTop: 8 },
+  verdictBox: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
+    marginTop: 12, padding: 12,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1, borderColor: themeColors.line,
+  },
+  verdictBoxHot: { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.danger + '40' },
+  verdictText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  verdictTextHot: { color: themeColors.danger },
   toggleLabel: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text },
   toggleBox: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   toggleBoxOn: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },

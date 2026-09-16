@@ -124,8 +124,11 @@ export interface HealthScoreResult {
  * data the app already holds (DependencyLink.type/lagDays, anchorType,
  * CpmTaskResult.totalFloat, the actual/baseline day fields).
  *
- * PARTIAL: 11 Missed Tasks — `progress_freshness` approximates it against the
- * CPM span rather than against a data date.
+ * PARTIAL: 11 Missed Tasks — `progress_freshness` tests missed FINISHES only.
+ * Given a `dataDate` (today as a calendar index — see ScoreInput) it measures
+ * them against that date, which is DCMA's own basis; without one it falls back
+ * to half the project, which cannot see anything late in the back half. Either
+ * way it never tests missed STARTS, so it stays partial.
  *
  * NOT IMPLEMENTED, and deliberately not labelled as if they were:
  *   6  High Float      — DCMA's test is float > 44 WORKING days on >5% of
@@ -134,10 +137,12 @@ export interface HealthScoreResult {
  *   12 Critical Path Test — needs a perturbation run (add 600 days to a
  *                        critical activity, check the finish moves the same).
  *   14 BEI             — (baseline tasks completed) ÷ (baseline tasks DUE by
- *                        the data date). This engine has no data date by
- *                        deliberate design (types/index.ts: "the plan stays the
- *                        plan until you say so"), so the denominator does not
- *                        exist. `baseline_drift` measures slippage, which is a
+ *                        the data date). A data date is now OPTIONAL input
+ *                        (ScoreInput.dataDate) rather than absent by design,
+ *                        so the denominator is computable — but it needs the
+ *                        per-task baseline days as well, and only some
+ *                        schedules carry them. Not in scope for this pass.
+ *                        `baseline_drift` measures slippage, which is a
  *                        different and honest thing.
  *
  * Keep this list true. It is the only thing standing behind the file header's
@@ -167,6 +172,20 @@ interface ScoreInput {
    * "needs a baseline" rather than a number computed from mixed scales.
    */
   calendar?: DayScaleOptions;
+  /**
+   * TODAY, as a CALENDAR index on the schedule's anchor — exactly what
+   * `todayScheduleDay(schedule.startDate)` (utils/pace/stampActuals.ts)
+   * returns, and the same unit as `cpm.perTask.ef`. This is the DATA DATE.
+   *
+   * Pass it and `progress_freshness` becomes the real DCMA #11 Missed Tasks
+   * test: work that should already have finished and has nothing recorded
+   * against it. Omit it — or pass null, which is what `todayScheduleDay`
+   * returns for an undated schedule, where there IS no today — and the check
+   * falls back to its half-the-project proxy, which is blind to anything late
+   * in the back half of the job. That is exactly where a slipping schedule
+   * shows itself first.
+   */
+  dataDate?: number | null;
 }
 
 function gradeFromScore(score: number): HealthGrade {
@@ -188,7 +207,7 @@ function severityFromValue(v: number, weight: number): 'good' | 'warn' | 'bad' {
 /**
  * Compute the schedule health score.
  */
-export function computeScheduleHealthScore({ tasks, cpm, calendar }: ScoreInput): HealthScoreResult {
+export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: ScoreInput): HealthScoreResult {
   const checks: HealthCheck[] = [];
 
   // ── Check 1: has tasks ──────────────────────────────────────────────
@@ -630,18 +649,23 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar }: ScoreInput)
   // progress suggest the schedule isn't being maintained.
   {
     const stale: { id: string; title: string; reason: string }[] = [];
-    // We don't know "today's day" without project start — approximate by
-    // asking how many tasks are past their planned end (per CPM) but show
-    // zero progress.
-    const projectFinish = cpm.projectFinish;
-    const halfwayThroughProject = projectFinish * 0.5;
+    // WITH a data date this is the real test: work whose engine finish is
+    // already behind us and which shows nothing done. WITHOUT one we cannot
+    // say where "now" is, so we fall back to the old proxy — half the project
+    // — which by construction cannot see a task that is late in the back half.
+    // Both readings compare CALENDAR indices on both sides: `perTask.ef` and
+    // `dataDate` (todayScheduleDay) are the same unit; `t.startDay +
+    // durationDays - 1` is a WORKING ordinal and was the bug here before.
+    const today = dataDate != null && Number.isFinite(dataDate) ? Math.max(1, Math.floor(dataDate)) : null;
+    const halfwayThroughProject = cpm.projectFinish * 0.5;
     for (const t of leafTasks) {
-      // `t.startDay + t.durationDays - 1` mixed a WORKING ordinal with a
-      // WORKING duration and compared the result against cpm.projectFinish, a
-      // CALENDAR index — so on a 5-day week every task read ~40% earlier than
-      // it really finishes and this check flagged work that was not yet due.
       const taskEnd = cpm.perTask.get(t.id)?.ef ?? (t.startDay + t.durationDays - 1);
-      if (taskEnd <= halfwayThroughProject && t.progress === 0 && t.status !== 'done') {
+      if (t.progress !== 0 || t.status === 'done') continue;
+      if (today != null) {
+        if (taskEnd < today) {
+          stale.push({ id: t.id, title: t.title, reason: 'Should have finished by now, still 0%' });
+        }
+      } else if (taskEnd <= halfwayThroughProject) {
         stale.push({ id: t.id, title: t.title, reason: 'Past mid-project, still 0%' });
       }
     }
@@ -651,8 +675,15 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar }: ScoreInput)
     checks.push({
       key: 'progress_freshness',
       label: 'Progress freshness',
-      dcmaLabel: 'DCMA #11 — Missed Tasks (proxy — no data date)',
-      description: 'Tasks that should already be in progress but still show 0% suggest the plan isn\'t being maintained.',
+      // The label tells the user WHICH reading produced the number. It stays a
+      // "(proxy …)" label without a data date, because that is what it is, and
+      // validate-schedule-health pins the partial-item wording either way.
+      dcmaLabel: today != null
+        ? 'DCMA #11 — Missed Tasks (proxy — missed finishes only)'
+        : 'DCMA #11 — Missed Tasks (proxy — no data date)',
+      description: today != null
+        ? 'Work that should already have finished by today and still shows 0% — the plan is behind the field, or nobody is updating it.'
+        : 'Tasks that should already be in progress but still show 0% suggest the plan isn\'t being maintained.',
       value,
       weight,
       flagged: stale.slice(0, 6),

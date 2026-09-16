@@ -225,6 +225,31 @@ function check(tasks: ScheduleTask[], key: string) {
     flagged, engineStale);
   expect('  …and NOT what the mixed-scale arithmetic would have flagged',
     JSON.stringify(flagged) !== JSON.stringify(ordinalStale), true);
+
+  // ── With a DATA DATE it stops approximating ──────────────────────────────
+  // The half-the-project proxy is blind by construction to anything late in
+  // the BACK half of the job — which is where a slipping schedule shows up
+  // first. Given today (a CALENDAR index, the same unit as perTask.ef, from
+  // todayScheduleDay) the check asks the real DCMA #11 question instead.
+  // t4 is the last task in the chain: invisible to the proxy, caught the
+  // moment the data date says its finish is behind us.
+  const late = cpm.perTask.get('t4')!.ef;
+  const withDataDate = computeScheduleHealthScore({
+    tasks: chain, cpm, calendar: CAL, dataDate: late + 1,
+  }).checks.find(c => c.key === 'progress_freshness')!;
+  expect('a data date flags the task the half-project proxy could never see',
+    withDataDate.flagged.some(f => f.id === 't4'), true);
+  expect('  …and the proxy really was blind to it',
+    engineStale.includes('t4'), false);
+  expect('  …and the reason names today, not mid-project',
+    /finished by now/.test(withDataDate.flagged.find(f => f.id === 't4')!.reason), true);
+  // Nothing is due yet on day 1: an honest check flags nothing rather than
+  // everything.
+  const dayOne = computeScheduleHealthScore({
+    tasks: chain, cpm, calendar: CAL, dataDate: 1,
+  }).checks.find(c => c.key === 'progress_freshness')!;
+  expect('on day one nothing is late yet', dayOne.flagged.length, 0);
+  expect('  …so the check scores a clean 1', dayOne.value, 1);
 }
 
 // ── "DCMA #10 — Resources" counts RESOURCE conflicts ────────────────────────

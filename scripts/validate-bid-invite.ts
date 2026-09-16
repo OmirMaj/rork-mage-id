@@ -47,6 +47,24 @@
 //      verbatim: the row exists, the screen counts it as invited, and no mail
 //      service will ever accept it. Section I runs the parser on real pastes.
 //
+//   7. THE INVITATION DESCRIBES NOTHING. `scope_description` is rendered by the
+//      notify branch and returned by `bid_invite_get`, and for a package the GC
+//      made by hand NOTHING wrote it — so the sub was asked to price a package
+//      NAME at an address, and the landing page's fallback copy told him to
+//      email the contractor instead. Section L.
+//
+//   8. THE DEADLINE IS A FIELD NOBODY WRITES. `dueDate` and `requiredByDate`
+//      both had zero writers, and the OVERDUE badge compared the second one —
+//      unreachable code on the screen whose job is saying which packages are
+//      late. Section M, which also pins that a chase re-uses the invite's own
+//      token rather than minting a second one.
+//
+//   9. THE BID IS FROM NOBODY. `subcontractorId` was never set by any path, so
+//      the bid, the commitment and the subcontract named a company and
+//      referenced no record: no compliance check, no scorecard, and
+//      app/sub-portals.tsx could not give the awarded sub a portal at all.
+//      Section N.
+//
 // The contract values (the 16, the returned keys, the submit parameters) are
 // PARSED FROM THE MIGRATION, never restated here. A guard that hard-codes the
 // number it is checking passes the day someone changes the number.
@@ -60,6 +78,15 @@
 // passed: moving `await r.text()` back inside the `if (!r.ok)` branch left every
 // notify check matching, so section G now asserts the ORDER of that read.
 //
+// Sections L/M/N mutation-tested 2026-09-16 the same way — 10 mutations, each
+// the original defect put back one at a time (scope not written at creation,
+// the invite button un-gated, the badge reading `requiredByDate` again, the due
+// date never captured, the sub id dropped from the send, an ambiguous company
+// name resolved anyway, a unit price leaking into the scope text, a missing
+// prequal packet pushed as a blocker again, a reminder minting a second token,
+// and expired invites being chased). All 10 exited this script 1; every file
+// restored byte-identically (sha256) after each.
+//
 // Run via: bun run scripts/validate-bid-invite.ts
 
 import { readFileSync } from 'node:fs';
@@ -70,11 +97,17 @@ import {
   BID_INVITE_MIN_TOKEN_CHARS,
   BID_INVITE_TOKEN_BYTES,
   BID_INVITE_URL_BASE,
+  attachRosterIds,
+  bidDueState,
+  daysUntilDue,
   inviteExpiryFrom,
   parseInviteEmails,
+  remindableInvites,
+  resolveBidSubcontractor,
   splitAlreadyInvited,
   tokenFromBytes,
 } from '../utils/bidInviteCore';
+import { canGenerateScope, estimateItemsToScope } from '../utils/estimateItemsToScope';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -82,6 +115,7 @@ const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 const MIGRATION = 'supabase/migrations/20260908120000_bid_package_invites.sql';
 const CLIENT = 'utils/bidInvites.ts';
 const SCREEN = 'app/buyout-package.tsx';
+const LIST = 'app/buyout.tsx';
 const PAGE = 'marketing/bid-invite/index.html';
 const NOTIFY_CLIENT = 'utils/notifyClient.ts';
 const REDIRECTS = 'marketing/_redirects';
@@ -469,6 +503,173 @@ console.log('\nK. the expiry the client writes is the thing the RPC compares');
 const expIso = inviteExpiryFrom(Date.parse('2026-03-06T23:00:00.000Z'));
 eq('30 days is 30 x 86400s of instant, across a DST boundary', expIso, '2026-04-05T23:00:00.000Z');
 ok('and it carries a time of day, not a bare date', /T\d{2}:\d{2}:\d{2}/.test(expIso), expIso);
+
+// ── L. the invitation actually describes the work ───────────────────────────
+// Screen audit 2026-09-16. `scope_description` was plumbed the whole way — the
+// notify branch renders it, `bid_invite_get` returns it — and NOTHING wrote it
+// for a package made by hand. `handleCreatePackage` passed name, phase, CSI,
+// linked items and budget, and no scope. So the sub got an email headed
+// "You're invited to bid on Plumbing rough-in", a CSI number and a button, and
+// the landing page's own fallback copy then told him to email the contractor
+// for his price — the phone call this feature exists to replace.
+console.log('\nL. the sub is told what he is pricing');
+
+const listSrc = stripComments(read(LIST));
+
+// Executed. The formatter is the contract: quantities and units, never money.
+const SAMPLE_ITEMS = [
+  { name: '3/4" PEX supply', quantity: 420, unit: 'LF', unitPrice: 3.1, lineTotal: 1302 },
+  { name: 'Fixture rough-in', quantity: 11, unit: 'EA', unitPrice: 240, lineTotal: 2640, isAllowance: true },
+  { name: 'Trench and backfill', quantity: 0, unit: '', unitPrice: 0, lineTotal: 0 },
+];
+const scope = estimateItemsToScope(SAMPLE_ITEMS);
+ok('every picked line item reaches the scope', /3\/4" PEX supply/.test(scope) && /Fixture rough-in/.test(scope) && /Trench and backfill/.test(scope), scope);
+ok('with its quantity and unit', /420 LF/.test(scope) && /11 EA/.test(scope), scope);
+ok('an item with no usable quantity is named without one rather than printed as "0"',
+  /Trench and backfill(?! —)/.test(scope) && !/Trench and backfill — 0/.test(scope),
+  '"— 0 EA" reads as "none of this work", which is a wrong fact rather than a missing one');
+ok('allowance lines are flagged, because awarding firms them',
+  /Fixture rough-in[^\n]*allowance/i.test(scope), scope);
+// The same reason bid_invite_get withholds estimate_budget, applied line by
+// line: the GC's own number in front of the people bidding against it anchors
+// every bid just under it.
+ok('and no price, total or markup travels with the scope',
+  !/\$/.test(scope) && !/3\.1\b/.test(scope) && !/1302|2640|240\b/.test(scope), scope);
+eq('nothing to say yields an empty scope, not a fabricated one', estimateItemsToScope([]), '');
+eq('and canGenerateScope agrees with it', canGenerateScope([]), false);
+
+ok('app/buyout.tsx writes the scope when the package is created',
+  /estimateItemsToScope\(/.test(listSrc) && /scopeDescription:\s*seededScope/.test(listSrc),
+  'a scope composed at SEND time would reach the email and never the sub-facing page, which reads bid_packages.scope_description server-side');
+
+// A blocked control says why. Sending a scope-less invite is worse than not
+// sending one: the sub is told to phone.
+ok('the package screen can write and edit the scope',
+  /updateBidPackage\(\s*pkg\.id,\s*\{\s*scopeDescription/.test(screenSrc));
+const inviteOpeners = [...screenSrc.matchAll(/setShowInvite\(true\)/g)].length;
+const scopeGuards = [...screenSrc.matchAll(/if\s*\(scopeText\)\s*setShowInvite\(true\)/g)].length;
+ok('EVERY door into the invite sheet is gated on the scope existing',
+  inviteOpeners > 0 && scopeGuards === inviteOpeners,
+  `${inviteOpeners} openers, ${scopeGuards} gated — the coverage warning is a second door and must not walk around the check`);
+ok('and the disabled button says what is missing and what unblocks it',
+  /No scope written yet/.test(screenSrc) && /disabled=\{!scopeText\}/.test(screenSrc));
+ok('the send path refuses a scope-less package even if a button slips through',
+  /if\s*\(!scopeText\)/.test(screenSrc) && /No scope to send/.test(screenSrc));
+
+// ── M. a date the GC can chase, on the field that has a writer ──────────────
+// `BidPackage.dueDate` and `requiredByDate` both existed with NO writer
+// anywhere in the repo, and the buyout list's OVERDUE badge compared
+// `requiredByDate` — so the badge was unreachable code on the screen whose job
+// is telling him which packages are late. The invite meanwhile offered the
+// sub one date and it was the link's 30-day expiry.
+console.log('\nM. bids due: one field, written and read by the same name');
+
+const DUE_NOW = Date.parse('2026-03-10T09:00:00.000Z');
+eq('a package due later today is not overdue', bidDueState('2026-03-10T23:30:00.000Z', DUE_NOW), 'due-today');
+eq('yesterday is', bidDueState('2026-03-09T12:00:00.000Z', DUE_NOW), 'overdue');
+eq('three days out reads as due soon', bidDueState('2026-03-13T12:00:00.000Z', DUE_NOW), 'due-soon');
+eq('no date is no claim', bidDueState(undefined, DUE_NOW), 'none');
+eq('and an unparseable one is no claim either', daysUntilDue('next Tuesday', DUE_NOW), null);
+
+ok('the create sheet captures it', /dueDate:\s*newPkgDueDate/.test(listSrc),
+  'this is the one thing here that needs new capture, and it is one field');
+ok('and the overdue predicate reads dueDate through the shared function',
+  /bidDueState\(p\.dueDate/.test(listSrc) && /bidDueState\(pkg\.dueDate/.test(listSrc));
+ok('nothing on the buyout list reads requiredByDate as a fact',
+  !/requiredByDate/.test(listSrc),
+  'it has no writer, so a badge driven by it can never render — that was the bug');
+ok('the package screen shows the date it chases from', /bidDueLabel\(/.test(screenSrc));
+
+// Chasing. `bid_invite_submit` blocks a second submit per INVITE, not per
+// bidder, so a "reminder" routed through the send path would hand one company
+// two live tokens and therefore two rows in the levelling matrix.
+const REM_NOW = Date.parse('2026-03-10T00:00:00.000Z');
+const remindable = remindableInvites([
+  { respondedAt: null, expiresAt: '2026-03-20T00:00:00.000Z' },
+  { respondedAt: '2026-03-08T00:00:00.000Z', expiresAt: '2026-03-20T00:00:00.000Z' },
+  { respondedAt: null, expiresAt: '2026-03-01T00:00:00.000Z' },
+], REM_NOW);
+eq('only the ones still waiting are chased', remindable.length, 1);
+ok('a sub who already bid is not chased', !remindable.some(r => r.respondedAt));
+ok('and an expired link is not re-sent — that token is dead and reads as a withdrawal',
+  !remindable.some(r => r.expiresAt === '2026-03-01T00:00:00.000Z'));
+
+const remindBody = clientSrc.slice(clientSrc.indexOf('export async function remindBidInvites'));
+ok('utils/bidInvites.ts exposes a reminder', remindBody.length > 0);
+ok('and it re-uses the invite\'s existing token rather than minting a second one',
+  /bidInviteUrl\(inv\.inviteToken\)/.test(remindBody)
+  && !/newInviteToken|supabaseWriteDetailed/.test(remindBody),
+  'a second token lets one company file two bids, which the matrix shows as two competing subs');
+ok('the screen chases through that path, not through sendBidInvites',
+  /remindBidInvites\(/.test(screenSrc) && /remindableInvites\(/.test(screenSrc));
+
+// ── N. the bid knows which sub it came from ─────────────────────────────────
+// `bid.subcontractorId` was undefined for 100% of bids: the invite sheet was
+// one free-text box and `sendBidInvites` set `subcontractor_id: null` on every
+// row, the submit RPC copied that onto the bid, and `awardBidPackage` copied it
+// again onto the commitment. Four things then failed silently — the award
+// compliance lookup, the scorecard link, commitment attribution, and
+// app/sub-portals.tsx (`if (!c.subcontractorId) continue`), which means the sub
+// the GC just awarded $40k to could not be given a portal at all.
+console.log('\nN. every bid arrives attached to a record, not just a name');
+
+const ROSTER = [
+  { id: 'sub-ace', companyName: 'Ace Mechanical', email: 'Joe@AceMech.com' },
+  { id: 'sub-bpl', companyName: 'BPL Electric', email: 'maria@bpl-electric.com' },
+  // Two records for the same outfit — a real roster grows these (an old entry
+  // and a re-added one), and both matchers have to refuse rather than pick.
+  { id: 'sub-dup', companyName: 'Dup Drywall', email: 'shared@dup.com' },
+  { id: 'sub-dup2', companyName: 'Dup Drywall', email: 'shared@dup.com' },
+];
+const attached = attachRosterIds(
+  [{ email: 'joe@acemech.com' }, { email: 'stranger@nowhere.com' }, { email: 'shared@dup.com' }],
+  ROSTER,
+);
+eq('an address typed from memory is matched to the sub on file', attached[0].subcontractorId, 'sub-ace');
+eq('and carries his company name into the invite greeting', attached[0].name, 'Ace Mechanical');
+eq('a stranger stays a stranger — no guess', attached[1].subcontractorId, undefined);
+eq('two subs sharing an address is a refusal, not a coin flip', attached[2].subcontractorId, undefined);
+
+const INVITES = [{ bidId: 'bid-1', subEmail: 'maria@bpl-electric.com' }, { bidId: 'bid-2', subEmail: 'nobody@else.com' }];
+eq('a bid filed through an invite is linked by the address the GC chose',
+  resolveBidSubcontractor({ id: 'bid-1' }, INVITES, ROSTER)?.subId, 'sub-bpl');
+eq('an invited address that is not on the roster stays unlinked',
+  resolveBidSubcontractor({ id: 'bid-2', vendorName: 'Ace Mechanical' }, INVITES, ROSTER), null);
+eq('a hand-typed bid matches on an exact, unique company name',
+  resolveBidSubcontractor({ id: 'bid-9', vendorName: 'ace mechanical' }, [], ROSTER)?.subId, 'sub-ace');
+eq('and refuses when two companies carry that name',
+  resolveBidSubcontractor({ id: 'bid-9', vendorName: 'Dup Drywall' }, [], ROSTER), null);
+ok('a link always carries the sentence explaining it',
+  (resolveBidSubcontractor({ id: 'bid-1' }, INVITES, ROSTER)?.reason ?? '').length > 20,
+  'a join key the app fills in silently is how the wrong sub ends up on a signed subcontract');
+
+ok('the id rides PER RECIPIENT through sendBidInvites',
+  /subcontractorId:\s*r\.subcontractorId/.test(clientSrc),
+  'it used to sit on the shared base, where nothing ever set it');
+ok('and the invite row is written with it', /subcontractor_id:\s*args\.subcontractorId/.test(clientSrc));
+ok('the invite sheet can see the roster and picks carry their id',
+  /pickedSubIds/.test(screenSrc) && /subcontractorId:\s*s\.id/.test(screenSrc));
+ok('a typed address that matches a sub on file is attached automatically',
+  /attachRosterIds\(/.test(screenSrc));
+ok('bids already in the matrix are recovered from the invite that produced them',
+  /resolveBidSubcontractor\(/.test(screenSrc) && /updateBidPackageBid\([^)]*subcontractorId/.test(screenSrc));
+ok('and the ones that cannot be resolved get a control instead of a shrug',
+  /setLinkTargetBidId\(/.test(screenSrc) && /Link this bid to a sub/.test(screenSrc));
+
+// The gate has to stay readable. It pushed a blocker for ANY bid with no
+// prequal packet, and prequal_packets is empty in production, so every award
+// went through the red "Award & accept risk" screen — which a GC stops reading
+// in a month, and that is when the genuinely lapsed COI goes through.
+const awardBody = screenSrc.slice(screenSrc.indexOf('const handleAward'), screenSrc.indexOf('const handleGenerateSubcontract'));
+ok('the award gate reads the COI/licence dates the app actually keeps',
+  /getComplianceStatus\(/.test(awardBody));
+ok('a missing prequal packet on a compliant sub is a NOTE, not a blocker',
+  /notes\.push\([^)]*No prequal packet/.test(awardBody)
+  && !/blockers\.push\([^)]*No prequal packet/.test(awardBody),
+  'the destructive double-confirm is reserved for an expired or absent COI/licence');
+ok('an expired document IS a blocker', /blockers\.push\([^)]*expired/.test(awardBody));
+ok('and an unlinked bid is a blocker with a one-tap fix rather than a dead sentence',
+  /Pick the sub/.test(awardBody));
 
 console.log(`\n${fail === 0 ? `bid invite: ${pass} checks passed` : `${fail} of ${pass + fail} checks FAILED`}\n`);
 process.exit(fail === 0 ? 0 : 1);

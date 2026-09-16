@@ -3,18 +3,22 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Bell, Check, ChevronDown, FolderOpen, CalendarDays, CalendarOff, Download, FileInput, Mic, X } from 'lucide-react-native';
+import { Bell, Check, ChevronDown, ChevronRight, FolderOpen, CalendarDays, CalendarOff, Download, FileInput, Flag, Mic, RefreshCw, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Project, ScheduleTask } from '@/types';
 import { buildScheduleFromTasks, mergeEditedSchedule, createId } from '@/utils/scheduleEngine';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { runCpm, previewStartDayBasisMigration, startDayBasisAnswerPatch } from '@/utils/cpm';
+import {
+  runCpm, previewStartDayBasisMigration, startDayBasisAnswerPatch,
+  calendarDayToDate, workingDaysBetween, type CpmResult,
+} from '@/utils/cpm';
 import { StartDayBasisNotice } from '@/components/schedule/StartDayBasisNotice';
 import EmptyState from '@/components/EmptyState';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
@@ -36,8 +40,13 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { parseCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import {
   resolveScheduleAnchor, startDayNumberFor,
+  baselineFinishDayWorkingScale, finishDriverTitle, pacedScheduleVerdict, planCatchUpToToday,
+  taskCalendarRange,
   UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
+  verdictToneTokens,
+  type CatchUpPlan, type NamedBaseline, type PacedVerdict,
 } from '@/utils/scheduleOps';
+import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 
 // MISS-08 (runtime audit 2026-09-06): the second sub-tab was labelled
 // "4D Model". There is no 3D model behind it and no 3D dependency anywhere in
@@ -181,6 +190,122 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     [tasks, anchor.iso, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates],
   );
 
+  // ───────────────────────────────────────────────────────────────────────
+  // THE ANSWER THE PHONE NEVER GAVE: what date do we finish, and are we behind?
+  //
+  // Every input below already existed on this screen; none of it was rendered.
+  // The desktop prints this from SchedulerHeader/DashboardTab, both of which
+  // mount only inside schedule-pro, which shows "Best on a bigger screen"
+  // under 900pt — so on the primary platform the one number a GC is asked for
+  // on every Monday owner call was the one number the app would not print.
+  // ───────────────────────────────────────────────────────────────────────
+
+  /** The schedule's calendar, in the shape cpm/scheduleOps helpers want. */
+  const scheduleCalendar = useMemo(() => ({
+    scheduleStartDate: anchor.iso ?? undefined,
+    workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+    nonWorkingDates: activeSchedule?.nonWorkingDates,
+  }), [anchor.iso, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
+
+  /**
+   * TODAY as a CALENDAR index on this schedule's anchor — null when the
+   * schedule is undated, which is the state 2 of the 3 real production
+   * schedules are in. Null means there is no "today" to measure against, and
+   * every consumer below says so rather than substituting one.
+   */
+  const todayCalendarIndex = useMemo(
+    () => todayScheduleDay(anchor.iso ?? undefined),
+    [anchor.iso],
+  );
+
+  /**
+   * The projected finish, rendered from the ENGINE's own number.
+   * `calendarDayToDate`, not `addWorkingDays`: cpm.projectFinish is a CALENDAR
+   * index (utils/cpm.ts "THE TWO DAY-NUMBER SCALES"), and walking it as a
+   * working ordinal adds about two days per weekend it spans.
+   */
+  const finishDateLabel = useMemo(() => {
+    if (!anchor.date || tasks.length === 0 || reportCpm.projectFinish <= 0) return '—';
+    return calendarDayToDate(anchor.date, reportCpm.projectFinish)
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [anchor.date, tasks.length, reportCpm.projectFinish]);
+
+  /**
+   * Slip vs the active baseline — derived EXACTLY as schedule-pro derives it
+   * (baselineFinishDayWorkingScale + workingDaysBetween off the last entry of
+   * `baselines[]`), so the phone and the laptop can never quote two different
+   * slips for the same job. Null when no baseline was ever captured, which on
+   * a phone-only account is always: `saveBaseline` has one caller and it never
+   * renders on a phone. The verdict handles null by falling back to pace.
+   */
+  const slipDaysVsBaseline = useMemo<number | null>(() => {
+    const list = activeSchedule?.baselines;
+    if (!list || list.length === 0) return null;
+    // Cast at the boundary, as types/index.ts documents: ProjectSchedule stores
+    // baselines structurally to avoid a circular type import.
+    const active = list[list.length - 1] as unknown as NamedBaseline;
+    const baseFinish = baselineFinishDayWorkingScale(active, scheduleCalendar);
+    if (baseFinish == null) return null;
+    return workingDaysBetween(baseFinish, reportCpm.projectFinish, scheduleCalendar);
+  }, [activeSchedule?.baselines, scheduleCalendar, reportCpm.projectFinish]);
+
+  /**
+   * The pace read, from the same function the owner-facing surfaces use. Only
+   * its schedule half is read here, so the billing inputs are deliberately
+   * empty — passing the real change orders/invoices would change nothing on
+   * this screen and would drag two more contexts into it.
+   */
+  const pace = useMemo(() => {
+    if (!selectedProject || tasks.length === 0) return null;
+    const oc = buildOwnerConfidence({
+      project: selectedProject, changeOrders: [], invoices: [], nowMs: Date.now(),
+    });
+    return { status: oc.status, pctComplete: oc.pctComplete };
+  }, [selectedProject, tasks.length]);
+
+  // `new Date(t.deadline).getTime() < Date.now()` was wrong twice over: a
+  // 'YYYY-MM-DD' deadline parses as UTC MIDNIGHT, so west of Greenwich a task
+  // due today read as overdue from the moment the screen opened; and comparing
+  // against the current INSTANT made "due today" overdue at one minute past
+  // midnight anyway. A deadline is a calendar day — it is late once the day
+  // itself has passed, which is what comparing local midnights says.
+  const overdueCount = useMemo(() => {
+    const todayMidnight = parseCalendarDay(todayCalendarDay())?.getTime() ?? Date.now();
+    return tasks.filter((t) => {
+      if (t.status === 'done' || !t.deadline) return false;
+      const due = parseCalendarDay(t.deadline);
+      return due != null && due.getTime() < todayMidnight;
+    }).length;
+  }, [tasks]);
+
+  const verdict = useMemo<PacedVerdict>(() => pacedScheduleVerdict({
+    slipDaysVsBaseline,
+    finishDateLabel,
+    // The task whose finish IS the finish — not the last id in criticalPath,
+    // which is only topological order (see finishDriverTitle).
+    criticalDriverTitle: finishDriverTitle(tasks, {
+      perTask: reportCpm.perTask,
+      projectFinish: reportCpm.projectFinish,
+      criticalTaskIds: reportCpm.criticalPath,
+    }),
+    overdueCount,
+    pace: pace?.status ?? null,
+    pctComplete: pace?.pctComplete ?? 0,
+  }), [slipDaysVsBaseline, finishDateLabel, tasks, reportCpm, overdueCount, pace]);
+
+  /**
+   * "Bring the plan up to date" — the preview, computed for the strip's
+   * behind-count as well as the sheet. Null when there is no data date: an
+   * undated schedule has no today, so the action is disabled with that reason
+   * rather than silently doing nothing.
+   */
+  const catchUp = useMemo<CatchUpPlan | null>(() => {
+    if (todayCalendarIndex == null || tasks.length === 0) return null;
+    return planCatchUpToToday(tasks, { todayCalendarIndex, calendar: scheduleCalendar });
+  }, [tasks, todayCalendarIndex, scheduleCalendar]);
+
+  const [showFinishSheet, setShowFinishSheet] = useState(false);
+
   const saveTasks = useCallback((nextTasks: ScheduleTask[]) => {
     if (!selectedProject) return;
     const name = activeSchedule?.name ?? `${selectedProject.name} Schedule`;
@@ -302,6 +427,30 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     saveTasks(tasks.filter((t) => t.id !== id));
     setDetailTask(null);
   }, [tasks, saveTasks]);
+
+  /**
+   * Apply the catch-up. Same preview → apply → undo shape the desktop already
+   * uses for Fix overloads and CO reflow: the sheet states the finish before
+   * and after BEFORE anything is written, and the confirmation hands back a
+   * one-tap Undo that restores the exact task array we started from (saveTasks
+   * re-runs CPM on it, so the stored finish scalar goes back too).
+   */
+  const applyCatchUp = useCallback(() => {
+    if (!catchUp || catchUp.changes.length === 0) return;
+    const before = tasks;
+    saveTasks(catchUp.tasks);
+    setShowFinishSheet(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const moved = catchUp.changes.length;
+    showAlert(
+      'Plan brought up to date',
+      `${moved} task${moved === 1 ? '' : 's'} re-dated so the work that is left starts today. Finished work kept its actual dates, and nothing moved earlier.`,
+      [
+        { text: 'Undo', style: 'cancel', onPress: () => saveTasks(before) },
+        { text: 'Keep it' },
+      ],
+    );
+  }, [catchUp, tasks, saveTasks]);
 
   const openAddAt = useCallback((iso: string) => {
     setAddPrefillDate(iso);
@@ -437,6 +586,29 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         </TouchableOpacity>
       </View>
 
+      {/* THE VERDICT LINE. One tap opens what is driving the date and the
+          "bring the plan up to date" action. Hidden only when there is no
+          schedule to have a verdict about. */}
+      {tasks.length > 0 && (
+        <TouchableOpacity
+          style={[styles.verdictBar, { backgroundColor: colors[verdictToneTokens(verdict.tone).soft] }]}
+          activeOpacity={0.8}
+          onPress={() => setShowFinishSheet(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`${verdict.headline}. ${verdict.detail} Tap for what is driving the date.`}
+          testID="schedule-verdict-bar"
+        >
+          <View style={[styles.verdictDot, { backgroundColor: colors[verdictToneTokens(verdict.tone).ink] }]} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.verdictHeadline, { color: colors[verdictToneTokens(verdict.tone).ink] }]} numberOfLines={2}>
+              {verdict.headline}
+            </Text>
+            {!!verdict.detail && <Text style={styles.verdictDetail} numberOfLines={2}>{verdict.detail}</Text>}
+          </View>
+          <ChevronRight size={16} color={colors.textMuted} strokeWidth={2} />
+        </TouchableOpacity>
+      )}
+
       <WeekStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} />
 
       <View style={styles.subtabs}>
@@ -556,7 +728,17 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         // previewStartDate + the banner above: ProgressTab's milestone column
         // still prints a calendar day. It should take `string | null` and
         // print `taskWorkingDayLabel` when undated — see the wave report.
-        <ProgressTab tasks={tasks} startDate={previewStartDate} workingDaysPerWeek={activeSchedule?.workingDaysPerWeek} nonWorkingDates={activeSchedule?.nonWorkingDates} />
+        <ProgressTab
+          tasks={tasks}
+          startDate={previewStartDate}
+          workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
+          nonWorkingDates={activeSchedule?.nonWorkingDates}
+          // "% complete" without a date answers half the question. The same
+          // verdict the header carries leads this tab, computed once above.
+          verdict={verdict}
+          finishDateLabel={finishDateLabel}
+          onPressVerdict={() => setShowFinishSheet(true)}
+        />
       ) : tab === 'team' ? (
         <TeamTab tasks={tasks} onPressTask={setDetailTask} />
       ) : (
@@ -593,6 +775,23 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         nonWorkingDates={activeSchedule?.nonWorkingDates}
         onSelect={setSelectedDate}
         onClose={() => setShowCalendar(false)}
+      />
+
+      <FinishDateSheet
+        visible={showFinishSheet}
+        onClose={() => setShowFinishSheet(false)}
+        verdict={verdict}
+        finishDateLabel={finishDateLabel}
+        tasks={tasks}
+        cpm={reportCpm}
+        anchorDate={anchor.date}
+        workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
+        nonWorkingDates={activeSchedule?.nonWorkingDates}
+        catchUp={catchUp}
+        hasDataDate={todayCalendarIndex != null}
+        onSetStartDate={() => { setShowFinishSheet(false); setShowStartDatePicker(true); }}
+        onApplyCatchUp={applyCatchUp}
+        onPressTask={(t) => { setShowFinishSheet(false); setDetailTask(t); }}
       />
 
       <ExportCenterSheet
@@ -638,6 +837,189 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         })()}
       </Modal>
     </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FinishDateSheet — "when do we finish, who is driving it, and what happens if
+// I bring the plan up to date?"
+//
+// Three sections, in the order a GC asks them:
+//   1. the date, and the verdict about it;
+//   2. the critical chain — "who is driving my date" is one tap, not a laptop;
+//   3. the catch-up, previewed BEFORE it is written (finish before → after),
+//      and disabled with its reason on an undated schedule, where there is no
+//      today to catch up to.
+// ---------------------------------------------------------------------------
+
+function FinishDateSheet({
+  visible, onClose, verdict, finishDateLabel, tasks, cpm, anchorDate,
+  workingDaysPerWeek, nonWorkingDates, catchUp, hasDataDate,
+  onSetStartDate, onApplyCatchUp, onPressTask,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  verdict: PacedVerdict;
+  finishDateLabel: string;
+  tasks: ScheduleTask[];
+  cpm: CpmResult;
+  anchorDate: Date | null;
+  workingDaysPerWeek?: number;
+  nonWorkingDates?: string[];
+  catchUp: CatchUpPlan | null;
+  hasDataDate: boolean;
+  onSetStartDate: () => void;
+  onApplyCatchUp: () => void;
+  onPressTask: (task: ScheduleTask) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
+  const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const chain = useMemo(
+    () => cpm.criticalPath
+      .map((id) => byId.get(id))
+      .filter((t): t is ScheduleTask => !!t)
+      .sort((a, b) => (a.startDay ?? 1) - (b.startDay ?? 1)),
+    [cpm.criticalPath, byId],
+  );
+
+  /** The finish the catch-up would produce. Computed only while the sheet is
+   *  open — it is a second full CPM run, and the schedule surface already runs
+   *  one on every render. */
+  const afterFinishLabel = useMemo(() => {
+    if (!visible || !catchUp || catchUp.changes.length === 0 || !anchorDate) return null;
+    const after = runCpm(catchUp.tasks, {
+      scheduleStartDate: anchorDate ? toCalendarDayString(anchorDate) : undefined,
+      workingDaysPerWeek,
+      nonWorkingDates,
+    });
+    if (after.projectFinish <= 0) return null;
+    return calendarDayToDate(anchorDate, after.projectFinish)
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [visible, catchUp, anchorDate, workingDaysPerWeek, nonWorkingDates]);
+
+  const behindCount = catchUp?.behindIds.length ?? 0;
+  const changeCount = catchUp?.changes.length ?? 0;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={onClose} />
+      <View style={[styles.pickerSheet, { paddingBottom: insets.bottom + 16 }]} testID="schedule-finish-sheet">
+        <View style={styles.pickerGrab} />
+        <View style={styles.pickerHead}>
+          <Text style={styles.pickerTitle}>Finish date</Text>
+          <TouchableOpacity onPress={onClose} style={styles.pickerClose} accessibilityRole="button" accessibilityLabel="Close">
+            <X size={18} color={colors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+          <View style={[styles.finishHero, { backgroundColor: colors[verdictToneTokens(verdict.tone).soft] }]}>
+            <Text style={[styles.finishDate, { color: colors[verdictToneTokens(verdict.tone).ink] }]}>
+              {finishDateLabel === '—' ? 'No finish date' : finishDateLabel}
+            </Text>
+            <Text style={styles.finishVerdict}>{verdict.headline}</Text>
+            {!!verdict.detail && <Text style={styles.finishDetail}>{verdict.detail}</Text>}
+          </View>
+
+          <Text style={styles.section}>WHAT IS DRIVING THE DATE</Text>
+          <View style={styles.finishCard}>
+            {chain.length === 0 ? (
+              <Text style={styles.finishEmpty}>
+                No critical chain yet — link the work packages that have to happen in order and the driver appears here.
+              </Text>
+            ) : chain.map((t, i) => {
+              // Undated schedules print the WORKING-DAY number instead of a
+              // date. Nothing here invents an anchor (THE anchor rule).
+              const label = anchorDate
+                ? taskCalendarRange(t, anchorDate, workingDaysPerWeek, nonWorkingDates).end
+                    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : `Day ${t.startDay + Math.max(0, (t.durationDays || 1) - 1)}`;
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[styles.prowRow, i > 0 ? styles.rowDivider : null]}
+                  activeOpacity={0.7}
+                  onPress={() => onPressTask(t)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t.title}, ends ${label}. Open task.`}
+                  testID={`finish-driver-${t.id}`}
+                >
+                  <Flag size={14} color={colors.accent} strokeWidth={2} />
+                  <Text style={styles.prowName} numberOfLines={1}>{t.title}</Text>
+                  <Text style={styles.prowMeta}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.section}>BRING THE PLAN UP TO DATE</Text>
+          <View style={styles.finishCard}>
+            {!hasDataDate ? (
+              <>
+                {/* A blocked button says why, and offers the one fix. */}
+                <Text style={styles.finishEmpty}>
+                  {UNDATED_SCHEDULE_TITLE}, so there is no “today” to catch up to — day numbers alone cannot say what is late.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.finishBtn, styles.finishBtnDisabled]}
+                  disabled
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: true }}
+                  accessibilityLabel={`Bring the plan up to date. Unavailable: ${UNDATED_SCHEDULE_TITLE}.`}
+                  testID="catch-up-disabled"
+                >
+                  <RefreshCw size={16} color={colors.textMuted} strokeWidth={2} />
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Bring the plan up to date</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.finishLink}
+                  activeOpacity={0.7}
+                  onPress={onSetStartDate}
+                  accessibilityRole="button"
+                  accessibilityLabel={UNDATED_SCHEDULE_CTA}
+                  testID="catch-up-set-start-date"
+                >
+                  <Text style={styles.finishLinkText}>{UNDATED_SCHEDULE_CTA}</Text>
+                </TouchableOpacity>
+              </>
+            ) : changeCount === 0 ? (
+              <Text style={styles.finishEmpty}>
+                Nothing is behind as of today — the plan already matches the field.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.finishBody}>
+                  {behindCount > 0
+                    ? `${behindCount} task${behindCount === 1 ? '' : 's'} still owe${behindCount === 1 ? 's' : ''} work that should already be done.`
+                    : 'Work downstream of what has actually happened has not been re-dated yet.'}
+                  {' '}Starting what is left today moves {changeCount} task{changeCount === 1 ? '' : 's'}
+                  {afterFinishLabel && finishDateLabel !== '—'
+                    ? ` and the finish ${finishDateLabel} → ${afterFinishLabel}.`
+                    : '.'}
+                </Text>
+                <Text style={styles.finishNote}>
+                  Finished work keeps its actual dates. Nothing is ever pulled earlier.
+                </Text>
+                <TouchableOpacity
+                  style={styles.finishBtn}
+                  activeOpacity={0.85}
+                  onPress={onApplyCatchUp}
+                  accessibilityRole="button"
+                  accessibilityLabel="Bring the plan up to date"
+                  testID="catch-up-apply"
+                >
+                  <RefreshCw size={16} color={colors.accentLabel} strokeWidth={2} />
+                  <Text style={styles.finishBtnText}>Bring the plan up to date</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -816,6 +1198,40 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   viewSeg: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 7 },
   viewSegOn: { backgroundColor: t.surface },
   viewSegText: { fontSize: 13, fontWeight: '700' as const, color: t.textMuted },
+  // Verdict strip — the finish date + "are we behind", directly under the
+  // project name. Tinted by tone from the theme's label/soft pairs.
+  verdictBar: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9,
+    marginHorizontal: 16, marginTop: 2, marginBottom: 2,
+    paddingVertical: 9, paddingHorizontal: 12, borderRadius: Tokens.radius.md,
+  },
+  verdictDot: { width: 8, height: 8, borderRadius: Tokens.radius.full },
+  verdictHeadline: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
+  verdictDetail: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 2 },
+  // Finish-date sheet
+  finishHero: { borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 16 },
+  finishDate: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, letterSpacing: -0.5 },
+  finishVerdict: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 4 },
+  finishDetail: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 3 },
+  section: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8, marginBottom: 8, marginLeft: 4 },
+  // cardSurface, not a hand-rolled recipe (validate-ui-adoption's ratchet):
+  // one definition of what a card looks like, squircle corners included.
+  finishCard: { ...cardSurface(t, { radius: 'lg', pad: 14 }), marginBottom: 16 },
+  finishEmpty: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontWeight: '600' as const },
+  finishBody: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' as const, lineHeight: 19 },
+  finishNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' as const, marginTop: 6 },
+  finishBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
+    marginTop: 12, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accentSoft,
+  },
+  finishBtnDisabled: { backgroundColor: t.surfaceAlt },
+  finishBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  finishLink: { alignItems: 'center' as const, paddingVertical: 10 },
+  finishLinkText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.warningLabel },
+  prowRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, paddingVertical: 10 },
+  rowDivider: { borderTopWidth: 1, borderTopColor: t.line },
+  prowName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
+  prowMeta: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textSecondary },
   // Undated-schedule disclosure. Warning-tinted, not danger: nothing is
   // broken, a field is missing and one tap fills it in.
   undatedBanner: {

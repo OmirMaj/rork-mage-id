@@ -28,7 +28,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, ChevronRight, AlertTriangle, CheckCircle2,
-  Clock, TrendingUp, TrendingDown, Package, X, Save, Check,
+  Clock, TrendingUp, TrendingDown, Package, X, Save, Check, Calendar,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -36,15 +36,21 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
+import DatePickerModal from '@/components/DatePickerModal';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
   BID_PACKAGE_STATUSES, BID_PACKAGE_STATUS_LABELS,
   type BidPackage, type BidPackageStatus,
 } from '@/types';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { cardSurface } from '@/components/ui';
+import { estimateItemsToScope } from '@/utils/estimateItemsToScope';
+import { fetchBidInvitesForProject } from '@/utils/bidInvites';
+import { bidDueLabel, bidDueState, inviteCoverage, type BidInviteRecord } from '@/utils/bidInviteCore';
 
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
   open: '#FF6A1A',
@@ -111,13 +117,56 @@ export default function BuyoutScreen() {
     const savingsToDate = packages
       .filter(p => p.status === 'awarded')
       .reduce((s, p) => s + (p.buyoutSavings ?? 0), 0);
-    const today = new Date();
+    // OVERDUE now reads `dueDate`, the field the create sheet below actually
+    // writes. It used to read `requiredByDate`, which has no writer anywhere in
+    // the repo — so the badge and this count could never render, on a screen
+    // whose whole job is telling him which packages are late.
+    const now = Date.now();
     const overdue = packages.filter(p =>
       p.status !== 'awarded' && p.status !== 'cancelled' &&
-      p.requiredByDate && new Date(p.requiredByDate) < today
+      bidDueState(p.dueDate, now) === 'overdue'
     );
-    return { total, awarded, open, leveling, totalBudget, committedBudget, pctBoughtOut, savingsToDate, overdue: overdue.length };
+    const undated = packages.filter(p =>
+      p.status !== 'awarded' && p.status !== 'cancelled' && !p.dueDate
+    );
+    return {
+      total, awarded, open, leveling, totalBudget, committedBudget, pctBoughtOut, savingsToDate,
+      overdue: overdue.length, undated: undated.length,
+    };
   }, [packages]);
+
+  // ── Who still owes him a number, across every package ───────────────────
+  // ONE project-scoped read, not one per card: finding out who had gone quiet
+  // used to mean opening eight packages, each firing its own fetch.
+  //
+  // `null` from the fetch means the read FAILED, which is not the same as "no
+  // invites" — a card that says "nobody invited" over a dropped read sends him
+  // to re-invite subs who are already holding a live link. So the coverage line
+  // is simply omitted when we could not read, rather than rendered as zero.
+  const [invites, setInvites] = useState<BidInviteRecord[]>([]);
+  const [invitesLoaded, setInvitesLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const projectId = project?.id;
+    if (!projectId) { setInvites([]); setInvitesLoaded(false); return; }
+    setInvitesLoaded(false);
+    void fetchBidInvitesForProject(projectId).then(rows => {
+      if (cancelled) return;
+      if (rows === null) { setInvitesLoaded(false); return; }
+      setInvites(rows);
+      setInvitesLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [project?.id]);
+
+  const invitesByPackage = useMemo(() => {
+    const map = new Map<string, BidInviteRecord[]>();
+    for (const inv of invites) {
+      const list = map.get(inv.packageId);
+      if (list) list.push(inv); else map.set(inv.packageId, [inv]);
+    }
+    return map;
+  }, [invites]);
 
   // ── New package modal ───────────────────────────────────────────
   const [showNewPkg, setShowNewPkg] = useState(false);
@@ -126,6 +175,12 @@ export default function BuyoutScreen() {
   const [newPkgCsi, setNewPkgCsi] = useState('');
   const [newPkgBudget, setNewPkgBudget] = useState('');
   const [newPkgPickedItemIds, setNewPkgPickedItemIds] = useState<string[]>([]);
+  // The one thing on this screen that genuinely needs new capture. Everything
+  // else here is derived from the estimate; nobody anywhere in the app has ever
+  // been asked when the bids are wanted, which is why the invite email could
+  // only offer the link's 30-day expiry as a date.
+  const [newPkgDueDate, setNewPkgDueDate] = useState('');
+  const [showDuePicker, setShowDuePicker] = useState(false);
 
   // Estimate items available to link from the active project's linked
   // estimate (the modern estimate format with stable ids). Sorted by
@@ -178,13 +233,28 @@ export default function BuyoutScreen() {
       return;
     }
     const budget = Number(newPkgBudget) || 0;
+    // Seed the scope from the line items he just ticked. `scopeDescription` is
+    // the only description of the work the bidder ever sees — it is what the
+    // invite email prints and what `bid_invite_get` hands the sub-facing page —
+    // and until now nothing in the app wrote it for a hand-made package, so the
+    // sub was asked to price a package NAME at an address. Quantities and units
+    // only; the carry stays on this side of the wall.
+    //
+    // Persisted here rather than composed at send time because the sub's page
+    // reads `bid_packages.scope_description` server-side: a scope that only
+    // existed inside the send call would reach the email and never the page.
+    // It is a seed — the package screen edits it.
+    const pickedItems = projectEstimateItems.filter(i => newPkgPickedItemIds.includes(i.materialId));
+    const seededScope = estimateItemsToScope(pickedItems);
     const newPkg = addBidPackage({
       projectId: project.id,
       name: newPkgName.trim(),
       phase: newPkgPhase.trim() || undefined,
       csiDivision: newPkgCsi.trim() || undefined,
+      scopeDescription: seededScope || undefined,
       linkedEstimateItemIds: newPkgPickedItemIds,
       estimateBudget: budget,
+      dueDate: newPkgDueDate || undefined,
       status: 'open',
     });
     setShowNewPkg(false);
@@ -193,10 +263,11 @@ export default function BuyoutScreen() {
     setNewPkgCsi('');
     setNewPkgBudget('');
     setNewPkgPickedItemIds([]);
+    setNewPkgDueDate('');
     lastAutoBudgetRef.current = '';
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push({ pathname: '/buyout-package' as never, params: { packageId: newPkg.id } as never });
-  }, [project, newPkgName, newPkgPhase, newPkgCsi, newPkgBudget, newPkgPickedItemIds, addBidPackage, router]);
+  }, [project, newPkgName, newPkgPhase, newPkgCsi, newPkgBudget, newPkgPickedItemIds, newPkgDueDate, projectEstimateItems, addBidPackage, router]);
 
   return (
     <>
@@ -306,7 +377,14 @@ export default function BuyoutScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHead}>
                 <Text style={styles.sectionTitle}>Scope packages</Text>
-                <Text style={styles.sectionSub}>{packages.length === 0 ? 'No packages yet' : `${packages.length} package${packages.length === 1 ? '' : 's'}`}</Text>
+                {/* Naming the undated packages is the honest half of the
+                    OVERDUE badge: "nothing is late" and "nothing has a date to
+                    be late against" look identical otherwise. */}
+                <Text style={styles.sectionSub}>
+                  {packages.length === 0
+                    ? 'No packages yet'
+                    : `${packages.length} package${packages.length === 1 ? '' : 's'}${kpi.undated > 0 ? ` · ${kpi.undated} with no bid date` : ''}`}
+                </Text>
               </View>
 
               {packages.length === 0 ? (
@@ -320,8 +398,13 @@ export default function BuyoutScreen() {
                 packages.map(pkg => {
                   const bids = getBidsForPackage(pkg.id);
                   const lowest = bids.length > 0 ? bids.reduce((m, b) => b.amount < m ? b.amount : m, bids[0].amount) : 0;
-                  const overdue = pkg.status !== 'awarded' && pkg.status !== 'cancelled'
-                    && pkg.requiredByDate && new Date(pkg.requiredByDate) < new Date();
+                  const live = pkg.status !== 'awarded' && pkg.status !== 'cancelled';
+                  const dueState = bidDueState(pkg.dueDate, Date.now());
+                  const overdue = live && dueState === 'overdue';
+                  // Only rendered when the invite read actually succeeded —
+                  // "0 invited" over a dropped read is a claim we cannot make.
+                  const pkgInvites = invitesLoaded ? (invitesByPackage.get(pkg.id) ?? []) : null;
+                  const cover = pkgInvites ? inviteCoverage(pkgInvites, Date.now()) : null;
                   return (
                     <Pressable
                       key={pkg.id}
@@ -343,6 +426,31 @@ export default function BuyoutScreen() {
                               </>
                             )}
                           </View>
+                          {/* The chase line: when the number is wanted, and who
+                              still owes him one. Both were invisible from this
+                              screen — finding out meant opening every package. */}
+                          {live && (
+                            <View style={styles.pkgChaseRow}>
+                              <Clock
+                                size={Type.caption2.fontSize}
+                                color={dueState === 'overdue' ? themeColors.danger
+                                  : dueState === 'none' ? themeColors.textMuted : themeColors.accent}
+                                strokeWidth={2}
+                              />
+                              <Text
+                                style={[
+                                  styles.pkgChaseText,
+                                  dueState === 'overdue' && { color: themeColors.danger, fontWeight: '700' },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {bidDueLabel(pkg.dueDate, Date.now())}
+                                {cover && cover.invited > 0
+                                  ? ` · ${cover.responded} of ${cover.invited} answered${cover.awaiting > 0 ? ` · ${cover.awaiting} to chase` : ''}`
+                                  : ''}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                         <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                       </View>
@@ -482,6 +590,65 @@ export default function BuyoutScreen() {
               <Text style={styles.fieldLabel}>Estimate budget (carry)</Text>
               <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Auto-fills from selected items, or type manually' placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
 
+              {/* Bids due. The invite could only ever tell a sub "this link
+                  stops working in 30 days" — the link's expiry, not a
+                  deadline — because no screen in the app asked when the number
+                  was wanted. A sub who has a busy week reads thirty days and
+                  files it. */}
+              <Text style={styles.fieldLabel}>Bids due</Text>
+              <TouchableOpacity
+                style={styles.dueField}
+                onPress={() => setShowDuePicker(true)}
+                activeOpacity={0.8}
+                testID="buyout-due-date"
+                accessibilityRole="button"
+                accessibilityLabel={newPkgDueDate ? `Bids due ${formatCalendarDay(newPkgDueDate)}. Change` : 'Set the date bids are due'}
+              >
+                <Calendar size={16} color={newPkgDueDate ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={[styles.dueFieldText, !newPkgDueDate && { color: themeColors.textMuted }]}>
+                  {newPkgDueDate
+                    ? formatCalendarDay(newPkgDueDate, { weekday: 'short', month: 'short', day: 'numeric' })
+                    : 'Pick a date'}
+                </Text>
+                {!!newPkgDueDate && (
+                  <Text style={styles.dueFieldHint}>{bidDueLabel(newPkgDueDate, Date.now())}</Text>
+                )}
+              </TouchableOpacity>
+              <View style={styles.dueChipRow}>
+                {[
+                  { label: 'In 1 week', days: 7 },
+                  { label: 'In 2 weeks', days: 14 },
+                  { label: 'In 3 weeks', days: 21 },
+                ].map(chip => (
+                  <TouchableOpacity
+                    key={chip.days}
+                    style={styles.dueChip}
+                    onPress={() => {
+                      // Noon, same as DatePickerModal writes, so the stored
+                      // instant lands on the intended calendar day in every
+                      // device zone rather than shifting a day at midnight.
+                      const d = new Date();
+                      d.setDate(d.getDate() + chip.days);
+                      d.setHours(12, 0, 0, 0);
+                      setNewPkgDueDate(d.toISOString());
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.dueChipText}>{chip.label}</Text>
+                  </TouchableOpacity>
+                ))}
+                {!!newPkgDueDate && (
+                  <TouchableOpacity style={styles.dueChip} onPress={() => setNewPkgDueDate('')} activeOpacity={0.8}>
+                    <Text style={[styles.dueChipText, { color: themeColors.textMuted }]}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.fieldHint}>
+                {newPkgDueDate
+                  ? 'This is the date this screen chases from — packages past it show OVERDUE, and the package screen can re-send to whoever has not answered.'
+                  : 'Optional, but without it nothing can tell you a package is late: the invite only says the link expires in 30 days, which is not a deadline.'}
+              </Text>
+
               <Text style={styles.tip}>You'll add bids on the next screen — by voice or by hand.</Text>
             </ScrollView>
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
@@ -491,6 +658,16 @@ export default function BuyoutScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
+          {/* allowFuture: a bid deadline is always ahead of today, and the
+              picker blocks future dates unless told otherwise. */}
+          <DatePickerModal
+            visible={showDuePicker}
+            value={newPkgDueDate}
+            onClose={() => setShowDuePicker(false)}
+            onChange={iso => { setNewPkgDueDate(iso); setShowDuePicker(false); }}
+            title="When are bids due?"
+            allowFuture
+          />
         </Modal>
       </View>
     </>
@@ -538,6 +715,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   pkgName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   pkgMetaRow: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   pkgMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted },
+  pkgChaseRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
+  pkgChaseText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const },
   pkgBudgetRow: { flexDirection: 'row', gap: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line },
   pkgBudgetCell: { flex: 1 },
   pkgBudgetLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
@@ -554,6 +733,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fieldHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: -2, marginBottom: 8, lineHeight: 16 },
   input: { backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, fontSize: Type.subhead.fontSize, color: t.text },
   tip: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 18, fontStyle: 'italic', textAlign: 'center' },
+  dueField: { ...cardSurface(t, { radius: 'card', pad: 'none' }), flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  dueFieldText: { fontSize: Type.subhead.fontSize, color: t.text, fontWeight: '600' as const },
+  dueFieldHint: { flex: 1, textAlign: 'right', fontSize: Type.caption1.fontSize, color: t.textMuted },
+  dueChipRow: { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
+  dueChip: { ...cardSurface(t, { radius: 'full', pad: 'none' }), paddingHorizontal: 10, paddingVertical: 6 },
+  dueChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.text },
   // csiChip* styles deleted with the 19-chip strip they dressed — the shared
   // CSIDivisionPicker brings its own.
   csiRow: { flexDirection: 'row', paddingBottom: 4 },

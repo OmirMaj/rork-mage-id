@@ -22,6 +22,24 @@
 // persists, because it is the one thing it cannot recompute. The chase LIST
 // itself is still derived on every mount and is never stored; persisting a
 // derived list is how it goes stale and starts lying.
+//
+// ── Two lists, one screen: warnings above chases ─────────────────────────────
+// utils/followUp/ shipped a whole derived-follow-up engine — rule registry,
+// seven honesty guards, held/derived split — that NOTHING imported. Its two
+// preventive rules answer a question buildChaseList cannot: not "who is late"
+// but "what is about to go wrong" — a sub whose certificate of insurance
+// expires before the morning they are booked on site, and a sub already on the
+// tools with no signed contract behind them. Both are still cheap to fix on
+// the day this screen says them, and worth a lost day plus a payment dispute
+// on the day it does not.
+//
+// They are mounted HERE rather than on a /follow-ups route of their own. This
+// screen is already the chase surface and is already reachable four ways; a
+// second list would be the third parallel chase tree in the app and would have
+// rendered the same change order twice with two different overdue counts. The
+// engine's other two rules — CO turnaround and overdue RFI — overlap
+// buildChaseList's own `co_approval` and `rfi` kinds and are deliberately NOT
+// run here (see PREVENTIVE_FOLLOW_UP_RULES in utils/followUp/rules.ts).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -37,15 +55,21 @@ import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useCoreData, useDocsData, useFinancialsData, useFieldData } from '@/contexts/ProjectContext';
+import { useCoreData, useDocsData, useFinancialsData, useFieldData, usePreconData } from '@/contexts/ProjectContext';
 import { buildChaseList, chaseSummary, type ChaseItem, type ChaseKind } from '@/utils/systemOfAction';
+import {
+  runFollowUpRulesForPortfolio, mergeHeldFollowUps, rankFollowUps,
+  type FollowUpContext,
+} from '@/utils/followUp/engine';
+import { PREVENTIVE_FOLLOW_UP_RULES } from '@/utils/followUp/rules';
+import { PreventiveFollowUps } from '@/components/followUp/PreventiveFollowUps';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { copyToClipboard } from '@/utils/clipboard';
 import { calendarDayOf, daysUntilCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
-import type { FollowUpChase, FollowUpHold } from '@/types';
+import type { FollowUp, FollowUpChase, FollowUpHold } from '@/types';
 
 /**
  * Where the chase log lives.
@@ -65,6 +89,25 @@ import type { FollowUpChase, FollowUpHold } from '@/types';
  * recordChase.
  */
 const FOLLOW_UP_HOLDS_KEY = 'mageid_follow_up_holds';
+
+/**
+ * Which preventive checks have already run against which job — guard G6's
+ * "first run is quiet" set, as `projectId:ruleId` strings.
+ *
+ * WHY IT HAS TO BE ON DISK. The engine mints anything derived from records
+ * older than QUIET_WINDOW_DAYS at 'normal' severity and flags it pre-existing,
+ * the FIRST time a rule runs against a job. That is what stops installing an
+ * update turning a nine-month-old project into a wall of red. If the set only
+ * lived in component state, every mount would be a first run and NOTHING would
+ * ever escalate — the quiet-week mechanism would become a permanent mute,
+ * which is a worse failure than the noise it was protecting against.
+ *
+ * Same `mageid_` prefix rule as the chase log above: a key under an
+ * unrecognised prefix is invisible to wipeLocalUserCache's prefix sweep and
+ * would tell the next contractor on a shared iPad which of HIS jobs had
+ * already been checked. `bun run test:storage-hygiene` fails the build on it.
+ */
+const FOLLOW_UP_SEEN_RULES_KEY = 'mageid_follow_up_seen_rules';
 
 /**
  * The id a chase is filed under. NOT ChaseItem.id.
@@ -141,10 +184,11 @@ export default function WaitingOnScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projects } = useCoreData();
+  const { projects, projectsLoaded, sourceFailed } = useCoreData();
   const { rfis, submittals } = useDocsData();
   const { dailyReports } = useFieldData();
-  const { changeOrders, deliveries } = useFinancialsData();
+  const { changeOrders, deliveries, commitments } = useFinancialsData();
+  const { subcontractors } = usePreconData();
   const { isDesktop } = useResponsiveLayout();
   // The held face: hold id → FollowUpHold. Loaded once from disk, written back
   // on every change. `holdsLoaded` exists so the persist effect below cannot
@@ -152,6 +196,28 @@ export default function WaitingOnScreen() {
   const [holds, setHolds] = useState<Record<string, FollowUpHold>>({});
   const [holdsLoaded, setHoldsLoaded] = useState(false);
   const persistedRef = useRef<string | null>(null);
+  /**
+   * The G6 seen-set as it was ON DISK when this screen mounted. `null` until
+   * the read finishes.
+   *
+   * A SNAPSHOT on purpose. The effect below writes today's run back to disk
+   * immediately, so the next visit is not a first run — but it must not feed
+   * that write back into this render's context, or "first run is quiet" would
+   * last exactly one frame: the rows would mint pre-existing, the write would
+   * mark them seen, and the re-render would repaint them critical before he
+   * finished reading the first one.
+   */
+  const [seenSnapshot, setSeenSnapshot] = useState<string[] | null>(null);
+  const seenPersistedRef = useRef<string | null>(null);
+  /**
+   * One clock for every follow-up on this screen.
+   *
+   * The engine takes `nowMs` on the context and has no clock of its own. If
+   * each project's context called Date.now() separately, two jobs could land
+   * either side of midnight and the same certificate could read "1d left" on
+   * one row and "0d" on another in the same list.
+   */
+  const [nowMs] = useState(() => Date.now());
 
   // crewPresence works per project — absence is only meaningful against THAT
   // job's reporting cadence, so a portfolio-wide fold would let a busy site's
@@ -204,6 +270,139 @@ export default function WaitingOnScreen() {
     return () => { alive = false; };
   }, []);
 
+  // ── Load the G6 seen-set ──────────────────────────────────────────────────
+  // An unreadable blob resolves to [] rather than staying null: [] means "no
+  // check has run on any job", which is the SAFE reading — every rule treats
+  // itself as first-run and stays quiet. Refusing to resolve would leave the
+  // section stuck on "still loading" forever on one corrupt key.
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem(FOLLOW_UP_SEEN_RULES_KEY)
+      .then((raw) => {
+        if (!alive) return;
+        seenPersistedRef.current = raw;
+        const parsed: unknown = raw ? JSON.parse(raw) : [];
+        setSeenSnapshot(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []);
+      })
+      .catch(() => { if (alive) setSeenSnapshot([]); });
+    return () => { alive = false; };
+  }, []);
+
+  /**
+   * Jobs the preventive checks run against.
+   *
+   * Finished and closed jobs are out. A COI that expired after the last trade
+   * left, or a task that ran without a PO on a job that closed out and got
+   * paid, is history — it cannot be prevented, and putting it in a section
+   * headed "about to go wrong" is the fastest way to teach him to scroll past
+   * the section.
+   */
+  const openProjects = useMemo(
+    () => (projects ?? []).filter(p => p.status !== 'completed' && p.status !== 'closed'),
+    [projects],
+  );
+
+  const projectNameById = useMemo(() => {
+    const byId: Record<string, string> = {};
+    for (const p of openProjects) byId[p.id] = p.name;
+    return byId;
+  }, [openProjects]);
+
+  /** Scheduled work neither check can see. Rendered, not buried — see below. */
+  const unassignedTaskCount = useMemo(
+    () => openProjects.reduce(
+      (n, p) => n + (p.schedule?.tasks ?? []).filter(t => t.status !== 'done' && !t.assignedSubId).length,
+      0,
+    ),
+    [openProjects],
+  );
+
+  /**
+   * Run the two preventive rules across every open job.
+   *
+   * G3 — EMPTY IS NOT ABSENT — is the whole reason for the `dataLoaded`
+   * ternaries. A collection handed over as `[]` means "looked, none"; handed
+   * over as `undefined` it means "never loaded" and the rule refuses instead
+   * of running. The distinction is not cosmetic here: with commitments read as
+   * an empty array during hydration, `work_started_without_commitment` would
+   * accuse every sub on site of working without a contract, which is both
+   * false and the kind of accusation that costs a relationship.
+   *
+   * HONEST LIMIT, and a handoff. `projectsLoaded` is the only hydration signal
+   * this provider exposes; PreconDataValue and FinancialsDataValue publish no
+   * per-collection loaded flag of their own (contexts/ProjectContext.tsx), so
+   * the subs and commitments queries can in principle settle after it. Adding
+   * `subsLoaded` / `commitmentsLoaded` there is the real fix and belongs in
+   * that file. Until then `sourceFailed` is rendered beside the coverage line
+   * so a failed read is never read as an all-clear.
+   *
+   * Commitments are narrowed to the job because the rule's own wording is
+   * "no contract or PO ON THIS PROJECT names them"; subcontractors are not,
+   * because the roster is portfolio-wide and a certificate expires once.
+   */
+  const preventiveRun = useMemo(() => {
+    const dataLoaded = projectsLoaded && seenSnapshot !== null;
+    const seen = seenSnapshot ?? [];
+    const contexts: FollowUpContext[] = openProjects.map((p) => {
+      const prefix = `${p.id}:`;
+      return {
+        nowMs,
+        projectId: p.id,
+        projectName: p.name,
+        seenRuleIds: new Set(seen.filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length))),
+        subcontractors: dataLoaded ? subcontractors : undefined,
+        // A job with no schedule genuinely has no tasks — that is [], not
+        // undefined. Only a job whose store has not hydrated is unloaded.
+        tasks: dataLoaded ? (p.schedule?.tasks ?? []) : undefined,
+        // Deliberately NOT defaulted. A schedule with no anchor date cannot
+        // answer "does this expire before they start", and the COI rule
+        // refuses rather than anchoring on today — the bug that once marched
+        // every task on two real schedules forward a day, every day. The
+        // refusal is rendered; it is not swallowed.
+        scheduleStartDate: p.schedule?.startDate,
+        commitments: dataLoaded ? (commitments ?? []).filter(c => c.projectId === p.id) : undefined,
+      };
+    });
+    return runFollowUpRulesForPortfolio(PREVENTIVE_FOLLOW_UP_RULES, contexts);
+  }, [openProjects, subcontractors, commitments, projectsLoaded, seenSnapshot, nowMs]);
+
+  // ── Remember which checks have now run ────────────────────────────────────
+  // Written straight to disk without touching `seenSnapshot`, so this run stays
+  // quiet while the next one is allowed to escalate. `seenPersistedRef` skips
+  // the no-op write on every re-render.
+  useEffect(() => {
+    if (seenSnapshot === null) return;
+    const next = new Set(seenSnapshot);
+    for (const [projectId, ruleIds] of Object.entries(preventiveRun.ranByProject)) {
+      for (const ruleId of ruleIds) next.add(`${projectId}:${ruleId}`);
+    }
+    if (next.size === seenSnapshot.length) return;
+    const blob = JSON.stringify([...next].sort());
+    if (seenPersistedRef.current === blob) return;
+    seenPersistedRef.current = blob;
+    AsyncStorage.setItem(FOLLOW_UP_SEEN_RULES_KEY, blob).catch(() => {});
+  }, [preventiveRun, seenSnapshot]);
+
+  /**
+   * Only the holds that belong to a preventive follow-up.
+   *
+   * The chase log is one map shared with the chase list, whose hold ids are
+   * `${kind}:${id}` while a follow-up's are `${ruleId}:${kind}:${id}`. Handing
+   * mergeHeldFollowUps the whole map would report every chase-list hold as
+   * "stopped matching", because no rule mints those ids.
+   */
+  const preventiveHolds = useMemo(
+    () => Object.values(holds).filter(
+      h => PREVENTIVE_FOLLOW_UP_RULES.some(r => h.id.startsWith(`${r.id}:`)),
+    ),
+    [holds],
+  );
+
+  const preventiveItems = useMemo(
+    () => rankFollowUps(mergeHeldFollowUps(preventiveRun, preventiveHolds, nowMs).items),
+    [preventiveRun, preventiveHolds, nowMs],
+  );
+
   // ── Write it back ─────────────────────────────────────────────────────────
   // Persisting in an effect rather than inside recordChase keeps the state
   // updater pure (React 18 invokes updaters twice in dev, and a write from
@@ -232,17 +431,23 @@ export default function WaitingOnScreen() {
    * delay evidence with no new type and no migration. Both files belong to
    * other work in flight; this screen owns only the held record.
    */
-  const recordChase = useCallback((item: ChaseItem, via: FollowUpChase['via']) => {
-    const id = chaseHoldId(item);
+  const recordChase = useCallback((
+    /** `${kind}:${id}` for a chase item, or the FollowUp's own id for a
+     *  preventive warning. Both are already namespaced; see chaseHoldId. */
+    id: string,
+    projectId: string,
+    via: FollowUpChase['via'],
+    message: string,
+  ) => {
     const at = new Date().toISOString();
-    const chase: FollowUpChase = { at, via, message: item.nudge };
+    const chase: FollowUpChase = { at, via, message };
     setHolds((prev) => {
       const existing = prev[id];
       const chases = [...(existing?.chases ?? []), chase];
       const hold: FollowUpHold = {
         ...existing,
         id,
-        projectId: item.projectId,
+        projectId,
         // His ENGAGEMENT with the item, not the record's own status — the RFI
         // is still open, he has just now chased it (see FollowUpStatus).
         status: 'chased',
@@ -285,7 +490,16 @@ export default function WaitingOnScreen() {
     [items, holds],
   );
 
-  const sendNudge = async (item: ChaseItem) => {
+  /**
+   * Hand one drafted message to the OS, and log that it left.
+   *
+   * Takes the hold id / project / text rather than a ChaseItem so the
+   * preventive warnings can use the identical path: same share sheet, same
+   * clipboard fallback, same chase log, same honesty about what was witnessed.
+   * A second copy of this function for the second list is how the two would
+   * have drifted into recording different things.
+   */
+  const sendNudge = async (holdId: string, projectId: string, message: string) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     // Sending the follow-up is the ONLY action on this screen — the entire
@@ -300,8 +514,8 @@ export default function WaitingOnScreen() {
       || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
 
     if (!canWebShare) {
-      const ok = await copyToClipboard(item.nudge);
-      if (ok) recordChase(item, 'clipboard');
+      const ok = await copyToClipboard(message);
+      if (ok) recordChase(holdId, projectId, 'clipboard', message);
       showAlert(
         ok ? 'Follow-up copied' : 'Could not copy',
         ok ? 'Paste it into your email or text to send it.'
@@ -311,18 +525,18 @@ export default function WaitingOnScreen() {
     }
 
     try {
-      await Share.share({ message: item.nudge });
-      recordChase(item, 'share');
+      await Share.share({ message });
+      recordChase(holdId, projectId, 'share', message);
     } catch (e) {
       // A user dismissing the native/Web Share sheet rejects with AbortError.
       // That is a cancel, not a failure — reporting it as one taught people the
       // button was broken. It is also not a chase: nothing left the app.
       if (e instanceof Error && e.name === 'AbortError') return;
-      const ok = await copyToClipboard(item.nudge);
+      const ok = await copyToClipboard(message);
       // The share failed but the text IS on his clipboard, which is exactly the
       // claim the !canWebShare branch above records. Not recording it here left
       // a real chase off the log purely because the share sheet misbehaved.
-      if (ok) recordChase(item, 'clipboard');
+      if (ok) recordChase(holdId, projectId, 'clipboard', message);
       showAlert(
         ok ? 'Follow-up copied instead' : 'Could not open share',
         ok ? 'Sharing was unavailable, so the follow-up is on your clipboard.'
@@ -390,16 +604,51 @@ export default function WaitingOnScreen() {
                 <Text style={styles.heroStat}>Nobody's holding you up</Text>
                 <Text style={styles.heroSub}>
                   No RFIs, submittals, or approvals are sitting overdue with anyone else.
+                  {preventiveItems.length > 0
+                    // "All clear" with warnings on screen underneath is the one
+                    // sentence this screen must never write. Nobody being late
+                    // is not the same as nothing going wrong.
+                    ? ` ${preventiveItems.length} ${preventiveItems.length === 1 ? 'thing is' : 'things are'} heading that way though — below.`
+                    : ''}
                 </Text>
               </>
             )}
           </View>
 
+          {/* Warnings sit ABOVE the late list on purpose: everything below is
+              already late and stays late, while everything here has a window
+              that closes. */}
+          <PreventiveFollowUps
+            items={preventiveItems}
+            alsoOnProjects={preventiveRun.alsoOnProjects}
+            projectNameById={projectNameById}
+            refusals={preventiveRun.refusals}
+            checkedCount={preventiveRun.ranEverywhereRuleIds.length}
+            totalChecks={PREVENTIVE_FOLLOW_UP_RULES.length}
+            jobCount={openProjects.length}
+            loading={!projectsLoaded || seenSnapshot === null}
+            sourceFailed={sourceFailed}
+            unassignedTaskCount={unassignedTaskCount}
+            chaseLabelFor={(followUpId) => chaseLabel(holds[followUpId], now)}
+            onSend={(followUp: FollowUp) => {
+              // G4 again, at the call site: the engine strips the nudge when it
+              // cannot name a person, and the row renders no button in that
+              // case — so this only ever fires with real words to send.
+              if (followUp.nudge) void sendNudge(followUp.id, followUp.projectId, followUp.nudge);
+            }}
+            isDesktop={isDesktop}
+          />
+
           {summary.total === 0 ? (
-            <View style={styles.emptyCard}>
-              <CheckCircle2 size={18} color={t.success} strokeWidth={2} />
-              <Text style={styles.emptyText}>Nothing to chase. Go build.</Text>
-            </View>
+            // Only claimed when the warnings above are empty too. "Go build"
+            // over a live COI warning is the app telling him to walk into the
+            // problem it just found.
+            preventiveItems.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <CheckCircle2 size={18} color={t.success} strokeWidth={2} />
+                <Text style={styles.emptyText}>Nothing to chase. Go build.</Text>
+              </View>
+            ) : null
           ) : (
             <View style={isDesktop ? styles.cardGrid : undefined}>
             {ranked.map((item) => {
@@ -451,7 +700,7 @@ export default function WaitingOnScreen() {
 
                   <TouchableOpacity
                     style={styles.sendBtn}
-                    onPress={() => void sendNudge(item)}
+                    onPress={() => void sendNudge(chaseHoldId(item), item.projectId, item.nudge)}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel={

@@ -24,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Plus, RefreshCw, Send, CheckCircle2, Circle,
   Mic, X, Users, Calendar, AlertTriangle, AlertCircle, Check, Clock, Upload,
+  Pencil, CalendarClock,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -44,10 +45,15 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { neutralInk } from '@/components/ui/ink';
+import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
 import {
   buildAgendaFromProjectState, mergeAgenda, generateMinutesFromTranscript,
+  collectOpenOACActions, cycleOACActionStatus, makeManualOACActionItem,
+  actionDueLabel, type OpenOACAction,
 } from '@/utils/oacEngine';
+import DatePickerModal from '@/components/DatePickerModal';
+import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import type {
@@ -77,6 +83,14 @@ const SECTION_ORDER = Object.keys(SECTION_LABELS) as OACAgendaSection[];
 // validate-storage-hygiene.ts reads every `*_KEY` const as an AsyncStorage key
 // and would report this one as an unswept storage key.)
 const OTHER_SECTION_BUCKET = '__other__';
+
+/** Status words as the pill prints them — the underscore form is a storage
+ *  detail, not something to show a PM mid-meeting. */
+const STATUS_WORD: Record<OACActionItem['status'], string> = {
+  open: 'open',
+  in_progress: 'in progress',
+  done: 'done',
+};
 
 function isKnownSection(section: string): section is OACAgendaSection {
   return Object.prototype.hasOwnProperty.call(SECTION_LABELS, section);
@@ -229,6 +243,10 @@ function OACMeetingInner() {
       const agenda = buildAgendaFromProjectState({
         project, rfis, submittals, changeOrders, dailyReports,
         schedule: project.schedule, tasks,
+        // Every earlier meeting on the job. Their still-open commitments become
+        // named agenda rows, so week 4 opens with what week 3 agreed instead of
+        // with the PM reconstructing it from memory.
+        priorMeetings: meetings,
       });
       const meeting: OACMeeting = {
         id: generateUUID(),
@@ -254,7 +272,10 @@ function OACMeetingInner() {
     } finally {
       setGeneratingAgenda(false);
     }
-  }, [project, meetings.length, ctx]);
+    // `meetings`, not `meetings.length`: the callback reads the meeting ROWS now
+    // (for the carry-forward), so a length that happens to match a stale array
+    // would hand the new agenda last week's action items.
+  }, [project, meetings, ctx]);
 
   const handleRefreshAgenda = useCallback(() => {
     if (!project || !active) return;
@@ -268,6 +289,10 @@ function OACMeetingInner() {
       const fresh = buildAgendaFromProjectState({
         project, rfis, submittals, changeOrders, dailyReports,
         schedule: project.schedule, tasks,
+        priorMeetings: meetings,
+        // This meeting's own actions are rendered in full below; carrying them
+        // onto its own agenda would print every one of them twice.
+        currentMeetingId: active.id,
       });
       const merged = mergeAgenda(active.agenda, fresh);
       ctx.updateOACMeeting?.(active.id, { agenda: merged, updatedAt: new Date().toISOString() });
@@ -275,7 +300,7 @@ function OACMeetingInner() {
     } finally {
       setGeneratingAgenda(false);
     }
-  }, [project, active, ctx]);
+  }, [project, active, meetings, ctx]);
 
   const handleToggleCovered = useCallback((itemId: string) => {
     if (!active) return;
@@ -408,7 +433,12 @@ function OACMeetingInner() {
           dueBy: a.dueBy,
           status: 'open' as const,
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           meetingId: active.id,
+          // A model's reading of "Jim will chase the landlord" is a paraphrase,
+          // not a quote. The row says where it came from so the PM can check it
+          // against the transcript before it starts chasing anyone.
+          source: 'ai' as const,
         }));
       ctx.updateOACMeeting?.(active.id, {
         minutes: result.body,
@@ -468,6 +498,246 @@ function OACMeetingInner() {
       setDistributing(false);
     }
   }, [active, project, ctx]);
+
+  // ─── Action items — closeable, editable, and visible across meetings ──
+  //
+  // Before this, an OACActionItem was write-only: minted by the AI from the
+  // transcript, rendered in a plain <View> with no handler, and scoped to the one
+  // meeting that created it. Nothing could mark one done and nothing outside that
+  // meeting ever read it. On a fit-out those rows are the ONLY record the app
+  // holds for the owner, architect, landlord and building engineer, so losing
+  // them loses the four parties the PM most needs to chase.
+
+  /** Editor target: a new item on this meeting, or an existing one anywhere. */
+  const [actionEditor, setActionEditor] = useState<
+    | { mode: 'add' }
+    | { mode: 'edit'; meetingId: string; actionId: string }
+    | null
+  >(null);
+  const [actionDraftDesc, setActionDraftDesc] = useState('');
+  const [actionDraftOwner, setActionDraftOwner] = useState('');
+  const [actionDraftDue, setActionDraftDue] = useState('');
+  const [showDuePicker, setShowDuePicker] = useState(false);
+
+  /**
+   * Rewrite one action inside whichever meeting owns it. Carried-forward rows are
+   * shown on THIS meeting but belong to an earlier one, so the write has to be
+   * addressed by meetingId — writing to `active` would silently fork a copy and
+   * leave the original open forever.
+   */
+  const writeAction = useCallback((meetingId: string, actionId: string, mutate: (a: OACActionItem) => OACActionItem) => {
+    const owner = meetings.find(m => m.id === meetingId);
+    if (!owner) return;
+    const next = (owner.actionItems ?? []).map(a => (a.id === actionId ? mutate(a) : a));
+    ctx.updateOACMeeting?.(meetingId, { actionItems: next, updatedAt: new Date().toISOString() });
+  }, [meetings, ctx]);
+
+  const handleCycleAction = useCallback((meetingId: string, actionId: string) => {
+    writeAction(meetingId, actionId, a => cycleOACActionStatus(a));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+  }, [writeAction]);
+
+  const openAddAction = useCallback(() => {
+    setActionDraftDesc('');
+    setActionDraftOwner('');
+    setActionDraftDue('');
+    setActionEditor({ mode: 'add' });
+  }, []);
+
+  const openEditAction = useCallback((meetingId: string, a: OACActionItem) => {
+    setActionDraftDesc(a.description);
+    setActionDraftOwner(a.ballInCourt);
+    setActionDraftDue(a.dueBy ?? '');
+    setActionEditor({ mode: 'edit', meetingId, actionId: a.id });
+  }, []);
+
+  const handleSaveAction = useCallback(() => {
+    if (!active || !actionEditor) return;
+    const description = actionDraftDesc.trim();
+    const ballInCourt = actionDraftOwner.trim();
+    if (!description || !ballInCourt) {
+      showAlert(
+        'Needs both halves',
+        'An action item is what is owed AND who owes it. Next week\'s meeting checks both, so neither can be blank.',
+      );
+      return;
+    }
+    const dueBy = actionDraftDue.trim() || undefined;
+    if (actionEditor.mode === 'add') {
+      const item = makeManualOACActionItem({ description, ballInCourt, dueBy, meetingId: active.id });
+      ctx.updateOACMeeting?.(active.id, {
+        actionItems: [...(active.actionItems ?? []), item],
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      writeAction(actionEditor.meetingId, actionEditor.actionId, a => ({
+        ...a, description, ballInCourt, dueBy, updatedAt: new Date().toISOString(),
+      }));
+    }
+    setActionEditor(null);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+  }, [active, actionEditor, actionDraftDesc, actionDraftOwner, actionDraftDue, ctx, writeAction]);
+
+  /**
+   * Still-open actions from the project's OTHER meetings, with the clock already
+   * resolved. Listed under this meeting's own so last Thursday's commitment can be
+   * closed in this Thursday's meeting — which is the whole point of a standing
+   * weekly.
+   */
+  const carriedActions: OpenOACAction[] = useMemo(
+    () => collectOpenOACActions(meetings, { excludeMeetingId: active?.id }),
+    [meetings, active?.id],
+  );
+
+  /**
+   * One action row. `meetingId` is the meeting that OWNS the row (not always the
+   * one on screen); `origin` is present only for a carried-forward row, and
+   * carries the resolved clock so the sub-line can say "3 days overdue" or
+   * "no due date agreed" instead of printing a bare date and leaving the reader
+   * to do the arithmetic.
+   *
+   * A plain render helper, not a component: it is called, never mounted, so React
+   * cannot remount the TextInput-free subtree between keystrokes elsewhere.
+   */
+  const renderActionRow = (a: OACActionItem, meetingId: string, origin?: OpenOACAction) => {
+    const meta = origin
+      ? `${a.ballInCourt} · ${actionDueLabel(origin)} · OAC #${origin.meetingNumber}`
+      : `${a.ballInCourt} · ${a.dueBy
+          ? `Due ${formatCalendarDay(calendarDayOf(a.dueBy)) || a.dueBy}`
+          : 'No due date agreed'}`;
+    return (
+      <View key={a.id} style={styles.actionRow}>
+        <TouchableOpacity
+          style={styles.actionMain}
+          onPress={() => openEditAction(meetingId, a)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit action item: ${a.description}`}
+          testID={`oac-action-edit-${a.id}`}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.actionDesc, a.status === 'done' && styles.actionDescDone]}>
+              {a.description}
+            </Text>
+            <Text style={styles.actionMeta}>{meta}</Text>
+            {a.source === 'ai' ? (
+              // Grounding, not decoration: an extracted commitment is the model's
+              // reading of the room, and the PM gets told which rows those are.
+              <Text style={styles.actionSource}>From transcript</Text>
+            ) : null}
+          </View>
+          <Pencil size={13} color={themeColors.textMuted} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.actionStatus,
+            a.status === 'in_progress' && styles.actionStatusProgress,
+            a.status === 'done' && styles.actionStatusDone,
+          ]}
+          onPress={() => handleCycleAction(meetingId, a.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Status: ${STATUS_WORD[a.status]}. Tap to advance.`}
+          hitSlop={8}
+          testID={`oac-action-status-${a.id}`}
+        >
+          <Text style={[
+            styles.actionStatusText,
+            a.status === 'in_progress' && styles.actionStatusTextProgress,
+            a.status === 'done' && styles.actionStatusTextDone,
+          ]}>
+            {STATUS_WORD[a.status]}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  /**
+   * The add/edit form. Extracted so it can render inside WHICHEVER card owns the
+   * row being edited — a carried-forward action lives in the second card, and a
+   * form that always appeared in the first one would open off-screen.
+   */
+  const renderActionEditor = () => (
+    <View style={styles.actionEditor}>
+      <Text style={styles.actionEditorTitle}>
+        {actionEditor?.mode === 'add' ? 'New action item' : 'Edit action item'}
+      </Text>
+      <Text style={styles.attendeeFieldLabel}>What is owed *</Text>
+      <TextInput
+        style={styles.attendeeInput}
+        value={actionDraftDesc}
+        onChangeText={setActionDraftDesc}
+        placeholder="e.g. Owner to approve the terrace radiant scope"
+        placeholderTextColor={themeColors.textMuted}
+        multiline
+        testID="oac-action-desc"
+      />
+      <Text style={styles.attendeeFieldLabel}>Who owes it *</Text>
+      <TextInput
+        style={styles.attendeeInput}
+        value={actionDraftOwner}
+        onChangeText={setActionDraftOwner}
+        // Free text on purpose: the four parties this captures — owner,
+        // architect, landlord, building engineer — are not Contacts,
+        // subs or users anywhere in the app. Typed as said in the room.
+        placeholder="e.g. Owner / Sarah Chen, AIA / Building engineer"
+        placeholderTextColor={themeColors.textMuted}
+        testID="oac-action-owner"
+      />
+      <Text style={styles.attendeeFieldLabel}>Due by (optional)</Text>
+      <TouchableOpacity
+        style={styles.actionDueBtn}
+        onPress={() => setShowDuePicker(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Pick a due date"
+        testID="oac-action-due"
+      >
+        <CalendarClock size={15} color={themeColors.accent} strokeWidth={1.75} />
+        <Text style={styles.actionDueBtnText}>
+          {actionDraftDue
+            ? formatCalendarDay(calendarDayOf(actionDraftDue)) || actionDraftDue
+            : 'No date agreed'}
+        </Text>
+        {actionDraftDue ? (
+          <TouchableOpacity
+            onPress={() => setActionDraftDue('')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Clear the due date"
+          >
+            <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        ) : null}
+      </TouchableOpacity>
+      <Text style={styles.actionDueHint}>
+        Leave it blank if the room never agreed one — MAGE chases an undated item once it has sat a full week rather than inventing a deadline nobody gave.
+      </Text>
+      <View style={styles.actionEditorBtns}>
+        <TouchableOpacity
+          style={styles.actionCancelBtn}
+          onPress={() => setActionEditor(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+        >
+          <Text style={styles.actionCancelBtnText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionSaveBtn}
+          onPress={handleSaveAction}
+          accessibilityRole="button"
+          accessibilityLabel="Save action item"
+          testID="oac-action-save"
+        >
+          <Check size={15} color="#fff" strokeWidth={2} />
+          <Text style={styles.primaryBtnText}>Save</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  /** True when the open editor belongs to THIS meeting's card — a new item, or
+   *  an edit of one of its own rows — rather than to the carried-forward card. */
+  const editorOnThisMeeting = !!actionEditor && (actionEditor.mode === 'add' || actionEditor.meetingId === activeId);
 
   // The agenda, bucketed for display. Every item is in exactly one bucket —
   // see groupAgendaBySection — and the "n of m covered" caption below counts
@@ -734,31 +1004,72 @@ function OACMeetingInner() {
             )}
           </View>
 
-          {/* Action items */}
-          {active.actionItems.length > 0 && (
+          {/* Action items — always rendered, even empty. The card used to be
+              gated on `actionItems.length > 0`, so a PM whose only producer was
+              the AI merge (which needs a 50+ character recorded transcript) never
+              saw it at all and had no way in. */}
+          <View style={styles.card}>
+            <View style={styles.cardHead}>
+              <CheckCircle2 size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.cardLabel}>Action items ({active.actionItems.length})</Text>
+            </View>
+            <Text style={styles.cardHelper}>
+              Who owes what out of this meeting. Tap a status to advance it — open, in progress, done. Tap the text to edit it.
+            </Text>
+
+            {active.actionItems.length === 0 ? (
+              <Text style={styles.emptyHint}>
+                Nothing recorded yet. Generate minutes from a recording to pull commitments out of the transcript, or add one by hand.
+              </Text>
+            ) : (
+              active.actionItems.map(a => renderActionRow(a, active.id))
+            )}
+
+            {editorOnThisMeeting ? renderActionEditor() : (
+              <TouchableOpacity
+                style={styles.smallBtn}
+                onPress={openAddAction}
+                accessibilityRole="button"
+                accessibilityLabel="Add action item"
+                testID="oac-add-action"
+              >
+                <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.smallBtnText}>Add action item</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Still open from earlier meetings. These belong to another meeting
+              record — the write is addressed by its id — but they are shown and
+              closeable HERE, because the standing weekly is where last week's
+              commitments get checked. */}
+          {carriedActions.length > 0 ? (
             <View style={styles.card}>
               <View style={styles.cardHead}>
-                <CheckCircle2 size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.cardLabel}>Action items ({active.actionItems.length})</Text>
+                <Clock size={16} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.cardLabel}>
+                  Still open from earlier meetings ({carriedActions.length})
+                </Text>
               </View>
-              {active.actionItems.map(a => (
-                <View key={a.id} style={styles.actionRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.actionDesc}>{a.description}</Text>
-                    <Text style={styles.actionMeta}>
-                      Owner: {a.ballInCourt}{a.dueBy ? ` · Due ${new Date(a.dueBy).toLocaleDateString()}` : ''}
-                    </Text>
-                  </View>
-                  <View style={[styles.actionStatus, a.status === 'done' && styles.actionStatusDone]}>
-                    <Text style={[styles.actionStatusText, a.status === 'done' && styles.actionStatusTextDone]}>
-                      {a.status.replace('_', ' ')}
-                    </Text>
-                  </View>
-                </View>
-              ))}
+              <Text style={styles.cardHelper}>
+                Carried forward from OAC meetings on this project. Close one here and it closes in the meeting that raised it.
+              </Text>
+              {carriedActions.map(o => renderActionRow(o.action, o.meetingId, o))}
+              {actionEditor && !editorOnThisMeeting ? renderActionEditor() : null}
             </View>
-          )}
+          ) : null}
         </ScrollView>
+
+        <DatePickerModal
+          visible={showDuePicker}
+          value={actionDraftDue}
+          title="Due by"
+          // Action items are commitments for NEXT week — a due date in the future
+          // is the normal case, not the exception.
+          allowFuture
+          onClose={() => setShowDuePicker(false)}
+          onChange={iso => { setActionDraftDue(iso); setShowDuePicker(false); }}
+        />
 
         {/* Add-attendee modal — cross-platform replacement for Alert.prompt.
             Name required, email optional (needed only for minutes distribution). */}
@@ -1128,15 +1439,56 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: t.line,
     gap: 10,
   },
+  actionMain: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
   actionDesc: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  actionDescDone: { color: t.textMuted, textDecorationLine: 'line-through' as const },
   actionMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  actionSource: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const, marginTop: 3 },
   actionStatus: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.warning + '15',
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: Tokens.radius.full,
+    // Soft/label pairs, not raw signal hues: `warningSoft` is the tint that
+    // `warningLabel` is contrast-checked against in both themes
+    // (validate-theme-surface-pairs).
+    backgroundColor: t.warningSoft,
+    borderWidth: 1, borderColor: t.warningLabel + '30',
   },
-  actionStatusDone: { backgroundColor: t.success + '15' },
-  actionStatusText: { fontSize: 10, fontWeight: '700' as const, color: Colors.warningLabel, letterSpacing: 0.3, textTransform: 'uppercase' as const },
-  actionStatusTextDone: { color: t.success },
+  actionStatusProgress: { backgroundColor: t.accentSoft, borderColor: t.accentLabel + '30' },
+  actionStatusDone: { backgroundColor: t.successSoft, borderColor: t.successLabel + '30' },
+  actionStatusText: { fontSize: 10, fontWeight: '700' as const, color: t.warningLabel, letterSpacing: 0.3, textTransform: 'uppercase' as const },
+  actionStatusTextProgress: { color: t.accentLabel },
+  actionStatusTextDone: { color: t.successLabel },
+
+  // Inline add / edit form. Inline rather than a Modal because the due-date
+  // picker is itself a Modal, and stacking two on iOS is the kind of thing that
+  // works until it doesn't.
+  actionEditor: {
+    marginTop: 10, padding: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
+  },
+  actionEditorTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  actionDueBtn: {
+    // cardSurface, not a hand-rolled surface recipe (validate-ui-adoption):
+    // pad 'none' because this row sets its own asymmetric padding.
+    ...cardSurface(t, { radius: 'md', pad: 'none' }),
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  actionDueBtnText: { flex: 1, fontSize: Type.subhead.fontSize, color: t.text },
+  actionDueHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 6 },
+  actionEditorBtns: { flexDirection: 'row' as const, gap: 10, marginTop: 14 },
+  actionCancelBtn: {
+    flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const,
+    paddingVertical: 12, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line,
+  },
+  actionCancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.textSecondary },
+  actionSaveBtn: {
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
+    gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accentFill,
+  },
 
   uploadAudioBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,

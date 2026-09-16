@@ -12,7 +12,7 @@ import {
   Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
   ScanSearch,
-  CalendarClock, ChevronDown, Link2, Minus,
+  CalendarClock, ChevronDown, Link2, Minus, ShieldAlert,
 } from 'lucide-react-native';
 import { MageAIMark, MageDailyReport } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -70,6 +70,16 @@ import { mageAI } from '@/utils/mageAI';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { showAlert } from '@/utils/alert';
+import { useSafety } from '@/contexts/SafetyContext';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  buildSafetyIncidentFromDfr, describeRecordability, safetyIncidentIdForReport,
+  DFR_INCIDENT_TYPE_LABEL, DFR_TREATMENT_LABEL,
+  type IncidentClassInput, type IncidentType, type Treatment,
+} from '@/utils/safety/osha';
+import {
+  backfilledWeatherNotice, canReadLiveWeatherFor, weatherProvenanceLine,
+} from '@/utils/weatherService';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -200,6 +210,47 @@ const EMPTY_DFR_INCIDENT: IncidentReport = {
   reportedBy: '',
 };
 
+/**
+ * The OSHA determination inputs the DFR never asked for.
+ *
+ * DFR-OSHA-BRIDGE. The block used to ask the super to self-certify "OSHA
+ * recordable" with a checkbox — a determination that turns on days away,
+ * restricted duty, loss of consciousness and medical-beyond-first-aid, and the
+ * one thing on this screen the app is better placed to answer than he is
+ * (utils/safety/osha.ts has been the 1904 classifier all along, unit-tested,
+ * two imports away, and unused). These are what that classifier needs.
+ *
+ * `type` matters more than the four toggles: isOshaRecordable branches on it
+ * FIRST, and the DFR's single five-value `severity` cannot supply it — the
+ * register's `type` and `severity` are orthogonal and share only the literal
+ * 'critical'. Inferring it would quietly mark genuine near-misses as candidate
+ * 300 cases.
+ *
+ * Day counts are held as strings because they are TextInputs; the classifier
+ * gets parsed numbers.
+ */
+interface DfrIncidentClass {
+  type: IncidentType;
+  treatment: Treatment;
+  daysAway: string;
+  /** OSHA 300 column L — calendar days on restriction/transfer. Distinct from
+   *  the restrictedDuty flag, which only records that a restriction happened. */
+  daysRestricted: string;
+  restrictedDuty: boolean;
+  lostConsciousness: boolean;
+  fatality: boolean;
+}
+
+const EMPTY_DFR_INCIDENT_CLASS: DfrIncidentClass = {
+  type: 'injury',
+  treatment: 'none',
+  daysAway: '',
+  daysRestricted: '',
+  restrictedDuty: false,
+  lostConsciousness: false,
+  fatality: false,
+};
+
 // --- BEGIN dfrDraft ---
 // scripts/validate-field-capture.ts extracts everything between these
 // sentinels, transpiles it and runs the REAL functions. This file is an Expo
@@ -228,6 +279,10 @@ interface DfrDraftContent {
   issuesAndDelays: string;
   photos: DFRPhoto[];
   incident: IncidentReport;
+  /** OPTIONAL so a draft written before DFR-OSHA-BRIDGE shipped still restores
+   *  instead of being discarded by the `v` check — an old draft simply has no
+   *  determination inputs yet, which is the same as not having answered them. */
+  incidentClass?: DfrIncidentClass;
   homeownerSummary: string;
 }
 
@@ -287,6 +342,18 @@ function dfrDraftSignature(c: DfrDraftContent): string {
       c.incident?.oshaRecordable ?? false,
       (c.incident?.correctiveAction ?? '').trim(),
       (c.incident?.reportedBy ?? '').trim(),
+    ],
+    // The OSHA determination inputs are unsaved work like anything else — a
+    // super who ticks "lost consciousness" and drops his phone must not get the
+    // report back with that answer missing.
+    [
+      c.incidentClass?.type ?? '',
+      c.incidentClass?.treatment ?? '',
+      (c.incidentClass?.daysAway ?? '').trim(),
+      (c.incidentClass?.daysRestricted ?? '').trim(),
+      c.incidentClass?.restrictedDuty ?? false,
+      c.incidentClass?.lostConsciousness ?? false,
+      c.incidentClass?.fatality ?? false,
     ],
     (c.homeownerSummary ?? '').trim(),
   ]);
@@ -428,6 +495,14 @@ export default function DailyReportScreen() {
     // Subcontractor.trade, which is a four-value coarse enum.
     subcontractors,
   } = useProjects();
+  // DFR-OSHA-BRIDGE — an injury written on the daily report has to land on the
+  // safety register, or it never reaches the OSHA 300 that gets pulled months
+  // later for an insurance renewal or a prequal.
+  const { incidents: safetyIncidents, addIncident, updateIncident } = useSafety();
+  const { user } = useAuth();
+  /** Who filed it. The register requires a reporter; SafetyContext defaults
+   *  this on insert but not on update, so resolve it here for both paths. */
+  const incidentAuthor = ((user?.name && user.name.trim()) || user?.email || '').trim();
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -441,7 +516,11 @@ export default function DailyReportScreen() {
   // every flagged item and the leak-CO draft goes out with blanks.
   const { seeds } = useCostSeeds();
   const { tier } = useSubscription();
-  const { isFree } = useTierAccess();
+  // `canAccess` as well as `isFree`: the Incidents log and the OSHA 300 are
+  // Business surfaces, but the case a super files from this screen is written at
+  // ANY tier (SafetyContext is not gated). So the chip below has to tell the
+  // truth in both directions — the record is safe, the VIEW of it is not free.
+  const { isFree, canAccess } = useTierAccess();
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [showVoiceBanner, setShowVoiceBanner] = useState(false);
   const [voiceLimit, setVoiceLimit] = useState<LimitCheck | null>(null);
@@ -550,6 +629,11 @@ export default function DailyReportScreen() {
   const delayScanBusyRef = useRef<boolean>(false);
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
   const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? EMPTY_DFR_INCIDENT);
+  const [incidentClass, setIncidentClass] = useState<DfrIncidentClass>(EMPTY_DFR_INCIDENT_CLASS);
+  // True once the determination inputs have been seeded from somewhere (the
+  // register case this report already filed, or a restored draft), so a later
+  // context re-render cannot overwrite what the super has since typed.
+  const incidentClassSeededRef = useRef(false);
   const [showManpowerModal, setShowManpowerModal] = useState(false);
   // Which crew row the modal is EDITING. null = the modal is adding a new one.
   // Before this existed, correcting "4 framers" to 3 meant trash → confirm
@@ -609,6 +693,56 @@ export default function DailyReportScreen() {
     () => dfrDraftKey(projectId ?? '', existingReport?.id),
     [projectId, existingReport?.id],
   );
+  // ─── DFR-OSHA-BRIDGE ──────────────────────────────────────────────────
+  // The safety register case this report owns.
+  //
+  // The id is DERIVED from the report's id rather than stored on it, because
+  // IncidentReport has nowhere to put a foreign key and adding one would mean
+  // two copies of the OSHA determination inputs drifting apart. Deriving it
+  // buys three things: re-saving the report UPDATES its case instead of filing
+  // a duplicate on every tap of Save, closing and reopening the report finds
+  // the case again, and the register stays the single home for the fields the
+  // DFR type cannot carry (treatment, day counts, restriction, consciousness,
+  // fatality) — which is where they belong, since that is what the OSHA 300
+  // reads. See safetyIncidentIdForReport for why the derivation is collision-free.
+  const dfrCaseId = useMemo(() => safetyIncidentIdForReport(stableReportId), [stableReportId]);
+  const linkedIncident = useMemo(
+    () => safetyIncidents.find(i => i.id === dfrCaseId) ?? null,
+    [safetyIncidents, dfrCaseId],
+  );
+  // Seed the determination inputs from the case this report already filed.
+  // Guarded by a ref rather than by a dependency list because SafetyContext
+  // re-renders on every write in the app, and without the guard a save would
+  // immediately reset the pickers the super had just moved.
+  useEffect(() => {
+    if (incidentClassSeededRef.current || !linkedIncident) return;
+    incidentClassSeededRef.current = true;
+    setIncidentClass({
+      type: linkedIncident.type,
+      treatment: linkedIncident.treatment,
+      daysAway: linkedIncident.daysAway > 0 ? String(linkedIncident.daysAway) : '',
+      daysRestricted: linkedIncident.daysRestricted > 0 ? String(linkedIncident.daysRestricted) : '',
+      restrictedDuty: linkedIncident.restrictedDuty,
+      lostConsciousness: linkedIncident.lostConsciousness,
+      fatality: linkedIncident.fatality,
+    });
+  }, [linkedIncident]);
+
+  /** What the 1904 classifier actually gets. Day counts are floored at 0 —
+   *  a typed "-2" is a typo, not two negative days away. */
+  const incidentClassInput = useMemo<IncidentClassInput>(() => ({
+    type: incidentClass.type,
+    treatment: incidentClass.treatment,
+    daysAway: Math.max(0, parseInt(incidentClass.daysAway, 10) || 0),
+    restrictedDuty: incidentClass.restrictedDuty,
+    lostConsciousness: incidentClass.lostConsciousness,
+    fatality: incidentClass.fatality,
+  }), [incidentClass]);
+  /** The computed answer, with the criterion that decided it. Replaces the
+   *  self-ticked "OSHA recordable" checkbox — the app shows its work instead
+   *  of asking him to certify a determination he has no reference for. */
+  const recordability = useMemo(() => describeRecordability(incidentClassInput), [incidentClassInput]);
+
   // "Save copy to project files" toggle in the Send modal — when on,
   // the rendered HTML report is uploaded as a PDF to the project's
   // documents bucket so it shows up in the shared-drive view.
@@ -709,6 +843,29 @@ export default function DailyReportScreen() {
     return carrySourceDayLabel(lastReport.date, parseCalendarDay(carryLabelDay) ?? new Date());
   }, [lastReport, carryLabelDay]);
 
+  // ─── DFR-WEATHER-DAY ──────────────────────────────────────────────────
+  // "Is this report's date today?" — the one question the weather path never
+  // asked. Keyed on `carryLabelDay` rather than on a fresh `new Date()` so the
+  // answer is re-read when the screen refocuses (a phone left on a truck dash
+  // overnight crosses midnight without re-rendering), which is the same
+  // staleness DFR-CARRY-LABEL was bitten by.
+  const reportIsToday = useMemo(
+    () => canReadLiveWeatherFor(calendarDayOf(reportDate), carryLabelDay),
+    [reportDate, carryLabelDay],
+  );
+  /** "Mon, Sep 14" — the day the notice and the alert name. */
+  const reportDayLabel = useMemo(
+    () => formatCalendarDay(calendarDayOf(reportDate) ?? '', { weekday: 'short', month: 'short', day: 'numeric' })
+      || 'that day',
+    [reportDate],
+  );
+  /** Live value of reportDate for the in-flight fetch's re-check — state read
+   *  inside an awaited callback is the value from the render that started it. */
+  const reportDateRef = useRef(reportDate);
+  useEffect(() => { reportDateRef.current = reportDate; }, [reportDate]);
+  /** When the reading in the block was taken, if it was taken in this session. */
+  const [weatherReadAt, setWeatherReadAt] = useState<Date | null>(null);
+
   // Progress meter — "X of 5 sections filled". Five tracked items because
   // five is what a contractor can hold in their head: weather, crew, work
   // performed, materials, photos. Issues + incident don't count toward
@@ -734,6 +891,31 @@ export default function DailyReportScreen() {
   // undefined by luck rather than by design.
   const fetchWeather = useCallback(async (opts?: { auto?: boolean }) => {
     if (!project?.location) return;
+    // DFR-WEATHER-DAY. wttr.in answers `current_condition` — the sky RIGHT NOW.
+    // Nothing in this path used to look at the report's date, so a Monday report
+    // filed Tuesday morning carried Tuesday's sky stamped `isManual: false`, the
+    // flag that means "fetched, not typed". Weather is the first thing anyone
+    // checks when a delay is argued and the one field trivially falsifiable
+    // against public records, so a wrong-day reading does not just lose that
+    // day — it invites the other side to question the whole binder.
+    //
+    // The guard lives HERE rather than on the date picker's onChange because the
+    // picker is not the only path to a wrong day: the mount effect below is
+    // gated only on `!existingReport`, so an unsaved draft started Monday and
+    // reopened Wednesday would re-fetch Wednesday's sky with no user action at
+    // all, and the Auto-fetch button takes this same path.
+    //
+    // Calendar days, not instants: reportDate is seeded as an ISO instant and
+    // this file twice annotates that it is not a calendar day. A naive
+    // comparison misclassifies an evening-filed report near midnight, which is
+    // the bug wearing a different hat.
+    const requestedDay = calendarDayOf(reportDate);
+    if (!canReadLiveWeatherFor(requestedDay, todayCalendarDay())) {
+      if (opts?.auto !== true) {
+        showAlert('No past weather', backfilledWeatherNotice(reportDayLabel));
+      }
+      return;
+    }
     setWeatherLoading(true);
     try {
       const location = encodeURIComponent(project.location);
@@ -743,7 +925,11 @@ export default function DailyReportScreen() {
       if (response.ok) {
         const data = await response.json();
         const current = data?.current_condition?.[0];
-        if (current) {
+        // The date can move while the request is in flight — the mount fetch
+        // fires before the super has touched anything, and backfilling is the
+        // first thing he does. Re-check against the day this read was FOR, or
+        // the answer lands on a report it was never asked for.
+        if (current && calendarDayOf(reportDateRef.current) === requestedDay) {
           const fetched: DFRWeather = {
             temperature: `${current.temp_F}°F / ${current.temp_C}°C`,
             conditions: current.weatherDesc?.[0]?.value ?? 'Unknown',
@@ -751,6 +937,11 @@ export default function DailyReportScreen() {
             isManual: false,
           };
           setWeather(fetched);
+          // The clock time of the read, so the provenance chip can say when.
+          // Session-only: DFRWeather has no room for it and inventing a
+          // persisted timestamp for a reading restored from disk would be the
+          // same class of lie this guard exists to stop.
+          setWeatherReadAt(new Date());
           // Fold an unattended fetch into the unsaved-work baseline, or the
           // screen reports itself as edited before the super has typed a word.
           if (opts?.auto === true) setAutoFilled(p => ({ ...p, weather: fetched }));
@@ -775,7 +966,7 @@ export default function DailyReportScreen() {
     } finally {
       setWeatherLoading(false);
     }
-  }, [project?.location]);
+  }, [project?.location, reportDate, reportDayLabel]);
 
   useEffect(() => {
     if (!existingReport && project?.location) {
@@ -783,6 +974,45 @@ export default function DailyReportScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // DFR-WEATHER-DAY, second half. Backfilling is a DATE CHANGE on a report that
+  // already auto-filled with today's sky, so blocking the fetch is not enough —
+  // the wrong reading is already in the block. Clear it and let the notice below
+  // say why, rather than leaving this morning's 72°F sitting under last Monday's
+  // date with the "fetched" flag on it.
+  //
+  // Only ever clears a reading the SCREEN fetched (`isManual === false`) on a
+  // report that is not yet saved. Typed weather is the super's own answer about
+  // that day and is never touched, and a saved record is not rewritten on open:
+  // wiping stored evidence because the app now knows better is destructive, so a
+  // legacy report gets the caveat in its provenance line instead.
+  useEffect(() => {
+    if (reportIsToday || existingReport) return;
+    if (weather.isManual) return;
+    if (!weather.temperature && !weather.conditions && !weather.wind) return;
+    setWeather(EMPTY_DFR_WEATHER);
+    setWeatherReadAt(null);
+    // Keep the unsaved-work baseline in step, or clearing the app's own guess
+    // reads as the super having edited the report.
+    setAutoFilled(p => ({ ...p, weather: EMPTY_DFR_WEATHER }));
+  }, [reportIsToday, existingReport, weather.isManual, weather.temperature, weather.conditions, weather.wind]);
+
+  /** The honesty chip under the weather block. `isManual` was WRITE-ONLY before
+   *  this — nothing in the repo read it — so flipping the flag alone changed
+   *  nothing anyone could see. */
+  const weatherProvenance = useMemo(() => weatherProvenanceLine({
+    isManual: weather.isManual,
+    reportIsToday,
+    hasValue: Boolean(weather.temperature || weather.conditions || weather.wind),
+    // Printed verbatim: project.location legitimately defaults to the literal
+    // "United States" on projects created through the estimate wizard, and a
+    // chip reading 'read for United States' exposes that rather than hiding it
+    // behind three confident-looking values.
+    location: project?.location ?? '',
+    readAtLabel: weatherReadAt
+      ? weatherReadAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      : undefined,
+  }), [weather, reportIsToday, project?.location, weatherReadAt]);
 
   // Pre-fill manpower from today's scheduled tasks. The schedule already
   // tracks who's assigned (`assignedSubName` or free-text `crew`) per task
@@ -1600,8 +1830,60 @@ export default function DailyReportScreen() {
           correctiveAction: (incident.correctiveAction ?? '').trim(),
           reportedBy: (incident.reportedBy ?? '').trim(),
           reportedAt: incident.reportedAt ?? now,
+          // Derived, never self-certified. The three booleans on IncidentReport
+          // are now outputs of the classifier rather than checkboxes: the super
+          // answers what happened (type, treatment, days, restriction) and the
+          // app answers whether 1904 records it.
+          injuriesReported: incidentClassInput.type === 'injury',
+          medicalTreatment: incidentClassInput.treatment === 'medical_beyond_first_aid',
+          oshaRecordable: recordability.recordable,
         }
       : undefined;
+
+    // DFR-OSHA-BRIDGE. The register case, written alongside the report — one
+    // record, two views, no re-entry. Before this, `DailyFieldReport.incident`
+    // had exactly one consumer in the whole repo (utils/oacEngine.ts, which
+    // turns it into a meeting talking point), so an injury written here was
+    // invisible to app/safety-incidents.tsx and to buildOsha300Log, and the
+    // OSHA 300 screen's own empty state told him to go type it a second time
+    // from memory.
+    //
+    // The case is written on EVERY save, draft included: a draft daily report is
+    // still a contemporaneous record of an injury, and holding the case back
+    // until he taps Send is how it goes missing. The write goes through
+    // SafetyContext (and therefore through supabaseWrite / the offline queue),
+    // which is not tier-gated — the record he typed is his at any tier, even
+    // though the Incidents log and the OSHA 300 export are Business surfaces.
+    if (incident.hasIncident && projectId) {
+      const caseRecord = buildSafetyIncidentFromDfr({
+        reportId: stableReportId,
+        projectId,
+        // The day the report is FOR, not "now" — a backfilled report must not
+        // file its case against today, or the 300 carries the wrong date and
+        // the year filter drops it into the wrong log year.
+        occurredOn: calendarDayOf(reportDate) ?? reportDate.slice(0, 10),
+        severity: incident.severity,
+        description: (incident.description ?? '').trim(),
+        peopleInvolved: (incident.peopleInvolved ?? '').trim(),
+        correctiveAction: (incident.correctiveAction ?? '').trim(),
+        reportedBy: (incident.reportedBy ?? '').trim(),
+        // SafetyIncident.location is required and the DFR has no location field.
+        // The project's own site address stands in; an empty one stays empty
+        // rather than being invented.
+        location: project?.location ?? '',
+        photoUrls: photos.map(p => p.uri),
+        classification: incidentClassInput,
+        daysRestricted: Math.max(0, parseInt(incidentClass.daysRestricted, 10) || 0),
+        author: incidentAuthor,
+        now,
+        existingCreatedAt: linkedIncident?.createdAt,
+        // A case the safety manager has already moved to 'investigating' must
+        // not snap back to 'open' because the super fixed a typo in the report.
+        existingStatus: linkedIncident?.status,
+      });
+      if (linkedIncident) updateIncident(caseRecord.id, caseRecord);
+      else addIncident(caseRecord);
+    }
 
     if (savedRecord) {
       updateDailyReport(savedRecord.id, {
@@ -1690,7 +1972,9 @@ export default function DailyReportScreen() {
     // whose timer is cancelled by the navigation on the next line.
     void AsyncStorage.removeItem(draftKey).catch(() => {});
     if (!silent) router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, draftKey]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, draftKey,
+      incidentClassInput, incidentClass.daysRestricted, recordability.recordable, linkedIncident,
+      addIncident, updateIncident, incidentAuthor, project?.location]);
 
   /**
    * "Log this as a delay event" — hand the register what this screen already
@@ -2030,9 +2314,9 @@ export default function DailyReportScreen() {
   /** The report as it exists RIGHT NOW in the form. */
   const draftContent = useMemo<DfrDraftContent>(() => ({
     reportDate, weather, manpower, workPerformed, workProgress,
-    materialsDelivered, issuesAndDelays, photos, incident, homeownerSummary,
+    materialsDelivered, issuesAndDelays, photos, incident, incidentClass, homeownerSummary,
   }), [reportDate, weather, manpower, workPerformed, workProgress,
-    materialsDelivered, issuesAndDelays, photos, incident, homeownerSummary]);
+    materialsDelivered, issuesAndDelays, photos, incident, incidentClass, homeownerSummary]);
 
   /**
    * The report as it exists on disk. Derived from `existingReport` rather than
@@ -2057,8 +2341,21 @@ export default function DailyReportScreen() {
     issuesAndDelays: existingReport?.issuesAndDelays ?? '',
     photos: existingReport?.photos ?? [],
     incident: existingReport?.incident ?? EMPTY_DFR_INCIDENT,
+    // The determination inputs live on the register case, not on the report, so
+    // the saved baseline is whatever the case says — otherwise opening a report
+    // that already filed a case reads as dirty the moment the pickers hydrate
+    // from it, which is the cry-wolf prompt DFR-DIRTY-AUTOFILL exists to avoid.
+    incidentClass: linkedIncident ? {
+      type: linkedIncident.type,
+      treatment: linkedIncident.treatment,
+      daysAway: linkedIncident.daysAway > 0 ? String(linkedIncident.daysAway) : '',
+      daysRestricted: linkedIncident.daysRestricted > 0 ? String(linkedIncident.daysRestricted) : '',
+      restrictedDuty: linkedIncident.restrictedDuty,
+      lostConsciousness: linkedIncident.lostConsciousness,
+      fatality: linkedIncident.fatality,
+    } : EMPTY_DFR_INCIDENT_CLASS,
     homeownerSummary: existingReport?.homeownerSummary ?? '',
-  }), [existingReport, autoFilled]);
+  }), [existingReport, autoFilled, linkedIncident]);
 
   const isDirty = useMemo(
     () => isDfrDirty(draftContent, savedSignature),
@@ -2145,6 +2442,10 @@ export default function DailyReportScreen() {
                 setIssuesAndDelays(draft.issuesAndDelays ?? '');
                 setPhotos(draft.photos ?? []);
                 setIncident(draft.incident ?? EMPTY_DFR_INCIDENT);
+                // Mark seeded either way: a restore is the super's answer about
+                // this report, and the register-case effect must not overwrite it.
+                incidentClassSeededRef.current = true;
+                setIncidentClass(draft.incidentClass ?? EMPTY_DFR_INCIDENT_CLASS);
                 setHomeownerSummary(draft.homeownerSummary ?? '');
                 nailIt('Restored your unsaved report.');
               },
@@ -2294,7 +2595,12 @@ export default function DailyReportScreen() {
                   // preview card so the GC can verify before saving.
                   const populated: typeof voiceParsed = {};
                   if (parsed.weather && !weather.temperature) {
-                    setWeather(parsed.weather);
+                    // isManual TRUE: dictated weather is the super's own account
+                    // of the day, not a reading from a weather service. The
+                    // parser defaults it to false (utils/voiceDFRParser.ts), which
+                    // would put the "fetched" flag on a sentence he spoke —
+                    // DFR-WEATHER-DAY's lie by a different route.
+                    setWeather({ ...parsed.weather, isManual: true });
                     populated.weather = { temperature: parsed.weather.temperature, conditions: parsed.weather.conditions };
                   }
                   if (parsed.manpower && manpower.length === 0) {
@@ -2412,7 +2718,9 @@ export default function DailyReportScreen() {
                 isLocked={voiceBlocked}
                 onLockedPress={openVoiceUpgrade}
                 onGenerated={(parsed) => {
-                  if (parsed.weather && !weather.temperature) setWeather({ ...parsed.weather, isManual: false });
+                  // Inferred from photos, never read from a weather service —
+                  // so it is not a fetched reading. See DFR-WEATHER-DAY.
+                  if (parsed.weather && !weather.temperature) setWeather({ ...parsed.weather, isManual: true });
                   if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
                   if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
                   if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
@@ -2562,17 +2870,34 @@ export default function DailyReportScreen() {
               <Text style={styles.sectionTitle}>Weather</Text>
               {!isLocked && (
                 <TouchableOpacity
-                  style={styles.refreshBtn}
+                  style={[styles.refreshBtn, (weatherLoading || !reportIsToday) && styles.refreshBtnDisabled]}
                   onPress={() => { void fetchWeather(); }}
                   activeOpacity={0.7}
-                  disabled={weatherLoading}
+                  disabled={weatherLoading || !reportIsToday}
+                  testID="dfr-weather-fetch"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: weatherLoading || !reportIsToday, busy: weatherLoading }}
+                  accessibilityLabel={reportIsToday
+                    ? 'Auto-fetch the weather for today'
+                    : `Auto-fetch is off — MAGE cannot read the weather for ${reportDayLabel}`}
                 >
-                  <Text style={styles.refreshBtnText}>
+                  <Text style={[styles.refreshBtnText, (weatherLoading || !reportIsToday) && styles.refreshBtnTextDisabled]}>
                     {weatherLoading ? 'Loading...' : 'Auto-fetch'}
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
+            {/* A blocked control says why. There is no historical-weather source
+                in this repo (OpenWeather's free tier is forecast-only, wttr.in
+                answers "now"), so the honest move on a backfilled report is to
+                say so and let him type what he saw — the same line the schedule
+                already holds when it refuses to log a delay day off simulated
+                weather. */}
+            {!isLocked && !reportIsToday && (
+              <Text style={styles.weatherNotice} testID="dfr-weather-backfill-notice">
+                {backfilledWeatherNotice(reportDayLabel)}
+              </Text>
+            )}
             <View style={styles.weatherGrid}>
               <View style={styles.weatherItem}>
                 <Thermometer size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -2617,6 +2942,9 @@ export default function DailyReportScreen() {
                 )}
               </View>
             </View>
+            {weatherProvenance ? (
+              <Text style={styles.weatherProvenance} testID="dfr-weather-provenance">{weatherProvenance}</Text>
+            ) : null}
           </View>
 
           {/* Work Progress — structured per-task percent-complete chips.
@@ -3291,8 +3619,65 @@ export default function DailyReportScreen() {
                   </Text>
                 </TouchableOpacity>
 
+                {/* Unticking the toggle does NOT retract a case already on the
+                    safety register. Deleting an OSHA record is a deliberate act
+                    with a five-year retention rule behind it, not a side effect
+                    of a mis-tap on a daily report — so say where it went instead
+                    of quietly dropping it. */}
+                {!incident.hasIncident && linkedIncident && (
+                  <Text style={styles.incidentRegisterNote} testID="dfr-incident-orphan-note">
+                    An incident from this report is already on the safety record. Unticking here does not remove it —
+                    delete it in the Incidents log if it was filed in error.
+                  </Text>
+                )}
+
                 {incident.hasIncident && (
                   <View style={styles.incidentBlock}>
+                    {/* What KIND of event. isOshaRecordable branches on this
+                        first — anything other than an injury is never recordable
+                        absent a fatality — and the DFR's single five-value
+                        severity cannot supply it. Inferring it from a severity
+                        of 'near_miss' is exactly how a genuine near-miss ends up
+                        a candidate 300 case. */}
+                    <Text style={styles.incidentLabel}>What kind of incident?</Text>
+                    <View style={styles.severityRow}>
+                      {(['injury', 'near_miss', 'property', 'environmental'] as IncidentType[]).map(t => {
+                        const active = incidentClass.type === t;
+                        return (
+                          <TouchableOpacity
+                            key={t}
+                            style={[styles.severityChip, active && styles.severityChipActive]}
+                            onPress={() => setIncidentClass(p => ({
+                              ...p,
+                              type: t,
+                              // Leaving injury clears the medical answers with it.
+                              // They are hidden for a non-injury event, and a
+                              // hidden `fatality: true` left over from a mis-tap
+                              // would short-circuit the classifier into
+                              // "Recordable — fatality" on a property-damage
+                              // event, with no control on screen to untick.
+                              // Nothing the super cannot see gets to decide this.
+                              ...(t === 'injury' ? null : {
+                                treatment: 'none' as Treatment,
+                                daysAway: '',
+                                daysRestricted: '',
+                                restrictedDuty: false,
+                                lostConsciousness: false,
+                                fatality: false,
+                              }),
+                            }))}
+                            testID={`dfr-incident-type-${t}`}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <Text style={[styles.severityChipText, active && styles.severityChipTextActive]}>
+                              {DFR_INCIDENT_TYPE_LABEL[t]}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
                     <Text style={styles.incidentLabel}>Severity</Text>
                     <View style={styles.severityRow}>
                       {(['near_miss','minor','moderate','major','critical'] as IncidentSeverity[]).map(sev => {
@@ -3332,19 +3717,117 @@ export default function DailyReportScreen() {
                       placeholderTextColor={themeColors.textMuted}
                     />
 
-                    <View style={styles.checkboxRow}>
-                      <TouchableOpacity style={styles.checkboxItem} onPress={() => setIncident(p => ({ ...p, injuriesReported: !p.injuriesReported }))}>
-                        <View style={[styles.checkbox, incident.injuriesReported && styles.checkboxActive]} />
-                        <Text style={styles.checkboxLabel}>Injuries</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.checkboxItem} onPress={() => setIncident(p => ({ ...p, medicalTreatment: !p.medicalTreatment }))}>
-                        <View style={[styles.checkbox, incident.medicalTreatment && styles.checkboxActive]} />
-                        <Text style={styles.checkboxLabel}>Medical treatment</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.checkboxItem} onPress={() => setIncident(p => ({ ...p, oshaRecordable: !p.oshaRecordable }))}>
-                        <View style={[styles.checkbox, incident.oshaRecordable && styles.checkboxActive]} />
-                        <Text style={styles.checkboxLabel}>OSHA recordable</Text>
-                      </TouchableOpacity>
+                    {/* DFR-OSHA-BRIDGE. The three checkboxes that used to sit
+                        here — Injuries, Medical treatment, and a self-ticked
+                        "OSHA recordable" — asked the super to certify a 1904
+                        determination from memory while the app's own classifier
+                        sat unused. What he can actually answer is below; the
+                        determination is computed and shown with its reason. */}
+                    {incidentClass.type === 'injury' && (
+                      <>
+                        <Text style={styles.incidentLabel}>Treatment given</Text>
+                        <View style={styles.severityRow}>
+                          {(['none', 'first_aid', 'medical_beyond_first_aid'] as Treatment[]).map(tr => {
+                            const active = incidentClass.treatment === tr;
+                            return (
+                              <TouchableOpacity
+                                key={tr}
+                                style={[styles.severityChip, active && styles.severityChipActive]}
+                                onPress={() => setIncidentClass(p => ({ ...p, treatment: tr }))}
+                                testID={`dfr-incident-treatment-${tr}`}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                              >
+                                <Text style={[styles.severityChipText, active && styles.severityChipTextActive]}>
+                                  {DFR_TREATMENT_LABEL[tr]}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+
+                        <View style={styles.oshaDaysRow}>
+                          <View style={styles.oshaDaysItem}>
+                            <Text style={styles.incidentLabel}>Days away from work</Text>
+                            <TextInput
+                              style={styles.textInput}
+                              value={incidentClass.daysAway}
+                              onChangeText={val => setIncidentClass(p => ({ ...p, daysAway: val.replace(/[^0-9]/g, '') }))}
+                              placeholder="0"
+                              placeholderTextColor={themeColors.textMuted}
+                              keyboardType="number-pad"
+                              testID="dfr-incident-days-away"
+                            />
+                          </View>
+                          <View style={styles.oshaDaysItem}>
+                            <Text style={styles.incidentLabel}>Days on restricted duty</Text>
+                            <TextInput
+                              style={styles.textInput}
+                              value={incidentClass.daysRestricted}
+                              onChangeText={val => setIncidentClass(p => ({ ...p, daysRestricted: val.replace(/[^0-9]/g, '') }))}
+                              placeholder="0"
+                              placeholderTextColor={themeColors.textMuted}
+                              keyboardType="number-pad"
+                              testID="dfr-incident-days-restricted"
+                            />
+                          </View>
+                        </View>
+
+                        <View style={styles.checkboxRow}>
+                          <TouchableOpacity
+                            style={styles.checkboxItem}
+                            onPress={() => setIncidentClass(p => ({ ...p, restrictedDuty: !p.restrictedDuty }))}
+                            testID="dfr-incident-restricted"
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: incidentClass.restrictedDuty }}
+                          >
+                            <View style={[styles.checkbox, incidentClass.restrictedDuty && styles.checkboxActive]} />
+                            <Text style={styles.checkboxLabel}>Restricted work / transfer</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.checkboxItem}
+                            onPress={() => setIncidentClass(p => ({ ...p, lostConsciousness: !p.lostConsciousness }))}
+                            testID="dfr-incident-unconscious"
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: incidentClass.lostConsciousness }}
+                          >
+                            <View style={[styles.checkbox, incidentClass.lostConsciousness && styles.checkboxActive]} />
+                            <Text style={styles.checkboxLabel}>Lost consciousness</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.checkboxItem}
+                            onPress={() => setIncidentClass(p => ({ ...p, fatality: !p.fatality }))}
+                            testID="dfr-incident-fatality"
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: incidentClass.fatality }}
+                          >
+                            <View style={[styles.checkbox, incidentClass.fatality && styles.checkboxActive]} />
+                            <Text style={styles.checkboxLabel}>Fatality</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
+
+                    {/* The determination, shown rather than asked for. Grounded
+                        (it names the 1904 criterion that decided it) and honest
+                        (it is the same value stored on the case, taken from the
+                        classifier, not re-derived here). */}
+                    <View
+                      style={[styles.oshaVerdict, recordability.recordable && styles.oshaVerdictHot]}
+                      testID="dfr-incident-recordability"
+                    >
+                      {recordability.recordable
+                        ? <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} />
+                        : <CheckCircle2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.oshaVerdictText, recordability.recordable && styles.oshaVerdictTextHot]}>
+                          {recordability.reason}
+                        </Text>
+                        <Text style={styles.oshaVerdictSub}>
+                          Worked out from OSHA 1904 recording criteria and what you answered above — verify against
+                          your recordkeeping before posting the 300.
+                        </Text>
+                      </View>
                     </View>
 
                     <Text style={styles.incidentLabel}>Corrective action</Text>
@@ -3366,15 +3849,57 @@ export default function DailyReportScreen() {
                       placeholder="Your name / role"
                       placeholderTextColor={themeColors.textMuted}
                     />
+
+                    {/* Where this ends up. Two states, both honest: filed
+                        already, or filed on save. Neither claims the OSHA 300
+                        will list it — only a recordable case reaches the 300,
+                        and the verdict above says whether this one is. */}
+                    {linkedIncident && canAccess('safety_management') ? (
+                      <TouchableOpacity
+                        style={styles.incidentRegisterChip}
+                        onPress={() => router.push({ pathname: '/safety-incidents', params: { projectId } })}
+                        testID="dfr-incident-open-case"
+                        accessibilityRole="link"
+                        accessibilityLabel="Open this incident on the safety record"
+                      >
+                        <ShieldAlert size={14} color={themeColors.accent} strokeWidth={1.75} />
+                        <Text style={styles.incidentRegisterChipText}>
+                          On the safety record{linkedIncident.oshaRecordable ? ' · counted on the OSHA 300' : ''}
+                        </Text>
+                        <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    ) : linkedIncident ? (
+                      // Don't send him into a paywall from a chip that reads like
+                      // a link. The case IS filed — that is the part that matters
+                      // months later — so say that plainly and name what the tier
+                      // actually buys, rather than a blocked door with no reason.
+                      <Text style={styles.incidentRegisterNote} testID="dfr-incident-case-locked">
+                        Filed on your safety record{linkedIncident.oshaRecordable ? ' as an OSHA-recordable case' : ''}.
+                        The Incidents log and the OSHA 300 export open on Business — the record is kept either way.
+                      </Text>
+                    ) : (
+                      <Text style={styles.incidentRegisterNote} testID="dfr-incident-will-file">
+                        Saving this report files it on the safety record too, so it reaches the OSHA 300 without you
+                        typing it a second time.
+                      </Text>
+                    )}
                   </View>
                 )}
               </>
             ) : (
-              <Text style={styles.readOnlyText}>
-                {incident.hasIncident
-                  ? `${incident.severity?.replace('_', ' ').toUpperCase()} — ${incident.description || 'No description.'}`
-                  : 'No incidents reported.'}
-              </Text>
+              <>
+                <Text style={styles.readOnlyText}>
+                  {incident.hasIncident
+                    ? `${incident.severity?.replace('_', ' ').toUpperCase()} — ${incident.description || 'No description.'}`
+                    : 'No incidents reported.'}
+                </Text>
+                {/* A sent report is the version anyone else reads, so it has to
+                    carry the determination too — not just the description. */}
+                {incident.hasIncident && (
+                  <Text style={styles.incidentRegisterNote}>{recordability.reason}</Text>
+                )}
+              </>
+
             )}
           </View>
 
@@ -4134,6 +4659,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // fill — a solid blue rectangle. Soft fill + saturated label, as elsewhere.
   refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.info + '1F' },
   refreshBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.info },
+  refreshBtnDisabled: { backgroundColor: themeColors.surfaceAlt },
+  refreshBtnTextDisabled: { color: themeColors.textMuted },
+  // DFR-WEATHER-DAY — the reason a backfilled report will not fill itself in,
+  // and the provenance of whatever is in the block.
+  weatherNotice: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17, marginBottom: 10 },
+  weatherProvenance: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 10 },
   weatherGrid: { gap: 10 },
   weatherItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   weatherInput: { flex: 1, minHeight: 38, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
@@ -4176,6 +4707,29 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   incidentToggleDotActive: { backgroundColor: themeColors.danger, borderColor: themeColors.danger },
   incidentToggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   incidentBlock: { marginTop: 10, gap: 6 },
+  // DFR-OSHA-BRIDGE — the determination inputs and the computed verdict.
+  oshaDaysRow: { flexDirection: 'row' as const, gap: 10, marginTop: 2 },
+  oshaDaysItem: { flex: 1 },
+  oshaVerdict: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
+    marginTop: 12, padding: 12,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1, borderColor: themeColors.line,
+  },
+  oshaVerdictHot: { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.danger + '40' },
+  oshaVerdictText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  oshaVerdictTextHot: { color: themeColors.danger },
+  oshaVerdictSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 3 },
+  incidentRegisterNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17, marginTop: 10 },
+  incidentRegisterChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    marginTop: 12, paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: themeColors.accent + '12',
+    borderWidth: 1, borderColor: themeColors.accent + '22',
+  },
+  incidentRegisterChipText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   incidentLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 8 },
   severityRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
   severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },

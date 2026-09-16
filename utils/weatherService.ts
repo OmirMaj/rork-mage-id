@@ -407,3 +407,93 @@ export async function getForecastWithFallback(
   }
   return getSimulatedForecast(startDate, days);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// "Was this reading taken on the day it is recorded against?"
+//
+// WHY THIS EXISTS (screen audit, daily-report weather block). The DFR fetched
+// `current_condition` — the sky RIGHT NOW — and wrote it with `isManual: false`,
+// the flag that means "fetched, not typed". Nothing in that path looked at the
+// report's date. The screen supports backfilling on purpose (the date picker
+// exists because a report typed on Tuesday for Monday's work was being misfiled
+// as Tuesday's record), so a Monday report filed Tuesday morning carried
+// Tuesday's sky, stamped as fetched.
+//
+// Weather is the first thing anyone checks when a delay is argued and the one
+// field on the report that is trivially falsifiable against public records. A
+// report claiming 72°F and Clear for a day it rained does not just lose that
+// day's argument — it invites the other side to question every other day in the
+// binder.
+//
+// There is NO historical-weather source in this repo (OpenWeather's free tier is
+// forecast-only, and wttr.in answers "now"), so the fix is to stop asserting a
+// wrong day's weather, not to look up the right one. Same line the rest of the
+// app already holds: ProjectSchedule.weatherDelayLog refuses to record a day
+// whose weather was simulated.
+//
+// Pure and string-based on purpose — this module has no runtime imports (see the
+// note above getConditionIcon), so the CALLER normalises both dates to calendar
+// days with utils/calendarDate. An instant comparison would misclassify an
+// evening-filed report near midnight and re-introduce exactly the bug.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * True only when a live read can honestly be recorded against `reportDay`.
+ *
+ * Both arguments are 'YYYY-MM-DD' calendar days in the device's own timezone
+ * (utils/calendarDate.calendarDayOf / todayCalendarDay). A missing or malformed
+ * report day answers false — refusing to fetch is always the safe side.
+ */
+export function canReadLiveWeatherFor(
+  reportDay: string | null | undefined,
+  today: string,
+): boolean {
+  if (!reportDay || !today) return false;
+  return reportDay === today;
+}
+
+/** Why the weather block will not fill itself in for a past (or future) day.
+ *  Says what the app cannot do and what to do instead — never a silent blank. */
+export function backfilledWeatherNotice(reportDayLabel: string): string {
+  return `Weather for ${reportDayLabel} wasn't recorded. MAGE can read today's sky, not a past day's — type what you saw.`;
+}
+
+/**
+ * The provenance line under the DFR weather block.
+ *
+ * `DFRWeather` carries one bit (`isManual`) and no room for more, and until this
+ * change nothing in the repo even READ that bit — it was write-only, and
+ * pdfGenerator printed the three values bare. So the chip is derived at render
+ * time from the bit plus the report's own date, and it never claims more than it
+ * knows: a reading restored from disk cannot say what time it was taken, so it
+ * doesn't.
+ */
+export function weatherProvenanceLine(opts: {
+  /** DFRWeather.isManual — false means the app fetched it. */
+  isManual: boolean;
+  /** True when the report's calendar day is today. */
+  reportIsToday: boolean;
+  /** Any of the three weather fields filled in. */
+  hasValue: boolean;
+  /** The location string actually sent to the weather API. Printed verbatim
+   *  because `project.location` legitimately defaults to the literal "United
+   *  States" — a chip reading 'read for United States' exposes a second real
+   *  falseness that the bare three-field block hid. */
+  location: string;
+  /** Clock label of a read that happened in THIS session, e.g. '4:31 PM'. */
+  readAtLabel?: string;
+}): string {
+  if (!opts.hasValue) return '';
+  if (opts.isManual) return 'Typed by hand.';
+  if (opts.readAtLabel) {
+    return opts.location
+      ? `Read live at ${opts.readAtLabel} for ${opts.location}.`
+      : `Read live at ${opts.readAtLabel}.`;
+  }
+  // Saved reading, reopened. Post-fix a fetch can only ever have happened on the
+  // report's own day, so that is sayable — but only for a report that IS its own
+  // day. A record from before this guard shipped gets the caveat instead.
+  return opts.reportIsToday
+    ? 'Read live and saved with this report.'
+    : 'Saved as a fetched reading — MAGE cannot read a past day, so check it against what you saw.';
+}

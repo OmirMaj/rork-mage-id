@@ -11,6 +11,7 @@ import {
 } from '@/utils/cpm';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
+import { scheduleVerdict, type VerdictTone } from '@/utils/scheduleVerdict';
 
 // ---------------------------------------------------------------------------
 // 0) Which schedule day is a given calendar date?
@@ -327,19 +328,21 @@ function typedLinks(t: ScheduleTask): DependencyLink[] {
   return (t.dependencies ?? []).map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
 }
 
-export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
-  const byId = new Map<string, ScheduleTask>();
-  for (const t of tasks) byId.set(t.id, { ...t });
-
-  // Dependency order (Kahn). A cycle means we cannot say what follows what, so
-  // return the input untouched rather than guessing — schedule-pro surfaces the
-  // cycle through runCpm's own conflict list.
+/**
+ * Dependency (Kahn) order, or null when the graph has a cycle. A cycle means
+ * we cannot say what follows what, so every op built on this returns its input
+ * untouched rather than guessing — schedule-pro surfaces the cycle through
+ * runCpm's own conflict list. Shared by `reflowFromActuals` and
+ * `planCatchUpToToday` so the two cascades can never drift apart.
+ */
+function dependencyOrder(tasks: ScheduleTask[]): string[] | null {
+  const known = new Set(tasks.map(t => t.id));
   const indegree = new Map<string, number>();
   const succIndex = new Map<string, string[]>();
   for (const t of tasks) indegree.set(t.id, 0);
   for (const t of tasks) {
     for (const link of typedLinks(t)) {
-      if (!byId.has(link.taskId)) continue;   // dangling reference — ignore
+      if (!known.has(link.taskId)) continue;   // dangling reference — ignore
       indegree.set(t.id, (indegree.get(t.id) ?? 0) + 1);
       const arr = succIndex.get(link.taskId) ?? [];
       arr.push(t.id);
@@ -357,7 +360,15 @@ export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
       if (n === 0) queue.push(sid);
     }
   }
-  if (order.length !== tasks.length) return tasks;   // cycle
+  return order.length === tasks.length ? order : null;
+}
+
+export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
+  const byId = new Map<string, ScheduleTask>();
+  for (const t of tasks) byId.set(t.id, { ...t });
+
+  const order = dependencyOrder(tasks);
+  if (!order) return tasks;   // cycle
 
   /** Where a task really is, as [start, end] working ordinals. Actuals win. */
   const span = (t: ScheduleTask): { start: number; end: number } => {
@@ -403,6 +414,347 @@ export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
   // count what moved, and the grid renders rows in array order — reordering
   // here would mis-report the count and silently reshuffle the user's list.
   return tasks.map(t => byId.get(t.id)!);
+}
+
+// ---------------------------------------------------------------------------
+// 1c) Bring the plan up to date — a reflow with TODAY as the data date
+// ---------------------------------------------------------------------------
+// WHY THIS EXISTS. `reflowFromActuals` above cascades from actual STARTS only,
+// and it gives a started-but-unfinished task `actualStartDay + durationDays - 1`
+// — its full planned duration, whatever the progress says. So a task that began
+// on day 1, is 30% done, and should have finished ten days ago produces exactly
+// zero downstream movement: the Gantt keeps printing the kickoff plan's finish
+// date while the job runs two weeks late behind it. That is the date a GC reads
+// out on the Monday owner call.
+//
+// This op answers the other half: what does the plan look like if the work that
+// has NOT happened yet starts today?
+//
+//   • A DONE task is frozen exactly as reflowFromActuals freezes it — its
+//     actuals are history and history does not move.
+//   • A not-done task is BEHIND when the work it still owes cannot fit between
+//     its own start and its planned finish any more — i.e. it started (or
+//     should have started) before today and `today + remaining - 1` runs past
+//     `startDay + durationDays - 1`. Those tasks are re-dated to start TODAY
+//     with their REMAINING duration (`durationDays × (1 − progress/100)`,
+//     rounded up, never below one day; a 0-day milestone just moves).
+//   • A not-done task that is late but can still make its planned finish (80%
+//     done with three days left) is left exactly where it is. The plan is still
+//     achievable, and moving it would invent a slip the field has not earned.
+//   • Everything else moves forward only as far as its predecessors now
+//     require, by the same typed-link rules as the reflow above — never pulled
+//     earlier, so planned gaps still absorb slip.
+//   • Work that is physically running (an actual start) is never pushed later
+//     by a predecessor. It is already happening.
+//
+// IDEMPOTENT: after one pass no task is behind any more (a caught-up task
+// starts today and owes exactly its remaining days), and every cascade target
+// is derived from spans rather than incremented, so a second tap changes
+// nothing.
+//
+// THE UNIT TRAP (this is the whole reason the op takes a calendar). Three
+// different day numbers meet here:
+//   • `ScheduleTask.startDay` / `durationDays` — WORKING days on the
+//     schedule's own calendar (day 2 = the next working day).
+//   • `actualStartDay` / `actualEndDay` and `todayScheduleDay()` — CALENDAR
+//     indices from the anchor (utils/pace/stampActuals.ts: "day 1 =
+//     schedule.startDate, calendar-day indexing"), so a weekend consumes two.
+//   • `runCpm`'s es/ef/projectFinish — CALENDAR indices as well.
+// Writing `startDay = todayScheduleDay(...)` would therefore inflate every
+// weekend-crossing task by about two days per weekend — the exact mistake
+// already fixed once in scheduleHealthScore's freshness check. Every calendar
+// number entering this op is converted to a working ordinal first
+// (`calendarIndexToWorkingOrdinal`), and nothing here ever writes a calendar
+// index into a working-ordinal field.
+//
+// This does NOT recompute the critical path: the caller re-runs `runCpm` on the
+// result (which is also how it gets the before/after finish for the preview).
+
+export interface CatchUpChange {
+  id: string;
+  title: string;
+  fromStartDay: number;
+  toStartDay: number;
+  fromDurationDays: number;
+  toDurationDays: number;
+  /** 'behind' — the task itself owed work in the past. 'cascaded' — a
+   *  predecessor moved and this one followed. */
+  reason: 'behind' | 'cascaded';
+}
+
+export interface CatchUpPlan {
+  /** The re-dated tasks, in INPUT order (same contract as reflowFromActuals). */
+  tasks: ScheduleTask[];
+  /** Every task whose startDay or durationDays changed. */
+  changes: CatchUpChange[];
+  /** Ids of the tasks that were provably behind — drives the "N behind" copy. */
+  behindIds: string[];
+  /** Today, expressed as a WORKING ordinal on this schedule's calendar. */
+  todayWorkingOrdinal: number;
+}
+
+export interface CatchUpOptions {
+  /**
+   * TODAY as a CALENDAR index on the schedule's anchor — exactly what
+   * `todayScheduleDay(schedule.startDate)` returns. Callers MUST NOT invent one
+   * for an undated schedule: `todayScheduleDay` returns null there, and without
+   * an anchor there is no "today" to catch up to. The surface disables the
+   * action and says so instead (UNDATED_SCHEDULE_TITLE / _CTA).
+   */
+  todayCalendarIndex: number;
+  /** The schedule's own calendar, so calendar indices convert honestly. */
+  calendar?: DayScaleOptions;
+}
+
+/** Working days a not-done task still owes. Milestones (0d) owe nothing. */
+function remainingWorkingDays(t: ScheduleTask): number {
+  const dur = Math.max(0, t.durationDays ?? 0);
+  if (dur === 0) return 0;
+  const pct = Math.max(0, Math.min(100, t.progress ?? 0));
+  if (pct >= 100) return 0;
+  // Round UP: a 10-day task at 95% still owes a day of somebody's time, and
+  // rounding it to zero would quietly shorten the plan.
+  return Math.max(1, Math.ceil(dur * (1 - pct / 100)));
+}
+
+const isTaskDone = (t: ScheduleTask): boolean =>
+  t.status === 'done' || (t.progress ?? 0) >= 100;
+
+export function planCatchUpToToday(tasks: ScheduleTask[], opts: CatchUpOptions): CatchUpPlan {
+  const cal = opts.calendar ?? {};
+  const todayOrdinal = calendarIndexToWorkingOrdinal(
+    Math.max(1, Math.floor(opts.todayCalendarIndex)),
+    cal,
+  );
+  const empty: CatchUpPlan = { tasks, changes: [], behindIds: [], todayWorkingOrdinal: todayOrdinal };
+
+  const order = dependencyOrder(tasks);
+  if (!order) return empty;   // cycle — say nothing rather than guess
+
+  const byId = new Map<string, ScheduleTask>();
+  for (const t of tasks) byId.set(t.id, { ...t });
+  const caughtUp = new Set<string>();
+
+  /** A calendar-indexed actual read back as a working ordinal. */
+  const ordinalOf = (calendarDay: number) => calendarIndexToWorkingOrdinal(calendarDay, cal);
+
+  /** Where a task sits NOW, as [start, end] WORKING ordinals. */
+  const span = (t: ScheduleTask): { start: number; end: number } => {
+    const dur = Math.max(0, t.durationDays ?? 0);
+    // A task we just caught up is authored, not observed: its fields already
+    // hold the new plan, and its (older) actual start must not override them.
+    const startedElsewhere = t.actualStartDay != null && !caughtUp.has(t.id);
+    const start = startedElsewhere ? ordinalOf(t.actualStartDay!) : t.startDay;
+    if (t.actualEndDay != null && !caughtUp.has(t.id)) {
+      return { start, end: Math.max(start, ordinalOf(t.actualEndDay)) };
+    }
+    return { start, end: start + Math.max(0, dur - 1) };
+  };
+
+  for (const id of order) {
+    const t = byId.get(id)!;
+    if (isTaskDone(t)) continue;   // history — frozen, but still propagates
+
+    const dur = Math.max(0, t.durationDays ?? 0);
+    const remaining = remainingWorkingDays(t);
+    const plannedEnd = dur === 0 ? t.startDay : t.startDay + dur - 1;
+    const endIfStartedToday = todayOrdinal + Math.max(0, remaining - 1);
+
+    // ── Is the remaining work provably in the past?
+    if (t.startDay < todayOrdinal && endIfStartedToday > plannedEnd) {
+      t.startDay = todayOrdinal;
+      if (dur > 0) t.durationDays = remaining;
+      caughtUp.add(id);
+    }
+
+    // ── Cascade. Running work is pinned: a predecessor slipping does not
+    //    un-start a crew that is on site today.
+    if (t.actualStartDay != null) continue;
+
+    let required = t.startDay;                       // never pull work earlier
+    for (const link of typedLinks(t)) {
+      const pred = byId.get(link.taskId);
+      if (!pred) continue;
+      const p = span(pred);
+      const lag = link.lagDays ?? 0;
+      const ownDur = Math.max(0, (t.durationDays ?? 0) - 1);
+      let need: number;
+      switch (link.type ?? 'FS') {
+        case 'SS': need = p.start + lag; break;
+        case 'FF': need = p.end + lag - ownDur; break;
+        case 'SF': need = p.start + lag - ownDur; break;
+        case 'FS':
+        default:   need = p.end + 1 + lag; break;
+      }
+      if (need > required) required = need;
+    }
+    if (required > t.startDay) t.startDay = required;
+  }
+
+  const changes: CatchUpChange[] = [];
+  for (const t of tasks) {
+    const next = byId.get(t.id)!;
+    const fromDur = Math.max(0, t.durationDays ?? 0);
+    const toDur = Math.max(0, next.durationDays ?? 0);
+    if (next.startDay === t.startDay && toDur === fromDur) continue;
+    changes.push({
+      id: t.id,
+      title: t.title,
+      fromStartDay: t.startDay,
+      toStartDay: next.startDay,
+      fromDurationDays: fromDur,
+      toDurationDays: toDur,
+      reason: caughtUp.has(t.id) ? 'behind' : 'cascaded',
+    });
+  }
+
+  return {
+    tasks: tasks.map(t => byId.get(t.id)!),
+    changes,
+    behindIds: [...caughtUp],
+    todayWorkingOrdinal: todayOrdinal,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 1d) Which task IS the finish date?
+// ---------------------------------------------------------------------------
+// "Who is driving my date" has one right answer: the task whose finish IS the
+// project finish. NOT the last element of `cpm.criticalPath` — that array is
+// built in TOPOLOGICAL order (utils/cpm.ts), which says nothing about which of
+// several critical chains ends last, so a schedule with two critical tails can
+// name the wrong trade. Ties (real: two chains landing on the same day) are
+// broken by the later start, then the longer task, then the title, so the same
+// schedule always names the same driver instead of flickering between two.
+
+export interface FinishDriverCpm {
+  /** Full CPM result — preferred: `ef` is the engine's own answer. */
+  perTask?: Map<string, { ef: number }>;
+  /** Project finish (CALENDAR index) that `perTask.ef` is compared against. */
+  projectFinish?: number;
+  /** Critical task ids. `cpm.criticalPath`, or the lean context's
+   *  `criticalTaskIds` for surfaces that never receive `perTask`. */
+  criticalTaskIds?: string[];
+}
+
+export function finishDriverTitle(
+  tasks: ScheduleTask[],
+  cpm: FinishDriverCpm,
+): string | undefined {
+  if (tasks.length === 0) return undefined;
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const criticalIds = (cpm.criticalTaskIds ?? []).filter(id => byId.has(id));
+  const pool = criticalIds.length > 0 ? criticalIds.map(id => byId.get(id)!) : tasks;
+
+  let candidates: ScheduleTask[];
+  if (cpm.perTask && cpm.projectFinish != null) {
+    candidates = pool.filter(t => cpm.perTask!.get(t.id)?.ef === cpm.projectFinish);
+  } else {
+    // No engine result on this surface (the lean SchedulerContext shape). The
+    // honest fallback stays in ONE unit: the latest authored end, in working
+    // ordinals — never `startDay` against a calendar-index finish.
+    const end = (t: ScheduleTask) => t.startDay + Math.max(0, (t.durationDays ?? 0) - 1);
+    const latest = pool.reduce((m, t) => Math.max(m, end(t)), -Infinity);
+    candidates = pool.filter(t => end(t) === latest);
+  }
+  if (candidates.length === 0) return undefined;
+  const winner = candidates.slice().sort((a, b) =>
+    b.startDay - a.startDay ||
+    (b.durationDays ?? 0) - (a.durationDays ?? 0) ||
+    a.title.localeCompare(b.title),
+  )[0];
+  const title = (winner?.title ?? '').trim();
+  return title.length > 0 ? title : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// 1e) The verdict a PHONE can honestly print
+// ---------------------------------------------------------------------------
+// `scheduleVerdict` (utils/scheduleVerdict.ts) is the app's one plain-language
+// answer, and its "behind" half is driven by `slipDaysVsBaseline`. On a phone
+// that number is almost always null: `saveBaseline` is called from exactly one
+// screen and that screen only renders on a wide layout, so a GC who builds his
+// schedule on the iPhone has no baseline and the verdict's no-baseline branch
+// reads "On track to finish about Aug 14, 2026" — an on-track claim with no
+// evidence behind it, on a job that may be a month late.
+//
+// So when there is no baseline we fall back to the PACE read the phone's own
+// data supports: `utils/ownerConfidence.buildOwnerConfidence` compares elapsed
+// calendar time against duration-weighted progress — both written by the phone
+// (task.progress, and the actuals stampActuals captures on every status
+// change). A baseline, when one exists, always wins: it is a promise, and pace
+// is an inference.
+//
+// The wording names its own basis ("x% of the work is done") so the line can
+// never be read as a comparison against a plan that was never locked.
+
+export type SchedulePaceRead = 'on_track' | 'minor_delays' | 'behind' | 'not_started' | 'complete';
+
+export interface PacedVerdictInput {
+  /** Days behind the active baseline, null when none — same as scheduleVerdict. */
+  slipDaysVsBaseline: number | null;
+  /** Preformatted finish date, or '—' when the schedule has no anchor. */
+  finishDateLabel: string;
+  criticalDriverTitle?: string;
+  overdueCount: number;
+  /** buildOwnerConfidence().status, or null when it cannot be read. */
+  pace: SchedulePaceRead | null;
+  /** buildOwnerConfidence().pctComplete — duration-weighted, 0..100. */
+  pctComplete: number;
+}
+
+export interface PacedVerdict {
+  tone: VerdictTone;
+  headline: string;
+  detail: string;
+}
+
+/**
+ * Tone → theme token NAMES (not colours: this file is imported by Bun
+ * validators and must stay free of anything React Native). Both mobile
+ * surfaces index their own `useTheme().colors` with these, so the strip in the
+ * header and the card on the Progress tab can never drift to two different
+ * greens for the same verdict.
+ */
+export type VerdictInkToken = 'dangerLabel' | 'warningLabel' | 'successLabel' | 'textSecondary';
+export type VerdictSoftToken = 'dangerSoft' | 'warningSoft' | 'successSoft' | 'surfaceAlt';
+
+export function verdictToneTokens(tone: VerdictTone): { ink: VerdictInkToken; soft: VerdictSoftToken } {
+  switch (tone) {
+    case 'behind':         return { ink: 'dangerLabel', soft: 'dangerSoft' };
+    case 'slightlyBehind': return { ink: 'warningLabel', soft: 'warningSoft' };
+    case 'ahead':
+    case 'onPace':         return { ink: 'successLabel', soft: 'successSoft' };
+    // No baseline and no pace problem: state the date, claim nothing about it.
+    case 'noBaseline':
+    default:               return { ink: 'textSecondary', soft: 'surfaceAlt' };
+  }
+}
+
+export function pacedScheduleVerdict(input: PacedVerdictInput): PacedVerdict {
+  const base = scheduleVerdict({
+    slipDaysVsBaseline: input.slipDaysVsBaseline,
+    finishDateLabel: input.finishDateLabel,
+    criticalDriverTitle: input.criticalDriverTitle,
+    overdueCount: input.overdueCount,
+  });
+
+  const hasFinish = input.finishDateLabel.trim().length > 0 && input.finishDateLabel.trim() !== '—';
+  const finishClause = hasFinish ? ` — finishing about ${input.finishDateLabel}` : '';
+  const pct = Math.max(0, Math.min(100, Math.round(input.pctComplete)));
+
+  // A baseline outranks pace, and a pace read of "fine" adds nothing to say.
+  if (input.slipDaysVsBaseline != null) return base;
+  if (input.pace !== 'behind' && input.pace !== 'minor_delays') return base;
+
+  const tone: VerdictTone = input.pace === 'behind' ? 'behind' : 'slightlyBehind';
+  const headline = input.pace === 'behind'
+    ? `Behind pace${finishClause}`
+    : `Slipping behind pace${finishClause}`;
+  // Say what the claim rests on. There is no baseline here, so "behind plan"
+  // would be a comparison against a plan that was never captured.
+  const basis = `${pct}% of the work is done against the time elapsed — no baseline locked, so this is pace, not slip.`;
+  return { tone, headline, detail: base.detail ? `${base.detail} ${basis}` : basis };
 }
 
 // ---------------------------------------------------------------------------

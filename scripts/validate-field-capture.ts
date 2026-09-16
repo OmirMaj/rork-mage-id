@@ -282,9 +282,20 @@ ok('the unsaved-work baseline absorbs the weather the screen fetched itself',
 ok('...and the crew the schedule prefilled',
   /manpower: existingReport\?\.manpower \?\? autoFilled\.manpower \?\?/.test(dfrCode),
   'otherwise every new DFR on a project with a live task is dirty before the super types');
+// Both names must be in the memo's dep list. Matched by NAME rather than by
+// pinning the exact array, because the baseline legitimately grows: it now also
+// tracks the safety-register case the report filed (DFR-OSHA-BRIDGE), whose
+// determination inputs hydrate after mount and would otherwise leave the screen
+// permanently dirty — the same failure this check exists to catch. Pinning the
+// literal array made ADDING a dependency fail while REMOVING one (the actual
+// defect) is what it is meant to catch.
+const savedSignatureDeps = /\}\), \[([^\]]*)\]\);/.exec(
+  dfrCode.slice(dfrCode.indexOf('const savedSignature = useMemo(')),
+)?.[1] ?? '';
 ok('...and the baseline actually recomputes when they land',
-  /\}\), \[existingReport, autoFilled\]\);/.test(dfrCode),
-  'a memo that never re-runs holds the empty baseline and the screen stays dirty forever');
+  /\bexistingReport\b/.test(savedSignatureDeps) && /\bautoFilled\b/.test(savedSignatureDeps),
+  'a memo that never re-runs holds the empty baseline and the screen stays dirty forever; ' +
+  `savedSignature deps are [${savedSignatureDeps}]`);
 ok('the on-mount weather fetch is marked as the app acting, not the user',
   /void fetchWeather\(\{ auto: true \}\)/.test(dfrCode));
 ok('the schedule crew prefill records what it seeded',

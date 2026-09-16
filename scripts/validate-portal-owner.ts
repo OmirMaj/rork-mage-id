@@ -38,6 +38,7 @@ import {
 } from '../utils/portalOwnerCore';
 import { buildOwnerConfidence } from '../utils/ownerConfidence';
 import { buildPortalSnapshot, scheduleWorkComplete, scheduleFinishDate, maskPortalLinkToken, portalShareUrl, PORTAL_BASE_URL, PORTAL_SNAPSHOT_VERSION,
+  buildPortalDocuments, closeoutIsShared,
   buildProposalConsentRecord, buildFeedbackAsk, proposalBlockReason,
   PROPOSAL_ESIGN_VERSION, PROPOSAL_DISCLOSURE_TEXT, PROPOSAL_NOT_A_CONTRACT_NOTE } from '../utils/portalSnapshot';
 import { toClientEstimateView } from '../utils/clientEstimateView';
@@ -2251,6 +2252,205 @@ console.log('\nno portal URL is built by string-concatenating a portalId:');
     /maskPortalLinkToken\(portalLink\.replace\(\/\^https:\\\/\\\/\/, ''\)\)/.test(detail));
   ok('…and refuses to copy when there is no key',
     /'Secure link not ready'/.test(detail));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// N. THE DOCUMENTS SECTION, AND THE CHANGE ORDER THE OWNER CANNOT SIGN
+//
+// Two defects from the 2026-09-16 screen audit, both of the same family: a
+// control that says one thing and does another.
+//
+//  A. `if (portal.showDocuments) { sections.documents = []; }` — "stub for
+//     now" — shipped for the portal's whole life. The static page skips a
+//     zero-length section, so the switch labelled "Contracts, lien waivers,
+//     permits" produced no visible change, no error, and no warning. The GC
+//     believed they had shared the permit and the warranty; the owner asked by
+//     email anyway, and at a warranty claim two years later the record was
+//     only ever inside a closeout binder that exists after finalization.
+//
+//  B. With `coApprovalEnabled` off — the default — the portal shows a pending
+//     change order with no approve button and told the owner "Your contractor
+//     is waiting on your decision — reply in Messages." That reads as though a
+//     chat reply were the decision. It is not: "yeah go ahead" in a message
+//     thread is not a signed amendment, and the extra work done on the
+//     strength of one is the change order the GC loses in a dispute.
+//
+// Both are pinned by BEHAVIOUR (the projection, the copy) and by SHAPE (the
+// stub cannot come back, the two hand-written copies of the CO sentence cannot
+// drift apart).
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nportal owner — documents section:');
+{
+  const PERMIT = {
+    projectId: 'p1', type: 'building' as const, status: 'approved' as const,
+    permitNumber: 'B-2026-118', jurisdiction: 'City of Henderson',
+    appliedDate: '2026-03-02', approvedDate: '2026-03-19', expiresDate: '2027-03-19',
+  };
+  const SENT_WARRANTY = {
+    projectId: 'p1', title: 'Trane HVAC', category: 'hvac' as const, provider: 'Trane',
+    startDate: '2026-08-01', endDate: '2036-08-01',
+    portalState: { status: 'sent' as const },
+  };
+  const DRAFT_WARRANTY = { ...SENT_WARRANTY, title: 'Roof (draft)', portalState: { status: 'draft' as const } };
+  // A warranty with NO portalState at all. `isShared()` treats that as shared
+  // for grandfathered collections; a warranty is not one of those, and this
+  // row must stay off the homeowner's page.
+  const UNPUSHED_WARRANTY = { ...SENT_WARRANTY, title: 'Never pushed', portalState: undefined };
+  const OTHER_PROJECT_PERMIT = { ...PERMIT, projectId: 'p2', permitNumber: 'X-1' };
+
+  const docs = buildPortalDocuments({
+    projectId: 'p1',
+    permits: [PERMIT, OTHER_PROJECT_PERMIT],
+    warranties: [SENT_WARRANTY, DRAFT_WARRANTY, UNPUSHED_WARRANTY],
+    closeoutShared: false,
+  });
+
+  expect('a permit becomes one row, named by kind + number', docs[0], {
+    name: 'Building permit #B-2026-118',
+    type: 'City of Henderson',
+    dateSent: '2026-03-19',
+    status: 'Approved',
+    expiresOn: '2027-03-19',
+  });
+  ok('another project’s permit is not on this portal',
+    !docs.some(d => d.name.includes('X-1')));
+  ok('only a warranty explicitly SENT to the portal appears',
+    docs.filter(d => d.name === 'Trane HVAC').length === 1
+    && !docs.some(d => d.name === 'Roof (draft)')
+    && !docs.some(d => d.name === 'Never pushed'),
+    JSON.stringify(docs.map(d => d.name)));
+
+  // THE REGRESSION. An empty projection must produce an empty ARRAY that the
+  // caller then omits — never a section key the page renders as nothing.
+  expect('no permits and no sent warranties → no rows at all',
+    buildPortalDocuments({ projectId: 'p1', closeoutShared: false }), []);
+
+  // The binder owns the warranty roster once it ships; printing it in both
+  // places puts the same warranty on one page twice.
+  const withBinder = buildPortalDocuments({
+    projectId: 'p1', permits: [PERMIT], warranties: [SENT_WARRANTY], closeoutShared: true,
+  });
+  ok('warranties move to the closeout section once the binder is shared',
+    withBinder.length === 1 && withBinder[0].name.startsWith('Building permit'),
+    JSON.stringify(withBinder));
+
+  ok('closeoutIsShared agrees with the closeout block’s own gate',
+    closeoutIsShared({ status: 'finalized' }) && closeoutIsShared({ status: 'sent' })
+    && !closeoutIsShared({ status: 'draft' }) && !closeoutIsShared(null)
+    && !closeoutIsShared(undefined));
+
+  // No row may carry a link. Nothing in this repo writes a permit attachment
+  // and Warranty.documentUri has no writer, so any url/fileUrl key here would
+  // be a download button that 404s for the one reader who cannot ask anyone
+  // else for the file.
+  const linkKeys = docs.flatMap(d => Object.keys(d)).filter(k => /url|uri|href|link|download/i.test(k));
+  ok('document rows carry no file link', linkKeys.length === 0, linkKeys.join(', '));
+
+  // Nothing the portal already renders as its own section may be duplicated
+  // here. Values, not just keys — a "contract" row would read as a second copy
+  // of the contract card at the top of the page.
+  const names = docs.map(d => d.name.toLowerCase()).join(' | ');
+  ok('the contract and the closeout binder are NOT relisted as documents',
+    !/contract|closeout|binder|proposal/.test(names), names);
+
+  // End-to-end through the real builder: the toggle must now move something.
+  const docProject = {
+    ...(henderson as unknown as Project),
+    id: 'p1',
+  } as Project;
+  const docPortal = { ...portalSettings, showDocuments: true } as ClientPortalSettings;
+  const snapOn = buildPortalSnapshot({
+    project: docProject, portal: docPortal, settings: undefined,
+    permits: [PERMIT as never], warranties: [SENT_WARRANTY as never],
+  });
+  ok('flipping showDocuments on actually publishes rows',
+    (snapOn.sections.documents ?? []).length === 2,
+    JSON.stringify(snapOn.sections.documents));
+  const snapEmpty = buildPortalSnapshot({
+    project: docProject, portal: docPortal, settings: undefined,
+  });
+  ok('…and with nothing to publish the key is ABSENT, not an empty array',
+    snapEmpty.sections.documents === undefined,
+    JSON.stringify(snapEmpty.sections.documents));
+  const snapOff = buildPortalSnapshot({
+    project: docProject, portal: { ...docPortal, showDocuments: false }, settings: undefined,
+    permits: [PERMIT as never],
+  });
+  ok('the switch still gates the section', snapOff.sections.documents === undefined);
+
+  // The stub itself, pinned by shape so it cannot be reintroduced.
+  // Comments are stripped first: both files now EXPLAIN the old stub, and a
+  // guard that trips on its own post-mortem teaches people to delete the
+  // explanation instead of keeping the fix.
+  const stripComments = (src: string) => src
+    .split('\n')
+    .filter(l => !/^\s*(?:\/\/|\*|\/\*)/.test(l))
+    .join('\n');
+  const snapSrc = stripComments(read('utils/portalSnapshot.ts'));
+  ok('utils/portalSnapshot.ts no longer assigns an empty documents array',
+    !/sections\.documents\s*=\s*\[\]/.test(snapSrc));
+
+  // The switch's own copy. "Contracts, lien waivers, permits" promised two
+  // things this app cannot put on a portal: the contract has its own section,
+  // and nothing in the app stores a lien waiver a homeowner could be shown.
+  const setupSrc = read('app/client-portal-setup.tsx');
+  const docToggle = (() => {
+    const src = stripComments(setupSrc);
+    const i = src.indexOf("key: 'showDocuments'");
+    return i < 0 ? '' : src.slice(i, src.indexOf('},', i));
+  })();
+  ok('the Documents switch describes what it actually publishes', docToggle.length > 0
+    && /description: '[^']*[Pp]ermits[^']*'/.test(docToggle)
+    && !/lien/i.test(docToggle)
+    && !/description: '[^']*Contracts/.test(docToggle), docToggle);
+  ok('…and the screen tells the GC when there is nothing to publish',
+    setupSrc.includes('portal-documents-summary')
+    && /Nothing to publish yet/.test(setupSrc));
+}
+
+console.log('\nportal owner — a chat reply is not a signed change order:');
+{
+  const pendingCO = [{ id: 'co1', number: 7, status: 'submitted', changeAmount: 12000, dateSubmitted: '2026-06-01', description: 'Regrade the lot' }];
+  const onDetail = buildOwnerDecisions({ today: '2026-06-15', coApprovalEnabled: true, changeOrders: pendingCO })[0].detail;
+  const offDetail = buildOwnerDecisions({ today: '2026-06-15', coApprovalEnabled: false, changeOrders: pendingCO })[0].detail;
+
+  ok('with signing ON the copy points at the signature', /sign to approve or decline/.test(onDetail), onDetail);
+  ok('with signing OFF the copy says there is no approve button',
+    /no approve button/i.test(offDetail), offDetail);
+  ok('…and refuses to let a message read as an approval',
+    /not a signed change to your contract/i.test(offDetail), offDetail);
+  ok('…and the old copy, which did read that way, is gone',
+    !/waiting on your decision — reply in Messages\.'/.test(read('utils/portalOwnerCore.ts')));
+
+  // The static page keeps a hand-written copy for pre-v10 snapshots. Held
+  // byte-for-byte against the TS module: if they drift, two homeowners reading
+  // the same portal on different snapshot versions get different instructions
+  // about what their reply legally is.
+  ok('marketing/portal/index.html ships the same OFF sentence',
+    portalHtml.includes(offDetail), offDetail);
+  ok('marketing/portal/index.html ships the same ON sentence',
+    portalHtml.includes(onDetail));
+
+  // The GC's side of the same fact. They are the ones who believe their client
+  // can sign; nothing told them otherwise.
+  const setupSrc = read('app/client-portal-setup.tsx');
+  ok('the setup screen states that a portal with signing off has no approve button',
+    setupSrc.includes('portal-signing-off-note')
+    && /has no approve\s*\n?\s*button/.test(setupSrc), 'app/client-portal-setup.tsx');
+  ok('…and offers the one tap that turns signing on when a CO is actually waiting',
+    setupSrc.includes('portal-co-signing-off-nudge')
+    && /pendingClientCOCount > 0/.test(setupSrc));
+  ok('…counting the same statuses the portal’s own list ranks',
+    /PENDING_CO_STATUSES\.has\(/.test(setupSrc));
+
+  // "Preview as your client" is wired to the LIVE writers: the CO approve flow
+  // inserts a real change_order_approvals row and flips the CO to approved
+  // with an audit entry labelled client_signed_via_portal. The GC looking at
+  // their own preview must not be able to sign their client's amendment, so
+  // the preview is marked as a preview at the one place that opens it.
+  ok('Preview opens client-view in previewMode',
+    /pathname: '\/client-view'[^)]*previewMode: '1'/.test(setupSrc.replace(/\s+/g, ' ')),
+    'app/client-portal-setup.tsx Preview button');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -11,6 +11,24 @@
 // The view/baseline pickers move into a `⋯` overflow path (Task 18 keeps
 // them visible elsewhere — the chip rail is the primary scan target on
 // phone; pickers stay accessible from the More tab on the bottom bar).
+//
+// THAT PHONE BRANCH IS UNREACHABLE, and has been since the width gate landed.
+// `bp === 'phone'` needs width < 600 (utils/useResponsive.ts), this header
+// mounts only inside SchedulerTabShell, and its only mounter —
+// app/schedule-pro.tsx — returns "Best on a bigger screen" below
+// GRID_BREAKPOINT (900). With ios.supportsTablet:false there is no iPad to
+// reach it on either. So for two releases the finish date and slip a GC needs
+// on the Monday owner call existed here, correct, and could not be seen on the
+// device in his pocket.
+//
+// The phone's answer now lives where the phone actually renders:
+// components/schedule/mobile/MobileScheduleScreen.tsx (verdict strip + finish
+// sheet) and ProgressTab, built from utils/scheduleOps.pacedScheduleVerdict —
+// which also covers the case this branch cannot, a phone-built schedule with no
+// baseline, where `slipDaysVsBaseline` is null forever and "no baseline" is all
+// the line below would ever say. Keep the two in step if you change either;
+// the branch is left in place rather than deleted because the gate, not the
+// layout, is what makes it dead.
 
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';

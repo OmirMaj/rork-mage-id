@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, ActivityIndicator, type LayoutChangeEvent} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -17,6 +17,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { shareText } from '@/utils/shareText';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
+import { cardSurface } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -46,6 +47,7 @@ import type { InvoiceLineItem, Invoice, InvoiceStatus, PaymentTerms, PaymentMeth
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { buildRetainageReleasePatch, PAYMENT_TERM_DAYS } from '@/utils/retainage';
+import { resolveRetainagePercent, retainageAnswerPatch, isRecordedRetainageRate } from '@/utils/retainageSource';
 
 // Happy-path lifecycle for an invoice. partially_paid + overdue map back to
 // "Sent" in the visual since the invoice is mid-flight to "Paid"; the
@@ -100,6 +102,22 @@ const PAYMENT_TERMS_OPTIONS: { value: PaymentTerms; label: string }[] = [
   { value: 'net_15', label: 'Net 15' },
   { value: 'net_30', label: 'Net 30' },
   { value: 'net_45', label: 'Net 45' },
+];
+
+/**
+ * The three answers worth a tap on the retainage ask. 5% and 10% are the rates
+ * actually written into private construction contracts (Illinois' Prompt Payment
+ * Act caps private retainage at 10% and steps it to 5% at half-complete — see
+ * RETAINAGE_SOURCES in utils/retainage), and "none held" is the answer the app
+ * previously ASSUMED on every job by seeding the editor with 0.
+ *
+ * These are shortcuts, not a default: none of them is preselected, and the sheet
+ * cannot be answered by ignoring it.
+ */
+const RETAINAGE_ASK_CHOICES: { value: number; label: string; meta: string; a11y: string }[] = [
+  { value: 0, label: '0%', meta: 'None held', a11y: 'This contract holds no retainage' },
+  { value: 5, label: '5%', meta: 'Common', a11y: 'This contract holds five percent' },
+  { value: 10, label: '10%', meta: 'Common', a11y: 'This contract holds ten percent' },
 ];
 
 const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
@@ -167,7 +185,7 @@ function InvoiceInner() {
   }>();
   const {
     projects, getProject, getInvoicesForProject, addInvoice, updateInvoice, settings, updateSettings,
-    getChangeOrdersForProject, contacts, invoices: allInvoices,
+    getChangeOrdersForProject, contacts, invoices: allInvoices, updateProject, getAIAPayAppsForProject,
   } = useProjects();
   const { tier } = useSubscription();
   const { user } = useAuth();
@@ -314,38 +332,44 @@ function InvoiceInner() {
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
   /**
-   * Retainage seed, and where it came from.
+   * Retainage seed, and where it came from — resolved by ONE function
+   * (utils/retainageSource), never by this screen privately.
    *
-   * This invoice's own saved value wins. Otherwise it is carried from the most
-   * recent NON-DRAFT invoice on the same project, including a real 0% — the
-   * same rule app/aia-pay-app.tsx:305-310 adopted when an invented 10% fallback
-   * was deliberately removed from the G702.
+   * The carry-forward this replaced was correct for invoice #2 onward and is
+   * still layer 2 of the stack, unchanged. What it could not do is invoice #1:
+   * there is nothing to carry from, app/bill-from-estimate.tsx calls addInvoice
+   * BEFORE this editor mounts, and the old seed therefore fell to the string
+   * '0'. An invoice billed at 0% by omission is money he never asked for back —
+   * the owner's AP deducts the 10% anyway, and MAGE spends the rest of the job
+   * showing a receivable the owner considers settled.
    *
-   * Why it matters: app/bill-from-estimate.tsx writes its Invoice literal with
-   * no `retentionPercent` at all and calls addInvoice BEFORE this editor
-   * mounts, so `existingInvoice.retentionPercent` is null on that path and this
-   * defaulted to '0'. A GC holding 10% retainage had to remember to re-type it
-   * on every progress invoice, and an invoice billed at 0% by omission is money
-   * he never asked for back.
-   *
-   * Nothing is INVENTED: with no prior invoice it still starts at 0.
+   * So the resolver adds two more reads he has already paid for — the contract
+   * term on the project, and the newest saved G702 pay app — and when all four
+   * come up empty it says so (`needsAsk`) instead of presenting 0 as a choice.
+   * Nothing is invented at any layer.
    */
-  const carriedRetention = useMemo(() => {
-    if (existingInvoice?.retentionPercent != null) return null;
-    const prior = existingInvoices
-      .filter(i => i.id !== invoiceId && i.status !== 'draft' && i.retentionPercent != null)
-      .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0];
-    return prior ? { pct: prior.retentionPercent as number, from: prior.number } : null;
-  }, [existingInvoice, existingInvoices, invoiceId]);
-
-  const [retentionPercent, setRetentionPercent] = useState<string>(
-    existingInvoice?.retentionPercent != null
-      ? String(existingInvoice.retentionPercent)
-      : carriedRetention ? String(carriedRetention.pct) : '0'
+  const projectPayApps = useMemo(
+    () => getAIAPayAppsForProject(projectId ?? ''),
+    [projectId, getAIAPayAppsForProject],
   );
+  const retainageSeed = useMemo(() => resolveRetainagePercent({
+    invoice: existingInvoice,
+    priorInvoices: existingInvoices,
+    excludeInvoiceId: invoiceId,
+    project,
+    payApps: projectPayApps,
+  }), [existingInvoice, existingInvoices, invoiceId, project, projectPayApps]);
+
+  const [retentionPercent, setRetentionPercent] = useState<string>(String(retainageSeed.percent));
   // True until he changes it — so the screen can say where the number came from
-  // rather than presenting a carried figure as if he had chosen it.
-  const [retentionCarriedUntouched, setRetentionCarriedUntouched] = useState(carriedRetention != null);
+  // rather than presenting a seeded figure as if he had chosen it.
+  const [retentionSeedUntouched, setRetentionSeedUntouched] = useState(true);
+  // The ask, for the one case the resolver cannot answer. Opened once per mount
+  // (see the effect below) and re-openable from the Retention row afterwards, so
+  // declining it is a decision he can revisit rather than a dead end.
+  const [showRetainageAsk, setShowRetainageAsk] = useState(false);
+  const [retainageAskInput, setRetainageAskInput] = useState('');
+  const [retainageAsked, setRetainageAsked] = useState(false);
   const [showRetentionModal, setShowRetentionModal] = useState(false);
   const [retentionReleaseAmount, setRetentionReleaseAmount] = useState('');
   const [retentionReleaseNote, setRetentionReleaseNote] = useState('');
@@ -1394,6 +1418,64 @@ function InvoiceInner() {
   const canRecordPayment = !!existingInvoice && effectiveStatus !== 'draft' && effectiveStatus !== 'paid';
   const openRecordPayment = () => { setPaymentAmount(balanceDue.toFixed(2)); setShowPaymentModal(true); };
 
+  /**
+   * Ask for the retainage exactly once, at the moment it first matters.
+   *
+   * `needsAsk` is only true when the resolver found nothing on this invoice, no
+   * prior non-draft invoice, no contract term on the job and no saved G702 — i.e.
+   * this is the first bill on the job and the number has never been recorded
+   * anywhere. A locked (already-sent) invoice is never asked: its rate is a fact
+   * about a document the client already has, not a preference to collect now.
+   *
+   * `retainageAsked` is set the moment it opens, so backing out of the sheet does
+   * not put it straight back up, and the Retention row below keeps a way in.
+   */
+  useEffect(() => {
+    // `project` is required: this screen can mount with no job picked (the
+    // ToolProjectPicker path below), and burning the one-shot there would mean
+    // the ask never appears once he does pick one.
+    if (project && retainageSeed.needsAsk && !isLocked && !retainageAsked) {
+      setRetainageAsked(true);
+      setShowRetainageAsk(true);
+    }
+  }, [project, retainageSeed.needsAsk, isLocked, retainageAsked]);
+
+  /**
+   * He answered. The rate goes on the invoice being edited AND on the job, so
+   * the second invoice does not have to ask again and the retention screen has
+   * something to plan a release against.
+   *
+   * `assumed: false` — this came from him, not from an inference.
+   *
+   * NOT DURABLE ACROSS DEVICES YET: `projects` has no `retainage_percent`
+   * column, so the next successful server fetch drops the project-level copy
+   * (types/index.ts says so at the field). That degrades to asking again rather
+   * than to a wrong withholding, and once this invoice leaves draft the
+   * carry-forward — which lives on a row that DOES sync — covers the job.
+   */
+  const handleRetainageAnswer = useCallback((pct: number) => {
+    setRetentionPercent(String(pct));
+    setRetentionSeedUntouched(false);
+    setShowRetainageAsk(false);
+    setRetainageAskInput('');
+    const patch = retainageAnswerPatch(pct, { assumed: false });
+    if (patch && projectId) updateProject(projectId, patch);
+  }, [projectId, updateProject]);
+
+  /**
+   * He tapped "Not sure". STORE NOTHING — not a guess, not a flagged guess.
+   * `retainageAnswerPatch(null)` returns null for exactly this reason: an
+   * invented rate is billed, sent and then argued about, whereas "not on file"
+   * is a sentence the Retention row can say out loud and he can correct later.
+   */
+  const handleRetainageUnknown = useCallback(() => {
+    setShowRetainageAsk(false);
+    setRetainageAskInput('');
+  }, []);
+
+  const retainageAskValue = parseFloat(retainageAskInput);
+  const retainageAskValid = retainageAskInput.trim().length > 0 && isRecordedRetainageRate(retainageAskValue);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -1556,17 +1638,28 @@ function InvoiceInner() {
             </View>
             {!isLocked ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                {/* Provenance, not a silent prefill. A carried number has to say
-                    it was carried, the same way aia-pay-app.tsx:1363 does. */}
-                {retentionCarriedUntouched && carriedRetention ? (
-                  <Text style={styles.retentionCarriedNote}>
-                    same as #{carriedRetention.from}
-                  </Text>
+                {/* Provenance, not a silent prefill. A seeded number has to say
+                    where it came from, the same way aia-pay-app.tsx:1363 does —
+                    and when nothing recorded one, it has to say THAT rather than
+                    let a 0 in the box read as a decision he made. Tapping the
+                    note reopens the ask, so declining it is never a dead end. */}
+                {retentionSeedUntouched && retainageSeed.source !== 'invoice' ? (
+                  <TouchableOpacity
+                    onPress={() => setShowRetainageAsk(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Retainage ${retainageSeed.label}. Set it from your contract.`}
+                    testID="retention-provenance-note"
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.retentionCarriedNote, retainageSeed.needsAsk && styles.retentionUnknownNote]}>
+                      {retainageSeed.label}
+                    </Text>
+                  </TouchableOpacity>
                 ) : null}
                 <TextInput
                   style={styles.retentionInput}
                   value={retentionPercent}
-                  onChangeText={(v) => { setRetentionCarriedUntouched(false); setRetentionPercent(v); }}
+                  onChangeText={(v) => { setRetentionSeedUntouched(false); setRetentionPercent(v); }}
                   keyboardType="decimal-pad"
                   placeholder="0"
                   placeholderTextColor={themeColors.textMuted}
@@ -2142,6 +2235,104 @@ function InvoiceInner() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* THE ASK. Opened only when utils/retainageSource found no rate on this
+          invoice, on a prior non-draft invoice, on the job, or on a saved G702 —
+          so it appears once, on the first bill of a job, and then never again.
+          It offers the two rates that are actually common and an explicit "none
+          held", but it invents nothing: "Not sure" stores NOTHING, because a
+          retainage the app guessed is a number he bills, sends, and then argues
+          about with the owner. */}
+      <Modal visible={showRetainageAsk} transparent animationType="slide" onRequestClose={handleRetainageUnknown}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]} testID="retainage-ask-modal">
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Retainage on this job</Text>
+                <TouchableOpacity onPress={handleRetainageUnknown} accessibilityRole="button" accessibilityLabel="Close">
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.retentionModalMeta}>
+                How much does {project.name}&apos;s contract hold back on each payment?
+                This is the first bill on the job, so nothing has recorded it yet — and an
+                invoice billed at 0% by omission is money you never ask for back. The owner
+                deducts it either way.
+              </Text>
+
+              <View style={styles.retainageAskChips}>
+                {RETAINAGE_ASK_CHOICES.map(opt => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={styles.retainageAskChip}
+                    onPress={() => handleRetainageAnswer(opt.value)}
+                    accessibilityRole="button"
+                    accessibilityLabel={opt.a11y}
+                    testID={`retainage-ask-${opt.value}`}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.retainageAskChipText}>{opt.label}</Text>
+                    <Text style={styles.retainageAskChipMeta}>{opt.meta}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.modalFieldLabel}>Or enter the rate from your contract</Text>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1 }]}
+                  value={retainageAskInput}
+                  onChangeText={setRetainageAskInput}
+                  keyboardType="decimal-pad"
+                  // NOT "7.5": scripts/validate-project-context-pure.ts forbids that
+                  // literal anywhere in this file, because a hardcoded 7.5 tax rate was a
+                  // real money bug here. The guard is deliberately blunt and 15% is an
+                  // equally real retainage, so this costs nothing to respect.
+                  placeholder="e.g. 15"
+                  placeholderTextColor={themeColors.textMuted}
+                  maxLength={5}
+                  testID="retainage-ask-input"
+                />
+                <Text style={styles.retentionPct}>%</Text>
+              </View>
+              {retainageAskInput.trim().length > 0 && !retainageAskValid && (
+                <Text style={styles.retainageAskWhyOff}>
+                  Save is off because &quot;{retainageAskInput.trim()}&quot; isn&apos;t a percentage between 0 and 100.
+                </Text>
+              )}
+
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, !retainageAskValid && styles.modalSaveBtnOff]}
+                onPress={() => handleRetainageAnswer(retainageAskValue)}
+                disabled={!retainageAskValid}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !retainageAskValid }}
+                testID="retainage-ask-save"
+                activeOpacity={0.85}
+              >
+                <Percent size={18} color={"#FFFFFF"} strokeWidth={1.75} />
+                <Text style={styles.modalSaveBtnText}>Use this rate on this job</Text>
+              </TouchableOpacity>
+
+              {/* Storing nothing is a real answer, and the only honest one when
+                  he has not got the contract in front of him. The Retention row
+                  then reads "not on file — retainage not held" and stays tappable. */}
+              <TouchableOpacity
+                style={styles.retainageAskSkip}
+                onPress={handleRetainageUnknown}
+                accessibilityRole="button"
+                testID="retainage-ask-skip"
+                activeOpacity={0.7}
+              >
+                <Text style={styles.retainageAskSkipText}>
+                  Not sure — check my contract (nothing will be recorded)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={showRetentionModal} transparent animationType="slide" onRequestClose={() => setShowRetentionModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
@@ -2437,9 +2628,27 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   methodChipTextActive: { color: "#FFFFFF" },
   modalSaveBtn: { backgroundColor: themeColors.success, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
   modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  modalSaveBtnOff: { backgroundColor: themeColors.line },
   retentionInput: { minWidth: 60, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, textAlign: 'right' as const },
   retentionPct: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
   retentionCarriedNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
+  // "not on file" is a gap, not a neutral note — it reads in the accent so the
+  // row cannot be skimmed as though a rate had been chosen.
+  retentionUnknownNote: { color: themeColors.accent, fontWeight: '600' as const },
+  retainageAskChips: { flexDirection: 'row' as const, gap: 8, marginTop: 4, marginBottom: 12 },
+  retainageAskChip: {
+    // cardSurface, not a fourth hand-rolled copy of the same four properties
+    // (validate-ui-adoption ratchets those down). surfaceAlt overrides the
+    // surface fill so the chips read as tappable against the modal card.
+    ...cardSurface(themeColors, { radius: 'card', pad: 'none' }),
+    flex: 1, alignItems: 'center' as const, paddingVertical: 12,
+    backgroundColor: themeColors.surfaceAlt,
+  },
+  retainageAskChipText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  retainageAskChipMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  retainageAskWhyOff: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 6 },
+  retainageAskSkip: { paddingVertical: 12, alignItems: 'center' as const },
+  retainageAskSkipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   releaseRetentionBtn: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '15', borderWidth: 1, borderColor: themeColors.accent + '40' },
   releaseRetentionBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   releaseRetentionBtnMeta: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },

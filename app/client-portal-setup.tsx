@@ -11,7 +11,7 @@ import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
   CalendarDays, DollarSign, Image, FileText, ClipboardList,
   MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
-  Mail, RefreshCw, Check, X, HandCoins, Sunrise, Briefcase,
+  Mail, RefreshCw, Check, X, HandCoins, Sunrise, Briefcase, AlertTriangle,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -29,7 +29,9 @@ import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
   maskPortalLinkToken, PORTAL_BASE_URL, proposalBlockReason,
+  buildPortalDocuments, closeoutIsShared,
 } from '@/utils/portalSnapshot';
+import { PENDING_CO_STATUSES } from '@/utils/portalOwnerCore';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import type { BakedHomePassport } from '@/utils/passport/types';
 import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
@@ -124,8 +126,16 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
   },
   {
     key: 'showDocuments',
+    // WAS "Contracts, lien waivers, permits" — over a section that shipped a
+    // literal empty array, so the switch made nothing appear. Two of the three
+    // nouns were wrong even once it was wired: the contract has its own portal
+    // section (turning this on would print it twice), and nothing in this app
+    // stores a lien waiver a homeowner could be shown. What this switch
+    // actually publishes is the permit record and any warranty already sent to
+    // the portal — records, not downloadable files, which is why the
+    // description says "on record".
     label: 'Documents',
-    description: 'Contracts, lien waivers, permits',
+    description: 'Permits and sent warranties, on record (no file attached)',
     icon: <FileText size={18} color="#8E8E93" strokeWidth={1.75} />,
   },
 ];
@@ -212,7 +222,7 @@ function ClientPortalSetupScreenInner() {
     getDailyReportsForProject, getPunchItemsForProject,
     getPhotosForProject, getRFIsForProject,
     getAIAPayAppsForProject,
-    getCommitmentsForProject, getWarrantiesForProject,
+    getCommitmentsForProject, getWarrantiesForProject, getPermitsForProject,
   } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
@@ -371,6 +381,42 @@ function ClientPortalSetupScreenInner() {
     return () => { cancelled = true; };
   }, [project?.id]);
 
+  // ── What the Documents switch will actually publish, for THIS project.
+  //
+  // The section shipped a literal `[]` for its whole life, so the switch made
+  // nothing appear and said nothing about it. Now that it ships real records,
+  // the remaining silent case is a project that simply has none — no permits
+  // logged, no warranty pushed to the portal. The GC should learn that from
+  // the switch, not from their client asking where the permit went.
+  const documentsSummary = useMemo(() => {
+    if (!project) return null;
+    const docs = buildPortalDocuments({
+      projectId: project.id,
+      permits: getPermitsForProject(project.id),
+      warranties: getWarrantiesForProject(project.id),
+      closeoutShared: closeoutIsShared(closeoutQ.data),
+    });
+    if (!docs.length) {
+      return 'Nothing to publish yet — no permits logged on this project, and no warranty sent to the portal.';
+    }
+    return `${docs.length} record${docs.length === 1 ? '' : 's'} will appear on your client’s page.`;
+  }, [project, getPermitsForProject, getWarrantiesForProject, closeoutQ.data]);
+
+  // ── Change orders sitting in the client's court.
+  //
+  // Counted with the SAME status set the portal's "Waiting on you" list uses
+  // (PENDING_CO_STATUSES) and the same shared-to-portal test the snapshot uses,
+  // so this number can never contradict the page the homeowner is reading.
+  const pendingClientCOCount = useMemo(() => {
+    if (!project) return 0;
+    return getChangeOrdersForProject(project.id).filter(c =>
+      PENDING_CO_STATUSES.has(String(c.status ?? '').toLowerCase())
+      // isShared(): a missing portalState is grandfathered as shared; only an
+      // explicit non-'sent' state (draft, recalled) hides the CO.
+      && (c.portalState == null || c.portalState.status === 'sent'),
+    ).length;
+  }, [project, getChangeOrdersForProject]);
+
   // Build a fresh snapshot every render so toggle changes / new data flow through
   // immediately. Snapshot is built only from sections the GC has toggled on,
   // then base64url-encoded into the URL's hash fragment (never sent to server).
@@ -403,6 +449,9 @@ function ClientPortalSetupScreenInner() {
       closeoutBinder: closeoutQ.data ?? undefined,
       commitments: getCommitmentsForProject(project.id),
       warranties: getWarrantiesForProject(project.id),
+      // Permits feed the Documents section. Before this the section shipped a
+      // literal empty array, so the switch below made nothing appear at all.
+      permits: getPermitsForProject(project.id),
       homePassport,
     });
   }, [
@@ -412,7 +461,8 @@ function ClientPortalSetupScreenInner() {
     getPhotosForProject, getRFIsForProject,
     getAIAPayAppsForProject, threadQ.messages,
     contractQ.data, selectionsQ.data, closeoutQ.data,
-    getCommitmentsForProject, getWarrantiesForProject, homePassport,
+    getCommitmentsForProject, getWarrantiesForProject, getPermitsForProject,
+    homePassport,
   ]);
 
   // Short, share-friendly URL — `mageid.app/portal/<id>`. The static
@@ -1012,10 +1062,17 @@ function ClientPortalSetupScreenInner() {
             {/* Preview as your client — opens the client-view with this
                 portal's id so the GC can see exactly what the homeowner
                 sees before sharing the link. Previously only reachable
-                via the deep-link scheme, invisible in the app UI. */}
+                via the deep-link scheme, invisible in the app UI.
+                `previewMode` marks the view as the GC LOOKING, not the client
+                ACTING: the preview must render every client decision control
+                read-only, because it is wired to the live writers (the CO
+                approve flow inserts a real change_order_approvals row and
+                flips the CO to `approved` with an audit entry labelled
+                client_signed_via_portal). A GC checking their work must not be
+                able to sign their own client's change order. */}
             <TouchableOpacity
               style={styles.linkActionBtn}
-              onPress={() => router.push({ pathname: '/client-view' as never, params: { portalId: portal.portalId } as never })}
+              onPress={() => router.push({ pathname: '/client-view' as never, params: { portalId: portal.portalId, previewMode: '1' } as never })}
               accessibilityRole="button"
               accessibilityLabel="Preview as your client"
               testID="portal-preview-client-btn"
@@ -1024,6 +1081,16 @@ function ClientPortalSetupScreenInner() {
               <Text style={styles.linkActionText}>Preview</Text>
             </TouchableOpacity>
           </View>
+          {/* Stated next to Preview because this is the moment the GC forms
+              their belief about what their client can do. The sentence is
+              about the CLIENT'S page, not about the preview, so it stays true
+              however the preview is rendered. */}
+          {!portal.coApprovalEnabled && (
+            <Text style={styles.linkHint} testID="portal-signing-off-note">
+              1-tap signing is off for this portal: your client&apos;s page lists change orders but has no approve
+              button. They can only reply in Messages — turn signing on under Approvals &amp; messaging below.
+            </Text>
+          )}
 
           {/* Link lifetime. Lives inside the link card on purpose — "how long
               does this stay open" is a property of the URL above it, not a
@@ -1375,7 +1442,11 @@ function ClientPortalSetupScreenInner() {
                 <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>1-tap CO approval</Text>
-                  <Text style={styles.toggleDesc}>Owner can sign off on change orders directly from the portal</Text>
+                  <Text style={styles.toggleDesc}>
+                    {portal.coApprovalEnabled
+                      ? 'Your client signs change orders on their page — drawn signature, ESIGN consent, and a sealed record you can produce later.'
+                      : 'Off: your client’s page shows change orders but has no approve button. They can only reply in Messages.'}
+                  </Text>
                 </View>
               </View>
               <Switch
@@ -1385,6 +1456,41 @@ function ClientPortalSetupScreenInner() {
                 thumbColor="#FFF"
               />
             </View>
+            {/* The blocked state, and why it matters RIGHT NOW.
+                A new portal ships with coApprovalEnabled = false, and nothing
+                anywhere told the GC that the signing path they think their
+                client has is switched off. So the client types "yeah go ahead"
+                into the message thread, the GC builds the work, and there is no
+                signed amendment behind a five-figure change. The e-signature
+                path is already built (drawn signature, ESIGN disclosure, a
+                SHA-256-sealed consent record in change_order_approvals) — this
+                row is the one tap that turns it on, and it only appears when
+                there is actually a change order waiting. */}
+            {!portal.coApprovalEnabled && pendingClientCOCount > 0 && (
+              <TouchableOpacity
+                style={[styles.toggleRow, styles.toggleRowBorder]}
+                onPress={() => handleToggle('coApprovalEnabled', true)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Turn on 1-tap change order signing"
+                testID="portal-co-signing-off-nudge"
+              >
+                <View style={styles.toggleLeft}>
+                  <AlertTriangle size={18} color={Colors.warningLabel} strokeWidth={1.75} />
+                  <View style={styles.toggleLabels}>
+                    <Text style={styles.toggleLabel}>
+                      {pendingClientCOCount === 1
+                        ? '1 change order is waiting on your client'
+                        : `${pendingClientCOCount} change orders are waiting on your client`}
+                    </Text>
+                    <Text style={styles.toggleDesc}>
+                      With signing off they can only reply in Messages — and a message is not a signed change to
+                      the contract. Tap to let them sign instead.
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
             {threadQ.coApprovals.slice(0, 5).map((a, idx) => (
               <View key={a.id} style={[styles.coApprovalRow, idx < 4 && styles.toggleRowBorder]}>
                 <View style={[styles.budgetStatusBadge, a.decision === 'declined' && { backgroundColor: '#FBEAE7' }]}>
@@ -1520,6 +1626,15 @@ function ClientPortalSetupScreenInner() {
                   <View style={styles.toggleLabels}>
                     <Text style={styles.toggleLabel}>{item.label}</Text>
                     <Text style={styles.toggleDesc}>{item.description}</Text>
+                    {/* Only the Documents row states its own contents: it is
+                        the one switch whose section can legitimately publish
+                        nothing at all, and the one that spent its whole life
+                        publishing nothing while looking like it worked. */}
+                    {item.key === 'showDocuments' && portal.showDocuments && !!documentsSummary && (
+                      <Text style={styles.toggleDesc} testID="portal-documents-summary">
+                        {documentsSummary}
+                      </Text>
+                    )}
                   </View>
                 </View>
                 <Switch

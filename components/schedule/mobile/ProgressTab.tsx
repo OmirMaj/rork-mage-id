@@ -1,14 +1,15 @@
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { Flag, CheckCircle2 } from 'lucide-react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Flag, CheckCircle2, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
+import { Type } from '@/constants/typography';
 import { parseCalendarDay } from '@/utils/calendarDate';
-import { taskCalendarRange } from '@/utils/scheduleOps';
+import { taskCalendarRange, verdictToneTokens, type PacedVerdict } from '@/utils/scheduleOps';
 
 interface ProgressTabProps {
   tasks: ScheduleTask[];
@@ -16,6 +17,18 @@ interface ProgressTabProps {
   /** Schedule calendar — see MobileScheduleList. */
   workingDaysPerWeek?: number;
   nonWorkingDates?: string[];
+  /**
+   * The schedule verdict, computed once by MobileScheduleScreen and passed
+   * down. This tab used to open with a bare "62% COMPLETE" — a number that
+   * cannot answer the question an owner actually asks on the call, which is
+   * what date we finish and whether that has moved. Optional so the tab still
+   * renders for any caller that has no verdict to give.
+   */
+  verdict?: PacedVerdict;
+  /** Preformatted projected finish ('—' when the schedule has no anchor). */
+  finishDateLabel?: string;
+  /** Opens the finish-date sheet (critical chain + catch-up). */
+  onPressVerdict?: () => void;
 }
 
 function weighted(ts: ScheduleTask[]): number {
@@ -24,7 +37,10 @@ function weighted(ts: ScheduleTask[]): number {
   return Math.round(ts.reduce((s, t) => s + (t.progress || 0) * Math.max(1, t.durationDays || 1), 0) / dur);
 }
 
-export function ProgressTab({ tasks, startDate, workingDaysPerWeek, nonWorkingDates }: ProgressTabProps) {
+export function ProgressTab({
+  tasks, startDate, workingDaysPerWeek, nonWorkingDates,
+  verdict, finishDateLabel, onPressVerdict,
+}: ProgressTabProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // parseCalendarDay, not new Date(): a bare 'YYYY-MM-DD' parses as UTC
@@ -50,6 +66,30 @@ export function ProgressTab({ tasks, startDate, workingDaysPerWeek, nonWorkingDa
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+      {/* The date, above the percentage. "62% complete" is an input to the
+          question; the finish date is the answer. */}
+      {verdict && (
+        <TouchableOpacity
+          style={[styles.verdictCard, { backgroundColor: colors[verdictToneTokens(verdict.tone).soft] }]}
+          activeOpacity={onPressVerdict ? 0.8 : 1}
+          onPress={onPressVerdict}
+          disabled={!onPressVerdict}
+          accessibilityRole="button"
+          accessibilityLabel={`${verdict.headline}. ${verdict.detail}`}
+          testID="progress-verdict"
+        >
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.verdictEyebrow}>PROJECTED FINISH</Text>
+            <Text style={[styles.verdictDate, { color: colors[verdictToneTokens(verdict.tone).ink] }]}>
+              {!finishDateLabel || finishDateLabel === '—' ? 'No finish date yet' : finishDateLabel}
+            </Text>
+            <Text style={styles.verdictHeadline}>{verdict.headline}</Text>
+            {!!verdict.detail && <Text style={styles.verdictDetail}>{verdict.detail}</Text>}
+          </View>
+          {!!onPressVerdict && <ChevronRight size={16} color={colors.textMuted} strokeWidth={2} />}
+        </TouchableOpacity>
+      )}
+
       <View style={styles.hero}>
         <Text style={styles.heroPct}>{overall}%</Text>
         <Text style={styles.heroLbl}>OVERALL COMPLETE</Text>
@@ -97,6 +137,11 @@ export function ProgressTab({ tasks, startDate, workingDaysPerWeek, nonWorkingDa
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  verdictCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, borderRadius: Tokens.radius.xl, padding: 16, marginBottom: 12 },
+  verdictEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8 },
+  verdictDate: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, letterSpacing: -0.6, marginTop: 3 },
+  verdictHeadline: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 4 },
+  verdictDetail: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 3 },
   hero: { backgroundColor: t.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: t.line, padding: 18, alignItems: 'center' as const, marginBottom: 16 },
   heroPct: { fontSize: 40, fontWeight: '800' as const, color: t.text, letterSpacing: -1 },
   heroLbl: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.8, marginTop: 2, marginBottom: 12 },

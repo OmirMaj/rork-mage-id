@@ -10,7 +10,7 @@
 import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
-  SavedAIAPayApp, PortalState, ProjectSchedule,
+  SavedAIAPayApp, PortalState, ProjectSchedule, Permit, Warranty,
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
@@ -563,7 +563,36 @@ export interface PortalSnapshot {
       id: string; number: number | string; subject: string;
       status: string; dateSubmitted?: string;
     }[];
-    documents?: { name: string; type?: string; dateSent?: string }[];
+    /**
+     * Records the GC has shared, NOT a file cabinet.
+     *
+     * This section shipped a literal `[]` for its whole life (the portal skips
+     * a zero-length section, so the "Documents" switch made nothing appear and
+     * warned nobody). What it carries now is permits and portal-sent
+     * warranties — the two homeowner-facing paper trails that have no other
+     * home on this page.
+     *
+     * There is deliberately no `url`. Nothing in this repo writes a permit
+     * attachment, and `Warranty.documentUri` has no writer either (stated in
+     * utils/passport/consumerPassport.ts:529), so a link here would be a
+     * download button that 404s. These rows state what exists, its number, its
+     * state and when it lapses — which is what an owner chasing a warranty
+     * claim two years later actually needs to name the thing they're asking
+     * for.
+     */
+    documents?: {
+      name: string;
+      /** Where it comes from — a jurisdiction for a permit, the provider for a
+       *  warranty. Rendered as the row's second line. */
+      type?: string;
+      /** The date this record starts counting: permit approval (or
+       *  application, if not approved yet), warranty start. */
+      dateSent?: string;
+      /** Plain-language state: "Approved", "Under review", "In force". */
+      status?: string;
+      /** Calendar day this lapses, when the record has one. */
+      expiresOn?: string;
+    }[];
   };
 }
 
@@ -968,8 +997,13 @@ interface BuildOpts {
   // Bundled into the snapshot so the homeowner can pull the binder from
   // the portal years after handover.
   closeoutBinder?: import('./closeoutBinderEngine').CloseoutBinder;
-  // Project warranties — used by the closeout block.
+  // Project warranties — used by the closeout block AND, before a binder
+  // exists, by the Documents section (see buildPortalDocuments).
   warranties?: import('@/types').Warranty[];
+  // Project permits. The only homeowner-facing paper trail the portal had no
+  // section for at all — the "Documents" switch promised them and shipped an
+  // empty array instead.
+  permits?: import('@/types').Permit[];
   // Baked Home Passport (pre-answered FAQ + summary counts), loaded from
   // utils/passport/passportStore. Omitted when the GC never generated one.
   homePassport?: import('./passport/types').BakedHomePassport | null;
@@ -1087,6 +1121,129 @@ export function scheduleFinishDate(
   } catch {
     return null;
   }
+}
+
+/**
+ * Is the closeout binder one the homeowner can see?
+ *
+ * Extracted because TWO sections now depend on the answer: the `closeout`
+ * block itself, and the Documents section, which drops warranties once the
+ * binder is live so the same warranty roster does not print twice on one page.
+ * Two copies of `status !== 'finalized' && status !== 'sent'` would drift.
+ */
+export function closeoutIsShared<T extends { status?: string }>(
+  binder: T | null | undefined,
+): binder is T & { status: 'finalized' | 'sent' } {
+  return !!binder && (binder.status === 'finalized' || binder.status === 'sent');
+}
+
+/** Homeowner words for a PermitType. The raw union values ('special_inspection',
+ *  'hot_work') are trade shorthand; this page is read by someone who has never
+ *  pulled a permit. Anything unmapped degrades to the raw token with its
+ *  underscores removed rather than to a guess. */
+const PERMIT_TYPE_LABEL: Record<string, string> = {
+  building: 'Building', electrical: 'Electrical', plumbing: 'Plumbing',
+  mechanical: 'Mechanical', demolition: 'Demolition', grading: 'Grading',
+  fire: 'Fire', occupancy: 'Certificate of occupancy',
+  special_inspection: 'Special inspection', hot_work: 'Hot work',
+  shutdown: 'Utility shutdown', after_hours: 'After-hours work',
+  landlord_approval: 'Landlord approval', elevator_dock: 'Elevator / loading dock',
+  other: 'Permit',
+};
+
+/** Homeowner words for a PermitStatus. Stated, never inferred: 'applied' is
+ *  "Applied for", not "Pending approval" — the portal does not know whether
+ *  the jurisdiction has looked at it. */
+const PERMIT_STATUS_LABEL: Record<string, string> = {
+  applied: 'Applied for', under_review: 'Under review', approved: 'Approved',
+  denied: 'Denied', expired: 'Expired',
+  inspection_scheduled: 'Inspection scheduled',
+  inspection_passed: 'Inspection passed',
+  inspection_failed: 'Inspection failed',
+};
+
+/**
+ * The Documents section — the records the homeowner can see, and nothing else.
+ *
+ * WHAT WENT WRONG. `if (portal.showDocuments) { sections.documents = []; }`,
+ * with a "stub for now" comment, shipped for the whole life of the portal. The
+ * static page skips a zero-length section, so the switch labelled "Documents —
+ * Contracts, lien waivers, permits" produced no visible change and no warning.
+ * The GC believed they had shared the permit and the warranty; the owner asked
+ * for them by email anyway. Worse at the moment it matters most: a warranty
+ * claim two years on, when the closeout binder was the only place a warranty
+ * ever lived and the binder only exists after the job is finalized.
+ *
+ * WHAT IT IS NOT.
+ *  - Not the contract. `sections`' sibling `contract` block already renders a
+ *    contract card at the top of the page (addSection('contract', …) in
+ *    marketing/portal/index.html). Listing it here prints it twice.
+ *  - Not the closeout binder, for the same reason — it has its own `closeout`
+ *    block and its own section.
+ *  - Not COIs or submittals. Trade paperwork; the homeowner is not a party to
+ *    it and it carries sub names and coverage limits.
+ *  - Not a download list. Nothing in this repo writes a permit attachment, and
+ *    `Warranty.documentUri` has no writer either (see
+ *    utils/passport/consumerPassport.ts:529). These rows are RECORDS — a live
+ *    link that 404s is worse than a row that never promised one.
+ *
+ * Exported so scripts/validate-portal-owner.ts can pin the projection without
+ * assembling a whole snapshot.
+ */
+export function buildPortalDocuments(input: {
+  projectId: string;
+  permits?: Pick<Permit, 'projectId' | 'type' | 'status' | 'permitNumber' | 'jurisdiction' | 'appliedDate' | 'approvedDate' | 'expiresDate'>[];
+  warranties?: Pick<Warranty, 'projectId' | 'title' | 'category' | 'provider' | 'startDate' | 'endDate' | 'portalState'>[];
+  /** True once the closeout block ships — warranties move there. */
+  closeoutShared: boolean;
+}): NonNullable<PortalSnapshot['sections']['documents']> {
+  const out: NonNullable<PortalSnapshot['sections']['documents']> = [];
+
+  // Permits. Every permit on the project: an owner is entitled to know a
+  // permit was applied for and denied, not only the ones that went through.
+  for (const p of input.permits ?? []) {
+    if (p.projectId !== input.projectId) continue;
+    const kind = PERMIT_TYPE_LABEL[p.type] ?? String(p.type ?? '').replace(/_/g, ' ');
+    out.push({
+      name: p.permitNumber ? `${kind} permit #${p.permitNumber}` : `${kind} permit`,
+      type: p.jurisdiction?.trim() || undefined,
+      // The approval is the date the owner cares about; before approval the
+      // only fact is the application date, and we say which one it is via
+      // `status` rather than labelling an application as an approval.
+      dateSent: p.approvedDate || p.appliedDate || undefined,
+      status: PERMIT_STATUS_LABEL[p.status] ?? undefined,
+      expiresOn: p.expiresDate || undefined,
+    });
+  }
+
+  // Warranties the GC actually SENT to the portal. `isShared` is deliberately
+  // NOT used here: it treats a MISSING portalState as shared (grandfathered
+  // rows in sections whose whole collection was already client-facing), and a
+  // warranty the GC never pushed is not one of those. Only an explicit 'sent'.
+  //
+  // Suppressed once the closeout binder ships, because the binder block
+  // carries the full warranty roster with durations and the portal renders it
+  // as its own section — two copies of the same roster on one page.
+  if (!input.closeoutShared) {
+    for (const w of input.warranties ?? []) {
+      if (w.projectId !== input.projectId) continue;
+      if (w.portalState?.status !== 'sent') continue;
+      out.push({
+        name: w.title?.trim() || w.category || 'Warranty',
+        type: w.provider?.trim() || undefined,
+        dateSent: w.startDate || undefined,
+        // "In force" / "Expired" is derived from the end date alone, which is
+        // a fact on the row. `Warranty.status` is a GC-side workflow value
+        // ('claimed', 'void') and is not the owner's business.
+        status: w.endDate
+          ? (w.endDate < new Date().toISOString().slice(0, 10) ? 'Expired' : 'In force')
+          : undefined,
+        expiresOn: w.endDate || undefined,
+      });
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -1497,9 +1654,20 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     }
   }
 
-  // Documents — stub for now; wire up when documents model is finalized
+  // Documents — permits + portal-sent warranties. See buildPortalDocuments for
+  // what is deliberately NOT in here (the contract and the closeout binder,
+  // both of which already have their own portal section) and for why the rows
+  // carry no link. Omitted entirely when there is nothing to show: the static
+  // page skips a zero-length section anyway, and shipping `[]` is what made
+  // this switch a no-op for its whole life.
   if (portal.showDocuments) {
-    sections.documents = [];
+    const docs = buildPortalDocuments({
+      projectId: project.id,
+      permits: opts.permits,
+      warranties: opts.warranties,
+      closeoutShared: closeoutIsShared(opts.closeoutBinder),
+    });
+    if (docs.length) sections.documents = docs;
   }
 
   // v2 hero meta — pick a hero photo (newest project photo we'll already
@@ -1830,7 +1998,11 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     // or before selling the home).
     closeout: (() => {
       const cb = opts.closeoutBinder;
-      if (!cb || (cb.status !== 'finalized' && cb.status !== 'sent')) return undefined;
+      // Same predicate the Documents section asks, via one helper — the
+      // Documents section drops warranties exactly when this block picks them
+      // up, and two hand-written copies of the test would eventually disagree
+      // and print the roster twice (or nowhere).
+      if (!closeoutIsShared(cb)) return undefined;
       const chosenSelections = (opts.selections ?? [])
         .filter(c => isShared(c.portalState))
         .map(c => ({ category: c.category, chosen: (c.options ?? []).find(o => o.isChosen) }))

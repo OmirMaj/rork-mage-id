@@ -192,10 +192,16 @@ function SafetyOshaInner() {
             <EmptyState
               icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title={`No recordable cases in ${est.year}`}
+              // This used to send him to a second screen to type the case a
+              // second time from memory — which is what made the 300 come up
+              // short: the injury he wrote on the daily report at 4:30pm never
+              // left that report. It does now (DFR-OSHA-BRIDGE in
+              // app/daily-report.tsx), so say where cases come from rather than
+              // naming one screen as the only door.
               message={
                 availableYears.length > 1
-                  ? 'Pick another log year above, or add recordable incidents in the Incidents log for OSHA 300 reporting.'
-                  : 'Recordable incidents from the Incidents log appear here for OSHA 300 reporting.'
+                  ? 'Pick another log year above. Cases land here from the Incidents log and from the Safety block on a daily report — only OSHA-recordable ones.'
+                  : 'Cases land here from the Incidents log and from the Safety block on a daily report, once the 1904 criteria make them recordable.'
               }
             />
           </View>

@@ -105,6 +105,17 @@ export interface FollowUpRunRefusal {
   /** Which guard refused, and what it was protecting against. */
   guard: 'G1_join_needs_two_records' | 'G3_collection_not_loaded' | 'G2_no_basis_no_overdue';
   detail: string;
+  /**
+   * G3 only: exactly which collections were undefined.
+   *
+   * `detail` is written for a developer reading a validator run ("not loaded
+   * (undefined, not empty)"). A SCREEN has to tell the contractor something he
+   * can act on — "this schedule has no start date, so 'before they start' has
+   * no date to compare against" — and parsing that sentence back out of
+   * `detail` would make the copy hostage to the wording. The structured field
+   * is what /waiting-on renders from.
+   */
+  missing?: readonly FollowUpReads[];
 }
 
 export interface FollowUpRun {
@@ -171,6 +182,7 @@ export function runFollowUpRules(rules: readonly FollowUpRule[], ctx: FollowUpCo
         ruleId: rule.id,
         guard: 'G3_collection_not_loaded',
         detail: `did not run — ${missing.join(', ')} not loaded (undefined, not empty)`,
+        missing,
       });
       continue;
     }
@@ -219,6 +231,110 @@ export function runFollowUpRules(rules: readonly FollowUpRule[], ctx: FollowUpCo
   }
 
   return { items, closedByEvidence, refusals, ranRuleIds };
+}
+
+/** A refusal, carrying the job it happened on. */
+export interface FollowUpPortfolioRefusal extends FollowUpRunRefusal {
+  projectId: string;
+  projectName: string;
+}
+
+/**
+ * Every open job's run, folded into one list.
+ *
+ * Shaped as a FollowUpRun so it drops straight into mergeHeldFollowUps and
+ * rankFollowUps — the held face is keyed by FollowUp.id and knows nothing
+ * about which project a run came from.
+ */
+export interface FollowUpPortfolioRun extends FollowUpRun {
+  refusals: FollowUpPortfolioRefusal[];
+  /** Rule ids that ran on EVERY job handed in. The honest denominator for
+   *  "checked 2 of 2": a rule that ran on two jobs and refused on a third has
+   *  not checked the portfolio, and saying it has is the lie this field
+   *  exists to prevent. */
+  ranEverywhereRuleIds: string[];
+  /** projectId → the rule ids that actually ran there. The caller persists
+   *  this as the G6 seen-set, so a rule is only ever "first run" once per job. */
+  ranByProject: Record<string, string[]>;
+  /** FollowUp id → the OTHER jobs that minted the same item. See below. */
+  alsoOnProjects: Record<string, string[]>;
+}
+
+/**
+ * Run the registry across a whole portfolio.
+ *
+ * WHY THIS EXISTS. runFollowUpRules is per-project because every rule reads
+ * one job's records. /waiting-on is portfolio-wide — it is the one screen that
+ * answers "where do the next ten minutes go" across every open job — so it
+ * needs the fold, and the fold has one hazard the per-project runner never
+ * had:
+ *
+ * DUPLICATE IDS. A FollowUp id is `${ruleId}:${primaryKind}:${primaryId}` and
+ * carries no projectId, which is correct — it is the join key to the held
+ * face, and the held face must survive a record moving between jobs. But a
+ * subcontractor is a PORTFOLIO record: Ace Drywall with an expiring COI who is
+ * scheduled on three jobs mints the identical id three times. Rendered, that
+ * is the same warning three times; merged, mergeHeldFollowUps' own `new Map`
+ * would silently keep whichever came last; chased, one tap would mark all
+ * three and the other two would look untouched.
+ *
+ * So the fold keeps the FIRST occurrence — first in the order the caller hands
+ * the contexts over, which is a stable sort, so the same input gives the same
+ * row every render — and reports the other job names in `alsoOnProjects` for
+ * the row to say "also scheduled on Maple St". One certificate, one warning,
+ * one chase, and the other jobs still named.
+ */
+export function runFollowUpRulesForPortfolio(
+  rules: readonly FollowUpRule[],
+  contexts: readonly FollowUpContext[],
+): FollowUpPortfolioRun {
+  const items: FollowUp[] = [];
+  const refusals: FollowUpPortfolioRefusal[] = [];
+  const closed = new Set<string>();
+  const ranByProject: Record<string, string[]> = {};
+  const ranOnCount = new Map<string, number>();
+  /** FollowUp id → every job name that minted it, in encounter order. */
+  const mintedBy = new Map<string, string[]>();
+
+  for (const ctx of contexts) {
+    const run = runFollowUpRules(rules, ctx);
+    ranByProject[ctx.projectId] = run.ranRuleIds;
+    for (const id of run.ranRuleIds) ranOnCount.set(id, (ranOnCount.get(id) ?? 0) + 1);
+    for (const r of run.refusals) {
+      refusals.push({ ...r, projectId: ctx.projectId, projectName: ctx.projectName });
+    }
+    // A sub with no upcoming task on job A is "closed by evidence" there while
+    // job B still mints them. That is not a contradiction — closedByEvidence
+    // only ever feeds the stale calculation, and an id present in `items`
+    // is never counted stale — so the union is the right fold.
+    for (const id of run.closedByEvidence) closed.add(id);
+    for (const item of run.items) {
+      const already = mintedBy.get(item.id);
+      if (already) { already.push(ctx.projectName); continue; }
+      mintedBy.set(item.id, [ctx.projectName]);
+      items.push(item);
+    }
+  }
+
+  const alsoOnProjects: Record<string, string[]> = {};
+  for (const [id, names] of mintedBy) {
+    if (names.length > 1) alsoOnProjects[id] = names.slice(1);
+  }
+
+  const ranRuleIds = [...ranOnCount.keys()];
+  const ranEverywhereRuleIds = contexts.length === 0
+    ? []
+    : ranRuleIds.filter(id => ranOnCount.get(id) === contexts.length);
+
+  return {
+    items,
+    closedByEvidence: [...closed],
+    refusals,
+    ranRuleIds,
+    ranEverywhereRuleIds,
+    ranByProject,
+    alsoOnProjects,
+  };
 }
 
 /**

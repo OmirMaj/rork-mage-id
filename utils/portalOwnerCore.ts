@@ -473,7 +473,13 @@ const SEVERITY_WEIGHT: Record<OwnerDecisionUrgency, number> = {
   waiting: 20,
 };
 
-const PENDING_CO_STATUSES = new Set(['submitted', 'pending', 'under_review', 'review']);
+/** The statuses that put a change order in the OWNER's court.
+ *
+ *  Exported so app/client-portal-setup.tsx can count the same COs this list
+ *  ranks. The setup screen tells the GC "N change orders are waiting on your
+ *  client"; if that count were derived from its own hand-written status set it
+ *  would eventually disagree with the portal the client is looking at. */
+export const PENDING_CO_STATUSES = new Set(['submitted', 'pending', 'under_review', 'review']);
 const OPEN_INVOICE_STATUSES = new Set(['sent', 'partially_paid', 'overdue', 'unpaid']);
 
 function urgencyFor(today: string, dueDate: string | null): {
@@ -541,9 +547,20 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
       id: co.id,
       kind: 'change_order',
       title: description ? `${label} — ${description}` : `${label} needs your approval`,
+      // WHY the off-branch is this long. With 1-tap signing on, this portal
+      // takes a real electronic signature: a drawn signature, a typed legal
+      // name, affirmative consent against the ESIGN disclosure, and a sealed
+      // record whose SHA-256 the server recomputes. With it OFF there is no
+      // approve button anywhere on the page — and the old copy, "Your
+      // contractor is waiting on your decision — reply in Messages", read as
+      // though a chat reply WERE the decision. It is not. A homeowner typing
+      // "yeah go ahead" into the message thread is not a signed amendment to
+      // their contract, and the GC who does the extra work on the strength of
+      // it is the GC who loses the change order in a dispute. So the copy says
+      // what this page can and cannot do, and names the thing to ask for.
       detail: input.coApprovalEnabled
         ? 'Review the scope and the change to your contract total, then sign to approve or decline with a reason.'
-        : 'Your contractor is waiting on your decision — reply in Messages.',
+        : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature — a message is not a signed change to your contract.',
       urgency: 'waiting',
       waitingDays,
       amount,

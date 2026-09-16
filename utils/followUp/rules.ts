@@ -358,3 +358,37 @@ export const FOLLOW_UP_RULES: readonly FollowUpRule[] = [
   rfiPastRequiredDate,
   workStartedWithoutCommitment,
 ];
+
+/**
+ * The subset /waiting-on surfaces, and the reason it is a subset.
+ *
+ * /waiting-on is already the chase screen, built on utils/systemOfAction
+ * buildChaseList, and two of the four rules above ask a question that screen
+ * already answers: `co_past_its_own_turnaround` overlaps ChaseKind
+ * 'co_approval' and `rfi_past_required_date` overlaps 'rfi'. Running all four
+ * there would put the SAME change order on screen twice with two different
+ * overdue counts — buildChaseList calls a CO late after a hardcoded three days
+ * (systemOfAction.ts), the rule calls it late after the turnaround the owner
+ * actually agreed to — and a list that disagrees with itself about how late
+ * something is teaches him to trust neither number.
+ *
+ * What the chase list CANNOT say is anything in this array. Every row it
+ * renders means "someone is already late". These two mean "this is about to go
+ * wrong", which is the more valuable claim and the only one that is still
+ * cheap to act on:
+ *
+ *   - coiExpiresBeforeSubIsOnSite — the building turns the crew away at the
+ *     dock on the morning they were booked. Nothing is late yet; there is
+ *     still time to get the certificate renewed.
+ *   - workStartedWithoutCommitment — a sub is on the tools with no signed
+ *     contract or PO. Nobody is late; the exposure is that the invoice, when
+ *     it lands, has nothing behind it.
+ *
+ * Adding the other two here means first replacing buildChaseList's hardcoded
+ * three-day CO turnaround and its RFI branch with the rules, in one change —
+ * not rendering both.
+ */
+export const PREVENTIVE_FOLLOW_UP_RULES: readonly FollowUpRule[] = [
+  coiExpiresBeforeSubIsOnSite,
+  workStartedWithoutCommitment,
+];

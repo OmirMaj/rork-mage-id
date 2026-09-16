@@ -88,6 +88,22 @@ export interface InviteRecipient {
    *  greets by name and what `bid_invite_submit` falls back to when the sub
    *  leaves the company field empty. */
   name?: string;
+  /**
+   * The roster `Subcontractor.id` this address belongs to, when we know it.
+   *
+   * This is the join key the rest of the product hangs off. The submit RPC
+   * copies `v_inv.subcontractor_id` straight onto the bid, and `awardBidPackage`
+   * copies it again onto the commitment — so an invite sent without it produces
+   * a bid, a commitment and a subcontract that name a COMPANY and reference no
+   * record: the award compliance lookup finds nothing, the scorecard link never
+   * renders, `utils/subScorecard.ts` attributes the commitment to nobody, and
+   * `app/sub-portals.tsx` (`if (!c.subcontractorId) continue`) cannot give the
+   * sub a portal at all — so invoices and payment go back to email and text.
+   *
+   * It was set on nothing: the invite sheet took free-typed addresses and
+   * `sendBidInvites` put `subcontractor_id: null` on every row.
+   */
+  subcontractorId?: string;
 }
 
 /**
@@ -264,4 +280,188 @@ export function splitAlreadyInvited(
     else fresh.push(r);
   }
   return { fresh, alreadyLive };
+}
+
+// ── linking a bid back to the roster ────────────────────────────────────────
+
+/** The shape these matchers need off a `Subcontractor`. Structural so they can
+ *  be executed by the guard without building a whole domain object. */
+export interface RosterSub {
+  id: string;
+  companyName: string;
+  email: string;
+}
+
+const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+
+/**
+ * Attach the roster id to every typed address that IS a sub already on file.
+ *
+ * The GC types `joe@acemech.com` from memory; Ace Mechanical is on his roster
+ * with that exact address. Without this the invite — and therefore the bid, the
+ * commitment and the portal — is filed against nobody (see
+ * `InviteRecipient.subcontractorId`).
+ *
+ * Exact, case-insensitive address equality only, and only when exactly one sub
+ * on the roster carries it. This deliberately does NOT try harder: a fuzzy
+ * match on domain or company name would put the wrong sub on a signed
+ * subcontract, and utils/subTradeMatch.ts already argues that case at length —
+ * a missed match costs one tap, a wrong one corrupts four features.
+ */
+export function attachRosterIds(
+  recipients: InviteRecipient[],
+  roster: readonly RosterSub[],
+): InviteRecipient[] {
+  const byEmail = new Map<string, RosterSub[]>();
+  for (const s of roster) {
+    const e = norm(s.email);
+    if (!e) continue;
+    const list = byEmail.get(e);
+    if (list) list.push(s); else byEmail.set(e, [s]);
+  }
+  return recipients.map(r => {
+    if (r.subcontractorId) return r;
+    const hits = byEmail.get(norm(r.email));
+    if (!hits || hits.length !== 1) return r;
+    return { ...r, subcontractorId: hits[0].id, name: r.name || hits[0].companyName };
+  });
+}
+
+/** How a bid got linked back to a roster sub. Shown on the bid card, because
+ *  the app filling in a join key silently is how the wrong sub ends up on a
+ *  commitment with nobody able to see that it happened. */
+export type BidSubLinkBasis = 'invite-email' | 'company-name';
+
+export interface BidSubLink {
+  subId: string;
+  subName: string;
+  basis: BidSubLinkBasis;
+  /** A sentence the bid card can print verbatim. */
+  reason: string;
+}
+
+/**
+ * Recover the roster sub behind a bid that carries no `subcontractorId`.
+ *
+ * Every bid filed before the invite sheet could see the roster is in this
+ * state, as is every bid added by voice or by hand — which is all of them. The
+ * two pieces of evidence already on the device:
+ *
+ *   1. THE INVITE. `bid_package_invites` stores `sub_email` and `bid_id`, so a
+ *      bid that arrived through an invite names the address the GC chose to
+ *      send it to. That is the strongest evidence there is: he picked the
+ *      address, and the holder of that link filed this bid.
+ *   2. THE VENDOR NAME. A bid typed by hand carries free text that is usually
+ *      the company name off the quote.
+ *
+ * Ambiguity refuses, in both directions — two roster subs sharing an address or
+ * a company name yields null, and so does a vendor name that matches nothing.
+ * Null is not a failure: it is the case the screen turns into a one-tap "link
+ * this bid to a sub" control, which is a better answer than a confident guess.
+ */
+export function resolveBidSubcontractor(
+  bid: { id: string; vendorName?: string | null },
+  invites: readonly Pick<BidInviteRecord, 'bidId' | 'subEmail'>[],
+  roster: readonly RosterSub[],
+): BidSubLink | null {
+  const inviteEmail = norm(invites.find(i => i.bidId && i.bidId === bid.id)?.subEmail);
+  if (inviteEmail) {
+    const hits = roster.filter(s => norm(s.email) === inviteEmail);
+    if (hits.length === 1) {
+      return {
+        subId: hits[0].id,
+        subName: hits[0].companyName,
+        basis: 'invite-email',
+        reason: `Linked to ${hits[0].companyName} — this bid came from the invite you sent to ${inviteEmail}.`,
+      };
+    }
+    // An invited address that is NOT on the roster is a real answer, and it
+    // ends the search: this bidder is a stranger, and the screen offers "add to
+    // roster" prefilled from the invite rather than falling through to a
+    // vendor-name match that could pin the bid on a different company with a
+    // similar name.
+    return null;
+  }
+  const vendor = norm(bid.vendorName);
+  if (!vendor) return null;
+  const hits = roster.filter(s => norm(s.companyName) === vendor);
+  if (hits.length !== 1) return null;
+  return {
+    subId: hits[0].id,
+    subName: hits[0].companyName,
+    basis: 'company-name',
+    reason: `Linked to ${hits[0].companyName} — the bid names that company exactly, and it is the only one on your roster.`,
+  };
+}
+
+// ── when the number is actually wanted ──────────────────────────────────────
+
+/**
+ * `BidPackage.dueDate` vs today.
+ *
+ * WHY THIS IS A SHARED FUNCTION rather than an inline comparison on each
+ * screen: the buyout list's OVERDUE badge compared `requiredByDate`, a field
+ * with no writer anywhere in the repo, so the badge could never render. Both
+ * screens now read the same predicate over the field the create sheet actually
+ * writes, and the guard executes it.
+ *
+ * `requiredByDate` is deliberately left alone — it means "must be on site by",
+ * which is a different date from "bids due" and still has no capture.
+ *
+ * Dates are compared by CALENDAR DAY in the reader's own zone, not by instant:
+ * a package due today is not overdue at 9am because the stored value was noon
+ * UTC. That is the same trap DatePickerModal's noon-UTC stamp exists to avoid.
+ */
+export type BidDueState = 'none' | 'overdue' | 'due-today' | 'due-soon' | 'ahead';
+
+function dayNumber(ms: number): number {
+  const d = new Date(ms);
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+/** Whole days from today to the due date: negative is past, 0 is today. */
+export function daysUntilDue(dueDate: string | null | undefined, nowMs: number): number | null {
+  if (!dueDate) return null;
+  const t = Date.parse(dueDate);
+  if (!Number.isFinite(t)) return null;
+  return dayNumber(t) - dayNumber(nowMs);
+}
+
+export function bidDueState(dueDate: string | null | undefined, nowMs: number): BidDueState {
+  const days = daysUntilDue(dueDate, nowMs);
+  if (days === null) return 'none';
+  if (days < 0) return 'overdue';
+  if (days === 0) return 'due-today';
+  if (days <= 3) return 'due-soon';
+  return 'ahead';
+}
+
+/** Short label for a list card: "Due in 3 days", "Bids due today", "2 days late". */
+export function bidDueLabel(dueDate: string | null | undefined, nowMs: number): string {
+  const days = daysUntilDue(dueDate, nowMs);
+  if (days === null) return 'No bid date set';
+  if (days < 0) return `Bids were due ${-days} day${days === -1 ? '' : 's'} ago`;
+  if (days === 0) return 'Bids due today';
+  if (days === 1) return 'Bids due tomorrow';
+  return `Bids due in ${days} days`;
+}
+
+/**
+ * The invites worth chasing: sent, still live, no bid back.
+ *
+ * A chase re-fires `bid_invite_sent` for these rows reusing their EXISTING
+ * `invite_token`. It must never route through `sendBidInvites`: that mints a
+ * second token, which `splitAlreadyInvited` exists to prevent, and two live
+ * tokens let one company file two bids that the matrix shows as two competing
+ * subs — a fake third bid that satisfies the "3+ bids" coverage warning.
+ *
+ * An EXPIRED invite is excluded: its link is dead, so re-sending the same token
+ * mails a link that answers `bid_invite_denied`, which the sub reads as "they
+ * withdrew it". Those need a fresh invite, which is the send path.
+ */
+export function remindableInvites<T extends Pick<BidInviteRecord, 'respondedAt' | 'expiresAt'>>(
+  invites: readonly T[],
+  nowMs: number,
+): T[] {
+  return invites.filter(inv => inviteState(inv, nowMs) === 'awaiting');
 }

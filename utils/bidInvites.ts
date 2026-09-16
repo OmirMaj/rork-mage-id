@@ -28,6 +28,7 @@ import {
   inviteExpiryFrom,
   tokenFromBytes,
   type BidInviteRecord,
+  type InviteRecipient,
 } from '@/utils/bidInviteCore';
 
 /** 24 bytes of CSPRNG, hex-encoded. `tokenFromBytes` throws rather than return
@@ -48,6 +49,20 @@ export interface SendBidInviteArgs {
   csiDivision?: string;
   phase?: string;
   scopeDescription?: string;
+  /**
+   * `BidPackage.dueDate` — when the GC actually wants the number.
+   *
+   * The invite used to carry one date and it was the wrong one: "It stops
+   * working 30 days from today", which is the link's expiry, not a deadline.
+   * A sub who needs three days reads thirty and files it.
+   *
+   * NOTE FOR WHOEVER DEPLOYS `notify` NEXT: this rides in the `bid_invite_sent`
+   * payload as `bids_due_at`, and the branch in supabase/functions/notify/index.ts
+   * does not render it yet, so it reaches the outbox row and not the sub. The
+   * screens therefore never claim the sub was told the date — they only chase
+   * from it. See the handoff note in the buyout screen.
+   */
+  bidsDueAt?: string;
   subEmail: string;
   subName?: string;
   subcontractorId?: string;
@@ -136,6 +151,7 @@ export async function sendBidInvite(args: SendBidInviteArgs): Promise<SendBidInv
       // deliberately absent from the email for the same reason bid_invite_get
       // withholds it: it would anchor every bid he gets back just under it.
       scope_description: args.scopeDescription ?? '',
+      bids_due_at: args.bidsDueAt ?? '',
       sub_email: args.subEmail.trim(),
       sub_name: args.subName?.trim() ?? '',
       invite_url: url,
@@ -152,19 +168,83 @@ export async function sendBidInvite(args: SendBidInviteArgs): Promise<SendBidInv
  *  the catch, which turns one bad recipient into one 'failed' result the screen
  *  can name instead of a rejected promise that abandons the rest. */
 export async function sendBidInvites(
-  base: Omit<SendBidInviteArgs, 'subEmail' | 'subName'>,
-  recipients: { email: string; name?: string }[],
+  base: Omit<SendBidInviteArgs, 'subEmail' | 'subName' | 'subcontractorId'>,
+  recipients: InviteRecipient[],
 ): Promise<SendBidInviteResult[]> {
   const results: SendBidInviteResult[] = [];
   for (const r of recipients) {
     try {
-      results.push(await sendBidInvite({ ...base, subEmail: r.email, subName: r.name }));
+      // The roster id is PER RECIPIENT, not on the shared base — that is the
+      // whole fix. It used to sit on `base` and was never set, so every invite
+      // row, every bid the RPC copied it onto, and every commitment the award
+      // copied it onto again named a company and referenced no record.
+      results.push(await sendBidInvite({
+        ...base, subEmail: r.email, subName: r.name, subcontractorId: r.subcontractorId,
+      }));
     } catch (e) {
       console.warn('[bidInvites] invite failed for', r.email, e);
       results.push({ email: r.email.trim(), outcome: 'failed', emailed: false, url: '', inviteId: '' });
     }
   }
   return results;
+}
+
+/** What a chase did for one sub. `emailed:false` means the link is still live
+ *  and still uncarried — the screen has to offer the copy button, same as a
+ *  first send. */
+export interface RemindInviteResult {
+  inviteId: string;
+  email: string;
+  emailed: boolean;
+  url: string;
+}
+
+/**
+ * Chase the subs who have not answered.
+ *
+ * Re-fires the SAME `bid_invite_sent` event against the invite row's EXISTING
+ * token — no new row, no new token, no second bid slot. Routing a reminder
+ * through `sendBidInvites` would either be refused by `splitAlreadyInvited` or
+ * mint a second live link for a sub who already holds one, and
+ * `bid_invite_submit` blocks a second submit per INVITE rather than per bidder,
+ * so that sub could then file two bids that the levelling matrix shows as two
+ * competing companies.
+ *
+ * Nothing is written: `bid_package_invites` has no reminded_at column, so this
+ * is a send and not a state change. The screen says "re-sent just now" for the
+ * session and does not pretend to remember it tomorrow.
+ */
+export async function remindBidInvites(
+  base: Omit<SendBidInviteArgs, 'subEmail' | 'subName' | 'subcontractorId'>,
+  invites: readonly BidInviteRecord[],
+): Promise<RemindInviteResult[]> {
+  const out: RemindInviteResult[] = [];
+  for (const inv of invites) {
+    const url = bidInviteUrl(inv.inviteToken);
+    let emailed = false;
+    try {
+      emailed = await notifyEvent('bid_invite_sent', {
+        project_id: base.projectId,
+        project_name: base.projectName,
+        gc_user_id: base.userId,
+        package_id: base.packageId,
+        package_name: base.packageName,
+        csi_division: base.csiDivision ?? '',
+        phase: base.phase ?? '',
+        scope_description: base.scopeDescription ?? '',
+        bids_due_at: base.bidsDueAt ?? '',
+        sub_email: inv.subEmail,
+        sub_name: inv.subName ?? '',
+        invite_url: url,
+        expires_at: inv.expiresAt ?? '',
+        reply_to: base.replyToEmail ?? '',
+      });
+    } catch (e) {
+      console.warn('[bidInvites] reminder failed for', inv.subEmail, e);
+    }
+    out.push({ inviteId: inv.id, email: inv.subEmail, emailed, url });
+  }
+  return out;
 }
 
 interface InviteRow {
@@ -203,22 +283,55 @@ export async function fetchBidInvites(packageId: string): Promise<BidInviteRecor
       .eq('package_id', packageId)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return ((data ?? []) as InviteRow[]).map(r => ({
-      id: r.id,
-      packageId: r.package_id,
-      projectId: r.project_id,
-      subName: r.sub_name,
-      subEmail: r.sub_email,
-      subcontractorId: r.subcontractor_id,
-      inviteToken: r.invite_token,
-      status: r.status,
-      expiresAt: r.expires_at,
-      respondedAt: r.responded_at,
-      bidId: r.bid_id,
-      createdAt: r.created_at,
-    }));
+    return ((data ?? []) as InviteRow[]).map(mapInviteRow);
   } catch (e) {
     console.warn('[bidInvites] could not load invites for package', packageId, e);
     return null;
   }
+}
+
+/**
+ * Every invite on a project, in ONE read.
+ *
+ * The buyout list had no invite information at all, so answering "who still
+ * owes me a number" meant opening eight packages one at a time, each firing its
+ * own `fetchBidInvites`. This is deliberately a single project-scoped select
+ * rather than a loop over the package list: eight reads to render one screen is
+ * how a list becomes unusable on a job-site connection, and the RLS policy
+ * scopes the rows to the signed-in GC either way.
+ *
+ * Same honesty contract as `fetchBidInvites`: `null` means WE COULD NOT READ.
+ * The list must not render a dropped read as "nobody invited".
+ */
+export async function fetchBidInvitesForProject(projectId: string): Promise<BidInviteRecord[] | null> {
+  if (!isSupabaseConfigured || !projectId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('bid_package_invites')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return ((data ?? []) as InviteRow[]).map(mapInviteRow);
+  } catch (e) {
+    console.warn('[bidInvites] could not load invites for project', projectId, e);
+    return null;
+  }
+}
+
+function mapInviteRow(r: InviteRow): BidInviteRecord {
+  return {
+    id: r.id,
+    packageId: r.package_id,
+    projectId: r.project_id,
+    subName: r.sub_name,
+    subEmail: r.sub_email,
+    subcontractorId: r.subcontractor_id,
+    inviteToken: r.invite_token,
+    status: r.status,
+    expiresAt: r.expires_at,
+    respondedAt: r.responded_at,
+    bidId: r.bid_id,
+    createdAt: r.created_at,
+  };
 }

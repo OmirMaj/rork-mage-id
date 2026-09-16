@@ -314,6 +314,41 @@ export interface Project {
   contractorFeePercent?: number;
   contractorFeeAmount?: number;
   /**
+   * Retainage this job's contract holds back on every payment, as a percent of
+   * the value of the work. Read through utils/retainageSource.resolveRetainagePercent
+   * — never off this field directly, because it is the THIRD of four sources and
+   * an invoice that already carries its own rate outranks it.
+   *
+   * NULLABLE AND NEVER DEFAULTED, for the same reason as `noticePeriodDays`
+   * below: a percentage the app invents is the product putting a number in a
+   * contract it has never read. The distinction this field exists to preserve is
+   * `undefined` ("nobody has ever been asked") vs `0` ("he really holds
+   * nothing") — invoice #1 used to conflate the two by seeding the editor with
+   * the string '0', so a GC on a 10% job billed $80,000 gross, the owner's AP
+   * deducted $8,000 anyway, and MAGE then chased a receivable the owner
+   * considered settled while the retention screen saw nothing held to release.
+   *
+   * NOT SYNCED — same trap as `structuredAddress` below. There is no
+   * `projects.retainage_percent` column, so this field is absent from
+   * ProjectContext's upsert payload AND from its row→Project mapper, which
+   * means the next successful server fetch overwrites it with undefined. That
+   * degrades honestly rather than lying (the app re-asks; it does not invent a
+   * rate), and by then invoice #1 carries the answer on a row that DOES sync,
+   * so the carry-forward source covers the job. Making it durable per job needs
+   * a column + the payload + one `retainagePercent: cached?.retainagePercent`
+   * line in the mapper + a migration.
+   */
+  retainagePercent?: number;
+  /**
+   * True when `retainagePercent` was inferred from the GC's own earlier
+   * paperwork (a prior invoice or a G702 pay application) rather than read off
+   * the contract. Mirrors `noticePeriodAssumed`. Anything that surfaces the
+   * project-level rate must label an assumed one as carried, not as a contract
+   * term. Answering "I don't know" stores NOTHING — not a guess with this flag
+   * set — so the invoice can honestly say "not on file".
+   */
+  retainagePercentAssumed?: boolean;
+  /**
    * Written-notice window from THIS project's contract, in calendar days.
    * Drives utils/noticeClock.ts.
    *
@@ -2322,8 +2357,22 @@ export interface BidPackage {
   csiDivision?: string;
   /** Project phase ("Rough-in", "Finishes") for grouping. */
   phase?: string;
-  /** Free-text scope description sent to bidders. AI-generates from
-   *  linked estimate items by default; GC can edit. */
+  /**
+   * The scope of work the sub is asked to price. It is what the invite email
+   * renders and what `bid_invite_get` hands the sub-facing page — the ONLY
+   * description of the work the bidder ever sees.
+   *
+   * Seeded deterministically from the package's linked estimate items at
+   * creation (`utils/estimateItemsToScope.ts`, called from app/buyout.tsx) and
+   * editable on the package screen. Not AI-generated: the line items already
+   * carry name, quantity and unit, so a model adds a failure mode and nothing
+   * else. Money is deliberately excluded from the generated text for the same
+   * reason `bid_invite_get` withholds `estimate_budget`.
+   *
+   * Empty is a real state — the AI takeoff writes this field with no linked
+   * items, and a package can be made with neither — and the invite screen
+   * blocks the send and says so rather than mailing a scope-less RFQ.
+   */
   scopeDescription?: string;
   /** Estimate line item IDs whose carry totals to the package budget.
    *  Required for "buyout savings" math. */
@@ -2332,7 +2381,15 @@ export interface BidPackage {
   estimateBudget: number;
   /** Status flow: open → leveling → awarded. */
   status: BidPackageStatus;
-  /** When bids are due. Drives the buyout schedule view. */
+  /**
+   * When bids are due — the date the GC actually wants a number by.
+   *
+   * Captured in the create-package sheet (app/buyout.tsx) and the one date this
+   * area reads: the buyout list's OVERDUE badge and the "who owes me a number"
+   * line both go through `bidDueState` in utils/bidInviteCore.ts. The badge
+   * used to compare `requiredByDate`, which nothing in the repo writes, so it
+   * could never render.
+   */
   dueDate?: string;
   /** Bids received, denormalized for fast list rendering. The
    *  authoritative store is the BidPackageBid table; this array is
@@ -2344,9 +2401,15 @@ export interface BidPackage {
   /** Net buyout savings (or overrun) once awarded:
    *  estimateBudget - awardedBid.amount + normalizedAdjustment. */
   buyoutSavings?: number;
-  /** Required-by date that drives this package — usually the start
-   *  date of the linked estimate work. AI uses it to compute "you
-   *  need to award by X" warnings. */
+  /**
+   * "Must be on site by" — the start date of the linked work, which is a
+   * different date from `dueDate` (bids due) and is what a late award actually
+   * pushes.
+   *
+   * STILL HAS NO WRITER. Nothing in the app captures it, so nothing may read it
+   * as a fact: the overdue badges deliberately read `dueDate` instead. Leave it
+   * unread until there is a capture for it.
+   */
   requiredByDate?: string;
   notes?: string;
   createdAt: string;
@@ -4310,7 +4373,13 @@ export interface OACAgendaItem {
   status?: 'info' | 'warn' | 'urgent' | 'done';
   /** When this references a specific RFI / Submittal / CO / Task, the id is here. */
   referenceId?: string;
-  referenceType?: 'rfi' | 'submittal' | 'change_order' | 'task' | 'punch';
+  /**
+   * 'oac_action' points at an OACActionItem raised in an EARLIER meeting and
+   * carried forward onto this one's agenda. Without it a carried-forward row
+   * would be an untraceable sentence — the screen needs the id to close the
+   * action in the meeting that owns it (utils/oacEngine buildCarryForwardAgendaItems).
+   */
+  referenceType?: 'rfi' | 'submittal' | 'change_order' | 'task' | 'punch' | 'oac_action';
   /** GC's own note added during the meeting — survives across regenerations of the agenda. */
   manualNote?: string;
   /** Marked true after discussion. Drives "X of Y items covered" in the meeting screen. */
@@ -4327,6 +4396,17 @@ export interface OACActionItem {
   closedAt?: string;
   /** Origin meeting — used to attribute who/when raised the action. */
   meetingId?: string;
+  /**
+   * Who minted it. 'ai' = extracted from the transcript by
+   * generateMinutesFromTranscript; 'manual' = the GC typed it in the meeting
+   * screen. Recorded because the two are not equally trustworthy — an AI
+   * reading of "Jim will chase the landlord" is a paraphrase, and the screen
+   * says so rather than presenting both as the same kind of fact. Undefined on
+   * rows written before the field existed; readers must not assume 'manual'.
+   */
+  source?: 'ai' | 'manual';
+  /** Last time the status or the text changed — distinct from closedAt. */
+  updatedAt?: string;
 }
 
 export type OACMeetingStatus = 'draft' | 'scheduled' | 'in_progress' | 'concluded' | 'distributed';

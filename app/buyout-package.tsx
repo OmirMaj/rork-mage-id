@@ -27,10 +27,11 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, X, Save, Trophy, AlertTriangle, CheckCircle2,
   Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown, Scale,
-  Mail, Copy,
+  Mail, Copy, FileText, Users, Link2, Clock, Send,
 } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { MageAIMark } from '@/components/icons';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -38,7 +39,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
-  BID_PACKAGE_STATUS_LABELS, type BidPackage, type BidPackageBid, type BidPackageStatus,
+  BID_PACKAGE_STATUS_LABELS, type BidPackage, type BidPackageBid, type BidPackageStatus, type Subcontractor,
 } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
@@ -56,11 +57,16 @@ import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { copyToClipboard } from '@/utils/clipboard';
-import { fetchBidInvites, sendBidInvites } from '@/utils/bidInvites';
+import { fetchBidInvites, remindBidInvites, sendBidInvites } from '@/utils/bidInvites';
 import {
-  bidInviteUrl, inviteCoverage, inviteState, inviteStateLabel, parseInviteEmails, splitAlreadyInvited,
-  type BidInviteRecord,
+  attachRosterIds, bidDueLabel, bidDueState, bidInviteUrl, inviteCoverage, inviteState, inviteStateLabel,
+  parseInviteEmails, remindableInvites, resolveBidSubcontractor, splitAlreadyInvited,
+  type BidInviteRecord, type InviteRecipient,
 } from '@/utils/bidInviteCore';
+import { canGenerateScope, estimateItemsToScope } from '@/utils/estimateItemsToScope';
+import { complianceLabel, getComplianceStatus, parseExpiry } from '@/utils/subCompliance';
+import { matchSubForPhase } from '@/utils/subTradeMatch';
+import { normalizeTradeKey } from '@/utils/laborSamples';
 
 // Invite timestamps are instants (timestamptz), shown here as the day they
 // fall on in the reader's own zone — which is what a GC means by "sent Tuesday".
@@ -91,7 +97,7 @@ export default function BuyoutPackageScreen() {
     projects, commitments,
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
-    awardBidPackage, getProject, prequalPackets, getSubcontractor,
+    awardBidPackage, getProject, prequalPackets, getSubcontractor, subcontractors,
     updateCommitment, getCommitmentsForProject,
     settings,
   } = useProjects();
@@ -116,6 +122,24 @@ export default function BuyoutPackageScreen() {
     );
   }, [pkg, project]);
 
+  // Every estimate line this package covers — the source the scope of work is
+  // written from, and the reason the scope needs no AI call.
+  const packageItems = useMemo(() => {
+    if (!pkg || !project?.linkedEstimate) return [];
+    return project.linkedEstimate.items.filter(i => pkg.linkedEstimateItemIds.includes(i.materialId));
+  }, [pkg, project]);
+
+  // ── Scope of work ────────────────────────────────────────────
+  // `scopeDescription` is the ONLY description of the work the bidder ever
+  // sees: the invite email prints it and `bid_invite_get` hands it to the
+  // sub-facing page. It had no writer for any package made by hand, so subs
+  // were asked to price a package NAME at an address — and the page's own
+  // fallback copy then tells them to email the contractor for the scope, which
+  // is the phone call this whole flow exists to replace.
+  const scopeText = (pkg?.scopeDescription ?? '').trim();
+  const [showScopeEdit, setShowScopeEdit] = useState(false);
+  const [scopeDraft, setScopeDraft] = useState('');
+
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [showAddBid, setShowAddBid] = useState(false);
   const [newVendor, setNewVendor] = useState('');
@@ -137,6 +161,22 @@ export default function BuyoutPackageScreen() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmails, setInviteEmails] = useState('');
   const [inviteSending, setInviteSending] = useState(false);
+  // Subs picked off the roster in the invite sheet. The sheet used to be one
+  // free-text box, so the GC typed addresses from memory for subs the app
+  // already had on file — and the invite row, the bid the RPC copies it onto
+  // and the commitment the award copies it onto again all ended up naming a
+  // company and referencing no record.
+  const [pickedSubIds, setPickedSubIds] = useState<string[]>([]);
+  const [reminding, setReminding] = useState(false);
+  // Session-scoped: `bid_package_invites` has no reminded_at column, so this
+  // says "just now" for as long as the screen is open and never pretends to
+  // remember it tomorrow.
+  const [remindedIds, setRemindedIds] = useState<string[]>([]);
+  // Which bid the "link to a sub" sheet is open for, and why each linked bid
+  // is linked — a join key the app filled in silently is how the wrong sub
+  // ends up on a signed subcontract with nobody able to see it happened.
+  const [linkTargetBidId, setLinkTargetBidId] = useState<string | null>(null);
+  const [linkNotes, setLinkNotes] = useState<Record<string, string>>({});
 
   const loadInvites = useCallback(async () => {
     if (!packageId) return;
@@ -167,6 +207,77 @@ export default function BuyoutPackageScreen() {
     void queryClient.invalidateQueries({ queryKey: ['bid_package_bids'] });
   }, [invites, bids, queryClient]);
 
+  // ── The roster, as bid candidates ────────────────────────────
+  // Subs on this job (an empty `assignedProjects` means "available everywhere",
+  // which is how the rest of the app reads it), trade-matched ones first.
+  //
+  // The ordering is a SUGGESTION and never a filter: a GC invites the drywall
+  // sub to price the ceiling package all the time, and hiding him would be the
+  // app deciding something it does not know. utils/subTradeMatch.ts makes the
+  // same argument the other way — it refuses to ASSIGN unless exactly one sub
+  // carries the trade — and `packageMatch` below is that refusal, used here
+  // only to label one row.
+  const tradeKey = useMemo(() => normalizeTradeKey(pkg?.phase || pkg?.name || ''), [pkg?.phase, pkg?.name]);
+  const roster = useMemo(() => {
+    if (!pkg) return [] as Subcontractor[];
+    const onJob = subcontractors.filter(s =>
+      !s.assignedProjects?.length || s.assignedProjects.includes(pkg.projectId));
+    return [...onJob].sort((a, b) => {
+      const am = normalizeTradeKey(a.trade) === tradeKey ? 0 : 1;
+      const bm = normalizeTradeKey(b.trade) === tradeKey ? 0 : 1;
+      return am - bm || a.companyName.localeCompare(b.companyName);
+    });
+  }, [subcontractors, pkg, tradeKey]);
+
+  // The one unambiguous trade match, if there is one. Same function the
+  // scheduler uses, so "the only plumbing sub on this job" means the same thing
+  // on both screens.
+  const packageMatch = useMemo(() => {
+    if (!pkg) return null;
+    const outcome = matchSubForPhase(pkg.phase || pkg.name, roster, pkg.projectId);
+    return outcome.matched ? outcome.match : null;
+  }, [pkg, roster]);
+
+  // ── Scope of work: generate, edit, persist ───────────────────
+  const handleGenerateScope = useCallback(() => {
+    const generated = estimateItemsToScope(packageItems);
+    if (!generated) return;
+    setScopeDraft(generated);
+    setShowScopeEdit(true);
+  }, [packageItems]);
+
+  const handleSaveScope = useCallback(() => {
+    if (!pkg) return;
+    const next = scopeDraft.trim();
+    updateBidPackage(pkg.id, { scopeDescription: next || undefined });
+    setShowScopeEdit(false);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [pkg, scopeDraft, updateBidPackage]);
+
+  // ── Recover the sub behind a bid that arrived anonymous ──────
+  // A picker in the invite sheet only fixes bids filed after today. Every bid
+  // already in the matrix, plus every bid added by voice or by hand, still
+  // carries no `subcontractorId` — and that is the key `sub-portals` refuses to
+  // work without (`if (!c.subcontractorId) continue`), the key the scorecard
+  // attributes commitments by, and the key the award compliance lookup needs.
+  //
+  // So link them here, from evidence already on the device: the invite we sent
+  // names the address, and the roster names the address's owner. Ambiguity
+  // refuses (utils/bidInviteCore.ts) and the refusals get the manual control on
+  // the bid card. Each bid is attempted once per screen mount — a write that
+  // does not stick must not re-arm the effect into a loop.
+  const autoLinkedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const bid of bids) {
+      if (bid.subcontractorId || autoLinkedRef.current.has(bid.id)) continue;
+      const link = resolveBidSubcontractor(bid, invites, subcontractors);
+      if (!link) continue;
+      autoLinkedRef.current.add(bid.id);
+      updateBidPackageBid(bid.id, { subcontractorId: link.subId });
+      setLinkNotes(prev => ({ ...prev, [bid.id]: link.reason }));
+    }
+  }, [bids, invites, subcontractors, updateBidPackageBid]);
+
   // `inviteSending` drives the button's disabled prop, but state lands a frame
   // later — a double tap on "Send invitations" both get through and every sub
   // is minted TWO live tokens. `bid_invite_submit` blocks a second submit per
@@ -174,6 +285,7 @@ export default function BuyoutPackageScreen() {
   // matrix shows one company as two competing bidders. This latch is a ref
   // because it has to be true on the second tap's synchronous read.
   const invitingRef = useRef(false);
+  const remindingRef = useRef(false);
 
   const handleSendInvites = useCallback(async () => {
     if (!pkg || !project) return;
@@ -183,13 +295,41 @@ export default function BuyoutPackageScreen() {
       showAlert('Sign in first', 'An invite is filed against your account, so it needs a signed-in session. Sign in and try again.');
       return;
     }
-    const { recipients, rejected } = parseInviteEmails(inviteEmails);
+    // A scope-less invite is worse than no invite: the sub gets an email headed
+    // "You're invited to bid on Plumbing rough-in" with a CSI number and a
+    // button, and the landing page tells him to email the contractor for the
+    // details. The button that opened this sheet is disabled for exactly this
+    // reason and says so; this is the defensive half of that gate.
+    if (!scopeText) {
+      showAlert(
+        'No scope to send',
+        'This package has no scope of work written, so the invitation would ask the sub to price a name and an address — and the bid page would tell him to phone you for the details. Write the scope first; if the package has estimate items linked, one tap fills it in.',
+      );
+      return;
+    }
+    const { recipients: typed, rejected } = parseInviteEmails(inviteEmails);
+    // Picked-off-the-roster subs carry their id from the start. Typed addresses
+    // get one attached when they exactly match a sub already on file, so
+    // "joe@acemech.com" typed from memory is still Ace Mechanical.
+    const pickedRecipients: InviteRecipient[] = pickedSubIds
+      .map(id => subcontractors.find(s => s.id === id))
+      .filter((s): s is Subcontractor => !!s && !!s.email.trim())
+      .map(s => ({ email: s.email.trim(), name: s.companyName, subcontractorId: s.id }));
+    const seenEmail = new Set(pickedRecipients.map(r => r.email.toLowerCase()));
+    const recipients: InviteRecipient[] = [
+      ...pickedRecipients,
+      // De-duplicated against the picks: a sub both ticked and typed would
+      // otherwise be minted two live tokens, and `bid_invite_submit` blocks a
+      // second submit per INVITE rather than per bidder — so one company could
+      // file two bids that the matrix shows as two competing subs.
+      ...attachRosterIds(typed, subcontractors).filter(r => !seenEmail.has(r.email.toLowerCase())),
+    ];
     if (recipients.length === 0) {
       showAlert(
         'No email addresses',
         rejected.length > 0
           ? `Couldn't read ${rejected.slice(0, 3).join(', ')} as an email address. One address per line, or separated by commas.`
-          : "Type the subs' email addresses — one per line, or separated by commas.",
+          : "Pick subs from your roster above, or type their email addresses — one per line, or separated by commas.",
       );
       return;
     }
@@ -217,6 +357,7 @@ export default function BuyoutPackageScreen() {
           csiDivision: pkg.csiDivision,
           phase: pkg.phase,
           scopeDescription: pkg.scopeDescription,
+          bidsDueAt: pkg.dueDate,
           replyToEmail: settings?.branding?.email,
         },
         fresh,
@@ -266,6 +407,7 @@ export default function BuyoutPackageScreen() {
 
       setShowInvite(false);
       setInviteEmails('');
+      setPickedSubIds([]);
       await loadInvites();
       if (Platform.OS !== 'web' && failed.length === 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(failed.length > 0 ? 'Some invites did not go' : 'Subs invited', lines.join('\n\n'));
@@ -280,7 +422,62 @@ export default function BuyoutPackageScreen() {
       invitingRef.current = false;
       setInviteSending(false);
     }
-  }, [pkg, project, user, inviteEmails, settings, loadInvites, invites]);
+  }, [pkg, project, user, inviteEmails, settings, loadInvites, invites, scopeText, pickedSubIds, subcontractors]);
+
+  // ── Chase the ones who have gone quiet ───────────────────────
+  // The coverage banner said "2 invited subs haven't answered yet — chase
+  // them" and offered no way to. This re-fires the invite email against each
+  // awaiting invite's EXISTING token: no second row, no second token, no
+  // second bid slot for the same company.
+  const handleRemind = useCallback(async () => {
+    if (!pkg || !project) return;
+    // Same reason as `invitingRef`: `reminding` drives the disabled prop and
+    // lands a frame later, so a double tap sends every waiting sub the chase
+    // email twice.
+    if (remindingRef.current) return;
+    const uid = user?.id;
+    if (!uid) {
+      showAlert('Sign in first', 'Reminders go out against your account, so they need a signed-in session.');
+      return;
+    }
+    const awaiting = remindableInvites(invites, Date.now());
+    if (awaiting.length === 0) return;
+    remindingRef.current = true;
+    setReminding(true);
+    try {
+      const results = await remindBidInvites(
+        {
+          userId: uid,
+          packageId: pkg.id,
+          projectId: pkg.projectId,
+          packageName: pkg.name,
+          projectName: project.name,
+          csiDivision: pkg.csiDivision,
+          phase: pkg.phase,
+          scopeDescription: pkg.scopeDescription,
+          bidsDueAt: pkg.dueDate,
+          replyToEmail: settings?.branding?.email,
+        },
+        awaiting,
+      );
+      const sent = results.filter(r => r.emailed);
+      setRemindedIds(sent.map(r => r.inviteId));
+      const lines: string[] = [];
+      if (sent.length > 0) {
+        lines.push(`Re-sent the invitation to ${sent.length} sub${sent.length === 1 ? '' : 's'}: ${sent.map(r => r.email).join(', ')}. Same link as before — they can still only file one bid.`);
+      }
+      const missed = results.filter(r => !r.emailed);
+      if (missed.length > 0) {
+        // The link is live either way; he just has to be the one carrying it.
+        lines.push(`We could not hand the email off for ${missed.map(r => r.email).join(', ')}. Their link still works — copy it from the list and text it over.`);
+      }
+      if (Platform.OS !== 'web' && sent.length > 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAlert(sent.length > 0 ? 'Chased' : 'Nothing was emailed', lines.join('\n\n'));
+    } finally {
+      remindingRef.current = false;
+      setReminding(false);
+    }
+  }, [pkg, project, user, invites, settings]);
 
   const handleCopyInviteLink = useCallback(async (invite: BidInviteRecord) => {
     const ok = await copyToClipboard(bidInviteUrl(invite.inviteToken));
@@ -377,19 +574,24 @@ export default function BuyoutPackageScreen() {
   }, [pkg, bids, projects, commitments, receipts, seeds, updateBidPackageBid, subscriptionTier]);
 
   // ── Award a bid ─────────────────────────────────────────────
-  // Prequal gate (industry must-have): when the bidder is a tracked
-  // Subcontractor with a PrequalPacket, check that the packet is
-  // 'approved' and not 'expired' before awarding. If missing or stale,
-  // we WARN but don't block — the GC can still award after seeing the
-  // gap, because residential <$5M typically simplifies docs.
+  // The compliance gate, re-weighted against what the app actually knows.
+  //
+  // It used to push a blocker for ANY bid with no prequal packet — and
+  // `prequal_packets` is empty in production, while `bid.subcontractorId` was
+  // never set by anything, so EVERY award went through the red destructive
+  // "Award & accept risk" double-confirm. A GC who sees that screen on every
+  // award for three months stops reading it, which is exactly when the one sub
+  // whose COI really has lapsed goes through.
+  //
+  // So: the licence and COI dates the app keeps up to date on the roster are
+  // the evidence. Expired or absent is a blocker — it is the thing the gate is
+  // for. Current dates with no prequal packet is a NOTE: it is paperwork the
+  // GC may deliberately not run on a small job, not an insurance exposure.
   const handleAward = useCallback((bid: BidPackageBid) => {
     if (!pkg) return;
     const total = bid.amount + (bid.normalizedAdjustment ?? 0);
     const savings = pkg.estimateBudget - total;
 
-    // Prequal lookup. We match by subcontractorId first; if the bid
-    // came in by voice with just a vendorName, there's no link yet
-    // and we surface that as a softer "no prequal on file" warning.
     const sub = bid.subcontractorId ? getSubcontractor(bid.subcontractorId) : null;
     const packet = sub
       ? prequalPackets.find(p => p.subcontractorId === sub.id)
@@ -398,27 +600,49 @@ export default function BuyoutPackageScreen() {
     // D4-1: structured blocker evaluation via prequalEngine
     const review = packet ? reviewPrequalPacket(packet) : null;
     const blockers: string[] = [];
-    if (!packet) {
-      blockers.push(sub ? 'No prequal packet on file for this sub.' : 'Bid is not linked to a tracked subcontractor — no prequal/COI verified.');
-    } else if (review && review.overall !== 'pass') {
-      for (const f of review.findings) {
-        if (!f.passed && f.severity === 'blocker') blockers.push(f.note ? `${f.label} — ${f.note}` : f.label);
+    const notes: string[] = [];
+    const now = Date.now();
+    const compliance = sub ? getComplianceStatus(sub, now) : null;
+
+    if (!sub) {
+      // Actionable, not a shrug: the bid card carries the control that fixes it.
+      blockers.push('This bid is not linked to a sub on your roster, so no licence or COI has been checked — and the commitment it creates cannot be given a sub portal. Use "Link this bid to a sub" on the bid card first.');
+    } else if (compliance === 'expired') {
+      const licMs = parseExpiry(sub.licenseExpiry);
+      const coiMs = parseExpiry(sub.coiExpiry);
+      if (coiMs !== null && coiMs < now) blockers.push(`${sub.companyName}'s COI expired ${new Date(coiMs).toLocaleDateString()}.`);
+      if (licMs !== null && licMs < now) blockers.push(`${sub.companyName}'s licence expired ${new Date(licMs).toLocaleDateString()}.`);
+    } else if (compliance === 'unknown') {
+      blockers.push(`${complianceLabel('unknown', sub)} for ${sub.companyName} — the app has never seen that paperwork, so it cannot tell you he is covered.`);
+    } else {
+      if (compliance === 'expiring_soon') {
+        const coiMs = parseExpiry(sub.coiExpiry);
+        const licMs = parseExpiry(sub.licenseExpiry);
+        const soonest = [coiMs, licMs].filter((m): m is number => m !== null).sort((a, b) => a - b)[0];
+        notes.push(`${sub.companyName}'s paperwork is current but expires ${new Date(soonest).toLocaleDateString()} — ask for the renewal before he starts.`);
       }
-      if (blockers.length === 0) blockers.push(`Prequal not approved: ${review.summary}`);
+      if (!packet) {
+        notes.push(`No prequal packet on file for ${sub.companyName}. His licence and COI dates are current, so this is paperwork you may have chosen not to run — not an uninsured sub.`);
+      } else if (review && review.overall !== 'pass') {
+        for (const f of review.findings) {
+          if (!f.passed && f.severity === 'blocker') blockers.push(f.note ? `${f.label} — ${f.note}` : f.label);
+        }
+        if (blockers.length === 0) notes.push(`Prequal not approved: ${review.summary}`);
+      }
     }
     const isRisky = blockers.length > 0;
 
     const lines: string[] = [];
-    lines.push(`Vendor: ${bid.vendorName ?? sub?.companyName ?? 'Subcontractor'}`);
+    lines.push(`Vendor: ${sub?.companyName ?? bid.vendorName ?? 'Subcontractor'}`);
     lines.push(`Leveled total: ${formatMoney(total)}`);
     lines.push(`Buyout ${savings >= 0 ? 'savings' : 'overrun'}: ${formatMoney(Math.abs(savings))}`);
     if (allowanceItems.length > 0) {
       lines.push('');
       lines.push(`- ${allowanceItems.length} allowance item${allowanceItems.length === 1 ? '' : 's'} will lock to firm price.`);
     }
-    if (isRisky) {
+    if (notes.length > 0) {
       lines.push('');
-      lines.push(`Note: Prequal: ${blockers[0]}`);
+      for (const n of notes) lines.push(`- ${n}`);
     }
     lines.push('');
     lines.push('Awarding will create a Commitment and mark this package complete.');
@@ -465,12 +689,16 @@ export default function BuyoutPackageScreen() {
         ].join('\n'),
         [
           { text: 'Cancel', style: 'cancel' },
+          // The unlinked case has a fix that takes one tap, so offer it here
+          // rather than sending him down the destructive path to work around a
+          // blocker that is really a missing join.
+          ...(!sub ? [{ text: 'Pick the sub', style: 'default' as const, onPress: () => setLinkTargetBidId(bid.id) }] : []),
           {
             text: 'Review override',
             style: 'destructive',
             onPress: () => showAlert(
               'Confirm risk override',
-              `Award ${bid.vendorName ?? sub?.companyName ?? 'this sub'} despite:\n\n${blockers.map(b => '• ' + b).join('\n')}\n\nThis is the GC's compliance risk and will be recorded.`,
+              `Award ${sub?.companyName ?? bid.vendorName ?? 'this sub'} despite:\n\n${blockers.map(b => '• ' + b).join('\n')}\n\nThis is the GC's compliance risk and will be recorded.`,
               [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Award & accept risk', style: 'destructive', onPress: doAward },
@@ -598,6 +826,12 @@ export default function BuyoutPackageScreen() {
   // subs still holding a live link is a waiting problem, not a coverage one.
   const coverage = inviteCoverage(invites, Date.now());
 
+  // The two things the chase needs: when the number is wanted, and who still
+  // owes one. `dueDate` is the field the create sheet writes — `requiredByDate`
+  // has no writer anywhere in the repo and must not be read as a fact.
+  const dueState = bidDueState(pkg.dueDate, Date.now());
+  const remindable = remindableInvites(invites, Date.now());
+
   // Which rows in the matrix the sub typed himself. Read from the invite that
   // produced the bid rather than from bid.source, so a later edit to the bid
   // can't quietly turn a sub's own number into one the GC appears to have
@@ -677,14 +911,26 @@ export default function BuyoutPackageScreen() {
                         ? ` ${coverage.awaiting} invited sub${coverage.awaiting === 1 ? ' hasn’t' : 's haven’t'} answered yet — chase them, or invite more.`
                         : ' Invite more subs before awarding.'}
                     </Text>
+                    {/* Same gate as the section button below — a second door
+                        into the invite sheet must not walk around the scope
+                        check, or the coverage warning becomes the way to send
+                        a scope-less RFQ. */}
                     <TouchableOpacity
-                      style={styles.warningActionBtn}
-                      onPress={() => setShowInvite(true)}
+                      style={[styles.warningActionBtn, !scopeText && styles.inviteBtnBlocked]}
+                      onPress={() => { if (scopeText) setShowInvite(true); }}
+                      disabled={!scopeText}
                       activeOpacity={0.85}
                       testID="coverage-invite-subs"
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !scopeText }}
+                      accessibilityLabel={scopeText
+                        ? 'Invite subs to bid'
+                        : 'Invite subs to bid — unavailable until this package has a scope of work'}
                     >
-                      <Mail size={13} color={Colors.warningLabel} strokeWidth={1.75} />
-                      <Text style={styles.warningActionText}>Invite subs to bid</Text>
+                      <Mail size={13} color={scopeText ? Colors.warningLabel : themeColors.textMuted} strokeWidth={1.75} />
+                      <Text style={[styles.warningActionText, !scopeText && { color: themeColors.textMuted }]}>
+                        {scopeText ? 'Invite subs to bid' : 'Write the scope first, then invite'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -700,6 +946,59 @@ export default function BuyoutPackageScreen() {
               )}
             </View>
           )}
+
+          {/* Scope of work — the only thing the bidder is told about the job.
+              Shown ABOVE the invite section on purpose: it has to be written
+              before the invitation means anything, and the send button below
+              is disabled until it is. */}
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Scope of work</Text>
+              <Text style={styles.sectionSub}>{scopeText ? 'What the subs are pricing' : 'Not written yet'}</Text>
+            </View>
+            {scopeText ? (
+              <View style={styles.scopeCard}>
+                <Text style={styles.scopeText}>{scopeText}</Text>
+                <TouchableOpacity
+                  style={styles.scopeEditBtn}
+                  onPress={() => { setScopeDraft(scopeText); setShowScopeEdit(true); }}
+                  activeOpacity={0.85}
+                  testID="scope-edit"
+                >
+                  <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.scopeEditText}>Edit the scope</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.scopeCard}>
+                <Text style={styles.scopeEmptyText}>
+                  {canGenerateScope(packageItems)
+                    ? `This package covers ${packageItems.length} estimate line${packageItems.length === 1 ? '' : 's'}. Write them out as a scope and the sub knows what he is pricing — quantities and units only, never your carry.`
+                    : 'Nothing is linked to this package from the estimate, so there is nothing to generate from. Type the scope yourself — without it the invitation asks the sub to price a name and an address, and the bid page tells him to phone you.'}
+                </Text>
+                <View style={styles.scopeBtnRow}>
+                  {canGenerateScope(packageItems) && (
+                    <TouchableOpacity
+                      style={styles.scopeGenBtn}
+                      onPress={handleGenerateScope}
+                      activeOpacity={0.85}
+                      testID="scope-generate"
+                    >
+                      <FileText size={14} color="#FFF" strokeWidth={1.75} />
+                      <Text style={styles.scopeGenText}>Write it from the estimate items</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.scopeEditBtn}
+                    onPress={() => { setScopeDraft(''); setShowScopeEdit(true); }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.scopeEditText}>Type it</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
 
           {/* Run-leveling CTA when 2+ bids and not awarded */}
           {pkg.status !== 'awarded' && bids.length >= 2 && (
@@ -781,6 +1080,22 @@ export default function BuyoutPackageScreen() {
                 </View>
               )}
 
+              {/* When the number is wanted. Shown here because this is the
+                  section he chases from; the invite email cannot carry it yet
+                  (see the handoff note above the send button). */}
+              <View style={styles.dueRow}>
+                <Clock
+                  size={Type.caption1.fontSize}
+                  color={dueState === 'overdue' ? themeColors.danger : dueState === 'none' ? themeColors.textMuted : themeColors.accent}
+                  strokeWidth={2}
+                />
+                <Text style={[styles.dueRowText, dueState === 'overdue' && { color: themeColors.danger, fontWeight: '700' }]}>
+                  {pkg.dueDate
+                    ? `${bidDueLabel(pkg.dueDate, Date.now())} · ${formatCalendarDay(pkg.dueDate, { weekday: 'short', month: 'short', day: 'numeric' })}`
+                    : 'No bid date on this package — nothing here can tell you it is late.'}
+                </Text>
+              </View>
+
               {invites.length === 0 ? (
                 !invitesFailed && (
                   <View style={styles.emptyBids}>
@@ -809,9 +1124,17 @@ export default function BuyoutPackageScreen() {
                         <Text style={styles.inviteWho} numberOfLines={1}>{inv.subName || inv.subEmail}</Text>
                         <Text style={styles.inviteMeta} numberOfLines={1}>
                           {sentDay ? `Sent ${sentDay}` : 'Sent'}
+                          {remindedIds.includes(inv.id) ? ' · re-sent just now' : ''}
                           {state === 'awaiting' && expiryDay ? ` · link good through ${expiryDay}` : ''}
                           {state === 'responded' ? ' · their number is in the matrix below' : ''}
                         </Text>
+                        {/* An invite filed against a roster sub is what gives
+                            the resulting bid a scorecard, a commitment that
+                            knows who it is with, and a sub portal. Saying which
+                            ones are anonymous is how he notices. */}
+                        {!inv.subcontractorId && (
+                          <Text style={styles.inviteMeta} numberOfLines={1}>Not on your roster — bids back from here arrive unlinked</Text>
+                        )}
                       </View>
                       <View style={[styles.invitePill, pillStyle]}>
                         <Text style={[styles.invitePillText, { color: pillInk }]}>{inviteStateLabel(state)}</Text>
@@ -833,15 +1156,51 @@ export default function BuyoutPackageScreen() {
               )}
 
               <TouchableOpacity
-                style={styles.inviteBtn}
-                onPress={() => setShowInvite(true)}
+                style={[styles.inviteBtn, !scopeText && styles.inviteBtnBlocked]}
+                onPress={() => { if (scopeText) setShowInvite(true); }}
+                disabled={!scopeText}
                 activeOpacity={0.85}
                 testID="invite-subs-to-bid"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !scopeText }}
+                accessibilityLabel={scopeText
+                  ? 'Invite subs to bid'
+                  : 'Invite subs to bid — unavailable until this package has a scope of work'}
               >
-                <Mail size={15} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.inviteBtnText}>{invites.length === 0 ? 'Invite subs to bid' : 'Invite more subs'}</Text>
-                <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
+                <Mail size={15} color={scopeText ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={[styles.inviteBtnText, !scopeText && { color: themeColors.textMuted }]}>
+                  {invites.length === 0 ? 'Invite subs to bid' : 'Invite more subs'}
+                </Text>
+                {scopeText && <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />}
               </TouchableOpacity>
+              {/* A blocked button says why, and says what unblocks it. */}
+              {!scopeText && (
+                <Text style={styles.inviteBlockedWhy}>
+                  No scope written yet. An invitation without one asks the sub to price a name and an address — and the bid page tells him to email you for the details, which is the phone call this replaces. Write the scope above and this turns on.
+                </Text>
+              )}
+
+              {/* Chase. The banner used to tell him to do this and offer no way. */}
+              {remindable.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.remindBtn, reminding && { opacity: 0.6 }]}
+                  onPress={() => { void handleRemind(); }}
+                  disabled={reminding}
+                  activeOpacity={0.85}
+                  testID="invite-remind"
+                >
+                  {reminding ? (
+                    <ActivityIndicator size="small" color={themeColors.text} />
+                  ) : (
+                    <Send size={14} color={themeColors.text} strokeWidth={1.75} />
+                  )}
+                  <Text style={styles.remindBtnText}>
+                    {reminding
+                      ? 'Sending…'
+                      : `Re-send to the ${remindable.length} who ${remindable.length === 1 ? 'has' : 'have'}n't answered`}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -966,13 +1325,36 @@ export default function BuyoutPackageScreen() {
                         <ArrowRight size={14} color="#FFF" strokeWidth={1.75} />
                       </TouchableOpacity>
                     )}
-                    {!!bid.subcontractorId && (
+                    {/* Who this bid is actually FROM, as a record rather than a
+                        name. Without the link the award creates a commitment
+                        that names a company and references nobody: no
+                        scorecard, no compliance check, and no sub portal
+                        (app/sub-portals.tsx skips commitments with no
+                        subcontractorId), so invoices and payment go back to
+                        email and text. */}
+                    {bid.subcontractorId ? (
+                      <View style={styles.bidSubLink}>
+                        <Text style={styles.bidSubLinkText} numberOfLines={2}>
+                          {linkNotes[bid.id]
+                            ?? `Linked to ${getSubcontractor(bid.subcontractorId)?.companyName ?? 'a sub on your roster'}.`}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.subScorecardBtn}
+                          onPress={() => router.push({ pathname: '/sub-scorecard', params: { subId: bid.subcontractorId } } as never)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.subScorecardBtnText}>See this sub&apos;s scorecard →</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
                       <TouchableOpacity
-                        style={styles.subScorecardBtn}
-                        onPress={() => router.push({ pathname: '/sub-scorecard', params: { subId: bid.subcontractorId } } as never)}
+                        style={styles.bidLinkBtn}
+                        onPress={() => setLinkTargetBidId(bid.id)}
                         activeOpacity={0.85}
+                        testID={`link-bid-${bid.id}`}
                       >
-                        <Text style={styles.subScorecardBtnText}>See this sub's scorecard →</Text>
+                        <Link2 size={13} color={themeColors.accent} strokeWidth={1.75} />
+                        <Text style={styles.bidLinkBtnText}>Link this bid to a sub</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1096,7 +1478,72 @@ export default function BuyoutPackageScreen() {
               <Text style={styles.inviteExplain}>
                 Each sub gets their own link to <Text style={{ fontWeight: '700' }}>{pkg.name}</Text>. It shows the scope, the CSI division and the phase — never your estimate budget — and takes their amount, inclusions and exclusions straight into the leveling matrix.
               </Text>
-              <Text style={styles.fieldLabel}>Sub email addresses *</Text>
+
+              {/* The roster, which this sheet could not see. Picking a sub here
+                  is what carries his id onto the invite row, the bid the RPC
+                  files from it, and the commitment the award creates — the
+                  join the scorecard, the compliance check and the sub portal
+                  all need and none of them ever had. */}
+              {roster.length > 0 && (
+                <>
+                  <View style={styles.rosterHead}>
+                    <Users size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                    <Text style={styles.fieldLabel}>Your subs{pkg.phase || pkg.name ? ` · ${(pkg.phase || pkg.name).toLowerCase()} first` : ''}</Text>
+                  </View>
+                  <View style={styles.rosterList}>
+                    {roster.map(s => {
+                      const picked = pickedSubIds.includes(s.id);
+                      const hasEmail = !!s.email.trim();
+                      const status = getComplianceStatus(s, Date.now());
+                      const tone = status === 'compliant' ? themeColors.success
+                        : status === 'expired' ? themeColors.danger
+                          : Colors.warningLabel;
+                      const isMatch = normalizeTradeKey(s.trade) === tradeKey;
+                      return (
+                        <TouchableOpacity
+                          key={s.id}
+                          style={[styles.rosterRow, picked && styles.rosterRowPicked, !hasEmail && { opacity: 0.6 }]}
+                          onPress={() => {
+                            if (!hasEmail) return;
+                            setPickedSubIds(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
+                          }}
+                          disabled={!hasEmail}
+                          activeOpacity={0.85}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: picked, disabled: !hasEmail }}
+                          accessibilityLabel={hasEmail
+                            ? `${s.companyName}, ${s.trade}, ${complianceLabel(status, s)}`
+                            : `${s.companyName} — no email address on file, so they cannot be invited`}
+                          testID={`invite-roster-${s.id}`}
+                        >
+                          <View style={[styles.rosterCheck, picked && styles.rosterCheckOn]}>
+                            {picked && <CheckCircle2 size={14} color={Colors.textOnAccent} strokeWidth={2.5} />}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.rosterName} numberOfLines={1}>{s.companyName}</Text>
+                            <Text style={styles.rosterMeta} numberOfLines={1}>
+                              {/* Never a guess: no email is the reason he cannot
+                                  be invited, said out loud rather than a row
+                                  that silently does nothing when tapped. */}
+                              {hasEmail ? s.email : 'No email on file — add one on the Subs tab to invite them'}
+                            </Text>
+                            {(isMatch || packageMatch?.subId === s.id) && (
+                              <Text style={styles.rosterMatch} numberOfLines={1}>
+                                {packageMatch?.subId === s.id ? packageMatch.reason : `Does ${s.trade.toLowerCase()}`}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={[styles.rosterChip, { borderColor: tone + '55', backgroundColor: tone + '1A' }]}>
+                            <Text style={[styles.rosterChipText, { color: tone }]}>{complianceLabel(status, s)}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              <Text style={styles.fieldLabel}>{roster.length > 0 ? 'Anyone else — by email' : 'Sub email addresses *'}</Text>
               <TextInput
                 style={[styles.input, styles.multilineInput]}
                 value={inviteEmails}
@@ -1109,7 +1556,15 @@ export default function BuyoutPackageScreen() {
                 keyboardType="email-address"
                 testID="invite-emails-input"
               />
-              <Text style={styles.inviteHint}>One per line, or separated by commas — a pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days — the same window material pricing holds for.</Text>
+              <Text style={styles.inviteHint}>One per line, or separated by commas — a pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. An address that matches a sub on your roster is linked to them automatically. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days — the same window material pricing holds for.</Text>
+              {/* What the sub is actually told, stated plainly. The due date is
+                  tracked and chased HERE; it is not in his email yet, and this
+                  sheet will not imply that it is. */}
+              {!!pkg.dueDate && (
+                <Text style={styles.inviteHint}>
+                  You have this package down for {formatCalendarDay(pkg.dueDate, { weekday: 'long', month: 'short', day: 'numeric' })}. Their email carries the scope and the link; say the date in your own words if it is tight, and chase from this screen.
+                </Text>
+              )}
             </ScrollView>
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity
@@ -1133,6 +1588,110 @@ export default function BuyoutPackageScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Scope editor. The generated text is a seed, not a lock — a GC who
+            wants to add "coordinate with the ceiling grid before rough-in"
+            types it here and the sub reads it on the bid page. */}
+        <Modal visible={showScopeEdit} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowScopeEdit(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Scope of work</Text>
+              <TouchableOpacity onPress={() => setShowScopeEdit(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={22} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 20 }}>
+              <Text style={styles.inviteExplain}>
+                This is the only description of the work the sub ever sees — it goes in his email and on the page where he types his price. Quantities and units, not your carry.
+              </Text>
+              <TextInput
+                style={[styles.input, styles.scopeInput]}
+                value={scopeDraft}
+                onChangeText={setScopeDraft}
+                placeholder={'e.g.\n• 3/4" PEX supply — 420 LF\n• Fixture rough-in — 11 EA'}
+                placeholderTextColor={themeColors.textMuted}
+                multiline
+                testID="scope-input"
+              />
+              {canGenerateScope(packageItems) && (
+                <TouchableOpacity
+                  style={styles.scopeEditBtn}
+                  onPress={() => setScopeDraft(estimateItemsToScope(packageItems))}
+                  activeOpacity={0.85}
+                >
+                  <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.scopeEditText}>Re-write it from the {packageItems.length} linked estimate line{packageItems.length === 1 ? '' : 's'}</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+            <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveScope} activeOpacity={0.85} testID="scope-save">
+                <Save size={16} color="#FFF" strokeWidth={1.75} />
+                <Text style={styles.saveBtnText}>Save scope</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Link an anonymous bid back to the roster. This is the control the
+            award dialog points at: until the bid carries a subcontractorId the
+            commitment it creates cannot be given a sub portal and teaches the
+            scorecard nothing. */}
+        <Modal visible={!!linkTargetBidId} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setLinkTargetBidId(null)}>
+          <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Who sent this bid?</Text>
+              <TouchableOpacity onPress={() => setLinkTargetBidId(null)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={22} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 20 }}>
+              <Text style={styles.inviteExplain}>
+                {roster.length > 0
+                  ? 'Pick the sub this bid came from. It links the award to his record, so the commitment can carry a sub portal, the compliance check has something to check, and the scorecard learns from the job.'
+                  : 'Nobody is on your roster for this job yet. Add the sub on the Subs tab — with their email, licence and COI dates — and this bid can be linked to them.'}
+              </Text>
+              <View style={styles.rosterList}>
+                {roster.map(s => {
+                  const status = getComplianceStatus(s, Date.now());
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={styles.rosterRow}
+                      onPress={() => {
+                        if (!linkTargetBidId) return;
+                        updateBidPackageBid(linkTargetBidId, { subcontractorId: s.id });
+                        setLinkNotes(prev => ({ ...prev, [linkTargetBidId]: `Linked to ${s.companyName} — you picked them for this bid.` }));
+                        // Never auto-overwrite a link the GC made by hand.
+                        autoLinkedRef.current.add(linkTargetBidId);
+                        setLinkTargetBidId(null);
+                        if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                      }}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Link this bid to ${s.companyName}`}
+                      testID={`link-to-${s.id}`}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rosterName} numberOfLines={1}>{s.companyName}</Text>
+                        <Text style={styles.rosterMeta} numberOfLines={1}>{s.trade}{s.email ? ` · ${s.email}` : ''}</Text>
+                      </View>
+                      <Text style={styles.rosterMeta}>{complianceLabel(status, s)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TouchableOpacity
+                style={styles.scopeEditBtn}
+                onPress={() => { setLinkTargetBidId(null); router.push('/(tabs)/subs' as never); }}
+                activeOpacity={0.85}
+              >
+                <Users size={14} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.scopeEditText}>Add a sub on the Subs tab</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </Modal>
       </View>
     </>
@@ -1237,6 +1796,43 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.accent + '40', backgroundColor: t.accent + '0F',
   },
   inviteBtnText: { color: t.accent, fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
+  inviteBtnBlocked: { borderColor: t.line, backgroundColor: t.surfaceAlt },
+  inviteBlockedWhy: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 8 },
+  remindBtn: {
+    ...cardSurface(t, { radius: 'lg', pad: 'none' }),
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    marginTop: 8, paddingVertical: 11,
+  },
+  remindBtnText: { color: t.text, fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
+  dueRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  dueRowText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' as const },
+
+  scopeCard: { ...cardSurface(t, { radius: 'lg', pad: 'none' }), padding: 14, gap: 10 },
+  scopeText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 20 },
+  scopeEmptyText: { fontSize: Type.footnote.fontSize, color: t.textMuted, lineHeight: 19 },
+  scopeInput: { minHeight: 220, textAlignVertical: 'top' as const, lineHeight: 20 },
+  scopeBtnRow: { gap: 8 },
+  scopeGenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: t.accentFill, paddingVertical: 11, borderRadius: Tokens.radius.card },
+  scopeGenText: { color: Colors.textOnAccent, fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
+  scopeEditBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 8 },
+  scopeEditText: { color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
+
+  rosterHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rosterList: { gap: 6, marginTop: 4 },
+  rosterRow: { ...cardSurface(t, { radius: 'md', pad: 12 }), flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rosterRowPicked: { backgroundColor: t.accent + '0F', borderColor: t.accent + '60' },
+  rosterCheck: { width: 22, height: 22, borderRadius: Tokens.radius.xs, borderWidth: 2, borderColor: t.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg },
+  rosterCheckOn: { backgroundColor: t.accent, borderColor: t.accent },
+  rosterName: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
+  rosterMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  rosterMatch: { fontSize: Type.caption2.fontSize, color: t.accent, marginTop: 2, fontWeight: '600' as const },
+  rosterChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, borderWidth: 1 },
+  rosterChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, letterSpacing: 0.3 },
+
+  bidSubLink: { gap: 2, paddingTop: 6 },
+  bidSubLinkText: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
+  bidLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4, paddingVertical: 10, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.accent + '40', backgroundColor: t.accent + '0F' },
+  bidLinkBtnText: { color: t.accent, fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   inviteExplain: { fontSize: Type.footnote.fontSize, color: t.textMuted, lineHeight: 20 },
   inviteHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 17 },
   bidHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },

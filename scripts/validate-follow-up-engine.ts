@@ -10,16 +10,21 @@
 // is not a guard, and this repo has already been bitten by 61 of those.
 
 import {
-  runFollowUpRules, mergeHeldFollowUps, rankFollowUps, overdueFor,
-  coveredControls, QUIET_WINDOW_DAYS,
+  runFollowUpRules, runFollowUpRulesForPortfolio, mergeHeldFollowUps, rankFollowUps,
+  overdueFor, coveredControls, QUIET_WINDOW_DAYS,
   type FollowUpRule, type FollowUpContext,
 } from '../utils/followUp/engine';
 import {
-  FOLLOW_UP_RULES, coiExpiresBeforeSubIsOnSite, coPastItsOwnTurnaround,
-  rfiPastRequiredDate, workStartedWithoutCommitment,
+  FOLLOW_UP_RULES, PREVENTIVE_FOLLOW_UP_RULES, coiExpiresBeforeSubIsOnSite,
+  coPastItsOwnTurnaround, rfiPastRequiredDate, workStartedWithoutCommitment,
 } from '../utils/followUp/rules';
 import type { FollowUpHold } from '../types';
 import { toCalendarDayString } from '../utils/calendarDate';
+import { isAppStorageKey, selectTenantKeysToWipe } from '../utils/localCacheKeys';
+// node:fs by import rather than the inline require()s further down: those
+// predate this section and are left alone, but a new one would add a lint
+// warning for no reason.
+import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0;
 function ok(n: string, cond: boolean, why?: string) {
@@ -427,6 +432,216 @@ console.log('\npurity — the engine has no clock of its own');
   ok('two identical runs are byte-identical', JSON.stringify(a) === JSON.stringify(b));
   ok('ids are deterministic across runs',
     a.items.map(i => i.id).join() === b.items.map(i => i.id).join());
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE SURFACE.
+//
+// Everything above proves the engine is honest. None of it proved the engine
+// was REACHABLE, and for its whole first day it was not: grepping every import
+// of followUp/engine, followUp/rules, FOLLOW_UP_RULES, runFollowUpRules,
+// mergeHeldFollowUps and rankFollowUps across app/, components/, hooks/ and
+// contexts/ returned zero hits. The only consumer was this file. A rule set
+// with 70 passing assertions and no screen is a rule set the contractor cannot
+// act on, and the two rules he loses are the only two in the app that fire
+// BEFORE something goes wrong rather than after.
+//
+// So this half pins the surface: that the registry reaches /waiting-on, that
+// it reaches it as the PREVENTIVE subset (running all four there would render
+// the same change order twice with two different overdue counts), and that the
+// portfolio fold /waiting-on needs does not quietly break the id contract the
+// held face joins on.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const readSrc = (rel: string): string => readFileSync(rel, 'utf-8');
+
+console.log('\nthe preventive subset — what /waiting-on may run, and what it may not');
+{
+  const ids = PREVENTIVE_FOLLOW_UP_RULES.map(r => r.id);
+  ok('every preventive rule is a real registry rule',
+    PREVENTIVE_FOLLOW_UP_RULES.every(r => FOLLOW_UP_RULES.includes(r)));
+
+  // BOTH directions. The subset must EXCLUDE the two that overlap
+  // utils/systemOfAction buildChaseList — and the full registry must still
+  // CONTAIN them, or this assertion would pass by the rules being deleted.
+  ok('the CO-turnaround rule is NOT surfaced on the chase screen',
+    !ids.includes('co_past_its_own_turnaround'),
+    'buildChaseList already emits ChaseKind co_approval for the same change order, and calls it ' +
+    'late after a hardcoded 3 days while this rule uses the turnaround the owner agreed. Two rows, ' +
+    'two different overdue counts, same CO — replace the hardcoded 3 first, do not render both.');
+  ok('the overdue-RFI rule is NOT surfaced on the chase screen',
+    !ids.includes('rfi_past_required_date'),
+    'buildChaseList already emits ChaseKind rfi for the same record');
+  ok('…and both still exist in the full registry',
+    FOLLOW_UP_RULES.some(r => r.id === 'co_past_its_own_turnaround')
+    && FOLLOW_UP_RULES.some(r => r.id === 'rfi_past_required_date'));
+
+  ok('the two preventive rules ARE surfaced',
+    ids.includes('coi_expires_before_sub_is_on_site')
+    && ids.includes('work_started_without_commitment'),
+    `got ${ids.join(', ')} — these are the only rules in the app that fire before the damage`);
+}
+
+console.log('\nthe portfolio fold — one certificate, one warning, every job named');
+{
+  // The same sub, scheduled on two jobs. A FollowUp id carries no projectId
+  // (it is the join key to the held face), so a portfolio-wide record like a
+  // subcontractor mints the IDENTICAL id once per job.
+  const twoJobs = [
+    emptyCtx({
+      projectId: 'p1', projectName: 'Henderson', scheduleStartDate: iso(0),
+      subcontractors: [sub({ coiExpiry: iso(10) })],
+      tasks: [task({ id: 't-hend', startDay: 21, assignedSubId: 's1' })],
+    }),
+    emptyCtx({
+      projectId: 'p2', projectName: 'Maple St', scheduleStartDate: iso(0),
+      subcontractors: [sub({ coiExpiry: iso(10) })],
+      tasks: [task({ id: 't-maple', startDay: 30, assignedSubId: 's1' })],
+    }),
+  ];
+  const folded = runFollowUpRulesForPortfolio([coiExpiresBeforeSubIsOnSite], twoJobs);
+
+  eq('one expiring certificate produces ONE row, not one per job', folded.items.length, 1);
+  ok('ids are unique across the whole fold',
+    new Set(folded.items.map(i => i.id)).size === folded.items.length,
+    'a duplicate id would collide in mergeHeldFollowUps’ own Map (last write wins) and would make ' +
+    'one Send mark every copy chased while the others still looked untouched');
+  eq('the row it kept is the first job handed over', folded.items[0]?.projectId, 'p1');
+  eq('and the other job is still named, not dropped',
+    folded.alsoOnProjects[folded.items[0]?.id ?? ''], ['Maple St']);
+
+  // A sub on ONE job must not be reported as being on another.
+  const oneJob = runFollowUpRulesForPortfolio([coiExpiresBeforeSubIsOnSite], [twoJobs[0] as FollowUpContext]);
+  eq('a sub on a single job carries no "also on"', Object.keys(oneJob.alsoOnProjects).length, 0);
+
+  ok('two identical portfolio runs are byte-identical',
+    JSON.stringify(runFollowUpRulesForPortfolio([coiExpiresBeforeSubIsOnSite], twoJobs)) === JSON.stringify(folded));
+}
+
+console.log('\n"checked 2 of 2" has to be true on EVERY job, not on one of them');
+{
+  // p2's schedule has no start date, so the COI rule cannot answer "before
+  // they start" there and refuses. The screen must not then tell him the
+  // portfolio was checked.
+  const mixed = [
+    emptyCtx({
+      projectId: 'p1', projectName: 'Henderson', scheduleStartDate: iso(0),
+      subcontractors: [sub({ coiExpiry: iso(10) })],
+      tasks: [task({ startDay: 21, assignedSubId: 's1' })],
+    }),
+    emptyCtx({
+      projectId: 'p2', projectName: 'Maple St', scheduleStartDate: undefined,
+      subcontractors: [sub({ id: 's2', coiExpiry: iso(10) })],
+      tasks: [task({ id: 't2', startDay: 21, assignedSubId: 's2' })],
+    }),
+  ];
+  const run = runFollowUpRulesForPortfolio([coiExpiresBeforeSubIsOnSite], mixed);
+
+  eq('the rule ran somewhere', run.ranRuleIds, ['coi_expires_before_sub_is_on_site']);
+  eq('but is NOT counted as checked across the portfolio', run.ranEverywhereRuleIds.length, 0);
+  eq('the refusal names the job it happened on', run.refusals[0]?.projectName, 'Maple St');
+  eq('…and carries the missing collection as DATA, not only as prose',
+    run.refusals[0]?.missing, ['scheduleStartDate']);
+  ok('the prose still names it too, for a validator run',
+    /scheduleStartDate/.test(run.refusals[0]?.detail ?? ''));
+  eq('the job it COULD run on still produced its warning', run.items.length, 1);
+
+  // Both directions: with the anchor present on both jobs it IS fully checked.
+  const bothDated = runFollowUpRulesForPortfolio([coiExpiresBeforeSubIsOnSite], [
+    mixed[0] as FollowUpContext,
+    { ...(mixed[1] as FollowUpContext), scheduleStartDate: iso(0) },
+  ]);
+  eq('with every job answerable, the check counts as checked',
+    bothDated.ranEverywhereRuleIds, ['coi_expires_before_sub_is_on_site']);
+  eq('and nothing is refused', bothDated.refusals.length, 0);
+
+  // G3 survives the fold: an unloaded collection refuses on every job rather
+  // than accusing every sub on site of working without a contract.
+  const unloaded = runFollowUpRulesForPortfolio([workStartedWithoutCommitment], [
+    emptyCtx({
+      projectId: 'p1', projectName: 'Henderson', commitments: undefined,
+      subcontractors: [sub()],
+      tasks: [task({ status: 'in_progress', assignedSubId: 's1' })],
+    }),
+  ]);
+  eq('unloaded commitments mint nothing across the fold', unloaded.items.length, 0);
+  eq('and say so', unloaded.refusals[0]?.guard, 'G3_collection_not_loaded');
+
+  eq('an empty portfolio checks nothing and claims nothing',
+    runFollowUpRulesForPortfolio(PREVENTIVE_FOLLOW_UP_RULES, []).ranEverywhereRuleIds.length, 0);
+}
+
+console.log('\nthe engine is actually wired to a screen');
+{
+  const screen = readSrc('app/waiting-on.tsx');
+  const surface = readSrc('components/followUp/PreventiveFollowUps.tsx');
+
+  ok('the guard is reading the waiting-on screen',
+    /buildChaseList/.test(screen) && screen.length > 4000,
+    `app/waiting-on.tsx does not look like the chase screen (${screen.length} bytes)`);
+
+  // THE DEFECT ITSELF. For one day the registry existed and nothing rendered it.
+  ok('a screen imports the follow-up registry',
+    /from '@\/utils\/followUp\/rules'/.test(screen),
+    'app/waiting-on.tsx no longer imports the rule registry. The engine is back to being 70 green ' +
+    'assertions the contractor cannot see: no COI warning before the crew is turned away at the ' +
+    'dock, no flag on a sub working with no contract behind them.');
+  ok('and it runs them through the engine',
+    /runFollowUpRulesForPortfolio/.test(screen) && /rankFollowUps/.test(screen)
+    && /mergeHeldFollowUps/.test(screen),
+    'the screen imports rules but does not run them through runFollowUpRulesForPortfolio / ' +
+    'mergeHeldFollowUps / rankFollowUps, so the held face and the ranking are bypassed');
+  ok('it runs the PREVENTIVE subset, not the whole registry',
+    /PREVENTIVE_FOLLOW_UP_RULES/.test(screen) && !/\bFOLLOW_UP_RULES\b(?!\s*=)/.test(
+      screen.replace(/PREVENTIVE_FOLLOW_UP_RULES/g, '')),
+    'app/waiting-on.tsx runs FOLLOW_UP_RULES. Two of those four duplicate ChaseKinds buildChaseList ' +
+    'already renders, so the same change order appears twice with two different overdue counts.');
+
+  // G6 needs a disk-backed seen-set, or "first run is quiet" becomes a
+  // permanent mute: every mount is a first run and nothing ever escalates.
+  const seenKey = /const\s+FOLLOW_UP_SEEN_RULES_KEY\s*=\s*'([^']+)'/.exec(screen)?.[1] ?? '';
+  ok('the screen persists the G6 seen-set', !!seenKey,
+    'without a persisted seen-set every mount is a rule’s first run, so every derived item stays ' +
+    'flagged pre-existing forever and nothing ever escalates to critical');
+  ok('it reads the seen-set back on mount',
+    new RegExp('AsyncStorage\\.getItem\\(\\s*FOLLOW_UP_SEEN_RULES_KEY').test(screen));
+  ok('and writes today’s run back',
+    new RegExp('AsyncStorage\\.setItem\\(\\s*FOLLOW_UP_SEEN_RULES_KEY').test(screen));
+  ok('the seen-set key is app-owned and wiped on a tenant switch',
+    isAppStorageKey(seenKey) && selectTenantKeysToWipe([seenKey]).length === 1,
+    `'${seenKey}' matches no prefix in APP_STORAGE_PREFIXES, so wipeLocalUserCache never sees it — ` +
+    'on web it would tell the next contractor on a shared iPad which of the last one’s jobs had ' +
+    'been checked');
+
+  // The write must not feed back into the render that produced it, or the
+  // quiet first run lasts exactly one frame.
+  const firstWrite = screen.indexOf('AsyncStorage.setItem(FOLLOW_UP_SEEN_RULES_KEY');
+  const lastSet = screen.lastIndexOf('setSeenSnapshot(');
+  ok('persisting the seen-set does not re-enter the run',
+    firstWrite > 0 && lastSet > 0 && lastSet < firstWrite,
+    'setSeenSnapshot is called at or after the disk write, so marking a rule seen re-runs the ' +
+    'registry and repaints every pre-existing row as critical before he has read the first one');
+
+  // "All clear" must not be printed over live warnings.
+  ok('the "nothing to chase" empty state is gated on the warnings too',
+    /preventiveItems\.length === 0 \? \(/.test(screen),
+    '"Nothing to chase. Go build." renders above a live COI warning — the app telling him to walk ' +
+    'into the problem it just found');
+
+  // G2 and G4, at the point of render.
+  ok('the surface never renders a countdown without a basis',
+    /function countdown\(daysOverdue: number \| null\)[\s\S]{0,200}?if \(daysOverdue === null\) return null;/.test(surface)
+    && /clock \?/.test(surface),
+    'a follow-up whose targetBasis is ‘none’ has no deadline (guard G2). Rendering a number ' +
+    'beside it invents the date the engine refused to invent.');
+  ok('the surface shows a Send button only when a message was drafted',
+    /item\.nudge \? \(/.test(surface),
+    'guard G4 strips the nudge when the app cannot name a person. A Send button over a missing ' +
+    'message is a control that does nothing; the row must say why instead.');
+  ok('and the no-message row explains itself',
+    /No message/.test(surface),
+    'a row with no Send button and no explanation reads as a broken screen');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

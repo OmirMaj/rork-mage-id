@@ -38,7 +38,8 @@ import { Tokens } from '@/constants/designTokens';
  */
 
 import { generateUUID } from '@/utils/generateId';
-import { billedAmountForLine } from '@/utils/invoiceBilling';
+import { billedAmountForLine, retainageOnWorkValue } from '@/utils/invoiceBilling';
+import { resolveRetainagePercent } from '@/utils/retainageSource';
 import {
   billedAgainstChangeOrder, changeOrderBillKey, isChangeOrderBillKey,
 } from '@/utils/changeOrderBilling';
@@ -111,7 +112,7 @@ export default function BillFromEstimateScreen() {
   const { projectId: paramProjectId, type, focusChangeOrderId } = useLocalSearchParams<{
     projectId: string; type?: string; focusChangeOrderId?: string;
   }>();
-  const { projects, getProject, getInvoicesForProject, getChangeOrdersForProject, addInvoice, settings } = useProjects();
+  const { projects, getProject, getInvoicesForProject, getChangeOrdersForProject, addInvoice, settings, getAIAPayAppsForProject } = useProjects();
 
   // Reached from a deep link, a Copilot action or the desktop sidebar with no
   // project in context, this screen used to be "Project not found" + Go Back —
@@ -437,6 +438,29 @@ export default function BillFromEstimateScreen() {
     const anyPartial = activeRows.some(r => clampPct(billPercents[r.key] ?? 0) < 100);
     const invoiceType: 'full' | 'progress' = isProgressDefault || anyPartial ? 'progress' : 'full';
 
+    /**
+     * Retainage on the draft this screen creates.
+     *
+     * This literal used to carry no `retentionPercent` at all, and because
+     * addInvoice runs BEFORE the /invoice editor mounts, the editor then had
+     * nothing to read and seeded 0. On a job holding 10% that put invoice #1
+     * out at the gross figure; the owner's AP deducted the retainage anyway,
+     * and MAGE spent the rest of the job chasing a balance the owner considered
+     * settled while the retention screen saw nothing held.
+     *
+     * Same resolver as the editor (utils/retainageSource) so the two screens
+     * cannot disagree about one job. When it resolves nothing the field stays
+     * UNDEFINED rather than 0 — that is what makes the editor ask instead of
+     * silently withholding nothing, and an undefined rate is distinguishable
+     * from a deliberate zero everywhere downstream.
+     */
+    const retainage = resolveRetainagePercent({
+      priorInvoices: existingInvoices,
+      project,
+      payApps: getAIAPayAppsForProject(projectId),
+    });
+    const retentionAmount = retainage.percent > 0 ? retainageOnWorkValue(subtotal, retainage.percent) : undefined;
+
     const inv: Invoice = {
       id: createId('inv'),
       number: nextInvoiceNumber,
@@ -457,6 +481,8 @@ export default function BillFromEstimateScreen() {
       amountPaid: 0,
       status: 'draft',
       payments: [],
+      retentionPercent: retainage.needsAsk ? undefined : retainage.percent,
+      retentionAmount: retainage.needsAsk ? undefined : retentionAmount,
       retentionReleased: 0,
       retentionReleases: [],
       createdAt: now,
@@ -469,7 +495,7 @@ export default function BillFromEstimateScreen() {
     // take them all the way back to the project detail they came from rather
     // than back to this picker.
     router.replace({ pathname: '/invoice' as any, params: { projectId, invoiceId: inv.id } });
-  }, [project, projectId, rows, selected, billPercents, amountsByKey, subtotal, taxRate, taxAmount, totalDue, nextInvoiceNumber, addInvoice, router, isProgressDefault]);
+  }, [project, projectId, rows, selected, billPercents, amountsByKey, subtotal, taxRate, taxAmount, totalDue, nextInvoiceNumber, addInvoice, router, isProgressDefault, existingInvoices, getAIAPayAppsForProject]);
 
   if (!project) {
     return (

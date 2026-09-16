@@ -17,12 +17,12 @@ import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
 import type {
   Project, ProjectSchedule, ScheduleTask, RFI, Submittal, ChangeOrder,
-  DailyFieldReport, OACAgendaItem, OACAgendaSection,
+  DailyFieldReport, OACAgendaItem, OACAgendaSection, OACMeeting, OACActionItem,
 } from '@/types';
 import { computeRFILatency } from '@/utils/rfiLatency';
 
 import { generateUUID } from '@/utils/generateId';
-import { calendarDayStart, calendarDayOf, daysUntilCalendarDay } from '@/utils/calendarDate';
+import { calendarDayStart, calendarDayOf, daysUntilCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
 
 const ONE_DAY_MS = 86_400_000;
 
@@ -36,6 +36,239 @@ function daysBetween(iso: string, ref: number = Date.now()): number {
   return Math.round((ref - t) / ONE_DAY_MS);
 }
 
+// ─── Action items — the commitments the meeting actually produced ──
+//
+// An OACActionItem is the app's cleanest statement of who-owes-what: a
+// description, a `ballInCourt` (free text — "Owner", "Sarah Chen, AIA", "Building
+// engineer"), an optional `dueBy`, and a status. On a tenant fit-out these are the
+// only records the app holds for the owner, the architect, the landlord and the
+// building engineer, because none of those four is a subcontractor with a schedule
+// row or an invoice.
+//
+// They used to die in the meeting that minted them: nothing could close one, and
+// nothing outside `active.actionItems` ever read them, so the PM walked into next
+// Thursday's OAC reconstructing last week from memory. The three exports below are
+// the join that fixes that — one collector, one agenda builder, one status
+// transition — all pure so the guard can hold them to a fixed clock.
+
+/**
+ * How long an action with NO agreed due date is allowed to sit before the app
+ * starts treating it as pressing.
+ *
+ * `dueBy` is routinely empty by design: generateMinutesFromTranscript instructs
+ * the model to leave it blank when no date was named in the room, and on a fit-out
+ * the commitments nobody dates are usually the OWNER decisions — the expensive
+ * ones. An overdue-only rule would therefore lose exactly the items that matter
+ * most, so an undated action gets a fallback clock from its own `createdAt`.
+ *
+ * Seven days = one OAC cycle. If a commitment survives a whole meeting-to-meeting
+ * cycle without a date, the meeting needs to give it one or close it.
+ */
+export const UNDATED_STALE_DAYS = 7;
+
+/** One still-open action, with the clock resolved against a fixed `now`. */
+export interface OpenOACAction {
+  action: OACActionItem;
+  /** The meeting that minted it — where a status write has to land. */
+  meetingId: string;
+  meetingNumber: number;
+  /**
+   * Whole local days until `dueBy`: 0 today, negative already past. `null` means
+   * NO DATE WAS AGREED — deliberately distinct from 0, because "due today" and
+   * "nobody ever said when" are different facts and the UI must not print one as
+   * the other.
+   */
+  dueInDays: number | null;
+  /** Days since it was minted. The only clock an undated action has. */
+  ageDays: number;
+  /** Past its agreed date, or undated and older than UNDATED_STALE_DAYS. */
+  needsChasing: boolean;
+}
+
+/**
+ * Every action still open across a project's meetings, newest meeting last.
+ *
+ * `excludeMeetingId` drops the meeting currently on screen — its own actions are
+ * rendered in full on that screen, so carrying them onto its own agenda would
+ * print each one twice.
+ */
+export function collectOpenOACActions(
+  meetings: OACMeeting[],
+  opts: { excludeMeetingId?: string; now?: Date } = {},
+): OpenOACAction[] {
+  const now = opts.now ?? new Date();
+  const nowMs = now.getTime();
+  const out: OpenOACAction[] = [];
+  const seen = new Set<string>();
+
+  for (const m of meetings ?? []) {
+    if (!m || m.id === opts.excludeMeetingId) continue;
+    for (const action of m.actionItems ?? []) {
+      // 'done' stops nagging but is kept for audit (see OACMeeting.actionItems).
+      if (!action || action.status === 'done') continue;
+      // A meeting row synced twice, or an action duplicated by a re-merge, must
+      // not produce two agenda lines for one commitment.
+      if (seen.has(action.id)) continue;
+      seen.add(action.id);
+
+      const dueInDays = action.dueBy ? daysUntilCalendarDay(calendarDayOf(action.dueBy), now) : null;
+      const ageDays = Math.max(0, Math.round((nowMs - new Date(action.createdAt).getTime()) / ONE_DAY_MS));
+      out.push({
+        action,
+        meetingId: m.id,
+        meetingNumber: m.number ?? 0,
+        dueInDays,
+        ageDays,
+        needsChasing: dueInDays != null ? dueInDays < 0 : ageDays >= UNDATED_STALE_DAYS,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Sort key — smaller is more pressing. A dated action ranks by days-to-due, so
+ * the most overdue sorts first. An undated one has no such number: once it is
+ * stale it is treated as due today (0), and while it is fresh it parks behind
+ * everything that has a real date on it rather than pretending to a deadline.
+ */
+function urgencyRank(o: OpenOACAction): number {
+  if (o.dueInDays != null) return o.dueInDays;
+  return o.ageDays >= UNDATED_STALE_DAYS ? 0 : 365;
+}
+
+/** Plain-language state of the clock, for the agenda sub-line. */
+export function actionDueLabel(o: OpenOACAction): string {
+  if (o.dueInDays == null) {
+    // Never invent a deadline nobody agreed to. Say what is actually known.
+    return `No due date agreed · ${o.ageDays}d open`;
+  }
+  const on = formatCalendarDay(calendarDayOf(o.action.dueBy)) || o.action.dueBy || '';
+  if (o.dueInDays < 0) {
+    const late = -o.dueInDays;
+    return `Due ${on} · ${late} day${late === 1 ? '' : 's'} overdue`;
+  }
+  if (o.dueInDays === 0) return `Due ${on} · today`;
+  return `Due ${on} · in ${o.dueInDays} day${o.dueInDays === 1 ? '' : 's'}`;
+}
+
+/** Titles wrap in the agenda list, but an unbounded AI sentence should not own
+ *  the whole card. Deterministic so the title stays stable across regenerations. */
+function shortDescription(text: string, max = 90): string {
+  const clean = (text ?? '').replace(/\s+/g, ' ').trim();
+  return clean.length > max ? `${clean.slice(0, max - 1).trimEnd()}…` : clean;
+}
+
+/**
+ * One agenda row per still-open action from EARLIER meetings, grouped by who owes
+ * it, each group ordered by its most pressing item.
+ *
+ * ── Why one row per action and not a summary line ──
+ * mergeAgenda (below) de-dups on the EXACT title string, so a count-bearing title
+ * like "Carried forward: 4 open actions, 2 overdue" appends a second copy of
+ * itself the moment a count changes — every Refresh, forever. The title here is
+ * keyed to the action's own words plus its origin meeting number, both of which
+ * are stable; everything that moves with the calendar (overdue day counts) lives
+ * in `detail`, which is not part of the de-dup key.
+ *
+ * The id is derived from the action id for the same reason: a regenerated agenda
+ * has to produce the SAME row, not a new one with a fresh UUID.
+ */
+export function buildCarryForwardAgendaItems(open: OpenOACAction[]): OACAgendaItem[] {
+  if (open.length === 0) return [];
+
+  // Group by ball-in-court. ballInCourt is FREE TEXT the AI or the GC wrote — it
+  // is never resolved to a Contact — so grouping keys off the trimmed string as
+  // written, case-insensitively, and the label printed is the original spelling.
+  const groups = new Map<string, { label: string; items: OpenOACAction[] }>();
+  for (const o of open) {
+    const label = (o.action.ballInCourt ?? '').trim();
+    const key = label.toLowerCase();
+    const g = groups.get(key);
+    if (g) g.items.push(o);
+    else groups.set(key, { label, items: [o] });
+  }
+
+  const byUrgency = (a: OpenOACAction, b: OpenOACAction): number =>
+    urgencyRank(a) - urgencyRank(b) ||
+    new Date(a.action.createdAt).getTime() - new Date(b.action.createdAt).getTime() ||
+    a.action.id.localeCompare(b.action.id);
+
+  const ordered = [...groups.values()]
+    .map(g => ({ ...g, items: g.items.slice().sort(byUrgency) }))
+    .sort((a, b) => urgencyRank(a.items[0]) - urgencyRank(b.items[0]) || a.label.localeCompare(b.label));
+
+  const items: OACAgendaItem[] = [];
+  for (const g of ordered) {
+    for (const o of g.items) {
+      const overdue = o.dueInDays != null && o.dueInDays < 0;
+      items.push({
+        id: `oac-carry-${o.action.id}`,
+        section: 'action_items',
+        title: `Carried forward (OAC #${o.meetingNumber}) — ${shortDescription(o.action.description)}`,
+        // The row's OWN spelling, not the group's. Grouping folds "Owner" and
+        // "owner" together for ordering, but each line still prints the words
+        // that were written down — normalising free text on the way to the
+        // screen is how a record stops matching the minutes it came from.
+        detail: `${(o.action.ballInCourt ?? '').trim() || 'Owner unnamed'} · ${actionDueLabel(o)}`,
+        status: overdue ? 'urgent' : o.needsChasing ? 'warn' : 'info',
+        referenceId: o.action.id,
+        referenceType: 'oac_action',
+      });
+    }
+  }
+  return items;
+}
+
+/**
+ * Tap-to-advance for an action's status: open → in progress → done → open.
+ *
+ * `closedAt` is stamped on the way into 'done' and CLEARED on the way out, so a
+ * reopened action never carries a closing date it no longer has. Pure: the screen
+ * hands it the row and writes back what comes out, which is what lets the guard
+ * assert the transition without a render.
+ */
+export function cycleOACActionStatus(action: OACActionItem, now: Date = new Date()): OACActionItem {
+  const next: OACActionItem['status'] =
+    action.status === 'open' ? 'in_progress'
+    : action.status === 'in_progress' ? 'done'
+    : 'open';
+  const stamp = now.toISOString();
+  return {
+    ...action,
+    status: next,
+    closedAt: next === 'done' ? stamp : undefined,
+    updatedAt: stamp,
+  };
+}
+
+/**
+ * A typed-in action item. Until this existed the ONLY producer was the AI minutes
+ * merge, which needs a recorded transcript of 50+ characters — so a PM who ran the
+ * meeting without recording it had no way to enter a commitment at all, and the
+ * carry-forward above would have shipped over a permanently empty set.
+ */
+export function makeManualOACActionItem(input: {
+  description: string;
+  ballInCourt: string;
+  dueBy?: string;
+  meetingId?: string;
+  now?: Date;
+}): OACActionItem {
+  const stamp = (input.now ?? new Date()).toISOString();
+  return {
+    id: generateUUID(),
+    description: input.description.trim(),
+    ballInCourt: input.ballInCourt.trim(),
+    dueBy: input.dueBy?.trim() || undefined,
+    status: 'open',
+    createdAt: stamp,
+    updatedAt: stamp,
+    meetingId: input.meetingId,
+    source: 'manual',
+  };
+}
+
 // ─── Deterministic agenda from project state ─────────────────────
 
 interface AgendaInputs {
@@ -46,6 +279,17 @@ interface AgendaInputs {
   dailyReports: DailyFieldReport[];
   schedule?: ProjectSchedule | null;
   tasks?: ScheduleTask[];
+  /**
+   * Every OTHER meeting on this project. Their still-open action items are
+   * carried onto this agenda — without them the agenda's closing row was a
+   * hardcoded "confirm owner of action items, due-bys" printed while the app was
+   * holding last week's unclosed commitments and naming not one of them.
+   */
+  priorMeetings?: OACMeeting[];
+  /** The meeting being built/refreshed, so its own actions aren't carried onto it. */
+  currentMeetingId?: string;
+  /** Injected clock — the guard fixes it; production leaves it undefined. */
+  now?: Date;
 }
 
 /**
@@ -57,6 +301,12 @@ interface AgendaInputs {
 export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem[] {
   const { project, rfis, submittals, changeOrders, dailyReports, schedule, tasks } = inputs;
   const items: OACAgendaItem[] = [];
+  const carriedForward = buildCarryForwardAgendaItems(
+    collectOpenOACActions(inputs.priorMeetings ?? [], {
+      excludeMeetingId: inputs.currentMeetingId,
+      now: inputs.now,
+    }),
+  );
 
   // ── 1. Safety — recent DFR safety notes / incidents ─────────
   const recentDfrs = (dailyReports ?? [])
@@ -227,9 +477,17 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
     title: 'Open discussion',
     status: 'info',
   });
+
+  // ── 7. Carried-forward action items ──────────────────────────
+  // Named individually, before "next meeting", because the point of the weekly
+  // is to close last week's commitments — not to agree new ones on top of them.
+  items.push(...carriedForward);
+
   items.push({
     id: createId('agenda'),
     section: 'next_meeting',
+    // Static, count-free strings on purpose: mergeAgenda de-dups on the title,
+    // and a number in either field would re-append this row on every Refresh.
     title: 'Next meeting + action items',
     detail: 'Confirm next OAC date, owner of action items, due-bys.',
     status: 'info',

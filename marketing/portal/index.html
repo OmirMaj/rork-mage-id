@@ -2858,6 +2858,7 @@
     punchListSubtitle: 'Open items remaining before close-out',
     rfisTitle: 'Requests for Information',
     documentsTitle: 'Documents',
+    documentsSubtitle: 'Permits and warranties on record for your project. Ask your contractor for a copy of any of them.',
     messagesTitle: 'Messages',
     messagesSubtitle: 'Talk directly with your contractor — replies show up in their app instantly',
     openBookGmpTitle: 'Open Book — GMP',
@@ -4720,15 +4721,46 @@
     }).join('');
   }
 
+  /** Documents = RECORDS, not files.
+   *
+   *  The snapshot deliberately ships no URL on these rows: nothing in the GC's
+   *  app writes a permit attachment, and Warranty.documentUri has no writer
+   *  either, so a "Download" here would be a button that 404s for the one
+   *  reader who cannot ask anyone else for the file. What the row states is
+   *  what the record IS — its number, who issued it, its state, when it lapses
+   *  — which is enough for an owner to name the document they are asking their
+   *  contractor for. See buildPortalDocuments in utils/portalSnapshot.ts. */
   function renderDocuments(docs) {
     if (!docs || !docs.length) return emptyState('No documents shared.');
+    var todayISO = new Date().toISOString().slice(0, 10);
+    // Tone for the snapshot's plain-language status words. Anything this does
+    // not recognise stays muted — a grey pill states the word without the page
+    // asserting it is good news or bad.
+    function docPillClass(s) {
+      var v = String(s || '').toLowerCase();
+      if (v === 'expired' || v === 'denied' || v === 'inspection failed') return 'pill pill-error';
+      if (v === 'approved' || v === 'inspection passed' || v === 'in force') return 'pill pill-success';
+      return 'pill pill-muted';
+    }
     return docs.map(function (d) {
+      var meta = [];
+      if (d.type) meta.push(esc(d.type));
+      if (d.dateSent) meta.push(esc(fmtDate(d.dateSent)));
+      // An expiry the owner has already passed is the one fact on this row
+      // that can cost them money, so it is stated as "Expired", never as a
+      // neutral future-tense date.
+      if (d.expiresOn) {
+        meta.push(d.expiresOn < todayISO
+          ? 'Expired ' + esc(fmtDate(d.expiresOn))
+          : 'Expires ' + esc(fmtDate(d.expiresOn)));
+      }
       return (
         '<div class="row">' +
           '<div class="row-main">' +
             '<div class="row-title">'+esc(d.name || d.fileName || 'Document')+'</div>' +
-            '<div class="row-meta">'+esc(d.type || '')+(d.dateSent ? ' · '+fmtDate(d.dateSent) : '')+'</div>' +
+            '<div class="row-meta">'+meta.join(' · ')+'</div>' +
           '</div>' +
+          (d.status ? '<span class="'+docPillClass(d.status)+'">'+esc(d.status)+'</span>' : '') +
         '</div>'
       );
     }).join('');
@@ -6829,7 +6861,10 @@
       addSection('rfis', 'help', t('rfisTitle'), null, sections.rfis.length, renderRFIs(sections.rfis));
     }
     if (sections.documents && sections.documents.length) {
-      addSection('documents', 'file', t('documentsTitle'), null, sections.documents.length, renderDocuments(sections.documents));
+      // Subtitle says plainly that these are records with no file attached, so
+      // the absence of a download link reads as a stated fact rather than as a
+      // broken page.
+      addSection('documents', 'file', t('documentsTitle'), t('documentsSubtitle'), sections.documents.length, renderDocuments(sections.documents));
     }
     // Closeout binder — the homeowner reference for the life of the home.
     // Renders only when GC has finalized or sent the binder.
@@ -7616,9 +7651,15 @@
       out.push({
         id: c.id, kind: 'change_order', urgency: 'waiting',
         title: 'Change order #' + (c.number != null ? c.number : '') + (c.description ? ' — ' + c.description : ''),
+        // Byte-identical to buildOwnerDecisions in utils/portalOwnerCore.ts —
+        // scripts/validate-portal-owner.ts holds the two strings head-to-head.
+        // The off-branch spells out that a chat reply is NOT a signed
+        // amendment; the previous wording ("reply in Messages") read as if it
+        // were, which is how a $12k change order ends up approved by nothing
+        // more durable than a text message.
         detail: data.coApprovalEnabled
           ? 'Review the scope and the change to your contract total, then sign to approve or decline with a reason.'
-          : 'Your contractor is waiting on your decision — reply in Messages.',
+          : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature — a message is not a signed change to your contract.',
         amount: c.changeAmount,
         target: 'sec-changeOrders',
       });

@@ -40,10 +40,12 @@ import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import {
   exportTasksToCsv, isMilestoneOnScheduleDay, isTaskActiveOnScheduleDay,
-  isUndatedSchedule, resolveScheduleAnchor, scheduleDayNumberFor, scheduleDayOnCalendar,
+  isUndatedSchedule, planCatchUpToToday, reflowFromActuals, resolveScheduleAnchor,
+  scheduleDayNumberFor, scheduleDayOnCalendar,
   startDayNumberFor, taskCalendarRange, taskWorkingDayLabel,
   UNDATED_SCHEDULE_PREVIEW_NOTE,
 } from '../utils/scheduleOps';
+import { calendarDayToDate, calendarIndexToWorkingOrdinal, runCpm } from '../utils/cpm';
 import { addWorkingDays, getTaskDateRange, buildScheduleFromTasks } from '../utils/scheduleEngine';
 import { parseCalendarDay, toCalendarDayString } from '../utils/calendarDate';
 import { computeTodayTasks, computeWeekLoad } from '../utils/summaryBriefing';
@@ -988,6 +990,114 @@ console.log('\nan empty calendar export says WHY it is empty:');
       undatedAt >= 0 && emptyAt >= 0 && undatedAt < emptyAt,
       `undated@${undatedAt} empty@${emptyAt}`);
   }
+}
+
+// ── 13. "Bring the plan up to date" keeps TODAY on the right scale ─────────
+// THE BUG THIS PINS. Progress never moved the finish date. `reflowFromActuals`
+// cascades from actual STARTS only and gives a running task its FULL planned
+// duration, so a task two weeks late produced zero downstream movement and the
+// Gantt kept printing the kickoff plan's finish. `planCatchUpToToday` is the
+// other half — it re-dates the work that is left to start today — and it lives
+// or dies on one unit conversion:
+//
+//   `todayScheduleDay()` and `actualStartDay` are CALENDAR indices.
+//   `startDay` and `durationDays` are WORKING days.
+//
+// Writing today's CALENDAR index into `startDay` inflates every weekend-
+// crossing task by ~2 days per weekend. The fixture below is built so the two
+// readings DISAGREE (calendar index 15 = working ordinal 11), so a regression
+// to the naive version fails here rather than shipping a date that is wrong by
+// a weekend per fortnight.
+console.log('\ncatch-up re-dates from TODAY as a working ordinal, and moves the finish:');
+{
+  const CAL = { scheduleStartDate: isoLocal(MON_MAR_2), workingDaysPerWeek: 5 };
+  // A is 10 working days from day 1, really started on day 1, and is 30% done
+  // on what should have been its last day. B and C follow it.
+  const tasks = [
+    T('a', 1, 10, { status: 'in_progress', progress: 30, actualStartDay: 1 }),
+    T('b', 11, 10, { dependencies: ['a'] }),
+    T('c', 21, 5, { dependencies: ['b'] }),
+  ];
+  const TODAY_CALENDAR_INDEX = 15;            // Mon 2026-03-16
+  eq('the fixture makes the two scales disagree',
+    calendarIndexToWorkingOrdinal(TODAY_CALENDAR_INDEX, CAL), 11);
+
+  const before = runCpm(tasks, CAL);
+
+  // The half that was already there does nothing about it — this is the
+  // finding, asserted rather than asserted-about.
+  eq('reflowFromActuals alone leaves the finish exactly where it was',
+    runCpm(reflowFromActuals(tasks), CAL).projectFinish, before.projectFinish);
+
+  const plan = planCatchUpToToday(tasks, { todayCalendarIndex: TODAY_CALENDAR_INDEX, calendar: CAL });
+  const byId = new Map(plan.tasks.map(t => [t.id, t]));
+  eq('the late task restarts TODAY as a WORKING ordinal (11), not the calendar index (15)',
+    byId.get('a')!.startDay, 11);
+  eq('…and owes only its REMAINING duration (30% of 10 days done → 7)',
+    byId.get('a')!.durationDays, 7);
+  eq('the successor follows the new finish', byId.get('b')!.startDay, 18);
+  eq('and the one after that', byId.get('c')!.startDay, 28);
+  eq('the late task is reported as behind', plan.behindIds.join(','), 'a');
+
+  const after = runCpm(plan.tasks, CAL);
+  ok('the projected finish actually MOVES', after.projectFinish > before.projectFinish,
+    `before ${before.projectFinish}, after ${after.projectFinish}`);
+  // The date a GC would read out loud, walked the same way every other surface
+  // walks a CPM day: calendarDayToDate, never addWorkingDays.
+  eq('the finish date before', isoLocal(calendarDayToDate(MON_MAR_2, before.projectFinish)), '2026-04-03');
+  eq('the finish date after', isoLocal(calendarDayToDate(MON_MAR_2, after.projectFinish)), '2026-04-14');
+
+  // Idempotent: the same tap twice must not walk the plan forward again (the
+  // exact defect reflowFromActuals was fixed for).
+  const twice = planCatchUpToToday(plan.tasks, { todayCalendarIndex: TODAY_CALENDAR_INDEX, calendar: CAL });
+  eq('a second run changes nothing', twice.changes.length, 0);
+  ok('…and returns the identical plan', JSON.stringify(twice.tasks) === JSON.stringify(plan.tasks));
+}
+
+// ── 14. What catch-up must NEVER touch ────────────────────────────────────
+console.log('\ncatch-up freezes history and refuses to invent a today:');
+{
+  const CAL = { scheduleStartDate: isoLocal(MON_MAR_2), workingDaysPerWeek: 5 };
+  const done = T('done', 1, 5, { status: 'done', progress: 100, actualStartDay: 1, actualEndDay: 9 });
+  // 90% done with three working days still to run: late to START, but the
+  // planned finish is still reachable, so the plan is not a lie yet.
+  const achievable = T('ok', 1, 10, { status: 'in_progress', progress: 90, actualStartDay: 1 });
+  const plan = planCatchUpToToday([done, achievable], { todayCalendarIndex: 9, calendar: CAL });
+  const byId = new Map(plan.tasks.map(t => [t.id, t]));
+  eq('a finished task keeps its dates', byId.get('done')!.startDay, 1);
+  eq('…and its duration', byId.get('done')!.durationDays, 5);
+  eq('a task that can still make its planned finish is left alone', byId.get('ok')!.startDay, 1);
+  eq('…with its duration intact', byId.get('ok')!.durationDays, 10);
+  eq('so nothing is reported as changed', plan.changes.length, 0);
+
+  // A cycle means we cannot say what follows what.
+  const cyc = [T('x', 1, 2, { dependencies: ['y'] }), T('y', 1, 2, { dependencies: ['x'] })];
+  eq('a dependency cycle returns the input untouched',
+    planCatchUpToToday(cyc, { todayCalendarIndex: 9, calendar: CAL }).changes.length, 0);
+}
+
+// ── 15. The phone prints the date, and never invents one ──────────────────
+// Finding: on an iPhone the schedule never said what date you finish or
+// whether you are behind. The verdict + catch-up now live on
+// MobileScheduleScreen; these pin the two ways that could go wrong again —
+// rendering the finish with the wrong walker, and offering the catch-up on a
+// schedule that has no "today" to catch up to.
+console.log('\nthe phone renders a finish date, on the right scale, or says it cannot:');
+{
+  const src = stripComments(read('components/schedule/mobile/MobileScheduleScreen.tsx'));
+  ok('the mobile surface computes the verdict', /pacedScheduleVerdict\(\{/.test(src));
+  ok('the finish date is walked with calendarDayToDate (cpm.projectFinish is a CALENDAR index)',
+    /calendarDayToDate\(anchor\.date, reportCpm\.projectFinish\)/.test(src));
+  ok('…and never with addWorkingDays, which would add a weekend per weekend',
+    !/addWorkingDays\([^)]*projectFinish/.test(src));
+  ok('the data date comes from todayScheduleDay, which is null when undated',
+    /todayCalendarIndex = useMemo\(\s*\(\) => todayScheduleDay\(/.test(src));
+  ok('catch-up is not even computed without a data date',
+    /if \(todayCalendarIndex == null \|\| tasks\.length === 0\) return null;/.test(src));
+  ok('the blocked button says why, and offers the one fix',
+    /catch-up-disabled/.test(src) && /UNDATED_SCHEDULE_CTA/.test(src));
+  ok('the verdict leads the Progress tab too',
+    /<ProgressTab[\s\S]{0,500}?verdict=\{verdict\}[\s\S]{0,200}?finishDateLabel=\{finishDateLabel\}/.test(src));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

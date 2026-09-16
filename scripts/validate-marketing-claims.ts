@@ -538,10 +538,21 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // Every dcmaLabel must name a check DCMA_COVERAGE calls implemented or
     // partial. A label naming a check the map says is NOT implemented is the
     // decorative mislabel that caused this defect; a label is not evidence.
+    // Read the dcmaLabel EXPRESSION, not just the line it starts on. A label
+    // is legitimately a ternary — #11 reports a different proxy with and
+    // without a data date — and a line-scoped scan then sees `dcmaLabel:` with
+    // no number on it and reports the check as unlabelled. Accumulate from the
+    // `dcmaLabel:` line until the expression's terminating comma, which stops
+    // at the end of THAT property and cannot borrow a number from the next one.
     const labelled = new Set<number>();
-    for (const line of health.split('\n')) {
-      if (!/dcmaLabel\s*:/.test(line)) continue;
-      for (const m of line.matchAll(/DCMA #(\d+)/g)) labelled.add(Number(m[1]));
+    {
+      const lines = health.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (!/dcmaLabel\s*:/.test(lines[i])) continue;
+        let expr = lines[i];
+        for (let j = i + 1; j < lines.length && !/,\s*$/.test(expr.trim()); j++) expr += '\n' + lines[j];
+        for (const m of expr.matchAll(/DCMA #(\d+)/g)) labelled.add(Number(m[1]));
+      }
     }
     const okSet = new Set([...implemented, ...partial]);
     const decorative = [...labelled].filter(c => !okSet.has(c));
