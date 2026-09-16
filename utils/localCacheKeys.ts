@@ -153,6 +153,17 @@ export function isAppStorageKey(key: string): boolean {
  * confirmed same-user re-auth, the fix is to give them a Supabase mirror (so
  * they rehydrate) or to widen the OFFLINE_WRITE_QUEUE_KEYS exemption — both are
  * product decisions, not something to smuggle in as a keep-list.
+ *
+ * `mageid_last_planner` (constraints, weekly commitments with kept/missed and
+ * variance reasons — the whole PPC history — and crew-dispatch receipts) was in
+ * this class too and was not named here, which is why nobody noticed a logout
+ * erased a contractor's reliability record. It now has the mirror the paragraph
+ * above calls for: app/last-planner.tsx upserts every change to the
+ * last_planner_* tables and rehydrates the store from them on open, so the sweep
+ * removes a cache, not the record. That holds only once
+ * supabase/migrations/20260916150000_last_planner_cloud_mirror.sql is applied;
+ * until then the writes wait in the offline queue and the sweep still destroys
+ * the only readable copy.
  */
 export function selectTenantKeysToWipe(
   allKeys: readonly string[],

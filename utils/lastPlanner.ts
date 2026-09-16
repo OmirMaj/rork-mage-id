@@ -18,7 +18,8 @@
 //             reliable over time.
 //
 // This module is the PURE engine — date math, readiness, lookahead/WWP
-// assembly, PPC + variance analytics. No storage, no network (the screen owns
+// assembly, PPC + variance analytics, and the cloud-mirror row mapping at the
+// bottom. No storage, no network (the screen owns
 // I/O via hooks/useLastPlanner). All "now" is injected so it's deterministic.
 //
 // NOTE: ScheduleTask already has `anchorType`/`anchorDate` — those are CPM
@@ -444,4 +445,258 @@ export function varianceBreakdown(commitments: WeeklyCommitment[]): { reason: Va
   return Array.from(counts.entries())
     .map(([reason, count]) => ({ reason, count }))
     .sort((a, b) => b.count - a.count);
+}
+
+// ── Cloud mirror (row mapping + reconcile) ───────────────────────────────────
+// WHY THIS EXISTS. The whole loop — constraints, commitments, kept/missed with
+// reasons, PPC, crew dispatches — used to live in ONE AsyncStorage key
+// (`mageid_last_planner`). That key is under the `mageid_` prefix, so
+// AuthContext.wipeLocalUserCache sweeps it on every sign-out and tenant switch,
+// and there was no server copy to come back from: PPC, the number that proves
+// to an owner that the crews do what they say, was one logout away from gone.
+// It also never left the device, so a commitment meeting run on the laptop
+// left the phone's This Week tab empty on site on Friday.
+//
+// The mirror is three tables (supabase/migrations/20260916150000_last_planner_
+// cloud_mirror.sql). Everything below is PURE — the screen owns the I/O — so
+// the two properties that decide whether the mirror helps or hurts can be
+// pinned by scripts/validate-last-planner.ts:
+//
+//   1. ONE ROW PER (project, task, week). WeeklyCommitment and dispatches have
+//      no id of their own. A random id per write would let an offline-queue
+//      replay, or the same week edited on laptop and phone, create a second
+//      commitment row — and computePpc would count it twice. A double-counted
+//      PPC is worse than a lost one, because it is shown to a GC as fact. So
+//      the row id is DERIVED from the natural key, the table carries a UNIQUE
+//      on that key as well, and every write is an upsert on the id.
+//   2. THE CLOUD COPY WINS, EXCEPT OVER WORK THAT HAS NOT LANDED YET. A row
+//      with a write still in the offline queue keeps its local value; every
+//      other row takes the server's. Local rows the server has never seen are
+//      kept and sent up (the backfill that rescues history recorded before
+//      the table existed).
+
+export const LAST_PLANNER_TABLES = {
+  constraints: 'last_planner_constraints',
+  commitments: 'last_planner_commitments',
+  dispatches: 'last_planner_dispatches',
+} as const;
+export type LastPlannerTable = typeof LAST_PLANNER_TABLES[keyof typeof LAST_PLANNER_TABLES];
+
+/** Structurally identical to hooks/useLastPlanner CrewDispatchRecord. */
+export interface LastPlannerDispatch {
+  crewKey: string;
+  weekStart: string;
+  channel: 'email' | 'share';
+  sentAt: string;
+}
+
+/** Structurally identical to hooks/useLastPlanner's per-project bucket. */
+export interface LastPlannerBucket {
+  constraints: Constraint[];
+  commitments: WeeklyCommitment[];
+  dispatches?: LastPlannerDispatch[];
+}
+export type LastPlannerStore = Record<string, LastPlannerBucket>;
+
+export interface LastPlannerRowWrite {
+  table: LastPlannerTable;
+  /** The row's primary key — also the offline queue's per-record group key. */
+  id: string;
+  row: Record<string, unknown>;
+}
+
+export interface LastPlannerCloudRows {
+  constraints: Record<string, unknown>[];
+  commitments: Record<string, unknown>[];
+  dispatches: Record<string, unknown>[];
+}
+
+// `::` cannot occur in a uuid, an ISO date, or a crew key built by
+// utils/crewDispatch, so the join is unambiguous.
+export function commitmentRowId(projectId: string, taskId: string, weekStart: string): string {
+  return `${projectId}::${taskId}::${weekStart}`;
+}
+/** Key for the `pending` map: a derived id alone does not say which table. */
+export function pendingRowKey(table: string, id: string): string {
+  return `${table}|${id}`;
+}
+export function dispatchRowId(projectId: string, crewKey: string, weekStart: string): string {
+  return `${projectId}::${crewKey}::${weekStart}`;
+}
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v.length > 0 ? v : undefined);
+// timestamptz comes back as `…+00:00`; the app writes `…Z`. Normalise on read so
+// a row that round-trips is byte-identical and never looks "changed".
+const isoTs = (v: unknown): string | undefined => {
+  const s = str(v);
+  if (!s) return undefined;
+  const ms = Date.parse(s);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : s;
+};
+// A `date` column comes back as yyyy-mm-dd already; slice defends a timestamp.
+const isoDay = (v: unknown): string => (str(v) ?? '').slice(0, 10);
+
+export function constraintToRow(projectId: string, userId: string, c: Constraint): Record<string, unknown> {
+  return {
+    id: c.id, user_id: userId, project_id: projectId,
+    task_id: c.taskId, category: c.category, description: c.description,
+    status: c.status, need_by: c.needBy ?? null, owner: c.owner ?? null,
+    // An empty createdAt would be an invalid timestamptz (a terminal write
+    // error); omitted, the column default stamps it instead.
+    ...(c.createdAt ? { created_at: c.createdAt } : {}),
+    cleared_at: c.clearedAt ?? null, deleted_at: null,
+  };
+}
+export function commitmentToRow(projectId: string, userId: string, c: WeeklyCommitment): Record<string, unknown> {
+  return {
+    id: commitmentRowId(projectId, c.taskId, c.weekStart), user_id: userId, project_id: projectId,
+    task_id: c.taskId, week_start: c.weekStart, committed: c.committed,
+    outcome: c.outcome ?? null, variance_reason: c.varianceReason ?? null,
+    note: c.note ?? null, deleted_at: null,
+  };
+}
+export function dispatchToRow(projectId: string, userId: string, d: LastPlannerDispatch): Record<string, unknown> {
+  return {
+    id: dispatchRowId(projectId, d.crewKey, d.weekStart), user_id: userId, project_id: projectId,
+    crew_key: d.crewKey, week_start: d.weekStart, channel: d.channel,
+    sent_at: d.sentAt, deleted_at: null,
+  };
+}
+
+export function rowToConstraint(r: Record<string, unknown>): Constraint {
+  return {
+    id: String(r.id), taskId: String(r.task_id),
+    category: (str(r.category) ?? 'other') as ConstraintCategory,
+    description: typeof r.description === 'string' ? r.description : '',
+    status: r.status === 'cleared' ? 'cleared' : 'open',
+    needBy: str(r.need_by)?.slice(0, 10), owner: str(r.owner),
+    createdAt: isoTs(r.created_at) ?? '', clearedAt: isoTs(r.cleared_at),
+  };
+}
+export function rowToCommitment(r: Record<string, unknown>): WeeklyCommitment {
+  const outcome = r.outcome === 'done' || r.outcome === 'missed' ? r.outcome : undefined;
+  return {
+    taskId: String(r.task_id), weekStart: isoDay(r.week_start), committed: r.committed === true,
+    outcome, varianceReason: outcome === 'missed' ? (str(r.variance_reason) as VarianceReason | undefined) : undefined,
+    note: str(r.note),
+  };
+}
+export function rowToDispatch(r: Record<string, unknown>): LastPlannerDispatch {
+  return {
+    crewKey: String(r.crew_key), weekStart: isoDay(r.week_start),
+    channel: r.channel === 'email' ? 'email' : 'share', sentAt: isoTs(r.sent_at) ?? '',
+  };
+}
+
+// Same-shape comparison that ignores key order and undefined-vs-absent.
+function sameRow(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) if ((a[k] ?? null) !== (b[k] ?? null)) return false;
+  return true;
+}
+
+/**
+ * The upserts that carry one project's bucket from `prev` to `next`: every row
+ * that is new or whose content changed.
+ *
+ * A row that DISAPPEARS produces nothing. A disappearance here can be a cache
+ * race (a hook write built on a snapshot from before a hydrate), not a user's
+ * delete — and turning it into a server delete would erase the other device's
+ * record. Deletes are server tombstones (`deleted_at`) that the merge honours;
+ * nothing in the app issues one today (useLastPlanner.removeConstraint has no
+ * UI caller).
+ */
+export function diffBucketWrites(
+  projectId: string, userId: string,
+  prev: LastPlannerBucket | undefined, next: LastPlannerBucket,
+): LastPlannerRowWrite[] {
+  const out: LastPlannerRowWrite[] = [];
+  const push = <T,>(
+    table: LastPlannerTable, before: T[], after: T[],
+    toRow: (projectId: string, userId: string, item: T) => Record<string, unknown>,
+  ) => {
+    const prior = new Map<string, Record<string, unknown>>();
+    for (const item of before) { const r = toRow(projectId, userId, item); prior.set(String(r.id), r); }
+    const seen = new Set<string>();
+    for (const item of after) {
+      const row = toRow(projectId, userId, item);
+      const id = String(row.id);
+      // A bucket that somehow holds the same natural key twice sends it once.
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const old = prior.get(id);
+      if (!old || !sameRow(old, row)) out.push({ table, id, row });
+    }
+  };
+  push(LAST_PLANNER_TABLES.constraints, prev?.constraints ?? [], next.constraints, constraintToRow);
+  push(LAST_PLANNER_TABLES.commitments, prev?.commitments ?? [], next.commitments, commitmentToRow);
+  push(LAST_PLANNER_TABLES.dispatches, prev?.dispatches ?? [], next.dispatches ?? [], dispatchToRow);
+  return out;
+}
+
+/**
+ * Reconcile the device's store with the server's rows (see rule 2 above).
+ * `pending` maps pendingRowKey(table, id) → the row data of a write still
+ * waiting in the offline queue (the newest one per row). Returns the merged store plus the local-only rows the server has never seen,
+ * which the caller sends up.
+ */
+export function mergeCloudIntoStore(
+  local: LastPlannerStore, cloud: LastPlannerCloudRows,
+  pending: ReadonlyMap<string, Record<string, unknown>>, userId: string,
+): { store: LastPlannerStore; backfill: LastPlannerRowWrite[] } {
+  const projectIds = new Set<string>(Object.keys(local));
+  for (const list of [cloud.constraints, cloud.commitments, cloud.dispatches, Array.from(pending.values())]) {
+    for (const r of list) if (typeof r.project_id === 'string') projectIds.add(r.project_id);
+  }
+
+  const store: LastPlannerStore = {};
+  const backfill: LastPlannerRowWrite[] = [];
+
+  const mergeOne = <T,>(
+    projectId: string, table: LastPlannerTable, localItems: T[],
+    cloudRows: Record<string, unknown>[],
+    toRow: (projectId: string, userId: string, item: T) => Record<string, unknown>,
+    fromRow: (r: Record<string, unknown>) => T,
+  ): T[] => {
+    const cloudById = new Map<string, Record<string, unknown>>();
+    for (const r of cloudRows) if (r.project_id === projectId) cloudById.set(String(r.id), r);
+    const merged = new Map<string, T>();
+    // Local first, in local order, so the screen's ordering does not reshuffle.
+    for (const item of localItems) {
+      const row = toRow(projectId, userId, item);
+      const id = String(row.id);
+      if (merged.has(id)) continue; // a duplicated natural key collapses to one
+      const remote = cloudById.get(id);
+      if (pending.has(pendingRowKey(table, id))) { merged.set(id, item); continue; }
+      if (!remote) { merged.set(id, item); backfill.push({ table, id, row }); continue; }
+      if (remote.deleted_at) continue;
+      merged.set(id, fromRow(remote));
+    }
+    // Queued writes the local bucket no longer holds. This is the same-user
+    // re-auth case: the sign-in sweep emptied the store but KEPT the offline
+    // queue, so the queued row is the newest copy that exists anywhere — newer
+    // than the server's, which it has not reached yet.
+    const prefix = `${table}|`;
+    for (const [key, row] of pending) {
+      if (!key.startsWith(prefix) || row.project_id !== projectId || row.deleted_at) continue;
+      const id = key.slice(prefix.length);
+      if (!merged.has(id)) merged.set(id, fromRow(row));
+    }
+    for (const [id, remote] of cloudById) {
+      if (merged.has(id) || remote.deleted_at) continue;
+      merged.set(id, fromRow(remote));
+    }
+    return Array.from(merged.values());
+  };
+
+  for (const projectId of projectIds) {
+    const b = local[projectId] ?? { constraints: [], commitments: [], dispatches: [] };
+    const constraints = mergeOne(projectId, LAST_PLANNER_TABLES.constraints, b.constraints ?? [], cloud.constraints, constraintToRow, rowToConstraint)
+      // Newest first, the order addConstraint prepends in.
+      .sort((a, c) => (c.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+    const commitments = mergeOne(projectId, LAST_PLANNER_TABLES.commitments, b.commitments ?? [], cloud.commitments, commitmentToRow, rowToCommitment);
+    const dispatches = mergeOne(projectId, LAST_PLANNER_TABLES.dispatches, b.dispatches ?? [], cloud.dispatches, dispatchToRow, rowToDispatch);
+    store[projectId] = { constraints, commitments, dispatches };
+  }
+  return { store, backfill };
 }

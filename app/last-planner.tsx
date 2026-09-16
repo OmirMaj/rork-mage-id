@@ -11,9 +11,11 @@
 //
 // Responsive: a centered max-width column that reads well on phone AND web/
 // desktop (React Native Web). Pure logic lives in utils/lastPlanner; per-project
-// constraints + commitments persist via hooks/useLastPlanner.
+// constraints + commitments persist via hooks/useLastPlanner, and are mirrored
+// to Supabase by useLastPlannerCloudMirror below (the local store alone was
+// swept on every sign-out and never reached a second device).
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -22,8 +24,13 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, ChevronLeft as ChevLeft, Plus, X, Check,
   AlertTriangle, CircleCheck, Clock, Target, ListChecks, TrendingUp, TrendingDown,
-  Mail, Share2, Users, CalendarOff,
+  Mail, Share2, Users, CalendarOff, CloudOff,
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabaseWriteDetailed, getOwnOfflineQueueDetailed } from '@/utils/offlineQueue';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors } from '@/constants/colors';
@@ -41,6 +48,9 @@ import {
   varianceBreakdown, currentWeekStart, addWeeks, formatWeekRange, taskWindow,
   buildScheduledStartDays,
   CONSTRAINT_LABELS, VARIANCE_LABELS,
+  LAST_PLANNER_TABLES, commitmentRowId, dispatchRowId, pendingRowKey,
+  diffBucketWrites, mergeCloudIntoStore,
+  type LastPlannerBucket, type LastPlannerStore, type LastPlannerRowWrite,
   type Readiness, type ConstraintCategory, type VarianceReason,
 } from '@/utils/lastPlanner';
 import {
@@ -107,6 +117,7 @@ function LastPlannerInner() {
   }), [project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates]);
 
   const lp = useLastPlanner(projectId);
+  const mirror = useLastPlannerCloudMirror(projectId, lp);
   const [tab, setTab] = useState<Tab>('lookahead');
   const [weekStart, setWeekStart] = useState<string>(currentWeekStart());
 
@@ -229,6 +240,17 @@ function LastPlannerInner() {
         <Segment label="This Week" active={tab === 'week'} onPress={() => { setTab('week'); haptic(); }} t={t} styles={styles} />
         <Segment label="Reliability" active={tab === 'reliability'} onPress={() => { setTab('reliability'); haptic(); }} t={t} styles={styles} />
       </View>
+      {mirror.state === 'local-only' && (
+        // Said out loud because the difference matters: a planner that has not
+        // reached the server is on this device only, and the phone on site will
+        // not see this week's commitments until it does.
+        <View style={[styles.syncNotice, { maxWidth: contentWidth }]} accessibilityRole="text">
+          <CloudOff size={14} color={t.warningLabel} strokeWidth={1.75} />
+          <Text style={styles.syncNoticeText}>
+            Not synced. The cloud copy of this planner could not be reached, so what you see is this device only. Changes are held here and send when it can.
+          </Text>
+        </View>
+      )}
 
       <ScrollView
         {...fabScroll}
@@ -239,7 +261,7 @@ function LastPlannerInner() {
           {tab === 'lookahead' && (
             <LookaheadView
               tasks={tasks} startDate={startDate} constraints={lp.constraints} calendar={calendar}
-              onAddConstraint={setConstraintFor} onClearConstraint={lp.toggleConstraint}
+              onAddConstraint={setConstraintFor} onClearConstraint={mirror.toggleConstraint}
               t={t} styles={styles}
             />
           )}
@@ -247,11 +269,11 @@ function LastPlannerInner() {
             <WeekView
               tasks={tasks} startDate={startDate} weekStart={weekStart} calendar={calendar}
               setWeekStart={setWeekStart} constraints={lp.constraints} commitments={lp.commitments}
-              onToggleCommit={(taskId, committed) => lp.setCommit(taskId, weekStart, committed)}
+              onToggleCommit={(taskId, committed) => mirror.setCommit(taskId, weekStart, committed)}
               onReview={setReviewFor}
               projectId={project.id} clashes={weekClashes}
               projectName={project.name} gcName={gcName}
-              getSub={getSubcontractor} dispatches={lp.dispatches} onDispatched={lp.markDispatched}
+              getSub={getSubcontractor} dispatches={lp.dispatches} onDispatched={mirror.markDispatched}
               t={t} styles={styles}
             />
           )}
@@ -264,17 +286,193 @@ function LastPlannerInner() {
       <ConstraintModal
         task={constraintFor}
         onClose={() => setConstraintFor(null)}
-        onSave={(input) => { lp.addConstraint(input); setConstraintFor(null); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+        onSave={(input) => { mirror.addConstraint(input); setConstraintFor(null); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
         t={t} styles={styles}
       />
       <ReviewModal
         task={reviewFor}
         onClose={() => setReviewFor(null)}
-        onReview={(outcome, reason) => { if (reviewFor) lp.reviewCommit(reviewFor.id, weekStart, outcome, reason); setReviewFor(null); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+        onReview={(outcome, reason) => { if (reviewFor) mirror.reviewCommit(reviewFor.id, weekStart, outcome, reason); setReviewFor(null); if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
         t={t} styles={styles}
       />
     </View>
   );
+}
+
+// ── Cloud mirror ─────────────────────────────────────────────────────
+// WHY THIS LIVES IN THE SCREEN. The Last Planner store is one AsyncStorage key
+// that AuthContext.wipeLocalUserCache sweeps on every sign-out, with nothing to
+// restore it from — and it never left the device, so commitments made on the
+// laptop never reached the phone on site. This is the only screen that mutates
+// that store, so mirroring here covers every write. (Moving hydrate into
+// hooks/useLastPlanner's load() would also cover the Friday Close card and Ask,
+// which read the key directly — see the handoff note in the finding.)
+//
+// Two rules, both enforced by the pure helpers in utils/lastPlanner and pinned
+// by scripts/validate-last-planner.ts:
+//   - every write is an upsert on an id DERIVED from the natural key, so a
+//     replay or a second device can never make a second commitment row and
+//     double-count PPC;
+//   - the server's copy wins on hydrate EXCEPT over rows with a write still in
+//     the offline queue (or sent from this screen while the hydrate ran).
+//
+// And one rule that lives here: only rows the user TOUCHED from this screen are
+// pushed. The hook's writes build on a cache snapshot, so a write that raced a
+// hydrate can briefly put stale copies of other rows back in the store; pushing
+// the whole diff would then upload those stale copies over the other device's
+// newer ones.
+
+type MirrorState = 'pending' | 'synced' | 'local-only';
+type LastPlannerApi = ReturnType<typeof useLastPlanner>;
+
+// Must match hooks/useLastPlanner's KEY and QK — the hook does not export them.
+const LAST_PLANNER_STORAGE_KEY = 'mageid_last_planner';
+const LAST_PLANNER_QUERY_KEY = ['last-planner'] as const;
+const MIRROR_TABLES: readonly string[] = Object.values(LAST_PLANNER_TABLES);
+
+function useLastPlannerCloudMirror(projectId: string | null, lp: LastPlannerApi) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const queryClient = useQueryClient();
+  const [state, setState] = useState<MirrorState>('pending');
+
+  const bucket = useMemo<LastPlannerBucket>(
+    () => ({ constraints: lp.constraints, commitments: lp.commitments, dispatches: lp.dispatches }),
+    [lp.constraints, lp.commitments, lp.dispatches],
+  );
+
+  // Per-project snapshot the diff is taken against; seeded from the first
+  // loaded bucket so opening the screen uploads nothing by itself.
+  const baselineRef = useRef<Record<string, LastPlannerBucket>>({});
+  // pendingRowKey(table, id) of rows the user changed and that have not been
+  // pushed yet. `newConstraints` covers addConstraint, whose id the hook mints.
+  const touchedRef = useRef(new Set<string>());
+  const newConstraintsRef = useRef(false);
+  // Rows pushed from this screen, kept so a hydrate that started before the
+  // push does not let the server's older copy overwrite them.
+  const sentRef = useRef(new Map<string, Record<string, unknown>>());
+  const hydratedForRef = useRef<string | null>(null);
+
+  const send = useCallback(async (writes: LastPlannerRowWrite[], stopOnUnsynced: boolean) => {
+    for (const w of writes) {
+      sentRef.current.set(pendingRowKey(w.table, w.id), w.row);
+      const outcome = await supabaseWriteDetailed(w.table, 'upsert', w.row);
+      // A backfill can be hundreds of rows. If the server stops answering,
+      // stop — each unsent row stays local-only and the next hydrate offers it
+      // again, instead of flooding the offline queue (FIFO-capped) and pushing
+      // out someone's daily report.
+      if (stopOnUnsynced && outcome !== 'synced') break;
+    }
+  }, []);
+
+  // ── Push: rows the user touched, as they now stand in the store ──
+  useEffect(() => {
+    if (!projectId || lp.isLoading) return;
+    const prev = baselineRef.current[projectId];
+    baselineRef.current[projectId] = bucket;
+    if (!prev || !userId || !isSupabaseConfigured) return;
+    const prevConstraintIds = new Set(prev.constraints.map(c => c.id));
+    const writes = diffBucketWrites(projectId, userId, prev, bucket).filter(w => {
+      const key = pendingRowKey(w.table, w.id);
+      if (touchedRef.current.has(key)) return true;
+      return newConstraintsRef.current && w.table === LAST_PLANNER_TABLES.constraints && !prevConstraintIds.has(w.id);
+    });
+    if (writes.length === 0) return;
+    for (const w of writes) touchedRef.current.delete(pendingRowKey(w.table, w.id));
+    if (writes.some(w => w.table === LAST_PLANNER_TABLES.constraints)) newConstraintsRef.current = false;
+    void send(writes, false);
+  }, [bucket, projectId, userId, lp.isLoading, send]);
+
+  // ── Hydrate: once per signed-in user, after the local store has loaded ──
+  useEffect(() => {
+    if (lp.isLoading) return;
+    if (!userId || !isSupabaseConfigured) { setState('local-only'); return; }
+    if (hydratedForRef.current === userId) return;
+    hydratedForRef.current = userId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [c, m, d] = await Promise.all([
+          supabase.from(LAST_PLANNER_TABLES.constraints).select('*'),
+          supabase.from(LAST_PLANNER_TABLES.commitments).select('*'),
+          supabase.from(LAST_PLANNER_TABLES.dispatches).select('*'),
+        ]);
+        // Covers "table not migrated yet" too: keep working from the device.
+        const readError = c.error ?? m.error ?? d.error;
+        if (readError) throw readError;
+        // Unreadable queue = unknown pending work; letting the server win blind
+        // could revert a checkbox that simply has not landed yet.
+        const queue = await getOwnOfflineQueueDetailed();
+        if (queue.readFailed) throw new Error('offline queue unreadable');
+
+        const pending = new Map<string, Record<string, unknown>>();
+        // Oldest-first, so the newest write for a row is the one that stays.
+        for (const e of queue.entries) {
+          if (MIRROR_TABLES.includes(e.table) && typeof e.data?.id === 'string') {
+            pending.set(pendingRowKey(e.table, e.data.id), e.data);
+          }
+        }
+        for (const [k, v] of sentRef.current) pending.set(k, v);
+
+        // Let an in-flight store write settle first, so the merged store is not
+        // immediately overwritten by a write built on the pre-merge snapshot.
+        for (let i = 0; i < 20 && queryClient.isMutating() > 0; i++) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        if (cancelled) return;
+
+        const local = queryClient.getQueryData<LastPlannerStore>(LAST_PLANNER_QUERY_KEY) ?? {};
+        const { store, backfill } = mergeCloudIntoStore(
+          local,
+          { constraints: c.data ?? [], commitments: m.data ?? [], dispatches: d.data ?? [] },
+          pending, userId,
+        );
+        // Re-seed every baseline BEFORE the cache changes, so the merge itself
+        // reads as "no change" to the push effect.
+        baselineRef.current = { ...store };
+        queryClient.setQueryData(LAST_PLANNER_QUERY_KEY, store);
+        try {
+          await AsyncStorage.setItem(LAST_PLANNER_STORAGE_KEY, JSON.stringify(store));
+        } catch (err) {
+          console.warn('[lastPlanner] cache write after hydrate failed:', err);
+        }
+        if (!cancelled) setState('synced');
+        // History recorded before the table existed, or while offline and never
+        // queued — the rows that made a logout destructive. Send them up.
+        await send(backfill, true);
+      } catch (err) {
+        console.warn('[lastPlanner] cloud mirror unavailable, staying on-device:', err);
+        // Let a later mount try again.
+        hydratedForRef.current = null;
+        if (!cancelled) setState('local-only');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId, lp.isLoading, queryClient, send]);
+
+  // ── Mutators that mark what they change, then delegate to the hook ──
+  const setCommit = useCallback((taskId: string, weekStart: string, committed: boolean) => {
+    if (projectId) touchedRef.current.add(pendingRowKey(LAST_PLANNER_TABLES.commitments, commitmentRowId(projectId, taskId, weekStart)));
+    lp.setCommit(taskId, weekStart, committed);
+  }, [projectId, lp]);
+  const reviewCommit = useCallback((taskId: string, weekStart: string, outcome: 'done' | 'missed', reason?: VarianceReason) => {
+    if (projectId) touchedRef.current.add(pendingRowKey(LAST_PLANNER_TABLES.commitments, commitmentRowId(projectId, taskId, weekStart)));
+    lp.reviewCommit(taskId, weekStart, outcome, reason);
+  }, [projectId, lp]);
+  const toggleConstraint = useCallback((constraintId: string) => {
+    touchedRef.current.add(pendingRowKey(LAST_PLANNER_TABLES.constraints, constraintId));
+    lp.toggleConstraint(constraintId);
+  }, [lp]);
+  const addConstraint = useCallback((input: Parameters<LastPlannerApi['addConstraint']>[0]) => {
+    newConstraintsRef.current = true;
+    lp.addConstraint(input);
+  }, [lp]);
+  const markDispatched = useCallback((crewKey: string, weekStart: string, channel: 'email' | 'share') => {
+    if (projectId) touchedRef.current.add(pendingRowKey(LAST_PLANNER_TABLES.dispatches, dispatchRowId(projectId, crewKey, weekStart)));
+    lp.markDispatched(crewKey, weekStart, channel);
+  }, [projectId, lp]);
+
+  return { state, setCommit, reviewCommit, toggleConstraint, addConstraint, markDispatched };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -845,6 +1043,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   segment: { flex: 1, paddingVertical: 9, borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line, alignItems: 'center' as const, backgroundColor: t.surface },
   segmentText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.textSecondary },
+  syncNotice: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 6,
+    paddingHorizontal: 16, paddingBottom: 8, alignSelf: 'center' as const, width: '100%',
+  },
+  syncNoticeText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.warningLabel, lineHeight: 15 },
 
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 10, marginTop: 8 },
   note: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginBottom: 12 },
