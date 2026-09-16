@@ -128,6 +128,9 @@ const KIND_ICON: Record<ChaseKind, typeof FileQuestion> = {
   delivery: Truck,
   // A sub who worked for days then vanished is the purest "waiting on" there is.
   quiet_trade: HardHat,
+  // Not waiting on anyone — it never left the building. See the note on
+  // ChaseKind in utils/systemOfAction.ts.
+  unsent_rfi: Send,
 };
 
 export default function WaitingOnScreen() {

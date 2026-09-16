@@ -12,7 +12,7 @@
 // them with human memory. This engine is the key.
 //
 // WHY A REGISTRY AND NOT AN ENUM. Two chase engines already exist:
-// utils/systemOfAction.ts (ChaseKind, five members) and utils/brainWatch.ts
+// utils/systemOfAction.ts (ChaseKind, six members) and utils/brainWatch.ts
 // (AttnKind, eleven). Both are good and both are closed sets — a follow-up
 // outside those lists cannot exist, so covering his checklist would mean
 // sixteen more switch cases in two files. Here a new follow-up is a RULE, and

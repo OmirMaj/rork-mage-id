@@ -134,5 +134,48 @@ ok('summary counts criticals', sum.critical >= 1, `critical=${sum.critical}`);
   expect('summary counts the new kind', qs.byKind.quiet_trade, 1);
 }
 
+// ── THE TWO WAYS THIS LIST CAN DAMAGE A RELATIONSHIP ──────────────────────
+// Both are worse than the list being empty, because he ACTS on them: he sends
+// a chasing email to a consultant who owes him nothing. The predicate used to
+// permit both.
+{
+  console.log('\nit does not chase people who owe nothing:');
+
+  const one = (r: Partial<RFI>) =>
+    buildChaseList({ rfis: [rfi(r)], submittals: [], changeOrders: [], projects, nowMs: NOW });
+
+  // (1) SHE ALREADY ANSWERED. Only 'closed' used to be skipped, so an RFI a PM
+  // marked ANSWERED by hand — without ever filling in dateResponded — was
+  // chased every single morning after the reply landed.
+  expect('an ANSWERED rfi is not chased', one({ status: 'answered' }).length, 0);
+  expect('a VOID rfi is not chased', one({ status: 'void' }).length, 0);
+  expect('a CLOSED rfi is still not chased', one({ status: 'closed' }).length, 0);
+  expect('dateResponded still wins on its own',
+    one({ status: 'open', dateResponded: '2026-02-04' }).length, 0);
+  // ...and the ordinary overdue case must survive all of that.
+  expect('a genuinely open, sent, overdue rfi IS still chased', one({}).length, 1);
+
+  // (2) HE NEVER SENT IT. The architect cannot be late answering a question
+  // sitting in his drafts. It must still surface — but against HIM.
+  const draft = one({ dateSubmitted: '' });
+  expect('an unsent rfi still surfaces', draft.length, 1);
+  expect('  ...as its own kind, not as a chase', draft[0].kind, 'unsent_rfi');
+  ok('  ...with the ball on him, not the architect',
+    !draft[0].waitingOn.includes('Jane') && /you/i.test(draft[0].waitingOn),
+    draft[0].waitingOn);
+  ok('  ...and the nudge does not ask anyone else to hurry up',
+    !/can you respond/i.test(draft[0].nudge) && /send it/i.test(draft[0].nudge),
+    draft[0].nudge);
+  expect('a whitespace-only dateSubmitted counts as unsent',
+    one({ dateSubmitted: '   ' })[0].kind, 'unsent_rfi');
+  expect('summary counts the unsent kind separately',
+    chaseSummary(draft).byKind.unsent_rfi, 1);
+  expect('  ...and does not count it as an rfi chase',
+    chaseSummary(draft).byKind.rfi, 0);
+
+  // An unsent rfi that is ALSO answered/void is still not a chase of any kind.
+  expect('unsent + void is nothing at all', one({ dateSubmitted: '', status: 'void' }).length, 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -21,7 +21,17 @@ import { buildCrewPresence, findQuietTrades } from '@/utils/crewPresence';
 // slips costs you. It differs in who pays — a late RFI stalls a decision, a
 // late delivery stalls a CREW, and that shows up as labour rather than as a
 // late PO. It belongs where the PM already looks.
-export type ChaseKind = 'rfi' | 'submittal' | 'co_approval' | 'delivery' | 'quiet_trade';
+/**
+ * `unsent_rfi` is not a chase in the same sense as the others — nobody else is
+ * holding it. It is here because the alternative was worse: an RFI that was
+ * never sent used to be emitted as a plain `rfi` and attributed to the
+ * architect, so the app told him to chase someone who had never received it.
+ * That is the one failure mode a chase list must not have, because acting on it
+ * damages a relationship he depends on. Filed as its own kind, with the ball on
+ * him, it becomes the useful fact it always was: this question is still in your
+ * drafts and the date you need it by is coming.
+ */
+export type ChaseKind = 'rfi' | 'submittal' | 'co_approval' | 'delivery' | 'quiet_trade' | 'unsent_rfi';
 export type ChaseSeverity = 'critical' | 'high' | 'normal';
 
 export interface ChaseItem {
@@ -86,15 +96,46 @@ export function buildChaseList(opts: {
 
   // ── RFIs parked with the architect/engineer ──────────────────────────────
   for (const r of rfis) {
-    if (r.dateResponded) continue; // answered
-    if (r.status === 'closed') continue;
+    if (r.dateResponded) continue; // answered, with a date on it
+
+    // STATUS, not just dateResponded. RFIStatus is 'open' | 'answered' |
+    // 'closed' | 'void' and this used to skip only 'closed' — so an RFI marked
+    // ANSWERED by hand, without a dateResponded ever being filled in, kept
+    // generating "chase the architect" every morning after she had already
+    // replied. A VOID RFI is one he withdrew himself, and chasing anyone for it
+    // is indefensible. Both are now out.
+    if (r.status === 'closed' || r.status === 'answered' || r.status === 'void') continue;
+
+    const d = daysPast(r.dateRequired, nowMs);
+    if (!keep(d)) continue;
+
+    // NEVER SENT. `dateSubmitted` is what "it went out" means on an RFI. Without
+    // this branch the item below would name `assignedTo` as the party sitting on
+    // it — and the architect cannot be late answering a question still sitting
+    // in his drafts. The ball is his; say so, and route him to send it.
+    if (!r.dateSubmitted || !r.dateSubmitted.trim()) {
+      const draftLabel = `RFI #${r.number}: ${r.subject}`;
+      items.push({
+        id: r.id,
+        kind: 'unsent_rfi',
+        projectId: r.projectId,
+        projectName: nameById.get(r.projectId) ?? 'Project',
+        title: draftLabel,
+        waitingOn: 'you — not sent yet',
+        daysOverdue: d,
+        severity: severityFor(d),
+        nudge:
+          `${draftLabel} has never been sent, and you needed the answer ${d} day${d === 1 ? '' : 's'} ago. ` +
+          `Nobody is late but you — open it and send it.`,
+        route: { pathname: '/rfi', params: { projectId: r.projectId, rfiId: r.id } },
+      });
+      continue;
+    }
+
     // Ball must be with someone else. Legacy rows without ballInCourt are
     // treated as out-for-response once they have an assignee.
     const ball = r.ballInCourt ?? (r.assignedTo ? 'architect' : 'gc');
     if (ball === 'gc' || ball === 'closed') continue;
-
-    const d = daysPast(r.dateRequired, nowMs);
-    if (!keep(d)) continue;
 
     const who = r.assignedTo?.trim() || 'the design team';
     const label = `RFI #${r.number}: ${r.subject}`;
@@ -232,7 +273,7 @@ export function chaseSummary(items: ChaseItem[]): {
   critical: number;
   byKind: Record<ChaseKind, number>;
 } {
-  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0, delivery: 0, quiet_trade: 0 };
+  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0, delivery: 0, quiet_trade: 0, unsent_rfi: 0 };
   let critical = 0;
   for (const i of items) {
     byKind[i.kind] += 1;

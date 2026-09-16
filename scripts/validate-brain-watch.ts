@@ -7,12 +7,13 @@ import {
   closeoutAttention,
   punchAttention,
   changeOrderAttention,
+  rfiAttention,
   groupReadyPunchItems,
   rankAttention,
   summarize,
   type AttentionItem,
 } from '../utils/brainWatch';
-import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '../types';
+import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder, RFI } from '../types';
 // MONEY-05: the reader Summary's amount comes from, so the fixture below pins
 // the shipped rule rather than a number copied out of it.
 import { invoiceOutstanding } from '../utils/invoiceBilling';
@@ -842,6 +843,43 @@ function mkCO(over: Partial<ChangeOrder> = {}): ChangeOrder {
     `written and called by nothing: ${orphans.join(', ')}. Either compose it — in the ` +
     'canonical set if it should raise the count, or on the surface whose sentence it ' +
     'should gate — or delete it. A builder nobody calls is finished work nobody sees.');
+}
+
+// ─── rfiAttention: it must not name the wrong party ──────────────────────────
+// The home screen and the morning brief both render these sentences, and he
+// ACTS on them — he emails the consultant named in the string. An RFI that
+// never left his drafts has no consultant to blame, so naming one sends a
+// chasing email to somebody who has never seen the question.
+{
+  console.log('\nrfiAttention — who gets blamed:');
+
+  const proj = { id: 'p1', name: 'Oak Kitchen' } as unknown as Project;
+  const NOWMS = Date.parse('2026-02-15T12:00:00Z');
+  const anRfi = (o: Partial<RFI>): RFI => ({
+    id: 'r1', projectId: 'p1', number: 2, subject: 'Beam conflict', question: 'q',
+    submittedBy: 'GC', assignedTo: 'Kestrel Architects', ballInCourt: 'architect',
+    dateSubmitted: '2026-02-01', dateRequired: '2026-02-05', status: 'open',
+    priority: 'high', attachments: [], ...o,
+  } as unknown as RFI);
+
+  const sent = rfiAttention(proj, [anRfi({})], NOWMS);
+  ok('a sent, overdue, open RFI raises one item', sent.length === 1, `got ${sent.length}`);
+  ok('  ...and names the consultant holding it',
+    sent[0].message.includes('waiting on Kestrel Architects'), sent[0].message);
+
+  const draft = rfiAttention(proj, [anRfi({ dateSubmitted: '' })], NOWMS);
+  ok('an unsent RFI still raises an item', draft.length === 1, `got ${draft.length}`);
+  ok('  ...but does NOT name the consultant',
+    !draft[0].message.includes('Kestrel'), draft[0].message);
+  ok('  ...and says it never went out',
+    /never sent/i.test(draft[0].message), draft[0].message);
+  ok('whitespace-only dateSubmitted counts as unsent',
+    !rfiAttention(proj, [anRfi({ dateSubmitted: '   ' })], NOWMS)[0].message.includes('Kestrel'));
+
+  // The pre-existing status rule must survive.
+  for (const st of ['answered', 'closed', 'void'] as const) {
+    ok(`a ${st} RFI raises nothing`, rfiAttention(proj, [anRfi({ status: st })], NOWMS).length === 0);
+  }
 }
 
 // ─── Footer ──────────────────────────────────────────────────────────────────

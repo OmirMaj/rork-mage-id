@@ -340,10 +340,18 @@ export function rfiAttention(
     const severity: AttnSeverity =
       daysLate >= 7 ? 'critical' : daysLate >= 3 ? 'high' : 'medium';
 
+    // NEVER SENT is not the architect's fault. `dateSubmitted` is what "it went
+    // out" means on an RFI, and this builder used to ignore it — so an RFI still
+    // sitting in his own drafts appeared on the home screen and in the morning
+    // brief as "waiting on Kestrel Architects". He then chases a consultant who
+    // has never seen the question. Naming the wrong party is worse than saying
+    // nothing, because he acts on it.
+    const sent = !!rfi.dateSubmitted?.trim();
+
     // assignedTo is free text and can be blank on a legacy row; naming a blank
     // holder would read as "waiting on " with nothing after it.
     const holder = rfi.assignedTo?.trim();
-    const waiting = holder ? ` — waiting on ${holder}` : '';
+    const waiting = sent ? (holder ? ` — waiting on ${holder}` : '') : ' — never sent, still in your drafts';
 
     items.push({
       id: `rfi-${rfi.id}`,
