@@ -28,6 +28,7 @@
 //     override for schedules.
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { calendarDayStart } from '@/utils/calendarDate';
 import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { X, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -65,10 +66,12 @@ export default function DatePickerModal({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // Parse the incoming value once per open. Treat invalid input as today.
-  const initial = useMemo(() => {
-    const parsed = value ? new Date(value) : new Date();
-    return isNaN(parsed.getTime()) ? new Date() : parsed;
-  }, [value]);
+  // Through calendarDayStart, not `new Date(value)`: callers hand this both a
+  // bare 'YYYY-MM-DD' and this modal's own noon-UTC instant. `new Date` reads
+  // the bare shape as UTC midnight, so the wheels opened on the PREVIOUS day
+  // anywhere west of Greenwich — and confirming without touching them saved
+  // that wrong day back.
+  const initial = useMemo(() => calendarDayStart(value) ?? new Date(), [value]);
 
   const [year, setYear] = useState(initial.getFullYear());
   const [month, setMonth] = useState(initial.getMonth()); // 0-indexed

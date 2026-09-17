@@ -745,5 +745,19 @@ console.log('\nheader eyebrows say MAGE ID:');
   ok('no header eyebrow still reads "· MAGE"', stale.length === 0, stale.join('\n       '));
 }
 
+console.log('\nthe shared date picker opens on the stored day:');
+{
+  // DatePickerModal is handed both a bare 'YYYY-MM-DD' and its own noon-UTC
+  // instant. It seeded its wheels with `new Date(value)`, which reads the bare
+  // shape as UTC midnight: west of Greenwich it opened on the previous day, and
+  // confirming untouched saved that wrong day back.
+  const src = read('components/DatePickerModal.tsx');
+  const seed = /const initial = useMemo\(\(\) => ([^;]*), \[value\]\);/.exec(src);
+  ok('DatePickerModal seeds from calendarDayStart(value)', !!seed && /calendarDayStart\(value\)/.test(seed[1]), seed ? seed[1] : 'initial useMemo not found');
+  const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+  ok('…and never from new Date(value)', !/new Date\(value\)/.test(code));
+  eq("…a bare '2026-09-15' opens on the 15th", calendarDayStart('2026-09-15')?.getDate(), 15);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -9,10 +9,15 @@
 
 import { z } from 'zod';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { mageAI } from './mageAI';
-import { generateUUID } from './generateId';
+import { mageAI } from '@/utils/mageAI';
+import { generateUUID } from '@/utils/generateId';
+import { supabaseWriteDetailed, type WriteOutcome } from '@/utils/offlineQueue';
+import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
+import {
+  parseCalendarDay, toCalendarDayString, addCalendarDays, formatCalendarDay,
+} from '@/utils/calendarDate';
 import type {
-  SelectionCategory, SelectionOption, SelectionOptionSource,
+  SelectionCategory, SelectionOption, SelectionOptionSource, ProjectSchedule,
 } from '@/types';
 
 // ─── Row mapping ────────────────────────────────────────────────────
@@ -165,6 +170,27 @@ export async function saveSelectionCategory(c: Partial<SelectionCategory> & { id
     return null;
   }
   return rowToCategory(data as SelectionCategoryRow, []);
+}
+
+// Due date on an EXISTING category. Deliberately a one-column update and not a
+// round-trip through saveSelectionCategory: that upsert rewrites the whole row
+// from whatever the screen last fetched, so a GC fixing a date on a stale card
+// would reset `status` to what it was before the homeowner picked in the
+// portal (and chooseSelectionOption's 'chosen'/'exceeded' with it). Routed
+// through the offline queue so a date typed on a jobsite with no signal is
+// queued, not lost. `null` clears the date.
+export async function saveSelectionCategoryDueDate(
+  categoryId: string,
+  dueDate: string | null,
+): Promise<WriteOutcome> {
+  // Only a real calendar day reaches the column — a mistyped '2026-02-30'
+  // would otherwise land as a Postgres cast error the GC never sees explained.
+  // The date PREFIX is the day: DatePickerModal hands back noon UTC with the
+  // picked components, and re-projecting that instant into local time would
+  // name tomorrow east of UTC+12.
+  const day = dueDate != null && parseCalendarDay(dueDate) ? dueDate.slice(0, 10) : null;
+  if (dueDate != null && !day) return 'failed';
+  return supabaseWriteDetailed('selection_categories', 'update', { id: categoryId, due_date: day });
 }
 
 export async function deleteSelectionCategory(id: string): Promise<boolean> {
@@ -466,4 +492,151 @@ export async function syncAllowancesToSelections(
     }
   }
   return created;
+}
+
+
+// ─── Due-date suggestion: install task − lead time − buffer ──────────
+//
+// Why this exists: `selection_categories.due_date` drives the owner's
+// "Waiting on you" ranking and the portal's overdue badge, but a GC has no
+// idea off-hand what date to type. The app already knows the two numbers that
+// set it: when the install happens (the schedule) and how long the product
+// takes to arrive (the options' leadTimeDays).
+//
+// What it refuses to do, on purpose (screen audit 2026-09-16, both
+// sharpenings): there is no join key from a free-text category ("Kitchen
+// Cabinets") to a ScheduleTask, so the GC PICKS the install task — nothing
+// here matches names. And every input must be real: a schedule without a
+// startDate (consumers elsewhere fall back to today — the finish-day-jump
+// trap), no picked task, or no option carrying a lead time ⇒ no suggestion at
+// all. A homeowner reads "pick by" as a fact; a date anchored on today or on
+// a guessed lead would be a guess dressed as one. Pure and synchronous so
+// scripts/validate-selections-due.ts can pin every refusal.
+
+/** Default float between "product ordered" and "product needed on site". */
+export const SELECTION_DUE_BUFFER_DAYS = 5;
+
+export type SelectionDueRefusal =
+  | 'no-schedule-start'
+  | 'no-task-picked'
+  | 'task-not-found'
+  | 'no-lead-time';
+
+export type SelectionDueSuggestion =
+  | {
+      ok: true;
+      /** 'YYYY-MM-DD' — the value to store in due_date if the GC accepts. */
+      dueDate: string;
+      /** 'YYYY-MM-DD' — the picked task's calendar start. */
+      installDate: string;
+      taskTitle: string;
+      leadDays: number;
+      /** The option whose lead time set the date (the longest one). */
+      leadOptionName: string;
+      bufferDays: number;
+      /** The arithmetic, verbatim, for the grounding chip. */
+      chip: string;
+    }
+  | { ok: false; reason: SelectionDueRefusal; message: string };
+
+type ScheduleForDue = Pick<ProjectSchedule, 'startDate' | 'workingDaysPerWeek' | 'nonWorkingDates' | 'tasks'>;
+
+// The anchor and the task start come from THE schedule rule in scheduleOps
+// (resolveScheduleAnchor + taskCalendarRange) — the same two calls behind the
+// Gantt, the portal snapshot and the ICS export. The anchor reads the FIRST TEN
+// characters of startDate as the calendar day. A private reading via
+// calendarDayOf once re-projected a Supabase round-tripped instant
+// ('2026-06-01T00:00:00.000Z') into LOCAL time, so west of UTC the chip named
+// an install date one day before the one on the GC's schedule.
+function scheduleAnchorOf(schedule: ScheduleForDue | null | undefined): Date | null {
+  return schedule ? resolveScheduleAnchor(schedule).date : null;
+}
+
+function taskStartOn(scheduleStart: Date, schedule: ScheduleForDue, startDay: number): Date {
+  return taskCalendarRange(
+    { startDay: Math.floor(startDay), durationDays: 1 },
+    scheduleStart,
+    schedule.workingDaysPerWeek,
+    schedule.nonWorkingDates,
+  ).start;
+}
+
+/** A task's calendar start ('YYYY-MM-DD'), or null when the schedule has no
+ *  real start date — for the install-task picker's row labels. Never today. */
+export function scheduleTaskCalendarStart(
+  schedule: ScheduleForDue | null | undefined,
+  startDay: number,
+): string | null {
+  const start = scheduleAnchorOf(schedule);
+  if (!schedule || !start || !Number.isFinite(startDay)) return null;
+  return toCalendarDayString(taskStartOn(start, schedule, startDay));
+}
+
+export function suggestSelectionDueDate(input: {
+  schedule: ScheduleForDue | null | undefined;
+  taskId: string | null | undefined;
+  options: readonly Pick<SelectionOption, 'productName' | 'brand' | 'leadTimeDays'>[];
+  bufferDays?: number;
+}): SelectionDueSuggestion {
+  const { schedule, taskId } = input;
+  const bufferDays = Math.max(0, Math.round(input.bufferDays ?? SELECTION_DUE_BUFFER_DAYS));
+
+  // A bare/ISO start that isn't a real calendar day is the same as no start:
+  // never substitute today.
+  const scheduleStart = scheduleAnchorOf(schedule);
+  if (!schedule || !scheduleStart) {
+    return {
+      ok: false,
+      reason: 'no-schedule-start',
+      message: 'The schedule has no start date, so its tasks have no calendar dates to count back from.',
+    };
+  }
+
+  let lead: { days: number; name: string } | null = null;
+  for (const o of input.options) {
+    const d = o.leadTimeDays;
+    if (typeof d !== 'number' || !Number.isFinite(d) || d < 0) continue;
+    if (!lead || d > lead.days) {
+      lead = { days: Math.round(d), name: [o.brand, o.productName].filter(Boolean).join(' ') || 'an option' };
+    }
+  }
+  if (!lead) {
+    return {
+      ok: false,
+      reason: 'no-lead-time',
+      message: 'None of these options has a lead time, so there is nothing to count back.',
+    };
+  }
+
+  // Asked after the lead time on purpose: when no option has one, the screen
+  // can say so BEFORE the GC bothers picking a task that could not help.
+  if (!taskId) {
+    return { ok: false, reason: 'no-task-picked', message: 'Pick the install task to count back from.' };
+  }
+  const task = schedule.tasks.find(t => t.id === taskId);
+  if (!task || !Number.isFinite(task.startDay)) {
+    return { ok: false, reason: 'task-not-found', message: 'That task is no longer on the schedule.' };
+  }
+
+  const install = taskStartOn(scheduleStart, schedule, task.startDay);
+  // Lead time and buffer are CALENDAR days — a supplier's "6 weeks" includes
+  // weekends.
+  const due = addCalendarDays(install, -(lead.days + bufferDays));
+  const installDate = toCalendarDayString(install);
+  const dueDate = toCalendarDayString(due);
+
+  // Year only when the two dates straddle one, so "Jan 4 → pick by Nov 20"
+  // can't read as the same winter.
+  const sameYear = install.getFullYear() === due.getFullYear();
+  const fmt = (d: string) => formatCalendarDay(
+    d,
+    sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' },
+  );
+  const title = task.title?.trim() || 'Install task';
+  const chip = `${title} ${fmt(installDate)} − ${lead.days}d lead (${lead.name}) − ${bufferDays}d buffer → pick by ${fmt(dueDate)}`;
+
+  return {
+    ok: true, dueDate, installDate, taskTitle: title,
+    leadDays: lead.days, leadOptionName: lead.name, bufferDays, chip,
+  };
 }

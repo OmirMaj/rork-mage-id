@@ -4,7 +4,7 @@
 // Gemini returns 4 real-brand options spread across the budget range;
 // homeowner picks one in their portal.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, Platform, Modal, Image,
@@ -15,7 +15,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Plus, Trash2, DollarSign, Star, ExternalLink,
-  CheckCircle2, AlertTriangle, Clock, Package, PenTool,
+  CheckCircle2, AlertTriangle, Clock, Package, PenTool, CalendarDays, X, ChevronRight,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -27,12 +27,15 @@ import { useProjects } from '@/contexts/ProjectContext';
 import {
   fetchSelectionsForProject, saveSelectionCategory, deleteSelectionCategory,
   saveSelectionOption, chooseSelectionOption, curateSelectionsAI,
-  saveCuratedOptions, summarizeAllowances,
+  saveCuratedOptions, summarizeAllowances, saveSelectionCategoryDueDate,
+  suggestSelectionDueDate, scheduleTaskCalendarStart, SELECTION_DUE_BUFFER_DAYS,
 } from '@/utils/selectionsEngine';
+import DatePickerModal from '@/components/DatePickerModal';
+import { formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
 import { resolveSelectionImage } from '@/utils/ogImage';
 import { formatMoney } from '@/utils/formatters';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
-import type { SelectionCategory, SelectionOption } from '@/types';
+import type { SelectionCategory, SelectionOption, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
@@ -61,11 +64,31 @@ export default function SelectionsScreen() {
   const [loading, setLoading] = useState(true);
   const [curating, setCurating] = useState<string | null>(null);
   const [addModal, setAddModal] = useState(false);
+  // Pick-by date editing. The install task a GC counts back from is screen
+  // state only — due_date is the one thing persisted (audit 2026-09-16: no new
+  // column, and no name-matching a free-text category to a task).
+  const [dueEditFor, setDueEditFor] = useState<SelectionCategory | null>(null);
+  const [taskPickFor, setTaskPickFor] = useState<SelectionCategory | null>(null);
+  const [installTaskByCat, setInstallTaskByCat] = useState<Record<string, string>>({});
+
+  // Pick-by dates written while offline, keyed by category id (null = a queued
+  // clear). refresh() reads straight from Supabase, which doesn't have them
+  // yet — without this overlay a Generate/Choose refresh would wipe the date
+  // off the card while the queued write is still waiting to land. An entry is
+  // dropped once the server row agrees (the queue drained) or a later edit
+  // syncs directly.
+  const pendingDueRef = useRef<Record<string, string | null>>({});
 
   const refresh = useCallback(async () => {
     if (!projectId) { setLoading(false); return; }
     const cats = await fetchSelectionsForProject(projectId);
-    setCategories(cats);
+    const pending = pendingDueRef.current;
+    setCategories(cats.map(c => {
+      if (!(c.id in pending)) return c;
+      const want = pending[c.id];
+      if ((c.dueDate?.slice(0, 10) ?? null) === want) { delete pending[c.id]; return c; }
+      return { ...c, dueDate: want ?? undefined };
+    }));
   }, [projectId]);
 
   useEffect(() => {
@@ -78,13 +101,14 @@ export default function SelectionsScreen() {
 
   const summary = useMemo(() => summarizeAllowances(categories), [categories]);
 
-  const handleAddCategory = useCallback(async (input: { category: string; budget: number; styleBrief: string }) => {
+  const handleAddCategory = useCallback(async (input: { category: string; budget: number; styleBrief: string; dueDate?: string }) => {
     if (!projectId || !input.category.trim() || input.budget <= 0) return;
     const saved = await saveSelectionCategory({
       projectId,
       category: input.category.trim(),
       styleBrief: input.styleBrief.trim(),
       budget: input.budget,
+      dueDate: input.dueDate,
       displayOrder: categories.length,
     });
     if (saved) {
@@ -144,6 +168,25 @@ export default function SelectionsScreen() {
       await refresh();
     }, 'plain-text');
   }, [refresh]);
+
+  // Set or clear a category's pick-by date. This date is what ranks the
+  // selection in the owner's "Waiting on you" list and lights the portal's
+  // overdue badge, so a failed write must say so rather than leave the card
+  // showing a date the homeowner never sees.
+  const handleSetDueDate = useCallback(async (cat: SelectionCategory, day: string | null) => {
+    const outcome = await saveSelectionCategoryDueDate(cat.id, day);
+    if (outcome === 'failed') {
+      showAlert('Date not saved', 'Could not save the pick-by date. Check your connection and try again.');
+      return;
+    }
+    setCategories(prev => prev.map(c => (c.id === cat.id ? { ...c, dueDate: day ?? undefined } : c)));
+    if (outcome === 'queued') pendingDueRef.current[cat.id] = day;
+    else delete pendingDueRef.current[cat.id];
+    if (outcome === 'queued') {
+      showAlert('Saved offline', 'The pick-by date will reach the homeowner\'s portal once you are back online.');
+    }
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
 
   const handleChoose = useCallback(async (categoryId: string, option: SelectionOption) => {
     const ok = await chooseSelectionOption(categoryId, option.id, 'gc');
@@ -282,6 +325,12 @@ export default function SelectionsScreen() {
             onDelete={() => handleDelete(cat)}
             onDraftCO={() => handleDraftCOForOverage(cat)}
             onSetOptionPhoto={onSetOptionPhoto}
+            schedule={project.schedule}
+            installTaskId={installTaskByCat[cat.id]}
+            onEditDueDate={() => setDueEditFor(cat)}
+            onClearDueDate={() => void handleSetDueDate(cat, null)}
+            onPickInstallTask={() => setTaskPickFor(cat)}
+            onAcceptSuggestion={(day) => void handleSetDueDate(cat, day)}
           />
         ))}
       </ScrollView>
@@ -291,6 +340,32 @@ export default function SelectionsScreen() {
         visible={addModal}
         onClose={() => setAddModal(false)}
         onAdd={handleAddCategory}
+      />
+
+      {/* Tap-to-edit pick-by date on an existing card. DatePickerModal hands
+          back noon UTC, so its first ten characters ARE the picked calendar
+          day. It is SEEDED with the stored day at LOCAL noon (no `Z`): the
+          picker reads its seed with local getters, and a noon-UTC seed is
+          already tomorrow at UTC+13 (NZ summer) — reopen + confirm would
+          silently move the homeowner's date a day. */}
+      <DatePickerModal
+        visible={dueEditFor !== null}
+        value={dueEditFor?.dueDate ? pickerSeed(dueEditFor.dueDate) : ''}
+        title={dueEditFor ? `${dueEditFor.category} — pick by` : 'Pick by'}
+        allowFuture
+        onClose={() => setDueEditFor(null)}
+        onChange={(iso) => { if (dueEditFor) void handleSetDueDate(dueEditFor, iso.slice(0, 10)); }}
+      />
+
+      <InstallTaskPickerModal
+        category={taskPickFor}
+        schedule={project.schedule}
+        selectedTaskId={taskPickFor ? installTaskByCat[taskPickFor.id] : undefined}
+        onClose={() => setTaskPickFor(null)}
+        onPick={(taskId) => {
+          if (taskPickFor) setInstallTaskByCat(prev => ({ ...prev, [taskPickFor.id]: taskId }));
+          setTaskPickFor(null);
+        }}
       />
 
       <EstimateLoadingOverlay
@@ -304,6 +379,13 @@ export default function SelectionsScreen() {
 
 // ─── Sub-components ─────────────────────────────────────────────────
 
+/** DatePickerModal seed for a stored 'YYYY-MM-DD': local noon of that day. An
+ *  ISO date-time with no offset parses as LOCAL time, so the picker's
+ *  getFullYear/getMonth/getDate read back exactly this day in every zone. */
+function pickerSeed(day: string): string {
+  return `${day.slice(0, 10)}T12:00:00`;
+}
+
 function SummaryStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -315,7 +397,10 @@ function SummaryStat({ label, value, accent }: { label: string; value: string; a
   );
 }
 
-function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraftCO, onSetOptionPhoto }: {
+function CategoryCard({
+  category, curating, onCurate, onChoose, onDelete, onDraftCO, onSetOptionPhoto,
+  schedule, installTaskId, onEditDueDate, onClearDueDate, onPickInstallTask, onAcceptSuggestion,
+}: {
   category: SelectionCategory;
   curating: boolean;
   onCurate: () => void;
@@ -323,6 +408,12 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
   onDelete: () => void;
   onDraftCO: () => void;
   onSetOptionPhoto: (option: SelectionOption, category: string) => void;
+  schedule: ProjectSchedule | null | undefined;
+  installTaskId: string | undefined;
+  onEditDueDate: () => void;
+  onClearDueDate: () => void;
+  onPickInstallTask: () => void;
+  onAcceptSuggestion: (day: string) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -346,6 +437,16 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
         </View>
         <TouchableOpacity onPress={onDelete} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
       </View>
+
+      <DueDateSection
+        category={category}
+        schedule={schedule}
+        installTaskId={installTaskId}
+        onEdit={onEditDueDate}
+        onClear={onClearDueDate}
+        onPickInstallTask={onPickInstallTask}
+        onAccept={onAcceptSuggestion}
+      />
 
       {chosen && (
         <View style={[styles.chosenBanner, isExceeded && { backgroundColor: themeColors.danger + '0D', borderColor: themeColors.danger + '30' }]}>
@@ -405,6 +506,184 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
   );
 }
 
+// Pick-by date row + (once options exist) the count-back suggestion. The
+// suggestion needs three real inputs — a dated schedule, a GC-picked install
+// task, and an option with a lead time — and says which one is missing rather
+// than filling the gap with today or a guess (brain directive: grounded,
+// honest; a blocked control says why).
+function DueDateSection({ category, schedule, installTaskId, onEdit, onClear, onPickInstallTask, onAccept }: {
+  category: SelectionCategory;
+  schedule: ProjectSchedule | null | undefined;
+  installTaskId: string | undefined;
+  onEdit: () => void;
+  onClear: () => void;
+  onPickInstallTask: () => void;
+  onAccept: (day: string) => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const options = category.options;
+  const opts = useMemo(() => options ?? [], [options]);
+  const due = category.dueDate ? category.dueDate.slice(0, 10) : undefined;
+  const daysLeft = due ? daysUntilCalendarDay(due) : null;
+  const decided = category.status === 'chosen' || category.status === 'exceeded';
+  const late = daysLeft != null && daysLeft < 0 && !decided;
+
+  const suggestion = useMemo(
+    () => suggestSelectionDueDate({ schedule, taskId: installTaskId, options: opts }),
+    [schedule, installTaskId, opts],
+  );
+  const pickedTask = installTaskId ? schedule?.tasks.find(t => t.id === installTaskId) : undefined;
+  const hasTasks = (schedule?.tasks.length ?? 0) > 0;
+  // Why the task picker can't open, if it can't. Checked in the same order the
+  // suggestion refuses so the message names the first missing input.
+  const pickerBlocked = !hasTasks
+    ? 'This project has no schedule tasks to count back from. Type the date instead.'
+    : suggestion.ok === false && suggestion.reason === 'no-schedule-start'
+      ? suggestion.message + ' Set one in the schedule, or type the date.'
+      : suggestion.ok === false && suggestion.reason === 'no-lead-time'
+        ? suggestion.message + ' Type the date instead.'
+        : null;
+
+  return (
+    <View style={styles.dueBlock}>
+      <View style={styles.dueRow}>
+        <CalendarDays size={14} color={late ? themeColors.danger : themeColors.textMuted} strokeWidth={1.75} />
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          onPress={onEdit}
+          accessibilityRole="button"
+          accessibilityLabel={due ? `Pick-by date ${formatCalendarDay(due)}. Tap to change.` : 'Set a pick-by date'}
+          testID={`due-edit-${category.id}`}
+        >
+          {due ? (
+            <Text style={[styles.dueText, late && { color: themeColors.danger }]}>
+              Homeowner picks by {formatCalendarDay(due)}
+              {daysLeft != null && !decided
+                ? daysLeft < 0 ? ` · ${-daysLeft}d overdue` : daysLeft === 0 ? ' · today' : ` · ${daysLeft}d left`
+                : ''}
+            </Text>
+          ) : (
+            <Text style={styles.dueEmpty}>No pick-by date — the portal can&apos;t flag this as urgent. Tap to set.</Text>
+          )}
+        </TouchableOpacity>
+        {due ? (
+          <TouchableOpacity onPress={onClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear pick-by date">
+            <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {opts.length > 0 && (
+        <View style={styles.suggestBlock}>
+          <TouchableOpacity
+            style={[styles.taskPickBtn, pickerBlocked ? styles.taskPickBtnDisabled : null]}
+            onPress={onPickInstallTask}
+            disabled={!!pickerBlocked}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !!pickerBlocked }}
+            testID={`due-task-${category.id}`}
+          >
+            <Text style={styles.taskPickLabel} numberOfLines={1}>
+              {pickedTask ? `Count back from: ${pickedTask.title}` : 'Suggest a date from the install task'}
+            </Text>
+            <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+          {pickerBlocked ? (
+            <Text style={styles.suggestNote}>{pickerBlocked}</Text>
+          ) : suggestion.ok ? (
+            <View style={styles.groundChip}>
+              <Text style={styles.groundChipText}>{suggestion.chip}</Text>
+              <Text style={styles.suggestNote}>
+                Install date from your schedule · longest lead among these options · {SELECTION_DUE_BUFFER_DAYS}-day buffer.
+              </Text>
+              {/* Today is only compared against here, never counted from: a
+                  count-back that already passed is a real finding (the order
+                  is late for that install), so it is said, not hidden or
+                  quietly moved to today. */}
+              {(daysUntilCalendarDay(suggestion.dueDate) ?? 0) < 0 ? (
+                <Text style={[styles.suggestNote, { color: themeColors.danger }]}>
+                  That date has already passed — at this lead time the order is late for {suggestion.taskTitle}. Accepting it marks the pick overdue in the homeowner&apos;s portal.
+                </Text>
+              ) : null}
+              {suggestion.dueDate === due ? (
+                <Text style={styles.suggestNote}>This is the date on the card.</Text>
+              ) : (
+                <TouchableOpacity
+                  style={styles.acceptBtn}
+                  onPress={() => onAccept(suggestion.dueDate)}
+                  accessibilityRole="button"
+                  testID={`due-accept-${category.id}`}
+                >
+                  <Text style={styles.acceptBtnText}>
+                    {due ? `Replace with ${formatCalendarDay(suggestion.dueDate)}` : `Use ${formatCalendarDay(suggestion.dueDate)}`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : suggestion.reason !== 'no-task-picked' ? (
+            <Text style={styles.suggestNote}>{suggestion.message} Type the date instead.</Text>
+          ) : null}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Small picker over the project's EXISTING schedule tasks. The GC names the
+// install task; nothing is inferred from the category name.
+function InstallTaskPickerModal({ category, schedule, selectedTaskId, onClose, onPick }: {
+  category: SelectionCategory | null;
+  schedule: ProjectSchedule | null | undefined;
+  selectedTaskId: string | undefined;
+  onClose: () => void;
+  onPick: (taskId: string) => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const tasks = useMemo(
+    () => [...(schedule?.tasks ?? [])].sort((a, b) => a.startDay - b.startDay),
+    [schedule],
+  );
+  return (
+    <Modal visible={category !== null} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, styles.taskModalCard]}>
+          <Text style={styles.modalTitle}>Which task installs {category?.category ?? 'this'}?</Text>
+          <Text style={styles.modalBody}>
+            The suggested pick-by date counts back from this task&apos;s start on your schedule.
+          </Text>
+          <ScrollView style={styles.taskList}>
+            {tasks.map(t => {
+              const start = scheduleTaskCalendarStart(schedule, t.startDay);
+              const selected = t.id === selectedTaskId;
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[styles.taskRow, selected && styles.taskRowSelected]}
+                  onPress={() => onPick(t.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.taskRowTitle} numberOfLines={1}>{t.title || 'Untitled task'}</Text>
+                    {t.phase ? <Text style={styles.taskRowMeta} numberOfLines={1}>{t.phase}</Text> : null}
+                  </View>
+                  <Text style={styles.taskRowMeta}>{start ? formatCalendarDay(start, { month: 'short', day: 'numeric' }) : `Day ${t.startDay}`}</Text>
+                  {selected ? <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          <TouchableOpacity style={styles.modalCancel} onPress={onClose}>
+            <Text style={styles.modalCancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionOption; budget: number; onPress: () => void; onSetPhoto: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -458,17 +737,21 @@ function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionO
 function AddCategoryModal({ visible, onClose, onAdd }: {
   visible: boolean;
   onClose: () => void;
-  onAdd: (input: { category: string; budget: number; styleBrief: string }) => void;
+  onAdd: (input: { category: string; budget: number; styleBrief: string; dueDate?: string }) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [category, setCategory] = useState('');
   const [budget, setBudget] = useState('');
   const [styleBrief, setStyleBrief] = useState('');
+  // Plain optional date only. No suggestion here: options (and so lead times)
+  // don't exist until curation runs after this save — audit sharpening (a).
+  const [dueDate, setDueDate] = useState<string | undefined>(undefined);
+  const [datePicker, setDatePicker] = useState(false);
 
   useEffect(() => {
     if (visible) {
-      setCategory(''); setBudget(''); setStyleBrief('');
+      setCategory(''); setBudget(''); setStyleBrief(''); setDueDate(undefined); setDatePicker(false);
     }
   }, [visible]);
 
@@ -483,7 +766,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
       showAlert('Allowance required', 'Set an allowance greater than $0 so AI can curate options at the right price point.');
       return;
     }
-    onAdd({ category: trimmedCat, budget: numericBudget, styleBrief: styleBrief.trim() });
+    onAdd({ category: trimmedCat, budget: numericBudget, styleBrief: styleBrief.trim(), dueDate });
   };
 
   return (
@@ -528,6 +811,31 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
             placeholderTextColor={themeColors.textMuted}
             multiline
             textAlignVertical="top"
+          />
+
+          <Text style={styles.modalLabel}>Homeowner picks by (optional)</Text>
+          <View style={styles.modalAmountField}>
+            <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => setDatePicker(true)} accessibilityRole="button" testID="add-category-due">
+              <Text style={[styles.modalAmountInput, !dueDate && { color: themeColors.textMuted }]}>
+                {dueDate ? formatCalendarDay(dueDate) : 'No date'}
+              </Text>
+            </TouchableOpacity>
+            {dueDate ? (
+              <TouchableOpacity onPress={() => setDueDate(undefined)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear date">
+                <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Rendered inside this Modal's tree so iOS stacks it above the sheet. */}
+          <DatePickerModal
+            visible={datePicker}
+            value={dueDate ? pickerSeed(dueDate) : ''}
+            title="Homeowner picks by"
+            allowFuture
+            onClose={() => setDatePicker(false)}
+            onChange={(iso) => setDueDate(iso.slice(0, 10))}
           />
 
           <View style={styles.modalActions}>
@@ -663,6 +971,41 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line, borderStyle: 'dashed',
   },
   regenerateText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
+
+  // Pick-by date
+  dueBlock: { gap: 8 },
+  dueRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dueText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
+  dueEmpty: { fontSize: Type.caption1.fontSize, color: t.textMuted },
+  suggestBlock: { gap: 6 },
+  taskPickBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: Tokens.radius.sm,
+    borderWidth: 1, borderColor: t.line, backgroundColor: t.bg,
+  },
+  taskPickBtnDisabled: { opacity: 0.5 },
+  taskPickLabel: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
+  suggestNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: Type.caption2.lineHeight },
+  groundChip: {
+    gap: 6, padding: 10, borderRadius: Tokens.radius.sm,
+    backgroundColor: t.accentSoft, borderWidth: 1, borderColor: t.line,
+  },
+  groundChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
+  acceptBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.accentFill,
+  },
+  acceptBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textOnAccent },
+  taskModalCard: { maxHeight: '80%' },
+  taskList: { flexGrow: 0 },
+  taskRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 4,
+    borderBottomWidth: 1, borderBottomColor: t.line,
+  },
+  taskRowSelected: { backgroundColor: t.successSoft },
+  taskRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  taskRowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
