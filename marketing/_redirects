@@ -20,6 +20,18 @@
 /bid-invite      /bid-invite/index.html  200
 /bid-invite/*    /bid-invite/index.html  200
 
+# Public project pages. The app shares mageid.app/builders/<company>/<project>
+# (app/public-profile-setup.tsx PUBLIC_BASE, with the snapshot in #d=). The
+# rule existed only in netlify.toml, and Netlify runs THIS file first, so the
+# catch-all below answered every shared portfolio link with a 404 — the page
+# and its "Get a quote" lead form had never loaded from a link the app made.
+/builders/*  /builders/index.html  200
+
+# Architect / engineer reply page. The app links /architect/?token=… (the
+# directory index, which needs no rule), but the rewrite is mirrored here so a
+# path-form link can never fall through to the 404 the way /builders/* did.
+/architect/*  /architect/index.html  200
+
 # Catch-all 404 (marketing-audit M3). Was previously `/* /index.html 200` —
 # unknown URLs got served the homepage with status 200, which hurt SEO
 # (search engines couldn't drop dead URLs from the index) and UX (typos

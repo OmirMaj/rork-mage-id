@@ -1535,5 +1535,36 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
   }
 }
 
+// ── Every rewrite that matters reaches the page ─────────────────────────────
+// Netlify applies marketing/_redirects BEFORE the [[redirects]] in netlify.toml,
+// and _redirects ends in a `/*  /404.html  404` catch-all. A wildcard rewrite
+// that lives only in netlify.toml is therefore dead: /builders/* was, and every
+// public project link the app shared 404'd. (Bare paths like /costs are rescued
+// by Netlify's trailing-slash redirect to the directory index; wildcards are not.)
+{
+  console.log('\nwildcard rewrites are live (not shadowed by the _redirects catch-all):');
+  const redirects = readFileSync('marketing/_redirects', 'utf8').split('\n')
+    .map(l => l.trim()).filter(l => l && !l.startsWith('#')).map(l => l.split(/\s+/));
+  const catchAllAt = redirects.findIndex(r => r[0] === '/*');
+  const toml = readFileSync('marketing/netlify.toml', 'utf8');
+  const tomlRules = [...toml.matchAll(/\[\[redirects\]\]\s*from\s*=\s*"([^"]+)"\s*to\s*=\s*"([^"]+)"/g)].map(m => ({ from: m[1], to: m[2] }));
+  const wildcards = tomlRules.filter(r => r.from.endsWith('/*') && r.from !== '/*');
+  ok(`netlify.toml wildcard rewrites found (${wildcards.length})`, wildcards.length > 0);
+  for (const w of wildcards) {
+    const at = redirects.findIndex(r => r[0] === w.from && r[1] === w.to);
+    ok(`${w.from} has a twin in _redirects above the catch-all`, at >= 0 && (catchAllAt < 0 || at < catchAllAt),
+      at < 0 ? `add "${w.from}  ${w.to}  200" to marketing/_redirects above "/*"` : 'it sits below the catch-all, which answers first');
+  }
+  // The URL bases the app itself builds on mageid.app must each hit a rule.
+  const bases: Array<[string, string]> = [['app/public-profile-setup.tsx', '/builders/']];
+  for (const [file, prefix] of bases) {
+    const src = readFileSync(file, 'utf8');
+    const built = src.includes(`mageid.app${prefix.slice(0, -1)}`);
+    const routed = redirects.some((r, i) => r[0] === `${prefix}*` && (catchAllAt < 0 || i < catchAllAt));
+    ok(`${file} builds ${prefix}… links and _redirects routes them`, built && routed,
+      built ? `no live rule for ${prefix}*` : `${file} no longer builds ${prefix} links — update this check`);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
