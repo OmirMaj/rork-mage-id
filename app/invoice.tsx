@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, ActivityIndicator, type LayoutChangeEvent} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -41,6 +41,7 @@ import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Banknote, HandCoins } from 'lucide-react-native';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { useAuth } from '@/contexts/AuthContext';
+import { loadCashFlowSettings } from '@/utils/cashFlowStorage';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import type { InvoiceLineItem, Invoice, InvoiceStatus, PaymentTerms, PaymentMethod, InvoicePayment } from '@/types';
@@ -103,6 +104,96 @@ const PAYMENT_TERMS_OPTIONS: { value: PaymentTerms; label: string }[] = [
   { value: 'net_30', label: 'Net 30' },
   { value: 'net_45', label: 'Net 45' },
 ];
+
+// <invoice-terms-default> — keep byte-identical in app/invoice.tsx and
+// app/bill-from-estimate.tsx; scripts/validate-invoice-terms.ts executes both
+// copies and fails if they drift.
+//
+// The GC already told the app how he gets paid: cash-flow setup asks for his
+// payment terms (CashFlowData.defaultPaymentTerms), and the forecast times
+// every receivable by it. New invoices used to open on a hard-coded Net 30
+// anyway, so a GC on Net 15 issued Net 30 paper while his forecast expected
+// the money two weeks earlier. This turns his setting into the default.
+//
+// It is only HIS setting when he finished cash-flow setup and the value came
+// from a real record (server row or device cache). The three origins keep the
+// picker's caption honest:
+//   cash_flow_setup — his finished setup names one of the four terms.
+//   fallback        — a real record answered, and it holds no usable terms
+//                     (setup unfinished, or a value like net_60 / "2/10 net 30"
+//                     that is never forced onto the nearest term).
+//   unconfirmed     — nothing answered. `source: 'default'` is the loader's
+//                     own net_30 placeholder, and the loader returns it both
+//                     for "no row" and for "the server read failed with no
+//                     device cache" (utils/cashFlowStorage swallows the error),
+//                     so it cannot be told apart from an outage and must not
+//                     be captioned as "you have no setting".
+// The two vocabularies are the same four keys today; the normaliser tolerates
+// spacing/case drift ("Net 15", "net-15", "NET15") because the column is free
+// text.
+type InvoiceTermsDefault = {
+  terms: 'net_15' | 'net_30' | 'net_45' | 'due_on_receipt';
+  origin: 'cash_flow_setup' | 'fallback' | 'unconfirmed';
+};
+type CashFlowTermsSettings = { data?: { defaultPaymentTerms?: unknown } | null; setupComplete?: boolean; source?: string } | null | undefined;
+function invoiceTermsDefaultFromCashFlow(settings: CashFlowTermsSettings): InvoiceTermsDefault {
+  const unconfirmed: InvoiceTermsDefault = { terms: 'net_30', origin: 'unconfirmed' };
+  const fallback: InvoiceTermsDefault = { terms: 'net_30', origin: 'fallback' };
+  if (!settings || settings.source === 'default') return unconfirmed;
+  if (settings.setupComplete !== true) return fallback;
+  const raw = settings.data?.defaultPaymentTerms;
+  if (typeof raw !== 'string') return fallback;
+  const key = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const net = /^net_?(\d+)$/.exec(key);
+  const normalised = net ? `net_${Number(net[1])}` : key.replace(/^(due_)?(up)?on_receipt$/, 'due_on_receipt');
+  if (normalised === 'net_15' || normalised === 'net_30' || normalised === 'net_45' || normalised === 'due_on_receipt') {
+    return { terms: normalised, origin: 'cash_flow_setup' };
+  }
+  return fallback;
+}
+// The server read-through, bounded. Offline, the Supabase fetch can hang far
+// longer than a GC will wait on an invoice, so past the budget the read counts
+// as failed — the caption then says his setup could not be reached rather than
+// sitting on "Checking…" forever. The loader is passed in so this block stays
+// free of imports and the validator can execute it with a fake.
+const INVOICE_TERMS_SERVER_WAIT_MS = 5000;
+async function readServerInvoiceTerms(
+  load: () => Promise<CashFlowTermsSettings>,
+  waitMs: number = INVOICE_TERMS_SERVER_WAIT_MS,
+): Promise<InvoiceTermsDefault | 'failed'> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<'failed'>(resolve => { timer = setTimeout(() => resolve('failed'), waitMs); });
+    const read = load().then(invoiceTermsDefaultFromCashFlow, () => 'failed' as const);
+    return await Promise.race([read, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+// Combines the two reads. The device cache answers in milliseconds, but after a
+// sign-in, a tenant switch (wipeLocalUserCache sweeps mage_cashflow_*) or on a
+// fresh browser it is EMPTY — so for a signed-in GC an empty/unusable cache is
+// not an answer: we keep waiting on the server (null = still loading) instead
+// of flashing Net 30 and a "no setting" caption he would then see corrected.
+// A cache that DOES carry his terms is shown at once; a server answer, when it
+// arrives, is fresher and wins.
+type ServerInvoiceTerms = 'not_signed_in' | 'pending' | 'failed' | InvoiceTermsDefault;
+function settleInvoiceTermsDefault(
+  cache: InvoiceTermsDefault | null,
+  server: ServerInvoiceTerms,
+): InvoiceTermsDefault | null {
+  if (typeof server === 'object') return server;
+  if (cache?.origin === 'cash_flow_setup') return cache;
+  if (server === 'pending') return null;
+  if (server === 'not_signed_in' && cache) return cache;
+  return { terms: 'net_30', origin: 'unconfirmed' };
+}
+// </invoice-terms-default>
+// Outside the shared block (bill-from-estimate awaits the read at tap time
+// instead): what the editor says when Save / Send is tapped before the new
+// invoice's default terms have settled.
+const TERMS_LOADING_TITLE = 'Checking payment terms';
+const TERMS_LOADING_MESSAGE = 'Reading the payment terms from your cash-flow setup so this invoice carries them. It takes a few seconds at most — tap again once the terms show.';
 
 /**
  * The three answers worth a tap on the retainage ask. 5% and 10% are the rates
@@ -178,8 +269,8 @@ function InvoiceInner() {
   // "Create invoice" on a payment milestone. They are carried through the
   // editor and only acted on once the invoice is ACTUALLY created — opening
   // this screen and backing out must leave the milestone billable.
-  const { projectId: paramProjectId, invoiceId, type: invoiceType, prefillLines, prefillNotes, milestoneId, contractId } = useLocalSearchParams<{
-    projectId: string; invoiceId?: string; type?: string;
+  const { projectId: paramProjectId, invoiceId, type: invoiceType, prefillLines, prefillNotes, milestoneId, contractId, termsOrigin: termsOriginParam } = useLocalSearchParams<{
+    projectId: string; invoiceId?: string; type?: string; termsOrigin?: string;
     prefillLines?: string; prefillNotes?: string;
     milestoneId?: string; contractId?: string;
   }>();
@@ -305,6 +396,52 @@ function InvoiceInner() {
 
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialLineItems);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>(existingInvoice?.paymentTerms ?? 'net_30');
+  // Where the terms on screen came from, so the picker can say it. `loading`
+  // only exists for a NEW invoice (no invoiceId) while his cash-flow setup is
+  // read; a draft handed over by /bill-from-estimate arrives with the origin it
+  // already resolved in `termsOrigin`. `touched` is his own pick — once he has
+  // chosen, no late-arriving load may overwrite it (a GC choice always wins).
+  const [termsOrigin, setTermsOrigin] = useState<'loading' | InvoiceTermsDefault['origin'] | null>(
+    invoiceId
+      ? (termsOriginParam === 'cash_flow_setup' || termsOriginParam === 'fallback' || termsOriginParam === 'unconfirmed' ? termsOriginParam : null)
+      : 'loading',
+  );
+  const termsTouchedRef = useRef(false);
+  useEffect(() => {
+    // NEVER for an existing invoice: its terms are a fact about a document
+    // that already exists, not a preference to refresh from settings.
+    if (invoiceId) return;
+    let cancelled = false;
+    let cache: InvoiceTermsDefault | null = null;
+    let server: ServerInvoiceTerms = user?.id ? 'pending' : 'not_signed_in';
+    // Every answer goes through settleInvoiceTermsDefault, which returns null
+    // while an empty cache is still waiting on the server — the picker stays on
+    // "Checking…" rather than showing Net 30 and then jumping to his terms.
+    const settle = () => {
+      if (cancelled || termsTouchedRef.current) return;
+      const resolved = settleInvoiceTermsDefault(cache, server);
+      if (!resolved) return;
+      setPaymentTerms(resolved.terms);
+      setTermsOrigin(resolved.origin);
+    };
+    void (async () => {
+      try { cache = invoiceTermsDefaultFromCashFlow(await loadCashFlowSettings()); } catch { cache = null; }
+      settle();
+    })();
+    const uid = user?.id;
+    if (uid) {
+      void (async () => {
+        server = await readServerInvoiceTerms(() => loadCashFlowSettings(uid));
+        settle();
+      })();
+    }
+    return () => { cancelled = true; };
+  }, [invoiceId, user?.id]);
+  const pickPaymentTerms = useCallback((terms: PaymentTerms) => {
+    termsTouchedRef.current = true;
+    setPaymentTerms(terms);
+    setTermsOrigin(null);
+  }, []);
   const [notes, setNotes] = useState(existingInvoice?.notes ?? prefillNotes ?? '');
   const [progressPercent, setProgressPercent] = useState(() => {
     if (existingInvoice?.progressPercent != null) {
@@ -613,6 +750,13 @@ function InvoiceInner() {
       showAlert('No Items', 'Please add at least one line item.');
       return;
     }
+    // While his cash-flow terms are still being read the picker says
+    // "Checking…", so a save now would stamp a Net 30 he never saw on screen.
+    // The read is bounded (readServerInvoiceTerms), so the wait is seconds.
+    if (termsOrigin === 'loading') {
+      showAlert(TERMS_LOADING_TITLE, TERMS_LOADING_MESSAGE);
+      return;
+    }
 
     const now = new Date().toISOString();
     const dueDate = getDueDate(now, paymentTerms);
@@ -660,11 +804,16 @@ function InvoiceInner() {
       nailIt(status === 'sent' ? `Invoice #${nextInvoiceNumber} sent${recipientInfo}` : `Invoice #${nextInvoiceNumber} saved`);
     }
     router.back();
-  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router, buildNewInvoice, linkMilestone]);
+  }, [projectId, lineItems, paymentTerms, termsOrigin, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router, buildNewInvoice, linkMilestone]);
 
   const handleSendPress = useCallback(() => {
+    // Same wait as handleSave: never open Send on terms still "Checking…".
+    if (termsOrigin === 'loading') {
+      showAlert(TERMS_LOADING_TITLE, TERMS_LOADING_MESSAGE);
+      return;
+    }
     setShowSendRecipient(true);
-  }, []);
+  }, [termsOrigin]);
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
@@ -1602,8 +1751,12 @@ function InvoiceInner() {
                 onPress={() => setShowTermsDropdown(!showTermsDropdown)}
                 activeOpacity={0.7}
               >
+                {/* While his setup is still being read the selector does not
+                    name a term — showing "Net 30" there would be the flash. */}
                 <Text style={styles.termsSelectorText}>
-                  {PAYMENT_TERMS_OPTIONS.find(o => o.value === paymentTerms)?.label}
+                  {termsOrigin === 'loading'
+                    ? 'Checking…'
+                    : PAYMENT_TERMS_OPTIONS.find(o => o.value === paymentTerms)?.label}
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -1613,13 +1766,32 @@ function InvoiceInner() {
             )}
           </View>
 
+          {/* Say where the terms came from until he picks his own. A fallback is
+              named as the app's default, never as his setting — he has not told
+              us his terms, and the invoice should not pretend he has. */}
+          {!isLocked && termsOrigin === 'loading' && (
+            <Text style={styles.termsHint}>Checking the payment terms in your cash-flow setup…</Text>
+          )}
+          {!isLocked && termsOrigin === 'cash_flow_setup' && (
+            <Text style={styles.termsHint}>From your cash-flow setup — the same terms your forecast uses.</Text>
+          )}
+          {!isLocked && termsOrigin === 'fallback' && (
+            <Text style={styles.termsHint}>Net 30 is the app default, not your setting — your cash-flow setup has no payment terms to use. Set them in Cash Flow and new invoices will use them.</Text>
+          )}
+          {/* Nothing answered (read failed, timed out, or no record at all —
+              the loader cannot tell those apart), so this must not claim he
+              has no setting. */}
+          {!isLocked && termsOrigin === 'unconfirmed' && (
+            <Text style={styles.termsHint}>Net 30 is the app default for now — no payment terms came back from your cash-flow setup (not set yet, or it could not be reached).</Text>
+          )}
+
           {showTermsDropdown && (
             <View style={styles.termsDropdown}>
               {PAYMENT_TERMS_OPTIONS.map(opt => (
                 <TouchableOpacity
                   key={opt.value}
                   style={[styles.termsOption, paymentTerms === opt.value && styles.termsOptionActive]}
-                  onPress={() => { setPaymentTerms(opt.value); setShowTermsDropdown(false); }}
+                  onPress={() => { pickPaymentTerms(opt.value); setShowTermsDropdown(false); }}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.termsOptionText, paymentTerms === opt.value && styles.termsOptionTextActive]}>
@@ -2556,6 +2728,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   fieldLabelInline: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   termsSelector: { backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm },
   termsSelectorText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accentLabel },
+  termsHint: { ...Type.caption1, color: themeColors.textMuted, marginHorizontal: 20, marginTop: 6 },
   termsDropdown: { marginHorizontal: 20, marginTop: 4, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: themeColors.line, overflow: 'hidden' as const },
   termsOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: themeColors.line },
   termsOptionActive: { backgroundColor: themeColors.accent + '08' },

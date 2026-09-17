@@ -52,6 +52,9 @@ import { billFromEstimateLine, billFromEstimateUnitPrice } from '@/utils/billFro
 import { showAlert } from '@/utils/alert';
 import { formatMoney } from '@/utils/formatters';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { loadCashFlowSettings } from '@/utils/cashFlowStorage';
+import { dueDateForTerms } from '@/utils/retainage';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -66,6 +69,91 @@ function clampPct(v: number): number {
   if (v > 100) return 100;
   return v;
 }
+
+// <invoice-terms-default> — keep byte-identical in app/invoice.tsx and
+// app/bill-from-estimate.tsx; scripts/validate-invoice-terms.ts executes both
+// copies and fails if they drift.
+//
+// The GC already told the app how he gets paid: cash-flow setup asks for his
+// payment terms (CashFlowData.defaultPaymentTerms), and the forecast times
+// every receivable by it. New invoices used to open on a hard-coded Net 30
+// anyway, so a GC on Net 15 issued Net 30 paper while his forecast expected
+// the money two weeks earlier. This turns his setting into the default.
+//
+// It is only HIS setting when he finished cash-flow setup and the value came
+// from a real record (server row or device cache). The three origins keep the
+// picker's caption honest:
+//   cash_flow_setup — his finished setup names one of the four terms.
+//   fallback        — a real record answered, and it holds no usable terms
+//                     (setup unfinished, or a value like net_60 / "2/10 net 30"
+//                     that is never forced onto the nearest term).
+//   unconfirmed     — nothing answered. `source: 'default'` is the loader's
+//                     own net_30 placeholder, and the loader returns it both
+//                     for "no row" and for "the server read failed with no
+//                     device cache" (utils/cashFlowStorage swallows the error),
+//                     so it cannot be told apart from an outage and must not
+//                     be captioned as "you have no setting".
+// The two vocabularies are the same four keys today; the normaliser tolerates
+// spacing/case drift ("Net 15", "net-15", "NET15") because the column is free
+// text.
+type InvoiceTermsDefault = {
+  terms: 'net_15' | 'net_30' | 'net_45' | 'due_on_receipt';
+  origin: 'cash_flow_setup' | 'fallback' | 'unconfirmed';
+};
+type CashFlowTermsSettings = { data?: { defaultPaymentTerms?: unknown } | null; setupComplete?: boolean; source?: string } | null | undefined;
+function invoiceTermsDefaultFromCashFlow(settings: CashFlowTermsSettings): InvoiceTermsDefault {
+  const unconfirmed: InvoiceTermsDefault = { terms: 'net_30', origin: 'unconfirmed' };
+  const fallback: InvoiceTermsDefault = { terms: 'net_30', origin: 'fallback' };
+  if (!settings || settings.source === 'default') return unconfirmed;
+  if (settings.setupComplete !== true) return fallback;
+  const raw = settings.data?.defaultPaymentTerms;
+  if (typeof raw !== 'string') return fallback;
+  const key = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const net = /^net_?(\d+)$/.exec(key);
+  const normalised = net ? `net_${Number(net[1])}` : key.replace(/^(due_)?(up)?on_receipt$/, 'due_on_receipt');
+  if (normalised === 'net_15' || normalised === 'net_30' || normalised === 'net_45' || normalised === 'due_on_receipt') {
+    return { terms: normalised, origin: 'cash_flow_setup' };
+  }
+  return fallback;
+}
+// The server read-through, bounded. Offline, the Supabase fetch can hang far
+// longer than a GC will wait on an invoice, so past the budget the read counts
+// as failed — the caption then says his setup could not be reached rather than
+// sitting on "Checking…" forever. The loader is passed in so this block stays
+// free of imports and the validator can execute it with a fake.
+const INVOICE_TERMS_SERVER_WAIT_MS = 5000;
+async function readServerInvoiceTerms(
+  load: () => Promise<CashFlowTermsSettings>,
+  waitMs: number = INVOICE_TERMS_SERVER_WAIT_MS,
+): Promise<InvoiceTermsDefault | 'failed'> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<'failed'>(resolve => { timer = setTimeout(() => resolve('failed'), waitMs); });
+    const read = load().then(invoiceTermsDefaultFromCashFlow, () => 'failed' as const);
+    return await Promise.race([read, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+// Combines the two reads. The device cache answers in milliseconds, but after a
+// sign-in, a tenant switch (wipeLocalUserCache sweeps mage_cashflow_*) or on a
+// fresh browser it is EMPTY — so for a signed-in GC an empty/unusable cache is
+// not an answer: we keep waiting on the server (null = still loading) instead
+// of flashing Net 30 and a "no setting" caption he would then see corrected.
+// A cache that DOES carry his terms is shown at once; a server answer, when it
+// arrives, is fresher and wins.
+type ServerInvoiceTerms = 'not_signed_in' | 'pending' | 'failed' | InvoiceTermsDefault;
+function settleInvoiceTermsDefault(
+  cache: InvoiceTermsDefault | null,
+  server: ServerInvoiceTerms,
+): InvoiceTermsDefault | null {
+  if (typeof server === 'object') return server;
+  if (cache?.origin === 'cash_flow_setup') return cache;
+  if (server === 'pending') return null;
+  if (server === 'not_signed_in' && cache) return cache;
+  return { terms: 'net_30', origin: 'unconfirmed' };
+}
+// </invoice-terms-default>
 
 type EstimateRowSource =
   | { kind: 'linked'; item: LinkedEstimateItem }
@@ -113,6 +201,41 @@ export default function BillFromEstimateScreen() {
     projectId: string; type?: string; focusChangeOrderId?: string;
   }>();
   const { projects, getProject, getInvoicesForProject, getChangeOrdersForProject, addInvoice, settings, getAIAPayAppsForProject } = useProjects();
+  const { user } = useAuth();
+
+  // The draft this screen creates is an EXISTING invoice by the time the editor
+  // mounts, and the editor never re-defaults an existing invoice's terms — so
+  // the GC's own terms have to be stamped here, at creation. Both reads start
+  // on mount so the tap rarely waits: the device cache into `termsCacheRef`,
+  // the bounded server read-through into `termsServerRef` (its promise kept in
+  // `termsServerPromiseRef` so a tap that beats it can await it instead of
+  // stamping the empty-cache Net 30 onto a saved draft).
+  const termsCacheRef = useRef<InvoiceTermsDefault | null>(null);
+  const termsServerRef = useRef<ServerInvoiceTerms>('pending');
+  const termsServerPromiseRef = useRef<Promise<InvoiceTermsDefault | 'failed'> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cached = invoiceTermsDefaultFromCashFlow(await loadCashFlowSettings());
+        if (!cancelled) termsCacheRef.current = cached;
+      } catch { /* re-read at tap time */ }
+    })();
+    const uid = user?.id;
+    if (!uid) {
+      termsServerRef.current = 'not_signed_in';
+      termsServerPromiseRef.current = null;
+    } else {
+      termsServerRef.current = 'pending';
+      const p = readServerInvoiceTerms(() => loadCashFlowSettings(uid));
+      termsServerPromiseRef.current = p;
+      void p.then(r => { if (!cancelled) termsServerRef.current = r; });
+    }
+    return () => { cancelled = true; };
+  }, [user?.id]);
+  // One draft per tap: the handler awaits the terms read, and a second tap in
+  // that window would otherwise run addInvoice twice on the same number.
+  const creatingDraftRef = useRef(false);
 
   // Reached from a deep link, a Copilot action or the desktop sidebar with no
   // project in context, this screen used to be "Project not found" + Go Back —
@@ -382,8 +505,9 @@ export default function BillFromEstimateScreen() {
     setBillPercents(prev => ({ ...prev, [key]: clampPct(Number.isFinite(n) ? n : 0) }));
   }, []);
 
-  const handleCreateDraft = useCallback(() => {
+  const handleCreateDraft = useCallback(async () => {
     if (!project || !projectId) return;
+    if (creatingDraftRef.current) return;
     if (subtotal <= 0) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setBillingHint('Select at least one line with an amount to bill.');
@@ -408,6 +532,23 @@ export default function BillFromEstimateScreen() {
       showAlert('Nothing to Bill', 'Select at least one line item and enter a billing percent greater than zero.');
       return;
     }
+
+    // A tap that beats the mount-time reads finishes them now rather than
+    // stamping Net 30 on a GC who told us otherwise: the cache is re-read if it
+    // has not answered, and a pending server read is awaited (it is already
+    // bounded by readServerInvoiceTerms, so the tap cannot hang offline).
+    // Nothing after this point returns early: the tap ends on router.replace,
+    // which unmounts this screen, so the flag never needs resetting.
+    creatingDraftRef.current = true;
+    if (!termsCacheRef.current) {
+      try { termsCacheRef.current = invoiceTermsDefaultFromCashFlow(await loadCashFlowSettings()); }
+      catch { termsCacheRef.current = null; }
+    }
+    if (termsServerRef.current === 'pending' && termsCacheRef.current?.origin !== 'cash_flow_setup' && termsServerPromiseRef.current) {
+      termsServerRef.current = await termsServerPromiseRef.current;
+    }
+    const termsDefault: InvoiceTermsDefault = settleInvoiceTermsDefault(termsCacheRef.current, termsServerRef.current)
+      ?? { terms: 'net_30', origin: 'unconfirmed' };
 
     const now = new Date().toISOString();
     const lineItems: InvoiceLineItem[] = activeRows.map(r => {
@@ -470,8 +611,10 @@ export default function BillFromEstimateScreen() {
         ? Math.round((subtotal / (rows.reduce((s, r) => s + r.lineTotal, 0) || 1)) * 100)
         : undefined,
       issueDate: now,
-      dueDate: now, // will be recalculated by the invoice editor from paymentTerms
-      paymentTerms: 'net_30',
+      // Due date from the SAME terms, so the stored draft is coherent before
+      // the editor ever saves it (the forecast and overdue checks read it).
+      dueDate: dueDateForTerms(now, termsDefault.terms),
+      paymentTerms: termsDefault.terms,
       notes: '',
       lineItems,
       subtotal,
@@ -494,7 +637,7 @@ export default function BillFromEstimateScreen() {
     // Replace, not push — user should land on the editor, and Back should
     // take them all the way back to the project detail they came from rather
     // than back to this picker.
-    router.replace({ pathname: '/invoice' as any, params: { projectId, invoiceId: inv.id } });
+    router.replace({ pathname: '/invoice' as any, params: { projectId, invoiceId: inv.id, termsOrigin: termsDefault.origin } });
   }, [project, projectId, rows, selected, billPercents, amountsByKey, subtotal, taxRate, taxAmount, totalDue, nextInvoiceNumber, addInvoice, router, isProgressDefault, existingInvoices, getAIAPayAppsForProject]);
 
   if (!project) {
