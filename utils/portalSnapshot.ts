@@ -1759,7 +1759,10 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     const mode = project.contractMode;
     if (mode !== 'gmp' && mode !== 'open_book') return undefined;
     const commitments = opts.commitments;
-    if (!commitments) return undefined;
+    // An EMPTY log is the same as none: client-portal-setup always passes an
+    // array, so `!commitments` alone let a job with nothing logged show the
+    // client a breakdown of $0 committed and $0 spent against the budget.
+    if (!commitments || commitments.length === 0) return undefined;
     try {
       // Lazy import — pure function, no side effects.
       const { computeJobCost } = require('./jobCostEngine') as typeof import('./jobCostEngine');

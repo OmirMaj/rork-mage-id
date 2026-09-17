@@ -38,10 +38,9 @@ import type { CostDatabase } from '@/utils/costDatabase';
 import {
   BID_LICENCE_RULES, PDF_VENDOR_PLACEHOLDER,
   bidIdentityGap, bidLicenceRuleForState, bidStateFromBranding, mergedBidBranding,
-  bidLicenceStateSource, licenceStateMarketEdit,
+  bidLicenceStateSource, licenceStateColumnValue, licenceExpiryColumnValue,
 } from '@/utils/bidDocumentIdentity';
 import { splitLocationText } from '@/utils/codeJurisdiction';
-import { resolvePricingMarket } from '@/constants/materials';
 import {
   decidePushAsk, pushAskCopy, PUSH_ASK_MOMENTS, PUSH_ASK_COPY,
   type PushAskMoment,
@@ -570,6 +569,9 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
 //   (a) the bid licence gate read ONLY a state parsed from the company address,
 //       whose placeholder taught "123 Main St, City" — so it never fired for a
 //       new CA/FL/AZ account; Get Verified asked for the state and emailed it away.
+//       2026-09-17: the fix stored that state on the pricing market; it now has
+//       its own profile columns (license_state / license_expiry) and outranks
+//       address and market — the checks below hold that precedence.
 //   (b) Location / tax / contingency were saved only by a "Save Changes" button
 //       ten sections below them, so leaving the tab dropped them silently.
 //   (c) Contingency Rate was validated, synced, and read by nobody.
@@ -577,14 +579,22 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
 //   (e) the Materials market picker was the one structured "where do you work"
 //       control and it forgot the pick on the next visit.
 {
-  // (a) pure — the market is the second source, the address still wins.
+  // (a) pure — precedence: the explicit licensing state, then the address
+  // state, then the pricing market. Until 2026-09-17 the licensing answer was
+  // STORED on the market (CompanyBranding had no state), so a CA metro picked
+  // in Materials switched on California's statute and a contractor licensed
+  // in one state who prices in another could not say so. The market stays as
+  // the last fallback, so accounts that answered through it keep their gate.
   const NEW_CA = { companyName: 'Ortiz Builders', address: '', licenseNumber: '' };
   eq('a new account with no address but a CA market is asked for the licence',
     bidIdentityGap(NEW_CA, 'San Francisco, CA').needsLicence, true);
   eq('…from the market, and says so',
     bidLicenceStateSource(NEW_CA, 'San Francisco, CA'), { state: 'CA', source: 'market' });
-  ok('…and the reason tells him where the state was read, so he can correct it',
-    /pricing market/i.test(bidIdentityGap(NEW_CA, 'Phoenix, AZ').reason), bidIdentityGap(NEW_CA, 'Phoenix, AZ').reason);
+  const marketReason = bidIdentityGap(NEW_CA, 'Phoenix, AZ').reason;
+  ok('…and the reason names the market and the field that overrides it',
+    /pricing market/i.test(marketReason) && /licensing state in Company Profile/.test(marketReason), marketReason);
+  ok('…and no longer tells him to put a state he is not in into his address',
+    !/company address/i.test(marketReason), marketReason);
   eq('the United States default names no state, so nothing is asked',
     bidIdentityGap(NEW_CA, 'United States').blocking, false);
   eq('an address state wins over the market (licensed where the office is)',
@@ -592,15 +602,68 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
   eq('no market passed behaves exactly as before',
     bidStateFromBranding(NEW_CA), '');
 
-  // The profile's state pick lands on settings.location — refused when it
-  // would silently re-price his work.
-  const edit = (loc: string, code: string) => licenceStateMarketEdit(loc, code, resolvePricingMarket);
-  eq('picking CA on the default market saves the state', edit('United States', 'CA'), { ok: true, location: 'CA' });
-  eq('picking CA keeps an unpriced city', edit('Sacramento', 'CA'), { ok: true, location: 'Sacramento, CA' });
-  ok('picking CA on a Houston market is refused, with a reason',
-    (() => { const r = edit('Houston', 'CA'); return !r.ok && /re-price/.test(r.reason); })(),
-    JSON.stringify(edit('Houston', 'CA')));
-  eq('a state that is not a state is refused', edit('United States', 'Calif.').ok, false);
+  // The explicit field — the coupling this item removes.
+  eq('the licensing state wins over a CA market: a TX-licensed GC pricing in LA is not walled by CSLB',
+    bidIdentityGap({ ...NEW_CA, licenseState: 'TX' }, 'Los Angeles, CA').blocking, false);
+  eq('the licensing state wins over the address',
+    bidLicenceStateSource({ ...TXT, licenseState: 'AZ' }, 'Las Vegas, NV'), { state: 'AZ', source: 'licence' });
+  const licReason = bidIdentityGap({ ...TXT, licenseState: 'AZ' }, 'Las Vegas, NV');
+  ok('…and an AZ licensing state still gets AZ\u2019s cited statute, naming its source',
+    licReason.needsLicence && licReason.rule?.state === 'AZ' && licReason.reason.includes('32-1124')
+    && /licensing state on your company profile/.test(licReason.reason), licReason.reason);
+  const addrReason = bidIdentityGap(CA).reason;
+  ok('an address-sourced block names the address', /from your company address/.test(addrReason), addrReason);
+  eq('a licensing state that is not a state falls through to the address',
+    bidLicenceStateSource({ ...TXT, licenseState: 'Freedonia' }), { state: 'TX', source: 'address' });
+  eq('a blank licensing state falls through',
+    bidLicenceStateSource({ ...NEW_CA, licenseState: '  ' }, 'Phoenix, AZ'), { state: 'AZ', source: 'market' });
+
+  // Column values. A CHECK violation or a failed date cast is TERMINAL in the
+  // offline queue and drops the WHOLE settings update, so the client must
+  // never send what the migration refuses — held to parity with its CHECK.
+  const migration = read('supabase/migrations/20260917120000_profile_license_fields.sql');
+  const checkRe = migration.match(/license_state ~ '([^']+)'/)?.[1] ?? '';
+  ok('the migration CHECKs license_state\u2019s shape', checkRe === '^[A-Z]{2}$', checkRe);
+  const stateInputs = ['ca', 'California', ' AZ ', 'fl', 'TX', '', '  ', 'Calif.', 'Freedonia', 'C', null, undefined];
+  ok('every licensing-state value the client can send passes the CHECK or is NULL',
+    stateInputs.every(v => { const c = licenceStateColumnValue(v); return c === null || new RegExp(checkRe || '$^').test(c); }),
+    JSON.stringify(stateInputs.map(v => licenceStateColumnValue(v))));
+  eq('state column values', ['ca', 'California', '', 'Freedonia'].map(licenceStateColumnValue), ['CA', 'CA', null, null]);
+  eq('expiry column values', [
+    '2027-06-30', '2027-06-30T00:00:00+00:00', '2026-02-30', '06/30/2027', '2027-06-30abc', '', null,
+  ].map(licenceExpiryColumnValue), ['2027-06-30', '2027-06-30', null, null, null, null, null]);
+  ok('the migration stores the expiry as a date and says to apply it before the OTA',
+    /add column if not exists license_expiry date/.test(migration) && /BEFORE THE OTA/.test(migration));
+
+  // Every writer of a whole branding object carries the licence fields — the
+  // object REPLACES settings.branding and ProjectContext saves an absent state
+  // as NULL, so one forgetful writer erases the answer on every save.
+  const kept = mergedBidBranding({ companyName: '', licenseState: 'AZ', licenseExpiry: '2027-06-30' }, { companyName: 'Ortiz Builders' });
+  eq('the wizard\u2019s ask (mergedBidBranding) keeps a saved licensing state and expiry',
+    [kept.licenseState, kept.licenseExpiry], ['AZ', '2027-06-30']);
+  eq('an explicit \u2018\u2019 clears the licensing state',
+    mergedBidBranding({ licenseState: 'AZ' }, { licenseState: '' }).licenseState, '');
+
+  const ctx = stripComments(read('contexts/ProjectContext.tsx'));
+  const saveMut = callbackBody(ctx, 'saveSettingsMutation');
+  ok('the settings save writes both columns through the normalisers',
+    saveMut.includes('license_state: licenceStateColumnValue(updatedSettings.branding.licenseState)')
+    && saveMut.includes('license_expiry: licenceExpiryColumnValue(updatedSettings.branding.licenseExpiry)'),
+    saveMut.slice(0, 200));
+  const loadQ = callbackBody(ctx, 'settingsQuery');
+  ok('the settings load maps both columns back onto branding',
+    /licenseState: licenceStateColumnValue\(data\.license_state/.test(loadQ)
+    && /licenseExpiry: licenceExpiryColumnValue\(data\.license_expiry/.test(loadQ));
+  for (const [file, src] of [
+    ['app/company-profile.tsx', stripComments(read('app/company-profile.tsx'))],
+    ['app/(tabs)/settings/index.tsx', stripComments(read('app/(tabs)/settings/index.tsx'))],
+  ] as const) {
+    const literals: string[] = [];
+    for (let i = src.indexOf('branding: {'); i >= 0; i = src.indexOf('branding: {', i + 1)) literals.push(balancedFrom(src, i));
+    ok(`${file}: every whole-branding write carries licenseState and licenseExpiry`,
+      literals.length > 0 && literals.every(l => l.includes('licenseState:') && l.includes('licenseExpiry:')),
+      `${literals.length} literal(s); missing in: ${literals.filter(l => !l.includes('licenseState:') || !l.includes('licenseExpiry:')).map(l => l.slice(0, 60)).join(' | ')}`);
+  }
 
   // (a) structural — every gate call in the wizard carries the market. A call
   // without it re-opens the hole for exactly the accounts the fix is for.
@@ -618,7 +681,17 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
     splitLocationText(placeholder).state.length === 2 && bidStateFromBranding({ address: placeholder }) !== '',
     `placeholder "${placeholder}" parses to no state — typing what the box shows switches the licence check off`);
   ok('the company profile shows the licensing state and where it came from',
-    profile.includes('testID="branding-license-state"') && profile.includes('bidLicenceStateSource('));
+    profile.includes('testID="branding-license-state"')
+    && /bidLicenceStateSource\(\{ address: brandingAddress, licenseState: savedLicenceState \}, settings\.location\)/.test(profile));
+  const pickSave = callbackBody(profile, 'saveLicenceState');
+  ok('the licensing-state pick saves branding.licenseState, not the pricing market',
+    pickSave.includes('updateSettings({ branding: mergedBidBranding(settings.branding, { licenseState: code }) })')
+    && !/location/.test(pickSave), pickSave.slice(0, 200));
+  ok('the company profile never writes the pricing market',
+    !/updateSettings\(\{[^}]*\blocation\b/.test(profile));
+  ok('the market-edit path for licensing is gone from every screen that used it',
+    !profile.includes('licenceStateMarketEdit') && !stripComments(read('app/get-verified.tsx')).includes('licenceStateMarketEdit')
+    && !read('utils/bidDocumentIdentity.ts').includes('export function licenceStateMarketEdit'));
   ok('the licence "why" renders only when a cited rule exists',
     /\{licenceRule \? \(/.test(profile) && profile.includes('testID="branding-license-why"'),
     'a TX contractor must never be told of a requirement his board does not have');
@@ -630,22 +703,28 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
     '"CSLB" / "Calif." normalise to nothing — the gate stays dead while the form looks filled in');
   ok('Get Verified validates the state through normalizeState',
     /normalizeState\(jurisdiction\)/.test(callbackBody(verified, 'validate')));
-  // The number's write must stand on its own, ahead of the state branch: the
-  // state path writes branding too, but only when the market changes, so a
-  // scan for "any updateSettings" passed with the number's own write deleted.
-  const numberWriteIdx = submit.indexOf('updateSettings({ branding: mergedBidBranding(settings?.branding, { licenseNumber: typedNumber }) })');
-  const stateBranchIdx = submit.indexOf('const addressState');
-  const stateWriteIdx = submit.indexOf('licenceStateMarketEdit(');
+  // One write carries the number, the state and the expiry — a second
+  // updateSettings in the same tick merges onto the stale settings and undoes
+  // the first — and it lands before the send, so a failed email still feeds
+  // the gate. The state goes onto licenseState; the market is never written.
+  const profileWriteIdx = submit.indexOf('updateSettings({');
+  const profileWrite = profileWriteIdx >= 0 ? balancedFrom(submit, profileWriteIdx) : '';
   const sendIdx2 = submit.indexOf('sendEmail(');
-  ok('Get Verified writes the licence number back to the profile, unconditionally on the state, before it sends',
-    numberWriteIdx >= 0 && stateBranchIdx > numberWriteIdx && sendIdx2 > stateBranchIdx,
-    `numberWrite@${numberWriteIdx} stateBranch@${stateBranchIdx} send@${sendIdx2} — emailing the answers and discarding them is the bug`);
-  ok('Get Verified writes the state back through licenceStateMarketEdit before it sends',
-    stateWriteIdx > stateBranchIdx && sendIdx2 > stateWriteIdx
-    && /if \(edit\.ok\) \{[^]*?updateSettings\(\{\s*location: edit\.location/.test(submit),
-    `stateWrite@${stateWriteIdx} send@${sendIdx2}`);
+  ok('Get Verified writes number, state and expiry to the profile in one write, before it sends',
+    profileWriteIdx >= 0 && sendIdx2 > profileWriteIdx
+    && /mergedBidBranding\(saved, \{/.test(profileWrite)
+    && /licenseNumber: typedNumber/.test(profileWrite)
+    && /licenseState: code\b/.test(profileWrite)
+    && /licenseExpiry: typedExpiry/.test(profileWrite)
+    && (submit.match(/updateSettings\(/g) ?? []).length === 1,
+    `write@${profileWriteIdx} send@${sendIdx2} ${profileWrite.slice(0, 160)}`);
+  ok('Get Verified never writes the pricing market',
+    !/\blocation\b/.test(profileWrite) && !/updateSettings\(\{[^}]*\blocation\b/.test(submit));
+  ok('Get Verified validates the expiry as a real calendar day before saving it',
+    /licenceExpiryColumnValue\(expires\)/.test(callbackBody(verified, 'validate')));
   ok('Get Verified prefills from the profile',
-    /useState\(settings\?\.branding\?\.licenseNumber/.test(verified) && /bidStateFromBranding\(settings\?\.branding, settings\?\.location\)/.test(verified));
+    /useState\(settings\?\.branding\?\.licenseNumber/.test(verified) && /bidStateFromBranding\(settings\?\.branding, settings\?\.location\)/.test(verified)
+    && /useState\(settings\?\.branding\?\.licenseExpiry/.test(verified));
 
   // (b) the settings screen: no orphan "Save Changes"; location commits itself;
   // the numerics' save sits under them and leaving with an edit asks.

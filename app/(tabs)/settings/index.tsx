@@ -316,13 +316,19 @@ export default function SettingsScreen() {
         phone: brandingPhone.trim(),
         address: brandingAddress.trim(),
         licenseNumber: licenseNumber.trim(),
+        // No control for these on this screen — carried from the saved
+        // branding, because this object replaces it and ProjectContext saves
+        // an absent licensing state as NULL (it would silently erase the
+        // answer that decides which state's licence rules his bids follow).
+        licenseState: settings.branding?.licenseState ?? '',
+        licenseExpiry: settings.branding?.licenseExpiry ?? '',
         tagline: tagline.trim(),
         logoUri: newLogo,
         signatureData: newSig,
       },
     });
     console.log('[Settings] Auto-saved branding after asset change');
-  }, [companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, updateSettings]);
+  }, [companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, settings.branding, updateSettings]);
 
   const handlePickLogo = useCallback(async () => {
     try {

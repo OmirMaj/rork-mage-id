@@ -637,7 +637,7 @@ function PunchListScreenInner() {
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
   }>();
-  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, deletePunchItem, updateProject, subcontractors } = useProjects();
+  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -1352,91 +1352,58 @@ function PunchListScreenInner() {
 
   // ── Bulk writes ──────────────────────────────────────────────────────────
   //
-  // WHY THIS IS A QUEUE AND NOT A `for` LOOP. `updatePunchItem` /
-  // `deletePunchItem` in contexts/ProjectContext.tsx derive the next array from
-  // the `punchItems` captured in their own closure, NOT from the ref the batch
-  // insert uses. Calling either thirty times inside one handler therefore has
-  // all thirty start from the SAME array, and the last `setPunchItems` wins:
-  // twenty-nine changes vanish locally (and from AsyncStorage) while the
-  // Supabase writes all land — a list that is right on the server and wrong in
-  // his hand, which is worse than an error.
-  //
-  // So the run is spread one item per render: each pass gets a freshly-closed
-  // `updatePunchItem` that can see the previous write. Every item still goes
-  // through the SAME context action a single edit uses, so utils/offlineQueue
-  // covers the whole batch on bad signal. Thirty items is ~30 frames, and the
-  // bar counts them off so it never looks stuck.
-  //
-  // The proper fix is a batch action beside `addPunchItems` in ProjectContext
-  // (one setState, one persist, N queued writes). That file is not this
-  // change's to edit — handed off.
-  //
-  // Each step is IDEMPOTENT (an update re-applies the same fields; a delete of
-  // an already-gone id is a no-op filter), so a double-invoked effect costs
-  // nothing but a wasted frame.
-  const [bulkRun, setBulkRun] = useState<{
-    kind: 'update' | 'delete';
-    ids: string[];
-    updates: Partial<PunchItem>;
-    done: number;
-    /** Past tense, for the toast: "30 items reassigned." */
-    label: string;
-  } | null>(null);
-  const bulkBusy = bulkRun !== null;
+  // ONE context call per gesture, never a loop of the single-item action.
+  // `updatePunchItems` / `deletePunchItems` (contexts/ProjectContext.tsx) apply
+  // the whole selection in one state update and one AsyncStorage save, then
+  // queue one Supabase write per row — so utils/offlineQueue still replays
+  // each item independently on bad signal. The loop they replace cost 100
+  // full-collection saves and 100 re-renders for a 100-item close, and an app
+  // killed halfway left half the selection changed. Because the write is now
+  // synchronous and all-or-nothing, there is no "saving 12 of 30" state for the
+  // bar to lock against.
+  const finishBulk = useCallback((n: number, label: string) => {
+    clearSelection();
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    nailIt(`${n} item${n === 1 ? '' : 's'} ${label}.`);
+  }, [clearSelection]);
 
-  useEffect(() => {
-    if (!bulkRun) return;
-    if (bulkRun.done >= bulkRun.ids.length) {
-      const n = bulkRun.ids.length;
-      const label = bulkRun.label;
-      setBulkRun(null);
-      clearSelection();
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      nailIt(`${n} item${n === 1 ? '' : 's'} ${label}.`);
-      return;
-    }
-    const id = bulkRun.ids[bulkRun.done];
-    if (bulkRun.kind === 'delete') deletePunchItem(id);
-    else updatePunchItem(id, bulkRun.updates);
-    setBulkRun(prev => (prev === bulkRun ? { ...prev, done: prev.done + 1 } : prev));
-  }, [bulkRun, updatePunchItem, deletePunchItem, clearSelection]);
+  const runBulkUpdate = useCallback((ids: string[], updates: Partial<PunchItem>, label: string) => {
+    if (ids.length === 0) return;
+    updatePunchItems(ids, updates);
+    finishBulk(ids.length, label);
+  }, [updatePunchItems, finishBulk]);
 
   const [showBulkSubPicker, setShowBulkSubPicker] = useState(false);
   const [showBulkStatusPicker, setShowBulkStatusPicker] = useState(false);
 
   const bulkAssignTo = useCallback((companyName: string, subId?: string) => {
-    if (bulkBusy || selectedIdList.length === 0) return;
+    if (selectedIdList.length === 0) return;
     setShowBulkSubPicker(false);
-    setBulkRun({
-      kind: 'update',
-      ids: [...selectedIdList],
-      updates: { assignedSub: companyName, ...(subId ? { assignedSubId: subId } : {}) },
-      done: 0,
-      label: `assigned to ${companyName}`,
-    });
-  }, [bulkBusy, selectedIdList]);
+    runBulkUpdate(
+      [...selectedIdList],
+      { assignedSub: companyName, ...(subId ? { assignedSubId: subId } : {}) },
+      `assigned to ${companyName}`,
+    );
+  }, [selectedIdList, runBulkUpdate]);
 
   const bulkSetStatus = useCallback((next: PunchItemStatus) => {
-    if (bulkBusy || selectedIdList.length === 0) return;
+    if (selectedIdList.length === 0) return;
     setShowBulkStatusPicker(false);
     const cfg = getStatusConfig(themeColors, next);
-    setBulkRun({
-      kind: 'update',
-      ids: [...selectedIdList],
+    runBulkUpdate(
+      [...selectedIdList],
       // Stamped once for the whole batch: these were closed in one gesture, and
       // thirty closedAt values a millisecond apart is noise in the closeout.
-      updates: { status: next, ...(next === 'closed' ? { closedAt: new Date().toISOString() } : {}) },
-      done: 0,
-      label: `moved to ${cfg.label}`,
-    });
-  }, [bulkBusy, selectedIdList, themeColors]);
+      { status: next, ...(next === 'closed' ? { closedAt: new Date().toISOString() } : {}) },
+      `moved to ${cfg.label}`,
+    );
+  }, [selectedIdList, themeColors, runBulkUpdate]);
 
-  /** Move every selected item to the OTHER list, through the same one-per-render
-   *  runner as every other bulk verb — never a loop of updatePunchItem (see the
-   *  stale-closure note above the runner). Confirmed first, with the client
-   *  consequence spelled out. */
+  /** Move every selected item to the OTHER list in one batch write, like every
+   *  other bulk verb — never a loop of updatePunchItem. Confirmed first, with
+   *  the client consequence spelled out. */
   const bulkMove = useCallback(() => {
-    if (bulkBusy || selectedIdList.length === 0) return;
+    if (selectedIdList.length === 0) return;
     const target = otherList(activeList);
     // Only the items not already there — a no-op write is still a queued
     // Supabase round trip on a phone with one bar.
@@ -1447,16 +1414,14 @@ function PunchListScreenInner() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: copy.confirm,
-        onPress: () => setBulkRun({
-          kind: 'update',
+        onPress: () => runBulkUpdate(
           ids,
-          updates: { listType: target },
-          done: 0,
-          label: target === 'punch' ? 'moved to the punch list' : 'moved to the crew list',
-        }),
+          { listType: target },
+          target === 'punch' ? 'moved to the punch list' : 'moved to the crew list',
+        ),
       },
     ]);
-  }, [bulkBusy, selectedIdList, selectedItems, activeList, clientSeesPunch]);
+  }, [selectedIdList, selectedItems, activeList, clientSeesPunch, runBulkUpdate]);
 
   /** Single-item move from the row rail. Same confirmation as the bulk verb. */
   const moveItem = useCallback((item: PunchItem) => {
@@ -1477,8 +1442,9 @@ function PunchListScreenInner() {
   }, [clientSeesPunch, updatePunchItem]);
 
   const bulkDelete = useCallback(() => {
-    if (bulkBusy || selectedIdList.length === 0) return;
-    const n = selectedIdList.length;
+    if (selectedIdList.length === 0) return;
+    const ids = [...selectedIdList];
+    const n = ids.length;
     // The one irreversible verb on this bar, so it says the number out loud.
     showAlert(
       `Delete ${n} punch item${n === 1 ? '' : 's'}?`,
@@ -1488,11 +1454,14 @@ function PunchListScreenInner() {
         {
           text: `Delete ${n}`,
           style: 'destructive',
-          onPress: () => setBulkRun({ kind: 'delete', ids: [...selectedIdList], updates: {}, done: 0, label: 'deleted' }),
+          onPress: () => {
+            deletePunchItems(ids);
+            finishBulk(n, 'deleted');
+          },
         },
       ],
     );
-  }, [bulkBusy, selectedIdList]);
+  }, [selectedIdList, deletePunchItems, finishBulk]);
 
   // ── Handing a sub their list ─────────────────────────────────────────────
   // The sub portal already exists and already scopes punch items to one sub
@@ -1632,9 +1601,7 @@ function PunchListScreenInner() {
       {/* ── Punch | Crew list ────────────────────────────────────────────
           The first thing on the screen, because it decides what every number
           below it means. Each side carries its open count so he can see the
-          other list has work without switching to it. Locked while a bulk
-          run is saving — switching mid-run would change what the bar is
-          acting on out from under the counter. */}
+          other list has work without switching to it. */}
       <View style={styles.listSwitch} accessibilityRole="tablist">
         {(['punch', 'crew'] as const).map(list => {
           const on = activeList === list;
@@ -1647,13 +1614,10 @@ function PunchListScreenInner() {
                 on && (list === 'punch' ? styles.listSwitchSegPunchOn : styles.listSwitchSegCrewOn),
               ]}
               onPress={() => chooseList(list)}
-              disabled={bulkBusy}
               activeOpacity={0.8}
               accessibilityRole="tab"
-              accessibilityState={{ selected: on, disabled: bulkBusy }}
-              accessibilityLabel={bulkBusy
-                ? `${LIST_LABEL[list]} — unavailable while selected items are saving`
-                : `${LIST_LABEL[list]}, ${stats.open} open`}
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${LIST_LABEL[list]}, ${stats.open} open`}
               testID={`punch-list-switch-${list}`}
             >
               <Text style={[styles.listSwitchLabel, on && styles.listSwitchLabelOn]}>{LIST_LABEL[list]}</Text>
@@ -2026,21 +1990,15 @@ function PunchListScreenInner() {
           onLayout={e => setBulkBarHeight(e.nativeEvent.layout.height)}
         >
           <View style={styles.bulkBarTop}>
-            <Text style={styles.bulkBarCount}>
-              {bulkBusy
-                ? `Saving ${Math.min((bulkRun?.done ?? 0) + 1, bulkRun?.ids.length ?? 0)} of ${bulkRun?.ids.length ?? 0}…`
-                : `${selectedCount} selected`}
-            </Text>
+            <Text style={styles.bulkBarCount}>{`${selectedCount} selected`}</Text>
             <TouchableOpacity
               onPress={clearSelection}
-              disabled={bulkBusy}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityState={{ disabled: bulkBusy }}
-              accessibilityLabel={bulkBusy ? 'Cannot cancel while items are saving' : 'Done selecting'}
+              accessibilityLabel="Done selecting"
               testID="punch-bulk-done"
             >
-              <Text style={[styles.bulkBarDone, bulkBusy && { color: themeColors.textMuted }]}>Done</Text>
+              <Text style={styles.bulkBarDone}>Done</Text>
             </TouchableOpacity>
           </View>
 
@@ -2053,13 +2011,11 @@ function PunchListScreenInner() {
           ) : (
             <View style={styles.bulkBarActions}>
               <TouchableOpacity
-                style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                style={styles.bulkBtn}
                 onPress={() => setShowBulkSubPicker(true)}
-                disabled={bulkBusy}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: bulkBusy }}
-                accessibilityLabel={bulkBusy ? 'Assign is unavailable while items are saving' : `Assign ${selectedCount} items to a sub`}
+                accessibilityLabel={`Assign ${selectedCount} items to a sub`}
                 testID="punch-bulk-assign"
               >
                 <Users size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
@@ -2067,13 +2023,11 @@ function PunchListScreenInner() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                style={styles.bulkBtn}
                 onPress={() => setShowBulkStatusPicker(true)}
-                disabled={bulkBusy}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: bulkBusy }}
-                accessibilityLabel={bulkBusy ? 'Status is unavailable while items are saving' : `Set status on ${selectedCount} items`}
+                accessibilityLabel={`Set status on ${selectedCount} items`}
                 testID="punch-bulk-status"
               >
                 <ListChecks size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
@@ -2083,15 +2037,11 @@ function PunchListScreenInner() {
               {/* To the other list. The confirmation (bulkMove) says what the
                   client will or won't see before anything is written. */}
               <TouchableOpacity
-                style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                style={styles.bulkBtn}
                 onPress={bulkMove}
-                disabled={bulkBusy}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: bulkBusy }}
-                accessibilityLabel={bulkBusy
-                  ? 'Move is unavailable while items are saving'
-                  : `Move ${selectedCount} items to the ${activeList === 'punch' ? 'crew list' : 'punch list'}`}
+                accessibilityLabel={`Move ${selectedCount} items to the ${activeList === 'punch' ? 'crew list' : 'punch list'}`}
                 testID="punch-bulk-move"
               >
                 <ArrowLeftRight size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
@@ -2105,13 +2055,11 @@ function PunchListScreenInner() {
                   and a button here would be a dead end. */}
               {portalTarget?.sub ? (
                 <TouchableOpacity
-                  style={[styles.bulkBtn, bulkBusy && styles.bulkBtnOff]}
+                  style={styles.bulkBtn}
                   onPress={openSubPortal}
-                  disabled={bulkBusy}
-                  activeOpacity={0.85}
+                    activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: bulkBusy }}
-                  accessibilityLabel={`Open the sub portal for ${portalTarget.name}`}
+                    accessibilityLabel={`Open the sub portal for ${portalTarget.name}`}
                   testID="punch-bulk-portal"
                 >
                   <Send size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
@@ -2120,13 +2068,11 @@ function PunchListScreenInner() {
               ) : null}
 
               <TouchableOpacity
-                style={[styles.bulkBtnDanger, bulkBusy && styles.bulkBtnOff]}
+                style={styles.bulkBtnDanger}
                 onPress={bulkDelete}
-                disabled={bulkBusy}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: bulkBusy }}
-                accessibilityLabel={bulkBusy ? 'Delete is unavailable while items are saving' : `Delete ${selectedCount} items`}
+                accessibilityLabel={`Delete ${selectedCount} items`}
                 testID="punch-bulk-delete"
               >
                 <Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
@@ -2971,7 +2917,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md,
     backgroundColor: themeColors.dangerSoft,
   },
-  bulkBtnOff: { opacity: 0.45 },
   bulkBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
   statusSwatch: { width: 10, height: 10, borderRadius: Tokens.radius.full },
 

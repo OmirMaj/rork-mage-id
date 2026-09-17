@@ -237,7 +237,6 @@ export function subPaymentReleasePrefill(args: {
  * the last read the GC gets "Try again" rather than an endless wait.
  */
 const SUB_TOKEN_READBACK_DELAYS_MS = [1200, 3000, 8000, 20000];
-const SUB_TOKEN_WRITE_GRACE_MS = 800;
 
 export default function SubPortalSetupScreen() {
   const { colors: themeColors } = useTheme();
@@ -262,7 +261,45 @@ export default function SubPortalSetupScreen() {
   return <SubPortalSetupScreenInner />;
 }
 
+/**
+ * Waits for the saved sub portal links before the editor mounts.
+ *
+ * The editor decides ONCE, in its state initialiser, whether this sub already
+ * has a link or gets a new one — and the new one is written straight away so
+ * the server can mint its token. Mounted before the links had loaded, that
+ * decision read "no link" for a sub who had one, and the write created a
+ * second row: a second portal URL for the same sub, with the first one the GC
+ * had already sent still live. An 800ms grace before the write papered over it
+ * on a fast load and lost on a slow one. Now there is nothing to race: until
+ * the context says the links are loaded (from the server or the local cache),
+ * no link is chosen and nothing is written.
+ */
 function SubPortalSetupScreenInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
+  const { subPortalLinksLoaded } = useProjects();
+  if (!subPortalLinksLoaded) {
+    return (
+      <View style={styles.loadingContainer} testID="sub-portal-links-loading">
+        <Stack.Screen
+          options={{
+            title: 'Sub Portal',
+            headerLeft: () => (
+              <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
+                <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
+              </TouchableOpacity>
+            ),
+          }}
+        />
+        <Text style={styles.loadingText}>Loading this sub&apos;s portal link…</Text>
+      </View>
+    );
+  }
+  return <SubPortalSetupEditor />;
+}
+
+function SubPortalSetupEditor() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -272,6 +309,9 @@ function SubPortalSetupScreenInner() {
   const fabScroll = useBrainFabScroll();
   const { projectId, subId } = useLocalSearchParams<{ projectId: string; subId: string }>();
 
+  // Only mounted once subPortalLinksLoaded is true (see SubPortalSetupScreenInner),
+  // so `existing` below is the loaded answer and the initialiser's "new link"
+  // branch is reached only for a sub who genuinely has none.
   const {
     getProject, subcontractors, settings,
     getCommitmentsForProject, getPunchItemsForProject,
@@ -406,9 +446,9 @@ function SubPortalSetupScreenInner() {
   // here: a phone-made token is one the server never agreed to, and every link
   // shared with it fails on the sub's first invoice.
   //
-  // Also adopt the loaded link when the context delivers it after this screen
-  // mounted (its lazy initialiser only sees what was loaded at mount) — for the
-  // same id, and for a stand-in id this screen never wrote.
+  // Also adopt the loaded link's token when the read-back (or a later refetch)
+  // delivers it after this screen mounted — and a different link for this sub
+  // if one arrives before this screen has written its own.
   const wroteLinkRef = React.useRef(false);
   const latestLinkRef = React.useRef(link);
   latestLinkRef.current = link;
@@ -433,11 +473,9 @@ function SubPortalSetupScreenInner() {
     setTokenState('working');
     const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
     void (async () => {
-      // A beat before writing: if the saved links load in the meantime, the
-      // adopt effect swaps in the real link (new id or a token), this run is
-      // cancelled, and no stand-in duplicate is written for the same sub.
-      await wait(SUB_TOKEN_WRITE_GRACE_MS);
-      if (cancelled) return;
+      // No wait before this write: the editor only mounts after the saved links
+      // have loaded, so `link` is already the sub's existing link or a
+      // genuinely new one — never a stand-in for a link that hasn't loaded.
       wroteLinkRef.current = true;
       upsertSubPortalLink(latestLinkRef.current);
       for (const delay of SUB_TOKEN_READBACK_DELAYS_MS) {

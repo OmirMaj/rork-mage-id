@@ -157,11 +157,26 @@ ok('site b (INSERT payload, punchItemToRow) writes list_type',
   /\blist_type\s*:/.test(insertSite),
   'a crew item created offline syncs as the column default — punch — and publishes to the client');
 
-const updateSite = between(ctx, 'const updatePunchItem = useCallback', 'const deletePunchItem');
-ok('site c (UPDATE payload, updatePunchItem) was located', updateSite.length > 0);
-ok("site c (UPDATE payload, updatePunchItem) sends list_type in supabaseWrite('punch_items', 'update')",
-  /supabaseWrite\(\s*'punch_items'\s*,\s*'update'[\s\S]*?\blist_type\s*:[\s\S]*?\}\s*\)/.test(updateSite),
+// Site c is now split in two (the punch-batch refactor): the UPDATE payload is
+// built by the pure `punchItemToUpdateRow`, and BOTH the batch and the single
+// edit reach Supabase through `updatePunchItems`. So check the builder carries
+// list_type, the batch writes with the builder, and the single edit delegates
+// to the batch rather than growing its own inline payload again.
+const updateBuilder = between(ctx, 'function punchItemToUpdateRow(', '\n}');
+ok('site c (UPDATE payload builder, punchItemToUpdateRow) was located', updateBuilder.length > 0,
+  'could not find function punchItemToUpdateRow( — rewrite this locator, do not delete it');
+ok('site c (UPDATE payload builder, punchItemToUpdateRow) writes list_type',
+  /\blist_type\s*:\s*punchListTypeOf\(/.test(updateBuilder),
   'moving an item between lists works on screen and silently reverts on the next refetch');
+const batchUpdateSite = between(ctx, 'const updatePunchItems = useCallback', 'const updatePunchItem = useCallback');
+ok('site c (updatePunchItems) was located', batchUpdateSite.length > 0);
+ok("site c (updatePunchItems) queues supabaseWrite('punch_items', 'update', punchItemToUpdateRow(…))",
+  /supabaseWrite\(\s*'punch_items'\s*,\s*'update'\s*,\s*punchItemToUpdateRow\(/.test(batchUpdateSite),
+  'a bulk move to the crew list would sync without list_type and revert on refetch');
+const singleUpdateSite = between(ctx, 'const updatePunchItem = useCallback', 'const deletePunchItems');
+ok('site c (updatePunchItem) delegates to updatePunchItems([id], …)',
+  /updatePunchItems\(\s*\[\s*id\s*\]/.test(singleUpdateSite) && !/supabaseWrite\(/.test(singleUpdateSite),
+  'the single edit grew its own payload again — it can drift from the batch and drop list_type');
 
 // Every OTHER write to punch_items anywhere in app code: inserts must go
 // through punchItemToRow (so they inherit site b); updates must carry
@@ -191,7 +206,9 @@ for (const rel of sources) {
         /punchItemToRow\(/.test(args) || /\blist_type\s*:/.test(args),
         `args: ${args.trim().slice(0, 120)}`);
     } else {
-      ok(`${rel}: punch_items update carries list_type`, /\blist_type\s*:/.test(args),
+      // punchItemToUpdateRow is pinned above to carry list_type.
+      ok(`${rel}: punch_items update carries list_type`,
+        /\blist_type\s*:/.test(args) || /^\s*punchItemToUpdateRow\(/.test(args),
         `args: ${args.trim().slice(0, 120)}`);
     }
   }

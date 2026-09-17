@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { punchListTypeOf } from '@/types';
+import { punchListTypeOf, contractTermsAfterLoad, contractTermsSyncColumns } from '@/types';
+import { isFinancialsBlinded } from '@/utils/roleBlinding';
 import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus, PunchListType } from '@/types';
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +11,7 @@ import { useFieldDayPackWarmer } from '@/hooks/useFieldDayPack';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite, getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { licenceExpiryColumnValue, licenceStateColumnValue } from '@/utils/bidDocumentIdentity';
 import {
   acceptedRolesByProject, aiaRowToSaved, claimProjectForUser, classifyProjectForSync, coerceRate, financialPickAfterLoad,
   financialsLoadedFor, legacyMoneyPresent, mergeLocalOnly, myRoleAfterLoad, pendingIdsByTable, pendingIdsForTable,
@@ -101,6 +103,86 @@ function durablePhotoValue(storagePath: string | undefined, currentUri: string |
   if (currentUri && !isDeviceLocalUri(currentUri)) return currentUri;
   return '';
 }
+
+// ── punch-batch pure (begin) ────────────────────────────────────────────────
+// Everything between these markers is plain TypeScript with no imports beyond
+// `durablePhotoValue` and `punchListTypeOf`, because scripts/validate-punch-batch.ts
+// lifts this block out of the file and EXECUTES it — the context itself cannot
+// load under bun. Keep it that way: a hook or a new import in here turns the
+// guard red, which is the point.
+//
+// WHY A BATCH AT ALL. Selecting 100 items and closing them used to run the
+// single-item update 100 times, one per render: 100 full-collection
+// AsyncStorage saves, 100 re-renders, and a crash (or the app being swiped
+// away) at item 50 left half the selection changed. The batch computes the
+// whole next array once, so there is ONE state update and ONE local save, and
+// still one queued Supabase write per row — offline replay stays per-row.
+
+/** A per-id patch is a function of the row, not a map: it cannot be confused
+ *  with a shared patch at runtime, and it sees the current row. */
+type PunchBatchUpdates = Partial<PunchItem> | ((item: PunchItem) => Partial<PunchItem>);
+
+function applyPunchBatchUpdate(
+  items: PunchItem[],
+  ids: readonly string[],
+  updates: PunchBatchUpdates,
+  now: string,
+  finish: (item: PunchItem) => PunchItem = (item) => item,
+): { next: PunchItem[]; changed: PunchItem[] } {
+  const wanted = new Set(ids);
+  if (wanted.size === 0) return { next: items, changed: [] };
+  const changed: PunchItem[] = [];
+  const next = items.map(pi => {
+    if (!wanted.has(pi.id)) return pi;
+    const patch = typeof updates === 'function' ? updates(pi) : updates;
+    // `id` is pinned: a patch that carried one would otherwise re-key the row
+    // locally while the queued write still targets the old id.
+    const merged = finish({ ...pi, ...patch, id: pi.id, updatedAt: now });
+    changed.push(merged);
+    return merged;
+  });
+  // Nothing matched (every id already deleted elsewhere): hand back the SAME
+  // array so the caller can skip the save and the re-render entirely.
+  return changed.length === 0 ? { next: items, changed } : { next, changed };
+}
+
+function applyPunchBatchDelete(
+  items: PunchItem[],
+  ids: readonly string[],
+): { next: PunchItem[]; removed: PunchItem[] } {
+  const wanted = new Set(ids);
+  if (wanted.size === 0) return { next: items, removed: [] };
+  const removed: PunchItem[] = [];
+  const next = items.filter(pi => {
+    if (!wanted.has(pi.id)) return true;
+    removed.push(pi);
+    return false;
+  });
+  return removed.length === 0 ? { next: items, removed } : { next, removed };
+}
+
+/** The punch_items UPDATE payload — one builder for the single and the batch
+ *  path so they cannot drift. `list_type` is always explicit: moving an item
+ *  between the punch list and the crew list is an EDIT, and an update without
+ *  it survives locally and silently reverts on the next refetch (putting a crew
+ *  chore back on the client's portal). */
+function punchItemToUpdateRow(pi: PunchItem, now: string) {
+  return {
+    id: pi.id, description: pi.description, location: pi.location, assigned_sub: pi.assignedSub,
+    assigned_sub_id: pi.assignedSubId,
+    due_date: pi.dueDate, priority: pi.priority, status: pi.status,
+    photo_uri: durablePhotoValue(pi.photoStoragePath, pi.photoUri) || null,
+    // Plan-pin anchor + captured GPS on update too (were omitted, and
+    // assigned_sub_id was dropped on update — fixed here).
+    plan_sheet_id: pi.planSheetId, pin_x: pi.pinX, pin_y: pi.pinY,
+    photo_latitude: pi.photoLatitude, photo_longitude: pi.photoLongitude,
+    photo_accuracy_meters: pi.photoLocationAccuracyMeters,
+    photo_location_label: pi.photoLocationLabel,
+    list_type: punchListTypeOf(pi),
+    rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
+  };
+}
+// ── punch-batch pure (end) ──────────────────────────────────────────────────
 
 /**
  * The `daily_reports.photos` JSON column, sanitized for the server: durable
@@ -355,7 +437,13 @@ type FieldDataValue = {
   addPunchItem: (item: PunchItem) => void;
   addPunchItems: (items: PunchItem[]) => void;
   updatePunchItem: (id: string, updates: Partial<PunchItem>) => void;
+  /** Bulk edit: one state update, one local save, one queued write per row.
+   *  `updates` is either one patch for every id or a function giving each row
+   *  its own. Never loop `updatePunchItem` for a selection. */
+  updatePunchItems: (ids: readonly string[], updates: PunchBatchUpdates) => void;
   deletePunchItem: (id: string) => void;
+  /** Bulk delete — same shape as updatePunchItems. */
+  deletePunchItems: (ids: readonly string[]) => void;
   getPunchItemsForProject: (projectId: string) => PunchItem[];
   projectPhotos: ProjectPhoto[];
   addProjectPhoto: (photo: ProjectPhoto) => void;
@@ -450,6 +538,11 @@ type DocsDataValue = {
   deletePermit: (id: string) => void;
   getPermitsForProject: (projectId: string) => Permit[];
   subPortalLinks: SubPortalLink[];
+  /** True once the sub portal links for this account have loaded — from the
+   *  server, or from the local cache when the server read fell back. Until
+   *  then `getSubPortalLinkFor` returning nothing means "not known yet", NOT
+   *  "this sub has no link": a screen that creates a link must wait for this. */
+  subPortalLinksLoaded: boolean;
   upsertSubPortalLink: (link: SubPortalLink) => SubPortalLink;
   /** Store the server's access token on a local link. Local only — no write. */
   adoptSubPortalToken: (id: string, accessToken: string) => void;
@@ -618,6 +711,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [permits, setPermits] = useState<Permit[]>([]);
   const [aiaPayApps, setAiaPayApps] = useState<SavedAIAPayApp[]>([]);
   const [subPortalLinks, setSubPortalLinks] = useState<SubPortalLink[]>([]);
+  const [subPortalLinksLoaded, setSubPortalLinksLoaded] = useState<boolean>(false);
   // SYNC-F7: each entry keeps its `run` so flushPendingProjectSyncs can fire it
   // immediately on background — a bare timer dies with the process. An entry
   // stays in the map until its write has REPORTED (landed, queued, or refused
@@ -697,6 +791,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // per-project stamps (myRole, money) to keep when a read failed.
             const localForMerge = await loadLocal<Project[]>(PROJECTS_KEY, []);
             const localById = new Map(localForMerge.map((p) => [p.id, p] as const));
+            // Contract terms (mode / GMP cap / fee / retainage) keep the device
+            // copy while that project's own write is still queued — the SELECT
+            // above returns the server's OLD value until the flush lands, and
+            // taking it silently undid an offline edit. Read once per load.
+            const pendingProjectIds = await queuedIdsFor('projects');
             const mapped = data.map((r: Record<string, unknown>) => {
               const f = finById.get(r.id as string);
               const owned = r.user_id === userId;
@@ -766,6 +865,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
                 ? r.client_portal
                 : stripPortalCredentials(r.client_portal as Project['clientPortal'] | null)) as Project['clientPortal'],
               targetBudget: pick('target_budget', r.target_budget, cached?.targetBudget) as Project['targetBudget'],
+              // Contract terms live on project_financials only (no legacy copy on
+              // projects to fall back to — 20260917110000_project_contract_terms
+              // .sql). Before that migration nothing mapped them and every fetch
+              // wiped retainagePercent and any seeded contractMode. The rules for
+              // server-vs-cached and the `contractTermsLoaded` stamp that gates
+              // NULL writes are in types/index.ts contractTermsAfterLoad.
+              // canViewMoney uses the cached role on purpose when the roles read
+              // failed: it only decides whether a device KEEPS its own copy when
+              // no row came back, never whether to hand out a server value.
+              ...contractTermsAfterLoad({
+                finRow: f,
+                readSucceeded: finReadOk,
+                canViewMoney: owned || (myRole != null && !isFinancialsBlinded(myRole)),
+                writePending: pendingProjectIds.has(r.id as string),
+                cached,
+              }),
               primaryContact: (r.primary_contact as Project['primaryContact']) ?? undefined,
               leadSource: (r.lead_source as string | null) ?? undefined,
               targetTimelineNotes: (r.target_timeline_notes as string | null) ?? undefined,
@@ -814,6 +929,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
                 companyName: (data.company_name as string) ?? '', contactName: (data.contact_name as string) ?? '',
                 email: (data.email as string) ?? '', phone: (data.phone as string) ?? '',
                 address: (data.address as string) ?? '', licenseNumber: (data.license_number as string) ?? '',
+                // Own columns since 20260917120000 — the licensing state used
+                // to be inferred from the pricing market (location). Blank
+                // when unset; bidDocumentIdentity then falls back to address,
+                // then market. Normalised on read too, so a hand-edited row
+                // cannot feed the gate a state it would not accept on write.
+                licenseState: licenceStateColumnValue(data.license_state as string | null) ?? '',
+                licenseExpiry: licenceExpiryColumnValue(data.license_expiry as string | null) ?? '',
                 tagline: (data.tagline as string) ?? '', logoUri: data.logo_uri as string | undefined,
                 signatureData: data.signature_data as string[] | undefined,
               },
@@ -2070,7 +2192,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       return loadLocal<SubPortalLink[]>(SUB_PORTAL_LINKS_KEY, []);
     },
   });
-  useEffect(() => { if (subPortalLinksQuery.data) setSubPortalLinks(subPortalLinksQuery.data); }, [subPortalLinksQuery.data]);
+  // The loaded flag flips in the SAME effect that installs the links, so the
+  // two commit in one render. Deriving it from `isFetched` instead would leave
+  // a render where the query says "loaded" while `subPortalLinks` is still the
+  // empty initial state — exactly the window in which app/sub-portal-setup.tsx
+  // used to decide "no link" and write a second one for the same sub. The
+  // queryFn never throws (the server read falls back to the local cache), so
+  // defined data is the loaded signal; a user switch changes the key, the data
+  // goes undefined, and the flag drops back until that account's links land.
+  useEffect(() => {
+    if (subPortalLinksQuery.data) {
+      setSubPortalLinks(subPortalLinksQuery.data);
+      setSubPortalLinksLoaded(true);
+    } else {
+      setSubPortalLinksLoaded(false);
+    }
+  }, [subPortalLinksQuery.data]);
   const saveSubPortalLinksMutation = useMutation({
     mutationFn: async (updated: SubPortalLink[]) => { await saveLocal(SUB_PORTAL_LINKS_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['subPortalLinks', userId], data); },
@@ -2187,6 +2324,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               linked_estimate: project.linkedEstimate as unknown,
               estimate_versions: project.estimateVersions as unknown,
               target_budget: project.targetBudget as unknown,
+              // Contract terms: a held term always goes; an empty one goes as
+              // NULL only once this device has seen the server's terms
+              // (contractTermsLoaded) — otherwise it is omitted so a device that
+              // never loaded them cannot null out a cap set elsewhere, and a job
+              // that never used them adds no column an unmigrated server would
+              // re-queue this whole upsert over. types/index.ts has the rule.
+              ...contractTermsSyncColumns(project),
               created_at: project.createdAt, updated_at: project.updatedAt,
             });
           }
@@ -2412,6 +2556,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           company_name: updatedSettings.branding.companyName, contact_name: updatedSettings.branding.contactName,
           email: updatedSettings.branding.email, phone: updatedSettings.branding.phone,
           address: updatedSettings.branding.address, license_number: updatedSettings.branding.licenseNumber,
+          // NEEDS 20260917120000_profile_license_fields.sql ON THE SERVER
+          // FIRST: PostgREST refuses an unknown column for the whole update,
+          // and this one write carries every settings field. Both values go
+          // through the column normalisers — the CHECK / date cast would
+          // otherwise fail the whole row as well. Blank → NULL ("not told").
+          license_state: licenceStateColumnValue(updatedSettings.branding.licenseState),
+          license_expiry: licenceExpiryColumnValue(updatedSettings.branding.licenseExpiry),
           tagline: updatedSettings.branding.tagline, logo_uri: updatedSettings.branding.logoUri,
           signature_data: updatedSettings.branding.signatureData, theme_colors: updatedSettings.themeColors,
           biometrics_enabled: updatedSettings.biometricsEnabled, dfr_recipients: updatedSettings.dfrRecipients,
@@ -4322,46 +4473,42 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) items.forEach(item => { void supabaseWrite('punch_items', 'insert', punchItemToRow(item)); });
   }, [savePunchItemsMutation, canSync, punchItemToRow, stagePunchPhoto]);
 
-  const updatePunchItem = useCallback((id: string, updates: Partial<PunchItem>) => {
+  // Batch update — see the punch-batch pure block at the top of this file.
+  // Reads and writes the ref (like addPunchItems), not the `punchItems`
+  // closure: two calls in the same tick — or an update right after an add —
+  // must each see the other, or the last setState wins and earlier edits
+  // vanish locally while their Supabase writes still land.
+  const updatePunchItems = useCallback((ids: readonly string[], updates: PunchBatchUpdates) => {
     const now = new Date().toISOString();
-    const updated = punchItems.map(pi => {
-      if (pi.id !== id) return pi;
-      // A photo attached AFTER creation (the common punch-walk flow: log the
-      // deficiency, shoot it later) has to be staged here too.
-      return stagePunchPhoto({ ...pi, ...updates, updatedAt: now });
-    });
-    setPunchItems(updated);
-    savePunchItemsMutation.mutate(updated);
-    if (canSync) {
-      const pi = updated.find(x => x.id === id);
-      if (pi) {
-        void supabaseWrite('punch_items', 'update', {
-          id, description: pi.description, location: pi.location, assigned_sub: pi.assignedSub,
-          assigned_sub_id: pi.assignedSubId,
-          due_date: pi.dueDate, priority: pi.priority, status: pi.status,
-          photo_uri: durablePhotoValue(pi.photoStoragePath, pi.photoUri) || null,
-          // Persist plan-pin anchor + captured GPS on update too (were omitted,
-          // and assigned_sub_id was dropped on update — fixed here).
-          plan_sheet_id: pi.planSheetId, pin_x: pi.pinX, pin_y: pi.pinY,
-          photo_latitude: pi.photoLatitude, photo_longitude: pi.photoLongitude,
-          photo_accuracy_meters: pi.photoLocationAccuracyMeters,
-          photo_location_label: pi.photoLocationLabel,
-          // Moving an item between the punch list and the crew list is an
-          // EDIT, so the update must carry it — without this the move survives
-          // locally and silently reverts on the next refetch.
-          list_type: punchListTypeOf(pi),
-          rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
-        });
-      }
-    }
-  }, [punchItems, savePunchItemsMutation, canSync, stagePunchPhoto]);
+    // A photo attached AFTER creation (the common punch-walk flow: log the
+    // deficiency, shoot it later) has to be staged here too.
+    const { next, changed } = applyPunchBatchUpdate(punchItemsRef.current, ids, updates, now, stagePunchPhoto);
+    if (changed.length === 0) return;
+    punchItemsRef.current = next;
+    setPunchItems(next);
+    savePunchItemsMutation.mutate(next);
+    // One queued write PER ROW, same payload as a single edit — so an offline
+    // replay of a 100-item close is 100 independent, retryable updates.
+    if (canSync) changed.forEach(pi => { void supabaseWrite('punch_items', 'update', punchItemToUpdateRow(pi, now)); });
+  }, [savePunchItemsMutation, canSync, stagePunchPhoto]);
+
+  // The single edit is the batch of one, so the two paths cannot drift.
+  const updatePunchItem = useCallback((id: string, updates: Partial<PunchItem>) => {
+    updatePunchItems([id], updates);
+  }, [updatePunchItems]);
+
+  const deletePunchItems = useCallback((ids: readonly string[]) => {
+    const { next, removed } = applyPunchBatchDelete(punchItemsRef.current, ids);
+    if (removed.length === 0) return;
+    punchItemsRef.current = next;
+    setPunchItems(next);
+    savePunchItemsMutation.mutate(next);
+    if (canSync) removed.forEach(pi => { void supabaseWrite('punch_items', 'delete', { id: pi.id }); });
+  }, [savePunchItemsMutation, canSync]);
 
   const deletePunchItem = useCallback((id: string) => {
-    const updated = punchItems.filter(pi => pi.id !== id);
-    setPunchItems(updated);
-    savePunchItemsMutation.mutate(updated);
-    if (canSync) void supabaseWrite('punch_items', 'delete', { id });
-  }, [punchItems, savePunchItemsMutation, canSync]);
+    deletePunchItems([id]);
+  }, [deletePunchItems]);
 
   const getPunchItemsForProject = useCallback((projectId: string) => punchItems.filter(pi => pi.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [punchItems]);
 
@@ -6096,7 +6243,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, getDailyReportsForProject,
     fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject,
-    punchItems, addPunchItem, addPunchItems, updatePunchItem, deletePunchItem, getPunchItemsForProject,
+    punchItems, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject,
     projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
@@ -6106,7 +6253,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
     permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap,
-  }), [dailyReports, getDailyReportsForProject, fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject, punchItems, addPunchItem, addPunchItems, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
+  }), [dailyReports, getDailyReportsForProject, fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject, punchItems, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
 
   const preconData = useMemo<PreconDataValue>(() => ({
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
@@ -6120,12 +6267,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const docsData = useMemo<DocsDataValue>(() => ({
     rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject,
     permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
-    subPortalLinks, upsertSubPortalLink, adoptSubPortalToken, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
+    subPortalLinks, subPortalLinksLoaded, upsertSubPortalLink, adoptSubPortalToken, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
     submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
     portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
-  }), [rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, adoptSubPortalToken, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
+  }), [rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, subPortalLinksLoaded, upsertSubPortalLink, adoptSubPortalToken, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
 
   const stableActions = useMemo<StableActionsValue>(() => ({
     completeOnboarding,

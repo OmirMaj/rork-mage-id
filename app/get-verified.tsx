@@ -16,7 +16,10 @@
 // The number now prefills from and writes back to settings.branding, and the
 // state is a picker (free text like "CSLB" or "Calif." normalises to nothing
 // and would leave the gate dead while the form looked filled in) that prefills
-// from, and writes back to, the same profile the gate reads.
+// from, and writes back to, the same profile the gate reads. Since 2026-09-17
+// the state and the expiry have their own profile fields (branding.licenseState
+// / licenseExpiry → profiles.license_state / license_expiry); before that the
+// state was written onto the pricing market and the expiry was thrown away.
 // Approval + the contractor_licenses insert happen on the MAGE ID side.
 
 import React, { useCallback, useMemo, useState } from 'react';
@@ -43,10 +46,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import { US_STATES } from '@/constants/regions';
-import { resolvePricingMarket } from '@/constants/materials';
 import { normalizeState, splitLocationText } from '@/utils/codeJurisdiction';
 import {
-  bidLicenceRuleForState, bidStateFromBranding, licenceStateMarketEdit, mergedBidBranding,
+  bidLicenceRuleForState, bidStateFromBranding, licenceExpiryColumnValue, mergedBidBranding,
 } from '@/utils/bidDocumentIdentity';
 
 // Where verification submissions land for manual review. Kept in sync with
@@ -79,7 +81,7 @@ export default function GetVerifiedScreen() {
   const [jurisdiction, setJurisdiction]   = useState(() => bidStateFromBranding(settings?.branding, settings?.location));
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [profileNote, setProfileNote]     = useState<string | null>(null);
-  const [expires, setExpires]             = useState('');
+  const [expires, setExpires]             = useState(settings?.branding?.licenseExpiry ?? '');
   const [docUri, setDocUri]               = useState<string | null>(null);
   const [submitting, setSubmitting]       = useState(false);
   const [submitted, setSubmitted]         = useState(false);
@@ -100,8 +102,12 @@ export default function GetVerifiedScreen() {
   const validate = useCallback((): string | null => {
     if (!licenseNumber.trim()) return 'Enter your license number.';
     if (!normalizeState(jurisdiction)) return 'Choose the state that issued your license.';
+    // Checked as a real calendar day, not a shape: '2026-02-30' matches the
+    // placeholder, and the profile's date column would refuse it along with
+    // the rest of the settings save.
+    if (expires.trim() && !licenceExpiryColumnValue(expires)) return 'Enter the expiration date as YYYY-MM-DD, e.g. 2027-06-30.';
     return null;
-  }, [licenseNumber, jurisdiction]);
+  }, [licenseNumber, jurisdiction, expires]);
 
   const handleSubmit = useCallback(async () => {
     setError(null);
@@ -110,37 +116,38 @@ export default function GetVerifiedScreen() {
     if (!user) { setError('Sign in first.'); return; }
 
     // Keep the answers on the profile before sending, so a failed send still
-    // leaves the bid gate fed. The number goes onto branding; the state goes
-    // where bidStateFromBranding reads it — the company address when that
-    // already carries a state (left alone), otherwise the pricing market, and
-    // only when saving it there would not silently re-price his work.
+    // leaves the bid gate fed. ONE write: a second updateSettings in the same
+    // tick merges onto the stale `settings` in its closure and undoes the
+    // first. The state goes onto branding.licenseState — the field the gate
+    // reads before the address or the market — so the pricing market is never
+    // touched, whatever state he picks.
     const code = normalizeState(jurisdiction);
     const notes: string[] = [];
+    const saved = settings?.branding;
     const typedNumber = licenseNumber.trim();
-    if (typedNumber && typedNumber !== (settings?.branding?.licenseNumber ?? '').trim()) {
-      updateSettings({ branding: mergedBidBranding(settings?.branding, { licenseNumber: typedNumber }) });
-      notes.push('License number saved to your company profile.');
+    const typedExpiry = licenceExpiryColumnValue(expires) ?? '';
+    const numberChanged = !!typedNumber && typedNumber !== (saved?.licenseNumber ?? '').trim();
+    const stateChanged = code !== normalizeState(saved?.licenseState);
+    const expiryChanged = !!typedExpiry && typedExpiry !== (saved?.licenseExpiry ?? '');
+    if (numberChanged || stateChanged || expiryChanged) {
+      updateSettings({
+        branding: mergedBidBranding(saved, {
+          licenseNumber: typedNumber || undefined,
+          licenseState: code,
+          // A blank box leaves a saved expiry alone — blank here means "not
+          // re-typed", not "my licence no longer expires".
+          licenseExpiry: typedExpiry || undefined,
+        }),
+      });
+      if (numberChanged) notes.push('License number saved to your company profile.');
+      if (stateChanged) notes.push(`${code} saved as your licensing state.`);
+      if (expiryChanged) notes.push('Expiration date saved to your company profile.');
     }
-    const addressState = splitLocationText(settings?.branding?.address ?? '').state;
-    if (addressState) {
-      if (addressState !== code) {
-        notes.push(`Your company address says ${addressState}, so bids still follow ${addressState}\u2019s rules. Edit the address in Company Profile if that is wrong.`);
-      }
-    } else {
-      const edit = licenceStateMarketEdit(settings?.location, code, resolvePricingMarket);
-      if (edit.ok) {
-        // A second updateSettings in the same tick would merge onto the stale
-        // settings and undo the licence number above — carry it along.
-        if (edit.location !== settings?.location) {
-          updateSettings({
-            location: edit.location,
-            branding: mergedBidBranding(settings?.branding, { licenseNumber: typedNumber || undefined }),
-          });
-          notes.push(`${code} saved as your licensing state.`);
-        }
-      } else {
-        notes.push(`Licensing state not saved to your profile: ${edit.reason}`);
-      }
+    // Honest about the override: the address still prints on the letterhead,
+    // but it no longer decides which statute his bids follow.
+    const addressState = splitLocationText(saved?.address ?? '').state;
+    if (addressState && addressState !== code) {
+      notes.push(`Bids now follow ${code}\u2019s licence rules, not ${addressState} from your company address.`);
     }
     setProfileNote(notes.length ? notes.join(' ') : null);
 
@@ -287,10 +294,11 @@ export default function GetVerifiedScreen() {
             placeholder="YYYY-MM-DD"
             placeholderTextColor={themeColors.textMuted}
           />
-          {/* Honest about scope: the profile has no field for type or expiry
-              yet, so these two go to the reviewer and nowhere else. */}
+          {/* Honest about scope: the expiry is kept on the profile now, but
+              nothing reads it yet (no reminder, no bid check), and the
+              profile has no field for licence type — so say exactly that. */}
           <Text style={[styles.helper, { marginTop: 6, marginBottom: 0 }]}>
-            License type and expiration go to our reviewer only — MAGE does not track your own license expiry yet.
+            The expiration date is saved to your company profile. License type goes to our reviewer only. MAGE does not remind you before your license expires yet.
           </Text>
         </View>
 

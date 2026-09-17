@@ -37,6 +37,7 @@
 
 import type { CompanyBranding } from '@/types';
 import { normalizeState, splitLocationText } from '@/utils/codeJurisdiction';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 /** The vendor name utils/pdfDesign.ts prints when companyName is blank. A
  *  branding still carrying it has not been filled in — it IS the fallback, and
@@ -95,35 +96,44 @@ export function bidLicenceRuleForState(state: string | null | undefined): BidLic
 }
 
 /**
- * The contractor's own state, read off the address they typed into their
- * company profile — and, when that address carries no state, off the market
- * they price in (`settings.location`). Licensing follows the contractor, and
- * these are the only two places the profile records where the contractor is.
- * Neither resolving yields '', which bidLicenceRuleForState turns into "no
- * licence asked for".
+ * The contractor's licensing state, from the first of three profile fields
+ * that names one:
  *
- * WHAT THIS USED TO SILENTLY SKIP (2026-09-08 → 2026-09-16). The address was
- * the ONLY input, a brand-new account has no company address, and the company
- * profile's own placeholder taught "123 Main St, City" — no state. So a new
- * California contractor's first bid went out with no licence number and was
- * never asked for one, and a contractor who typed exactly what the box showed
- * him was exempted forever. The header of this function said so and called the
- * fix "a profile question, not a share-sheet question".
+ *   1. branding.licenseState — his explicit answer to "which state licenses
+ *      you?" (Company Profile's licensing-state row, Get Verified's issuing
+ *      state). profiles.license_state.
+ *   2. the state in branding.address — the office on the letterhead.
+ *   3. the state in his pricing market (`settings.location`).
  *
- * WHY THE MARKET IS A LEGITIMATE SECOND SOURCE. The refusal that made the skip
- * deliberate was to guess the licensing state from the JOBSITE: a bid for a job
- * across a state line would be blocked over the wrong state's statute. The
- * market is not the jobsite. It is the contractor's own answer to "where do you
- * work", saved once on his profile (Settings → Location, the Materials market
- * picker, or the company profile's licensing-state row, which writes it), and it
- * already prices every catalog figure and change order he sends. The address
- * still wins when it carries a state: it is the office on the letterhead, and a
- * contractor licensed somewhere other than where he prices is told, in the
- * block reason, that the address is where to say so.
+ * Licensing follows the contractor, never the jobsite, and these are the only
+ * places the profile records where the contractor is. None resolving yields
+ * '', which bidLicenceRuleForState turns into "no licence asked for".
  *
- * What still resolves to '' — asked for a company name only: no address state
- * AND a market left at the 'United States' default, a bare city ("Houston"),
- * or a non-US place. That remainder is honest and written down.
+ * WHY AN EXPLICIT FIELD, AND WHY IT OUTRANKS THE OTHER TWO (2026-09-17).
+ * The 2026-09-16 fix had nowhere to keep the answer — CompanyBranding had no
+ * state — so the licensing-state picker wrote it onto settings.location, the
+ * pricing market. That coupled two different facts: picking a Los Angeles
+ * market in Materials turned on California's licence-number block, and a GC
+ * licensed in Arizona who prices in Nevada could not say so without
+ * re-pricing his work (the picker refused, and told him to lie in his address
+ * instead). The licence now has its own column. It wins because it is the only
+ * one of the three that is an answer to the licensing question; the address
+ * and the market are inferences from where he sits and where he prices.
+ *
+ * WHY THE ADDRESS AND MARKET FALLBACKS STAY. A brand-new account has neither
+ * answered the question nor typed an address, and the company profile's old
+ * placeholder ("123 Main St, City") carried no state — so with no fallback a
+ * new California contractor's first bid went out with no licence number and
+ * was never asked for one. The market is his own answer to "where do you
+ * work", not the jobsite (guessing from the jobsite would block a bid across
+ * a state line over the wrong statute), and accounts that set their state
+ * through the market on 2026-09-16 keep their gate without re-answering.
+ * Every block reason names which of the three the state came from, so a
+ * contractor walled by an inference can find the field that overrides it.
+ *
+ * What still resolves to '' — asked for a company name only: no licensing
+ * state, no address state, and a market left at the 'United States' default,
+ * a bare city ("Houston"), or a non-US place.
  */
 export function bidStateFromBranding(
   branding: Partial<CompanyBranding> | null | undefined,
@@ -132,15 +142,17 @@ export function bidStateFromBranding(
   return bidLicenceStateSource(branding, marketLocation).state;
 }
 
-export type BidLicenceStateSource = 'address' | 'market' | null;
+export type BidLicenceStateSource = 'licence' | 'address' | 'market' | null;
 
-/** Which of the two profile fields the licensing state came from, so a screen
- *  can say WHERE it read it — a state the contractor cannot trace is a state
- *  he cannot correct. */
+/** Which profile field the licensing state came from, so a screen can say
+ *  WHERE it read it — a state the contractor cannot trace is a state he
+ *  cannot correct. Precedence documented on bidStateFromBranding. */
 export function bidLicenceStateSource(
   branding: Partial<CompanyBranding> | null | undefined,
   marketLocation?: string | null,
 ): { state: string; source: BidLicenceStateSource } {
+  const explicit = normalizeState(branding?.licenseState);
+  if (explicit) return { state: explicit, source: 'licence' };
   const fromAddress = splitLocationText(branding?.address ?? '').state;
   if (fromAddress) return { state: fromAddress, source: 'address' };
   const fromMarket = splitLocationText(marketLocation ?? '').state;
@@ -149,40 +161,32 @@ export function bidLicenceStateSource(
 }
 
 /**
- * The market text to save when the contractor picks his licensing state on a
- * profile screen and his address does not already carry one — or why it must
- * not be saved.
- *
- * The state goes onto `settings.location` because that is the persisted field
- * bidStateFromBranding reads next (CompanyBranding has no state column). That
- * field also PRICES his work, so the edit is refused whenever it would move his
- * pricing market: "Houston" + CA would re-price a Texas contractor at the West
- * Coast index without a word. `resolveMarket` is injected (callers pass
- * constants/materials' resolvePricingMarket) so this module stays free of the
- * catalog.
+ * profiles.license_state as it may be sent: a two-letter USPS code or null.
+ * The column carries CHECK (license_state ~ '^[A-Z]{2}$'), and a CHECK
+ * violation is TERMINAL in utils/offlineQueue.ts — it would drop the WHOLE
+ * profiles update the value rides on (company name, tax rate, digest, all of
+ * it). So nothing reaches the column that normalizeState did not produce, and
+ * blank is NULL ("not told"), never ''.
  */
-export function licenceStateMarketEdit(
-  currentLocation: string | null | undefined,
-  stateCode: string,
-  resolveMarket: (location: string) => { label: string; multiplier: number; resolved: boolean },
-): { ok: true; location: string } | { ok: false; reason: string } {
-  const code = normalizeState(stateCode);
-  if (!code) return { ok: false, reason: 'Pick a US state.' };
-  const current = (currentLocation ?? '').trim();
-  const parsed = splitLocationText(current);
-  if (parsed.state === code) return { ok: true, location: current };
-  // The 'United States' default parses as a city named "United States".
-  const isDefault = !current || /^united states$/i.test(current);
-  const city = isDefault ? '' : parsed.city;
-  const next = city ? `${city}, ${code}` : code;
-  const before = resolveMarket(current);
-  const after = resolveMarket(next);
-  const samePricing = before.label === after.label && before.multiplier === after.multiplier;
-  if (!before.resolved || samePricing) return { ok: true, location: next };
-  return {
-    ok: false,
-    reason: `Your pricing market is ${before.label}, and saving ${code} there would re-price your materials and change orders for ${after.resolved ? after.label : 'the US average'}. If you are licensed in a different state from where you work, put that state in your company address instead.`,
-  };
+export function licenceStateColumnValue(value: string | null | undefined): string | null {
+  return normalizeState(value) || null;
+}
+
+/**
+ * profiles.license_expiry (a `date`) as it may be sent: a real calendar day
+ * 'YYYY-MM-DD' or null. A string Postgres cannot cast ('2026-02-30', '12/31')
+ * would fail the same whole-row update, so it is checked with the repo's
+ * round-tripping calendar-day parser — never `new Date('YYYY-MM-DD')`, which
+ * reads UTC midnight and accepts rollover. A full ISO instant is cut to its
+ * date part, the way PostgREST can hand a date back.
+ */
+export function licenceExpiryColumnValue(value: string | null | undefined): string | null {
+  const raw = (value ?? '').trim();
+  // A day, or a day followed by a time — never a day with trailing junk
+  // ("2027-06-30abc" is a typo, not an answer).
+  if (raw.length !== 10 && raw[10] !== 'T') return null;
+  const day = raw.slice(0, 10);
+  return parseCalendarDay(day) ? day : null;
 }
 
 /** True when the field would leave the PDF header printing the vendor's name
@@ -212,14 +216,28 @@ export interface BidIdentityGap {
   reason: string;
 }
 
+/** The block reason's "where we read the state" sentence, per source. */
+function licenceSourceSentence(state: string, source: BidLicenceStateSource): string {
+  switch (source) {
+    case 'licence':
+      return `${state} is the licensing state on your company profile.`;
+    case 'address':
+      return `We read ${state} from your company address. Licensed in a different state? Set your licensing state in Company Profile.`;
+    case 'market':
+      return `We read ${state} from your pricing market in Settings. Licensed in a different state? Set your licensing state in Company Profile.`;
+    default:
+      return '';
+  }
+}
+
 /**
  * What is missing from the branding that a client-facing bid PDF is built from.
  *
  * Company name is required everywhere. The licence number is required only in
- * the states in BID_LICENCE_RULES, resolved from the contractor's own profile
- * address, then his pricing market (`settings.location` — pass it, or a new
- * account with no address is never asked) — see bidStateFromBranding, and the
- * header comment on why the table stays small.
+ * the states in BID_LICENCE_RULES, resolved from the contractor's licensing
+ * state, then his profile address, then his pricing market (`settings.location`
+ * — pass it, or a new account with neither of the first two is never asked) —
+ * see bidStateFromBranding, and the header comment on why the table stays small.
  */
 export function bidIdentityGap(
   branding: Partial<CompanyBranding> | null | undefined,
@@ -240,14 +258,13 @@ export function bidIdentityGap(
     parts.push(
       `Your ${rule.authority} licence number prints underneath it, and the line is simply left off when the field is empty. ${rule.citation} requires the number on ${rule.requirement}.`,
     );
-    // Say where the state was read when it was not the address, so a
-    // contractor licensed somewhere other than where he prices can correct it
-    // rather than being walled by the wrong state's statute.
-    if (where.source === 'market') {
-      parts.push(
-        `We read ${rule.state} from your pricing market in Settings. Licensed in a different state? Put that state in your company address.`,
-      );
-    }
+    // Always say which field the state was read from. Two of the three are
+    // inferences, and a contractor licensed somewhere other than where he
+    // sits or prices must be able to find the one field that overrides them
+    // (Company Profile → Licensing state) rather than be walled by the wrong
+    // state's statute — or be told to type a false office address, which is
+    // what this sentence said while the market was the only place to save it.
+    parts.push(licenceSourceSentence(rule.state, where.source));
   }
 
   return {
@@ -271,7 +288,7 @@ export function bidIdentityGap(
  */
 export function mergedBidBranding(
   existing: Partial<CompanyBranding> | null | undefined,
-  draft: { companyName?: string; licenseNumber?: string },
+  draft: { companyName?: string; licenseNumber?: string; licenseState?: string; licenseExpiry?: string },
 ): CompanyBranding {
   return {
     companyName:   (draft.companyName ?? existing?.companyName ?? '').trim(),
@@ -280,6 +297,12 @@ export function mergedBidBranding(
     phone:         existing?.phone ?? '',
     address:       existing?.address ?? '',
     licenseNumber: (draft.licenseNumber ?? existing?.licenseNumber ?? '').trim(),
+    // Carried even when the draft does not touch them: this object REPLACES
+    // settings.branding, and ProjectContext writes an absent licenceState as
+    // NULL — so a merge that forgot them would erase the contractor's
+    // licensing answer every time the wizard's ask saved a company name.
+    licenseState:  licenceStateColumnValue(draft.licenseState ?? existing?.licenseState) ?? '',
+    licenseExpiry: licenceExpiryColumnValue(draft.licenseExpiry ?? existing?.licenseExpiry) ?? '',
     tagline:       existing?.tagline ?? '',
     logoUri:       existing?.logoUri,
     signatureData: existing?.signatureData,

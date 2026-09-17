@@ -305,7 +305,10 @@ export interface Project {
   //               to the GMP cap. Savings under GMP often shared.
   //   open_book — full transparency. Client sees every commitment +
   //               actual cost vs budget in the portal.
-  contractMode?: 'fixed' | 'cost_plus' | 'gmp' | 'open_book';
+  // SYNCED (with the three terms below and retainage) on project_financials —
+  // see CONTRACT_TERM_COLUMNS further down this file for the load/sync rules.
+  // Set from the "Contract" block of project-detail's edit modal.
+  contractMode?: ContractMode;
   // For GMP — the agreed cap. The portal surfaces overruns past this.
   gmpCap?: number;
   // For cost-plus / GMP / open_book — the GC's fee on top of cost. Either a
@@ -328,15 +331,14 @@ export interface Project {
    * deducted $8,000 anyway, and MAGE then chased a receivable the owner
    * considered settled while the retention screen saw nothing held to release.
    *
-   * NOT SYNCED — same trap as `structuredAddress` below. There is no
-   * `projects.retainage_percent` column, so this field is absent from
-   * ProjectContext's upsert payload AND from its row→Project mapper, which
-   * means the next successful server fetch overwrites it with undefined. That
-   * degrades honestly rather than lying (the app re-asks; it does not invent a
-   * rate), and by then invoice #1 carries the answer on a row that DOES sync,
-   * so the carry-forward source covers the job. Making it durable per job needs
-   * a column + the payload + one `retainagePercent: cached?.retainagePercent`
-   * line in the mapper + a migration.
+   * SYNCED since 20260917110000_project_contract_terms.sql — the column is
+   * `project_financials.retainage_percent` (money, so off the projects row a
+   * field foreman can read). Before that there was no column and the next
+   * successful fetch overwrote the answer with undefined, so the invoice asked
+   * again on every device. The loader now carries the device's copy forward
+   * whenever the server cannot vouch for a value (column not yet migrated,
+   * financials read failed, or an edit still queued) — see
+   * `contractTermsAfterLoad` below.
    */
   retainagePercent?: number;
   /**
@@ -348,6 +350,19 @@ export interface Project {
    * set — so the invoice can honestly say "not on file".
    */
   retainagePercentAssumed?: boolean;
+  /**
+   * Whether this device has SEEN the server's copy of the contract terms
+   * (contractMode, gmpCap, contractorFee*, retainagePercent*). Stamped by the
+   * ProjectContext loader via `contractTermsAfterLoad`.
+   *
+   * It exists because the terms are sent per key: a term this device holds a
+   * value for is always sent, but an EMPTY term is sent as NULL only when this
+   * stamp is true. Otherwise a device that never loaded the terms (the column
+   * was not migrated yet, the financials read failed on a fresh install) would
+   * null out the cap another device entered the next time it saved a rename.
+   * Absent = not seen = empty terms are omitted from the write.
+   */
+  contractTermsLoaded?: boolean;
   /**
    * Written-notice window from THIS project's contract, in calendar days.
    * Drives utils/noticeClock.ts.
@@ -560,6 +575,157 @@ export interface SelectionCategory {
   options?: SelectionOption[];   // populated when fetched with options
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
+}
+
+// ─── Contract terms: mode, GMP cap, fee, retainage ──────────────────────────
+//
+// Six Project fields that live on `project_financials` (money — a 'field'
+// collaborator can read the projects row, so they cannot go there; see
+// supabase/migrations/20260917110000_project_contract_terms.sql). Everything
+// that decides how they load and how they are written is here, in one pure
+// place, so scripts/validate-project-contract-terms.ts can execute it rather
+// than grep for it. ProjectContext's loader and sync call these two helpers.
+
+export type ContractMode = 'fixed' | 'cost_plus' | 'gmp' | 'open_book';
+
+/** Mirrors the migration's project_financials_contract_mode_check exactly. */
+export const CONTRACT_MODES: readonly ContractMode[] = ['fixed', 'cost_plus', 'gmp', 'open_book'];
+
+export const CONTRACT_MODE_LABELS: Record<ContractMode, string> = {
+  fixed: 'Fixed price',
+  cost_plus: 'Cost-plus',
+  gmp: 'GMP',
+  open_book: 'Open book',
+};
+
+export type ContractTerms = Pick<
+  Project,
+  'contractMode' | 'gmpCap' | 'contractorFeePercent' | 'contractorFeeAmount' | 'retainagePercent' | 'retainagePercentAssumed'
+>;
+
+/** Project field → project_financials column. */
+export const CONTRACT_TERM_COLUMNS: { readonly [K in keyof Required<ContractTerms>]: string } = {
+  contractMode: 'contract_mode',
+  gmpCap: 'gmp_cap',
+  contractorFeePercent: 'contractor_fee_percent',
+  contractorFeeAmount: 'contractor_fee_amount',
+  retainagePercent: 'retainage_percent',
+  retainagePercentAssumed: 'retainage_percent_assumed',
+};
+
+/**
+ * Numeric ranges, identical to the migration's CHECK constraints. The edit
+ * screen validates against these BEFORE saving: a CHECK violation is terminal
+ * in the offline queue and would drop the whole project_financials upsert —
+ * the estimate riding in it included.
+ */
+export const CONTRACT_TERM_RANGES = {
+  gmpCap: { min: 0, max: Number.POSITIVE_INFINITY },
+  contractorFeePercent: { min: 0, max: 100 },
+  contractorFeeAmount: { min: 0, max: Number.POSITIVE_INFINITY },
+  retainagePercent: { min: 0, max: 100 },
+} as const;
+
+const CONTRACT_TERM_KEYS = Object.keys(CONTRACT_TERM_COLUMNS) as (keyof ContractTerms)[];
+
+/** A server value → the Project field, or undefined when it is not a legal value. */
+function coerceContractTerm(key: keyof ContractTerms, raw: unknown): unknown {
+  if (raw == null) return undefined;
+  if (key === 'contractMode') {
+    return typeof raw === 'string' && (CONTRACT_MODES as readonly string[]).includes(raw) ? raw : undefined;
+  }
+  if (key === 'retainagePercentAssumed') return typeof raw === 'boolean' ? raw : undefined;
+  // PostgREST returns `numeric` as a JSON number, but a string is not an error.
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
+  const range = CONTRACT_TERM_RANGES[key as keyof typeof CONTRACT_TERM_RANGES];
+  return Number.isFinite(n) && n >= range.min && n <= range.max ? n : undefined;
+}
+
+export interface ContractTermsLoadInput {
+  /** This project's project_financials row, when one came back. */
+  finRow: Record<string, unknown> | undefined;
+  /** The project_financials SELECT succeeded (no error, no throw). */
+  readSucceeded: boolean;
+  /** Owned, or a known role that may see money (not 'field'). */
+  canViewMoney: boolean;
+  /** A projects write for this id is still sitting in the offline queue. */
+  writePending: boolean;
+  /** The device's copy from before this load. */
+  cached: (ContractTerms & { contractTermsLoaded?: boolean }) | undefined;
+}
+
+export type LoadedContractTerms = ContractTerms & { contractTermsLoaded?: boolean };
+
+function pickCached(cached: ContractTermsLoadInput['cached'], stamp: boolean | undefined): LoadedContractTerms {
+  const out: LoadedContractTerms = {};
+  for (const k of CONTRACT_TERM_KEYS) (out as Record<string, unknown>)[k] = cached?.[k];
+  out.contractTermsLoaded = stamp;
+  return out;
+}
+
+/**
+ * The contract terms a server load leaves on the Project.
+ *
+ * The server wins ONLY where it can vouch for a value. Everywhere else the
+ * device's copy is carried forward, because dropping it is how
+ * `retainagePercent` and `structuredAddress` used to be wiped on every fetch:
+ *   · an edit still queued      → cached (the queue has not delivered it yet;
+ *                                 the SELECT would hand back the old value)
+ *   · financials read FAILED    → cached (B-1: display only — a shared row's
+ *                                 write is still gated by financialsLoaded)
+ *   · a row came back           → per column: the server's value when the
+ *                                 column exists (NULL = cleared elsewhere →
+ *                                 undefined); cached when it does not (the
+ *                                 migration has not been applied yet)
+ *   · read OK, no row, may see money → cached (nothing on the server to lose)
+ *   · read OK, no row, 'field' / unknown role → nothing: RLS hid the row, and
+ *                                 a foreman's device must not hold the fee
+ *
+ * `contractTermsLoaded` is true ONLY when a row came back carrying all six
+ * columns — the one case where the device has provably seen the server's
+ * terms, and therefore the one case where an empty term may be written as
+ * NULL. Anything else must not stamp it: a "no row yet" stamp before the
+ * migration lands would put six unknown columns in the next upsert and park
+ * the job's estimate in the offline queue (PGRST204 re-queues).
+ */
+export function contractTermsAfterLoad(input: ContractTermsLoadInput): LoadedContractTerms {
+  const { finRow, readSucceeded, canViewMoney, writePending, cached } = input;
+  if (writePending || !readSucceeded) return pickCached(cached, cached?.contractTermsLoaded);
+  if (!finRow) return canViewMoney ? pickCached(cached, undefined) : {};
+  const out: LoadedContractTerms = {};
+  let allPresent = true;
+  for (const k of CONTRACT_TERM_KEYS) {
+    const col = CONTRACT_TERM_COLUMNS[k];
+    if (col in finRow) {
+      (out as Record<string, unknown>)[k] = coerceContractTerm(k, finRow[col]);
+    } else {
+      allPresent = false;
+      (out as Record<string, unknown>)[k] = cached?.[k];
+    }
+  }
+  out.contractTermsLoaded = allPresent ? true : undefined;
+  return out;
+}
+
+/**
+ * The contract-term columns for the project_financials upsert. A term the
+ * device holds is always sent. An empty term is sent as NULL only when
+ * `contractTermsLoaded` is true; otherwise it is OMITTED, so the upsert leaves
+ * whatever the server has alone (see Project.contractTermsLoaded). A project
+ * that has never touched a term sends no new columns at all — which is also
+ * what keeps an OTA that lands before the migration from stalling writes for
+ * every job that does not use them.
+ */
+export function contractTermsSyncColumns(
+  project: ContractTerms & { contractTermsLoaded?: boolean },
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of CONTRACT_TERM_KEYS) {
+    const v = project[k];
+    if (v !== undefined) out[CONTRACT_TERM_COLUMNS[k]] = v;
+    else if (project.contractTermsLoaded === true) out[CONTRACT_TERM_COLUMNS[k]] = null;
+  }
+  return out;
 }
 
 export interface ProjectTargetBudget {
@@ -1143,6 +1309,19 @@ export interface CompanyBranding {
   phone: string;
   address: string;
   licenseNumber: string;
+  /** Two-letter USPS code of the state that issued the contractor's OWN
+   *  licence (profiles.license_state). Its own field because the only other
+   *  places a state lived were the office address and the pricing market
+   *  (settings.location) — and the market is a different fact: a GC licensed
+   *  in one state can price in another, and picking a CA metro in Materials
+   *  must not by itself put California's statute on his bids. Optional
+   *  because a dozen screens build a blank branding literal without it; blank
+   *  or absent means "not told", and utils/bidDocumentIdentity.ts falls back
+   *  to address, then market. */
+  licenseState?: string;
+  /** Licence expiry as a calendar day 'YYYY-MM-DD' (profiles.license_expiry,
+   *  a `date`). Written by Get Verified; '' / absent means not told. */
+  licenseExpiry?: string;
   tagline: string;
   logoUri?: string;
   signatureData?: string[];

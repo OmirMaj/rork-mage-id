@@ -37,9 +37,8 @@ import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { US_STATES } from '@/constants/regions';
-import { resolvePricingMarket } from '@/constants/materials';
 import {
-  bidLicenceRuleForState, bidLicenceStateSource, licenceStateMarketEdit,
+  bidLicenceRuleForState, bidLicenceStateSource, mergedBidBranding,
 } from '@/utils/bidDocumentIdentity';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -79,39 +78,33 @@ export default function CompanyProfileScreen() {
   // ── WHICH STATE LICENSES HIM ─────────────────────────────────────────────
   // The bid gate (utils/bidDocumentIdentity.ts) keeps a CA/FL/AZ contractor's
   // licence number on his proposal — the three states whose statutes put it on
-  // the bid itself — and until now its only input was a state parsed out of the
-  // address box below, whose placeholder taught "123 Main St, City": no state,
-  // so the gate never fired for anyone who typed what the box showed him.
-  // It now also reads his pricing market, and this row shows which state it
-  // resolved and WHERE from, so he can see it and correct it. Read off the
-  // address as he types, so the row answers for what is on screen.
+  // the bid itself. It reads his licensing state (branding.licenseState, set
+  // here), then the state in the address box below, then his pricing market,
+  // and this row shows which state it resolved and WHERE from, so he can see
+  // it and correct it. Read off the address as he types, so the row answers
+  // for what is on screen.
+  //
+  // Until 2026-09-17 there was no licensing-state field, so a pick here was
+  // written onto the pricing market (settings.location) and refused when it
+  // would re-price his work — a contractor licensed in Arizona who prices in
+  // Nevada could not answer at all. The pick now has its own column and never
+  // touches the market.
+  const savedLicenceState = settings.branding?.licenseState ?? '';
   const licenceWhere = useMemo(
-    () => bidLicenceStateSource({ address: brandingAddress }, settings.location),
-    [brandingAddress, settings.location],
+    () => bidLicenceStateSource({ address: brandingAddress, licenseState: savedLicenceState }, settings.location),
+    [brandingAddress, savedLicenceState, settings.location],
   );
   const licenceRule = useMemo(() => bidLicenceRuleForState(licenceWhere.state), [licenceWhere.state]);
   const licenceStateName = US_STATES.find(st => st.code === licenceWhere.state)?.name ?? '';
 
-  const handleLicenceStateRow = useCallback(() => {
-    if (licenceWhere.source === 'address') {
-      // Disabled, and says why: the address is the stronger answer (it is the
-      // office on the letterhead), so a pick here could not take effect.
-      showAlert('Read from your address', `${licenceStateName} comes from the state in your company address. Edit the address to change it.`);
-      return;
-    }
-    setShowStatePicker(true);
-  }, [licenceWhere.source, licenceStateName]);
-
-  const pickLicenceState = useCallback((code: string) => {
-    // CompanyBranding has no state column, so the pick is saved onto the next
-    // field the gate reads — his pricing market — and refused when that would
-    // silently re-price his work (see licenceStateMarketEdit).
-    const edit = licenceStateMarketEdit(settings.location, code, resolvePricingMarket);
-    if (!edit.ok) { showAlert('Not saved', edit.reason); return; }
-    if (edit.location !== settings.location) updateSettings({ location: edit.location });
+  // Saved on the pick, onto the SAVED branding — not the half-typed fields on
+  // screen, which still wait for Save. '' clears the answer and hands the gate
+  // back to the address / market inference.
+  const saveLicenceState = useCallback((code: string) => {
+    updateSettings({ branding: mergedBidBranding(settings.branding, { licenseState: code }) });
     setShowStatePicker(false);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [settings.location, updateSettings]);
+  }, [settings.branding, updateSettings]);
 
   // Logo + signature auto-save: when the user picks a logo or saves a
   // signature, we don't want them to also tap Save afterward. Branding
@@ -128,12 +121,16 @@ export default function CompanyProfileScreen() {
         phone:       brandingPhone.trim(),
         address:     brandingAddress.trim(),
         licenseNumber: licenseNumber.trim(),
+        // Not edited as text on this screen — carried from the saved branding,
+        // because this object replaces it and an absent state saves as NULL.
+        licenseState: settings.branding?.licenseState ?? '',
+        licenseExpiry: settings.branding?.licenseExpiry ?? '',
         tagline:     tagline.trim(),
         logoUri:     newLogo,
         signatureData: newSig,
       },
     });
-  }, [companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, updateSettings]);
+  }, [companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, settings.branding, updateSettings]);
 
   const handlePickLogo = useCallback(async () => {
     try {
@@ -192,6 +189,9 @@ export default function CompanyProfileScreen() {
         phone:       brandingPhone.trim(),
         address:     brandingAddress.trim(),
         licenseNumber: licenseNumber.trim(),
+        // Carried from the saved branding — see autoSave.
+        licenseState: settings.branding?.licenseState ?? '',
+        licenseExpiry: settings.branding?.licenseExpiry ?? '',
         tagline:     tagline.trim(),
         logoUri,
         signatureData,
@@ -199,7 +199,7 @@ export default function CompanyProfileScreen() {
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Saved', 'Your company info has been updated.');
-  }, [updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData]);
+  }, [updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, settings.branding]);
 
   const sigPadWidth = Math.min(SCREEN_WIDTH - 80, 340);
 
@@ -368,7 +368,7 @@ export default function CompanyProfileScreen() {
           <View style={styles.rowSeparator} />
           <TouchableOpacity
             style={styles.row}
-            onPress={handleLicenceStateRow}
+            onPress={() => setShowStatePicker(true)}
             activeOpacity={0.6}
             accessibilityRole="button"
             accessibilityLabel="Licensing state"
@@ -380,11 +380,13 @@ export default function CompanyProfileScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Licensing state</Text>
               <Text style={styles.rowSubtext}>
-                {licenceWhere.source === 'address'
-                  ? 'From your company address'
-                  : licenceWhere.source === 'market'
-                    ? `From your pricing market (${settings.location})`
-                    : 'Not set — decides which state\u2019s licence rules your bids follow'}
+                {licenceWhere.source === 'licence'
+                  ? 'Set by you'
+                  : licenceWhere.source === 'address'
+                    ? 'Read from your company address \u2014 tap to set it'
+                    : licenceWhere.source === 'market'
+                      ? `Read from your pricing market (${settings.location}) \u2014 tap to set it`
+                      : 'Not set \u2014 decides which state\u2019s licence rules your bids follow'}
               </Text>
             </View>
             <Text style={styles.rowValue}>{licenceStateName || 'Choose'}</Text>
@@ -503,16 +505,30 @@ export default function CompanyProfileScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.sigModalDesc}>
-              Saved as the state of your pricing market in Settings, so it also sets which regional prices your materials use.
+              Decides which state\u2019s licence rules your bids follow. It does not change your pricing market.
             </Text>
             <ScrollView keyboardShouldPersistTaps="handled">
+              {/* Only once he has answered: a way back to the inference,
+                  named for what it will read instead. */}
+              {savedLicenceState ? (
+                <TouchableOpacity
+                  style={styles.stateRow}
+                  onPress={() => saveLicenceState('')}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  testID="branding-license-state-clear"
+                >
+                  <Text style={styles.stateRowText}>Not set</Text>
+                  <Text style={styles.stateRowMeta}>Use your address, then pricing market</Text>
+                </TouchableOpacity>
+              ) : null}
               {US_STATES.map(st => {
                 const active = st.code === licenceWhere.state;
                 return (
                   <TouchableOpacity
                     key={st.code}
                     style={styles.stateRow}
-                    onPress={() => pickLicenceState(st.code)}
+                    onPress={() => saveLicenceState(st.code)}
                     activeOpacity={0.6}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}

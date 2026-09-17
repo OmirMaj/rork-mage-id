@@ -35,6 +35,11 @@
 // Mutation-tested 2026-09-16: restoring the client-minted token turns 1a, 1b,
 // 1c, 2b and 2c red (8 checks); deleting the collaborator bail turns 3a red;
 // pushing the raw stored expires_at turns 4b and 4c red.
+// Mutation-tested 2026-09-17 (sub-link load race, 6g–6j): ungating the editor
+// turns 6h red; deriving the flag from isFetched outside the links effect turns
+// two 6g checks red; never resetting it on a user switch turns 6g red;
+// restoring the 800ms write grace turns both 6j checks red; mounting the editor
+// straight from the paywall wrapper turns 6h red.
 //
 // Run via: bun run test:portal-token-heal
 
@@ -290,6 +295,55 @@ ok('5c. the retired "no expiry" promise is gone from the copy', !/no expiry date
     const body = at >= 0 ? sub.slice(at, at + 400) : '';
     ok(`6f. ${door} refuses to hand out a token-less link`, /if \(warnIfTokenPending\(\)\) return;/.test(body));
   }
+
+  // ── 6g+. The screen waits for the saved links before choosing or writing ──
+  // The editor's state initialiser picks the sub's existing link or builds a
+  // new one, and the token effect writes it at once. Opened before the context
+  // had loaded the links, "existing" was undefined for a sub who had one, and
+  // the write created a SECOND sub_portal_links row — a second portal URL for
+  // the same sub. An 800ms grace hid it on a fast load only. The fix gates the
+  // editor's MOUNT on a loaded signal the context sets in the same effect that
+  // installs the links, so no render sees "loaded" with the links still empty.
+  const loadEffect = effectBodies(ctx).find(b => /subPortalLinksQuery\.data/.test(b)) ?? '';
+  ok('6g. the context declares subPortalLinksLoaded: boolean on its value type',
+    /subPortalLinksLoaded\s*:\s*boolean\s*;/.test(ctx));
+  ok('6g. …sets it true in the SAME effect that installs the loaded links',
+    /if\s*\(\s*subPortalLinksQuery\.data\s*\)\s*\{\s*setSubPortalLinks\(\s*subPortalLinksQuery\.data\s*\)\s*;\s*setSubPortalLinksLoaded\(\s*true\s*\)\s*;/.test(loadEffect),
+    'A flag derived separately (isFetched, a second effect) leaves a render where it reads loaded while the links are still [] — the duplicate window.');
+  ok('6g. …drops it back while a new key (user switch) has no data yet',
+    /else\s*\{\s*setSubPortalLinksLoaded\(\s*false\s*\)\s*;?\s*\}/.test(loadEffect));
+  ok('6g. …and exposes it on the context value',
+    /subPortalLinks\s*,\s*subPortalLinksLoaded\s*,\s*upsertSubPortalLink/.test(ctx));
+
+  const gateAt = sub.indexOf('function SubPortalSetupScreenInner(');
+  const gateOpen = gateAt >= 0 ? sub.indexOf('{', sub.indexOf(')', gateAt)) : -1;
+  const gate = gateOpen >= 0 ? sub.slice(gateOpen, matchBrace(sub, gateOpen)) : '';
+  ok('6h. the screen gate reads subPortalLinksLoaded from the context',
+    /const\s*\{\s*subPortalLinksLoaded\s*\}\s*=\s*useProjects\(\)/.test(gate));
+  const bail = gate.search(/if\s*\(\s*!subPortalLinksLoaded\s*\)\s*\{/);
+  const editorMount = gate.search(/<SubPortalSetupEditor\s*\/>/);
+  ok('6h. …returns a loading view BEFORE the editor mounts',
+    bail >= 0 && editorMount > bail && /return\s*\(/.test(gate.slice(bail, editorMount)),
+    'The editor must not mount — and so not choose a link or write — until the links are loaded.');
+  ok('6h. the paywall wrapper renders the gate, not the editor directly',
+    /return\s*<SubPortalSetupScreenInner\s*\/>/.test(sub) && (sub.match(/<SubPortalSetupEditor\s*\/>/g) ?? []).length === 1);
+
+  const editorAt = sub.indexOf('function SubPortalSetupEditor(');
+  const editor = editorAt >= 0 ? sub.slice(editorAt) : '';
+  ok('6i. the link choice (getSubPortalLinkFor + new-link initialiser) lives only in the gated editor',
+    editorAt > gateAt && /getSubPortalLinkFor\(/.test(editor) && !/getSubPortalLinkFor\(/.test(sub.slice(0, editorAt))
+    && /useState<SubPortalLink>\(\s*\(\)\s*=>\s*\{\s*if\s*\(\s*existing\s*\)\s*return\s+existing\s*;/.test(editor));
+  ok('6i. every upsertSubPortalLink( call is inside the gated editor',
+    !/upsertSubPortalLink\(/.test(sub.slice(0, editorAt)) && /upsertSubPortalLink\(/.test(editor));
+  ok('6j. the timing-based write grace is gone',
+    !/SUB_TOKEN_WRITE_GRACE_MS|WRITE_GRACE/.test(sub),
+    'A fixed wait loses to any load slower than it; the loaded signal replaces it.');
+  const tokenEffect = effectBodies(sub).find(b => /select\('access_token'\)/.test(b)) ?? '';
+  const firstUpsert = tokenEffect.search(/upsertSubPortalLink\(/);
+  const firstWait = tokenEffect.search(/await\s+wait\(/);
+  ok('6j. the token effect writes the (new or existing) link before its first wait',
+    firstUpsert >= 0 && (firstWait === -1 || firstUpsert < firstWait),
+    'A sub with no link must still get one created — immediately, now that the choice is made on loaded data.');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -19,14 +19,14 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, ScrollText, BookOpen, Footprints,
-  Clock, Lock, Mic, FileSignature, CalendarClock, Truck,
+  Clock, Lock, Mic, FileSignature, CalendarClock, Truck, Info,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch,
   MageEstimate, MageSchedule, MageContract, MageChangeOrder, MageInvoice,
   MageDailyReport, MageMargin,
 } from '@/components/icons';
-import { PROJECT_TYPES, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
+import { PROJECT_TYPES, CONTRACT_MODES, CONTRACT_MODE_LABELS, CONTRACT_TERM_RANGES, type ContractMode, type Project, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
 import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -67,7 +67,8 @@ import { nailIt } from '@/components/animations/NailItToast';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
-import { formatMoney, displayText } from '@/utils/formatters';
+import { formatMoney, displayText, parseLenientNumber } from '@/utils/formatters';
+import { isFinancialsBlinded } from '@/utils/roleBlinding';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
@@ -647,6 +648,18 @@ export default function ProjectDetailScreen() {
   const [editLocation, setEditLocation] = useState('');
   const [editType, setEditType] = useState<ProjectType>('renovation');
   const [editSquareFootage, setEditSquareFootage] = useState('');
+  // Contract block. Strings while typing; parsed and range-checked on save
+  // against CONTRACT_TERM_RANGES — the same bounds as the DB CHECKs, because a
+  // CHECK violation is terminal in the offline queue and would take the
+  // estimate riding in the same project_financials upsert down with it.
+  const [editContractMode, setEditContractMode] = useState<ContractMode | undefined>(undefined);
+  const [editGmpCap, setEditGmpCap] = useState('');
+  const [editFeeKind, setEditFeeKind] = useState<'percent' | 'amount'>('percent');
+  const [editFee, setEditFee] = useState('');
+  const [editRetainage, setEditRetainage] = useState('');
+  // Whether he typed in the retainage field at all — decides if a carried
+  // (assumed) rate keeps that label or becomes his stated contract rate.
+  const [editRetainageTouched, setEditRetainageTouched] = useState(false);
   const [generatingCloseout, setGeneratingCloseout] = useState<boolean>(false);
   const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
 
@@ -674,6 +687,15 @@ export default function ProjectDetailScreen() {
     setEditLocation(project.location || '');
     setEditType(project.type);
     setEditSquareFootage(project.squareFootage > 0 ? project.squareFootage.toString() : '');
+    setEditContractMode(project.contractMode);
+    setEditGmpCap(project.gmpCap != null ? String(project.gmpCap) : '');
+    // A stored flat amount with no percent opens on "amount"; everything else
+    // (including nothing set) opens on percent, the common cost-plus fee.
+    const feeIsAmount = project.contractorFeePercent == null && project.contractorFeeAmount != null;
+    setEditFeeKind(feeIsAmount ? 'amount' : 'percent');
+    setEditFee(feeIsAmount ? String(project.contractorFeeAmount) : project.contractorFeePercent != null ? String(project.contractorFeePercent) : '');
+    setEditRetainage(project.retainagePercent != null ? String(project.retainagePercent) : '');
+    setEditRetainageTouched(false);
     setShowEditModal(true);
   }, [project]);
 
@@ -738,12 +760,77 @@ export default function ProjectDetailScreen() {
     }
   }, [project, id, currentStage, updateProject]);
 
+  // Who may change the contract terms from this device. They are money
+  // (project_financials — 'field' cannot even read them), so the block is
+  // not shown to a field foreman at all, and it is shown read-only — with the
+  // reason — where a save could not honestly carry them: a viewer's write is
+  // refused by RLS, and a shared job whose financials failed to load would
+  // be writing over terms this device never saw.
+  const contractAccess = useMemo((): { hidden: boolean; lockedReason: string | null } => {
+    if (!project) return { hidden: true, lockedReason: null };
+    if (isFinancialsBlinded(project.myRole ?? null)) return { hidden: true, lockedReason: null };
+    if (project.myRole === 'viewer') return { hidden: false, lockedReason: 'You have view-only access to this job, so its contract terms can only be changed by the owner or an editor.' };
+    if (project.financialsLoaded === false) return { hidden: false, lockedReason: "This job's money didn't load from the server on this device, so contract terms are locked here until it does — saving now could overwrite terms you haven't seen." };
+    return { hidden: false, lockedReason: null };
+  }, [project]);
+
+  const feeApplies = editContractMode === 'cost_plus' || editContractMode === 'gmp' || editContractMode === 'open_book';
+  const portalShowsCost = editContractMode === 'gmp' || editContractMode === 'open_book';
+
+  /**
+   * The contract-term patch from the modal, or an error sentence. Terms that do
+   * not belong to the chosen mode are CLEARED rather than left behind: utils/
+   * wip.ts reads gmpCap as a contract value whatever the mode, so a cap kept
+   * after switching a job to fixed price would still drive its WIP line.
+   */
+  const buildContractPatch = useCallback((): { patch: Partial<Project> } | { error: string } => {
+    const readNumber = (raw: string, label: string, range: { min: number; max: number }): { value: number | undefined } | { error: string } => {
+      if (!raw.trim()) return { value: undefined };
+      const n = parseLenientNumber(raw);
+      if (n == null || n < range.min || n > range.max) {
+        return { error: Number.isFinite(range.max) ? `${label} must be a number from ${range.min} to ${range.max}.` : `${label} must be a number of ${range.min} or more.` };
+      }
+      return { value: n };
+    };
+    const cap = editContractMode === 'gmp' ? readNumber(editGmpCap, 'GMP cap', CONTRACT_TERM_RANGES.gmpCap) : { value: undefined };
+    if ('error' in cap) return cap;
+    const feeRange = editFeeKind === 'percent' ? CONTRACT_TERM_RANGES.contractorFeePercent : CONTRACT_TERM_RANGES.contractorFeeAmount;
+    const fee = feeApplies ? readNumber(editFee, editFeeKind === 'percent' ? 'Fee percent' : 'Fee amount', feeRange) : { value: undefined };
+    if ('error' in fee) return fee;
+    const ret = readNumber(editRetainage, 'Retainage', CONTRACT_TERM_RANGES.retainagePercent);
+    if ('error' in ret) return ret;
+    // Retainage he did not touch keeps its provenance (a rate carried from an
+    // earlier invoice stays labelled "carried"); one he typed — even the same
+    // number — is his answer off the contract. Blank stores nothing: "not on
+    // file", never a guessed 0.
+    const retUnchanged = !editRetainageTouched && ret.value != null && ret.value === project?.retainagePercent;
+    return {
+      patch: {
+        contractMode: editContractMode,
+        gmpCap: cap.value,
+        contractorFeePercent: editFeeKind === 'percent' ? fee.value : undefined,
+        contractorFeeAmount: editFeeKind === 'amount' ? fee.value : undefined,
+        retainagePercent: ret.value,
+        retainagePercentAssumed: ret.value == null ? undefined : retUnchanged ? project?.retainagePercentAssumed : false,
+      },
+    };
+  }, [editContractMode, editGmpCap, editFeeKind, editFee, editRetainage, editRetainageTouched, feeApplies, project?.retainagePercent, project?.retainagePercentAssumed]);
+
   const handleSaveEdit = useCallback(() => {
     if (!id) return;
     const name = editName.trim();
     if (!name) {
       showAlert('Missing Name', 'Please enter a project name.');
       return;
+    }
+    let contractPatch: Partial<Project> = {};
+    if (!contractAccess.hidden && !contractAccess.lockedReason) {
+      const built = buildContractPatch();
+      if ('error' in built) {
+        showAlert('Check the contract terms', built.error);
+        return;
+      }
+      contractPatch = built.patch;
     }
     const sqft = parseFloat(editSquareFootage) || 0;
     updateProject(id, {
@@ -752,11 +839,12 @@ export default function ProjectDetailScreen() {
       location: editLocation.trim() || 'United States',
       type: editType,
       squareFootage: sqft,
+      ...contractPatch,
     });
     setShowEditModal(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     console.log('[ProjectDetail] Project updated:', id);
-  }, [id, editName, editDescription, editLocation, editType, editSquareFootage, updateProject]);
+  }, [id, editName, editDescription, editLocation, editType, editSquareFootage, updateProject, contractAccess, buildContractPatch]);
 
   const branding = useMemo(() => settings.branding ?? {
     companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
@@ -4454,6 +4542,147 @@ export default function ProjectDetailScreen() {
                   ))}
                 </View>
 
+                {!contractAccess.hidden && (
+                  <View style={styles.contractBlock} testID="edit-contract-block">
+                    <Text style={styles.contractBlockTitle}>Contract</Text>
+                    {contractAccess.lockedReason ? (
+                      <View style={styles.contractNote}>
+                        <Lock size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                        <Text style={styles.contractNoteText}>{contractAccess.lockedReason}</Text>
+                      </View>
+                    ) : (
+                      <>
+                        {project?.contractTermsLoaded !== true && (
+                          // Empty terms are only written as NULL once this device
+                          // has seen the server's copy (types/index.ts
+                          // contractTermsSyncColumns), so say what that means.
+                          <View style={styles.contractNote}>
+                            <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                            <Text style={styles.contractNoteText}>
+                              {"Contract terms haven't been confirmed from the server on this device yet. What you enter saves; a field you clear won't remove a value saved from another device until they load."}
+                            </Text>
+                          </View>
+                        )}
+
+                        <Text style={styles.inviteFieldLabel}>Contract type</Text>
+                        <View style={styles.editTypeGrid}>
+                          <TouchableOpacity
+                            style={[styles.editTypeChip, editContractMode === undefined && styles.editTypeChipActive]}
+                            onPress={() => setEditContractMode(undefined)}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: editContractMode === undefined }}
+                          >
+                            <Text style={[styles.editTypeChipLabel, editContractMode === undefined && styles.editTypeChipLabelActive]}>Not set</Text>
+                          </TouchableOpacity>
+                          {CONTRACT_MODES.map(mode => (
+                            <TouchableOpacity
+                              key={mode}
+                              style={[styles.editTypeChip, editContractMode === mode && styles.editTypeChipActive]}
+                              onPress={() => setEditContractMode(mode)}
+                              activeOpacity={0.7}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: editContractMode === mode }}
+                              testID={`edit-contract-mode-${mode}`}
+                            >
+                              <Text style={[styles.editTypeChipLabel, editContractMode === mode && styles.editTypeChipLabelActive]}>{CONTRACT_MODE_LABELS[mode]}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+
+                        {editContractMode === 'gmp' && (
+                          <>
+                            <Text style={styles.inviteFieldLabel}>GMP cap ($)</Text>
+                            <TextInput
+                              style={styles.inviteInput}
+                              value={editGmpCap}
+                              onChangeText={setEditGmpCap}
+                              placeholder="Guaranteed maximum price"
+                              placeholderTextColor={themeColors.textMuted}
+                              keyboardType="decimal-pad"
+                              testID="edit-gmp-cap-input"
+                            />
+                            <Text style={styles.contractHint}>
+                              Your WIP report falls back to this as the contract value when nothing more specific — a pay application, a target budget — is on file.
+                            </Text>
+                          </>
+                        )}
+
+                        {feeApplies && (
+                          <>
+                            <Text style={styles.inviteFieldLabel}>Your fee</Text>
+                            <View style={styles.editTypeGrid}>
+                              {(['percent', 'amount'] as const).map(kind => (
+                                <TouchableOpacity
+                                  key={kind}
+                                  style={[styles.editTypeChip, editFeeKind === kind && styles.editTypeChipActive]}
+                                  onPress={() => setEditFeeKind(kind)}
+                                  activeOpacity={0.7}
+                                  accessibilityRole="button"
+                                  accessibilityState={{ selected: editFeeKind === kind }}
+                                >
+                                  <Text style={[styles.editTypeChipLabel, editFeeKind === kind && styles.editTypeChipLabelActive]}>
+                                    {kind === 'percent' ? '% of cost' : 'Flat $'}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                            <TextInput
+                              style={styles.inviteInput}
+                              value={editFee}
+                              onChangeText={setEditFee}
+                              placeholder={editFeeKind === 'percent' ? 'e.g. 15' : 'e.g. 25000'}
+                              placeholderTextColor={themeColors.textMuted}
+                              keyboardType="decimal-pad"
+                              testID="edit-fee-input"
+                            />
+                          </>
+                        )}
+
+                        {/* What the client will actually see. portalSnapshot only
+                            builds the cost breakdown for GMP / open book, and only
+                            has something real to put in it once commitments exist
+                            — so an empty commitment log is said out loud here
+                            rather than discovered by the client. */}
+                        {portalShowsCost && projectCommitments.length === 0 && (
+                          <View style={[styles.contractNote, styles.contractNoteWarn]} testID="edit-contract-portal-empty">
+                            <AlertTriangle size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+                            <Text style={[styles.contractNoteText, styles.contractNoteWarnText]}>
+                              No commitments are logged on this job yet, so the client portal&apos;s cost breakdown has nothing real to show. It fills in once you log subcontracts or purchase orders.
+                            </Text>
+                          </View>
+                        )}
+                        {portalShowsCost && projectCommitments.length > 0 && (
+                          <Text style={styles.contractHint}>
+                            The client portal shows committed and actual cost against budget from its next update.
+                          </Text>
+                        )}
+                        {(editContractMode === 'fixed' || editContractMode === 'cost_plus') && (
+                          <Text style={styles.contractHint}>
+                            On this contract type the client portal shows what you&apos;ve billed, not your costs.
+                          </Text>
+                        )}
+
+                        <Text style={styles.inviteFieldLabel}>Retainage (%)</Text>
+                        <TextInput
+                          style={styles.inviteInput}
+                          value={editRetainage}
+                          onChangeText={(t) => { setEditRetainage(t); setEditRetainageTouched(true); }}
+                          placeholder="Leave blank if you don't know"
+                          placeholderTextColor={themeColors.textMuted}
+                          keyboardType="decimal-pad"
+                          testID="edit-retainage-input"
+                        />
+                        {project?.retainagePercentAssumed === true && !editRetainageTouched && project.retainagePercent != null && (
+                          <Text style={styles.contractHint}>
+                            Carried from your earlier paperwork, not read off the contract. Retype it to record it as the contract rate.
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                )}
+
                 <View style={styles.inviteActionRow}>
                   <TouchableOpacity style={styles.inviteCancelBtn} onPress={() => setShowEditModal(false)} activeOpacity={0.8}>
                     <Text style={styles.inviteCancelBtnText}>Cancel</Text>
@@ -4848,6 +5077,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   editTypeChipActive: { backgroundColor: themeColors.accentFill },
   editTypeChipLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   editTypeChipLabelActive: { color: "#FFFFFF" },
+  contractBlock: { gap: 10, marginTop: 8, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: themeColors.line },
+  contractBlockTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  contractHint: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  contractNote: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt },
+  contractNoteText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  contractNoteWarn: { backgroundColor: themeColors.warningSoft },
+  contractNoteWarnText: { color: themeColors.warningLabel },
   // fg === bg: "Delete Project" and its Trash2 icon were `danger` on a solid
   // `danger` fill. The `danger + '30'` border it already carries only makes
   // sense over a soft fill, which is what this was before the alpha was lost.
