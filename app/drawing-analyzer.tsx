@@ -61,7 +61,7 @@ function DrawingAnalyzerInner() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, getProject, updateProject } = useProjects();
+  const { projects, getProject, updateProject, settings } = useProjects();
   const { isBusinessTier, tier } = useSubscription();
 
   const [step, setStep] = useState<Step>('idle');
@@ -69,6 +69,11 @@ function DrawingAnalyzerInner() {
   const [pages, setPages] = useState<RenderedPlanPage[]>([]);
   const [result, setResult] = useState<DrawingAnalysisResult | null>(null);
   const [modelUsed, setModelUsed] = useState<AnalyzerModel | null>(null);
+  // The rate this result's contingency was settled at (his Settings rate), or
+  // null when the figure is the model's own pick. Held beside the result, not
+  // re-read from settings, so editing Settings later cannot relabel a sheet
+  // that was computed at the old rate.
+  const [contingencyRateUsed, setContingencyRateUsed] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(paramProjectId);
   // Business tier defaults to Pro Estimator. Pro tier defaults to Standard
@@ -147,7 +152,7 @@ function DrawingAnalyzerInner() {
 
       // Hand off to the analyzer with project context + chosen model.
       setStep('analyzing');
-      const { result: analysis, modelUsed: usedModel } = await analyzeDrawings({
+      const { result: analysis, modelUsed: usedModel, contingencyRateUsed: rateUsed } = await analyzeDrawings({
         pagePaths: rendered.map(p => p.storagePath),
         // Legacy, one release: an un-redeployed function still needs URLs.
         pageUrls: rendered.map(p => p.viewUrl),
@@ -157,9 +162,13 @@ function DrawingAnalyzerInner() {
         location: project?.location,
         quality: (project?.quality as 'standard' | 'premium' | 'luxury' | undefined) ?? undefined,
         model: pickedModel,
+        // Settings -> Estimate Defaults. The estimate wizard already honours
+        // it; this screen used to let the function pad every set at 8-12%.
+        contingencyRate: settings?.contingencyRate,
       });
       setResult(analysis);
       setModelUsed(usedModel);
+      setContingencyRateUsed(rateUsed);
       setStep('review');
       // Debit the rate limit ONLY after a successful run so failures
       // don't burn the user's daily quota.
@@ -170,12 +179,13 @@ function DrawingAnalyzerInner() {
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, tier]);
+  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, tier, settings?.contingencyRate]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
     setPages([]);
     setResult(null);
+    setContingencyRateUsed(null);
     setError(null);
     setUploadedFileName(null);
   }, []);
@@ -407,6 +417,7 @@ function DrawingAnalyzerInner() {
             result={result}
             pages={pages}
             modelUsed={modelUsed}
+            contingencyRateUsed={contingencyRateUsed}
             onReset={handleReset}
             onUse={handleUseAsEstimate}
             showProTeaser={!isBusinessTier && modelUsed === 'gemini-2.5-flash'}
@@ -457,10 +468,11 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
   );
 }
 
-function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, onUpgrade }: {
+function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, onUse, showProTeaser, onUpgrade }: {
   result: DrawingAnalysisResult;
   pages: RenderedPlanPage[];
   modelUsed: AnalyzerModel | null;
+  contingencyRateUsed: number | null;
   onReset: () => void;
   onUse: () => void;
   showProTeaser: boolean;
@@ -522,6 +534,16 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
             <Text style={styles.summarySplitValue}>{formatMoney(result.totals.contingencyAmount)}</Text>
           </View>
         </View>
+        {/* Say whose contingency this is. The Settings rate is applied to the
+            recomputed line-item subtotal on this device. It is called "the
+            default in Settings", not "your rate": ProjectContext seeds 10%, so a
+            GC who never opened Settings did not choose it. Without a rate the
+            percentage is the model's pick. */}
+        <Text style={styles.summaryNote} testID="drawing-contingency-source">
+          {contingencyRateUsed != null
+            ? `Contingency at ${contingencyRateUsed}% \u2014 the default in Settings \u2192 Estimate Defaults.`
+            : 'Contingency percentage picked by the AI (8\u201312% band). Set your own rate in Settings \u2192 Estimate Defaults.'}
+        </Text>
       </View>
 
       {/* Pro Estimator upgrade teaser — only shown when Pro tier ran Standard */}
@@ -895,6 +917,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   summarySplit: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 14, borderTopWidth: 1, borderTopColor: t.line },
   summarySplitItem: { flex: 1, alignItems: 'center' },
   summarySplitDivider: { width: 1, alignSelf: 'stretch', backgroundColor: t.line },
+  summaryNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: Type.caption1.lineHeight, marginTop: Tokens.spacing.xs, textAlign: 'center' },
   summarySplitLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
   summarySplitValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
 

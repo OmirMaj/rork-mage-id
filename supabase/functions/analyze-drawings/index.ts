@@ -20,6 +20,7 @@
 //   location?: string;
 //   quality?: 'standard' | 'premium' | 'luxury';
 //   notes?: string;              // anything the GC wants the AI to consider
+//   contingencyRate?: number;    // the GC's Settings rate, 0-50 (else 8-12%)
 // }
 //
 // Response:
@@ -110,6 +111,13 @@ interface AnalyzeRequest {
   quality?: 'standard' | 'premium' | 'luxury';
   notes?: string;
   /**
+   * The contractor's own contingency rate (Settings -> Estimate Defaults,
+   * profiles.contingency_rate), as a percentage. Validated by
+   * usableContingencyRate; anything it refuses means the prompt keeps the
+   * generic 8-12% instruction.
+   */
+  contingencyRate?: number;
+  /**
    * Which Gemini model to use. The client picks based on the user's
    * subscription tier — Pro tier = flash, Business = pro.
    * Allowed values are validated; anything else falls back to flash.
@@ -150,6 +158,30 @@ async function urlToInlineImagePart(url: string): Promise<{ inlineData: { mimeTy
   return { inlineData: { mimeType, data } };
 }
 
+// >>> contingency-rate (pure; scripts/validate-drawing-contingency.ts evaluates this block)
+/**
+ * The GC's contingency rate, or null when the request did not carry a usable
+ * one. Same bounds Settings accepts (0-50) and the estimate wizard honours.
+ * Only a real finite number counts: the body is client-supplied JSON, and a
+ * string or a null coerced through Number() would read as a 0% rate nobody set.
+ */
+function usableContingencyRate(v: unknown): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 50) return null;
+  return v;
+}
+
+/**
+ * Prompt step 5. It used to hardcode "8-12%" for everyone — so a GC who runs 6%
+ * in Settings got a drawing estimate padded at whatever the model picked, while
+ * the estimate wizard beside it used his number. His rate, when he sent one, is
+ * a fixed input and not a starting point: uncertainty belongs in `concerns`.
+ */
+function contingencyInstruction(rate: number | null): string {
+  if (rate == null) return 'Apply a contingency of 8-12% (the more uncertainty, the higher).';
+  return `Apply a contingency of ${rate}% (this contractor's own rate). Use exactly ${rate} for contingencyPercent; do not raise it for uncertainty — report uncertainty in "concerns" instead.`;
+}
+// <<< contingency-rate
+
 function buildPrompt(req: AnalyzeRequest): string {
   const { projectName, projectType, squareFootage, location, quality, notes } = req;
   const ctxLines: string[] = [];
@@ -168,7 +200,7 @@ APPROACH (you MUST follow this and report it back to the user):
 2. Pull dimensions, room counts, ceiling heights, and material callouts you can read clearly. Note where the drawing is fuzzy or partially out-of-frame.
 3. Use industry-standard unit prices for the project's region (United States default if no location is given).
 4. Build a CSI-Division-organized line-item estimate covering only what the drawings show. Don't fabricate items you can't justify from a drawing.
-5. Apply a contingency of 8-12% (the more uncertainty, the higher).
+5. ${contingencyInstruction(usableContingencyRate(req.contingencyRate))} Contingency lives in "totals" only — never as a line item.
 
 OUTPUT (JSON only, matching the schema below):
 
@@ -186,7 +218,7 @@ OUTPUT (JSON only, matching the schema below):
   "estimatedSquareFootage": number | null,
   "lineItems": [
     {
-      "category": "Site Work / Concrete / Masonry / Metals / Wood / Thermal & Moisture / Doors & Windows / Finishes / Specialties / Equipment / Furnishings / Plumbing / HVAC / Electrical / General Conditions / Permits & Fees / Contingency",
+      "category": "Site Work / Concrete / Masonry / Metals / Wood / Thermal & Moisture / Doors & Windows / Finishes / Specialties / Equipment / Furnishings / Plumbing / HVAC / Electrical / General Conditions / Permits & Fees",
       "name": "Brief item name (e.g. 'Drywall - 1/2\" gypsum')",
       "description": "What this includes",
       "quantity": number,

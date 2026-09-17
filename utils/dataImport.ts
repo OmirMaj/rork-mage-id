@@ -16,6 +16,7 @@
 // them idempotently is a deliberate follow-up rather than a silent partial.
 
 import type { DataExportPayload } from '@/utils/dataExport';
+import { punchListTypeOf, type PunchItem } from '@/types';
 
 /** Collections importData merges losslessly + idempotently in v1. */
 export type ImportableKey = 'projects' | 'contacts' | 'subcontractors';
@@ -84,6 +85,16 @@ export function parseMageExport(text: string): { ok: true; result: ParsedImport 
         (item) => item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string',
       );
     }
+  }
+  // Punch items carry which list they belong to ('punch' | 'crew', 2026-09-16).
+  // An export written before that field has none, and a hand-edited file can
+  // hold anything; settle it HERE, once, through the same resolver every
+  // screen uses, so no later import path can read a raw value. Unknown means
+  // 'punch' — the direction that keeps an item visible rather than hiding it.
+  if (data.punchItems) {
+    data.punchItems = data.punchItems.map(
+      (pi): PunchItem => ({ ...pi, listType: punchListTypeOf(pi) }),
+    );
   }
 
   return {

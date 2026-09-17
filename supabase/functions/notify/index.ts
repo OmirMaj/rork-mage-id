@@ -175,6 +175,55 @@ function uuidOrNull(v: unknown): string | null {
   return isUuid(v) ? v : null;
 }
 
+// >>> bid-invite-format (pure; scripts/validate-drawing-contingency.ts evaluates this block)
+/**
+ * `bids_due_at` as the day a sub reads on his calendar ("Friday, September 18,
+ * 2026"), or null when the package has no due date.
+ *
+ * It is `BidPackage.dueDate`, a CALENDAR DAY ('YYYY-MM-DD', or an ISO timestamp
+ * after a sync — only its date prefix counts, as utils/calendarDate.ts does).
+ * `new Date('2026-09-18')` is UTC midnight, and any local-zone format of that
+ * instant west of Greenwich prints the 17th; so the day is built in UTC and
+ * formatted in UTC, which names the same day whatever zone this isolate runs
+ * in. A non-empty value that is not a real day is returned as written rather
+ * than dropped — the GC typed a deadline, and hiding it is worse than showing
+ * it raw (the caller escapes it).
+ */
+function bidDueDayLabel(v: unknown): string | null {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  const raw = v.trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (!m) return raw;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  // Date.UTC rolls over (Feb 31 -> Mar 3); a rolled day is not the one he set.
+  if (day.getUTCFullYear() !== y || day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return raw;
+  return day.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+/** Scope text as email HTML: escaped first, THEN line breaks made visible —
+ *  a GC's scope is a list typed one item per line, and HTML collapses a bare
+ *  newline to a space, turning "Demo\nFrame\nHang" into one run-on sentence. */
+function bidScopeHtml(scope: string): string {
+  return escapeHtml(scope.replace(/\r\n?/g, '\n').trim()).replace(/\n/g, '<br>');
+}
+
+/**
+ * When the link dies, from the invite row's own `expires_at`. The email used to
+ * say "30 days from today" unconditionally — true on the first send and false
+ * on every chase, which re-sends the SAME token with whatever time it has left.
+ */
+function bidInviteExpiryText(expiresAt: unknown, nowMs: number): string {
+  const t = typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
+  if (!Number.isFinite(t)) return 'It stops working 30 days after it was first sent.';
+  const days = Math.ceil((t - nowMs) / 86_400_000);
+  if (days <= 0) return 'Its expiry time has passed — if it no longer opens, reply to this email for a new one.';
+  return days === 1 ? 'It stops working within a day.' : `It stops working in ${days} days.`;
+}
+// <<< bid-invite-format
+
 // ─── Supabase REST helpers ────────────────────────────────────────────
 async function sbGet(path: string): Promise<unknown> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -1252,7 +1301,11 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const subEmail = strOrNull(payload.sub_email);
       const inviteUrl = strOrNull(payload.invite_url);
       const pkgName = (payload.package_name as string) || 'this package';
-      const scope = (payload.scope_description as string) || '';
+      const scope = typeof payload.scope_description === 'string' ? payload.scope_description : '';
+      // The deadline the GC set on the package (utils/bidInvites.ts sends it as
+      // `bids_due_at`). Before this branch rendered it, the only date in the
+      // email was the link's expiry — a sub who needed three days read thirty.
+      const dueLabel = bidDueDayLabel(payload.bids_due_at);
       const csi = (payload.csi_division as string) || '';
       const phase = (payload.phase as string) || '';
       const subName = (payload.sub_name as string) || 'there';
@@ -1268,14 +1321,17 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         break;
       }
       const html = wrapEmailHtml({
-        preheader: `${gc.company_name ?? 'A contractor'} is asking you to price ${pkgName} on ${projectName}.`,
+        // preheader / title / subtitle go in RAW: wrapEmailHtml escapes all
+        // three itself, so escaping here too printed "&amp;amp;" for a package
+        // called "Doors & Hardware".
+        preheader: `${gc.company_name ?? 'A contractor'} is asking you to price ${pkgName} on ${projectName}${dueLabel ? ` — bids due ${dueLabel}` : ''}.`,
         eyebrow: 'Invitation to bid',
-        title: `You're invited to bid on ${escapeHtml(pkgName)}`,
-        subtitle: `${escapeHtml(String(subName))} — ${escapeHtml(gc.company_name ?? 'a contractor')} wants your number on ${escapeHtml(projectName)}. No account, no app: open the link, read the scope, type your price.`,
+        title: `You're invited to bid on ${pkgName}`,
+        subtitle: `${String(subName)} — ${gc.company_name ?? 'a contractor'} wants your number on ${projectName}. No account, no app: open the link, read the scope, type your price.`,
         bodyHtml: `
-          ${emailStatCard(`${emailStatRow('Package', escapeHtml(pkgName))}${csi ? emailStatRow('CSI division', escapeHtml(csi)) : ''}${phase ? emailStatRow('Phase', escapeHtml(phase)) : ''}${emailStatRow('Project', escapeHtml(projectName))}`)}
-          ${scope ? `<p style="margin:0 0 14px;"><strong>Scope:</strong> ${escapeHtml(scope)}</p>` : ''}
-          <p style="margin:0;color:#9AA3AD;font-size:13px;">This link is yours — anyone who has it can file a bid under your name, so please don't forward it. It stops working 30 days from today.</p>
+          ${emailStatCard(`${emailStatRow('Package', escapeHtml(pkgName))}${dueLabel ? emailStatRow('Bids due', escapeHtml(dueLabel), { emphasize: true }) : ''}${csi ? emailStatRow('CSI division', escapeHtml(csi)) : ''}${phase ? emailStatRow('Phase', escapeHtml(phase)) : ''}${emailStatRow('Project', escapeHtml(projectName))}`)}
+          ${scope.trim() ? `<p style="margin:0 0 14px;"><strong>Scope:</strong><br>${bidScopeHtml(scope)}</p>` : ''}
+          <p style="margin:0;color:#9AA3AD;font-size:13px;">This link is yours — anyone who has it can file a bid under your name, so please don't forward it. ${escapeHtml(bidInviteExpiryText(payload.expires_at, Date.now()))}</p>
         `,
         cta: { label: 'Open the invitation', href: inviteUrl },
         companyName: gc.company_name ?? undefined,

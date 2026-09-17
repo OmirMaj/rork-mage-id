@@ -7,6 +7,7 @@ import type {
   Contact, RFI, Submittal, Equipment, Warranty, Subcontractor, CommunicationEvent,
   CompanyBranding,
 } from '@/types';
+import { punchListTypeOf } from '@/types';
 import { generateCloseoutPacketUri } from '@/utils/closeoutPacketGenerator';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { effectiveRetentionHeld } from '@/utils/invoiceBilling';
@@ -163,10 +164,16 @@ export function payloadToCsvs(p: DataExportPayload): Record<string, string> {
     ]),
   );
 
+  // `listType` is in the CSV because the two lists are one table: without the
+  // column a crew-list item (internal, never client-facing) is
+  // indistinguishable from formal punch the moment this sheet is handed to an
+  // owner's rep or an accountant. Resolved through punchListTypeOf so a
+  // pre-listType row prints 'punch', the same default every screen applies.
+  // (The JSON file carries the field as stored — it spreads the whole item.)
   csvs.punchItems = toCsv(
-    ['id', 'projectId', 'description', 'location', 'assignedSub', 'status', 'priority', 'createdAt'],
+    ['id', 'projectId', 'listType', 'description', 'location', 'assignedSub', 'status', 'priority', 'createdAt'],
     p.punchItems.map(pi => [
-      pi.id, pi.projectId, pi.description, pi.location ?? '', pi.assignedSub ?? '',
+      pi.id, pi.projectId, punchListTypeOf(pi), pi.description, pi.location ?? '', pi.assignedSub ?? '',
       pi.status, pi.priority ?? '', pi.createdAt ?? '',
     ]),
   );
