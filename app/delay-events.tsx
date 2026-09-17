@@ -39,7 +39,10 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { generateUUID } from '@/utils/generateId';
-import { loadAuditFromAsyncStorage } from '@/utils/scheduleAudit';
+import {
+  loadAuditFromAsyncStorage, loadScheduleAudit, findScheduleAuditEntries,
+  type ScheduleAuditSource,
+} from '@/utils/scheduleAudit';
 import {
   buildNoticeStatus, noticeSummary, nextDelayEventNumber, formatDelayEventNumber,
   suggestClassification, noticeMethodWarning, noticeViolations, noticeMethodLabel,
@@ -156,6 +159,49 @@ function todayISO(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/**
+ * Whether a 'schedule_audit' pointer still leads to its entry.
+ *
+ * The pointer is an id into the schedule audit log. That log used to live only
+ * on the device that recorded it, so on the laptop, on a new phone, or after a
+ * sign-out the row rendered as if nothing were wrong — a dated line whose
+ * record could not be produced. It now has a server copy
+ * (utils/scheduleAudit.loadScheduleAudit), but a pointer can still miss: an
+ * entry recorded under a collaborator's account (the log is owner-only), or
+ * one recorded offline on a device that was wiped before it synced. The
+ * register must say which, not render the copied note as if it were verified.
+ *
+ *   resolved     — the entry was found (device copy or server copy)
+ *   checking     — the lookup has not answered yet; say nothing
+ *   not_found    — the server copy was asked and does not have it
+ *   unverifiable — the server copy could not be asked (offline, signed out,
+ *                  table not migrated), so "not found" would be a guess
+ */
+type AuditPointerStatus = 'resolved' | 'checking' | 'not_found' | 'unverifiable';
+
+function auditPointerStatus(
+  id: string,
+  known: ReadonlySet<string>,
+  lookup: { found: ReadonlySet<string>; source: ScheduleAuditSource } | null,
+): AuditPointerStatus {
+  if (known.has(id) || lookup?.found.has(id)) return 'resolved';
+  if (!lookup) return 'checking';
+  return lookup.source === 'cloud' ? 'not_found' : 'unverifiable';
+}
+
+function auditPointerWarning(status: AuditPointerStatus, hasNote: boolean): string | null {
+  const copy = hasNote
+    ? 'The text shown is the note copied when it was attached.'
+    : 'No note was copied when it was attached, so nothing about the change can be shown.';
+  if (status === 'not_found') {
+    return `This schedule change isn't in your account's schedule history — it may have been recorded under another account, or on a device that never synced. ${copy}`;
+  }
+  if (status === 'unverifiable') {
+    return `Couldn't check your account's schedule history (offline or signed out), and this change isn't on this device. ${copy}`;
+  }
+  return null;
 }
 
 function toInt(s: string): number {
@@ -341,18 +387,68 @@ export default function DelayEventsScreen() {
   }, [projectId, formDesc, formCause, formDate, formClaimed, formConcurrent, pendingEvidence, events, addDelayEvent, resetForm, period.days]);
 
   // ── Evidence ──────────────────────────────────────────────────────────────
-  // The schedule audit log lives in AsyncStorage (utils/scheduleAudit), not in
-  // a context, so it is read here. Re-read each time the picker opens: an edit
-  // made on the schedule a minute ago is exactly the one being attached.
+  // The schedule audit log lives in utils/scheduleAudit (a device cache plus a
+  // server copy), not in a context, so it is read here. Re-read each time the
+  // picker opens: an edit made on the schedule a minute ago is exactly the one
+  // being attached. The device copy is shown at once; the merge with the
+  // server copy — edits made on the other device, or before a sign-out —
+  // replaces it when it answers.
   const [scheduleAudit, setScheduleAudit] = useState<ScheduleAuditEntry[]>([]);
+  // null until the merged load answers — the pointer check waits for it.
+  const [scheduleAuditSource, setScheduleAuditSource] = useState<ScheduleAuditSource | null>(null);
   useEffect(() => {
+    setScheduleAuditSource(null);
     if (!projectId) { setScheduleAudit([]); return; }
     let cancelled = false;
+    // The merged list must never be replaced by the device copy arriving late.
+    let mergedArrived = false;
     void loadAuditFromAsyncStorage(projectId).then((entries) => {
-      if (!cancelled) setScheduleAudit(entries);
+      if (!cancelled && !mergedArrived) setScheduleAudit(entries);
+    });
+    void loadScheduleAudit(projectId).then((load) => {
+      if (cancelled) return;
+      mergedArrived = true;
+      setScheduleAudit(load.entries);
+      setScheduleAuditSource(load.source);
     });
     return () => { cancelled = true; };
   }, [projectId, showEvidencePicker]);
+
+  // Every schedule_audit pointer on screen must lead somewhere, or say it
+  // doesn't (see auditPointerStatus). The merged load holds only the newest
+  // entries, so a pointer it lacks is looked up by id before it is called
+  // missing.
+  const knownAuditIds = useMemo(() => new Set(scheduleAudit.map((e) => e.id)), [scheduleAudit]);
+  const auditPointerKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of [...(openEvent?.evidence ?? []), ...pendingEvidence]) {
+      if (r.kind === 'schedule_audit') ids.add(r.id);
+    }
+    return `${projectId}#${Array.from(ids).sort().join('|')}`;
+  }, [projectId, openEvent?.evidence, pendingEvidence]);
+  const [auditLookup, setAuditLookup] = useState<
+    { key: string; found: ReadonlySet<string>; source: ScheduleAuditSource } | null
+  >(null);
+  useEffect(() => {
+    if (scheduleAuditSource === null) return;
+    const ids = auditPointerKey.slice(auditPointerKey.indexOf('#') + 1).split('|').filter(Boolean);
+    const missing = ids.filter((id) => !knownAuditIds.has(id));
+    if (missing.length === 0 || !projectId) {
+      setAuditLookup({ key: auditPointerKey, found: new Set(), source: scheduleAuditSource });
+      return;
+    }
+    let cancelled = false;
+    void findScheduleAuditEntries(projectId, missing).then(({ found, source }) => {
+      if (!cancelled) setAuditLookup({ key: auditPointerKey, found: new Set(found.map((e) => e.id)), source });
+    });
+    return () => { cancelled = true; };
+  }, [projectId, auditPointerKey, knownAuditIds, scheduleAuditSource]);
+  const statusForAuditPointer = useCallback(
+    (id: string) => auditPointerStatus(
+      id, knownAuditIds, auditLookup && auditLookup.key === auditPointerKey ? auditLookup : null,
+    ),
+    [knownAuditIds, auditLookup, auditPointerKey],
+  );
 
   // Every entry is a POINTER — {kind, id, capturedAt}. Nothing is copied: a
   // copy is a second version of a fact that can drift from the first.
@@ -684,6 +780,7 @@ export default function DelayEventsScreen() {
                 colors={t}
                 onAdd={() => setShowEvidencePicker(true)}
                 onRemove={detachEvidence}
+                auditStatus={statusForAuditPointer}
               />
 
               <TouchableOpacity
@@ -770,6 +867,7 @@ export default function DelayEventsScreen() {
                   colors={t}
                   onAdd={() => setShowEvidencePicker(true)}
                   onRemove={detachEvidence}
+                  auditStatus={statusForAuditPointer}
                 />
 
                 <Text style={styles.fieldLabel}>Notices</Text>
@@ -1205,26 +1303,35 @@ function NoticeFormModal({
 // ---------------------------------------------------------------------------
 
 function EvidenceStrip({
-  refs, styles, colors: t, onAdd, onRemove,
+  refs, styles, colors: t, onAdd, onRemove, auditStatus,
 }: {
   refs: DelayEvidenceRef[];
   styles: ReturnType<typeof makeStyles>;
   colors: ThemeColors;
   onAdd: () => void;
   onRemove: (r: DelayEvidenceRef) => void;
+  auditStatus: (id: string) => AuditPointerStatus;
 }) {
   return (
     <View>
       <Text style={styles.fieldLabel}>Evidence ({refs.length})</Text>
       {refs.map((r) => {
         const Icon = EVIDENCE_ICON[r.kind];
+        const warning = r.kind === 'schedule_audit' ? auditPointerWarning(auditStatus(r.id), !!r.note) : null;
         return (
           <View key={`${r.kind}:${r.id}`} style={styles.evidenceRow}>
-            <Icon size={13} color={t.textSecondary} strokeWidth={2} />
-            <Text style={styles.evidenceText} numberOfLines={1}>
-              {EVIDENCE_KIND_LABEL[r.kind]} · {(r.capturedAt ?? '').slice(0, 10)}
-              {r.note ? ` · ${r.note}` : ''}
-            </Text>
+            {warning
+              ? <AlertTriangle size={13} color={t.warningLabel} strokeWidth={2} />
+              : <Icon size={13} color={t.textSecondary} strokeWidth={2} />}
+            <View style={styles.evidenceBody}>
+              <Text style={styles.evidenceText} numberOfLines={1}>
+                {EVIDENCE_KIND_LABEL[r.kind]} · {(r.capturedAt ?? '').slice(0, 10)}
+                {r.note ? ` · ${r.note}` : ''}
+              </Text>
+              {warning ? (
+                <Text style={styles.evidenceWarning} testID={`evidence-unresolved-${r.id}`}>{warning}</Text>
+              ) : null}
+            </View>
             <TouchableOpacity
               onPress={() => onRemove(r)}
               hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
@@ -1401,7 +1508,9 @@ const makeStyles = (t: ThemeColors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: t.line,
     },
-    evidenceText: { ...Type.caption1, color: t.textSecondary, flex: 1 },
+    evidenceBody: { flex: 1 },
+    evidenceText: { ...Type.caption1, color: t.textSecondary },
+    evidenceWarning: { ...Type.caption2, color: t.warningLabel, marginTop: 2 },
     sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: t.bg,

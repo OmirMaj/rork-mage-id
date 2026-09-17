@@ -158,12 +158,23 @@ export function isAppStorageKey(key: string): boolean {
  * variance reasons — the whole PPC history — and crew-dispatch receipts) was in
  * this class too and was not named here, which is why nobody noticed a logout
  * erased a contractor's reliability record. It now has the mirror the paragraph
- * above calls for: app/last-planner.tsx upserts every change to the
- * last_planner_* tables and rehydrates the store from them on open, so the sweep
- * removes a cache, not the record. That holds only once
- * supabase/migrations/20260916150000_last_planner_cloud_mirror.sql is applied;
- * until then the writes wait in the offline queue and the sweep still destroys
- * the only readable copy.
+ * above calls for: hooks/useLastPlanner.ts upserts every change to the
+ * last_planner_* tables and rehydrates the store from them for every reader
+ * (the Last Planner screen, the Friday Close card, Ask), so the sweep removes a
+ * cache, not the record. The tables are live in production (applied
+ * 2026-09-16).
+ *
+ * `mageid_schedule_audit::<projectId>` (the schedule change history — who
+ * moved which date, when, and under which change order) was in this class as
+ * well, and it matters more than most: delay_events.evidence stores POINTERS
+ * into it, and a delay claim is argued months later from exactly that record.
+ * utils/scheduleAudit.appendAuditToAsyncStorage now upserts every entry to
+ * public.schedule_audit_log, and loadScheduleAudit merges the server copy back
+ * in (entries still waiting in the offline queue are kept), so the sweep here
+ * removes a cache. Same caveat: only once
+ * supabase/migrations/20260917100000_schedule_audit_log.sql is applied. The
+ * server copy is owner-only — a collaborator's entries live under the
+ * collaborator's account.
  */
 export function selectTenantKeysToWipe(
   allKeys: readonly string[],

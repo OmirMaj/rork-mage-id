@@ -1,8 +1,14 @@
 // ScheduleAuditModal — a read-only viewer over the schedule audit log.
 //
-// Renders the log utils/scheduleAudit keeps in AsyncStorage, grouped by day, so
-// a user can see "who changed what, when" — the history P6's audit famously
-// can't show for logic changes.
+// Renders the log utils/scheduleAudit keeps, grouped by day, so a user can see
+// "who changed what, when" — the history P6's audit famously can't show for
+// logic changes.
+//
+// Two copies feed it: the device cache (shown the instant the sheet opens) and
+// public.schedule_audit_log (merged in when it answers). The line under the title says
+// which one the list came from. A device-only list is a PARTIAL history — the
+// laptop's edits, anything from before a sign-out — and presenting it without
+// that label would show a gap as "nothing changed".
 //
 // This header used to claim every CPM-affecting edit was logged. It was not:
 // the phone schedule — the primary platform — wrote nothing. The writers, as
@@ -23,7 +29,10 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { loadAuditFromAsyncStorage, groupAuditByDay, summarizeTaskDiff } from '@/utils/scheduleAudit';
+import {
+  loadAuditFromAsyncStorage, loadScheduleAudit, groupAuditByDay, summarizeTaskDiff,
+  SCHEDULE_AUDIT_CLOUD_READ_LIMIT, type ScheduleAuditSource,
+} from '@/utils/scheduleAudit';
 import type { ScheduleAuditEntry } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -46,13 +55,26 @@ export function ScheduleAuditModal(props: {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [entries, setEntries] = useState<ScheduleAuditEntry[] | null>(null);
+  // null while the server copy is still being asked.
+  const [source, setSource] = useState<ScheduleAuditSource | null>(null);
+  const [truncated, setTruncated] = useState(false);
 
   useEffect(() => {
     if (!props.visible || !props.projectId) return;
     let cancelled = false;
     setEntries(null);
-    loadAuditFromAsyncStorage(props.projectId).then((loaded) => {
-      if (!cancelled) setEntries(loaded);
+    setSource(null);
+    setTruncated(false);
+    // Device copy first so the sheet is never blank on a slow connection; the
+    // merged list replaces it when the server answers.
+    void loadAuditFromAsyncStorage(props.projectId).then((loaded) => {
+      if (!cancelled) setEntries((cur) => cur ?? loaded);
+    });
+    void loadScheduleAudit(props.projectId).then((load) => {
+      if (cancelled) return;
+      setEntries(load.entries);
+      setSource(load.source);
+      setTruncated(load.truncated);
     });
     return () => { cancelled = true; };
   }, [props.visible, props.projectId]);
@@ -70,6 +92,14 @@ export function ScheduleAuditModal(props: {
               <X size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.sourceText} testID="schedule-audit-source">
+            {source === null
+              ? 'Checking your account for changes made on other devices…'
+              : source === 'cloud'
+                ? `Saved to your account — changes you made on any device.${truncated ? ` Showing the newest ${SCHEDULE_AUDIT_CLOUD_READ_LIMIT}.` : ''} Edits made by collaborators are kept under their own accounts and are not shown here.`
+                : "On this device only — your account's copy couldn't be reached, so changes made on other devices or before a sign-out may be missing."}
+          </Text>
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {entries === null ? (
@@ -137,6 +167,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
 
   list: { flex: 1 },
+
+  sourceText: { ...Type.caption2, color: t.textMuted },
 
   loadingText: {
     fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic',
