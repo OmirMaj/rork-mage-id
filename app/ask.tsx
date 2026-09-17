@@ -46,6 +46,8 @@ import { followupsForRefs } from '@/utils/oneMind/followupMapping';
 import { DEMO_ANSWERS } from '@/utils/oneMind/demoColdStart';
 import { loadAskThreads, saveAskThread, type AskThread } from '@/utils/askHistory';
 import { loadAllConstraints } from '@/hooks/useLastPlanner';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Constraint } from '@/utils/lastPlanner';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -104,6 +106,9 @@ export default function AskMageScreen() {
   const { receipts } = useMaterialReceipts();
   const laborSamples = useLaborCostSamples();
   const [allConstraints, setAllConstraints] = useState<Record<string, Constraint[]>>({});
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   const bundle = useMemo<OneMindBundle>(() => {
     // Local calendar day, not toISOString() (UTC flips the date for evening
@@ -204,8 +209,14 @@ export default function AskMageScreen() {
   useEffect(() => { void loadAskThreads().then(setRecentThreads); }, []);
 
   // Load Last Planner constraints (all projects) so project-scoped answers can
-  // include the readiness lookahead. Local-only; absent -> readiness just skips.
-  useEffect(() => { void loadAllConstraints().then(setAllConstraints); }, []);
+  // include the readiness lookahead. Through the hook's shared loader, which
+  // merges the cloud copy — so a fresh device or a re-sign-in sees constraints
+  // without first opening the Last Planner. Absent -> readiness just skips.
+  useEffect(() => {
+    let cancelled = false;
+    void loadAllConstraints(queryClient, userId).then(c => { if (!cancelled) setAllConstraints(c); });
+    return () => { cancelled = true; };
+  }, [queryClient, userId]);
 
   // Persist a completed Q&A thread (upsert by session id) so it can be recalled
   // for free from the Recent strip. Only save once an assistant turn has landed.

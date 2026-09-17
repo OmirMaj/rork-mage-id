@@ -94,7 +94,8 @@ export interface OneMindBundle {
   receipts?: MaterialReceipt[];
   laborSamples?: CostSample[];
   /** Per-project Last Planner constraints, for the readiness lookahead block.
-   *  Local-only (mageid_last_planner); absent when the caller doesn't supply it. */
+   *  Read via hooks/useLastPlanner's shared loader (device store merged with
+   *  the cloud mirror); absent when the caller doesn't supply it. */
   constraints?: Record<string, Constraint[]>;
 }
 

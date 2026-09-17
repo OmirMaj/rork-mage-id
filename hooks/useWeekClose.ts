@@ -7,7 +7,8 @@
 //
 // Sync inputs come from ProjectContext. Async inputs:
 //   - payment predictions (predictInvoicePayments)
-//   - WWP commitments + PPC (from the mageid_last_planner AsyncStorage store)
+//   - WWP commitments + PPC (the Last Planner store, via hooks/useLastPlanner's
+//     shared loader so it refills from the cloud on a fresh device)
 //   - lookahead constraint-clear count (totalTasks − constrainedCount)
 //
 // F3: autoDraftedCOs are filtered from changeOrders by the auditTrail
@@ -28,6 +29,8 @@ import {
   normalizeWipEtcMap, wipEtcStorageKey, wipEtcValueMap,
 } from '@/utils/wip';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { fetchLastPlannerStore } from '@/hooks/useLastPlanner';
 import type { WeekClose } from '@/utils/weekClose/types';
 
 interface AsyncInputs {
@@ -46,9 +49,6 @@ const EMPTY_ASYNC: AsyncInputs = {
   qboPendingCount: 0,
 };
 
-// AsyncStorage key for the last-planner store (per hooks/useLastPlanner.ts).
-const LAST_PLANNER_KEY = 'mageid_last_planner';
-
 export function useWeekClose(opts: { enabled?: boolean } = {}): {
   close: WeekClose | null;
   loading: boolean;
@@ -60,6 +60,8 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
   } = useProjects();
   const { receipts } = useMaterialReceipts();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const userId = user?.id ?? null;
   // THE COST-TO-COMPLETE MAP, so the week-close's cost at completion is the
   // same one both WIP schedules use. Same AsyncStorage key, same parser, both
   // out of utils/wip — a key only one screen knows how to build is a second
@@ -106,26 +108,24 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
       } catch { /* additive */ }
 
       // WWP commitments + lookahead count — for the close/commit legs.
-      // Load raw from AsyncStorage (same key as useLastPlanner).
+      // Read through useLastPlanner's shared loader, NOT the raw storage key:
+      // the raw key is empty on a fresh device or after a sign-out until the
+      // cloud copy is merged in, and this card must not report "no
+      // commitments" for a week that has them on the server.
       try {
-        const { computePpc, buildLookahead } = await import('@/utils/lastPlanner');
+        const { computePpc, buildLookahead, currentWeekStart } = await import('@/utils/lastPlanner');
 
-        const raw = await AsyncStorage.getItem(LAST_PLANNER_KEY);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const store: Record<string, any> = raw ? JSON.parse(raw) : {};
+        const store = await fetchLastPlannerStore(queryClient, userId);
 
         // Aggregate commitments across all projects.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const allCommitments = (Object.values(store) as any[]).flatMap((b: any) => (b.commitments ?? []) as import('@/utils/lastPlanner').WeeklyCommitment[]);
+        const allCommitments = Object.values(store).flatMap(b => b?.commitments ?? []);
 
-        // PPC for the current (ending) week.
-        const ppcNow = new Date();
-        const ppcDow = ppcNow.getDay();
-        const ppcShift = ppcDow === 0 ? -6 : 1 - ppcDow;
-        const thisMon = new Date(ppcNow);
-        thisMon.setDate(ppcNow.getDate() + ppcShift);
-        const thisMonISO = thisMon.toISOString().slice(0, 10);
-        const ppcRecord = computePpc(allCommitments, thisMonISO);
+        // PPC for the current (ending) week, on the SAME week key the Last
+        // Planner screen writes commitments under (currentWeekStart). Caveat:
+        // composeWeekClose.buildCloseLeg recomputes PPC on a LOCAL-time Monday,
+        // while currentWeekStart is a UTC Monday; on a US Sunday evening the two
+        // keys differ and compose falls back to this value (handed off).
+        const ppcRecord = computePpc(allCommitments, currentWeekStart());
         next.wwp = {
           commitments: allCommitments,
           ppc: ppcRecord.committed > 0 ? ppcRecord.ppc : null,
@@ -137,7 +137,7 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
           if (project.status !== 'in_progress') continue;
           const tasks = project.schedule?.tasks ?? [];
           if (tasks.length === 0) continue;
-          const constraints = (store[project.id]?.constraints ?? []) as unknown as Parameters<typeof buildLookahead>[2];
+          const constraints = store[project.id]?.constraints ?? [];
           const result = buildLookahead(tasks, project.schedule?.startDate ?? null, constraints, { weeks: 2 });
           readyCount += result.totalTasks - result.constrainedCount;
         }
@@ -150,7 +150,7 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
       }
     })();
     return () => { cancelled = true; };
-  }, [enabled, invoices, changeOrders, projects, refreshKey]);
+  }, [enabled, invoices, changeOrders, projects, refreshKey, queryClient, userId]);
 
   // Auto-drafted leak COs: COs with status 'draft' that carry the
   // auto_drafted_from_leak auditTrail marker (written by F3's sweep).

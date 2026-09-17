@@ -19,14 +19,16 @@
 //
 // This module is the PURE engine — date math, readiness, lookahead/WWP
 // assembly, PPC + variance analytics, and the cloud-mirror row mapping at the
-// bottom. No storage, no network (the screen owns
-// I/O via hooks/useLastPlanner). All "now" is injected so it's deterministic.
+// bottom. No storage, no network (hooks/useLastPlanner owns
+// the I/O and injects it into createLastPlannerLoader). All "now" is injected.
 //
 // NOTE: ScheduleTask already has `anchorType`/`anchorDate` — those are CPM
 // scheduling constraints (date pins), a DIFFERENT concept. Our readiness
 // Constraints live in their own store and never touch the CPM engine.
 
 import type { ScheduleTask } from '@/types';
+// Type-only (erased at runtime): the loader below is handed the app's client.
+import type { QueryClient } from '@tanstack/react-query';
 // The same working-day predicate the CPM engine uses, so the lookahead and the
 // Gantt cannot disagree about which days count.
 import { isWorkingDay, runCpm } from '@/utils/cpm';
@@ -458,7 +460,7 @@ export function varianceBreakdown(commitments: WeeklyCommitment[]): { reason: Va
 // left the phone's This Week tab empty on site on Friday.
 //
 // The mirror is three tables (supabase/migrations/20260916150000_last_planner_
-// cloud_mirror.sql). Everything below is PURE — the screen owns the I/O — so
+// cloud_mirror.sql). Everything below is PURE — hooks/useLastPlanner owns the I/O — so
 // the two properties that decide whether the mirror helps or hurts can be
 // pinned by scripts/validate-last-planner.ts:
 //
@@ -635,6 +637,24 @@ export function diffBucketWrites(
 }
 
 /**
+ * The writes one store change is allowed to push: the diff, narrowed to the
+ * rows the mutator NAMED (`touched`, as pendingRowKey values).
+ *
+ * WHY. A hook write is built on a cache snapshot. If that snapshot predates a
+ * hydrate, it can hold stale copies of rows the change never touched, and the
+ * whole diff would upload those over another device's newer ones. Only the
+ * rows the user actually changed may reach the server.
+ */
+export function touchedWrites(
+  projectId: string, userId: string,
+  prev: LastPlannerBucket | undefined, next: LastPlannerBucket, touched: readonly string[],
+): LastPlannerRowWrite[] {
+  const allowed = new Set(touched);
+  return diffBucketWrites(projectId, userId, prev, next)
+    .filter(w => allowed.has(pendingRowKey(w.table, w.id)));
+}
+
+/**
  * Reconcile the device's store with the server's rows (see rule 2 above).
  * `pending` maps pendingRowKey(table, id) → the row data of a write still
  * waiting in the offline queue (the newest one per row). Returns the merged store plus the local-only rows the server has never seen,
@@ -699,4 +719,327 @@ export function mergeCloudIntoStore(
     store[projectId] = { constraints, commitments, dispatches };
   }
   return { store, backfill };
+}
+
+// ── Hydrate orchestration (I/O injected) ────────────────────────────────────
+// WHY THIS IS HERE AND NOT IN A SCREEN. The hydrate used to run inside
+// app/last-planner.tsx, so every OTHER reader of the store — the Friday Close
+// card (hooks/useWeekClose) and Ask (app/ask.tsx) — saw an empty planner on a
+// fresh device or after a sign-out until someone happened to open that screen.
+// hooks/useLastPlanner's query now runs this for every reader. The I/O is
+// passed in so the rules that decide whether the mirror helps or hurts are
+// pinned by scripts/validate-last-planner.ts without a device:
+//   - a row with a write still waiting (queued, or sent while the read ran)
+//     keeps its local value — the server's older copy must not revert it;
+//   - an UNREADABLE queue means "we could not look", so give up and stay on
+//     the device's copy rather than let the server win blind;
+//   - the backfill stops at the first write that does not land;
+//   - duplicate natural keys collapse (mergeCloudIntoStore).
+
+export type LastPlannerSyncState = 'pending' | 'synced' | 'local-only';
+export type LastPlannerWriteOutcome = 'synced' | 'queued' | 'failed';
+
+/** Minimal shape of an offline-queue entry this module reads. */
+export interface LastPlannerQueueEntry { table: string; data?: Record<string, unknown> }
+
+const MIRROR_TABLE_NAMES: readonly string[] = Object.values(LAST_PLANNER_TABLES);
+
+/**
+ * Rows this session has sent, remembered until a hydrate that STARTED after
+ * the write settled has run. A hydrate whose SELECT began before a push lands
+ * reads the server's older copy; without this, that copy would overwrite the
+ * checkbox the user just ticked. Keyed per user so a tenant switch cannot carry
+ * one account's rows into the next account's merge.
+ */
+export class LastPlannerSentLog {
+  private entries = new Map<string, { row: Record<string, unknown>; settledAt: number | null }>();
+  private userId: string | null = null;
+
+  private forUser(userId: string) {
+    if (this.userId !== userId) { this.entries.clear(); this.userId = userId; }
+  }
+  /** Record a row as about to be sent. Returns the settle callback. */
+  begin(userId: string, key: string, row: Record<string, unknown>, now: () => number): () => void {
+    this.forUser(userId);
+    const entry = { row, settledAt: null as number | null };
+    this.entries.set(key, entry);
+    return () => { entry.settledAt = now(); };
+  }
+  /** Rows a hydrate that started at `startedAt` must not let the server revert. */
+  pendingSince(userId: string, startedAt: number): Map<string, Record<string, unknown>> {
+    this.forUser(userId);
+    const out = new Map<string, Record<string, unknown>>();
+    for (const [k, e] of this.entries) {
+      if (e.settledAt === null || e.settledAt >= startedAt) out.set(k, e.row);
+    }
+    return out;
+  }
+  /** Drop rows a completed hydrate (started at `startedAt`) has already seen land. */
+  prune(userId: string, startedAt: number): void {
+    this.forUser(userId);
+    for (const [k, e] of this.entries) {
+      if (e.settledAt !== null && e.settledAt < startedAt) this.entries.delete(k);
+    }
+  }
+}
+
+/** Oldest-first queue → newest pending row per pendingRowKey, mirror tables only. */
+export function pendingFromQueue(entries: readonly LastPlannerQueueEntry[]): Map<string, Record<string, unknown>> {
+  const pending = new Map<string, Record<string, unknown>>();
+  for (const e of entries) {
+    if (MIRROR_TABLE_NAMES.includes(e.table) && typeof e.data?.id === 'string') {
+      pending.set(pendingRowKey(e.table, e.data.id), e.data);
+    }
+  }
+  return pending;
+}
+
+/**
+ * Send a backfill one row at a time and STOP at the first write that does not
+ * land. A backfill can be hundreds of rows; if the server stops answering, each
+ * unsent row stays local-only and the next hydrate offers it again, instead of
+ * flooding the FIFO-capped offline queue and pushing out someone's daily report.
+ * `shouldContinue` is asked before every row: a backfill that outlives its
+ * session (sign-out, account switch) must not keep uploading the old account's
+ * rows. Returns how many rows were attempted.
+ */
+export async function sendBackfillUntilUnsynced(
+  writes: readonly LastPlannerRowWrite[],
+  send: (w: LastPlannerRowWrite) => Promise<LastPlannerWriteOutcome>,
+  shouldContinue: () => boolean | Promise<boolean> = () => true,
+): Promise<number> {
+  let attempted = 0;
+  for (const w of writes) {
+    if (!(await shouldContinue())) break;
+    attempted++;
+    if ((await send(w)) !== 'synced') break;
+  }
+  return attempted;
+}
+
+export interface LastPlannerHydrateDeps {
+  /** The three tables' rows. Throws on any read error (incl. "not migrated"). */
+  fetchCloud: () => Promise<LastPlannerCloudRows>;
+  readQueue: () => Promise<{ entries: readonly LastPlannerQueueEntry[]; readFailed: boolean }>;
+  /** Rows sent this session that the server copy must not overwrite. */
+  recentlySent: () => ReadonlyMap<string, Record<string, unknown>>;
+  /** Resolves once in-flight store writes have settled (bounded). */
+  settleWrites: () => Promise<void>;
+  /** The device's store as it stands NOW (cache first, storage fallback). */
+  readLocal: () => Promise<LastPlannerStore>;
+}
+
+/**
+ * Merge the server's copy into the device's store. Never throws: any failure
+ * (no network, table missing, queue unreadable) returns the device's own store
+ * as `local-only`, and no backfill — a merge we could not trust must not upload.
+ */
+export async function hydrateLastPlannerStore(
+  userId: string, deps: LastPlannerHydrateDeps,
+): Promise<{ store: LastPlannerStore; sync: LastPlannerSyncState; backfill: LastPlannerRowWrite[] }> {
+  try {
+    const cloud = await deps.fetchCloud();
+    const queue = await deps.readQueue();
+    // Unreadable queue = unknown pending work; letting the server win blind
+    // could revert a checkbox that simply has not landed yet.
+    if (queue.readFailed) throw new Error('offline queue unreadable');
+    // Let an in-flight store write settle first, so the merged store is not
+    // immediately overwritten by a write built on the pre-merge snapshot.
+    await deps.settleWrites();
+    const pending = pendingFromQueue(queue.entries);
+    for (const [k, v] of deps.recentlySent()) pending.set(k, v);
+    const local = await deps.readLocal();
+    const { store, backfill } = mergeCloudIntoStore(local, cloud, pending, userId);
+    return { store, sync: 'synced', backfill };
+  } catch (err) {
+    console.warn('[lastPlanner] cloud mirror unavailable, staying on-device:', err);
+    let store: LastPlannerStore = {};
+    try { store = await deps.readLocal(); } catch { /* nothing readable → empty */ }
+    return { store, sync: 'local-only', backfill: [] };
+  }
+}
+
+// ── The shared loader (query cache + I/O injected) ──────────────────────────
+// hooks/useLastPlanner builds ONE of these with the real AsyncStorage/Supabase
+// I/O; scripts/validate-last-planner.ts builds one with in-memory I/O and runs
+// it against the real @tanstack/query-core, because the two bugs this section
+// exists for live in how the cache and the hydrate interleave, not in the merge:
+//
+//   1. OVERLAPPING READERS. The device copy is put in the cache before the
+//      network read so the screen is usable meanwhile. Written with a normal
+//      timestamp it made the query FRESH, and queryClient.fetchQuery returns
+//      fresh data without waiting for the fetch in flight — so a second reader
+//      (the Friday Close card re-running as invoices load, Ask opened during
+//      Home's hydrate) got `{}` on a fresh device and never ran again. The
+//      device copy is therefore written with updatedAt 0: it is data, not a
+//      server-fresh answer, and a reader that arrives during the hydrate joins it.
+//   2. A HYDRATE THAT OUTLIVES ITS SESSION. Sign-out runs wipeLocalUserCache and
+//      then queryClient.clear(); neither stops a queryFn already waiting on the
+//      network. When it returned, it wrote the signed-out account's planner back
+//      to disk after the sweep and kept backfilling under the next session. Every
+//      side effect now checks the hydrate is still current first: the Query it
+//      belongs to is still the one in the cache (clear() removes it) and the
+//      signed-in account is still the one it ran for.
+
+/**
+ * The planner's react-query keys. Defined here (not in the hook) so the
+ * validator can run the loader with the SAME mutation key the hook's
+ * useMutation carries: the hydrate only waits for writes under this key, so a
+ * mismatch silently loses a tap made mid-hydrate. hooks/useLastPlanner
+ * re-exports them; nothing else should re-type them.
+ */
+export const LAST_PLANNER_QUERY_KEY = ['last-planner'] as const;
+/** Scoped per user, so one account's cached planner is never another's. */
+export function lastPlannerQueryKey(userId: string | null | undefined) {
+  return [...LAST_PLANNER_QUERY_KEY, userId ?? 'signed-out'] as const;
+}
+/** Every store mutation runs under this key; the loader's settle waits on it. */
+export const LAST_PLANNER_MUTATION_KEY = [...LAST_PLANNER_QUERY_KEY, 'write'] as const;
+
+/** What the query cache holds: the store plus whether it reflects the server. */
+export interface LastPlannerSnapshot {
+  store: LastPlannerStore;
+  sync: LastPlannerSyncState;
+}
+
+export interface LastPlannerLoaderIo {
+  queryKey: (userId: string | null) => readonly unknown[];
+  /** Key every store mutation runs under, so a hydrate can wait for them. */
+  mutationKey: readonly unknown[];
+  cloudEnabled: () => boolean;
+  loadLocal: () => Promise<LastPlannerStore>;
+  /** Must START its write synchronously (see commit, below). */
+  persist: (store: LastPlannerStore) => Promise<void>;
+  /** Remove the device copy only if it is still exactly `written`. */
+  unpersistIfUnchanged: (written: LastPlannerStore) => Promise<void>;
+  fetchCloud: LastPlannerHydrateDeps['fetchCloud'];
+  readQueue: LastPlannerHydrateDeps['readQueue'];
+  /** The signed-in account's id right now (null = signed out). May throw. */
+  sessionUserId: () => Promise<string | null>;
+  upsert: (w: LastPlannerRowWrite) => Promise<LastPlannerWriteOutcome>;
+  now: () => number;
+}
+
+/**
+ * Write a store into the cache WITHOUT changing how fresh the query is. A tap
+ * during the hydrate must not turn the device copy into a "fresh" answer (that
+ * is bug 1 again, reached through a mutation instead of the seed).
+ */
+export function writeStoreToCache(
+  queryClient: QueryClient, key: readonly unknown[], store: LastPlannerStore,
+): void {
+  queryClient.setQueryData<LastPlannerSnapshot>(
+    key,
+    prev => ({ store, sync: prev?.sync ?? 'pending' }),
+    { updatedAt: queryClient.getQueryState(key)?.dataUpdatedAt ?? 0 },
+  );
+}
+
+export function createLastPlannerLoader(io: LastPlannerLoaderIo) {
+  // Module-lifetime (one loader per app) so a push from the screen protects its
+  // rows from a hydrate started by ANY reader.
+  const sentLog = new LastPlannerSentLog();
+  // One backfill at a time: two readers hydrating together would otherwise
+  // both walk the same local-only rows.
+  let backfillRunning = false;
+  let lastCommit: Promise<void> = Promise.resolve();
+
+  async function sendRow(userId: string, w: LastPlannerRowWrite): Promise<LastPlannerWriteOutcome> {
+    const settle = sentLog.begin(userId, pendingRowKey(w.table, w.id), w.row, io.now);
+    try {
+      return await io.upsert(w);
+    } finally {
+      settle();
+    }
+  }
+
+  /** 'unknown' = the session could not be read; neither trust nor undo on it. */
+  async function sessionIs(userId: string): Promise<'same' | 'other' | 'unknown'> {
+    try {
+      return (await io.sessionUserId()) === userId ? 'same' : 'other';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  async function commit(
+    userId: string, store: LastPlannerStore, backfill: LastPlannerRowWrite[], isCurrent: () => boolean,
+  ): Promise<void> {
+    // Started before the first await, so it is issued before any tap made after
+    // the merge persists its own (newer) store.
+    await io.persist(store);
+    const session = await sessionIs(userId);
+    if (!isCurrent() || session === 'other') {
+      // Signed out (or switched account) while this was on the network: the
+      // sweep may already have run, so take back what we just wrote. Only if
+      // it is still ours — the next account may have written its own since.
+      await io.unpersistIfUnchanged(store);
+      return;
+    }
+    if (session === 'unknown' || backfill.length === 0 || backfillRunning) return;
+    // History recorded before the table existed, or offline and never queued —
+    // the rows that made a logout destructive. Send them up, as this user only.
+    backfillRunning = true;
+    try {
+      await sendBackfillUntilUnsynced(backfill, w => sendRow(userId, w),
+        async () => isCurrent() && (await sessionIs(userId)) === 'same');
+    } catch (err) {
+      console.warn('[lastPlanner] backfill failed:', err);
+    } finally {
+      backfillRunning = false;
+    }
+  }
+
+  async function loadSnapshot(queryClient: QueryClient, userId: string | null): Promise<LastPlannerSnapshot> {
+    const key = io.queryKey(userId);
+    const cache = queryClient.getQueryCache();
+    // The Query this fetch belongs to. queryClient.clear() on sign-out removes
+    // it (and a later reader builds a new one), so identity = "still current".
+    const self = cache.find({ queryKey: key, exact: true });
+    const isCurrent = () => self !== undefined && cache.find({ queryKey: key, exact: true }) === self;
+    const cached = () => queryClient.getQueryData<LastPlannerSnapshot>(key);
+
+    // The device copy first, so the screen is usable (and a tap builds on the
+    // real store, not on `{}`) while the network read runs. updatedAt 0: see
+    // bug 1 above. isCurrent: a seed after clear() would resurrect the entry.
+    if (!cached()) {
+      const local = await io.loadLocal();
+      if (!cached() && isCurrent()) {
+        queryClient.setQueryData<LastPlannerSnapshot>(key, { store: local, sync: 'pending' }, { updatedAt: 0 });
+      }
+    }
+    if (!userId || !io.cloudEnabled()) {
+      return { store: cached()?.store ?? await io.loadLocal(), sync: 'local-only' };
+    }
+
+    const startedAt = io.now();
+    const { store, sync, backfill } = await hydrateLastPlannerStore(userId, {
+      fetchCloud: io.fetchCloud,
+      readQueue: io.readQueue,
+      recentlySent: () => sentLog.pendingSince(userId, startedAt),
+      settleWrites: async () => {
+        for (let i = 0; i < 20 && queryClient.isMutating({ mutationKey: io.mutationKey }) > 0; i++) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      },
+      // Read AFTER the settle: a tap made during the network read is in the cache.
+      readLocal: async () => cached()?.store ?? io.loadLocal(),
+    });
+
+    if (sync === 'synced' && isCurrent()) {
+      sentLog.prune(userId, startedAt);
+      // Not awaited: the query resolves with the merged store synchronously
+      // after it is built, so no tap can land between the merge and the cache.
+      lastCommit = commit(userId, store, backfill, isCurrent)
+        .catch(err => console.warn('[lastPlanner] saving the merged store failed:', err));
+    }
+    return { store, sync };
+  }
+
+  return {
+    loadSnapshot,
+    sendRow,
+    /** Resolves when the latest hydrate's persist/backfill has finished (tests). */
+    whenIdle: () => lastCommit,
+  };
 }
