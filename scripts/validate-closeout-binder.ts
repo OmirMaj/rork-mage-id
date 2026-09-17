@@ -212,6 +212,135 @@ ok('both logs are skipped when empty rather than printing bare headers',
   /\$\{rfiRows \? sectionTable/.test(engineSrc) && /\$\{submittalRows \? sectionTable/.test(engineSrc),
   'An empty table with a header reads as a broken feature; "no RFIs on this job" is a normal outcome.');
 
+// ───────────────────────────────────────────────────────────────────────────
+// 7. BEHAVIOURAL — render the real binder and read what the client reads.
+//
+// The structural checks above prove the sections exist in source. They cannot
+// see what the cells print: a date that lands a day early, a subject that
+// injects markup into a client-facing PDF, a label entity that prints as
+// literal "&amp;", a log that renders for another project's rows. So the
+// engine is imported for real, with only the native edges stubbed.
+// ───────────────────────────────────────────────────────────────────────────
+console.log('\ncloseout binder — the rendered logs say what the records say:');
+
+// The date bug is invisible at UTC. Pin a zone west of Greenwich BEFORE any
+// Date is built, so `new Date('2026-03-05')` would read as the evening of the
+// 4th — exactly the reader the bug bit.
+process.env.TZ = 'America/Los_Angeles';
+
+// @types/bun is not installed (same note as validate-oac-actions.ts); only the
+// sliver used here is declared.
+type VirtualModule = { exports: Record<string, unknown>; loader: 'object' };
+type BunPluginBuilder = { module: (specifier: string, cb: () => VirtualModule) => void };
+declare const Bun: { plugin: (p: { name: string; setup: (build: BunPluginBuilder) => void }) => void } | undefined;
+if (typeof Bun === 'undefined') {
+  console.error('\n✗ validate-closeout-binder must run under bun (needs Bun.plugin to stub native modules)\n');
+  process.exit(1);
+}
+// The engine (and lienWaiverEngine, which it imports for WAIVER_LABELS) reach
+// react-native, expo and Supabase, none of which bun can load. The HTML builder
+// touches none of them, so they are stubbed to inert objects.
+Bun.plugin({
+  name: 'closeout-binder-stubs',
+  setup(build) {
+    const inert: VirtualModule = {
+      exports: { Platform: { OS: 'ios' }, supabase: {}, isSupabaseConfigured: false }, loader: 'object',
+    };
+    for (const spec of ['react-native', 'expo-print', 'expo-sharing', '@/lib/supabase',
+      'expo-mail-composer', 'expo-file-system/legacy']) {
+      build.module(spec, () => inert);
+    }
+  },
+});
+const { buildBinderHtml } = await import('../utils/closeoutBinderEngine');
+type BinderInput = Parameters<typeof buildBinderHtml>[0];
+
+const stamp = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const binderInput = (over: Partial<BinderInput>): BinderInput => ({
+  project: { id: 'p1', name: 'Suite 400 Fit-out', location: '1 Main St', ...stamp } as unknown as BinderInput['project'],
+  branding: { companyName: 'Acme GC', email: 'pm@acme.test', phone: '555' } as unknown as BinderInput['branding'],
+  binder: { id: 'b1', projectId: 'p1', userId: 'u1', maintenanceSchedule: [], notes: '', status: 'draft', ...stamp },
+  commitments: [], photos: [], selections: [], warranties: [], lienWaivers: [], subcontractors: [],
+  rfis: [], submittals: [],
+  ...over,
+});
+
+const RESPONSE_TEXT = 'ZZ-RESPONSE-NEVER-PRINTED';
+const rfiFixtures = [
+  { id: 'r2', projectId: 'p1', number: 2, subject: 'Ceiling height <script>alert(1)</script>',
+    question: 'q', submittedBy: 'gc', assignedTo: 'arch', dateSubmitted: '2026-03-05',
+    dateRequired: '2026-03-19', dateResponded: '2026-03-10', response: RESPONSE_TEXT,
+    status: 'answered', priority: 'normal', ...stamp },
+  { id: 'r1', projectId: 'p1', number: 1, subject: 'Door hardware spec', question: 'q',
+    submittedBy: 'gc', assignedTo: 'arch', dateSubmitted: '2026-02-20T18:00:00.000Z',
+    dateRequired: '2026-03-01', status: 'open', priority: 'normal', ...stamp },
+  { id: 'rv', projectId: 'p1', number: 3, subject: 'Withdrawn question', question: 'q',
+    submittedBy: 'gc', assignedTo: 'arch', dateSubmitted: '2026-03-06', dateRequired: '2026-03-20',
+    status: 'void', priority: 'normal', ...stamp },
+  { id: 'rx', projectId: 'OTHER', number: 9, subject: 'Other job question', question: 'q',
+    submittedBy: 'gc', assignedTo: 'arch', dateSubmitted: '2026-03-06', dateRequired: '2026-03-20',
+    status: 'open', priority: 'normal', ...stamp },
+] as unknown as BinderInput['rfis'];
+
+const submittalFixtures = [
+  { id: 's1', projectId: 'p1', number: 4, title: 'Millwork & casework shop drawings',
+    specSection: '06 41 00', submittedBy: 'gc', submittedDate: '2026-02-01', requiredDate: '2026-02-15',
+    reviewCycles: [{ reviewer: 'ZZ-REVIEWER-NEVER-PRINTED', returnDate: '2026-02-10' }],
+    currentStatus: 'revise_resubmit', attachments: [], ...stamp },
+  { id: 'sx', projectId: 'OTHER', number: 1, title: 'Other job submittal', specSection: '09 00 00',
+    submittedBy: 'gc', submittedDate: '2026-02-01', requiredDate: '2026-02-15', reviewCycles: [],
+    currentStatus: 'approved', attachments: [], ...stamp },
+] as unknown as BinderInput['submittals'];
+
+const full = buildBinderHtml(binderInput({ rfis: rfiFixtures, submittals: submittalFixtures }));
+const empty = buildBinderHtml(binderInput({}));
+/** The slice of the rendered document from a section's heading to the next heading. */
+function sectionOf(html: string, title: string): string {
+  const at = html.indexOf(`>${title}</h2>`);
+  if (at < 0) return '';
+  const next = html.indexOf('</h2>', at + title.length + 6);
+  return html.slice(at, next < 0 ? undefined : next);
+}
+const rfiLog = sectionOf(full, 'RFI log');
+const subLog = sectionOf(full, 'Submittal log');
+
+ok('the RFI log renders when the project has RFIs', rfiLog.length > 0);
+ok('the submittal log renders when the project has submittals', subLog.length > 0);
+ok('neither log renders when there are none',
+  !empty.includes('>RFI log</h2>') && !empty.includes('>Submittal log</h2>'),
+  'An empty log prints a bare header, which reads as a broken feature rather than an honest zero.');
+ok('a project whose only RFIs are void or on another job gets no RFI log',
+  !buildBinderHtml(binderInput({ rfis: rfiFixtures.filter(r => r.id === 'rv' || r.id === 'rx') }))
+    .includes('>RFI log</h2>'),
+  'The section gate must look at the FILTERED rows, not the array the screen passed.');
+
+ok('RFIs print in number order', rfiLog.indexOf('Door hardware spec') >= 0
+  && rfiLog.indexOf('Door hardware spec') < rfiLog.indexOf('Ceiling height'));
+ok('void and other-project RFIs are left out',
+  !rfiLog.includes('Withdrawn question') && !full.includes('Other job question'));
+ok('other-project submittals are left out', !full.includes('Other job submittal'));
+
+ok('a bare submitted day prints as that day, not the day before',
+  rfiLog.includes('March 5, 2026') && !rfiLog.includes('March 4, 2026'),
+  `RFI.dateSubmitted '2026-03-05' must read "March 5, 2026" in America/Los_Angeles. ` +
+  `\`new Date('2026-03-05')\` is UTC midnight — the evening of the 4th here.`);
+ok('an instant submitted-date prints as the local day it fell on',
+  rfiLog.includes('February 20, 2026'));
+
+ok('RFI subjects are escaped', rfiLog.includes('&lt;script&gt;') && !full.includes('<script>alert'),
+  'This HTML becomes a client-facing PDF (and a new browser window on web); a raw subject is markup injection.');
+ok('submittal titles are escaped', subLog.includes('Millwork &amp; casework'));
+ok('the submittal status label is escaped exactly once',
+  subLog.includes('Revise &amp; resubmit') && !full.includes('&amp;amp;'),
+  'A pre-escaped label (or title) run through escHtml again prints a literal "&amp;" to the client.');
+ok('the submittal log carries the spec section', subLog.includes('06 41 00'));
+
+ok('no RFI response or date-responded is printed',
+  !full.includes(RESPONSE_TEXT) && !rfiLog.includes('March 10, 2026') && !/Responded|Resolution/i.test(rfiLog),
+  'The scoped log stops at status: no writer fills the response fields reliably, so the column would read as incomplete.');
+ok('no submittal reviewer or return date is printed',
+  !full.includes('ZZ-REVIEWER-NEVER-PRINTED') && !/Reviewer|Returned/i.test(subLog));
+
 // A blank contact cell must say WHY it is blank — the repo's honesty rule.
 ok('blank contact cells are explained, not left to be read as a bug',
   /missingContactCount/.test(engineSrc) && /no phone or email on file/.test(engineSrc),

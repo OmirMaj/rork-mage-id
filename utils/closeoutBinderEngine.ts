@@ -17,6 +17,7 @@ import type {
   Subcontractor, SubmittalStatus, RFIStatus,
 } from '@/types';
 import { WAIVER_LABELS } from './lienWaiverEngine';
+import { calendarDayStart } from './calendarDate';
 import { resolveTradeContacts } from './tradeContacts';
 
 export interface MaintenanceItem {
@@ -157,7 +158,31 @@ export interface BuildBinderInput {
   lienWaivers: LienWaiver[];
 }
 
-function buildBinderHtml(input: BuildBinderInput): string {
+/**
+ * A table cell's date, printed as the DAY it names. RFI.dateSubmitted,
+ * warranty end dates, lien-waiver through-dates and maintenance due dates
+ * arrive as either a bare 'YYYY-MM-DD' or a full instant, depending on the
+ * writer. pdfDesign's fmtDate runs them through `new Date(value)`, which reads
+ * the bare shape as UTC midnight — so every one of those cells printed the day
+ * BEFORE for a client anywhere west of Greenwich, in a document they keep for
+ * the life of the building. calendarDayStart reads a bare day as that day and
+ * an instant as the local day it fell on; this is the same parse
+ * utils/pdfGenerator.ts formatRfiDate settled on for the standalone RFI log.
+ *
+ * An unparseable value is printed as-is (escaped) rather than swapped for a
+ * dash: a dash would claim "no date" when there IS a date we could not read.
+ */
+function fmtCellDay(value: string | null | undefined, empty: string): string {
+  if (!value) return empty;
+  const d = calendarDayStart(value);
+  if (!d) return escHtml(value);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+// Exported for scripts/validate-closeout-binder.ts, which renders it with the
+// native modules stubbed. The screen reaches it only through
+// shareCloseoutBinderPDF.
+export function buildBinderHtml(input: BuildBinderInput): string {
   const {
     project, branding, binder, commitments, photos, selections, warranties, lienWaivers,
     // rfis/submittals were declared on BuildBinderInput and filtered by the
@@ -226,9 +251,9 @@ function buildBinderHtml(input: BuildBinderInput): string {
   // make a complete log look incomplete.
   const rfiRows = projectRfis.map(r => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">RFI-${escHtml(String(r.number).padStart(3, '0'))}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">#${escHtml(r.number)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(r.subject)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${r.dateSubmitted ? fmtDate(r.dateSubmitted) : ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(r.dateSubmitted, '')}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(RFI_STATUS_LABELS[r.status] ?? r.status)}</td>
     </tr>
   `).join('');
@@ -237,14 +262,15 @@ function buildBinderHtml(input: BuildBinderInput): string {
   // The shop-drawing record. Same reasoning on columns: the review-cycle
   // reviewer and return date are empty on most rows, so the log prints the
   // current disposition and stops there.
-  // These labels are already HTML (note the &amp;), so they are interpolated
-  // raw; the `?? escHtml(...)` fallback covers a status the map does not know.
+  // Plain text, escaped at the cell like every other value in this document —
+  // a label map that carries its own entities is one edit away from a raw '&'
+  // or an unescaped fallback reaching a client-facing PDF.
   const SUBMITTAL_STATUS_LABELS: Record<SubmittalStatus, string> = {
     pending: 'Pending',
     in_review: 'In review',
     approved: 'Approved',
     approved_as_noted: 'Approved as noted',
-    revise_resubmit: 'Revise &amp; resubmit',
+    revise_resubmit: 'Revise & resubmit',
     rejected: 'Rejected',
   };
   const projectSubmittals = (submittals ?? [])
@@ -255,7 +281,7 @@ function buildBinderHtml(input: BuildBinderInput): string {
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">SUB-${escHtml(String(s.number).padStart(3, '0'))}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(s.specSection ?? '')}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(s.title)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${SUBMITTAL_STATUS_LABELS[s.currentStatus] ?? escHtml(s.currentStatus)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(SUBMITTAL_STATUS_LABELS[s.currentStatus] ?? s.currentStatus)}</td>
     </tr>
   `).join('');
 
@@ -277,7 +303,7 @@ function buildBinderHtml(input: BuildBinderInput): string {
     <tr>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(w.subName)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(WAIVER_LABELS[w.waiverType]?.short ?? w.waiverType)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtDate(w.throughDate)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(w.throughDate, '—')}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtMoney(w.paidAmount)}</td>
     </tr>
   `).join('');
@@ -289,7 +315,7 @@ function buildBinderHtml(input: BuildBinderInput): string {
         <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(w.title ?? w.category ?? 'Item')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(w.provider ?? '')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${w.durationMonths ? w.durationMonths + ' mo' : ''}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${w.endDate ? fmtDate(w.endDate) : ''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(w.endDate, '')}</td>
       </tr>
     `).join('');
 
@@ -297,7 +323,7 @@ function buildBinderHtml(input: BuildBinderInput): string {
     <tr>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(m.task)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(m.frequency)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${m.nextDate ? fmtDate(m.nextDate) : '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(m.nextDate, '—')}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(m.notes ?? '')}</td>
     </tr>
   `).join('');
@@ -341,7 +367,7 @@ function buildBinderHtml(input: BuildBinderInput): string {
     </div>
     ` : ''}
 
-    ${sectionTable('Finishes &amp; fixtures installed',
+    ${sectionTable('Finishes & fixtures installed',
       ['Category', 'Product · Brand · SKU', 'Supplier'],
       selectionRows,
       'No selections recorded.')}
