@@ -61,7 +61,7 @@ import {
   getTaskBorderColor,
   suggestDuration,
   buildScheduleFromTasks,
-  saveBaseline,
+  mergeEditedSchedule,
   getPhaseColor,
   PHASE_OPTIONS,
 } from '@/utils/scheduleEngine';
@@ -81,7 +81,10 @@ import { parseCalendarDay, toCalendarDayString, todayCalendarDay } from '@/utils
 import {
   resolveScheduleAnchor, startDayNumberFor,
   UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_PREVIEW_NOTE, UNDATED_SCHEDULE_TITLE,
+  captureBaseline, applyBaselineToTasks, type NamedBaseline,
 } from '@/utils/scheduleOps';
+import { useAuth } from '@/contexts/AuthContext';
+import { appendAuditToAsyncStorage, buildAuditEntry } from '@/utils/scheduleAudit';
 import {
   SimulatedWeatherBanner,
   SimulatedDayChip,
@@ -98,7 +101,10 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { runCpm, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch } from '@/utils/cpm';
+import {
+  runCpm, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch,
+  calendarDayToDate, calendarIndexToWorkingOrdinal,
+} from '@/utils/cpm';
 import { showAlert } from '@/utils/alert';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
@@ -170,6 +176,212 @@ const EMPTY_DRAFT: TaskDraft = {
 const UNDATED_QUICK_ADD_HINT =
   'This schedule has no start date, so a custom date can’t be turned into a day number — leave it blank to chain after the last task.';
 
+// ─── TAB PLAN LOCK ─────────────────────────────────────────────────────────
+// Pure, and module-level on purpose: scripts/validate-schedule-verdict.ts
+// lifts this block out and transpiles it (the screen imports react-native,
+// which crashes bun), so what it pins is the shipped code, not a copy.
+//
+// "Save Baseline" here used to call scheduleEngine.saveBaseline, which writes
+// the legacy singular `schedule.baseline`. Nothing that says "behind plan"
+// reads that field — the verdict and slip read the newest entry of
+// `baselines[]`, and the health score's baseline_drift / CPLI checks filter
+// on each task's baselineStartDay/baselineEndDay. So a tablet or web lock
+// looked saved and changed no verdict. This is the phone's lockPlan
+// (components/schedule/mobile/MobileScheduleScreen.tsx), same calls in the
+// same order, so a tab lock, a phone lock and a BaselineManagerModal lock are
+// one comparable history.
+
+/** Why a lock cannot happen, or null when it can. Checked BEFORE any confirm
+ *  dialog so nobody confirms a lock that is then refused. */
+function tabLockRefusal(schedule: ProjectSchedule): { title: string; reason: string } | null {
+  if (schedule.tasks.length === 0) {
+    return {
+      title: 'Nothing to lock yet',
+      reason: 'A baseline is a snapshot of every task’s dates. Add tasks first, then lock the plan.',
+    };
+  }
+  // An undated plan has no finish DATE to promise, and "N days behind plan"
+  // measured against day numbers with no calendar would be a guess.
+  if (!resolveScheduleAnchor(schedule).dated) {
+    return {
+      title: UNDATED_SCHEDULE_TITLE,
+      reason: 'Set the schedule start date first — a locked plan is the finish date you are promising, and without a start date there is no date to lock.',
+    };
+  }
+  return null;
+}
+
+type TabLockResult =
+  | { ok: true; schedule: ProjectSchedule; snap: NamedBaseline; finishDay: number | null }
+  | { ok: false; title: string; reason: string };
+
+function lockTabPlan(
+  schedule: ProjectSchedule,
+  projectId: string,
+  capturedBy: string,
+  nowIso: string,
+): TabLockResult {
+  const refusal = tabLockRefusal(schedule);
+  if (refusal) return { ok: false, ...refusal };
+  const planAnchor = resolveScheduleAnchor(schedule);
+  const scale = {
+    scheduleStartDate: planAnchor.iso ?? undefined,
+    workingDaysPerWeek: schedule.workingDaysPerWeek,
+    nonWorkingDates: schedule.nonWorkingDates,
+  };
+  // Captured with the schedule calendar and its own CPM run, so the slip the
+  // moment after locking is exactly zero rather than a phantom.
+  const cpm = runCpm(schedule.tasks, scale);
+  const existing = schedule.baselines ?? [];
+  const snap = captureBaseline(schedule.tasks, `v${existing.length + 1}`, 'Locked from the Schedule tab', {
+    scale, cpm, capturedBy,
+  });
+  return {
+    ok: true,
+    snap,
+    finishDay: cpm.projectFinish > 0 ? cpm.projectFinish : null,
+    schedule: {
+      ...schedule,
+      projectId,
+      // Always the LIVE plan's tasks — never a What-If scenario being viewed.
+      tasks: applyBaselineToTasks(schedule.tasks, snap),
+      baselines: [...existing, snap],
+      updatedAt: nowIso,
+    },
+  };
+}
+
+/** The baseline "behind plan" is measured from: the newest named lock. */
+function activeNamedBaseline(schedule: ProjectSchedule | null): NamedBaseline | null {
+  const list = schedule?.baselines;
+  if (!list || list.length === 0) return null;
+  // Same structural cast as MobileScheduleScreen: types/index.ts declares
+  // baselines structurally to avoid a circular type import.
+  return list[list.length - 1] as unknown as NamedBaseline;
+}
+
+/**
+ * Baseline end day indexed by task id — the ACTIVE named baseline first, the
+ * legacy singular `baseline` only as the fallback for a schedule locked before
+ * baselines[] existed. The two store the end day differently, and mixing them
+ * is an off-by-one on every row, so the index says which one it holds:
+ *   * 'named' (captureBaseline): INCLUSIVE end, start taken from the CPM early
+ *     start converted to a working ordinal;
+ *   * 'legacy' (saveBaseline): EXCLUSIVE end, authored startDay + duration.
+ * Indexed once per change so each row lookup is O(1) (an imported schedule can
+ * be 1,000 rows; see the note at baselineEndByTaskId in the screen).
+ */
+type BaselineEndIndex = { kind: 'named' | 'legacy'; ends: Map<string, number> };
+
+function baselineEndIndex(schedule: ProjectSchedule | null): BaselineEndIndex | null {
+  if (!schedule) return null;
+  const named = activeNamedBaseline(schedule);
+  const kind: BaselineEndIndex['kind'] = named && named.tasks.length > 0 ? 'named' : 'legacy';
+  const source = kind === 'named' && named ? named.tasks : schedule.baseline?.tasks;
+  if (!source || source.length === 0) return null;
+  const ends = new Map<string, number>();
+  for (const b of source) ends.set(b.id, b.endDay);
+  return { kind, ends };
+}
+
+/**
+ * The LIVE end day of each task, on the same basis as the baseline it is
+ * compared with. Against a named lock that means CPM ES → working ordinal +
+ * duration − 1, exactly how captureBaseline measured the plan — reading the
+ * authored startDay instead would call a task whose stored start lags its
+ * dependencies "ahead of plan" when nothing moved. Against the legacy field it
+ * is the original arithmetic, verbatim.
+ */
+function liveEndIndex(
+  schedule: ProjectSchedule,
+  liveTasks: ScheduleTask[],
+  kind: BaselineEndIndex['kind'],
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (kind === 'legacy') {
+    for (const t of liveTasks) out.set(t.id, t.startDay + t.durationDays);
+    return out;
+  }
+  const scale = {
+    scheduleStartDate: resolveScheduleAnchor(schedule).iso ?? undefined,
+    workingDaysPerWeek: schedule.workingDaysPerWeek,
+    nonWorkingDates: schedule.nonWorkingDates,
+  };
+  const cpm = runCpm(liveTasks, scale);
+  for (const t of liveTasks) {
+    const row = cpm.perTask.get(t.id);
+    const start = row ? calendarIndexToWorkingOrdinal(row.es, scale) : t.startDay;
+    out.set(t.id, start + Math.max(0, t.durationDays - 1));
+  }
+  return out;
+}
+
+/**
+ * GanttChart draws its ghost bars from the legacy `schedule.baseline` shape
+ * (exclusive end). Rather than fork that component, the tab hands it a
+ * display-only copy whose `baseline` IS the active named lock, converted to
+ * the exclusive end the chart expects — so the Baseline toggle shows the same
+ * plan the variance and the verdict measure from. Never persisted.
+ */
+function scheduleForGanttBaseline(schedule: ProjectSchedule): ProjectSchedule {
+  const named = activeNamedBaseline(schedule);
+  if (!named) return schedule;
+  return {
+    ...schedule,
+    baseline: {
+      savedAt: named.savedAt,
+      tasks: named.tasks.map((b) => ({ id: b.id, startDay: b.startDay, endDay: b.endDay + 1 })),
+    },
+  };
+}
+/**
+ * Rebuild the schedule after a routine task edit (progress tap, photo, note,
+ * delete, quick-add, classic edit) WITHOUT losing what the rebuild does not
+ * author. buildScheduleFromTasks returns a fresh record with no baselines[],
+ * scenarios, nonWorkingDates or resources, and hardcodes workingDaysPerWeek=5,
+ * and saveSchedule writes it wholesale — so a plan locked with the button above
+ * (or on the phone) was wiped by the very next progress tap and "behind plan"
+ * went blank again. mergeEditedSchedule is the shared sink the phone and
+ * Schedule Pro already use: existing sidecars first, the rebuild's derived
+ * scalars on top. With no schedule yet (creation) there is nothing to keep.
+ */
+function rebuildEditedSchedule(
+  existing: ProjectSchedule | null,
+  name: string,
+  projectId: string | null,
+  nextTasks: ScheduleTask[],
+): ProjectSchedule | null {
+  // Belt-and-braces for whatIfEditRefusal: the handlers build nextTasks from
+  // what is ON SCREEN, which under What-If is the scenario copy. Merging that
+  // would overwrite the live plan's tasks while the screen keeps showing the
+  // unchanged scenario — so a refused edit produces nothing to save.
+  if (whatIfEditRefusal(existing)) return null;
+  const built = buildScheduleFromTasks(name, projectId, nextTasks, existing?.baseline);
+  return existing ? mergeEditedSchedule(existing, built) : built;
+}
+
+/**
+ * Why a task edit must not be saved right now, or null when it may. While a
+ * What-If scenario is on screen every list, board and Gantt row is the
+ * SCENARIO's snapshot, and every edit handler maps over those rows — so
+ * saving would replace the live plan's tasks with the hypothetical copy (plus
+ * the edit), and the variance chips and verdict would then report a slip that
+ * never happened on site. Scenarios are read-only in v1; the way out is to
+ * exit What-If. Matches `activeScenarioTasks` exactly: an id that points at a
+ * deleted scenario shows the live plan, so it is not refused.
+ */
+const WHAT_IF_READ_ONLY_TITLE = 'What-If is read-only';
+function whatIfEditRefusal(schedule: ProjectSchedule | null): { title: string; reason: string } | null {
+  const id = schedule?.activeScenarioId;
+  if (!schedule || !id) return null;
+  if (!(schedule.scenarios ?? []).some((s) => s.id === id)) return null;
+  return {
+    title: WHAT_IF_READ_ONLY_TITLE,
+    reason: 'You are viewing a What-If scenario, so this change was not saved — it would have overwritten the live plan with the scenario copy. Exit What-If to edit the live plan.',
+  };
+}
+// ─── END TAB PLAN LOCK ─────────────────────────────────────────────────────
+
 function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef?: React.MutableRefObject<string | null> } = {}) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
@@ -178,6 +390,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { projects, updateProject, addProject, contacts, subcontractors } = useProjects();
+  // Who locked a baseline — stamped on the capture and its audit row, the
+  // same identity the phone schedule records.
+  const { user } = useAuth();
+  const auditUser = user?.email ?? user?.name ?? 'anonymous';
   const { canAccess } = useTierAccess();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -400,6 +616,22 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   );
 
   /**
+   * Gate for every task-edit path. Returns true (and says why, with the way
+   * out) when the edit must not be saved because a What-If is on screen — see
+   * whatIfEditRefusal. Called BEFORE any confirm so nobody confirms a delete
+   * that is then dropped.
+   */
+  const refuseWhileWhatIf = useCallback((): boolean => {
+    const refusal = whatIfEditRefusal(activeSchedule);
+    if (!refusal) return false;
+    showAlert(refusal.title, refusal.reason, [
+      { text: 'Stay in What-If', style: 'cancel' },
+      { text: 'Exit What-If', onPress: () => handleScheduleScenariosChange({ activeScenarioId: null }) },
+    ]);
+    return true;
+  }, [activeSchedule, handleScheduleScenariosChange]);
+
+  /**
    * THE forecast for this screen. Drives the Gantt weather badges (horizontal
    * + vertical) and the task-detail "Weather Impact" panel.
    *
@@ -480,21 +712,36 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
    * P6 file made the board do up to 1,000,000 id comparisons per render pass —
    * on every progress tap, filter change and phase collapse.
    *
-   * Indexing once per baseline change makes each lookup O(1). The arithmetic
-   * below (getTaskVariance) is character-for-character what getBaselineVariance
-   * computes, so no displayed variance number changes.
+   * Indexing once per baseline change makes each lookup O(1). Against the
+   * legacy field the arithmetic is still exactly getBaselineVariance's.
+   *
+   * 2026-09-16: indexed from the ACTIVE named baseline first, the legacy field
+   * as fallback (see baselineEndIndex above) — reading the old field alone
+   * meant a tab or phone lock never reached a card's variance chip.
    */
-  const baselineEndByTaskId = useMemo(() => {
-    const index = new Map<string, number>();
-    for (const bt of activeSchedule?.baseline?.tasks ?? []) index.set(bt.id, bt.endDay);
-    return index;
-  }, [activeSchedule?.baseline]);
+  const baselineEndByTaskId = useMemo(() => baselineEndIndex(activeSchedule), [activeSchedule]);
+  // No chips while a What-If is on screen: the rows are the hypothetical
+  // snapshot, and a "+3d" measured from it against the real lock would read as
+  // an actual slip on the board and list, which carry no What-If banner.
+  const liveEndByTaskId = useMemo(
+    () => (activeSchedule && baselineEndByTaskId && !activeScenarioTasks
+      ? liveEndIndex(activeSchedule, sortedTasks, baselineEndByTaskId.kind)
+      : null),
+    [activeSchedule, sortedTasks, baselineEndByTaskId, activeScenarioTasks],
+  );
 
   const getTaskVariance = useCallback((task: ScheduleTask): number | null => {
-    const baselineEnd = baselineEndByTaskId.get(task.id);
-    if (baselineEnd === undefined) return null;
-    return (task.startDay + task.durationDays) - baselineEnd;
-  }, [baselineEndByTaskId]);
+    const baselineEnd = baselineEndByTaskId?.ends.get(task.id);
+    const liveEnd = liveEndByTaskId?.get(task.id);
+    if (baselineEnd === undefined || liveEnd === undefined) return null;
+    return liveEnd - baselineEnd;
+  }, [baselineEndByTaskId, liveEndByTaskId]);
+
+  // Display-only: the Gantt's Baseline toggle draws the active named lock.
+  const ganttSchedule = useMemo(
+    () => (activeSchedule ? scheduleForGanttBaseline(activeSchedule) : null),
+    [activeSchedule],
+  );
 
   const totalProgress = useMemo(() => {
     if (sortedTasks.length === 0) return 0;
@@ -580,6 +827,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     addProject(newProject);
     setSelectedProjectId(newProject.id);
   }, [addProject, updateProject]);
+
+  // One opener for every "set start date" door (both start bars and the
+  // undated-lock refusal), so each opens pre-filled with the date on screen
+  // rather than whatever was last typed into the field.
+  const openStartDatePicker = useCallback(() => {
+    const yyyy = projectStartDate.getFullYear();
+    const mm = String(projectStartDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(projectStartDate.getDate()).padStart(2, '0');
+    setProjectStartDateInput(`${yyyy}-${mm}-${dd}`);
+    setIsProjectStartDatePickerOpen(true);
+  }, [projectStartDate]);
 
   // Save a new project start date onto the schedule. Tasks keep their startDay
   // offsets, so the schedule "slides" to the new date wholesale.
@@ -685,6 +943,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
    */
   const persistEditedTasks = useCallback((nextTasks: ScheduleTask[]) => {
     if (!selectedProject || !activeSchedule) return;
+    if (refuseWhileWhatIf()) return;
     // Step 1: reflow dependent startDay values via CPM.
     const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions).tasks;
     // Step 2: derive accurate scalar fields via the canonical builder.
@@ -718,14 +977,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       updatedAt: new Date().toISOString(),
     };
     saveSchedule(merged, selectedProject);
-  }, [selectedProject, activeSchedule, cpmOptions, saveSchedule]);
+  }, [selectedProject, activeSchedule, cpmOptions, saveSchedule, refuseWhileWhatIf]);
 
   const mobileCommit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
     if (!selectedProject || !activeSchedule) return;
+    if (refuseWhileWhatIf()) return;
     persistEditedTasks(producer(sortedTasks));
-  }, [selectedProject, activeSchedule, sortedTasks, persistEditedTasks]);
+  }, [selectedProject, activeSchedule, sortedTasks, persistEditedTasks, refuseWhileWhatIf]);
 
   const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null) => {
+    if (refuseWhileWhatIf()) return;
     const title = draft.title.trim();
     if (!title) { showAlert('Missing task name'); return; }
     const durationDays = parseInt(draft.durationDays, 10);
@@ -832,8 +1093,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         doPersist();
       } else {
         const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-        const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
-        saveSchedule(nextSchedule, selectedProject);
+        const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+        if (nextSchedule) saveSchedule(nextSchedule, selectedProject);
       }
     } else {
       const lastTask = sortedTasks[sortedTasks.length - 1];
@@ -868,11 +1129,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       };
       const currentTasks = sortedTasks.length > 0 ? sortedTasks : [];
       const scheduleName = activeSchedule?.name ?? (selectedProject ? `${selectedProject.name} Schedule` : 'Project Schedule');
-      const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, [...currentTasks, newTask], activeSchedule?.baseline);
-      saveSchedule(nextSchedule, selectedProject);
+      const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, [...currentTasks, newTask]);
+      if (nextSchedule) saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks, beforeProjectStart]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks, beforeProjectStart, refuseWhileWhatIf]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);
@@ -909,6 +1170,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, []);
 
   const handleProgressUpdate = useCallback((task: ScheduleTask, nextProgress: number) => {
+    if (refuseWhileWhatIf()) return;
     const clamped = Math.max(0, Math.min(100, nextProgress));
     const nextStatus = clamped >= 100 ? 'done' as const : clamped > 0 ? 'in_progress' as const : 'not_started' as const;
     const nextTasks = sortedTasks.map(item => {
@@ -926,24 +1188,28 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       return { ...item, progress: clamped, status: nextStatus, ...stamp };
     });
     const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-    const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
+    const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+    if (!nextSchedule) return;
     saveSchedule(nextSchedule, selectedProject);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, refuseWhileWhatIf]);
 
   const handlePhotoAdded = useCallback((task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => {
+    if (refuseWhileWhatIf()) return;
     console.log('[Schedule] Photo added to task:', task.title);
     const existingPhotos = task.photos ?? [];
     const nextTasks = sortedTasks.map(item =>
       item.id !== task.id ? item : { ...item, photos: [...existingPhotos, photo] }
     );
     const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-    const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
+    const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+    if (!nextSchedule) return;
     saveSchedule(nextSchedule, selectedProject);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, refuseWhileWhatIf]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
+    if (refuseWhileWhatIf()) return;
     showAlert('Delete Task', 'Remove this task?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -956,21 +1222,84 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               dependencyLinks: (t.dependencyLinks ?? []).filter(l => l.taskId !== taskId),
             }));
           const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-          const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
-          saveSchedule(nextSchedule, selectedProject);
+          const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+          if (nextSchedule) saveSchedule(nextSchedule, selectedProject);
         },
       },
     ]);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, refuseWhileWhatIf]);
 
+  const latestScheduleRef = useRef<ProjectSchedule | null>(activeSchedule);
+  latestScheduleRef.current = activeSchedule;
+
+  /**
+   * Lock the plan — the tab's twin of the phone's lockPlan. Writes through
+   * updateProject directly (as the phone does) rather than saveSchedule, which
+   * also resets project.status to estimated/draft: a baseline is not an edit
+   * to the project's lifecycle.
+   */
+  const commitPlanLock = useCallback(() => {
+    // Read the schedule at CONFIRM time, not when the dialog opened: an offline
+    // flush or another device's edit can land while "Re-lock the plan?" is up,
+    // and writing the stale snapshot would silently revert it.
+    const schedule = latestScheduleRef.current;
+    if (!selectedProject || !schedule) return;
+    const res = lockTabPlan(schedule, selectedProject.id, auditUser, new Date().toISOString());
+    if (!res.ok) { showAlert(res.title, res.reason); return; }
+    updateProject(selectedProject.id, { schedule: res.schedule });
+    const anchorDate = resolveScheduleAnchor(res.schedule).date;
+    const finishLabel = anchorDate && res.finishDay != null
+      ? calendarDayToDate(anchorDate, res.finishDay)
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+    void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
+      user: auditUser,
+      kind: 'baseline_capture',
+      summary: `Locked the plan as baseline ${res.snap.name}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+    }));
+    showAlert(
+      `Plan locked as ${res.snap.name}`,
+      `${finishLabel ? `The finish you are promising is ${finishLabel}. ` : ''}"Behind plan" and each task's variance now count from these dates.`,
+    );
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [selectedProject, updateProject, auditUser]);
+
+  /** The button. Refusals first (with the way out), then a confirm when the
+   *  lock would MOVE the yardstick or when a What-If is on screen. */
   const handleSaveBaseline = useCallback(() => {
     if (!activeSchedule) return;
-    const baseline = saveBaseline(activeSchedule);
-    const updated = { ...activeSchedule, baseline };
-    saveSchedule(updated, selectedProject);
-    showAlert('Baseline Saved', 'Current schedule saved as baseline for comparison.');
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [activeSchedule, saveSchedule, selectedProject]);
+    const refusal = tabLockRefusal(activeSchedule);
+    if (refusal) {
+      const undated = !resolveScheduleAnchor(activeSchedule).dated && activeSchedule.tasks.length > 0;
+      showAlert(refusal.title, refusal.reason, undated
+        ? [
+          { text: 'Not now', style: 'cancel' },
+          { text: UNDATED_SCHEDULE_CTA, onPress: openStartDatePicker },
+        ]
+        : undefined);
+      return;
+    }
+    const current = activeNamedBaseline(activeSchedule);
+    // Viewing a What-If shows scenario tasks, but the lock takes the LIVE plan
+    // — say so rather than let him think he locked the branch.
+    const scenarioNote = activeSchedule.activeScenarioId
+      ? ' This locks the live plan, not the What-If scenario on screen.'
+      : '';
+    if (!current && !scenarioNote) { commitPlanLock(); return; }
+    const lockedOn = current
+      ? new Date(current.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+    showAlert(
+      current ? 'Re-lock the plan?' : 'Lock the plan?',
+      current
+        ? `Slip is measured from the newest lock. ${current.name} (locked ${lockedOn}) stays in the baseline history, but "behind plan" will count from today's dates instead.${scenarioNote}`
+        : `Every "behind plan" from now on counts from today's dates.${scenarioNote}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: current ? 'Re-lock' : 'Lock', onPress: () => commitPlanLock() },
+      ],
+    );
+  }, [activeSchedule, commitPlanLock, openStartDatePicker]);
 
   const handleTemplateSelect = useCallback((template: ScheduleTemplate, _startDate: Date) => {
     const tasks: ScheduleTask[] = [];
@@ -2295,13 +2624,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             </Text>
             <TouchableOpacity
               style={[styles.projectStartEdit, isUndated ? styles.projectStartEditUndated : null]}
-              onPress={() => {
-                const yyyy = projectStartDate.getFullYear();
-                const mm = String(projectStartDate.getMonth() + 1).padStart(2, '0');
-                const dd = String(projectStartDate.getDate()).padStart(2, '0');
-                setProjectStartDateInput(`${yyyy}-${mm}-${dd}`);
-                setIsProjectStartDatePickerOpen(true);
-              }}
+              onPress={openStartDatePicker}
               testID="edit-project-start-date-desktop"
             >
               <Text style={[styles.projectStartEditText, isUndated ? { color: themeColors.warningLabel } : null]}>
@@ -2392,7 +2715,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.saveBaselineBtn} onPress={handleSaveBaseline}>
                       <Save size={13} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.saveBaselineBtnText}>Save Baseline</Text>
+                      <Text style={styles.saveBaselineBtnText}>Lock plan</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.saveBaselineBtn}
@@ -2406,7 +2729,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   {isVerticalGantt ? (
                     <VerticalGantt schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
                   ) : (
-                    <GanttChart schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
+                    <GanttChart schedule={ganttSchedule ?? activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
                   )}
                 </View>
               )}
@@ -2896,13 +3219,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 </Text>
                 <TouchableOpacity
                   style={[styles.projectStartEdit, isUndated ? styles.projectStartEditUndated : null]}
-                  onPress={() => {
-                    const yyyy = projectStartDate.getFullYear();
-                    const mm = String(projectStartDate.getMonth() + 1).padStart(2, '0');
-                    const dd = String(projectStartDate.getDate()).padStart(2, '0');
-                    setProjectStartDateInput(`${yyyy}-${mm}-${dd}`);
-                    setIsProjectStartDatePickerOpen(true);
-                  }}
+                  onPress={openStartDatePicker}
                   testID="edit-project-start-date-mobile"
                 >
                   <Text style={[styles.projectStartEditText, isUndated ? { color: themeColors.warningLabel } : null]}>
@@ -2978,7 +3295,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.saveBaselineBtn} onPress={handleSaveBaseline}>
                         <Save size={13} color={themeColors.accent} strokeWidth={1.75} />
-                        <Text style={styles.saveBaselineBtnText}>Save Baseline</Text>
+                        <Text style={styles.saveBaselineBtnText}>Lock plan</Text>
                       </TouchableOpacity>
                     </View>
                     {isVerticalGantt ? (
@@ -2992,7 +3309,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       />
                     ) : (
                       <GanttChart
-                        schedule={activeSchedule}
+                        schedule={ganttSchedule ?? activeSchedule}
                         tasks={sortedTasks}
                         projectStartDate={projectStartDate}
                         onTaskPress={setTaskDetailModal}
@@ -3056,6 +3373,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           updateFunctions={{
             handleProgressUpdate,
             onAddNote: (task, note) => {
+              if (refuseWhileWhatIf()) return;
               const updatedNotes = task.notes
                 ? `${task.notes}\n[${new Date().toLocaleDateString()}] ${note}`
                 : `[${new Date().toLocaleDateString()}] ${note}`;
@@ -3063,8 +3381,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 item.id !== task.id ? item : { ...item, notes: updatedNotes }
               );
               const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-              const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
-              saveSchedule(nextSchedule, selectedProject);
+              const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+              if (nextSchedule) saveSchedule(nextSchedule, selectedProject);
             },
           }}
           activeTodayTask={todayTasks[0] ?? null}
