@@ -181,6 +181,17 @@
     font-size: 14.5px;
   }
   .hero-welcome strong { color: var(--amber); font-weight: 700; }
+  /* Schedule pace chip — sits under the hero progress bar. Tint pill on the
+     dark hero so each verdict keeps the page's own success/warning/error ink. */
+  .hero-pace { margin-top: 12px; }
+  .hero-pace-chip {
+    display: inline-block; padding: 4px 10px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 700; line-height: 1.4;
+  }
+  .hero-pace-chip.on_track, .hero-pace-chip.complete { background: var(--success-tint); color: var(--success); }
+  .hero-pace-chip.minor_delays { background: var(--warning-tint); color: var(--warning); }
+  .hero-pace-chip.behind { background: var(--error-tint); color: var(--error); }
+  .hero-pace-basis { margin-top: 6px; font-size: 12px; opacity: .72; }
 
   /* ───────── Stats bar (sits on top of hero) ───────── */
   .stats-bar {
@@ -2924,7 +2935,21 @@
     askHomeLimit: 'You’ve reached today’s question limit. The answered questions above are always available — try again tomorrow.',
     askHomeError: 'Couldn’t reach your home’s records right now. Try again in a moment.',
     empty: 'No data shared yet.',
-    payNow: 'Pay Now'
+    payNow: 'Pay Now',
+    // ── Schedule pace chip (hero) ──────────────────────────────────────────
+    // The four labels are the in-app card's words (utils/ownerConfidence.ts
+    // STATUS_LABEL) — scripts/validate-portal-owner.ts pins them equal, so the
+    // GC's preview and the homeowner's page never name one job two ways.
+    // "planned finish", not "now finishing": the date is the schedule's plan,
+    // not a re-forecast, and saying "now" would present a guess as a fact.
+    paceOnTrack: 'On track',
+    paceMinorDelays: 'Minor delays',
+    paceBehind: 'Behind schedule',
+    paceComplete: 'Complete',
+    paceFinishing: 'finishing {date}',
+    pacePlannedFinish: 'planned finish {date}',
+    paceWasDue: 'was due {date}',
+    paceBasis: '{done}% of the work reported done · {elapsed}% of the scheduled time used'
   };
   // Passport wording for a commercial project. Only the keys that actually
   // say "home" are overridden — everything else (warranties, trade contacts,
@@ -2943,6 +2968,12 @@
     askHomePlaceholder: 'Ask anything about this space…',
     askHomeThinking: 'Checking the project records…',
     askHomeUnavailable: 'Questions aren’t available yet — your contractor’s records are still being prepared. The binder above has everything on file.',
+    // A tenant or building owner plans around a completion / turnover date,
+    // not "when we're finishing up" — the plainer residential phrasing reads
+    // as a house job on a commercial fit-out.
+    paceFinishing: 'scheduled completion {date}',
+    pacePlannedFinish: 'scheduled completion {date}',
+    paceWasDue: 'completion was scheduled for {date}',
   };
 
   function isCommercialProject() {
@@ -6339,6 +6370,85 @@
     return { known: false, pct: 0 };
   }
 
+  // ───────── Schedule pace (hero chip) ─────────
+  // "Am I getting my house back when you said?" — answered on the page itself,
+  // against THIS viewer's today, from sections.schedule. Deliberately not a
+  // field in the snapshot: a verdict frozen when the GC published would still
+  // say "On track" weeks later. Computing it here also means every portal
+  // already published gets it, with no payload change.
+  //
+  // A hand-written mirror of utils/ownerConfidence.ts ownerSchedulePace — the
+  // thresholds below, the evidence gate, the finish ordinal and the pace
+  // arithmetic. scripts/validate-portal-owner.ts lifts this function out of the
+  // file and holds it head-to-head against the TypeScript on shared fixtures,
+  // and pins the two threshold constants equal, so the in-app card and this
+  // page cannot give one job two verdicts.
+  //
+  // Returns null — and the page shows NO chip — unless (1) work has been
+  // reported (deriveWorkProgress's own test, the one that gates the progress
+  // bar: an untouched schedule is not "Behind", it is unreported) and (2) the
+  // start date parses (no anchor, no pace; never an unearned "On track").
+  var PACE_ON_TRACK_MIN_DELTA = -0.05;
+  var PACE_MINOR_DELAYS_MIN_DELTA = -0.15;
+  function deriveSchedulePace(section, nowMs) {
+    var tasks = (section && section.tasks) || [];
+    if (!tasks.length) return null;
+    // Task branch only — a hidden schedule's budget.workComplete is no basis
+    // for a dated verdict.
+    var work = deriveWorkProgress({ sections: { schedule: { tasks: tasks } } });
+    if (!work.known) return null;
+    if (!section.startDate) return null;
+    var start = parseCalendarDate(section.startDate);
+    if (isNaN(start.getTime())) return null;
+    var maxEndDay = 1;
+    for (var i = 0; i < tasks.length; i++) {
+      var sd = tasks[i].startDay == null ? 1 : tasks[i].startDay;
+      var du = tasks[i].durationDays == null ? 1 : tasks[i].durationDays;
+      var endDay = sd + Math.max(0, du - 1);
+      if (endDay > maxEndDay) maxEndDay = endDay;
+    }
+    var finish = addWorkingDays(start, Math.max(0, maxEndDay - 1),
+      section.workingDaysPerWeek || 5, section.nonWorkingDates || null);
+    var startMs = start.getTime();
+    var span = finish.getTime() - startMs;
+    var expected = span > 0
+      ? Math.max(0, Math.min(1, (nowMs - startMs) / span))
+      : (nowMs >= startMs ? 1 : 0);
+    var delta = work.pct / 100 - expected;
+    var status = work.pct >= 100 ? 'complete'
+      : delta >= PACE_ON_TRACK_MIN_DELTA ? 'on_track'
+      : delta >= PACE_MINOR_DELAYS_MIN_DELTA ? 'minor_delays'
+      : 'behind';
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    return {
+      status: status,
+      pct: work.pct,
+      expected: expected,
+      finishISO: finish.getFullYear() + '-' + two(finish.getMonth() + 1) + '-' + two(finish.getDate())
+    };
+  }
+
+  // The chip's words, kept apart from the DOM so the guard can read them.
+  // Tense follows the calendar: a planned finish already behind today is
+  // "was due", not "finishing".
+  function schedulePaceCopy(pace, nowMs) {
+    var labelKey = { on_track: 'paceOnTrack', minor_delays: 'paceMinorDelays', behind: 'paceBehind', complete: 'paceComplete' }[pace.status];
+    var text = t(labelKey);
+    if (pace.status !== 'complete') {
+      var now = new Date(nowMs);
+      var todayISO = now.getFullYear() + '-' + ((now.getMonth() + 1) < 10 ? '0' : '') + (now.getMonth() + 1)
+        + '-' + (now.getDate() < 10 ? '0' : '') + now.getDate();
+      var date = fmtCalendarDate(pace.finishISO);
+      var clauseKey = pace.finishISO < todayISO ? 'paceWasDue'
+        : pace.status === 'on_track' ? 'paceFinishing' : 'pacePlannedFinish';
+      text += ' · ' + t(clauseKey, { date: date });
+    }
+    return {
+      chip: text,
+      basis: t('paceBasis', { done: pace.pct, elapsed: Math.round(pace.expected * 100) })
+    };
+  }
+
   // ───────── Stats bar ─────────
   function renderStats(budget, invoices, aia, work) {
     var grid = document.getElementById('stats-grid');
@@ -6674,7 +6784,7 @@
     if (work.known) {
       var pp = work.pct;
       meta.insertAdjacentHTML('afterend',
-        '<div style="margin-top:16px;max-width:340px">' +
+        '<div id="hero-progress" style="margin-top:16px;max-width:340px">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
             '<span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;opacity:.8">Project progress</span>' +
             '<span style="font-size:13px;font-weight:800">' + pp + '%</span>' +
@@ -6683,6 +6793,30 @@
             '<div style="height:8px;width:' + pp + '%;background:#fff;border-radius:5px;transition:width .6s ease"></div>' +
           '</div>' +
         '</div>');
+
+      // Pace chip beside the bar — see deriveSchedulePace. Omitted entirely
+      // when there is no evidence, and on a job the GC has closed (the meta
+      // line above already says so; a pace read there would only mislead).
+      var projStatus = String(project.status || '').toLowerCase();
+      var nowMs = Date.now();
+      var pace = (projStatus === 'completed' || projStatus === 'closed')
+        ? null
+        : deriveSchedulePace(sections.schedule, nowMs);
+      var progressHost = document.getElementById('hero-progress');
+      if (pace && progressHost) {
+        var copy = schedulePaceCopy(pace, nowMs);
+        var paceWrap = document.createElement('div');
+        paceWrap.className = 'hero-pace';
+        var chip = document.createElement('span');
+        chip.className = 'hero-pace-chip ' + pace.status;
+        chip.textContent = copy.chip;
+        var basis = document.createElement('div');
+        basis.className = 'hero-pace-basis';
+        basis.textContent = copy.basis;
+        paceWrap.appendChild(chip);
+        paceWrap.appendChild(basis);
+        progressHost.appendChild(paceWrap);
+      }
     }
 
     // Hero photo background

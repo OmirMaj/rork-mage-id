@@ -36,7 +36,7 @@ import {
   ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION, DUE_SOON_DAYS,
   type OwnerDecision,
 } from '../utils/portalOwnerCore';
-import { buildOwnerConfidence } from '../utils/ownerConfidence';
+import { buildOwnerConfidence, ownerSchedulePace, OWNER_PACE_THRESHOLDS, STATUS_LABEL } from '../utils/ownerConfidence';
 import { buildPortalSnapshot, scheduleWorkComplete, scheduleFinishDate, maskPortalLinkToken, portalShareUrl, PORTAL_BASE_URL, PORTAL_SNAPSHOT_VERSION,
   buildPortalDocuments, closeoutIsShared,
   buildProposalConsentRecord, buildFeedbackAsk, proposalBlockReason,
@@ -2075,6 +2075,160 @@ expect('outstanding is billed-and-unpaid — not pre-tax contract minus taxed ca
     /addWorkingDays\(projectStart, Math\.max\(0, maxEndDay - 1\), dpw, nonWorking\)/.test(portalHtml));
   ok('the hero labels the finish as the plan, not a bare arrow',
     /scheduled finish/.test(portalHtml));
+}
+
+// ── The pace verdict, on the page the homeowner actually opens ─────────────
+//
+// The app computed "On track / Minor delays / Behind schedule" and rendered it
+// only in the GC's in-app preview; the homeowner's portal said nothing about
+// whether the job was on time. The page now computes it itself, against the
+// viewer's today — NOT from the snapshot, where a verdict frozen at publish
+// time would still say "On track" weeks later.
+//
+// Held here, head-to-head:
+//   - the page's deriveSchedulePace vs utils/ownerConfidence ownerSchedulePace
+//     over a sweep of "todays" on several schedules, so a drifted threshold,
+//     gate, finish ordinal or pace formula on either side turns this red;
+//   - the page's threshold constants and chip labels vs the TypeScript ones;
+//   - the evidence gate: no reported work or no start date → no chip at all.
+{
+  const awdStart = portalHtml.indexOf('  function parseCalendarDate(value) {');
+  const awdStop = portalHtml.indexOf('  function fmtMonthShort(d) {', awdStart);
+  const wpStart = portalHtml.indexOf('  function deriveWorkProgress(data) {');
+  const paceStart = portalHtml.indexOf('  // ───────── Schedule pace (hero chip) ─────────');
+  const paceStop = portalHtml.indexOf('  // ───────── Stats bar ─────────', paceStart);
+  const extractable = awdStart >= 0 && awdStop > awdStart && wpStart >= 0 && paceStart > wpStart && paceStop > paceStart;
+  ok('the portal pace read is extractable for a head-to-head check', extractable,
+    `awd=${awdStart}..${awdStop} wp=${wpStart} pace=${paceStart}..${paceStop}`);
+  if (extractable) {
+    // deriveWorkProgress ends where the pace block begins; the pace block ends
+    // at the stats bar. One slice carries both, plus the calendar helpers.
+    const fmtStart = portalHtml.indexOf('  function fmtCalendarDate(dateStr, withYear) {');
+    const fmtStop = portalHtml.indexOf('  function fmtPercent(n, dec) {', fmtStart);
+    const monthsDecl = /var CAL_MONTHS = \[[^\]]*\];/.exec(portalHtml)?.[0] ?? '';
+    ok('fmtCalendarDate + CAL_MONTHS are extractable', fmtStart >= 0 && fmtStop > fmtStart && monthsDecl.length > 0);
+    const fallbackStart = portalHtml.indexOf('  var FALLBACK_STRINGS = {');
+    const fallbackStop = portalHtml.indexOf('  function isCommercialProject() {', fallbackStart);
+    // eslint-disable-next-line no-new-func
+    const page = new Function('window', `
+      function fmtDateShort(v){ return String(v); }
+      ${monthsDecl}
+      ${portalHtml.slice(fallbackStart, fallbackStop)}
+      function isCommercialProject() { var d = window.__portalData; return !!(d && d.project && d.project.type === 'commercial'); }
+      function t(key, vars) {
+        var data = window.__portalData; var bundle = (data && data.uiStrings) || {};
+        var fallback = (isCommercialProject() && COMMERCIAL_PASSPORT_STRINGS[key]) || FALLBACK_STRINGS[key];
+        var s = bundle[key] || fallback || key;
+        if (vars) Object.keys(vars).forEach(function (k) { s = s.replace('{' + k + '}', vars[k]); });
+        return s;
+      }
+      ${portalHtml.slice(fmtStart, fmtStop)}
+      ${portalHtml.slice(awdStart, awdStop)}
+      ${portalHtml.slice(wpStart, paceStop)}
+      return { deriveSchedulePace: deriveSchedulePace, schedulePaceCopy: schedulePaceCopy,
+        FALLBACK_STRINGS: FALLBACK_STRINGS, ON: PACE_ON_TRACK_MIN_DELTA, MINOR: PACE_MINOR_DELAYS_MIN_DELTA };
+    `);
+    const win: { __portalData?: unknown } = {};
+    const P = page(win) as {
+      deriveSchedulePace: (section: unknown, nowMs: number) => { status: string; pct: number; expected: number; finishISO: string } | null;
+      schedulePaceCopy: (pace: unknown, nowMs: number) => { chip: string; basis: string };
+      FALLBACK_STRINGS: Record<string, string>;
+      ON: number; MINOR: number;
+    };
+
+    expect('page pace thresholds equal utils/ownerConfidence OWNER_PACE_THRESHOLDS',
+      [P.ON, P.MINOR], [OWNER_PACE_THRESHOLDS.onTrackMinDelta, OWNER_PACE_THRESHOLDS.minorDelaysMinDelta]);
+    expect('page chip labels equal the in-app card labels',
+      [P.FALLBACK_STRINGS.paceOnTrack, P.FALLBACK_STRINGS.paceMinorDelays, P.FALLBACK_STRINGS.paceBehind, P.FALLBACK_STRINGS.paceComplete],
+      [STATUS_LABEL.on_track, STATUS_LABEL.minor_delays, STATUS_LABEL.behind, STATUS_LABEL.complete]);
+
+    const tk = (id: string, startDay: number, durationDays: number, progress: number, status = progress >= 100 ? 'done' : progress > 0 ? 'in_progress' : 'not_started', isMilestone = false) =>
+      ({ id, title: id, phase: 'p', startDay, durationDays, progress, status, isMilestone, crew: '', dependencies: [], notes: '' });
+    const withSchedule = (sched: Record<string, unknown>): Project =>
+      ({ ...henderson, schedule: { ...(henderson as any).schedule, ...sched } } as unknown as Project);
+    const paceCases: { name: string; project: Project }[] = [
+      { name: 'the untouched Henderson schedule', project: henderson },
+      { name: 'a part-built job', project: withSchedule({ tasks: [tk('a', 1, 20, 100), tk('b', 21, 15, 40), tk('c', 36, 25, 0), tk('m', 60, 0, 0, 'not_started', true)] }) },
+      { name: 'a 6-day week with closures', project: withSchedule({ workingDaysPerWeek: 6, nonWorkingDates: ['2026-05-25', '2026-07-03'], tasks: [tk('a', 1, 30, 50), tk('b', 31, 30, 0)] }) },
+      { name: 'status in_progress with 0%', project: withSchedule({ tasks: [tk('a', 1, 40, 0, 'in_progress')] }) },
+      { name: 'milestone-only progress', project: withSchedule({ tasks: [tk('m', 1, 0, 100, 'done', true), tk('a', 1, 40, 0)] }) },
+      { name: 'every task done', project: withSchedule({ tasks: [tk('a', 1, 10, 100), tk('b', 11, 10, 100)] }) },
+      { name: 'a one-day job', project: withSchedule({ tasks: [tk('a', 1, 1, 50)] }) },
+      { name: 'no start date', project: withSchedule({ startDate: undefined, tasks: [tk('a', 1, 20, 50)] }) },
+    ];
+    const seen = new Set<string>();
+    let compared = 0;
+    let firstMismatch = '';
+    for (const c of paceCases) {
+      const snap = buildPortalSnapshot({ project: c.project, portal: portalSettings });
+      const section = snap.sections.schedule;
+      const sch = (c.project as any).schedule;
+      // Every day from a week before the start to well past the finish, at an
+      // afternoon hour so the local-midnight anchor is exercised mid-day.
+      for (let day = -7; day <= 130; day++) {
+        const nowMs = new Date(2026, 4, 4 + day, 15, 0, 0).getTime();
+        const ts = ownerSchedulePace({ tasks: sch.tasks, startDate: sch.startDate, workingDaysPerWeek: sch.workingDaysPerWeek, nonWorkingDates: sch.nonWorkingDates, nowMs });
+        const pg = P.deriveSchedulePace(section, nowMs);
+        const a = ts && [ts.status, ts.pct, Math.round(ts.expected * 1e6), ts.finishISO];
+        const b = pg && [pg.status, pg.pct, Math.round(pg.expected * 1e6), pg.finishISO];
+        compared++;
+        if (ts) seen.add(ts.status); else seen.add('none');
+        // The chip's date is the hero's date is the Gantt's date.
+        if (pg && pg.finishISO !== snap.project.targetDate && !firstMismatch) {
+          firstMismatch = `${c.name} day ${day}: chip finish ${pg.finishISO} != hero targetDate ${snap.project.targetDate}`;
+        }
+        if (JSON.stringify(a) !== JSON.stringify(b) && !firstMismatch) {
+          firstMismatch = `${c.name} day ${day}: app=${JSON.stringify(a)} page=${JSON.stringify(b)}`;
+        }
+      }
+    }
+    ok(`app and portal give the same pace verdict on every day swept (${compared} comparisons)`, !firstMismatch, firstMismatch);
+    expect('the sweep actually covers every verdict and the no-chip case',
+      ['on_track', 'minor_delays', 'behind', 'complete', 'none'].every(k => seen.has(k)), true);
+
+    // The gate, stated on the page side, on a live payload.
+    const midJob = new Date(2026, 5, 20, 12).getTime();
+    expect('no chip for an untouched schedule (never "Behind" for work nobody reported)',
+      P.deriveSchedulePace(hendersonSnap.sections.schedule, midJob), null);
+    expect('no chip without a start date (never an unearned "On track")',
+      P.deriveSchedulePace({ ...hendersonSnap.sections.schedule, startDate: undefined, tasks: [tk('a', 1, 20, 50)] }, midJob), null);
+    // An old payload (no nonWorkingDates, no totalDurationDays) still reads.
+    ok('a pre-closure-era payload still yields a verdict',
+      P.deriveSchedulePace({ startDate: '2026-05-04', workingDaysPerWeek: 5, tasks: [tk('a', 1, 20, 50)] }, midJob) !== null);
+
+    // The words: tense follows the calendar, the plan is never called a forecast.
+    const behind = { status: 'behind', pct: 20, expected: 0.6, finishISO: '2026-08-21' };
+    win.__portalData = { project: { type: 'renovation' } };
+    expect('behind, finish ahead → planned finish',
+      P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).chip, 'Behind schedule · planned finish Aug 21');
+    expect('behind, finish passed → was due',
+      P.schedulePaceCopy(behind, new Date(2026, 8, 1, 9).getTime()).chip, 'Behind schedule · was due Aug 21');
+    expect('on track → finishing',
+      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On track · finishing Aug 21');
+    expect('the basis line names what the verdict rests on',
+      P.schedulePaceCopy(behind, new Date(2026, 6, 1, 9).getTime()).basis, '20% of the work reported done · 60% of the scheduled time used');
+    win.__portalData = { project: { type: 'commercial' } };
+    expect('commercial projects get completion wording via the copy switch',
+      P.schedulePaceCopy({ ...behind, status: 'on_track' }, new Date(2026, 6, 1, 9).getTime()).chip, 'On track · scheduled completion Aug 21');
+    win.__portalData = undefined;
+    ok('no chip copy ever says "now finishing" (the date is the plan, not a forecast)',
+      !/now finishing/i.test(portalHtml.slice(fallbackStart, fallbackStop).split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n')));
+  }
+
+  // Render wiring: textContent only, gated on closure, never baked in the snapshot.
+  const renderAt = portalHtml.indexOf('var pace = (projStatus === \'completed\' || projStatus === \'closed\')');
+  const renderBlock = renderAt >= 0 ? portalHtml.slice(renderAt, portalHtml.indexOf('// Hero photo background', renderAt)) : '';
+  ok('the hero renders the pace chip, skipping closed jobs', renderAt >= 0
+    && /: deriveSchedulePace\(sections\.schedule, nowMs\);/.test(renderBlock)
+    && /if \(pace && progressHost\) \{/.test(renderBlock)
+    && /progressHost\.appendChild\(paceWrap\);/.test(renderBlock)
+    && /id="hero-progress"/.test(portalHtml));
+  ok('the pace chip is written with textContent, not innerHTML',
+    /chip\.textContent = copy\.chip;/.test(renderBlock) && /basis\.textContent = copy\.basis;/.test(renderBlock)
+    && !/innerHTML/.test(renderBlock));
+  const snapKeys = JSON.stringify(hendersonSnap);
+  ok('no pace verdict is baked into the snapshot (it would go stale)',
+    !/"(pace|paceStatus|ownerConfidence|scheduleStatus)"\s*:/.test(snapKeys));
 }
 
 // ── The portal HTML must not read the retired figure, anywhere ─────────────

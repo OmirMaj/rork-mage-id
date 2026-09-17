@@ -1,7 +1,7 @@
 // validate-owner-confidence.ts — pins utils/ownerConfidence.ts.
 // The OWNER-facing "on time & on budget" summary. Client-safe: contract/billing
 // only, never cost/markup/margin. Run: bun run scripts/validate-owner-confidence.ts
-import { buildOwnerConfidence } from '../utils/ownerConfidence';
+import { buildOwnerConfidence, ownerSchedulePace, NO_PACE_LABEL, OWNER_PACE_THRESHOLDS } from '../utils/ownerConfidence';
 import type { Project, ChangeOrder, Invoice, ScheduleTask } from '../types';
 
 let pass = 0, fail = 0;
@@ -55,8 +55,32 @@ expect('awaitingApproval counts submitted + under_review (not approved/rejected)
 
 // ── pace status ──
 const tasks10 = [task({ durationDays: 10, progress: 0 })];
-expect('behind: 0% done at ~45% through the schedule',
-  buildOwnerConfidence({ project: project(tasks10), changeOrders: [], invoices: [], nowMs: MID }).status, 'behind');
+// "Behind" needs EVIDENCE: work reported on a schedule that is not keeping up.
+// (This case used to be `progress: 0` on an untouched schedule — the exact
+// false "Behind schedule" the evidence gate below now refuses to print.)
+expect('behind: 10% reported done at ~45% through the schedule',
+  buildOwnerConfidence({ project: project([task({ durationDays: 10, progress: 10, status: 'in_progress' })]), changeOrders: [], invoices: [], nowMs: MID }).status, 'behind');
+expect('minor_delays: 35% done at ~45% through (inside the -0.15 band)',
+  buildOwnerConfidence({ project: project([task({ durationDays: 10, progress: 35 })]), changeOrders: [], invoices: [], nowMs: MID }).status, 'minor_delays');
+
+// ── the evidence gate: no reported work, or no start date → NO verdict ──
+const untouched = buildOwnerConfidence({ project: project(tasks10), changeOrders: [], invoices: [], nowMs: MID });
+expect('untouched schedule mid-job is not "Behind" — neutral status, honest label',
+  [untouched.status, untouched.statusLabel], ['not_started', NO_PACE_LABEL.noProgress]);
+expect('ownerSchedulePace refuses an untouched schedule',
+  ownerSchedulePace({ tasks: tasks10, startDate: '2026-01-05', nowMs: MID }), null);
+const noStart = buildOwnerConfidence({ project: project([task({ durationDays: 10, progress: 50 })], 100000, ''), changeOrders: [], invoices: [], nowMs: MID });
+expect('progress but no start date is not an unearned "On track"',
+  [noStart.status, noStart.statusLabel, noStart.projectedFinishISO], ['not_started', NO_PACE_LABEL.noStartDate, null]);
+expect('an in_progress status with 0% counts as reported work',
+  ownerSchedulePace({ tasks: [task({ durationDays: 10, progress: 0, status: 'in_progress' })], startDate: '2026-01-05', nowMs: MID })?.status, 'behind');
+expect('a milestone alone is not evidence of work',
+  ownerSchedulePace({ tasks: [task({ isMilestone: true, progress: 100, status: 'done' }), task({ id: 'x', durationDays: 10 })], startDate: '2026-01-05', nowMs: MID }), null);
+expect('a legacy full-timestamp startDate still anchors (same day as the portal hero)',
+  ownerSchedulePace({ tasks: [task({ durationDays: 10, progress: 50 })], startDate: '2026-01-05T08:00:00.000Z', nowMs: MID })?.finishISO, '2026-01-16');
+expect('every task at 100% reads complete, not "on track" to a past date',
+  ownerSchedulePace({ tasks: [task({ durationDays: 10, progress: 100 })], startDate: '2026-01-05', nowMs: Date.parse('2026-03-01T00:00:00') })?.status, 'complete');
+expect('threshold constants', [OWNER_PACE_THRESHOLDS.onTrackMinDelta, OWNER_PACE_THRESHOLDS.minorDelaysMinDelta], [-0.05, -0.15]);
 expect('on_track: 50% done at ~45% through',
   buildOwnerConfidence({ project: project([task({ durationDays: 10, progress: 50 })]), changeOrders: [], invoices: [], nowMs: MID }).status, 'on_track');
 expect('not_started before start date',

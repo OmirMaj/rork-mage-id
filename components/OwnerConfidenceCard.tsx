@@ -82,7 +82,7 @@ export function OwnerConfidenceCard({
         </View>
         {c.projectedFinishISO && c.status !== 'complete' ? (
           <Text style={styles.finishText} numberOfLines={1}>
-            Est. completion {fmtDate(c.projectedFinishISO)}
+            Planned finish {fmtDate(c.projectedFinishISO)}
           </Text>
         ) : null}
       </View>
