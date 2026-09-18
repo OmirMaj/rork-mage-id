@@ -2494,6 +2494,8 @@ export interface WorkOrder {
   assignedAt?: string;
   /** When bridged into the lead pipeline / marketplace, the created id. */
   linkedLeadId?: string;
+  /** public_bids.id this order was posted as (set by post-rfp). */
+  rfpId?: string;
   completedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -5195,7 +5197,10 @@ export type EntityKind =
   | 'planMarkup'
   | 'prequalPacket'
   | 'priceAlert'
-  | 'delayEvent';
+  | 'delayEvent'
+  // A marketplace / website lead — the Smart Inbox's "Lead waiting" row
+  // routes to /lead-detail with it.
+  | 'lead';
 
 export interface EntityRef {
   kind: EntityKind;
@@ -5514,9 +5519,13 @@ export interface PortalState {
    *  viewedAt on re-send so the client should re-view the new
    *  revision. */
   sentVersion?: number;
-  /** JSON snapshot of the item at last Send (capped at ~32KB).
-   *  The portal renders THIS, not live state — so edits-after-send
-   *  never leak to the client. */
+  /** JSON of the RAW domain item at last Send (its own portalState left
+   *  out; a send over ~32KB is refused rather than frozen truncated).
+   *  The portal runs this through the SAME serializer as a live item, with
+   *  the live money/state fields laid over it (utils/portalSnapshot
+   *  portalLiveOverrides — payments, balance inputs, pay link, approval
+   *  status), so edits-after-send never leak to the client while what he
+   *  still owes and the Pay button stay current. */
   lastSentSnapshot?: string;
 }
 

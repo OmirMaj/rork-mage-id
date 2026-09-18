@@ -43,6 +43,8 @@ const SUPABASE_URL =
 
 const WIDGET_IP_HOURLY_LIMIT = 25;
 const WIDGET_CONTRACTOR_HOURLY_LIMIT = 80;
+// Captured leads per GC account per hour — matches public-lead-intake's 30.
+const WIDGET_LEAD_HOURLY_LIMIT = 30;
 
 // Wide-open CORS is the whole point — this runs from arbitrary contractor
 // domains. Nothing here is authenticated and nothing here reads user data.
@@ -447,7 +449,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * and the user id is only useful for routing a lead TO them. Accept either.
  */
 async function resolveContractor(contractorId: string): Promise<string | null> {
-  if (UUID_RE.test(contractorId)) return contractorId;
+  // The widget ID the app now hands out is the account id (audit round 2,
+  // #10). Confirm it names a real profile: an unchecked uuid used to be taken
+  // on trust, so a typo'd snippet "captured" a lead against no one.
+  if (UUID_RE.test(contractorId)) {
+    const rows = await sbGet(`profiles?id=eq.${contractorId.toLowerCase()}&select=id&limit=1`) as { id: string }[];
+    return Array.isArray(rows) && rows[0]?.id ? rows[0].id : null;
+  }
+  // Legacy snippets carry a company-name slug; the RPC now resolves it only
+  // when exactly one profile matches (migration 20260918140100).
   const rows = await sbGet(
     `rpc/gc_user_for_company_slug?p_slug=${encodeURIComponent(contractorId)}`,
   );
@@ -538,7 +548,9 @@ serve(async (req: Request) => {
   // is client-supplied, so keying on it made the per-IP bucket attacker-chosen.
   const ip = clientIpFrom(req.headers);
   const ipCount = await rateLimitCount(`widget:ip:${ip}`);
-  const contractorCount = await rateLimitCount(`widget:gc:${contractorId}`);
+  // Lowercased: resolveContractor matches a uuid case-insensitively, so a raw
+  // key gave every upper/lower-case spelling of one GC's id its own bucket.
+  const contractorCount = await rateLimitCount(`widget:gc:${contractorId.toLowerCase()}`);
   if (ipCount > WIDGET_IP_HOURLY_LIMIT || contractorCount > WIDGET_CONTRACTOR_HOURLY_LIMIT) {
     return jsonResponse({ error: "Too many requests right now — please try again in a bit." }, 429);
   }
@@ -571,8 +583,16 @@ serve(async (req: Request) => {
   if (name && ((email && EMAIL_RE.test(email)) || phone)) {
     try {
       const userId = await resolveContractor(contractorId);
+      // Second bucket on the RESOLVED account: a legacy slug and the uuid both
+      // route to one GC, and every captured lead now pushes + emails him
+      // (trg_notify_website_lead), so the lead cap must follow the account,
+      // not whichever string the caller sent. Over it, the homeowner still
+      // gets the number; only the capture is refused.
+      const leadCount = userId ? await rateLimitCount(`widget:lead:${userId}`) : 0;
       if (!userId) {
         leadError = "unknown_contractor";
+      } else if (leadCount > WIDGET_LEAD_HOURLY_LIMIT) {
+        leadError = "rate_limited";
       } else {
         const origin = clip(req.headers.get("origin") ?? req.headers.get("referer"), 200);
         const scope = [

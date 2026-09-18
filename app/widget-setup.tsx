@@ -4,11 +4,16 @@
 // made it unadoptable: a contractor had no way to learn their own slug. This is
 // that missing step — the exact copy-paste block, pre-filled with their slug.
 //
-// The slug is slugify(companyName) — the same value /builders/<slug> already
-// uses publicly, and what widget-estimate resolves server-side via
-// gc_user_for_company_slug. So if the company name isn't set, the widget cannot
-// resolve a contractor and we say so plainly rather than handing out a snippet
-// that silently fails on their website.
+// The widget ID is the contractor's account id (audit round 2, #10). It used to
+// be slugify(companyName), resolved server-side by gc_user_for_company_slug —
+// which routed every lead for two same-named companies to whichever account id
+// sorted first, never matched an accented name, broke every live snippet on a
+// rename, and for a GC with NO company name handed out "project": slugify('')'s
+// fallback, which resolved to any stranger whose company name slugs to it. An
+// account id is unique, immutable, and widget-estimate already accepts it.
+// The company name is still required: it is the name the homeowner sees
+// ("Sent to Summit Builders"), so without it we say so plainly rather than
+// handing out a snippet that reads "Sent to Your Company".
 
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking } from 'react-native';
@@ -23,7 +28,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useCoreData } from '@/contexts/ProjectContext';
-import { slugify } from '@/utils/publicProfileSnapshot';
+import { useAuth } from '@/contexts/AuthContext';
 import { InfoBubble } from '@/components/InfoBubble';
 import { showAlert } from '@/utils/alert';
 import { buildEmbedSnippet, WIDGET_SLUG_PLACEHOLDER, WIDGET_NAME_PLACEHOLDER } from '@/utils/widgetEmbed';
@@ -44,12 +49,15 @@ export default function WidgetSetupScreen() {
   const { settings } = useCoreData();
   const [copied, setCopied] = useState(false);
 
+  const { user } = useAuth();
   const companyName = settings?.branding?.companyName?.trim() ?? '';
-  const slug = useMemo(() => slugify(companyName), [companyName]);
-  const ready = slug.length > 0;
+  const widgetId = user?.id ?? '';
+  // >>> widget-ready (scripts/validate-lead-contact-log.ts pins this)
+  const ready = companyName.length > 0 && widgetId.length > 0;
+  // <<< widget-ready
   const snippet = useMemo(
-    () => buildEmbedSnippet(ready ? slug : WIDGET_SLUG_PLACEHOLDER, companyName || WIDGET_NAME_PLACEHOLDER),
-    [slug, companyName, ready],
+    () => buildEmbedSnippet(ready ? widgetId : WIDGET_SLUG_PLACEHOLDER, companyName || WIDGET_NAME_PLACEHOLDER),
+    [widgetId, companyName, ready],
   );
 
   const copy = async () => {
@@ -103,16 +111,16 @@ export default function WidgetSetupScreen() {
         </View>
 
         {!ready && (
-          // Without a company name there is no slug, so the widget cannot
-          // resolve who the lead belongs to. Say so instead of handing over a
-          // snippet that fails silently on their site.
+          // Without a company name the widget would tell a homeowner their
+          // details went to "Your Company". Say so instead of handing over a
+          // snippet that reads wrong on their site.
           <View style={styles.warn}>
             <AlertTriangle size={15} color={Colors.warningLabel} strokeWidth={2} />
             <View style={{ flex: 1 }}>
               <Text style={styles.warnTitle}>Set your company name first</Text>
               <Text style={styles.warnText}>
-                Your widget is identified by your company name. Add it in Settings, then come back —
-                the snippet below is a placeholder until then.
+                The widget shows homeowners your company name when their details are sent. Add it in
+                Settings, then come back — the snippet below is a placeholder until then.
               </Text>
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/settings' as never)}
@@ -156,7 +164,9 @@ export default function WidgetSetupScreen() {
           </TouchableOpacity>
           {ready && (
             <Text style={styles.slugNote}>
-              Your widget ID is <Text style={styles.slugMono}>{slug}</Text>
+              Your widget ID is <Text style={styles.slugMono}>{widgetId}</Text>. It never changes, so
+              renaming your company won&apos;t break the widget. A snippet copied before this used your
+              company name — paste this one over it.
             </Text>
           )}
         </View>

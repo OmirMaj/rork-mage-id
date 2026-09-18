@@ -358,6 +358,8 @@
   .brain-caption p em{color:var(--amber-lift);font-style:normal;font-weight:650}
   @media(max-width:560px){ .faculty{font-size:9.5px;padding:5px 9px 5px 13px} .brain-caption{min-height:132px} }
   .brain-detail{max-width:860px;margin:26px auto 0;background:var(--panel);border:1px solid var(--line-d);border-radius:16px;padding:22px;display:grid;grid-template-columns:1.15fr .85fr;gap:22px;align-items:center;text-align:left;position:relative;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+  /* No capture for this faculty: one column, or the text sits beside an empty half. */
+  .brain-detail.no-shot{grid-template-columns:1fr}
   .brain-detail .cf{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-lift);font-weight:700}
   .brain-detail h3{font-size:clamp(20px,2.6vw,26px);margin-top:8px;color:var(--bone);letter-spacing:-.015em}
   .brain-detail .bd-lede{margin-top:9px;font-size:15px;color:var(--muted);line-height:1.55}
@@ -940,7 +942,11 @@
         '<b>Index your plan sheets once</b>, then ask in plain English \u2014 \u201cwhere are the shear walls?\u201d',
         '<b>Cited answers</b>, with a jump straight to the right sheet \u2014 no more flipping pages in the truck.',
         '<b>Same brain answers your RFIs</b> \u2014 drafts responses from how similar questions were answered before.']},
-      judges:{shot:'/screenshots/screens/16-ai-estimator.png',alt:'Bid advisor verdict with recommended price range',tier:'Business',bullets:[
+      // No capture of the bid advisor exists yet; the old one was the Quick
+      // Estimate step with an error toast (RETIRED in validate-marketing-screenshots).
+      // An empty shot renders no image rather than someone else's screen
+      // (the alt stays: validate-marketing-claims keys the tier badge on it).
+      judges:{shot:'',alt:'Bid advisor verdict with recommended price range',tier:'Business',bullets:[
         '<b>Take it / hold firm / walk away</b> \u2014 a verdict with the reasons ranked, not a gut feel.',
         '<b>A recommended price range</b> built from your true costs \u2014 including the margin you actually keep.',
         '<b>Honest when it\u2019s guessing.</b> No history yet? It says so \u2014 and sharpens as you close jobs.']}
@@ -978,12 +984,12 @@
       if(!pinned){ cap.innerHTML='<span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p>'+f.p+'</p>'; }
       var hi=hubIdx(k); for(var i=0;i<6;i++) spawn(hi); markBtns(); }
     function renderDetail(k){ var f=FACS[k], d=DETAIL[k]; if(!d){ setActive(k); return; }
-      cap.innerHTML='<div class="brain-detail" role="region" aria-label="'+f.cf+' \u2014 details">'
+      cap.innerHTML='<div class="brain-detail'+(d.shot ? '' : ' no-shot')+'" role="region" aria-label="'+f.cf+' \u2014 details">'
         +'<button class="bd-close" type="button" aria-label="Close details">\u2715</button>'
         +'<div><span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p class="bd-lede">'+f.p+'</p>'
         +'<ul class="bd-bullets">'+d.bullets.map(function(b){return '<li>'+b+'</li>';}).join('')+'</ul>'
         +'<div class="bd-meta"><span class="bd-tier">'+d.tier+'</span><a class="bd-cta" href="https://app.mageid.app">Try it free \u2192</a></div></div>'
-        +'<div class="bd-shot"><img src="'+d.shot+'" alt="'+d.alt+'" loading="lazy" /></div></div>';
+        +(d.shot ? '<div class="bd-shot"><img src="'+d.shot+'" alt="'+d.alt+'" loading="lazy" /></div>' : '')+'</div>';
       var x=cap.querySelector('.bd-close'); if(x) x.addEventListener('click', unpin);
     }
     function pin(k){ pinned=k; active=k; renderDetail(k);

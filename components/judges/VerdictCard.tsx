@@ -32,7 +32,13 @@ const CONFIDENCE_LABEL = { low: 'Low', medium: 'Medium', high: 'High' } as const
 /** Whole-dollar money, no cents. */
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
-export function VerdictCard({ result }: { result: JudgesResult }) {
+/**
+ * `marginSource` names where the scored margin came from ("your 15% markup",
+ * "this estimate's 20% markup"). The screen resolves it (utils/judges/
+ * targetMargin.ts) and never scores without one, so a missing source is shown
+ * as "margin source not recorded" rather than implied to be his.
+ */
+export function VerdictCard({ result, marginSource }: { result: JudgesResult; marginSource?: string | null }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { verdict: v, narration } = result;
@@ -60,6 +66,9 @@ export function VerdictCard({ result }: { result: JudgesResult }) {
       </Text>
       <Text style={styles.rangeSub}>
         True cost {money(v.trueCost)} · {Math.round(v.marginAtMid * 100)}% margin at {money(v.recommendedMid)}
+      </Text>
+      <Text style={styles.rangeSub}>
+        {marginSource ? `Margin from ${marginSource}` : 'Margin source not recorded'}
       </Text>
 
       {/* Narration */}

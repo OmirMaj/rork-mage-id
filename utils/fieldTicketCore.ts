@@ -466,6 +466,22 @@ export function fieldTicketPricingBlockReason(role: ProjectRole, roleError = fal
     : 'Checking your access on this project before pricing opens…';
 }
 
+/**
+ * Why rates and totals are hidden on this screen, or null when they are shown
+ * (audit #99). Money is shown only to a role canViewFinancials allows, and the
+ * role is null offline or before the collaborator read lands — fail closed,
+ * but never silently: an editor on a job site with no signal is told it is his
+ * connection, not his access. The owner never gets here offline: pricingRoleFor
+ * recognises him from the cached project row.
+ */
+export function fieldTicketMoneyHiddenReason(role: ProjectRole, roleError = false): string | null {
+  if (role === 'owner' || role === 'editor' || role === 'viewer') return null;
+  if (role === 'field') return 'Rates and totals are the office’s — field access shows hours and quantities.';
+  return roleError
+    ? 'Couldn’t confirm your access on this project, so amounts are hidden. Reopen the ticket with a signal to see them.'
+    : 'Checking your access on this project — amounts show once it is confirmed.';
+}
+
 // ─── Where the office's rates come from ──────────────────────────────────────
 // The app already knows what this GC pays. Making him retype it is how a
 // ticket stays unpriced for a month. But a suggested rate is NOT a fact about

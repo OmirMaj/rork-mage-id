@@ -18,6 +18,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ArrowRight, Circle as CircleIcon, Pen, Type as TypeIcon, Undo2, Trash2, Check, X } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import Svg, { Path, Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -26,7 +27,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
-import type { PhotoMarkup } from '@/types';
+import type { PhotoMarkup, ProjectPhoto } from '@/types';
+import { useSafeBack } from '@/hooks/useSafeBack';
+import { Button } from '@/components/ui/Button';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -48,29 +51,78 @@ const CANVAS_SIZE = 380;       // logical canvas — actual size is responsive
 // or punch item, so the two markup surfaces are gated the same way behind the
 // Pro 'photo_documentation' key rather than one being free and one paid.
 export default function PhotoAnnotatorScreen() {
-  const router = useRouter();
+  const goBack = useSafeBack();
   const { canAccess } = useTierAccess();
   if (!canAccess('photo_documentation')) {
-    return <Paywall visible feature="Photo Markup" requiredTier="pro" onClose={() => router.back()} />;
+    return <Paywall visible feature="Photo Markup" requiredTier="pro" onClose={goBack} />;
   }
-  return <PhotoAnnotatorInner />;
+  return <PhotoAnnotatorGate />;
 }
 
-function PhotoAnnotatorInner() {
-  const { colors: themeColors } = useTheme();
+// >>> photo-open-gate (pure; scripts/validate-photo-markup-join.ts evaluates this block)
+/**
+ * What a link naming a photo should show.
+ *
+ * The editor seeds its markups ONCE, at mount, from the photo. ProjectContext
+ * starts `projectPhotos` as [] (and a cold start's signed-out pass fills it
+ * from this device's cache) before the account's photos land, so a web
+ * refresh or a direct /photo-annotator?photoId= link used to mount an EMPTY
+ * canvas — or this device's older copy — and Save wrote that over the photo's
+ * real markup on the server, every other device, and the RFI / punch item it
+ * feeds. So the editor waits for `photosLoaded` (keyed by account, false while
+ * auth resolves); 'missing' only once they have loaded without it.
+ */
+export function photoOpenState(o: { found: boolean; photosLoaded: boolean }): 'editor' | 'loading' | 'missing' {
+  if (!o.photosLoaded) return 'loading';
+  return o.found ? 'editor' : 'missing';
+}
+// <<< photo-open-gate
+
+function PhotoAnnotatorGate() {
   const styles = useThemedStyles(makeStyles);
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
+  // Safe back: a refresh or a cold-start link has nothing to pop, and a bare
+  // router.back() there was a dead button.
+  const goBack = useSafeBack();
   const { photoId } = useLocalSearchParams<{ photoId: string }>();
-  const { projectPhotos, updateProjectPhoto } = useProjects();
+  const { projectPhotos, photosLoaded, retryRemoteReads } = useProjects();
   const photo = useMemo(
     () => projectPhotos.find(p => p.id === photoId),
     [projectPhotos, photoId],
   );
+  const state = photoOpenState({ found: !!photo, photosLoaded });
+  if (state === 'editor' && photo) {
+    // Keyed on the photo so the canvas re-seeds from the loaded record.
+    return <PhotoAnnotatorInner key={photo.id} photo={photo} />;
+  }
+  return (
+    <View style={styles.empty} testID={`photo-open-${state}`}>
+      <Stack.Screen options={{ title: 'Markup' }} />
+      <Text style={styles.emptyText}>
+        {state === 'loading'
+          ? 'Loading this photo…'
+          : 'This photo isn\'t on this device — it was deleted or hasn\'t synced here. Nothing was opened in its place.'}
+      </Text>
+      {state === 'missing' && (
+        <Button label="Try again" variant="primary" onPress={retryRemoteReads} testID="photo-open-retry" />
+      )}
+      <Button label="Go back" variant="secondary" onPress={goBack} testID="photo-open-back" />
+    </View>
+  );
+}
+
+function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const goBack = useSafeBack();
+  const { updateProjectPhoto } = useProjects();
 
   const [tool, setTool] = useState<Tool>('arrow');
   const [color, setColor] = useState<AnnotationColor>('red');
-  const [markups, setMarkups] = useState<PhotoMarkup[]>(photo?.markup ?? []);
+  // Seeded once from the LOADED photo — the gate above only mounts this
+  // editor after this account's photos have landed, keyed on the photo id.
+  const [markups, setMarkups] = useState<PhotoMarkup[]>(photo.markup ?? []);
   const [drawing, setDrawing] = useState<PhotoMarkup | null>(null);
   const [pendingText, setPendingText] = useState<{ x: number; y: number } | null>(null);
   const [textValue, setTextValue] = useState<string>('');
@@ -98,10 +150,20 @@ function PhotoAnnotatorInner() {
   }, [canvasW]);
 
   const panResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => tool !== 'text',
+    // The Text tool is placed through the responder too (a press, not a
+    // drag): it used to ride on the canvas's onTouchEnd, which react-native-
+    // web passes through as a DOM `touchend` that a mouse click never fires,
+    // so on desktop web a label could not be placed at all. Responder events
+    // arrive for touch AND mouse on every platform. While a label is waiting
+    // for its text, the canvas does not claim the press.
+    onStartShouldSetPanResponder: () => tool !== 'text' || !pendingText,
     onMoveShouldSetPanResponder: () => tool !== 'text',
     onPanResponderGrant: (evt) => {
       const p = norm(evt);
+      if (tool === 'text') {
+        if (!pendingText) { setPendingText(p); setTextValue(''); }
+        return;
+      }
       const id = generateUUID();
       if (tool === 'arrow' || tool === 'circle') {
         setDrawing({ id, type: tool, color, points: [p, p] });
@@ -138,17 +200,7 @@ function PhotoAnnotatorInner() {
         return null;
       });
     },
-  }), [tool, color, norm]);
-
-  // Text tool — single tap drops a label. We capture the coord and
-  // open an inline input.
-  const handleCanvasPress = useCallback((evt: any) => {
-    if (tool !== 'text') return;
-    if (pendingText) return;
-    const p = norm(evt);
-    setPendingText(p);
-    setTextValue('');
-  }, [tool, pendingText, norm]);
+  }), [tool, color, norm, pendingText]);
 
   const commitText = useCallback(() => {
     if (!pendingText || !textValue.trim()) {
@@ -180,7 +232,6 @@ function PhotoAnnotatorInner() {
   }, []);
 
   const handleSave = useCallback(() => {
-    if (!photo) return;
     updateProjectPhoto(photo.id, { markup: markups });
     if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     // After save, offer to attach this annotated photo to a new RFI
@@ -191,7 +242,7 @@ function PhotoAnnotatorInner() {
       'Saved',
       'Your markup is saved. Want to use this photo for something?',
       [
-        { text: 'Done', style: 'cancel', onPress: () => router.back() },
+        { text: 'Done', style: 'cancel', onPress: goBack },
         {
           text: 'Create RFI',
           onPress: () => {
@@ -212,19 +263,7 @@ function PhotoAnnotatorInner() {
         },
       ],
     );
-  }, [photo, markups, updateProjectPhoto, router]);
-
-  if (!photo) {
-    return (
-      <View style={styles.empty}>
-        <Stack.Screen options={{ title: 'Markup' }} />
-        <Text style={styles.emptyText}>Photo not found.</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.emptyBack}>Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  }, [photo, markups, updateProjectPhoto, router, goBack]);
 
   // Render a single markup as SVG primitives.
   const renderMarkup = (m: PhotoMarkup, key: string) => {
@@ -278,11 +317,18 @@ function PhotoAnnotatorInner() {
     return null;
   };
 
-  const tools: { tool: Tool; icon: any; label: string }[] = [
+  // `icon` is typed LucideIcon, not `any`, on purpose. This file has TWO
+  // things called Type: lucide's text glyph (imported as TypeIcon) and the
+  // typography scale from constants/typography (used by the styles below).
+  // With `icon: any`, the Text tool pointed at the typography OBJECT; React
+  // threw "Element type is invalid … got: object" and the root error boundary
+  // replaced the whole app, so "Add markup" -> Create RFI / Add to Punch List
+  // was unreachable on iPhone and web. The real type makes tsc reject that mix-up.
+  const tools: { tool: Tool; icon: LucideIcon; label: string }[] = [
     { tool: 'arrow',    icon: ArrowRight,  label: 'Arrow' },
     { tool: 'circle',   icon: CircleIcon,  label: 'Circle' },
     { tool: 'freehand', icon: Pen,         label: 'Freehand' },
-    { tool: 'text',     icon: Type,        label: 'Text' },
+    { tool: 'text',     icon: TypeIcon,    label: 'Text' },
   ];
   const colors: AnnotationColor[] = ['red', 'yellow', 'green'];
 
@@ -291,7 +337,7 @@ function PhotoAnnotatorInner() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
+        <TouchableOpacity onPress={goBack} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.title}>Markup</Text>
@@ -307,7 +353,6 @@ function PhotoAnnotatorInner() {
           ref={canvasRef}
           style={styles.canvas}
           onLayout={onCanvasLayout}
-          onTouchEnd={handleCanvasPress}
           {...panResponder.panHandlers}
         >
           <Image source={{ uri: photo.uri }} style={[StyleSheet.absoluteFill, { borderRadius: Tokens.radius.card }]} contentFit="cover" />
@@ -398,9 +443,8 @@ function PhotoAnnotatorInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: t.bg },
-  emptyText: { fontSize: Type.subhead.fontSize, color: t.textMuted, marginBottom: 12 },
-  emptyBack: { fontSize: Type.bodyCompact.fontSize, color: t.accent, fontWeight: '700' },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12, backgroundColor: t.bg },
+  emptyText: { fontSize: Type.subhead.fontSize, color: t.textMuted, textAlign: 'center' },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

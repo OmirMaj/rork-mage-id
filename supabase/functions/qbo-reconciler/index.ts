@@ -29,12 +29,13 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { isValidCron } from "../_shared/cronAuth.ts";
 import { qboFetch, svc, type QboConnectionRow } from "../_shared/qbo.ts";
 import { upsertInvoice } from "../_shared/qbo-mapping/invoice.ts";
+import { QBO_PUSH_OWED_FILTER } from "../_shared/qboSyncFilter.ts";
 import { upsertPaymentForInvoice } from "../_shared/qbo-mapping/payment.ts";
-import { ledgerFrom, settlementStatus, type SettlementInput } from "../_shared/paymentMath.ts";
+import { ledgerFrom, ledgerSum, netPayable, settlementStatus, toCents2, type SettlementInput } from "../_shared/paymentMath.ts";
 import {
   applyQboMatches,
   closedFlagChange,
-  closedWithoutPaymentNote,
+  closedFlagForPlan,
   INVOICE_PULL_PAGE_SIZE,
   isPerObjectQboError,
   isQboOutageError,
@@ -50,9 +51,12 @@ import {
   sweepPushRefusal,
   qboTaxShortfall,
   unknownLinkedPayments,
+  toLinkedPayment,
+  voidFlagFor,
   withoutClosedFlag,
   type QboLedgerEntry,
   type QboLinkedPayment,
+  type QboPaymentRead,
 } from "../_shared/paymentLedger.ts";
 
 // ── QBO Invoice / Payment shapes for the paid-invoice pull ────────────────
@@ -65,11 +69,6 @@ interface QboPulledInvoice {
   LinkedTxn?: QboLinkedTxn[];
   MetaData?: { LastUpdatedTime?: string };
 }
-interface QboPaymentTxn {
-  Id?: string;
-  TxnDate?: string;
-  Line?: { Amount?: number; LinkedTxn?: QboLinkedTxn[] }[];
-}
 
 /** Payment pushes per user per run. A first connection with years of history
  *  drains over a few cycles instead of blowing the function's time budget. */
@@ -77,9 +76,11 @@ const PAYMENT_PUSH_LIMIT = 25;
 
 /**
  * The QuickBooks Payments linked to an invoice that `ledger` does not already
- * name, each reduced to the dollars linked to THIS invoice (one check can pay
- * several). Payments the ledger names are never fetched, so the common path —
- * MAGE pushed the payment itself and holds its qboId — makes no request.
+ * name, each reduced to the CASH it put on THIS invoice (linkedPaymentCash:
+ * one check can pay several invoices, and a $0 Payment can apply a credit
+ * memo — audit #9), plus when it was keyed and payment.ts's tag (the matcher,
+ * audit #11). Payments the ledger names are never fetched, so the common
+ * path — MAGE pushed the payment itself and holds its qboId — makes no request.
  */
 async function fetchUnknownLinkedPayments(
   conn: QboConnectionRow,
@@ -95,15 +96,11 @@ async function fetchUnknownLinkedPayments(
   const out: QboLinkedPayment[] = [];
   for (const pid of ids) {
     const pr = (await qboFetch(conn, `/payment/${encodeURIComponent(pid)}`, { method: "GET" })) as {
-      Payment?: QboPaymentTxn;
+      Payment?: QboPaymentRead;
     };
     const pay = pr?.Payment;
     if (!pay) continue;
-    const applied = (pay.Line ?? []).reduce((sum, line) => {
-      const toThis = (line.LinkedTxn ?? []).some((t) => t.TxnType === "Invoice" && String(t.TxnId) === String(qInv.Id));
-      return toThis ? sum + (Number(line.Amount) || 0) : sum;
-    }, 0);
-    out.push({ id: pid, txnDate: pay.TxnDate ?? null, applied: Math.round(applied * 100) / 100 });
+    out.push(toLinkedPayment(pay, String(qInv.Id), pid));
   }
   return out;
 }
@@ -226,7 +223,13 @@ serve(async (req) => {
         .from("invoices")
         .select("id,qbo_retry_count,qbo_error")
         .eq("user_id", row.user_id)
-        .or("qbo_sync_status.eq.pending,qbo_sync_status.eq.error")
+        // A non-draft row with NO status is also owed a push (round 4): the
+        // app marks 'pending' only on its own non-draft write, so a draft
+        // that became paid server-side (stripe-webhook, or any future server
+        // path) would otherwise never reach QuickBooks. Drafts stay excluded
+        // — a draft is not a receivable (audit #12). QBO_PUSH_OWED_FILTER is
+        // shared with qbo-connect-status so the screen counts the same set.
+        .or(QBO_PUSH_OWED_FILTER)
         .or(`qbo_synced_at.is.null,qbo_synced_at.lt.${cutoff}`)
         .lt("qbo_retry_count", 5)
         .limit(50);
@@ -443,26 +446,53 @@ serve(async (req) => {
 
       const updated = q?.QueryResponse?.Invoice ?? [];
       for (const qInv of updated) {
-        if (qInv.Balance > 0 || qInv.TotalAmt === 0) {
-          // Not fully paid yet (or voided). If this run once flagged it closed
-          // without a payment and the bookkeeper has since reopened it, lift
-          // the flag so reminders resume. Matches no row in the normal case.
-          // Only the flag lifts: a push error appended after it stays.
-          if (qInv.Balance > 0) {
-            const { data: flagged } = await s
+        if (qInv.Balance > 0) {
+          // Not fully paid yet. If this run once flagged it closed without a
+          // payment and the bookkeeper has since reopened it, lift the flag so
+          // reminders resume. Matches no row in the normal case. Only the flag
+          // lifts: a push error appended after it stays.
+          const { data: flagged } = await s
+            .from("invoices")
+            .select("id,qbo_error")
+            .eq("qbo_id", qInv.Id)
+            .eq("user_id", row.user_id)
+            .like("qbo_error", `${QBO_CLOSED_WITHOUT_PAYMENT_PREFIX}%`);
+          for (const f of (flagged ?? []) as { id: string; qbo_error: string | null }[]) {
+            await s
               .from("invoices")
-              .select("id,qbo_error")
-              .eq("qbo_id", qInv.Id)
+              .update({ qbo_error: withoutClosedFlag(f.qbo_error) })
+              .eq("id", f.id)
               .eq("user_id", row.user_id)
               .like("qbo_error", `${QBO_CLOSED_WITHOUT_PAYMENT_PREFIX}%`);
-            for (const f of (flagged ?? []) as { id: string; qbo_error: string | null }[]) {
-              await s
-                .from("invoices")
-                .update({ qbo_error: withoutClosedFlag(f.qbo_error) })
-                .eq("id", f.id)
-                .eq("user_id", row.user_id)
-                .like("qbo_error", `${QBO_CLOSED_WITHOUT_PAYMENT_PREFIX}%`);
-            }
+          }
+          continue;
+        }
+        if (Number(qInv.TotalAmt) === 0) {
+          // VOIDED in QuickBooks (audit #101) — TotalAmt and Balance 0. This
+          // used to `continue` silently, and invoice-dunning's cron chased the
+          // client for the voided invoice up to FINAL NOTICE. Flag it when MAGE
+          // still has money outstanding (a genuine $0 invoice is not); the void
+          // bumps LastUpdatedTime once, so this pull is the one chance, and no
+          // other path rewrites the flag. MAGE's status is left for him.
+          // A read or write error THROWS, like the paid path: the void bumps
+          // LastUpdatedTime once, so if this pass swallowed a transient DB error
+          // the cursor would move past it and the flag would be lost for good
+          // (dunning chasing a voided invoice). Throwing leaves the cursor
+          // unstamped and the next run re-reads it.
+          const { data: v, error: vErr } = await s
+            .from("invoices")
+            .select("id,payments,total_due,subtotal,retention_percent,retention_amount,retention_released,qbo_error")
+            .eq("qbo_id", qInv.Id)
+            .eq("user_id", row.user_id)
+            .maybeSingle();
+          if (vErr) throw new Error(`invoice void read: ${vErr.message}`);
+          if (!v) continue;
+          const voided = v as SettlementInput & { id: string; payments?: unknown; qbo_error?: string | null };
+          const outstanding = toCents2(netPayable(voided) - ledgerSum(ledgerFrom(voided.payments)));
+          const voidChange = closedFlagChange(voided.qbo_error, voidFlagFor({ totalAmt: qInv.TotalAmt, balance: qInv.Balance, mageOutstanding: outstanding }));
+          if ("qbo_error" in voidChange) {
+            const { error: vwErr } = await s.from("invoices").update(voidChange).eq("id", voided.id).eq("user_id", row.user_id);
+            if (vwErr) throw new Error(`invoice void flag write: ${vwErr.message}`);
           }
           continue;
         }
@@ -495,12 +525,15 @@ serve(async (req) => {
             : undefined,
         });
         // QuickBooks closed the invoice with something that is not cash (a
-        // credit memo, a journal entry, a write-off). Never booked as cash —
-        // but no longer silent either: the flag is what qbo-setup counts and
-        // what pauses invoice-dunning's cron, so the client is not chased for
-        // an invoice the bookkeeper closed. A later run that finds the gap
-        // explained (the payment recorded after all) lifts it.
-        const flag = plan.unexplained > 0 ? closedWithoutPaymentNote(plan.unexplained) : null;
+        // credit memo, a journal entry, a write-off — including one applied
+        // through a $0 Payment, audit #9). Never booked as cash — but no
+        // longer silent either: the flag is what qbo-setup counts and what
+        // pauses invoice-dunning's cron, so the client is not chased for an
+        // invoice the bookkeeper closed. The same flag, worded for it, when
+        // QuickBooks is paid only because it still counts money MAGE recorded
+        // as refunded (audit #100). A later run that finds the gap explained
+        // lifts it.
+        const flag = closedFlagForPlan(plan);
         // A tax note or a push error already on the row (status 'error')
         // stays after the flag (keepClosedFlag) — an errored push used to skip
         // the flag, and the dunning cron kept chasing a closed invoice.

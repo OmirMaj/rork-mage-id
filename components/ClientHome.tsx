@@ -299,7 +299,7 @@ export default function ClientHome() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.heroCtaTitle}>Post a project</Text>
                 <Text style={styles.heroCtaBody}>
-                  From a kitchen remodel to a full gut — verified contractors will bid on your scope.
+                  From a kitchen remodel to a full gut. We alert MAGE ID contractors who cover your area and show you how many that was.
                 </Text>
               </View>
               <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
@@ -362,8 +362,11 @@ export default function ClientHome() {
                 <MageAIMark size={28} color={themeColors.accent} />
               </View>
               <Text style={styles.emptyTitle}>Welcome to MAGE ID</Text>
+              {/* No "verified contractors near the property send you bids":
+                  no contractor has a license or service area on file yet, and
+                  My RFPs now shows the real alerted count (audit round 2, #8). */}
               <Text style={styles.emptyBody}>
-                Post your scope and verified contractors near the property send you bids.
+                Post your scope. We alert MAGE ID contractors who cover your area and show you how many that was.
                 Compare side-by-side, pick the build you like, and track the work — one app, your whole portfolio.
               </Text>
             </View>
@@ -561,11 +564,19 @@ function RfpCard({
 
         {/* Activity micro-line — reads like a feed entry. Tightens the
             "marketplace pulse" feel without lying about numbers. */}
-        <Text style={styles.rfpActivity} numberOfLines={1}>
-          {row.response_count === 0
-            ? 'Awaiting first bid'
-            : `${row.response_count} bid${row.response_count === 1 ? '' : 's'} in`}
-          {row.unreviewed_count > 0 ? `  ·  ${row.unreviewed_count} need review` : ''}
+        {/* An awarded job says what happens next, not how many bids came in.
+            The award promised a project portal, and nothing here led to one
+            (audit round 2, #19). There is still no link to give: the portal
+            opens only once the contractor publishes it (award_rfp seeds the
+            invite with this homeowner's email so he can send it). So the card
+            names who holds the next step instead of a door that isn't there. */}
+        <Text style={styles.rfpActivity} numberOfLines={2}>
+          {isAwarded
+            ? 'Your contractor has your details and will send your project portal link.'
+            : row.response_count === 0
+              ? 'Awaiting first bid'
+              : `${row.response_count} bid${row.response_count === 1 ? '' : 's'} in`}
+          {!isAwarded && row.unreviewed_count > 0 ? `  ·  ${row.unreviewed_count} need review` : ''}
         </Text>
 
         <View style={styles.rfpFoot}>

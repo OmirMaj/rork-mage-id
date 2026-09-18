@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool, AlertTriangle,
@@ -19,17 +19,18 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
-import { useProjects } from '@/contexts/ProjectContext';
+import { useProjects, type RecordWriteOutcome } from '@/contexts/ProjectContext';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { isMarkupSet, marginOf, type MarkupPct } from '@/utils/estimateMarkup';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseCOFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { getLivePrices, resolvePricingMarket, catalogProvenanceLine, CATEGORY_META, type MaterialItem } from '@/constants/materials';
-import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
+import { sendEmail, buildChangeOrderEmailHtml, type SendEmailOutcome } from '@/utils/emailService';
 import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
@@ -91,10 +92,200 @@ export default function ChangeOrderScreen() {
       />
     );
   }
-  return <ChangeOrderInner />;
+  return <ChangeOrderGate />;
 }
 
-function ChangeOrderInner() {
+// >>> co-deep-link-gate (pure; scripts/validate-notification-routes.ts evaluates this block)
+/** How long a named CO may still be arriving AFTER the change-order list has
+ *  loaded — a CO written a moment ago (the voice mic drafts one and opens it
+ *  250 ms later) can still be committing. The wait itself is on the query
+ *  settling (`changeOrdersLoaded`), not on this clock: a slow signal can take
+ *  far longer than 4 s, and a fixed timer showed "missing" for a CO that exists. */
+const CO_ARRIVAL_GRACE_MS = 4000;
+
+/**
+ * What a link naming a change order (`?coId=`) should show. A push, an email
+ * button or the inbox names an EXISTING change order; before this gate the
+ * screen rendered the blank "New Change Order" form whenever that CO was not
+ * in memory yet (or not at all), numbered as the next CO on the job — a GC who
+ * filled it in believing it was the signed one created a duplicate CO number
+ * (audit round 2, #12). The editor also seeds its fields from the CO once, at
+ * mount, so it must not mount until the CO is there.
+ */
+function coGateState(opts: {
+  coId: string | null;
+  found: boolean;
+  /** The editor will resolve a project (the CO's, or the URL's projectId). */
+  needsProject: boolean;
+  projectsLoaded: boolean;
+  changeOrdersLoaded: boolean;
+  graceOver: boolean;
+}): 'editor' | 'loading' | 'missing' {
+  // The editor must not mount before the project list either: until it lands
+  // `getProject` is null, so a URL projectId shows the "that project is gone"
+  // picker and the CO's contract value reads $0.
+  if (opts.needsProject && !opts.projectsLoaded) return 'loading';
+  if (!opts.coId) return 'editor';
+  // A named CO waits for THIS account's change orders even when it is already
+  // "found": on a cold start the signed-out pass fills changeOrders from the
+  // device cache first, so a hit can be a stale copy — and the editor seeds
+  // once and never re-seeds when the newer server row lands under the same
+  // id, so Save would write the old copy back. `changeOrdersLoaded` is keyed
+  // by account and is already true in normal in-app use (the mic's own CO).
+  if (!opts.changeOrdersLoaded) return 'loading';
+  if (opts.found) return 'editor';
+  if (!opts.projectsLoaded || !opts.graceOver) return 'loading';
+  return 'missing';
+}
+// <<< co-deep-link-gate
+
+// >>> co-send-outcome (pure; scripts/validate-records-open-before-load.ts evaluates this block)
+/** Why this form cannot be saved, or null. Run BEFORE the email goes out:
+ *  it used to run inside the save, after the send — so an email could reach
+ *  the client and then the save be refused ("No Items"), leaving a CO number
+ *  in the client's inbox that exists nowhere. */
+export function coSaveBlocker(o: { description: string; lineItemCount: number }): { title: string; message: string } | null {
+  if (!o.description.trim()) return { title: 'Missing Description', message: 'Please enter a description for this change order.' };
+  if (o.lineItemCount === 0) return { title: 'No Items', message: 'Please add at least one line item.' };
+  return null;
+}
+
+/** The status Send & Save writes, from what the email ACTUALLY did. Only a
+ *  real send submits (and starts the client-approval clock). A composer that
+ *  merely opened, or a failed send, keeps the CO where it was — a draft stays
+ *  a draft, an already-submitted CO is not downgraded. */
+export function coStatusForSend(email: SendEmailOutcome, existing: ChangeOrderStatus | undefined): ChangeOrderStatus {
+  if (email === 'sent') return 'submitted';
+  return existing && existing !== 'draft' ? existing : 'draft';
+}
+
+/** A write still unanswered after this long is reported as "on this device,
+ *  still reaching MAGE" rather than holding the alert hostage to a dead signal. */
+export const CO_WRITE_REPORT_TIMEOUT_MS = 8000;
+
+/**
+ * The one message Send & Save shows. It states the email's outcome and the
+ * save's outcome SEPARATELY, and never says "saved" or "sent" for something
+ * that did not happen. It used to read "Change order saved but email could not
+ * be sent" on a failed send — when the function had returned before saving
+ * anything, so backing out lost the CO.
+ */
+export function coSendReport(o: {
+  number: number;
+  email: SendEmailOutcome;
+  emailError?: string;
+  status: ChangeOrderStatus;
+  write: RecordWriteOutcome | 'pending';
+  recipient: string;
+}): { title: string; message: string } {
+  const where: Record<RecordWriteOutcome | 'pending', string> = {
+    synced: '',
+    // 'queued' is not always "offline": an update also queues behind an
+    // earlier create still waiting on this device, while online (the email
+    // just went out). Say what is known, not why.
+    queued: ' It is saved on this device and will reach MAGE on the next sync.',
+    pending: ' It is saved on this device and is still reaching MAGE.',
+    local: ' It is saved on this device.',
+    // 'failed' covers more than one cause — a refusal (RLS, validation), a
+    // server error or outage, or a device that could not queue the write — and
+    // this screen cannot tell which, so it names none (never a guess as fact).
+    // What IS known: nothing reached MAGE and nothing is queued, so the copy
+    // on this device will not sync by itself. No "before you leave this
+    // screen" either: this alert is read after the screen has already closed.
+    failed: ' MAGE could not save it, so it is on this device only and will not sync by itself — the next refresh from MAGE can drop it. Keep a copy of its details.',
+  };
+  if (o.email === 'sent') {
+    return {
+      title: o.write === 'failed' ? 'Sent — not saved to MAGE' : 'Sent',
+      message: `CO #${o.number} was emailed${o.recipient ? ` to ${o.recipient}` : ''} for approval.${o.write === 'synced' ? ' It is saved.' : where[o.write]}`,
+    };
+  }
+  // Never "saved" for a write MAGE refused — the tail below says where it is.
+  const saved = o.write === 'failed'
+    ? `CO #${o.number} was not saved to MAGE`
+    : o.status === 'draft' ? `CO #${o.number} is saved as a draft` : `CO #${o.number} is saved`;
+  const reason = o.email === 'composer_opened'
+    ? (o.emailError || 'a draft opened in your email app — press Send there')
+    : (o.emailError || 'the email service could not be reached');
+  // A composer that opened may still be sent from his mail app — MAGE cannot
+  // see that, so the CO stays a draft; tell him the step that makes it count.
+  const markIt = o.email === 'composer_opened' && o.status === 'draft'
+    ? ' Once you have sent it from your mail app, open this change order and tap Mark submitted.'
+    : '';
+  return {
+    title: 'Email not sent',
+    message: `${saved}, but the email was NOT sent: ${reason.replace(/[.\s]+$/, '')}.${where[o.write]}${markIt}`,
+  };
+}
+
+/** The close button a send that finished OFF-screen leaves behind. It states
+ *  the same outcome as coSendReport's alert — never "Sent" for an email that
+ *  did not go out (a failed send or a composer that only opened). */
+export function coSendFinishedLabel(email: SendEmailOutcome, write: RecordWriteOutcome | 'pending'): string {
+  if (email !== 'sent') return 'Not sent — close';
+  return write === 'failed' ? 'Sent, not saved — close' : 'Sent — close';
+}
+// <<< co-send-outcome
+
+function ChangeOrderGate() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { coId, projectId: paramProjectId } = useLocalSearchParams<{ coId?: string; projectId?: string }>();
+  const { changeOrders, changeOrdersLoaded, projectsLoaded, retryRemoteReads } = useProjects();
+  const target = useMemo(() => (coId ? changeOrders.find(c => c.id === coId) ?? null : null), [coId, changeOrders]);
+  const [graceOver, setGraceOver] = useState(false);
+  useEffect(() => {
+    if (!coId || target || !projectsLoaded || !changeOrdersLoaded || graceOver) return;
+    const t = setTimeout(() => setGraceOver(true), CO_ARRIVAL_GRACE_MS);
+    return () => clearTimeout(t);
+  }, [coId, target, projectsLoaded, changeOrdersLoaded, graceOver]);
+
+  const state = coGateState({
+    coId: coId ?? null,
+    found: !!target,
+    needsProject: !!target || !!paramProjectId,
+    projectsLoaded,
+    changeOrdersLoaded,
+    graceOver,
+  });
+  if (state === 'editor') {
+    // Keyed on the CO so the editor re-seeds if the link changes underneath it;
+    // the CO's own project wins over the URL's (a link may carry only coId).
+    return <ChangeOrderInner key={target?.id ?? 'new'} projectIdOverride={target?.projectId} />;
+  }
+  return (
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Order" />
+      <View style={styles.gateBody}>
+        {state === 'loading' ? (
+          <Text style={styles.gateText}>Loading this change order…</Text>
+        ) : (
+          <>
+            <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.gateTitle}>This change order isn&apos;t on this device yet</Text>
+            <Text style={styles.gateText}>
+              The link names a change order that hasn&apos;t synced here, or was deleted. Nothing was
+              opened in its place, so no new CO number was used.
+            </Text>
+            <Button label="Try again" variant="primary" onPress={() => { setGraceOver(false); retryRemoteReads(); }} />
+            {!!paramProjectId && (
+              <Button
+                label="Open the project"
+                variant="secondary"
+                onPress={() => router.replace({ pathname: '/project-detail', params: { id: paramProjectId } })}
+              />
+            )}
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string }) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -106,6 +297,7 @@ function ChangeOrderInner() {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
   const router = useRouter();
+  const goBack = useSafeBack();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -126,7 +318,10 @@ function ChangeOrderInner() {
     projects,
   } = useProjects();
 
-  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  // The record's own project seeds the pick (the gate keys this editor on the
+  // record, so it seeds once per record): a link may carry only the record id,
+  // or a projectId that isn't the record's, and the record's job must win.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(projectIdOverride ?? null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   /** The URL named a project that doesn't exist — different from "no id". */
@@ -545,19 +740,22 @@ function ChangeOrderInner() {
     ));
   }, []);
 
-  const handleSave = useCallback((status: 'draft' | 'submitted', recipientName?: string, recipientEmail?: string) => {
-    if (!projectId) return;
-    if (!description.trim()) {
-      showAlert('Missing Description', 'Please enter a description for this change order.');
-      return;
-    }
-    if (lineItems.length === 0) {
-      showAlert('No Items', 'Please add at least one line item.');
-      return;
+  /**
+   * Writes the CO — and ONLY writes it: no toast, no navigation. Split out of
+   * handleSave so Send & Save can put the CO on disk and read where the write
+   * landed BEFORE it reports anything (handleSave ends in goBack(), which
+   * cannot run mid-send). Returns null when the form is refused (the refusal
+   * has been shown), else the CO's number and the write outcome.
+   */
+  const persistCO = useCallback((status: ChangeOrderStatus, recipientName?: string, recipientEmail?: string): { number: number; isUpdate: boolean; write: Promise<RecordWriteOutcome> } | null => {
+    if (!projectId) return null;
+    const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length });
+    if (blocked) {
+      showAlert(blocked.title, blocked.message);
+      return null;
     }
 
     const now = new Date().toISOString();
-    const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
 
     const parsedImpactDays = parseInt(scheduleImpactDays, 10);
     const impactDays = Number.isFinite(parsedImpactDays) && parsedImpactDays > 0 ? parsedImpactDays : undefined;
@@ -619,7 +817,7 @@ function ChangeOrderInner() {
           ? existing.map((a, i) => i === idx ? { ...a, name: recipient, email: recipientAddr } : a)
           : [...existing, { ...pendingClientApprover(), order: existing.length }];
       }
-      updateChangeOrder(existingCO.id, {
+      const write = updateChangeOrder(existingCO.id, {
         description: description.trim(),
         reason: reason.trim(),
         lineItems,
@@ -636,37 +834,73 @@ function ChangeOrderInner() {
         ...(approversPatch ? { approvers: approversPatch } : {}),
         ...(sending ? { approvalDeadlineDays: deadlineDays } : {}),
       });
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
-    } else {
-      const co: ChangeOrder = {
-        id: createId('co'),
-        number: nextCoNumber,
-        projectId,
-        date: now,
-        description: description.trim(),
-        reason: reason.trim(),
-        lineItems,
-        originalContractValue,
-        changeAmount,
-        newContractTotal,
-        status,
-        createdAt: now,
-        updatedAt: now,
-        scheduleImpactDays: impactDays,
-        scheduleImpactTaskIds: aiAffectedTaskIds.length > 0 ? aiAffectedTaskIds : undefined,
-        approvers: sending ? [pendingClientApprover()] : undefined,
-        approvalDeadlineDays: sending ? deadlineDays : undefined,
-      };
-      addChangeOrder(co);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      nailIt(status === 'submitted' ? `CO #${nextCoNumber} submitted${recipientInfo}` : `CO #${nextCoNumber} saved`);
+      return { number: existingCO.number, isUpdate: true, write };
     }
+    const co: ChangeOrder = {
+      id: createId('co'),
+      number: nextCoNumber,
+      projectId,
+      date: now,
+      description: description.trim(),
+      reason: reason.trim(),
+      lineItems,
+      originalContractValue,
+      changeAmount,
+      newContractTotal,
+      status,
+      createdAt: now,
+      updatedAt: now,
+      scheduleImpactDays: impactDays,
+      scheduleImpactTaskIds: aiAffectedTaskIds.length > 0 ? aiAffectedTaskIds : undefined,
+      approvers: sending ? [pendingClientApprover()] : undefined,
+      approvalDeadlineDays: sending ? deadlineDays : undefined,
+    };
+    const write = addChangeOrder(co);
+    return { number: nextCoNumber, isUpdate: false, write };
+  }, [projectId, description, reason, scheduleImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder]);
 
-    router.back();
-  }, [projectId, description, reason, scheduleImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
+  // Send & Save in flight: from the tap on Send until the screen pops. The
+  // email await and then the write report (up to CO_WRITE_REPORT_TIMEOUT_MS on
+  // a bad signal) leave the form on screen with its buttons live, and for a
+  // NEW CO `existingCO` stays null (it is keyed on the URL coId) — a second tap
+  // on Save to Project / Send & Save wrote a SECOND CO with the next number and
+  // popped a second screen. The ref closes the same-frame double tap; the
+  // state disables the controls and relabels them so he can see why.
+  const sendingRef = useRef(false);
+  const [sendInFlight, setSendInFlight] = useState(false);
+  const releaseSending = useCallback(() => { sendingRef.current = false; setSendInFlight(false); }, []);
+  // The send finished while he was on another screen (a sidebar or push
+  // navigation during the write wait), so the pop was skipped and this form is
+  // still mounted under him. The lock must stay — for a NEW CO a second tap
+  // would write a duplicate — but "Sending…" would be false. The bar becomes
+  // one "Sent — close" action instead.
+  // The close label once a send finished off-screen (null = not finished):
+  // it follows the outcome, see coSendFinishedLabel.
+  const [sendFinished, setSendFinished] = useState<string | null>(null);
+  // Whether this screen is still the one on top. The send waits up to
+  // CO_WRITE_REPORT_TIMEOUT_MS; if he left through the header meanwhile, the
+  // delayed back would close the screen he went to instead.
+  const navigation = useNavigation();
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const handleSave = useCallback((status: 'draft' | 'submitted', recipientName?: string, recipientEmail?: string) => {
+    if (sendingRef.current) return;
+    const saved = persistCO(status, recipientName, recipientEmail);
+    if (!saved) return;
+    const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (saved.isUpdate) {
+      showAlert('Updated', `Change Order #${saved.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
+    } else {
+      nailIt(status === 'submitted' ? `CO #${saved.number} submitted${recipientInfo}` : `CO #${saved.number} saved`);
+    }
+    // Safe back, as after Send: a cold-opened form must still leave.
+    goBack();
+  }, [persistCO, goBack]);
 
   const handleSendPress = useCallback(() => {
+    if (sendingRef.current) return;
     setShowSendRecipient(true);
   }, []);
 
@@ -739,6 +973,15 @@ function ChangeOrderInner() {
       showAlert('Email Required', 'Please enter a recipient email address.');
       return;
     }
+    // Refuse BEFORE anything goes out — see coSaveBlocker.
+    const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length });
+    if (blocked) {
+      showAlert(blocked.title, blocked.message);
+      return;
+    }
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    setSendInFlight(true);
     setShowSendRecipient(false);
 
     if (sendRecipientEmail.trim()) {
@@ -769,29 +1012,72 @@ function ChangeOrderInner() {
       })();
       const subject = `Change order #${coNum}: ${sign}${moneyShort} · ${project?.name ?? 'Project'}`;
 
-      const result = await sendEmail({
-        to: sendRecipientEmail.trim(),
-        subject,
-        html,
-        replyTo: branding.email || undefined,
-        fromCompanyName: branding.companyName || undefined,
-        unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'co_approval', enabled: true },
-      });
-
-      if (!result.success) {
-        if (result.error === 'cancelled') {
-          return;
-        }
-        console.warn('[ChangeOrder] Email send failed:', result.error);
-        showAlert('Email Notice', `Change order saved but email could not be sent: ${result.error}`);
+      let result: Awaited<ReturnType<typeof sendEmail>>;
+      try {
+        result = await sendEmail({
+          to: sendRecipientEmail.trim(),
+          subject,
+          html,
+          replyTo: branding.email || undefined,
+          fromCompanyName: branding.companyName || undefined,
+          unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'co_approval', enabled: true },
+        });
+      } catch (e) {
+        // Never leave the controls locked behind a send that threw.
+        releaseSending();
+        showAlert('Not sent', `The email was not sent and nothing was saved: ${e instanceof Error ? e.message : 'unknown error'}. Your change order is still open here.`);
         return;
-      } else {
-        console.log('[ChangeOrder] Email sent successfully');
       }
-    }
 
-    handleSave('submitted', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, changeAmount, newContractTotal]);
+      // He dismissed the composer (reached only because the send service
+      // failed). Nothing went out and nothing is written; the form stays open
+      // exactly as he left it, and we say so rather than returning silently.
+      if (result.outcome === 'cancelled') {
+        releaseSending();
+        showAlert('Not sent', 'The email was not sent and nothing was saved. Your change order is still open here.');
+        return;
+      }
+      if (!result.success) console.warn('[ChangeOrder] Email not sent:', result.outcome, result.error);
+
+      // ONE write, after the send, with the status the send earned. Saving
+      // first and then flipping to 'submitted' would need a second
+      // updateChangeOrder from this closure, whose change-order list predates
+      // the row the first write added — it would write that row back out.
+      // The validation above already ran, so this cannot be refused now.
+      const status = coStatusForSend(result.outcome, existingCO?.status);
+      const sent = result.outcome === 'sent';
+      const saved = persistCO(status, sent ? sendRecipientName : undefined, sent ? sendRecipientEmail : undefined);
+      if (!saved) { releaseSending(); return; }
+      const write = await Promise.race<RecordWriteOutcome | 'pending'>([
+        saved.write.catch((): RecordWriteOutcome => 'failed'),
+        new Promise<'pending'>(resolve => setTimeout(() => resolve('pending'), CO_WRITE_REPORT_TIMEOUT_MS)),
+      ]);
+      const report = coSendReport({
+        number: saved.number,
+        email: result.outcome,
+        emailError: result.error,
+        status,
+        write,
+        recipient: sendRecipientName.trim() || sendRecipientEmail.trim(),
+      });
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(sent && write !== 'failed'
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning);
+      }
+      // The alert host is global, so the message survives the pop below.
+      showAlert(report.title, report.message);
+      // sendInFlight stays set: this screen is leaving, and nothing may write
+      // again. Safe back: opened cold (a deep link, a web refresh of
+      // /change-order?coId=) there is nothing to pop, and a bare back() left
+      // the form up with Save and Send disabled as "Sending…" for good.
+      // Skipped when he already left: popping then closes another screen.
+      if (mountedRef.current && navigation.isFocused()) goBack();
+      else if (mountedRef.current) setSendFinished(coSendFinishedLabel(result.outcome, write));
+    } else {
+      releaseSending();
+    }
+  }, [persistCO, releaseSending, goBack, navigation, lineItems.length, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, changeAmount, newContractTotal]);
 
   // A locked CO hides the EDIT action bar — an approved one gets the billing
   // bar below instead, which lifts the FAB the same way.
@@ -1326,18 +1612,32 @@ function ChangeOrderInner() {
           />
         )}
 
-        {!isLocked && (
+        {!isLocked && sendFinished && (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
+            <Button
+              label={sendFinished}
+              onPress={goBack}
+              variant="secondary"
+              style={{ flex: 1 }}
+              testID="co-sent-close"
+            />
+          </View>
+        )}
+
+        {!isLocked && !sendFinished && (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
             <Button
               label="Save to Project"
               onPress={() => handleSave('draft')}
               variant="secondary"
               style={{ flex: 1 }}
+              disabled={sendInFlight}
               testID="save-co-draft"
             />
             <Button
-              label="Send & Save"
+              label={sendInFlight ? 'Sending…' : 'Send & Save'}
               onPress={handleSendPress}
+              disabled={sendInFlight}
               iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
               style={{ flex: 1 }}
               testID="send-co-btn"
@@ -1474,9 +1774,9 @@ function ChangeOrderInner() {
                 <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
+                <TouchableOpacity style={[styles.sendBtn, sendInFlight && { opacity: 0.5 }]} onPress={handleConfirmSend} disabled={sendInFlight} activeOpacity={0.7} testID="co-send-confirm">
                   <Send size={16} color={"#FFFFFF"} strokeWidth={1.75} />
-                  <Text style={styles.sendBtnText}>Send</Text>
+                  <Text style={styles.sendBtnText}>{sendInFlight ? 'Sending…' : 'Send'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1769,6 +2069,9 @@ function getStatusText(t: ThemeColors, status: string): string {
 const pipelineWrapStyle = { paddingHorizontal: 16, marginTop: 12, marginBottom: 8 } as const;
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  gateBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.lg },
+  gateTitle: { ...Type.headline, color: themeColors.text, textAlign: 'center' },
+  gateText: { ...Type.subhead, color: themeColors.textSecondary, textAlign: 'center', maxWidth: 420 },
   pipelineWrap: pipelineWrapStyle,
   container: { flex: 1, backgroundColor: themeColors.bg },
   // Document-style form — cap kept, widened for desktop.

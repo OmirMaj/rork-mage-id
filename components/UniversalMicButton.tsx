@@ -266,7 +266,11 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         } as unknown as ChangeOrder);
         setTimeout(() => {
           handleClose();
-          router.push({ pathname: '/change-order' as never, params: { id: newId } as never });
+          // The CO screen reads `coId`, not `id` — with `id` it opened a BLANK
+          // "New Change Order" (and, with no projectId, the project picker
+          // first) instead of the one just drafted. projectId is passed too so
+          // the editor lands on the right job even before the CO is in state.
+          router.push({ pathname: '/change-order', params: { coId: newId, projectId: proj.id } });
         }, 250);
       } else if (parsed.kind === 'note') {
         // Notes go in as a "draft" daily report so they end up somewhere

@@ -698,7 +698,7 @@ export async function assembleFactBlocks(
     () => {
       const blocks: PortfolioFactBlock[] = [];
       try {
-        blocks.push(typeProfitabilityFacts(buildTypeProfitability(bundle.projects, bundle.commitments)));
+        blocks.push(typeProfitabilityFacts(buildTypeProfitability(bundle.projects, bundle.commitments, bundle.changeOrders)));
       } catch { /* additive */ }
       try {
         blocks.push(pipelineHorizonFacts(buildPipelineHorizon({

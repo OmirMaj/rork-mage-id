@@ -12,7 +12,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft, Plus, Inbox, MapPin, ChevronRight,
-  CheckCircle2, Clock, Trophy,
+  CheckCircle2, Clock, Trophy, Megaphone,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -22,6 +22,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
+import { rfpReachLine } from '@/supabase/functions/notify-nearby-contractors/reach';
+import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -38,6 +40,11 @@ interface MyRfpRow {
   posted_date: string;
   awarded_response_id: string | null;
   awarded_at: string | null;
+  // Written by notify-nearby-contractors when its fan-out finishes
+  // (20260918120100). NULL = no report yet — never read as zero.
+  notified_count: number | null;
+  notified_at: string | null;
+  verified_only: boolean | null;
   response_count: number;
   unreviewed_count: number;
 }
@@ -60,12 +67,28 @@ export default function MyRfpsScreen() {
     queryFn: async (): Promise<MyRfpRow[]> => {
       if (!user?.id) return [];
       // Pull every RFP the user posted + count responses per row.
-      const { data: rfps, error } = await supabase
-        .from('public_bids')
-        .select('id,title,city,state,status,budget_min,budget_max,photo_urls,scope_description,posted_date,awarded_response_id,awarded_at')
-        .eq('user_id', user.id)
-        .eq('is_homeowner_rfp', true)
-        .order('posted_date', { ascending: false });
+      const BASE_COLS = 'id,title,city,state,status,budget_min,budget_max,photo_urls,scope_description,posted_date,awarded_response_id,awarded_at';
+      const REACH_COLS = ',notified_count,notified_at,verified_only';
+      type RawRfp = Omit<MyRfpRow, 'response_count' | 'unreviewed_count' | 'notified_count' | 'notified_at' | 'verified_only'>
+        & Partial<Pick<MyRfpRow, 'notified_count' | 'notified_at' | 'verified_only'>>;
+      const fetchRfps = async (cols: string) => {
+        const res = await supabase
+          .from('public_bids')
+          .select(cols)
+          .eq('user_id', user.id)
+          .eq('is_homeowner_rfp', true)
+          .order('posted_date', { ascending: false });
+        return { data: res.data as unknown as RawRfp[] | null, error: res.error };
+      };
+      let { data: rfps, error } = await fetchRfps(BASE_COLS + REACH_COLS);
+      // The reach columns come from migration 20260918120100. If an OTA lands
+      // before it is applied, PostgREST rejects the whole select (42703 /
+      // PGRST204) and an empty list would tell the homeowner they have no
+      // posts — inviting a duplicate. Retry without them; rfpReachLine reads
+      // a missing notified_at as "no record", which is the truth then.
+      if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+        ({ data: rfps, error } = await fetchRfps(BASE_COLS));
+      }
       if (error) {
         console.warn('[my-rfps] fetch error', error);
         return [];
@@ -90,6 +113,9 @@ export default function MyRfpsScreen() {
       return rfps.map(r => ({
         ...r,
         photo_urls: r.photo_urls as string[] | null,
+        notified_count: r.notified_count ?? null,
+        notified_at: r.notified_at ?? null,
+        verified_only: r.verified_only ?? null,
         response_count: counts.get(r.id)?.total ?? 0,
         unreviewed_count: counts.get(r.id)?.unreviewed ?? 0,
       }));
@@ -166,8 +192,9 @@ export default function MyRfpsScreen() {
             </View>
             <Text style={styles.emptyTitle}>Post your first project</Text>
             <Text style={styles.emptyBody}>
-              Tell us what you want done — kitchen remodel, roof replacement, anything. Verified
-              contractors near you get notified, and you pick the bid you like best. No fees.
+              Tell us what you want done — kitchen remodel, roof replacement, anything. We alert
+              MAGE ID contractors who cover your area and show you how many that was, then you pick
+              the bid you like best.
             </Text>
             <TouchableOpacity style={styles.emptyCta} onPress={handleNew}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />
@@ -216,6 +243,19 @@ export default function MyRfpsScreen() {
                     {[r.city, r.state].filter(Boolean).join(', ') || 'Address pending'}
                   </Text>
                 </View>
+                {/* Who this post actually reached — the fan-out's own count,
+                    a plain zero, or "no record". Replaces the blanket
+                    "contractors will be notified" (audit round 2, #8). Only
+                    for open posts: once awarded, the bids are the story. */}
+                {isOpen && (() => {
+                  const reach = rfpReachLine(r, Date.now(), RFP_BROWSE_ENABLED);
+                  return (
+                    <View style={styles.reachRow} testID={`my-rfps-reach-${r.id}`}>
+                      <Megaphone size={11} color={reach.tone === 'some' ? themeColors.success : themeColors.textMuted} strokeWidth={1.75} />
+                      <Text style={styles.reachText}>{reach.text}</Text>
+                    </View>
+                  );
+                })()}
                 {(r.budget_min || r.budget_max) && (
                   <Text style={styles.rfpBudget}>
                     Budget: {r.budget_min ? formatMoney(r.budget_min) : '?'}
@@ -320,6 +360,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   rfpMetaText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' },
   rfpBudget: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
+  reachRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
+  reachText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 16 },
   rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line },
   rfpResponseChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rfpResponseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },

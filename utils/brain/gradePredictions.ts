@@ -16,6 +16,7 @@ import type { BrainPredictionReadRow } from './types';
 import type { Project, ChangeOrder, Commitment } from '@/types';
 import type { HomeownerBidResponse } from '@/types';
 import { computeEstimateActuals } from '@/utils/estimateActuals';
+import { realizedMarginPct } from '@/utils/judges/typeMargin';
 import { isWorkingDay } from '@/utils/cpm';
 
 // ─── Grading context ─────────────────────────────────────────────────────────
@@ -429,14 +430,13 @@ export function gradeJudges(
   if (!project) return null;
   if (project.status !== 'completed' && project.status !== 'closed') return null;
 
-  // Use typeMargin realizedMarginPct logic inline
-  const revenue = project.linkedEstimate?.grandTotal ?? 0;
-  if (revenue <= 0) return null;
-  const report = computeEstimateActuals(project, ctx.commitments);
-  if (!report.hasEstimate) return null;
-  const cost = Math.max(report.totalActual, report.totalCommitted);
-  if (cost <= 0) return null;
-  const realized = Math.max(-1, Math.min(1, (revenue - cost) / revenue));
+  // The SAME realized-margin function JUDGES and /business use — this was an
+  // inline copy that measured revenue as the bare estimate while cost carried
+  // the sub money for approved change-order scope, so a 'take' on a job that
+  // grew by paid COs graded WRONG (audit round 2, #3). ctx.changeOrders is
+  // already in hand; realizedMarginPct filters it to this project.
+  const realized = realizedMarginPct(project, ctx.commitments, ctx.changeOrders);
+  if (realized === null) return null;
 
   // "Verdict was right" = realized margin at or above target.
   // Outcome fields are all fractions (see JudgesOutcome doc).

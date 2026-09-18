@@ -143,6 +143,11 @@
 
       <div id="empty" class="empty hidden">No email address on the link. Use the preferences link from any of our emails.</div>
 
+      <div id="allOffNote" class="no-token-note hidden">
+        All MAGE ID email is off for this address. The switches above can't bring it back on their own &mdash;
+        <a href="#" id="resubAll">turn email back on</a> first.
+      </div>
+
       <div class="footer">
         Powered by <a href="https://mageid.app">MAGE ID</a>. <a href="#" id="unsubAll">Turn off everything</a>.
       </div>
@@ -172,6 +177,9 @@
         ]},
         { label: 'Subs & invoicing', items: [
           { key: 'sub_invoice', label: 'Sub invoices', desc: 'When a sub submits or you act on an invoice.' },
+        ]},
+        { label: 'Website leads', items: [
+          { key: 'lead_received', label: 'Website leads', desc: 'When someone asks for a price on your website.' },
         ]},
         { label: 'Marketplace & RFPs', items: [
           { key: 'nearby_rfp_posted', label: 'New nearby RFPs', desc: 'When a homeowner posts a project in your area.' },
@@ -219,6 +227,15 @@
 
       function fetchSuppressed(eventKey) {
         var url = SUPABASE_URL + '/functions/v1/unsubscribe?e=' + encodeURIComponent(qs.email) + '&k=' + encodeURIComponent(eventKey);
+        return fetch(url, {
+          method: 'GET',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+        }).then(function (r) { return r.json(); }).then(function (d) { return !!(d && d.unsubscribed); });
+      }
+
+      // No k = the global ("Turn off everything") row.
+      function fetchGlobalSuppressed() {
+        var url = SUPABASE_URL + '/functions/v1/unsubscribe?e=' + encodeURIComponent(qs.email);
         return fetch(url, {
           method: 'GET',
           headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
@@ -289,6 +306,35 @@
         });
       });
 
+      // A global unsubscribe used to be one-way: nothing on this page (or in
+      // the app) could lift it, while the app's "all email is off" alert sent
+      // people here to do exactly that. The unsubscribe function has always
+      // accepted resubscribe with event_key null; this is the control for it.
+      var $allOffNote = document.getElementById('allOffNote');
+      function refreshToggles() {
+        allCheckboxes.forEach(function (i) {
+          fetchSuppressed(i.getAttribute('data-key')).then(function (suppressed) { i.checked = !suppressed; });
+        });
+      }
+      fetchGlobalSuppressed().then(function (off) {
+        if (off) $allOffNote.classList.remove('hidden');
+      }).catch(function () {});
+      document.getElementById('resubAll').addEventListener('click', function (ev) {
+        ev.preventDefault();
+        if (readOnly) { showToast('Open this page from a recent email to make changes.', true); return; }
+        callApi('resubscribe', null).then(function (res) {
+          if (res.ok && res.data && res.data.ok) {
+            showToast('Email is back on');
+            $allOffNote.classList.add('hidden');
+            refreshToggles();
+          } else {
+            showToast(res.data && res.data.error === 'token_invalid'
+              ? 'Open this page from a recent MAGE ID email to make changes.'
+              : 'Could not save — try again.', true);
+          }
+        }).catch(function () { showToast('Network error', true); });
+      });
+
       var $unsubAll = document.getElementById('unsubAll');
       if (readOnly) {
         $unsubAll.addEventListener('click', function (ev) {
@@ -303,6 +349,7 @@
             if (res.ok && res.data && res.data.ok) {
               showToast('All notifications off');
               allCheckboxes.forEach(function (i) { i.checked = false; });
+              $allOffNote.classList.remove('hidden');
             } else {
               showToast('Could not save', true);
             }

@@ -1,14 +1,15 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, Platform, FlatList, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, Platform, FlatList,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
-  Search, X, Star, Truck, Clock, MapPin, Phone, Mail, Globe,
+  Search, X, Truck, Clock, MapPin,
   ChevronRight, Package, CheckCircle,
-  Store, Award, DollarSign,
+  Store, DollarSign,
   TreePine, Box, Home, Zap, Wrench, Layers, LayoutGrid, HardHat, Paintbrush, Leaf, Fence,
 } from 'lucide-react-native';
 import { MageMaterials } from '@/components/icons';
@@ -27,7 +28,6 @@ import { MOCK_SUPPLIERS, MOCK_LISTINGS, SUPPLIER_CATEGORIES } from '@/mocks/supp
 import type { Supplier, SupplierListing } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { showAlert } from '@/utils/alert';
 
 type ViewMode = 'suppliers' | 'listings';
 
@@ -44,6 +44,7 @@ export default function MarketplaceScreen() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [selectedListing, setSelectedListing] = useState<SupplierListing | null>(null);
   const [orderQty, setOrderQty] = useState('1');
+  const router = useRouter();
 
   const filteredSuppliers = useMemo(() => {
     let results = MOCK_SUPPLIERS;
@@ -58,7 +59,9 @@ export default function MarketplaceScreen() {
         s.categories.some(c => c.toLowerCase().includes(q))
       );
     }
-    return results.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.rating - a.rating);
+    // Alphabetical. The mock "featured" flag and star ratings are not shown
+    // or used to rank: they describe no real business (audit round 2, #11).
+    return [...results].sort((a, b) => a.companyName.localeCompare(b.companyName));
   }, [query, activeCategory]);
 
   const filteredListings = useMemo(() => {
@@ -84,52 +87,16 @@ export default function MarketplaceScreen() {
     return MOCK_LISTINGS.filter(l => l.supplierId === selectedSupplier.id);
   }, [selectedSupplier]);
 
-  const handleContactSupplier = useCallback((supplier: Supplier, method: 'email' | 'phone' | 'website') => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (method === 'email') {
-      const url = `mailto:${supplier.email}?subject=Inquiry from MAGE ID —${supplier.companyName}`;
-      Linking.openURL(url).catch(() => showAlert('Error', 'Could not open email client.'));
-    } else if (method === 'phone') {
-      Linking.openURL(`tel:${supplier.phone}`).catch(() => showAlert('Error', 'Could not open phone.'));
-    } else {
-      Linking.openURL(`https://${supplier.website}`).catch(() => showAlert('Error', 'Could not open browser.'));
-    }
-  }, []);
-
-  const handleRequestQuote = useCallback((listing: SupplierListing) => {
-    const qty = parseInt(orderQty, 10);
-    if (isNaN(qty) || qty <= 0) {
-      showAlert('Invalid Quantity', 'Please enter a valid quantity.');
-      return;
-    }
-    const supplier = getSupplier(listing.supplierId);
-    if (!supplier) return;
-    const usesBulk = qty >= listing.bulkMinQty;
-    const unitPrice = usesBulk ? listing.bulkPrice : listing.price;
-    const total = unitPrice * qty;
-
-    const subject = `Quote request —${listing.name}`;
-    const body = `Hi ${supplier.contactName},\n\nI'd like to request a quote for:\n\nItem: ${listing.name}\nQuantity: ${qty} ${listing.unit}\nUnit Price: $${unitPrice.toFixed(2)}${usesBulk ? ' (bulk rate)' : ''}\nEstimated Total: $${total.toFixed(2)}\n\nPlease confirm availability and delivery timeline.\n\nThank you,\nSent via MAGE ID`;
-    const url = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    Linking.openURL(url).catch(() => showAlert('Error', 'Could not open email client.'));
-    setSelectedListing(null);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [orderQty, getSupplier]);
-
-  const renderStars = useCallback((rating: number) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <Star
-          key={i}
-          size={12}
-          color={i <= Math.round(rating) ? '#FFB800' : themeColors.line}
-          fill={i <= Math.round(rating) ? '#FFB800' : 'transparent'} strokeWidth={1.75}
-        />
-      );
-    }
-    return stars;
-  }, [themeColors]);
+  // ── No contact actions, on purpose (audit round 2, #11) ──────────────────
+  // Every supplier on this screen is MOCK_SUPPLIERS: invented companies with
+  // 555 phone numbers and real-looking addresses at domains MAGE does not own
+  // (sales@pacificlumber.com). "Request Quote via Email" used to open the GC's
+  // own mail client addressed to one of them, quoting a unit price and total
+  // MAGE made up, signed "Sent via MAGE ID" — and the preview banner told him
+  // to "tap Contact to reach out directly". Email / Call / Website / Request
+  // quote are gone until real suppliers are onboarded. The GC's real vendors
+  // are graded from his own deliveries on the Scorecard (sub-scorecard ▸
+  // Suppliers, utils/supplierScorecard.ts); the banner links there.
 
   const renderSupplierCard = useCallback(({ item }: { item: Supplier }) => {
     const listingCount = MOCK_LISTINGS.filter(l => l.supplierId === item.id).length;
@@ -143,22 +110,13 @@ export default function MarketplaceScreen() {
         activeOpacity={0.7}
         testID={`supplier-${item.id}`}
       >
-        {item.featured && (
-          <View style={styles.featuredBadge}>
-            <Award size={10} color="#FFB800" strokeWidth={1.75} />
-            <Text style={styles.featuredText}>Featured</Text>
-          </View>
-        )}
         <View style={styles.supplierTop}>
           <View style={styles.supplierAvatar}>
             <Store size={20} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={styles.supplierInfo}>
             <Text style={styles.supplierName} numberOfLines={1}>{item.companyName}</Text>
-            <View style={styles.ratingRow}>
-              {renderStars(item.rating)}
-              <Text style={styles.ratingText}>{item.rating}</Text>
-            </View>
+            <Text style={styles.sampleTag}>Sample supplier · not a real business</Text>
           </View>
           <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
@@ -190,7 +148,7 @@ export default function MarketplaceScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, [renderStars, styles, themeColors]);
+  }, [styles, themeColors]);
 
   const renderListingCard = useCallback(({ item }: { item: SupplierListing }) => {
     const supplier = getSupplier(item.supplierId);
@@ -282,19 +240,27 @@ export default function MarketplaceScreen() {
               testID="marketplace-back-to-tools"
             />
               <Text style={styles.largeTitle}>Marketplace</Text>
-              <Text style={styles.subtitle}>Buy materials directly from suppliers</Text>
-              {/* Preview banner — added during May 2026 launch audit. The
-                  supplier list and listings are MOCK_SUPPLIERS / MOCK_LISTINGS
-                  for now; "Order" buttons don't actually transact. We're
-                  validating the UX with real suppliers before opening the
-                  payment plumbing. */}
-              <View style={styles.previewBanner}>
+              <Text style={styles.subtitle}>A sample of what supplier listings will look like</Text>
+              {/* Sample-catalog banner. It used to say "reference data" and
+                  then tell the GC to "tap Contact to reach out directly" to
+                  businesses that do not exist (audit round 2, #11). It now
+                  says what every row is, and points at the one supplier list
+                  in the app built from his real records. */}
+              <View style={styles.previewBanner} testID="marketplace-sample-banner">
                 <Text style={styles.previewLabel}>
-                  PREVIEW
+                  SAMPLE CATALOG
                 </Text>
                 <Text style={styles.previewBody}>
-                  Marketplace is in preview. Suppliers and listings shown are reference data — orders here won&apos;t actually ship. We&apos;re onboarding real suppliers; tap &quot;Contact&quot; to reach out directly.
+                  Every supplier, price and stock level here is a made-up example. None of them is a real business or a MAGE ID member, and nothing on this screen contacts anyone.
                 </Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/sub-scorecard' as never)}
+                  accessibilityRole="link"
+                  testID="marketplace-real-suppliers"
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Text style={styles.previewLink}>Your real suppliers, graded from your deliveries →</Text>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.searchBar}>
@@ -433,38 +399,8 @@ export default function MarketplaceScreen() {
                 <View style={styles.supplierDetailAvatar}>
                   <Store size={32} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
-                <View style={styles.ratingRowLarge}>
-                  {renderStars(selectedSupplier.rating)}
-                  <Text style={styles.ratingTextLarge}>{selectedSupplier.rating}</Text>
-                </View>
+                <Text style={styles.sampleTag}>Sample supplier · not a real business</Text>
                 <Text style={styles.supplierDetailDesc}>{selectedSupplier.description}</Text>
-              </View>
-
-              <View style={styles.contactGrid}>
-                <TouchableOpacity
-                  style={styles.contactBtn}
-                  onPress={() => handleContactSupplier(selectedSupplier, 'email')}
-                  activeOpacity={0.7}
-                >
-                  <Mail size={18} color={themeColors.info} strokeWidth={1.75} />
-                  <Text style={styles.contactBtnText}>Email</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.contactBtn}
-                  onPress={() => handleContactSupplier(selectedSupplier, 'phone')}
-                  activeOpacity={0.7}
-                >
-                  <Phone size={18} color={themeColors.success} strokeWidth={1.75} />
-                  <Text style={styles.contactBtnText}>Call</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.contactBtn}
-                  onPress={() => handleContactSupplier(selectedSupplier, 'website')}
-                  activeOpacity={0.7}
-                >
-                  <Globe size={18} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.contactBtnText}>Website</Text>
-                </TouchableOpacity>
               </View>
 
               <View style={styles.detailInfoCard}>
@@ -614,7 +550,7 @@ export default function MarketplaceScreen() {
                   )}
 
                   <View style={styles.popupTotalRow}>
-                    <Text style={styles.popupTotalLabel}>Estimated Total</Text>
+                    <Text style={styles.popupTotalLabel}>Sample total</Text>
                     <Text style={styles.popupTotalValue}>${orderTotal.toFixed(2)}</Text>
                   </View>
 
@@ -625,26 +561,9 @@ export default function MarketplaceScreen() {
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.popupRequestBtn}
-                    onPress={() => handleRequestQuote(selectedListing)}
-                    activeOpacity={0.85}
-                    testID="request-quote-btn"
-                  >
-                    <Mail size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                    <Text style={styles.popupRequestBtnText}>Request Quote via Email</Text>
-                  </TouchableOpacity>
-
-                  {supplier && (
-                    <TouchableOpacity
-                      style={styles.popupCallBtn}
-                      onPress={() => handleContactSupplier(supplier, 'phone')}
-                      activeOpacity={0.7}
-                    >
-                      <Phone size={16} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.popupCallBtnText}>Call {supplier.companyName}</Text>
-                    </TouchableOpacity>
-                  )}
+                  <Text style={styles.popupSampleNote} testID="marketplace-sample-note">
+                    Sample listing — the supplier and these prices are made up, so there is no one to request a quote from.
+                  </Text>
                 </>
               );
             })()}
@@ -693,6 +612,23 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.warningLabel,
     letterSpacing: 0.5,
+  },
+  previewLink: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.accent,
+    marginTop: 8,
+  },
+  sampleTag: {
+    fontSize: Type.caption2.fontSize,
+    color: themeColors.textMuted,
+    marginTop: 2,
+  },
+  popupSampleNote: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.textSecondary,
+    lineHeight: 17,
+    marginTop: 12,
   },
   previewBody: {
     fontSize: Type.caption1.fontSize,
@@ -762,9 +698,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   categoryChipActive: {
     backgroundColor: Colors.primary,
   },
-  categoryEmoji: {
-    fontSize: Type.footnote.fontSize,
-  },
   categoryChipText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
@@ -795,23 +728,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  featuredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF8E1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Tokens.radius.xs,
-  },
-  featuredText: {
-    fontSize: 10,
-    fontWeight: '700' as const,
-    color: '#FFB800',
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-  },
   supplierTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -833,17 +749,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: themeColors.text,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  ratingText: {
-    fontSize: Type.caption1.fontSize,
-    fontWeight: '600' as const,
-    color: themeColors.textSecondary,
-    marginLeft: 3,
   },
   supplierDesc: {
     fontSize: Type.footnote.fontSize,
@@ -1078,43 +983,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  ratingRowLarge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingTextLarge: {
-    fontSize: Type.bodyCompact.fontSize,
-    fontWeight: '700' as const,
-    color: themeColors.text,
-    marginLeft: 4,
-  },
   supplierDetailDesc: {
     fontSize: Type.bodyCompact.fontSize,
     color: themeColors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  contactGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  contactBtn: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: Tokens.radius.lg,
-    backgroundColor: themeColors.surface,
-    borderWidth: 1,
-    borderColor: themeColors.line,
-  },
-  contactBtnText: {
-    fontSize: Type.footnote.fontSize,
-    fontWeight: '600' as const,
-    color: themeColors.text,
   },
   detailInfoCard: {
     marginHorizontal: 20,
@@ -1375,41 +1248,5 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     color: Colors.infoLabel,
     fontWeight: '500' as const,
-  },
-  popupRequestBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.primary,
-    borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
-    marginTop: 4,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  popupRequestBtnText: {
-    fontSize: Type.callout.fontSize,
-    fontWeight: '700' as const,
-    color: Colors.textOnPrimary,
-  },
-  popupCallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.primary + '10',
-    borderRadius: Tokens.radius.lg,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: Colors.primary + '20',
-  },
-  popupCallBtnText: {
-    fontSize: Type.bodyCompact.fontSize,
-    fontWeight: '600' as const,
-    color: Colors.primary,
   },
 });

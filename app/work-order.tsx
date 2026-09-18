@@ -3,27 +3,34 @@
 // recurring demand meets supply.
 //
 // Two bridges (the whole point of "Bet 1 — recurring-demand engine"):
-//   1. Dispatch to a contractor you already use — pick from Contacts,
-//      the work order moves to 'assigned' and records who/when. Local,
-//      immediate, no network. This is the common path for a PM with a
-//      go-to roster.
+//   1. Send to a contractor you already use — pick from Contacts, and the
+//      PM's own Messages or Mail opens with the job filled in (property,
+//      title, priority, trade, budget, description). The order moves to
+//      'assigned' only once that composer opened. MAGE does not message the
+//      contractor itself, and the sheet says so: this button used to read
+//      "Dispatch to contractor", set 'assigned' and tell nobody, so the PM
+//      believed an emergency leak was handled (audit round 2, #20). "Mark
+//      assigned without sending" stays for the job he already phoned in.
 //   2. Post for bids — route into the existing marketplace RFP flow so
-//      verified contractors compete. Marks the order 'posted_for_bids'.
+//      verified contractors compete. The order is NOT marked 'Out for bids'
+//      here: it used to flip before /post-rfp opened, so backing out left it
+//      claiming bids that were never asked for. post-rfp owns that step once
+//      the public_bids row exists (it gets this order's id as a param).
 //
 // Status otherwise advances by tapping the "mark as" chips
 // (open → in progress → done, or cancelled).
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform, Linking,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Wrench, Building2, Send, UserCheck, X, Trash2, Check,
-  AlertTriangle, Phone, Users,
+  ChevronLeft, Wrench, Building2, Send, UserCheck, X, Trash2,
+  AlertTriangle, Phone, Users, Mail, ChevronRight,
 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -38,6 +45,9 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import {
+  composeDispatchMessage, buildDispatchSmsUrl, buildDispatchMailtoUrl,
+} from '@/utils/propertyMirror';
 
 const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   open: '#FF6A1A',
@@ -67,7 +77,7 @@ export default function WorkOrderScreen() {
   const workOrderId = params.workOrderId ?? '';
 
   const { getWorkOrder, updateWorkOrder, deleteWorkOrder, getProperty } = useProperties();
-  const { contacts } = useProjects();
+  const { contacts, settings } = useProjects();
 
   const wo = getWorkOrder(workOrderId);
   const property = wo ? getProperty(wo.propertyId) : null;
@@ -94,7 +104,7 @@ export default function WorkOrderScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [wo, updateWorkOrder]);
 
-  const dispatchTo = useCallback((c: Contact) => {
+  const markAssigned = useCallback((c: Contact) => {
     if (!wo) return;
     const name = `${c.firstName} ${c.lastName}`.trim() || c.companyName || 'Contractor';
     updateWorkOrder(wo.id, {
@@ -107,9 +117,80 @@ export default function WorkOrderScreen() {
     setDispatchOpen(false);
   }, [wo, updateWorkOrder]);
 
+  // Opens the PM's own composer with the job filled in; marks the order
+  // assigned only if the composer actually opened. We cannot see whether he
+  // pressed Send, so nothing here claims the contractor was told.
+  const sendVia = useCallback(async (c: Contact, channel: 'sms' | 'email') => {
+    if (!wo) return;
+    const msg = composeDispatchMessage({
+      workOrder: wo,
+      propertyName: property?.name,
+      propertyAddress: property?.address,
+      contactFirstName: c.firstName?.trim() || undefined,
+      senderName: settings?.branding?.contactName?.trim() || settings?.branding?.companyName?.trim() || undefined,
+    });
+    const url = channel === 'sms'
+      ? buildDispatchSmsUrl(c.phone ?? '', msg, Platform.OS)
+      : buildDispatchMailtoUrl(c.email ?? '', msg);
+    try {
+      await Linking.openURL(url);
+      // On web openURL resolves even when no sms:/mailto: handler exists (a
+      // desk PC with no Messages app), so "it opened" proves nothing there —
+      // marking it assigned would record a dispatch that never went out. Ask.
+      if (Platform.OS === 'web') {
+        showAlert(
+          'Did you send it?',
+          `MAGE can't see your ${channel === 'sms' ? 'messages' : 'email'}. Mark the job assigned only once the ${channel === 'sms' ? 'text' : 'email'} has actually gone to ${c.firstName?.trim() || 'the contractor'}.`,
+          [
+            { text: 'Not sent', style: 'cancel' },
+            { text: 'Sent — mark assigned', onPress: () => markAssigned(c) },
+          ],
+        );
+        return;
+      }
+      markAssigned(c);
+    } catch {
+      showAlert(
+        channel === 'sms' ? "Couldn't open Messages" : "Couldn't open Mail",
+        `Nothing was sent and the work order is unchanged. ${channel === 'sms' ? `Call or text ${c.phone}` : `Email ${c.email}`} yourself, then use "Mark assigned without sending".`,
+      );
+    }
+  }, [wo, property, settings, markAssigned]);
+
+  const chooseContact = useCallback((c: Contact) => {
+    const name = `${c.firstName} ${c.lastName}`.trim() || c.companyName || 'this contractor';
+    const hasPhone = !!c.phone?.trim();
+    const hasEmail = !!c.email?.trim();
+    showAlert(
+      `Send to ${name}`,
+      hasPhone || hasEmail
+        ? 'Your Messages or Mail app opens with the job filled in. You press Send. MAGE does not message contractors for you.'
+        : `${name} has no phone or email in Contacts, so there is nothing to send it with. Add one in Contacts, or mark the job assigned if you already told them.`,
+      [
+        // At most THREE buttons per alert: Android's native Alert drops any
+        // past the third (and the web AlertHost renders 1–3), so a contact
+        // with both a phone and an email lost Cancel. Two channels get their
+        // own follow-up alert instead of a fourth button here.
+        ...(hasPhone && hasEmail
+          ? [{
+              text: 'Send it…',
+              onPress: () => showAlert(`Send to ${name}`, 'Pick how. Your app opens with the job filled in; you press Send.', [
+                { text: `Text ${c.phone}`, onPress: () => { void sendVia(c, 'sms'); } },
+                { text: `Email ${c.email}`, onPress: () => { void sendVia(c, 'email'); } },
+                { text: 'Cancel', style: 'cancel' as const },
+              ]),
+            }]
+          : hasPhone ? [{ text: `Text ${c.phone}`, onPress: () => { void sendVia(c, 'sms'); } }]
+          : hasEmail ? [{ text: `Email ${c.email}`, onPress: () => { void sendVia(c, 'email'); } }]
+          : []),
+        { text: 'Mark assigned without sending', onPress: () => markAssigned(c) },
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    );
+  }, [sendVia, markAssigned]);
+
   const postForBids = useCallback(() => {
     if (!wo) return;
-    updateWorkOrder(wo.id, { status: 'posted_for_bids' });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Reuse the marketplace RFP flow, pre-filled from this work order so the
     // PM doesn't re-type scope/budget/address they already entered. The
@@ -127,9 +208,13 @@ export default function WorkOrderScreen() {
         prefillAddress: property?.address ?? '',
         prefillBudgetMax: wo.budget != null ? String(wo.budget) : '',
         prefillWorkType: 'other',
+        // post-rfp marks this order 'Out for bids' and stores the RFP id once
+        // the public_bids row exists (handoff). Until it does, the order stays
+        // as it is — it never claims bids that were not asked for.
+        workOrderId: wo.id,
       } as never,
     });
-  }, [wo, property, updateWorkOrder, router]);
+  }, [wo, property, router]);
 
   const handleDelete = useCallback(() => {
     if (!wo) return;
@@ -209,10 +294,24 @@ export default function WorkOrderScreen() {
           <View style={styles.assignedBanner}>
             <UserCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.assignedText}>
-              Dispatched to <Text style={{ fontWeight: '800' }}>{wo.assignedContactName}</Text>
+              Assigned to <Text style={styles.assignedName}>{wo.assignedContactName}</Text>
               {wo.assignedAt ? ` · ${new Date(wo.assignedAt).toLocaleDateString()}` : ''}
             </Text>
           </View>
+        )}
+
+        {/* The RFP this order was posted as — so "Out for bids" leads somewhere. */}
+        {!!wo.rfpId && (
+          <TouchableOpacity
+            style={styles.assignedBanner}
+            onPress={() => router.push({ pathname: '/rfp-detail' as never, params: { bidId: wo.rfpId } as never })}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+          >
+            <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.assignedText}>Posted for bids · see responses</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
         )}
 
         {/* Bridge — the demand → supply handoff */}
@@ -220,13 +319,13 @@ export default function WorkOrderScreen() {
         <View style={styles.bridgeRow}>
           <TouchableOpacity style={styles.bridgeBtn} onPress={() => setDispatchOpen(true)} activeOpacity={0.85} testID="wo-dispatch">
             <View style={styles.bridgeIcon}><UserCheck size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
-            <Text style={styles.bridgeTitle}>Dispatch to contractor</Text>
-            <Text style={styles.bridgeSub}>Assign someone from your contacts</Text>
+            <Text style={styles.bridgeTitle}>Send to a contractor</Text>
+            <Text style={styles.bridgeSub}>Text or email the job from your phone</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bridgeBtn} onPress={postForBids} activeOpacity={0.85} testID="wo-post-bids">
             <View style={styles.bridgeIcon}><Send size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
             <Text style={styles.bridgeTitle}>Post for bids</Text>
-            <Text style={styles.bridgeSub}>Let verified contractors compete</Text>
+            <Text style={styles.bridgeSub}>Post it to MAGE ID contractors who cover your area</Text>
           </TouchableOpacity>
         </View>
 
@@ -256,9 +355,12 @@ export default function WorkOrderScreen() {
             <View style={styles.modalHandle} />
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Users size={15} color="#FFF" strokeWidth={1.75} /></View>
-              <Text style={styles.modalTitle}>Dispatch to…</Text>
+              <Text style={styles.modalTitle}>Send to…</Text>
               <TouchableOpacity onPress={() => setDispatchOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
+            <Text style={styles.modalNote}>
+              Your Messages or Mail app opens with the job filled in, and you press Send. MAGE does not contact them for you.
+            </Text>
             {sortedContacts.length === 0 ? (
               <View style={styles.noContacts}>
                 <Users size={24} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -269,7 +371,7 @@ export default function WorkOrderScreen() {
             ) : (
               <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
                 {sortedContacts.map(c => (
-                  <TouchableOpacity key={c.id} style={styles.contactRow} onPress={() => dispatchTo(c)} activeOpacity={0.8} testID={`dispatch-${c.id}`}>
+                  <TouchableOpacity key={c.id} style={styles.contactRow} onPress={() => chooseContact(c)} activeOpacity={0.8} testID={`dispatch-${c.id}`}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.contactName}>{`${c.firstName} ${c.lastName}`.trim() || c.companyName}</Text>
                       <View style={styles.contactMeta}>
@@ -277,9 +379,15 @@ export default function WorkOrderScreen() {
                         {!!c.phone && (
                           <View style={styles.contactPhone}><Phone size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.contactPhoneText}>{c.phone}</Text></View>
                         )}
+                        {!c.phone && !!c.email && (
+                          <View style={styles.contactPhone}><Mail size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.contactPhoneText}>{c.email}</Text></View>
+                        )}
+                        {!c.phone && !c.email && (
+                          <Text style={styles.contactPhoneText}>No phone or email</Text>
+                        )}
                       </View>
                     </View>
-                    <Check size={16} color={themeColors.accent} strokeWidth={1.75} />
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -324,6 +432,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.accent + '2A', marginBottom: 16,
   },
   assignedText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text },
+  assignedName: { fontWeight: '700' },
 
   sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10, marginTop: 4 },
   bridgeRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
@@ -343,6 +452,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   modalHeadIcon: { width: 30, height: 30, borderRadius: 9, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text },
+  modalNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginBottom: 8 },
   noContacts: { alignItems: 'center', gap: 10, padding: 24 },
   noContactsText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 18, maxWidth: 300 },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line },

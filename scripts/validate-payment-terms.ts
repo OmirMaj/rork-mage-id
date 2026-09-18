@@ -845,7 +845,8 @@ const saveMut = saveMutDecl >= 0 ? balanced(ctx, saveMutDecl, '(', ')') : '';
 check('saveSettingsMutation found', saveMut.length > 0);
 check('the whole-row settings save never sends a terms column', saveMut.length > 0 && !termColRe.test(saveMut), saveMut.match(termColRe)?.[0]);
 check('saveSettingsMutation saves the device copy from settingsRef.current', /saveLocal\(SETTINGS_KEY,\s*settingsRef\.current\)/.test(saveMut));
-check('saveSettingsMutation onSuccess caches settingsRef.current', /setQueryData\(\['settings',\s*userId\],\s*settingsRef\.current\)/.test(saveMut));
+check('saveSettingsMutation onSuccess caches settingsRef.current', /setQueryData\(\['settings',\s*userId\],\s*settingsRef\.current\)/.test(saveMut)
+  || /const latest = settingsRef\.current;[\s\S]{0,120}setQueryData\(\['settings',\s*userId\],\s*latest\)/.test(saveMut));
 
 const savePT = arrowBody(ctx, 'savePaymentTerms');
 check('savePaymentTerms found', savePT.length > 0);
@@ -872,7 +873,7 @@ check('the settings loader calls termsWritesPending(getOfflineQueue()) and sprea
 // see a terms write that is still out: a refetch in that window would let the
 // pre-answer row win and ask him again.
 check('the loader also counts a terms write in flight at read start / at return, or started during the read',
-  /const termsEpochAtRead = termsWriteEpochRef\.current;\s*const termsInFlightAtRead = termsWritesInFlightRef\.current;\s*const \{ data, error \} = await supabase\.from\('profiles'\)/.test(loader)
+  /const termsEpochAtRead = termsWriteEpochRef\.current;\s*const termsInFlightAtRead = termsWritesInFlightRef\.current;(?:\s*const \w+ = settings\w+Ref\.current;){0,2}\s*const \{ data, error \} = await supabase\.from\('profiles'\)/.test(loader)
   && /const termsInFlight = termsInFlightAtRead > 0\s*\|\| termsWritesInFlightRef\.current > 0\s*\|\| termsWriteEpochRef\.current !== termsEpochAtRead;/.test(loader)
   && /const termsPending = pendingWithInFlight\(termsWritesPending\(await getOfflineQueue\(\), userId\), termsInFlight\);/.test(loader));
 // The previous shape `termsWritesPending(...) || inFlight` type-checked and
@@ -895,7 +896,9 @@ check('queued split + nothing in flight → split only',
     j(kept) === j(cached), j(kept));
 }
 check('savePaymentTerms tracks both writes (epoch + in-flight, released when the write settles)',
-  /termsWriteEpochRef\.current \+= 1;\s*termsWritesInFlightRef\.current \+= 1;\s*void write\.finally\(\(\) => \{ termsWritesInFlightRef\.current -= 1; \}\);/.test(savePT)
+  // …and, as it settles, runs the re-read a raced load owed (review round 2
+  // of the settings-load lane — a terms-only race never ran it before).
+  /termsWriteEpochRef\.current \+= 1;\s*termsWritesInFlightRef\.current \+= 1;\s*void write\.finally\(\(\) => \{\s*termsWritesInFlightRef\.current -= 1;\s*void runOwedSettingsReread\(writeUserId\);\s*\}\);/.test(savePT)
   && (savePT.match(/track\(supabaseWrite\(/g) ?? []).length === 2 && !/void supabaseWrite\(/.test(savePT));
 const defaults = balanced(ctx, ctx.indexOf('const DEFAULT_SETTINGS'));
 check('DEFAULT_SETTINGS has neither paymentSplit nor warrantyMonths', defaults.length > 0 && !/paymentSplit|warrantyMonths/.test(defaults));
@@ -1015,7 +1018,10 @@ const sheet = stripComments(readFileSync(SHEET, 'utf8'));
   check('the auto-stamp still goes through updateProject (so the ref fix covers it)', /for \(const p of needing\)[\s\S]{0,400}updateProject\(p\.id/.test(hook));
 }
 
-// (k) Nothing asks or writes before the profile has loaded. Settings start as
+// (k) Nothing asks or writes before the profile has loaded — and "loaded" means
+// a server row or a real device copy, never the DEFAULT a failed read fell back
+// to (post-ship finding 13; the rest is in validate-settings-load-guard.ts).
+// Settings start as
 // DEFAULT_SETTINGS and the profiles read waits on the network; a gate pressed
 // in that window re-asked a GC who had already answered, savePaymentTerms
 // saved DEFAULT branding into the device cache, and the identity step's
@@ -1027,19 +1033,39 @@ console.log('payment terms — (k) no ask / no write before settings load');
   const runAt = hook.indexOf('const run = useCallback(');
   const runSrc = hook.slice(runAt, hook.indexOf('const edit = useCallback(', runAt));
   check('run refuses with a visible reason before settings load — ahead of missingQuestions',
-    /if \(!settingsLoaded\) \{\s*showAlert\('One second', PROFILE_LOADING_REASON\);\s*return 'waiting';\s*\}/.test(runSrc)
+    /if \(!settingsLoaded\) \{\s*refuseUntilLoaded\(\);\s*return 'waiting';\s*\}/.test(runSrc)
       && runSrc.indexOf('!settingsLoaded') < runSrc.indexOf('missingQuestions('), runSrc.slice(0, 400));
   const editAt = hook.indexOf('const edit = useCallback(');
   const editSrc = hook.slice(editAt, hook.indexOf('const dismiss = useCallback(', editAt));
   check('edit refuses the same way before pre-filling from settings',
-    /if \(!settingsLoaded\) \{\s*showAlert\('One second', PROFILE_LOADING_REASON\);\s*return;\s*\}/.test(editSrc)
+    /if \(!settingsLoaded\) \{\s*refuseUntilLoaded\(\);\s*return;\s*\}/.test(editSrc)
       && editSrc.indexOf('!settingsLoaded') < editSrc.indexOf('resolvePaymentSplit('));
-  check('the hook reads settingsLoaded from useCoreData', /const \{ settings, settingsLoaded,[^}]*\} = useCoreData\(\);/.test(hook));
+  // Finding 105: the refusal is a way out, not a dead end — it names a failed
+  // read as a failure and always offers Retry (the only thing on native that
+  // re-reads settings).
+  const refuseAt = hook.indexOf('const refuseUntilLoaded = useCallback(');
+  const refuseSrc = refuseAt >= 0 ? balanced(hook, refuseAt, '(', ')') : '';
+  check('the refusal picks its copy from profileGateNotice (failed read / unreachable vs loading) and offers Retry → retryRemoteReads',
+    /profileGateNotice\(\{ failed: settingsLoadFailed \|\| sourceFailed \}\)/.test(refuseSrc)
+      && /\{ text: 'Retry', onPress: retryRemoteReads \}/.test(refuseSrc)
+      && /showAlert\(notice\.title, notice\.message,/.test(refuseSrc), refuseSrc.slice(0, 300));
+  check('the hook reads settingsLoaded / settingsLoadFailed / retryRemoteReads from useCoreData',
+    /const \{ settings, settingsLoaded, settingsLoadFailed, sourceFailed, retryRemoteReads,[^}]*\} = useCoreData\(\);/.test(hook));
   check('CoreData exposes settingsLoaded, keyed to this account',
     /const settingsLoaded = settingsLoadedFor === settingsOwnerKey;/.test(ctx) && /\n\s*settingsLoaded,\n/.test(ctx));
-  check('both loads mark it: the profiles read and the device copy (cache skipped once the read landed)',
-    /commitSettingsState\(settingsQuery\.data\);\s*markSettingsLoaded\(settingsOwnerKey\);/.test(ctx)
+  // Finding 13: the data effect used to mark ANY query data loaded — including
+  // the DEFAULT_SETTINGS a failed read fell back to. It now marks only a
+  // result the loader built and tagged (a row, a real device copy, DEFAULT for
+  // a local-only session — never for "no row", which is an anon-key read), and the loader never resolves a
+  // failed read with DEFAULT (validate-settings-load-guard executes that rule).
+  check('the data effect marks loaded only on a result the loader tagged; the device copy marks it too',
+    /const builtAt = settingsDataSeqRef\.current\.get\(data\);\s*if \(builtAt === undefined\) return;[\s\S]{0,200}commitSettingsState\(data\);\s*\}\s*markSettingsLoaded\(settingsOwnerKey\);/.test(ctx)
       && /if \(cancelled \|\| !cached \|\| settingsLoadedForRef\.current === key\) return;\s*commitSettingsState\(\{ \.\.\.DEFAULT_SETTINGS, \.\.\.cached \}\);\s*markSettingsLoaded\(key\);/.test(ctx));
+  const loaderSrc = balanced(ctx, ctx.indexOf('const settingsQuery = useQuery('), '(', ')');
+  check('a failed profiles read never resolves with DEFAULT_SETTINGS (it goes through settingsReadFallback, which throws)',
+    !/loadLocal<AppSettings>\(SETTINGS_KEY,\s*DEFAULT_SETTINGS\)/.test(loaderSrc)
+      && /const fallback = settingsReadFallback\(\{/.test(loaderSrc)
+      && /if \('fail' in fallback\) \{[\s\S]*?throw new Error\(fallback\.fail\);/.test(loaderSrc));
   const ptAt = ctx.indexOf('const savePaymentTerms = useCallback(');
   const ptSrc = ctx.slice(ptAt, ctx.indexOf('const addCollaborator', ptAt));
   check('savePaymentTerms refuses before the load, before it builds or saves `next`',
@@ -1047,11 +1073,13 @@ console.log('payment terms — (k) no ask / no write before settings load');
       && ptSrc.indexOf('settingsLoadedForRef.current !== settingsOwnerKey') < ptSrc.indexOf('saveLocal(SETTINGS_KEY'));
   const usAt = ctx.indexOf('const updateSettings = useCallback(');
   const usSrc = ctx.slice(usAt, ctx.indexOf('const savePaymentTerms = useCallback(', usAt));
-  check('updateSettings holds a pre-load change instead of writing a DEFAULT-based row',
-    /if \(settingsLoadedForRef\.current !== settingsOwnerKey\) \{\s*pendingSettingsUpdatesRef\.current = \{ \.\.\.pendingSettingsUpdatesRef\.current, \.\.\.updates \};\s*return;\s*\}/.test(usSrc)
+  // Finding 14: the held change is only the fields he changed, merged one
+  // level deep — never a DEFAULT-based `branding` snapshot replacing his row's.
+  check('updateSettings holds a pre-load change (only what it changes) instead of writing a DEFAULT-based row',
+    /if \(settingsLoadedForRef\.current !== settingsOwnerKey\) \{\s*const held = heldSettingsPatch\(settingsRef\.current, updates\);\s*pendingSettingsUpdatesRef\.current = mergeHeldPatches\(pendingSettingsUpdatesRef\.current, held\);[\s\S]{0,120}return;\s*\}/.test(usSrc)
       && usSrc.indexOf('pendingSettingsUpdatesRef') < usSrc.indexOf('saveSettingsMutation.mutate(updated)'));
-  check('…and writes it merged onto the loaded row once it lands',
-    /if \(!settingsLoaded \|\| !pending\) return;[\s\S]{0,120}const merged = \{ \.\.\.settingsRef\.current, \.\.\.pending \};\s*commitSettingsState\(merged\);\s*saveSettingsMutation\.mutate\(merged\);/.test(usSrc));
+  check('…and writes it merged (one level deep) onto the loaded row once it lands',
+    /if \(!settingsLoaded \|\| !pending\) return;[\s\S]{0,120}const merged = applyHeldSettings\(settingsRef\.current, pending\);\s*commitSettingsState\(merged\);\s*settingsWriteSeqRef\.current \+= 1;\s*settingsRowWritesInFlightRef\.current \+= 1;\s*saveSettingsMutation\.mutate\(merged\);/.test(usSrc));
 }
 
 console.log(`\nvalidate-payment-terms: ${passes} passed, ${failures} failed`);

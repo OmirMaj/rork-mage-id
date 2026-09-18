@@ -30,7 +30,12 @@ import {
   resendSend,
   fmtMoney,
   escapeHtml,
+  isEmailUnsubscribed,
 } from "../_shared/email.ts";
+// The unsubscribe gate shared with morning-digest (audit 2026-09-18 #15): the
+// footer link and List-Unsubscribe header on this email write an
+// email_unsubscribes row, and nothing here used to read it back.
+import { sendDigestUnlessUnsubscribed, GC_DIGEST_EVENT_KEY } from "../morning-digest/digestGate.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -248,11 +253,11 @@ function buildDigestEmail(opts: {
     // goes to the GC himself, so it printed his own name, his own address and
     // his own phone number back at him and told him replies would reach
     // himself. Reported from a real inbox, 2026-09-08.
-    unsubscribe: { recipientEmail: email, eventKey: 'daily_digest', enabled: true },
+    unsubscribe: { recipientEmail: email, eventKey: GC_DIGEST_EVENT_KEY, enabled: true },
   });
 }
 
-async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' | 'skipped_already' | 'skipped_no_email' | 'failed'; reason?: string }> {
+async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' | 'skipped_already' | 'skipped_no_email' | 'suppressed_unsubscribed' | 'failed'; reason?: string }> {
   if (!gc.email) return { id: gc.id, status: 'skipped_no_email' };
   if (await alreadySentToday(gc.id)) return { id: gc.id, status: 'skipped_already' };
 
@@ -297,31 +302,46 @@ async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' |
   // totalEvents is always > 0 here — processGc returned above otherwise.
   const subject = `Daily digest · ${totalEvents} update${totalEvents === 1 ? '' : 's'} on your jobs`;
 
-  const r = await resendSend(RESEND_API_KEY, {
-    to: gc.email,
-    subject,
-    html,
-    fromCompanyName: gc.company_name ?? undefined,
-    unsubscribe: { recipientEmail: gc.email, eventKey: 'daily_digest', enabled: true },
+  const to = gc.email;
+  let resp: unknown = null;
+  // Checked before EVERY send, not once per run: he may have tapped
+  // Unsubscribe on yesterday's copy of this very email.
+  const outcome = await sendDigestUnlessUnsubscribed({
+    isUnsubscribed: () => isEmailUnsubscribed(SUPABASE_URL, SERVICE_ROLE_KEY, to, GC_DIGEST_EVENT_KEY),
+    send: async () => {
+      const r = await resendSend(RESEND_API_KEY, {
+        to,
+        subject,
+        html,
+        fromCompanyName: gc.company_name ?? undefined,
+        unsubscribe: { recipientEmail: to, eventKey: GC_DIGEST_EVENT_KEY, enabled: true },
+      });
+      resp = r.resp;
+      return r.ok;
+    },
   });
 
-  // Log the send attempt + idempotency marker.
+  // Log the attempt + idempotency marker. A suppressed run writes the marker
+  // too (email_status 'suppressed_unsubscribed', as notify records it), so the
+  // audit trail says why nothing went out and a cron retry does not re-check.
   await sbInsert('notification_outbox', {
     event_type: 'daily_digest_sent',
     source_table: null,
     source_id: null,
     recipient_kind: 'gc',
     recipient_user_id: gc.id,
-    recipient_email: gc.email,
-    email_status: r.ok ? 'sent' : 'failed',
-    email_response: r.resp,
+    recipient_email: to,
+    email_status: outcome,
+    email_response: resp,
     payload: { total_events: totalEvents, group_count: groups.length },
-    delivered_at: r.ok ? new Date().toISOString() : null,
+    delivered_at: outcome === 'sent' ? new Date().toISOString() : null,
   });
 
-  return r.ok
+  return outcome === 'sent'
     ? { id: gc.id, status: 'sent' }
-    : { id: gc.id, status: 'failed', reason: JSON.stringify(r.resp).slice(0, 200) };
+    : outcome === 'suppressed_unsubscribed'
+    ? { id: gc.id, status: 'suppressed_unsubscribed' }
+    : { id: gc.id, status: 'failed', reason: JSON.stringify(resp).slice(0, 200) };
 }
 
 serve(async (req) => {
@@ -353,6 +373,7 @@ serve(async (req) => {
       sent: results.filter(r => r.status === 'sent').length,
       skipped_already: results.filter(r => r.status === 'skipped_already').length,
       skipped_no_email: results.filter(r => r.status === 'skipped_no_email').length,
+      suppressed_unsubscribed: results.filter(r => r.status === 'suppressed_unsubscribed').length,
       failed: results.filter(r => r.status === 'failed').length,
     };
     console.log('[daily-digest] run complete', summary);

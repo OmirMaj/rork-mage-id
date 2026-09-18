@@ -43,6 +43,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface LeadIntakeRequest {
+  /** The contractor's account id, when the portfolio page carries it (the
+   *  snapshot's company.contractorId). Preferred over the slug (#10). */
+  contractor_id?: string;
   company_slug?: string;
   name?: string;
   email?: string;
@@ -87,7 +90,22 @@ async function sbInsert(table: string, body: unknown): Promise<void> {
   }
 }
 
-/** Resolve a company slug to the owning GC's user_id via the SECURITY DEFINER RPC. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** An account id the page supplied, confirmed to name a real profile. */
+async function userForId(id: string): Promise<string | null> {
+  if (!UUID_RE.test(id)) return null;
+  const rows = await sbGet(`profiles?id=eq.${id.toLowerCase()}&select=id&limit=1`) as { id: string }[];
+  return Array.isArray(rows) && rows[0]?.id ? rows[0].id : null;
+}
+
+/**
+ * Resolve a company slug to the owning GC's user_id via the SECURITY DEFINER
+ * RPC. Since migration 20260918140100 it answers only when exactly ONE profile
+ * slugs to the value (it used to hand two same-named companies' leads to
+ * whichever id sorted first), strips accents the way the app does, and never
+ * resolves the empty-name fallback "project".
+ */
 async function userForSlug(slug: string): Promise<string | null> {
   const rows = await sbGet(`rpc/gc_user_for_company_slug?p_slug=${encodeURIComponent(slug)}`);
   if (typeof rows === "string") return rows || null;
@@ -120,7 +138,8 @@ serve(async (req: Request) => {
     return jsonResponse({ ok: true, message: "Thanks — we'll be in touch." });
   }
 
-  const slug = clip(body.company_slug, 80);
+  const contractorId = clip(body.contractor_id, 40);
+  const slug = clip(body.company_slug, 80) ?? (contractorId ? `id:${contractorId}` : null);
   const name = clip(body.name, 120);
   if (!slug || !name) {
     return jsonResponse({ error: "Missing required fields: company_slug, name" }, 400);
@@ -129,25 +148,37 @@ serve(async (req: Request) => {
     return jsonResponse({ error: "Provide an email or phone so the contractor can reply." }, 400);
   }
 
-  // Rate limit: bound flooding per-IP and per-target-slug. Fail OPEN — if the
+  // Rate limit per-IP first (cheap, before any lookup). Fail OPEN — if the
   // limiter is unavailable (count < 0) we still accept the lead rather than
   // risk dropping a real customer's quote request.
   // EDGE-F15 (review 2026-09-05): clientIpFrom — the FIRST x-forwarded-for hop
   // is client-supplied, so keying on it made the per-IP bucket attacker-chosen.
   const ip = clientIpFrom(req.headers);
   const ipCount = await rateLimitCount(`lead:ip:${ip}`);
-  const slugCount = await rateLimitCount(`lead:slug:${slug}`);
-  if (ipCount > LEAD_IP_HOURLY_LIMIT || slugCount > LEAD_SLUG_HOURLY_LIMIT) {
+  if (ipCount > LEAD_IP_HOURLY_LIMIT) {
     return jsonResponse({ error: "Too many requests right now — please try again later." }, 429);
   }
 
   let userId: string | null;
   try {
-    userId = await userForSlug(slug);
+    userId = contractorId ? await userForId(contractorId) : null;
+    if (!userId && body.company_slug) userId = await userForSlug(slug);
   } catch (e) {
     console.error("[public-lead-intake] slug resolve failed:", String(e));
     return jsonResponse({ error: "Lookup failed, try again shortly." }, 502);
   }
+  if (!userId) return jsonResponse({ error: "Contractor not found." }, 404);
+
+  // Per-contractor bucket keyed on the RESOLVED account id, never on the raw
+  // request strings: routing prefers contractor_id, so a bucket keyed on
+  // company_slug could be dodged with a fixed contractor_id and a random slug
+  // (fresh bucket every request) — and every lead that lands now fires a
+  // lock-screen push + email to the GC (trg_notify_website_lead).
+  const gcCount = await rateLimitCount(`lead:gc:${userId}`);
+  if (gcCount > LEAD_SLUG_HOURLY_LIMIT) {
+    return jsonResponse({ error: "Too many requests right now — please try again later." }, 429);
+  }
+
   if (!userId) return jsonResponse({ error: "Contractor not found." }, 404);
 
   // Compose a scope note that preserves which portfolio project drew them in.

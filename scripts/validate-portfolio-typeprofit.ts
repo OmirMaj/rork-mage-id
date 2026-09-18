@@ -97,7 +97,7 @@ console.log('\nTest 1: Basic two-project profitability row');
   const c1 = makeCommitment('c1', 'p1', 80_000);
   const c2 = makeCommitment('c2', 'p2', 60_000);
 
-  const result = buildTypeProfitability([p1, p2], [c1, c2]);
+  const result = buildTypeProfitability([p1, p2], [c1, c2], []);
   const row = result.rows.find(r => r.type === 'renovation')!;
   assert('renovation row exists', !!row);
   assert('jobCount = 2', row.jobCount === 2, `got ${row.jobCount}`);
@@ -115,7 +115,7 @@ console.log('\nTest 2: Gating — single job suppresses margin');
 {
   const p1 = makeProject('p1', 'roofing', 100_000);
   const c1 = makeCommitment('c1', 'p1', 40_000);
-  const result = buildTypeProfitability([p1], [c1]);
+  const result = buildTypeProfitability([p1], [c1], []);
   const row = result.rows.find(r => r.type === 'roofing')!;
   assert('gated = true (1 job)', row.gated, `gated=${row.gated}`);
   assert('avgMarginPct = null when gated', row.avgMarginPct === null);
@@ -129,7 +129,7 @@ console.log('\nTest 3: Closed project with no estimate → in closedTotal but no
     ...makeProject('p1', 'new_build', 100_000),
     linkedEstimate: null,
   } as Project;
-  const result = buildTypeProfitability([p1], []);
+  const result = buildTypeProfitability([p1], [], []);
   assert('closedTotal = 1', result.coverage.closedTotal === 1);
   assert('closedWithBasis = 0 (no estimate)', result.coverage.closedWithBasis === 0, `got ${result.coverage.closedWithBasis}`);
   const row = result.rows.find(r => r.type === 'new_build')!;
@@ -142,7 +142,7 @@ console.log('\nTest 4: Empty input — never throws');
 {
   let threw = false;
   try {
-    const result = buildTypeProfitability([], []);
+    const result = buildTypeProfitability([], [], []);
     assert('returns 12 rows for all project types', result.rows.length === 12);
     assert('all rows gated (no data)', result.rows.every(r => r.gated));
   } catch {
@@ -162,7 +162,7 @@ console.log('\nTest 5: Revenue-weighted margin vs simple average');
   const cL = makeCommitment('cL', 'pL', 850_000);
   const cS = makeCommitment('cS', 'pS', 50_000);
 
-  const result = buildTypeProfitability([pLarge, pSmall], [cL, cS]);
+  const result = buildTypeProfitability([pLarge, pSmall], [cL, cS], []);
   const row = result.rows.find(r => r.type === 'commercial')!;
   assert('commercial row not gated', !row.gated, `gated=${row.gated}`);
   // Simple avg = (0.15 + 0.50) / 2 = 0.325

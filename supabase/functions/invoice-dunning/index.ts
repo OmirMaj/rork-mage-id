@@ -51,7 +51,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // warnings.
 import { wrapEmailHtml, resendSend, emailButton, fmtMoney, isEmailUnsubscribed } from '../_shared/email.ts';
 // EDGE-F6: the ONE place a customer-facing portal URL is built (minted id + ?t= token).
-import { portalUrlFor } from '../_shared/portalLinks.ts';
+import { portalUrlFor, portalLinkEnded } from '../_shared/portalLinks.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
 // MONEY-05: the ONE server-side retainage rule (percent of work value, stored
@@ -431,7 +431,22 @@ async function processInvoice(
   // The old `/portal/${project.id}` link always landed on the fallback page, so
   // the "View invoice" button on a final notice was dead. null = portal disabled
   // or never set up → the button is omitted rather than pointed at a dead URL.
-  const portalUrl = portalUrlFor(project.client_portal);
+  let portalUrl = portalUrlFor(project.client_portal);
+  // A link that has ENDED (portal_snapshots.expires_at past) opens nothing, so
+  // it is dropped like a disabled portal. A failed read keeps it.
+  if (portalUrl) {
+    const cpId = ((project.client_portal ?? {}) as { portalId?: unknown }).portalId;
+    if (typeof cpId === 'string' && cpId.trim()) {
+      const snapRes = await client
+        .from('portal_snapshots')
+        .select('expires_at')
+        .eq('portal_id', cpId.trim())
+        .maybeSingle();
+      if (!snapRes.error && portalLinkEnded((snapRes.data as { expires_at?: string | null } | null)?.expires_at ?? null)) {
+        portalUrl = null;
+      }
+    }
+  }
 
   // ── Compose email ──
   const subject =

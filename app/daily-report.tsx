@@ -23,6 +23,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -478,12 +479,110 @@ export function carrySourceDayAbsolute(dateValue: string | null | undefined, now
 }
 // --- END carrySourceDayLabel ---
 
+// >>> dfr-open-gate (pure; scripts/validate-records-open-before-load.ts evaluates this block)
+/**
+ * What a link naming a daily report should show.
+ *
+ * Every field of the editor is seeded ONCE, at mount, from the saved report.
+ * ProjectContext starts `dailyReports` as [] and fills it a beat later, so a
+ * report opened by id before that (a web refresh on /daily-report?reportId=,
+ * a cold start from a push) mounted a BLANK form under a "Saved" hero — and
+ * Save, Submit or the leave prompt's "Save draft" then wrote that blank form
+ * over the day's real record, locally and on the server. So the editor does
+ * not mount for a named report until the report list has loaded: 'loading'
+ * while it is still arriving, 'missing' once it has loaded without it (a
+ * deleted id must say so, never spin forever or fall back to a new report).
+ * A URL naming a project waits for the project list for the same reason —
+ * before it lands the editor shows the "that project is gone" picker.
+ */
+export function dfrOpenState(o: {
+  reportId: string | null;
+  found: boolean;
+  reportsLoaded: boolean;
+  projectPending: boolean;
+}): 'editor' | 'loading' | 'missing' {
+  if (o.projectPending) return 'loading';
+  if (!o.reportId) return 'editor';
+  // `found` must NOT short-circuit the wait. On a cold start ProjectContext's
+  // signed-out pass fills dailyReports from this device's cache before the
+  // account's rows land, so the report can be "found" as an hours-old copy;
+  // the editor seeds once from it, never re-seeds when the server's newer
+  // version arrives under the same id, and Save wrote the old copy over it.
+  // `reportsLoaded` is keyed by account, so it only turns true once THIS
+  // account's read has committed (the read falls back to the device copy when
+  // offline, so it always settles).
+  if (!o.reportsLoaded) return 'loading';
+  return o.found ? 'editor' : 'missing';
+}
+// <<< dfr-open-gate
+
 export default function DailyReportScreen() {
+  // Safe back, not router.back(): this gate is exactly what a push cold start
+  // or a fresh web tab lands on, where there is nothing to pop (UX-F18).
+  const goBack = useSafeBack();
+  const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  // `id` is accepted as an alias: the Client Outbox linked here with `?id=`
+  // for months, which opened a fresh report for today instead of the one it
+  // listed. The outbox now sends `reportId`; the alias stops any other stray
+  // `id=` link from silently becoming a new report again.
+  const params = useLocalSearchParams<{ projectId?: string; reportId?: string; id?: string }>();
+  const reportId = params.reportId ?? params.id ?? null;
+  const { dailyReports, dailyReportsLoaded, projectsLoaded, retryRemoteReads, sourceFailed } = useProjects();
+  const found = useMemo(
+    () => (reportId ? dailyReports.find(r => r.id === reportId) ?? null : null),
+    [reportId, dailyReports],
+  );
+  const state = dfrOpenState({
+    reportId,
+    found: !!found,
+    reportsLoaded: dailyReportsLoaded,
+    projectPending: !!params.projectId && !projectsLoaded,
+  });
+  if (state === 'editor') {
+    // Keyed on the report so the editor re-mounts — and re-seeds every field
+    // from the record — if the link changes underneath it. The report's own
+    // project wins over the URL's, so a mismatched projectId cannot hide it.
+    return <DailyReportInner key={found?.id ?? 'new'} reportId={found?.id} projectIdOverride={found?.projectId} />;
+  }
+  return (
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.openGateBody} testID={`dfr-open-${state}`}>
+        {state === 'loading' ? (
+          <>
+            <Text style={styles.openGateText}>Loading this daily report…</Text>
+            <Button label="Go back" variant="secondary" onPress={goBack} testID="dfr-open-loading-back" />
+          </>
+        ) : (
+          <>
+            <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.openGateTitle}>This daily report isn&apos;t on this device</Text>
+            <Text style={styles.openGateText}>
+              {sourceFailed
+                ? "MAGE couldn't be reached, so the report may just not have synced yet. Nothing was opened in its place."
+                : 'The link names a report that was deleted or hasn\'t synced here. Nothing was opened in its place, so nothing was overwritten.'}
+            </Text>
+            <Button label="Try again" variant="primary" onPress={retryRemoteReads} testID="dfr-open-retry" />
+            <Button label="Go back" variant="secondary" onPress={goBack} testID="dfr-open-back" />
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; projectIdOverride?: string }) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
+  // Every exit below leaves through the safe back: a push or web-refresh cold
+  // start of /daily-report?reportId= has nothing to pop, so a bare
+  // router.back() after Save/Submit left the form up with a dead chevron.
+  const goBack = useSafeBack();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -491,7 +590,9 @@ export default function DailyReportScreen() {
   const voiceStyles = useThemedStyles(makeVoiceStyles);
   const leakStyles = useThemedStyles(makeLeakStyles);
   const dcStyles = useThemedStyles(makeDcStyles);
-  const { projectId: paramProjectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
+  // reportId comes from the gate above (which also accepts the `id` alias):
+  // this editor only mounts for a named report once that report is loaded.
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
     getPhotosForProject, projects, commitments, getChangeOrdersForProject, updateProject,
@@ -524,7 +625,10 @@ export default function DailyReportScreen() {
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
   // A pick outranks the param so a STALE id in the URL — deleted project,
   // shared link — can't make the picker inert.
-  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  // The record's own project seeds the pick (the gate keys this editor on the
+  // record, so it seeds once per record): a link may carry only the record id,
+  // or a projectId that isn't the record's, and the record's job must win.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(projectIdOverride ?? null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
   const { receipts } = useMaterialReceipts();
   // Cold-start seeds — the Profit Leak scan prices out-of-scope work off the
@@ -2034,6 +2138,24 @@ export default function DailyReportScreen() {
     // The record to UPDATE, if there is one. See persistedSelf above: a report
     // this screen already wrote silently is an update, not a second insert.
     const savedRecord = existingReport ?? persistedSelf;
+    // Never write a form that does not hold the saved report. The gate above
+    // only mounts this editor once a named report has loaded, but if it has
+    // since vanished from state (deleted on another device, an account swap
+    // mid-screen) these fields are no longer its content — saving them would
+    // write a blank or foreign day over it, or file a duplicate.
+    if (reportId && !existingReport) {
+      showAlert('Not saved', "This report isn't loaded on this device any more, so saving now could overwrite it with an empty form. Go back and open it again.");
+      return;
+    }
+    // A submitted report is locked. Saving it as a draft would put this form
+    // over the sent record AND downgrade it to a draft the client portal no
+    // longer shows; the only draft save on a sent report is a mistake. (The
+    // silent pre-send write is exempt: a re-send flips it back to 'sent' once
+    // delivery succeeds — see sentFlip below.)
+    if (status === 'draft' && !silent && savedRecord?.status === 'sent') {
+      showAlert('Already submitted', 'This report was submitted, so it is locked. Nothing was changed.');
+      return;
+    }
 
     const now = new Date().toISOString();
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
@@ -2188,8 +2310,8 @@ export default function DailyReportScreen() {
     // protect. Cleared here rather than left to the debounced effect below,
     // whose timer is cancelled by the navigation on the next line.
     void AsyncStorage.removeItem(draftKey).catch(() => {});
-    if (!silent) router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, draftKey,
+    if (!silent) goBack();
+  }, [projectId, reportId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, goBack, reportDate, stableReportId, draftKey,
       incidentClassInput, incidentClass.daysRestricted, recordability.recordable, linkedIncident,
       addIncident, updateIncident, incidentAuthor, project?.location, liveHoursWarning]);
 
@@ -2311,8 +2433,8 @@ export default function DailyReportScreen() {
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     nailIt(sentFlip.toast);
-    router.back();
-  }, [sentFlip, existingReports, updateDailyReport, router]);
+    goBack();
+  }, [sentFlip, existingReports, updateDailyReport, goBack]);
 
   // ─── "Nothing happened today" — one tap, no invented content ───────────
   //
@@ -2353,8 +2475,8 @@ export default function DailyReportScreen() {
     void AsyncStorage.removeItem(draftKey).catch(() => {});
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     nailIt('Logged as a no-work day. The record has no gap.');
-    router.back();
-  }, [projectId, reportDate, weather, stableReportId, addDailyReport, router, draftKey]);
+    goBack();
+  }, [projectId, reportDate, weather, stableReportId, addDailyReport, goBack, draftKey]);
 
   // Only offer it on a brand-new report the user has not started filling in —
   // once anything is entered, the day plainly had something on it.
@@ -2443,7 +2565,7 @@ export default function DailyReportScreen() {
             'Saved as a draft',
             'You backed out of the mail composer, so nothing was emailed. The report is saved on this project — open it from Daily Reports to send it again.',
           );
-          router.back();
+          goBack();
           return;
         }
         console.warn('[DailyReport] Email send failed:', result.error);
@@ -2451,7 +2573,7 @@ export default function DailyReportScreen() {
           'Saved — the email did not send',
           `The report is saved on this project as a draft. The email failed: ${result.error}`,
         );
-        router.back();
+        goBack();
         return;
       } else {
         console.log('[DailyReport] Email sent successfully');
@@ -2516,13 +2638,13 @@ export default function DailyReportScreen() {
 
     if (!delivered) {
       // Nothing left the device: the record stays the draft it already is.
-      router.back();
+      goBack();
       return;
     }
     setSentFlip({ reportId: stableReportId, toast: `Daily report sent${recipientInfo}` });
   // `existingReport` is not listed: this handler never reads it (handleSave,
   // which does, is the dep that carries it).
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, isFree, router, stableReportId]);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, isFree, goBack, stableReportId]);
 
 
   // ─── Unsaved-work guard: a dirty check and a debounced draft ──────────────
@@ -2692,7 +2814,9 @@ export default function DailyReportScreen() {
    * "Discard" is the only path that throws work away and it says so.
    */
   const handleBack = useCallback(() => {
-    if (!isDirty) { router.back(); return; }
+    // A submitted report is read-only: there is nothing to save, and offering
+    // "Save draft" there would downgrade the sent record (see handleSave).
+    if (!isDirty || existingReport?.status === 'sent') { goBack(); return; }
     showAlert(
       'Leave without saving?',
       "This report isn't on the project yet. Save it as a draft and you can finish it from Daily Reports whenever you're back at a desk.",
@@ -2703,7 +2827,7 @@ export default function DailyReportScreen() {
           style: 'destructive',
           onPress: () => {
             void AsyncStorage.removeItem(draftKey).catch(() => {});
-            router.back();
+            goBack();
           },
         },
         {
@@ -2715,7 +2839,7 @@ export default function DailyReportScreen() {
         },
       ],
     );
-  }, [isDirty, draftKey, router, handleSave]);
+  }, [isDirty, existingReport?.status, draftKey, goBack, handleSave]);
 
   if (!project) {
     return (
@@ -4808,6 +4932,9 @@ const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  openGateBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.lg },
+  openGateTitle: { ...Type.headline, color: themeColors.text, textAlign: 'center' },
+  openGateText: { ...Type.subhead, color: themeColors.textSecondary, textAlign: 'center', maxWidth: 420 },
   // Long form + photo grid: widen for desktop but keep a cap so inputs and
   // labels don't drift apart across a 27" monitor.
   contentDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' as const },

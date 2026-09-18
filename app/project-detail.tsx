@@ -68,7 +68,9 @@ import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
 import { formatMoney, displayText, parseLenientNumber } from '@/utils/formatters';
-import { isFinancialsBlinded } from '@/utils/roleBlinding';
+import { canViewFinancials, isFinancialsBlinded } from '@/utils/roleBlinding';
+import { pricingRoleFor } from '@/utils/fieldTicketCore';
+import { useAuth } from '@/contexts/AuthContext';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
@@ -227,7 +229,8 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject } = useProjects();
+  const { user: authUser } = useAuth();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject, settingsLoaded, bidPackageBids } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -400,6 +403,10 @@ export default function ProjectDetailScreen() {
   // Debounced 2s so rapid edits / re-renders don't hammer the table.
   useEffect(() => {
     if (!project) return;
+    // Never publish from a profile that has not loaded: `settings` is the
+    // DEFAULT (no company name, no contact email) until then, and this write
+    // would put "MAGE ID" and a blank mailto on the client's live portal.
+    if (!settingsLoaded) return;
     const portal = project.clientPortal;
     if (!portal?.enabled || !portal.portalId) return;
     if (!isSupabaseConfigured) return;
@@ -475,6 +482,17 @@ export default function ProjectDetailScreen() {
               // project, so a GMP ↔ open-book switch or a cap edit shows now.
               openBook: snap.openBook ?? carriedOpenBook(prev.openBook, project),
               sections: { ...prev.sections, ...snap.sections },
+              // Belt and braces for the profile gate above: a blank company
+              // name or contact on THIS build never overwrites the one the
+              // portal already shows — the client keeps a real name and a
+              // working "email your contractor" link.
+              company: snap.company?.name ? snap.company : (prev.company ?? snap.company),
+              submitBudget: snap.submitBudget && prev.submitBudget
+                ? { ...snap.submitBudget, contactEmail: snap.submitBudget.contactEmail || prev.submitBudget.contactEmail, contactName: snap.submitBudget.contactName || prev.submitBudget.contactName }
+                : snap.submitBudget,
+              portalApi: snap.portalApi && prev.portalApi
+                ? { ...snap.portalApi, contactEmail: snap.portalApi.contactEmail || prev.portalApi.contactEmail, contactName: snap.portalApi.contactName || prev.portalApi.contactName }
+                : snap.portalApi,
             };
           }
         } catch (mergeErr) {
@@ -509,7 +527,7 @@ export default function ProjectDetailScreen() {
 
     return () => { cancelled = true; clearTimeout(t); };
   }, [
-    project, settings, projectInvoices, changeOrders, dailyReports,
+    project, settings, settingsLoaded, projectInvoices, changeOrders, dailyReports,
     punchItems, projectPhotos, projectRFIs, projectWarranties,
   ]);
 
@@ -523,8 +541,8 @@ export default function ProjectDetailScreen() {
   // Real buyout savings — derived from awarded BidPackages + signed Commitments.
   // Shows NOTHING when no packages have been awarded yet (hasRealData = false).
   const bulkSavingsSummary = useMemo(
-    () => computeBulkSavings(id ?? '', projectBidPackages, projectCommitments),
-    [id, projectBidPackages, projectCommitments],
+    () => computeBulkSavings(id ?? '', projectBidPackages, projectCommitments, bidPackageBids),
+    [id, projectBidPackages, projectCommitments, bidPackageBids],
   );
   const totalBulkSavings = bulkSavingsSummary.bulkSavings;
   const showBulkSavings = bulkSavingsSummary.hasRealData && bulkSavingsSummary.bulkSavings > 0;
@@ -869,11 +887,18 @@ export default function ProjectDetailScreen() {
   // be writing over terms this device never saw.
   const contractAccess = useMemo((): { hidden: boolean; lockedReason: string | null } => {
     if (!project) return { hidden: true, lockedReason: null };
-    if (isFinancialsBlinded(project.myRole ?? null)) return { hidden: true, lockedReason: null };
+    // FAIL-CLOSED on an unknown role: isFinancialsBlinded(null) is false, so
+    // a collaborator whose role had not loaded (offline, first launch) was
+    // shown the money block. The owner is recognised from the row itself
+    // (pricingRoleFor, as field-ticket does); anyone else unconfirmed sees
+    // the block locked with the reason and no figures.
+    const role = pricingRoleFor(project.myRole ?? null, project.ownerUserId, authUser?.id);
+    if (isFinancialsBlinded(role)) return { hidden: true, lockedReason: null };
+    if (!canViewFinancials(role)) return { hidden: false, lockedReason: "Your access to this job hasn't been confirmed on this device yet, so its contract terms stay hidden until it loads. Check your signal and reopen the job." };
     if (project.myRole === 'viewer') return { hidden: false, lockedReason: 'You have view-only access to this job, so its contract terms can only be changed by the owner or an editor.' };
     if (project.financialsLoaded === false) return { hidden: false, lockedReason: "This job's money didn't load from the server on this device, so contract terms are locked here until it does — saving now could overwrite terms you haven't seen." };
     return { hidden: false, lockedReason: null };
-  }, [project]);
+  }, [project, authUser?.id]);
 
   const feeApplies = editContractMode === 'cost_plus' || editContractMode === 'gmp' || editContractMode === 'open_book';
   const portalShowsCost = editContractMode === 'gmp' || editContractMode === 'open_book';
@@ -1357,13 +1382,36 @@ export default function ProjectDetailScreen() {
   // every render. They already handle the null case internally.
   const totalBreakdown = useMemo(() => {
     if (!estimate) return null;
-    const materialPct = estimate.subtotal > 0 ? (estimate.materialTotal / estimate.subtotal) * 100 : 0;
-    const laborPct = estimate.subtotal > 0 ? (estimate.laborTotal / estimate.subtotal) * 100 : 0;
-    const permitPct = estimate.subtotal > 0 ? (estimate.permits / estimate.subtotal) * 100 : 0;
-    const overheadPct = estimate.subtotal > 0 ? (estimate.overhead / estimate.subtotal) * 100 : 0;
-    const taxRate = estimate.subtotal > 0 ? (estimate.tax / estimate.subtotal) * 100 : 0;
-    const contingencyRate = estimate.subtotal > 0 ? (estimate.contingency / estimate.subtotal) * 100 : 0;
-    return { materialPct, laborPct, permitPct, overheadPct, taxRate, contingencyRate };
+    // Percentages are of the SUBTOTAL, but an estimate saved without one (a
+    // wizard/older shape) printed 0.0% on every row next to a real Grand
+    // Total. Fall back to the rows' own sum — a real figure, not a guess.
+    const rowsSum = (estimate.materialTotal ?? 0) + (estimate.laborTotal ?? 0)
+      + (estimate.permits ?? 0) + (estimate.overhead ?? 0);
+    const base = estimate.subtotal > 0 ? estimate.subtotal : rowsSum;
+    const pctOf = (v: number | undefined) => (base > 0 ? ((v ?? 0) / base) * 100 : 0);
+    const materialPct = pctOf(estimate.materialTotal);
+    const laborPct = pctOf(estimate.laborTotal);
+    const permitPct = pctOf(estimate.permits);
+    const overheadPct = pctOf(estimate.overhead);
+    // Older / demo shapes (utils/demoSeed onboarding projects) store tax as
+    // `taxAmount` and carry a `markupAmount` EstimateBreakdown has no field
+    // for. Read both, so the breakdown labels them instead of lumping $106,900
+    // of markup and tax into "Other / unreconciled".
+    const legacy = estimate as unknown as { taxAmount?: number; markupAmount?: number };
+    const tax = estimate.tax ?? legacy.taxAmount ?? 0;
+    const markup = legacy.markupAmount != null && Number.isFinite(legacy.markupAmount) ? legacy.markupAmount : 0;
+    const taxRate = pctOf(tax);
+    const contingencyRate = pctOf(estimate.contingency);
+    // Whatever the Grand Total holds that the rows above do not explain
+    // (to the cent) is printed as its own line, so the sheet adds up instead
+    // of silently disagreeing with its own total. Buyout savings are NOT part
+    // of it: a stored grandTotal is never net of savings (they are computed
+    // later, from awards), so subtracting them here printed the savings back
+    // as "+ Other / unreconciled" right under "− Bulk savings". They are shown
+    // BELOW the Grand Total, as a total after buyout.
+    const explained = base + tax + markup + (estimate.contingency ?? 0);
+    const unreconciled = Math.round(((estimate.grandTotal ?? 0) - explained) * 100) / 100;
+    return { base, materialPct, laborPct, permitPct, overheadPct, tax, markup, taxRate, contingencyRate, unreconciled };
   }, [estimate]);
 
   const savingsBreakdown = useMemo(() => {
@@ -1443,7 +1491,7 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.additionalLabel}>Tax</Text>
             </View>
             <View style={detailStyles.additionalRight}>
-              <Text style={detailStyles.additionalValue}>{formatMoney(estimate.tax)}</Text>
+              <Text style={detailStyles.additionalValue}>{formatMoney(totalBreakdown.tax)}</Text>
               <Text style={detailStyles.additionalPct}>{totalBreakdown.taxRate.toFixed(1)}%</Text>
             </View>
           </View>
@@ -1493,20 +1541,26 @@ export default function ProjectDetailScreen() {
           <View style={detailStyles.breakdownDividerThick} />
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.breakdownLabelBold}>Subtotal</Text>
-            <Text style={detailStyles.breakdownValueBold}>{formatMoney(estimate.subtotal)}</Text>
+            <Text style={detailStyles.breakdownValueBold}>{formatMoney(totalBreakdown.base)}</Text>
           </View>
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.breakdownLabel}>+ Tax</Text>
-            <Text style={detailStyles.breakdownValue}>{formatMoney(estimate.tax)}</Text>
+            <Text style={detailStyles.breakdownValue}>{formatMoney(totalBreakdown.tax)}</Text>
           </View>
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.breakdownLabel}>+ Contingency</Text>
             <Text style={detailStyles.breakdownValue}>{formatMoney(estimate.contingency)}</Text>
           </View>
-          {showBulkSavings ? (
-            <View style={detailStyles.breakdownRow}>
-              <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Bulk Savings</Text>
-              <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(totalBulkSavings)}</Text>
+          {totalBreakdown.markup !== 0 ? (
+            <View style={detailStyles.breakdownRow} testID="cost-breakdown-markup">
+              <Text style={detailStyles.breakdownLabel}>+ Markup</Text>
+              <Text style={detailStyles.breakdownValue}>{formatMoney(totalBreakdown.markup)}</Text>
+            </View>
+          ) : null}
+          {Math.abs(totalBreakdown.unreconciled) >= 0.01 ? (
+            <View style={detailStyles.breakdownRow} testID="cost-breakdown-unreconciled">
+              <Text style={detailStyles.breakdownLabel}>{totalBreakdown.unreconciled > 0 ? '+' : '-'} Other / unreconciled</Text>
+              <Text style={detailStyles.breakdownValue}>{totalBreakdown.unreconciled > 0 ? '' : '-'}{formatMoney(Math.abs(totalBreakdown.unreconciled))}</Text>
             </View>
           ) : null}
           <View style={detailStyles.breakdownDividerThick} />
@@ -1514,10 +1568,22 @@ export default function ProjectDetailScreen() {
             <Text style={detailStyles.grandLabel}>Grand Total</Text>
             <Text style={detailStyles.grandValue}>{formatMoney(estimate.grandTotal)}</Text>
           </View>
+          {showBulkSavings ? (
+            <>
+              <View style={detailStyles.breakdownRow} testID="cost-breakdown-buyout-savings">
+                <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Buyout savings (awarded packages)</Text>
+                <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(totalBulkSavings)}</Text>
+              </View>
+              <View style={detailStyles.breakdownRow}>
+                <Text style={detailStyles.breakdownLabelBold}>Total after buyout savings</Text>
+                <Text style={detailStyles.breakdownValueBold}>{formatMoney(Math.round(((estimate.grandTotal ?? 0) - totalBulkSavings) * 100) / 100)}</Text>
+              </View>
+            </>
+          ) : null}
         </View>
       </ScrollView>
     );
-  }, [estimate, totalBreakdown, insets.bottom]);
+  }, [estimate, totalBreakdown, insets.bottom, showBulkSavings, totalBulkSavings]);
 
   const renderSavingsDetailModal = useCallback(() => {
     if (!estimate || !savingsBreakdown) return null;
@@ -4796,6 +4862,15 @@ export default function ProjectDetailScreen() {
                         {project?.retainagePercentAssumed === true && !editRetainageTouched && project.retainagePercent != null && (
                           <Text style={styles.contractHint}>
                             Carried from your earlier paperwork, not read off the contract. Retype it to record it as the contract rate.
+                          </Text>
+                        )}
+                        {/* Says what the field does. A rate typed here now
+                            outranks a different rate carried from the last
+                            invoice (utils/retainageSource, audit round 2
+                            #26), but a sent invoice keeps its own rate. */}
+                        {editRetainage.trim().length > 0 && !(project?.retainagePercentAssumed === true && !editRetainageTouched) && (
+                          <Text style={styles.contractHint}>
+                            New invoices hold this rate. Invoices you have already sent keep the rate they went out with.
                           </Text>
                         )}
                       </>

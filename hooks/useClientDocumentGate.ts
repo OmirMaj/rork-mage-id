@@ -76,6 +76,7 @@ import {
   resolveWarrantyMonths,
   coerceWarrantyMonths,
 } from '@/utils/paymentTerms';
+import { PROFILE_LOADING_REASON, profileGateNotice, savedTermsView } from '@/utils/settingsLoadGuard';
 
 export interface GateNeeds extends AskNeeds {
   purpose: Exclude<AskPurpose, 'edit'>;
@@ -115,8 +116,9 @@ export interface AskDraft {
   months: string;
 }
 
-/** Shown when a gate is pressed before the profile has loaded. */
-export const PROFILE_LOADING_REASON = 'Loading your company profile \u2014 try again in a second.';
+/** Shown when a gate is pressed before the profile has loaded. The copy
+ *  lives in utils/settingsLoadGuard (pure, so the validator can read it). */
+export { PROFILE_LOADING_REASON };
 
 const EMPTY_DRAFT: AskDraft = { companyName: '', licenseNumber: '', deposit: '', progress: '', final: '', months: '' };
 
@@ -151,9 +153,24 @@ interface OpenAsk {
 }
 
 export function useClientDocumentGate() {
-  const { settings, settingsLoaded, projects, updateSettings, savePaymentTerms, updateProject } = useCoreData();
+  const { settings, settingsLoaded, settingsLoadFailed, sourceFailed, retryRemoteReads, projects, updateSettings, savePaymentTerms, updateProject } = useCoreData();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+
+  // Before his profile has loaded, a gated press says why nothing happened
+  // and offers Retry — which invalidates ['settings', userId] and cancels a
+  // stalled read. When the read failed or timed out with no device copy, or
+  // MAGE cannot be reached at all, it says so plainly and what still works,
+  // instead of "try again in a second" for as long as the signal is gone
+  // (finding 105). Retry is always offered: the press is the only thing that
+  // would ever re-read settings on native.
+  const refuseUntilLoaded = useCallback(() => {
+    const notice = profileGateNotice({ failed: settingsLoadFailed || sourceFailed });
+    showAlert(notice.title, notice.message, [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Retry', onPress: retryRemoteReads },
+    ]);
+  }, [settingsLoadFailed, sourceFailed, retryRemoteReads]);
 
   const [ask, setAsk] = useState<OpenAsk | null>(null);
   const [draft, setDraft] = useState<AskDraft>(EMPTY_DRAFT);
@@ -201,7 +218,7 @@ export function useClientDocumentGate() {
     // his row). Say why nothing happened instead; a second press after the
     // load works.
     if (!settingsLoaded) {
-      showAlert('One second', PROFILE_LOADING_REASON);
+      refuseUntilLoaded();
       return 'waiting';
     }
     const questions = missingQuestions(needs, settings);
@@ -225,13 +242,13 @@ export function useClientDocumentGate() {
     setHint(null);
     setAsk({ mode: 'run', questions, stepIndex: 0, needs, purpose: needs.purpose });
     return 'asked';
-  }, [settings, settingsLoaded, answersFrom]);
+  }, [settings, settingsLoaded, answersFrom, refuseUntilLoaded]);
 
   /** Company Profile / Settings: the same sheet, one step, pre-filled, "Save". */
   const edit = useCallback((question: 'terms' | 'warranty') => {
     // Pre-filling from DEFAULT would show blank terms he has in fact set.
     if (!settingsLoaded) {
-      showAlert('One second', PROFILE_LOADING_REASON);
+      refuseUntilLoaded();
       return;
     }
     const split = resolvePaymentSplit({ settings }).split;
@@ -250,7 +267,7 @@ export function useClientDocumentGate() {
     });
     setHint(null);
     setAsk({ mode: 'edit', questions: [question], stepIndex: 0, needs: null, purpose: 'edit' });
-  }, [settings, settingsLoaded]);
+  }, [settings, settingsLoaded, refuseUntilLoaded]);
 
   const dismiss = useCallback(() => {
     // Closing drops the paused action: nothing is sent.
@@ -413,4 +430,22 @@ export function useClientDocumentGate() {
   };
 
   return { run, edit, dismiss, sheet };
+}
+
+/**
+ * His saved payment split and warranty for a LABEL, or why they are not known
+ * yet (finding 106). Before the profile loads `settings` is DEFAULT_SETTINGS,
+ * which has neither, so every "Payment terms · Not set" on Settings, Company
+ * Profile, the wizard and the estimate review was false for a GC who had set
+ * them. A screen shows `pendingLabel` while status is not 'ready', and offers
+ * `retry` when it is 'failed'.
+ */
+export function useSavedPaymentTerms() {
+  const { settings, settingsLoaded, settingsLoadFailed, sourceFailed, retryRemoteReads } = useCoreData();
+  const failed = settingsLoadFailed || sourceFailed;
+  const view = useMemo(
+    () => savedTermsView({ settings, settingsLoaded, failed }),
+    [settings, settingsLoaded, failed],
+  );
+  return { ...view, retry: retryRemoteReads };
 }

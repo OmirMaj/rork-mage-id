@@ -161,7 +161,10 @@ const TOOL_ROWS: ToolRow[] = [
 
   // ── FIND WORK — PRODUCT-F4: both were sidebar-only.
   { feature: 'auto-bids', route: '/auto-bids', Icon: Zap, title: 'Pre-priced bids', subtitle: 'Bids MAGE has already priced from your cost book — review and send', tone: 'accent', testID: 'tools-auto-bids', section: 'FIND WORK' },
-  { feature: 'marketplace', route: '/(tabs)/marketplace', Icon: Store, title: 'Suppliers', subtitle: 'Vendors, yards and price history', tone: 'neutral', testID: 'tools-suppliers', section: 'FIND WORK' },
+  // Audit round 2, #11: this read "Vendors, yards and price history". The
+  // screen is a MOCK catalog (mocks/suppliers.ts) with no price history and
+  // no real vendor in it; say so on the door, not only once inside.
+  { feature: 'marketplace', route: '/(tabs)/marketplace', Icon: Store, title: 'Suppliers (sample)', subtitle: 'Sample catalog — made-up suppliers, not live vendors', tone: 'neutral', testID: 'tools-suppliers', section: 'FIND WORK' },
 
   // ── COMPLIANCE — the regulatory side.
   { feature: 'coi-vault', route: '/coi-vault', Icon: MageCOI, title: 'COI vault', subtitle: 'Sub insurance certificates + expiry tracking', tone: 'info', testID: 'tools-coi-vault', section: 'COMPLIANCE', needsProjects: true },

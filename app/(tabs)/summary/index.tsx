@@ -333,7 +333,9 @@ export default function SummaryScreen() {
           outstanding={outstanding}
           cash4wk={cash4wk}
           cashAsOf={cashAsOf}
-          onPressOutstanding={() => router.push('/reports' as any)}
+          // "Who owes me" lands on the A/R Aging list itself, not the default
+          // (Profit) tab — reports.tsx honours ?tab=aging.
+          onPressOutstanding={() => router.push({ pathname: '/reports', params: { tab: 'aging' } } as never)}
           onPressCash={() => router.push('/cash-flow' as any)}
         />
         <NeedsYou items={attention} onPressItem={onAttention} />

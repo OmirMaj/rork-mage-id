@@ -149,7 +149,13 @@ export function usePortalApprovalReconciler(): void {
             };
             const auditTrail = [...trail, auditEntry];
             pendingTrails.set(co.id, auditTrail);
-            updateChangeOrder(co.id, { status: wantedStatus, auditTrail });
+            // deferReflow: this loop runs from the root, often while he is
+            // editing the job in Schedule Pro. A client's approval must not
+            // rewrite the schedule behind that screen (its next drag could
+            // overwrite the days while the CO says "applied"), and the CO
+            // screen promises nothing moves until he applies it. The CO gets
+            // the "place these days" marker; the project screen places them.
+            updateChangeOrder(co.id, { status: wantedStatus, auditTrail }, { deferReflow: true });
           }
           // Mark synced regardless of whether we patched (idempotent). A false
           // return means the row will come back next poll; the audit-entry

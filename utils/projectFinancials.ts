@@ -7,7 +7,7 @@
 // single source of truth for anything money-shaped that spans Project + ChangeOrders
 // + Invoices.
 
-import type { Project, ChangeOrder, Invoice, InvoiceStatus } from '@/types';
+import type { Project, ChangeOrder, Invoice, InvoiceStatus, BidPackage, BidPackageBid, Commitment } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { invoiceOutstanding, invoiceIsSettled, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
@@ -372,4 +372,82 @@ export function summarizeProjectFinancials(
     hasOverdueInvoices: overdueInvoices.length > 0,
     overdueAmount,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUYOUT SAVINGS — ONE NUMBER ON EVERY SCREEN (audit round 2, #5).
+//
+// The Award dialog and the bid cards show savings against the LEVELED total:
+// budget − (bid + normalizedAdjustment), where the adjustment is the AI-priced
+// scope that bid excludes (positive) or adds (negative). awardBidPackage
+// (contexts/ProjectContext.tsx) stored budget − bid, so a framing bid of $38k
+// that left out $3.2k of blocking and dumpster read "+$3,800" in the dialog he
+// signed off on and "+$7,000" on the package hero and buyout.tsx's savings to
+// date — $3,200 of savings that do not exist, because the awarded sub does not
+// cover that scope and he still has to buy it.
+//
+// The commitment amount stays the bid (the subcontract is the subcontract);
+// only the SAVINGS figure is leveled. It uses the same SIGNED adjustment the
+// dialog does — a max(0, …) would make the two disagree again for a bid the
+// AI priced as covering extra scope.
+//
+// Derived from the awarded bid rather than trusting the stored field, so
+// packages awarded before the fix read correctly too; the stored figure is
+// the fallback when the bid row is gone.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const cents = (n: number) => Math.round(n * 100) / 100;
+
+/** The leveled total of a bid: what this scope costs him with this sub. */
+export function leveledBidTotal(bid: Pick<BidPackageBid, 'amount' | 'normalizedAdjustment'>): number {
+  return cents(bid.amount + (bid.normalizedAdjustment ?? 0));
+}
+
+/** Buyout savings (negative = overrun) against the leveled total. */
+export function leveledBuyoutSavings(
+  estimateBudget: number,
+  bid: Pick<BidPackageBid, 'amount' | 'normalizedAdjustment'>,
+): number {
+  return cents(estimateBudget - leveledBidTotal(bid));
+}
+
+/** Scope the awarded bid excludes that he still has to buy (0 when none). */
+export function uncoveredScopeOf(bid: Pick<BidPackageBid, 'normalizedAdjustment'> | null | undefined): number {
+  const adj = bid?.normalizedAdjustment ?? 0;
+  return adj > 0 ? cents(adj) : 0;
+}
+
+/**
+ * What the awarded sub actually costs him now: the signed commitment plus its
+ * change orders. Null when the package's commitment cannot be found. Shared by
+ * the buyout screens and utils/bulkSavings so an edited commitment or a sub CO
+ * moves every savings figure together — they used to level off bid.amount on
+ * one side and commitment + changeAmount on the other, so after a $1,500 sub
+ * CO the buyout screen said $3,800 saved and the client's PDF said $2,300.
+ */
+export function awardedCommitmentCost(
+  pkg: Pick<BidPackage, 'awardedCommitmentId'>,
+  commitments: ReadonlyArray<Pick<Commitment, 'id' | 'amount' | 'changeAmount'>> | undefined,
+): number | null {
+  if (!commitments || !pkg.awardedCommitmentId) return null;
+  const c = commitments.find(x => x.id === pkg.awardedCommitmentId);
+  return c ? cents(c.amount + (c.changeAmount ?? 0)) : null;
+}
+
+/** Savings shown for an awarded package, or null when not awarded. Levels off
+ *  the signed commitment (+ its COs) when `commitments` can resolve it, else
+ *  off the awarded bid — the Award dialog's figure before a commitment exists. */
+export function packageBuyoutSavings(
+  pkg: Pick<BidPackage, 'status' | 'estimateBudget' | 'buyoutSavings' | 'awardedBidId' | 'awardedCommitmentId'>,
+  bids: ReadonlyArray<Pick<BidPackageBid, 'id' | 'amount' | 'normalizedAdjustment'>>,
+  commitments?: ReadonlyArray<Pick<Commitment, 'id' | 'amount' | 'changeAmount'>>,
+): number | null {
+  if (pkg.status !== 'awarded') return null;
+  const awarded = pkg.awardedBidId ? bids.find(b => b.id === pkg.awardedBidId) : undefined;
+  const signed = awardedCommitmentCost(pkg, commitments);
+  if (signed != null) {
+    return cents(pkg.estimateBudget - leveledBidTotal({ amount: signed, normalizedAdjustment: awarded?.normalizedAdjustment }));
+  }
+  if (awarded && awarded.amount > 0) return leveledBuyoutSavings(pkg.estimateBudget, awarded);
+  return pkg.buyoutSavings ?? null;
 }

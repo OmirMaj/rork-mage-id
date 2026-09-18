@@ -9,7 +9,8 @@
 //   • Non-'awarded' status ('open') → excluded
 //   • Cross-project commitment → excluded
 import { computeBulkSavings } from '../utils/bulkSavings';
-import type { BidPackage, Commitment } from '../types';
+import { packageBuyoutSavings } from '../utils/projectFinancials';
+import type { BidPackage, BidPackageBid, Commitment } from '../types';
 
 let pass = 0, fail = 0;
 function eq<T>(n: string, got: T, want: T) {
@@ -54,7 +55,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 
 // ── Empty input ───────────────────────────────────────────────────────────────
 {
-  const result = computeBulkSavings(PROJECT_ID, [], []);
+  const result = computeBulkSavings(PROJECT_ID, [], [], []);
   eq('empty → hasRealData false', result.hasRealData, false);
   eq('empty → bulkSavings 0', result.bulkSavings, 0);
   eq('empty → awardedPackageCount 0', result.awardedPackageCount, 0);
@@ -63,7 +64,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 
 // ── One awarded package with commitment → correct delta ───────────────────────
 {
-  const result = computeBulkSavings(PROJECT_ID, [pkg()], [cmt()]);
+  const result = computeBulkSavings(PROJECT_ID, [pkg()], [cmt()], []);
   eq('one awarded pkg → hasRealData true', result.hasRealData, true);
   eq('one awarded pkg → bulkSavings 1500', result.bulkSavings, 1500);
   eq('one awarded pkg → awardedPackageCount 1', result.awardedPackageCount, 1);
@@ -76,7 +77,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
   const pkgB = pkg({ id: 'pkg-b', estimateBudget: 5000, awardedCommitmentId: 'cmt-b' });
   const cmtA = cmt({ id: 'cmt-a', amount: 8500, changeAmount: 0 }); // saves 1500
   const cmtB = cmt({ id: 'cmt-b', amount: 5800, changeAmount: 0 }); // overrun -800
-  const result = computeBulkSavings(PROJECT_ID, [pkgA, pkgB], [cmtA, cmtB]);
+  const result = computeBulkSavings(PROJECT_ID, [pkgA, pkgB], [cmtA, cmtB], []);
   eq('two pkgs (one overrun) → net 700', result.bulkSavings, 700);
   eq('two pkgs → count 2', result.awardedPackageCount, 2);
   ok('two pkgs → byPackage length 2', result.byPackage.length === 2);
@@ -85,7 +86,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 // ── Awarded-but-uncommitted → excluded (hasRealData false) ───────────────────
 {
   const p = pkg({ awardedCommitmentId: undefined });
-  const result = computeBulkSavings(PROJECT_ID, [p], []);
+  const result = computeBulkSavings(PROJECT_ID, [p], [], []);
   eq('awarded-uncommitted → hasRealData false', result.hasRealData, false);
   eq('awarded-uncommitted → bulkSavings 0', result.bulkSavings, 0);
 }
@@ -94,7 +95,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 {
   // budget 10000, base award 8500, changeAmount 700 → net award 9200 → saving 800
   const c = cmt({ amount: 8500, changeAmount: 700 });
-  const result = computeBulkSavings(PROJECT_ID, [pkg()], [c]);
+  const result = computeBulkSavings(PROJECT_ID, [pkg()], [c], []);
   eq('changeAmount erodes saving → 800', result.bulkSavings, 800);
 }
 
@@ -102,7 +103,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 {
   // budget 10000, base 8500, changeAmount 2000 → net 10500 → saving -500
   const c = cmt({ amount: 8500, changeAmount: 2000 });
-  const result = computeBulkSavings(PROJECT_ID, [pkg()], [c]);
+  const result = computeBulkSavings(PROJECT_ID, [pkg()], [c], []);
   eq('changeAmount overrun → bulkSavings -500', result.bulkSavings, -500);
   ok('overrun → still hasRealData (counted honestly)', result.hasRealData);
 }
@@ -111,7 +112,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 {
   const p = pkg({ status: 'open' });
   const c = cmt();
-  const result = computeBulkSavings(PROJECT_ID, [p], [c]);
+  const result = computeBulkSavings(PROJECT_ID, [p], [c], []);
   eq('open status → hasRealData false', result.hasRealData, false);
   eq('open status → bulkSavings 0', result.bulkSavings, 0);
 }
@@ -119,7 +120,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 // ── Cross-project commitment → excluded ───────────────────────────────────────
 {
   const c = cmt({ projectId: OTHER_PROJECT });
-  const result = computeBulkSavings(PROJECT_ID, [pkg()], [c]);
+  const result = computeBulkSavings(PROJECT_ID, [pkg()], [c], []);
   eq('cross-project commitment → hasRealData false', result.hasRealData, false);
   eq('cross-project commitment → bulkSavings 0', result.bulkSavings, 0);
 }
@@ -128,8 +129,32 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 {
   const p = pkg({ projectId: OTHER_PROJECT });
   const c = cmt();
-  const result = computeBulkSavings(PROJECT_ID, [p], [c]);
+  const result = computeBulkSavings(PROJECT_ID, [p], [c], []);
   eq('cross-project bid package → hasRealData false', result.hasRealData, false);
+}
+
+// ── Leveled: scope the awarded bid excludes is not savings (integration review) ──
+// The framing package: budget $45,000, sub $38,000 excluding blocking and
+// dumpster (AI-leveled +$3,200). The buyout screens show $3,800; the project
+// page and the client's estimate PDF must print the same, not $7,000.
+{
+  const p = pkg({ estimateBudget: 45000, awardedBidId: 'bid-B' } as Partial<BidPackage>);
+  const c = cmt({ amount: 38000 });
+  const bids = [{ id: 'bid-A', normalizedAdjustment: 0 }, { id: 'bid-B', normalizedAdjustment: 3200 }];
+  const r = computeBulkSavings(PROJECT_ID, [p], [c], bids);
+  eq('leveled: $3,800, the buyout screens\' figure', r.bulkSavings, 3800);
+  ok('leveled: equals packageBuyoutSavings to the cent',
+    r.bulkSavings === packageBuyoutSavings({ ...p, status: 'awarded' } as BidPackage, [{ id: 'bid-B', amount: 38000, normalizedAdjustment: 3200 } as BidPackageBid]));
+  const extra = computeBulkSavings(PROJECT_ID, [p], [c], [{ id: 'bid-B', normalizedAdjustment: -1500 }]);
+  // A NEGATIVE adjustment is the AI's guess that the bid covers extra scope.
+  // This figure prints on the CLIENT's PDF as "Bulk Savings", so it may not
+  // rise above budget − what he signed ($7,000) on that guess (integration
+  // round 2, money). His own buyout screens still level it signed.
+  eq('client-facing: a negative AI adjustment does not raise savings above budget − signed ($7,000, not $8,500)', extra.bulkSavings, 7000);
+  const noRow = computeBulkSavings(PROJECT_ID, [p], [c], []);
+  eq('awarded bid row gone → budget − commitment', noRow.bulkSavings, 7000);
+  const cent = computeBulkSavings(PROJECT_ID, [pkg({ estimateBudget: 100.1, awardedBidId: 'x' } as Partial<BidPackage>)], [cmt({ amount: 50.05 })], [{ id: 'x', normalizedAdjustment: 0.02 }]);
+  eq('money to the cent', cent.bulkSavings, 50.03);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

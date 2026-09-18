@@ -684,6 +684,27 @@ export function applyCoScheduleReflow(
  * `hasUnanchoredMarker` first) so the gap stays visible in the CO's own history
  * instead of vanishing. `detail` carries the plan's own explanation.
  */
+/** The "place these days" marker for a CO approved somewhere the GC was not
+ *  looking (the client portal, via hooks/usePortalApprovalReconciler.ts).
+ *  Same action as the no-anchor marker — hasUnanchoredMarker keeps it
+ *  once-only — but it says the truth: the days wait for HIS review. Nothing
+ *  is written to the schedule behind his back; the project screen's
+ *  "place +Nd on the schedule" row (scheduleImpactApplied still false) opens
+ *  the preview that applies them. */
+export function buildDeferredCoAuditEntry(
+  impactDays: number,
+  opts: Pick<CoReflowOptions, 'actor' | 'now' | 'newId'> = {},
+): COAuditEntry {
+  const newId = opts.newId ?? defaultId;
+  return {
+    id: newId(),
+    action: CO_REFLOW_UNANCHORED_ACTION,
+    actor: opts.actor ?? 'anonymous',
+    timestamp: opts.now ?? new Date().toISOString(),
+    detail: `${pluralDays(normalizeImpactDays(impactDays))} not applied to the schedule yet — approved in the client portal; review and place them from the project.`,
+  };
+}
+
 export function buildUnanchoredCoAuditEntry(
   plan: CoReflowPlan,
   opts: CoReflowOptions = {},

@@ -111,17 +111,47 @@ console.log('\nretainage source (invoice #1 must not hold zero by omission):');
     /Pay App #3/.test(r.label), `label was "${r.label}"`);
 }
 
-// ── 4. the existing carry-forward is unchanged and still outranks the job ───
+// ── 4. the carry-forward outranks an INFERRED job rate — not a typed one ────
+//
+// Audit round 2 #26. This section used to assert that the carry beats the
+// project rate unconditionally. That was right while the project rate was only
+// a back-fill; e7089d53 made it a contract term the GC types on the project
+// page (retainagePercentAssumed === false), and the unconditional carry then
+// silently beat it: invoice #1 went out at 0%, he entered 10% from the
+// contract, and invoice #2 still came up at 0% "same as #1" with no ask.
 {
   const invoices = [
     prior({ id: 'a', number: 2, retentionPercent: 5, createdAt: '2026-02-01T00:00:00.000Z' }),
     prior({ id: 'b', number: 3, retentionPercent: 7, createdAt: '2026-03-01T00:00:00.000Z' }),
   ];
   const r = resolveRetainagePercent({ priorInvoices: invoices, project: { retainagePercent: 10 } });
-  check('the most recent non-draft invoice wins over the contract term (no regression)',
+  check('the most recent non-draft invoice wins over a job rate of unknown provenance (no regression)',
     r.percent === 7 && r.source === 'carried', `got percent=${r.percent} source=${r.source}`);
   check('the carried label names the invoice it was carried from',
     r.label === 'same as #3', `label was "${r.label}"`);
+
+  const inferred = resolveRetainagePercent({ priorInvoices: invoices, project: { retainagePercent: 10, retainagePercentAssumed: true } });
+  check('an ASSUMED (back-filled) job rate still sits behind the carry — it was inferred from that paperwork',
+    inferred.percent === 7 && inferred.source === 'carried', `got percent=${inferred.percent} source=${inferred.source}`);
+
+  // THE BUG: #1 sent at 0%, then he types 10% from the contract.
+  const zeroFirst = [prior({ id: 'z', number: 1, retentionPercent: 0 })];
+  const typed = resolveRetainagePercent({ priorInvoices: zeroFirst, project: { retainagePercent: 10, retainagePercentAssumed: false } });
+  check('a contract rate he TYPED beats a disagreeing carried 0% (invoice #2 bills at 10%, not 0%)',
+    typed.percent === 10 && typed.source === 'contract' && !typed.needsAsk,
+    `got percent=${typed.percent} source=${typed.source} label="${typed.label}" — the field he filled in has no effect again`);
+  check('the conflict is labelled with BOTH numbers, not silently resolved',
+    typed.label === '#1 held 0%, your contract says 10%', `label was "${typed.label}"`);
+  check('the conflict is exposed as data so the screen can flag it',
+    typed.conflict?.invoiceNumber === 1 && typed.conflict?.carriedPercent === 0, JSON.stringify(typed.conflict));
+
+  const agree = resolveRetainagePercent({
+    priorInvoices: [prior({ id: 'y', number: 4, retentionPercent: 10 })],
+    project: { retainagePercent: 10, retainagePercentAssumed: false },
+  });
+  check('when the carry and the typed contract agree, the carry label stands and nothing is flagged',
+    agree.percent === 10 && agree.source === 'carried' && agree.label === 'same as #4' && !agree.conflict,
+    `got source=${agree.source} label="${agree.label}"`);
 
   const draftsOnly = resolveRetainagePercent({
     priorInvoices: [prior({ id: 'c', number: 4, status: 'draft', retentionPercent: 20 })],
@@ -148,6 +178,19 @@ console.log('\nretainage source (invoice #1 must not hold zero by omission):');
   check('a deliberate 0% ON THIS INVOICE outranks every other source',
     r.percent === 0 && r.source === 'invoice' && !r.needsAsk,
     `got percent=${r.percent} source=${r.source} — a contract edit must never rewrite a sent invoice`);
+
+  // A later contract edit — the TYPED kind that now outranks the carry — must
+  // still never change the rate of an invoice that already has its own.
+  for (const own of [0, 5]) {
+    const edited = resolveRetainagePercent({
+      invoice: { retentionPercent: own },
+      priorInvoices: [prior({ id: 'a', number: 2, retentionPercent: 0 })],
+      project: { retainagePercent: 10, retainagePercentAssumed: false },
+    });
+    check(`a later TYPED contract rate (10%) never changes a sent invoice's own ${own}%`,
+      edited.percent === own && edited.source === 'invoice' && !edited.conflict,
+      `got percent=${edited.percent} source=${edited.source}`);
+  }
 }
 
 // ── 6. damaged rates fall through instead of becoming confident withholdings ─
@@ -214,6 +257,18 @@ console.log('\nretainage source (invoice #1 must not hold zero by omission):');
   check('declining the ask goes through retainageAnswerPatch / stores nothing',
     /retainageAnswerPatch\(/.test(inv),
     'the honest-provenance rule lives in the pure helper; the screen must not hand-roll the write.');
+  check('the editor reads the invoice\'s OWN rate first (so a contract edit cannot rewrite a sent invoice)',
+    /resolveRetainagePercent\(\{\s*invoice:\s*existingInvoice,/.test(inv),
+    'without `invoice: existingInvoice` the resolver would re-derive a sent invoice\'s rate from the latest contract term.');
+  check('the editor flags a carry/contract conflict instead of hiding it',
+    /retainageSeed\.conflict/.test(inv),
+    'the "#1 held 0%, your contract says 10%" label must render as a warning, not blend in.');
+  check('a Bill-from-Estimate draft still shows where its rate came from',
+    /retainageBasis/.test(inv) && /retentionProvenance/.test(inv),
+    'bill-from-estimate stamps the rate onto the draft, so the editor must resolve provenance without the invoice layer.');
+  check('the stale "projects has no retainage_percent column" comment is gone',
+    !/has no `?retainage_percent`? column/.test(inv),
+    'the rate syncs via project_financials since e7089d53; the comment told readers the opposite.');
   check('the ask offers no preselected rate',
     !/useState\(['"]10['"]\)/.test(inv) && !/retainageAskInput\s*=\s*useState\(['"]\d/.test(inv),
     'a prefilled 10% is the invented fallback this codebase already removed from the G702 seeder.');

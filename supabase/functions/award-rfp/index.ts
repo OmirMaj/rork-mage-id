@@ -10,14 +10,24 @@
 //     (auth.uid() = contractor's id requirement on projects RLS — only
 //     the service role can satisfy this on behalf of the contractor).
 //   - Updating the public_bid (homeowner owns it; RLS-fine).
-//   - Setting up the contractor's clientPortal record on the new project
-//     so the homeowner can immediately use it as the client.
+//   - Setting up the contractor's clientPortal record on the new project,
+//     with the homeowner's email on the invite. The portal itself is NOT
+//     usable yet: it reads a published snapshot, and none exists until the
+//     contractor opens client-portal-setup. So the homeowner is told the
+//     contractor will send the link (rfp-responses-review), not handed one.
+//
+// Since 20260918120000 award_rfp also carries the homeowner's street address,
+// lat/lng, the accepted price (target_budget), their contact, photos and
+// drawings onto the new project, and returns contractValue / heroPhotoUrl —
+// which we forward to the rfp_awarded email, whose template already reads
+// contract_value and hero_photo_url and until now always got neither.
 //
 // Auth model: caller must send their JWT in Authorization. We verify
 // they own the public_bid before doing anything destructive.
 //
 // Request: { bidId: string, responseId: string }
-// Response: { success: true, projectId, portalId } | { success: false, error }
+// Response: { success: true, projectId, portalId, homeownerEmail, companyName }
+//         | { success: false, error }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { verifyUser } from "../_shared/verifyUser.ts";
@@ -129,7 +139,49 @@ serve(async (req) => {
       winnerUserId: string;
       winnerEmail: string | null;
       projectName: string;
+      // 20260918120000+. Optional so a deploy that lands before the migration
+      // still works — the keys are simply absent.
+      companyName?: string | null;
+      homeownerEmail?: string | null;
+      contractValue?: number | string | null;
+      heroPhotoUrl?: string | null;
     };
+
+    // Best-effort: a Property Manager work order posted as this RFP
+    // (post-rfp stores work_orders.rfp_id) is now ASSIGNED to the winner, so
+    // the PM's list stops saying "Out for bids" after he picked someone. Only
+    // this homeowner's live, still-unassigned orders move; the device mirror
+    // adopts the row because its updated_at is newer. Never fails the award —
+    // it has already committed (and the table may not exist before
+    // 20260918180000 is applied).
+    try {
+      const nowIso = new Date().toISOString();
+      const woRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/work_orders?rfp_id=eq.${encodeURIComponent(body.bidId)}`
+          + `&user_id=eq.${encodeURIComponent(homeownerId)}`
+          + `&deleted_at=is.null&status=in.(open,posted_for_bids)`,
+        {
+          method: "PATCH",
+          headers: {
+            apikey: SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            status: "assigned",
+            assigned_contact_name: result.companyName ?? null,
+            assigned_at: nowIso,
+            updated_at: nowIso,
+          }),
+        },
+      );
+      if (!woRes.ok) {
+        console.warn('[award-rfp] work order assign skipped:', woRes.status, (await woRes.text().catch(() => '')).slice(0, 200));
+      }
+    } catch (e) {
+      console.warn('[award-rfp] work order assign skipped:', String((e as Error).message ?? e));
+    }
 
     // Best-effort: kick the notify dispatcher so the awarded contractor
     // gets a push + email. Failures here don't roll back the award —
@@ -150,11 +202,24 @@ serve(async (req) => {
           project_id: result.projectId,
           project_name: result.projectName,
           homeowner_id: homeownerId,
+          // The template renders "$X contract value" and the hero photo when
+          // these are present, and omits them when they are not.
+          ...(result.contractValue != null ? { contract_value: Number(result.contractValue) } : {}),
+          ...(result.heroPhotoUrl ? { hero_photo_url: result.heroPhotoUrl } : {}),
+          // The email tells him to send the portal link to this address.
+          ...(result.homeownerEmail ? { homeowner_email: result.homeownerEmail } : {}),
         },
       }),
     }).catch(() => { /* ignore */ });
 
-    return jsonResponse({ success: true, projectId: result.projectId, portalId: result.portalId });
+    return jsonResponse({
+      success: true,
+      projectId: result.projectId,
+      portalId: result.portalId,
+      // What the award screen needs to say who will be in touch, and where.
+      homeownerEmail: result.homeownerEmail ?? null,
+      companyName: result.companyName ?? null,
+    });
   } catch (e) {
     console.error('[award-rfp] failed', e);
     return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);

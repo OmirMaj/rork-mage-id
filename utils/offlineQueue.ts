@@ -1184,6 +1184,12 @@ export async function supabaseWriteDetailed(
   table: string,
   operation: 'insert' | 'upsert' | 'update' | 'delete',
   data: Record<string, unknown>,
+  opts?: {
+    /** Plain words for a non-network refusal the caller understands better
+     *  than the raw Postgres text (e.g. the portal's RLS lock while a new
+     *  portal id is still saving). Return undefined to keep the default toast. */
+    describeFailure?: (message: string, code?: string) => string | undefined;
+  },
 ): Promise<WriteOutcome> {
   if (!isSupabaseConfigured) return 'failed';
 
@@ -1250,7 +1256,9 @@ export async function supabaseWriteDetailed(
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { oops } = require('@/components/animations/NailItToast');
-        oops(`Couldn't save (${table}). ${msg.slice(0, 80)}`);
+        let plain: string | undefined;
+        try { plain = opts?.describeFailure?.(msg, code); } catch { plain = undefined; }
+        oops(plain ?? `Couldn't save (${table}). ${msg.slice(0, 80)}`);
       } catch {/* ignore */}
       // Forward to Sentry so we can see what's failing in prod.
       try {

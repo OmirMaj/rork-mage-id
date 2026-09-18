@@ -252,7 +252,7 @@ ok('the edge-swipe is disabled while there is unsaved work',
 }
 
 ok('a save clears the draft rather than leaving it to the debounce',
-  /AsyncStorage\.removeItem\(draftKey\)[\s\S]{0,160}?if \(!silent\) router\.back\(\);/.test(dfrCode),
+  /AsyncStorage\.removeItem\(draftKey\)[\s\S]{0,160}?if \(!silent\) goBack\(\);/.test(dfrCode),
   'without this the draft outlives the record and is offered back on the next new report');
 
 // ── what the APP filled in is not unsaved work ─────────────────────────────

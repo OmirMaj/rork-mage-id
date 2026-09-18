@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Notifications from 'expo-notifications';
@@ -19,6 +19,9 @@ import {
   type PushAskMoment, type PushPermission,
 } from '@/utils/pushPermissionAsk';
 import { usePortalApprovalReconciler } from '@/hooks/usePortalApprovalReconciler';
+// The one event -> screen table, shared with the notify edge function's email
+// buttons and the in-app inbox (audit round 2, #12). Pure TS, no Deno globals.
+import { notificationRoute, routeHref } from '@/supabase/functions/notify/routes';
 
 /** Records that this device has had its one contextual push ask. `mageid_` so
  *  the tenant-switch sweep in utils/localCacheKeys.ts covers it: the record
@@ -44,7 +47,6 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   // contexts would re-run it on every unrelated invoice or punch-item change.
   const { hasSeenOnboarding } = useCoreData();
   const [pushToken, setPushToken] = useState<string | null>(null);
-  const [badgeCount, setBadgeCount] = useState(0);
   const responseListenerRef = useRef<Notifications.EventSubscription | null>(null);
 
   // Watch for portal CO approvals and fold them onto the underlying
@@ -81,47 +83,13 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       const conversationId = data?.conversationId as string | undefined;
       const bidId = data?.bidId as string | undefined;
       const changeOrderId = data?.changeOrderId as string | undefined;
-      // New: portal-driven events from the notify edge function. The
-      // dispatcher sends `kind` to disambiguate; route to the right
-      // surface so a tap from the lock screen lands the GC exactly
-      // where they need to act.
+      // Server and local pushes carry `kind`; its screen comes from the shared
+      // table (supabase/functions/notify/routes.ts), the same one the email
+      // buttons and the inbox read. This handler used to keep its own copy,
+      // which sent a signed-CO tap to the portal setup screen instead of the
+      // change order (audit round 2, #12).
       const kind = data?.kind as string | undefined;
-      const projectId = data?.projectId as string | undefined;
 
-      if (kind === 'portal_message' && projectId) {
-        router.push(`/client-portal-setup?id=${projectId}`);
-        return;
-      }
-      if (kind === 'budget_proposal' && projectId) {
-        router.push(`/client-portal-setup?id=${projectId}`);
-        return;
-      }
-      if (kind === 'co_approval' && projectId) {
-        router.push(`/client-portal-setup?id=${projectId}`);
-        return;
-      }
-      if (kind === 'sub_invoice') {
-        router.push('/sub-portals');
-        return;
-      }
-      if (kind === 'margin_alert') {
-        // A single-job alert lands on that job's Margin Risk; a roll-up lands
-        // on the alerts inbox to triage.
-        router.push(projectId ? `/margin-risk?projectId=${projectId}` : '/margin-alerts');
-        return;
-      }
-      if (kind === 'morning_brief') {
-        // The local nudge (utils/brief/nudge.ts) and the server digest push
-        // (morning-digest edge fn) both land here — open the brief itself.
-        router.push('/brief');
-        return;
-      }
-      if (kind === 'week_close') {
-        // The local Friday Close nudge (utils/weekClose/nudge.ts) — open the
-        // week-close modal directly.
-        router.push('/week-close');
-        return;
-      }
       if (kind === 'ask_seed') {
         // A margin/brief push can open MAGE already answering the question the
         // alert raised, instead of dropping the user on a raw table. The backend
@@ -134,38 +102,26 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
           : '/ask');
         return;
       }
-
-      // PRODUCT-F8: the seven server push kinds that fell through to a no-op.
-      // Field names come from supabase/functions/notify/index.ts pushData —
-      // `rfpId` for the RFP family, `projectId` (+portalId) for the portal family.
-      const rfpId = data?.rfpId as string | undefined;
-      if ((kind === 'nearby_rfp_posted' || kind === 'bid_question_asked' || kind === 'bid_question_answered') && rfpId) {
-        router.push(`/rfp-detail?bidId=${rfpId}`);
-        return;
-      }
-      if (kind === 'rfp_awarded' && projectId) {
-        router.push(`/project-detail?id=${projectId}`);
-        return;
-      }
-      if (kind === 'contract_signed' && projectId) {
-        router.push(`/contract?projectId=${projectId}`);
-        return;
-      }
-      if (kind === 'selection_chosen' && projectId) {
-        router.push(`/selections?projectId=${projectId}`);
-        return;
-      }
-      if (kind === 'closeout_binder_sent_confirmation' && projectId) {
-        router.push(`/closeout-binder?projectId=${projectId}`);
+      // A website lead was inserted on the server seconds ago; the lead list
+      // is read once and has no realtime, so re-read it before the screen
+      // opens (lead-detail also waits for a fresh read before seeding a form).
+      if (kind === 'lead_received') void queryClient.invalidateQueries({ queryKey: ['leads'] });
+      const route = kind ? notificationRoute(kind, data as Record<string, unknown>) : null;
+      if (route) {
+        // Every pathname in the table is checked against app/ by
+        // scripts/validate-notification-routes.ts — typed routes cannot see
+        // through a runtime table, the validator does.
+        router.push(routeHref(route) as Href);
         return;
       }
 
+      // Pre-`kind` pushes (marketplace chat, bid responses, legacy CO pings).
       if (conversationId) {
         router.push(`/messages?id=${conversationId}`);
       } else if (bidId) {
         router.push(`/bid-detail?id=${bidId}`);
       } else if (changeOrderId) {
-        router.push(`/change-order?id=${changeOrderId}`);
+        router.push(`/change-order?coId=${changeOrderId}`);
       }
     });
 
@@ -175,7 +131,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         responseListenerRef.current = null;
       }
     };
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, user, router, queryClient]);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -217,24 +173,43 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     };
   }, [isAuthenticated, user, queryClient]);
 
-  const clearBadge = useCallback(async () => {
-    setBadgeCount(0);
-    if (Platform.OS !== 'web') {
-      try {
+  // ── The app-icon badge (audit round 2, #17) ───────────────────────────
+  // ONE number: the signed-in user's unread notification_outbox rows — the rows
+  // the inbox lists, counted on the server (the inbox feed stops at 80 rows) and
+  // the same count notify / morning-digest now send as a push's `badge`. It
+  // used to be a hard-coded 1 on every push that nothing in the running app
+  // ever cleared (the only clearBadge caller was the switched-off marketplace
+  // chat), plus a local badgeCount/incrementBadge pair that no code called.
+  // Re-read on sign-in, on every return to the foreground, and whenever a
+  // screen that changes read state asks (the inbox after Mark read / Mark all
+  // read / Clear). Signed out → 0, so the next person on a shared phone does
+  // not inherit a stranger's number.
+  const syncBadge = useCallback(async (): Promise<void> => {
+    if (Platform.OS === 'web') return;
+    try {
+      if (!user?.id) {
         await Notifications.setBadgeCountAsync(0);
-      } catch { /* ok */ }
-    }
-  }, []);
-
-  const incrementBadge = useCallback(() => {
-    setBadgeCount(prev => {
-      const next = prev + 1;
-      if (Platform.OS !== 'web') {
-        void Notifications.setBadgeCountAsync(next).catch(() => {});
+        return;
       }
-      return next;
+      const { count, error } = await supabase
+        .from('notification_outbox')
+        .select('id', { count: 'exact', head: true })
+        .eq('recipient_user_id', user.id)
+        .is('read_at', null)
+        .not('event_type', 'in', '(daily_digest_sent)');
+      // A failed read leaves the icon as it is rather than guessing a number.
+      if (error || typeof count !== 'number') return;
+      await Notifications.setBadgeCountAsync(count);
+    } catch { /* badge is best-effort; never throw into a caller's tap */ }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void syncBadge();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void syncBadge();
     });
-  }, []);
+    return () => sub.remove();
+  }, [syncBadge]);
 
   // ── The one contextual push ask ────────────────────────────────────────
   // The effect above registers a token only when permission was ALREADY
@@ -333,9 +308,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
   return useMemo(() => ({
     pushToken,
-    badgeCount,
-    clearBadge,
-    incrementBadge,
+    syncBadge,
     maybeAskForPush,
-  }), [pushToken, badgeCount, clearBadge, incrementBadge, maybeAskForPush]);
+  }), [pushToken, syncBadge, maybeAskForPush]);
 });

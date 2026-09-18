@@ -211,6 +211,75 @@ ok('composer_opened is not reported as a send',
 ok('sendViaResend counts attachments it could not encode',
   /attachmentsDropped = encoded\.length - attachments\.length/.test(serviceSrc));
 
+// ── app/(tabs)/estimate/full.tsx: the same guard, on the estimate ──────────
+//
+// 2026-09-18 audit #32. The invoice fix above was never carried to the only
+// other PDFPreSendSheet caller. generateEstimatePDFUri has the same hard web
+// `return null`, and the laptop's "Email estimate" sent a homeowner an email
+// whose first line was "Estimate attached." with nothing attached, then told
+// the GC "Email Sent". When Resend failed on web it said "could not send" and
+// offered a Share PDF button that did nothing — while a draft sat open in his
+// mail app. Every half of the invoice guard is pinned again here, on this file.
+const ESTIMATE_SCREEN = 'app/(tabs)/estimate/full.tsx';
+const estimateSrc = stripCommentsEarly(read(ESTIMATE_SCREEN));
+function stripCommentsEarly(src: string) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+const estSend = (() => {
+  const a = estimateSrc.indexOf('const handlePDFSend = useCallback(');
+  const b = estimateSrc.indexOf('const handleShareEmail = useCallback(');
+  return a >= 0 && b > a ? estimateSrc.slice(a, b) : '';
+})();
+ok('estimate: handlePDFSend found', estSend.length > 0, 'the estimate send handler moved — re-point this check');
+ok('estimate: the PDF is generated BEFORE the email body is built',
+  estSend.indexOf('await generateEstimatePDFUri(') >= 0
+  && estSend.indexOf('await generateEstimatePDFUri(') < estSend.indexOf('buildEstimateEmailHtml('),
+  'the body\'s first line depends on whether there is a PDF, so the PDF must exist first');
+ok('estimate: a null pdfUri is confirmed with the user before sending',
+  /if \(!pdfUri\) \{[\s\S]{0,400}?PDF could not be attached/.test(estSend));
+ok('estimate: the confirmation resolves on dismiss',
+  /if \(!pdfUri\) \{[\s\S]{0,1600}?onDismiss: \(\) => resolve\(false\)/.test(estSend));
+ok('estimate: the body is told whether a PDF is attached',
+  /hasAttachment: !!pdfUri/.test(estSend),
+  'without it the no-PDF email still opens with "Estimate attached."');
+ok('estimate: a dropped attachment changes the success copy',
+  /const pdfMissing = !pdfUri \|\| \(result\.attachmentsDropped \?\? 0\) > 0/.test(estSend));
+ok('estimate: the flat "Email Sent" toast is conditional on the PDF',
+  /pdfMissing \? '[^']*without the PDF' : 'Email Sent'/.test(estSend)
+  && !/showAlert\('Email Sent'/.test(estSend));
+ok('estimate: composer_opened says the draft is not sent',
+  /result\.outcome === 'composer_opened'[\s\S]{0,400}?Draft opened — not sent yet/.test(estSend));
+ok('estimate: Share PDF is only offered when there is a PDF to share',
+  !/pdfUri \?\? await generateEstimatePDFUri/.test(estSend)
+  && /pdfUri\s*\?\s*\[[\s\S]{0,200}?'Share PDF'/.test(estSend),
+  'on web pdfUri is null and Sharing is unavailable — the button did nothing');
+
+// buildEstimateEmailHtml's opening line, executed for real. Its template calls
+// module-local helpers, so the function body is extracted and run against
+// stubs of those helpers — the only thing under test is the attachment line.
+{
+  const a = serviceSrc.indexOf('export function buildEstimateEmailHtml(');
+  const b = serviceSrc.indexOf('export function buildGenericDocumentEmailHtml(');
+  const fnSrc = a >= 0 && b > a ? serviceSrc.slice(a, b) : '';
+  ok('estimate: buildEstimateEmailHtml found', fnSrc.length > 0);
+  const fnJs = new Transpiler({ loader: 'ts' }).transformSync(fnSrc).replace(/\bexport\s+function\b/g, 'function');
+  const build = new Function(
+    'emailQuote', 'emailStatCard', 'emailStatRow', 'fmtMoney', 'wrapEmailHtml',
+    `${fnJs}\nreturn buildEstimateEmailHtml;`,
+  )(
+    (m: string) => `<q>${m}</q>`, (x: string) => x, (k: string, v: string) => `${k}:${v}`,
+    (n: number) => `$${n}`, (o: { bodyHtml: string }) => o.bodyHtml,
+  ) as (o: Record<string, unknown>) => string;
+  const base = { companyName: 'Acme', recipientName: '', projectName: 'Maple', grandTotal: 48000, itemCount: 12 };
+  ok('estimate email WITH a PDF still says it is attached',
+    build({ ...base }).includes('Estimate attached.'));
+  ok('estimate email WITHOUT a PDF never says "attached"',
+    !/attached/i.test(build({ ...base, hasAttachment: false })),
+    build({ ...base, hasAttachment: false }));
+  ok('estimate email without a PDF still carries the total',
+    build({ ...base, hasAttachment: false }).includes('$48000'));
+}
+
 // ── daily-digest: never send an email with nothing in it ───────────────────
 //
 // Reported from a real inbox on 2026-09-08: a giant serif "Quiet day." over one
@@ -261,6 +330,87 @@ ok('the morning briefing body carries a working unsubscribe link',
   /unsubscribe: \{ recipientEmail, eventKey: 'daily_digest'/.test(morningSrc),
   'buildUnsubscribeUrl returns null without recipientEmail, so the visible link and the ' +
   'preferences link vanish from a recurring opt-in email');
+
+// ── the unsubscribe link stops the email it is in (audit 2026-09-18 #15) ────
+//
+// Both GC digests put an unsubscribe link in the footer and a List-Unsubscribe
+// header on the message; clicking either writes an email_unsubscribes row and
+// the page says "You're unsubscribed." Neither digest read that row, so the
+// same email arrived the next morning. The rule is executed here, not grepped:
+// sendDigestUnlessUnsubscribed is run against a suppressed and a subscribed
+// address, and must never call send() for the first.
+{
+  const { sendDigestUnlessUnsubscribed, GC_DIGEST_EVENT_KEY } =
+    await import('../supabase/functions/morning-digest/digestGate');
+  let sends = 0;
+  const send = async () => { sends++; return true; };
+  const suppressed = await sendDigestUnlessUnsubscribed({ isUnsubscribed: async () => true, send });
+  ok('an unsubscribed address is never sent to', suppressed === 'suppressed_unsubscribed' && sends === 0,
+    `outcome ${suppressed}, send() called ${sends}x`);
+  const live = await sendDigestUnlessUnsubscribed({ isUnsubscribed: async () => false, send });
+  ok('a subscribed address is sent to', live === 'sent' && sends === 1);
+  const failed = await sendDigestUnlessUnsubscribed({ isUnsubscribed: async () => false, send: async () => false });
+  ok('a failed send is recorded as failed, not sent', failed === 'failed');
+  ok('the gate checks the same key the links carry', GC_DIGEST_EVENT_KEY === 'daily_digest');
+
+  // Both digests send ONLY through the gate, with the real suppression check.
+  const gateCall = /sendDigestUnlessUnsubscribed\(\{\s*isUnsubscribed: \(\) => isEmailUnsubscribed\(SUPABASE_URL, (?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY), [a-z]+, GC_DIGEST_EVENT_KEY\),\s*send:/;
+  ok('morning-digest emails only through the gate', gateCall.test(morningSrc)
+    && (morningSrc.match(/sendDigestEmail\(/g) ?? []).length === 2, // the definition + the one call inside the gate
+    'a second sendDigestEmail( call is a send path that skips the unsubscribe check');
+  ok('morning-digest records a suppression in the outbox', /emailStatus = await sendDigestUnlessUnsubscribed\(/.test(morningSrc));
+  ok('daily-digest emails only through the gate', gateCall.test(digestSrc)
+    && (digestSrc.match(/resendSend\(/g) ?? []).length === 1
+    && /send: async \(\) => \{\s*const r = await resendSend\(/.test(digestSrc));
+  ok('daily-digest records the outcome (incl. suppressed_unsubscribed) in the outbox', /email_status: outcome,/.test(digestSrc));
+
+  // Sweep: every edge function that mails a recurring digest key checks that
+  // key's suppression before sending. A new digest cannot ship without it.
+  const { readdirSync, existsSync } = await import('node:fs');
+  const fnDir = join(ROOT, 'supabase/functions');
+  for (const fn of readdirSync(fnDir)) {
+    const file = join(fnDir, fn, 'index.ts');
+    if (!existsSync(file)) continue;
+    const src = stripComments(readFileSync(file, 'utf8'));
+    for (const key of ['daily_digest', 'weekly_digest']) {
+      const mails = new RegExp(`eventKey: (?:'${key}'|opts\\.eventKey \\?\\? '${key}'${key === 'daily_digest' ? '|GC_DIGEST_EVENT_KEY' : ''})`).test(src);
+      if (!mails) continue;
+      const checks = new RegExp(`isEmailUnsubscribed\\([^)]*(?:'${key}'${key === 'daily_digest' ? '|GC_DIGEST_EVENT_KEY' : ''})\\)`).test(src);
+      ok(`${fn}: mails '${key}' and checks its unsubscribe first`, checks,
+        'the link in the email must stop the email — call isEmailUnsubscribed with the same key before resendSend');
+    }
+  }
+
+  // The in-app switch shows the suppression and can lift it.
+  const settingsSrc = stripComments(read('app/notifications-settings.tsx'));
+  ok('settings reads the suppression state', /supabase\.rpc\('my_digest_email_suppression'\)/.test(settingsSrc));
+  ok('the Email switch shows what will happen, not what was stored',
+    /const digestEmailOn = digestEmailStored && !digestEmailSuppressed/.test(settingsSrc));
+  ok('turning it back on clears the suppression first', /supabase\.rpc\('resume_my_digest_email'\)/.test(settingsSrc));
+  // Post-ship review: after "Turn email back on" on the prefs page suppression
+  // reads 'none', and only the RPC restores daily_digest.email — so every
+  // turn-ON must take it, not only the suppressed case.
+  ok('every turn-ON goes through the resume RPC (not only while suppressed)',
+    /const setDigestEmail = useCallback\(async \(v: boolean\) => \{[\s\S]*?if \(!v\) \{\s*updateDigest\(\{ channels: \{ email: false/.test(settingsSrc)
+      && !/if \(!v \|\| !digestEmailSuppressed\)/.test(settingsSrc));
+  ok('a switch held off by an unsubscribe says why', /Off because you unsubscribed/.test(settingsSrc));
+  const mig = read('supabase/migrations/20260918170000_digest_unsubscribe_sync.sql');
+  ok('the resume RPC keys on the sign-in address, never profiles.email',
+    /from auth\.users u where u\.id = auth\.uid\(\)/.test(mig) && !/delete from public\.email_unsubscribes[\s\S]{0,120}profiles/.test(mig));
+  // Integration review 2026-09-18: the unsubscribe trigger also turns
+  // notification_preferences.daily_digest.email off and nothing turned it back
+  // on; and the "all email is off" alert pointed at a control that did not
+  // exist. PGlite replay: scratchpad/pgtest/digest_unsub_resume.mjs.
+  ok('resume turns notification_preferences.daily_digest.email back on (caller\'s row, only when nothing still suppresses)',
+    /if v_state = 'none' then\s+update public\.profiles p\s+set notification_preferences =\s+jsonb_set\(p\.notification_preferences, '\{daily_digest,email\}', 'true'::jsonb\)\s+where p\.id = auth\.uid\(\)/.test(mig));
+  const prefsPage = read('marketing/preferences/index.html');
+  ok('the preferences page can lift a global unsubscribe (resubscribe with event_key null)',
+    /id="resubAll"/.test(prefsPage) && /callApi\('resubscribe', null\)/.test(prefsPage));
+  ok('the app\'s "all email is off" alert names that control', /tap "Turn email back on"/.test(settingsSrc) && /turn email back on/i.test(prefsPage));
+  ok('website leads can be managed: an app category and a preferences-page row',
+    /key: 'lead_received'/.test(settingsSrc) && /\{ key: 'lead_received'/.test(prefsPage));
+  ok('digestGate names a validator that exists', !/validate-digest-unsubscribe\.ts/.test(read('supabase/functions/morning-digest/digestGate.ts')));
+}
 
 // ── the shared shell: one brand per header ─────────────────────────────────
 // The right-hand "MAGE ID" pill means "sent THROUGH MAGE ID" and only makes

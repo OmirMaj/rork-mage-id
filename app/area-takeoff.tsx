@@ -58,6 +58,11 @@ import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { containImageRect, imageLoadAspectRatio, planViewerImageRatio } from '@/utils/punchPlanPin';
+import {
+  boxToImageNorm, imageNormToBox, planScaleStatus, stampImageFrame, usableCalibration,
+  PLAN_SCALE_RECHECK_COPY, type ImageRect,
+} from '@/utils/planScale';
 
 type Mode = 'calibrate' | 'draw';
 type Kind = 'area' | 'linear' | 'count';
@@ -156,7 +161,23 @@ function AreaTakeoffInner() {
 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [sheetId, setSheetId] = useState<string | null>(null);
-  const [imgLayout, setImgLayout] = useState<{ w: number; h: number } | null>(null);
+  // THE FRAME (audit round 2, #4; utils/planScale). The 3:4 canvas is only
+  // the box; taps, overlays and every measurement are normalised to the rect
+  // the contain-fitted IMAGE occupies inside it — the frame Plan Viewer uses —
+  // so a scale set on either screen sizes the same drawing the same way. The
+  // canvas used to be the frame, letterbox and all, and a scale set in Plan
+  // Viewer came out ~32% off here on a 3:2 sheet.
+  const [canvasSize, setCanvasSize] = useState<{ w: number; h: number } | null>(null);
+  // Image width/height: the loaded image's, else the sheet's stored size (the
+  // same precedence Plan Viewer uses — RN-web's onLoad carries no `source`).
+  const [imgRatio, setImgRatio] = useState<number | null>(null);
+  const [sheetDims, setSheetDims] = useState<{ width?: number | null; height?: number | null } | null>(null);
+  const imgRect = useMemo<ImageRect | null>(
+    () => containImageRect(canvasSize, planViewerImageRatio(imgRatio, sheetDims)),
+    [canvasSize, imgRatio, sheetDims],
+  );
+  // A saved scale from before the frame was fixed: not used, and said so.
+  const [scaleRecheck, setScaleRecheck] = useState(false);
 
   const [kind, setKind] = useState<Kind>('area');
   const [mode, setMode] = useState<Mode>('calibrate');
@@ -191,17 +212,17 @@ function AreaTakeoffInner() {
   );
 
   const ftPerPx = useMemo(
-    () => (calibration && imgLayout ? feetPerPixel(calibration, imgLayout.w, imgLayout.h) : null),
-    [calibration, imgLayout],
+    () => (calibration && imgRect ? feetPerPixel(calibration, imgRect.w, imgRect.h) : null),
+    [calibration, imgRect],
   );
 
   // NET measured quantity, straight off the plan.
   const quantity = useMemo(() => {
     if (kind === 'count') return drawPoints.length;
-    if (!ftPerPx || !imgLayout) return 0;
-    if (kind === 'area') return drawPoints.length >= 3 ? polygonAreaSqFt(drawPoints, imgLayout.w, imgLayout.h, ftPerPx) : 0;
-    return drawPoints.length >= 2 ? polylineLengthFt(drawPoints, imgLayout.w, imgLayout.h, ftPerPx) : 0;
-  }, [kind, drawPoints, ftPerPx, imgLayout]);
+    if (!ftPerPx || !imgRect) return 0;
+    if (kind === 'area') return drawPoints.length >= 3 ? polygonAreaSqFt(drawPoints, imgRect.w, imgRect.h, ftPerPx) : 0;
+    return drawPoints.length >= 2 ? polylineLengthFt(drawPoints, imgRect.w, imgRect.h, ftPerPx) : 0;
+  }, [kind, drawPoints, ftPerPx, imgRect]);
 
   // Counts don't take waste; area/linear net qty gets a cut/waste allowance.
   const effectiveWaste = kind === 'count' ? 0 : wastePct / 100;
@@ -238,9 +259,18 @@ function AreaTakeoffInner() {
   }, [kind]);
 
   // ── image source ──────────────────────────────────────────────────────
-  const resetForNewImage = useCallback((uri: string, sId: string | null, cal: typeof calibration) => {
+  const resetForNewImage = useCallback((
+    uri: string,
+    sId: string | null,
+    cal: typeof calibration,
+    dims: { width?: number | null; height?: number | null } | null,
+    recheck = false,
+  ) => {
     setImageUri(uri);
     setSheetId(sId);
+    setImgRatio(null);
+    setSheetDims(dims);
+    setScaleRecheck(recheck);
     setCalibration(cal);
     setCalPoints([]);
     setDrawPoints([]);
@@ -258,28 +288,37 @@ function AreaTakeoffInner() {
       exif: false,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    resetForNewImage(result.assets[0].uri, null, null);
+    const asset = result.assets[0];
+    resetForNewImage(asset.uri, null, null, { width: asset.width, height: asset.height });
   }, [resetForNewImage]);
 
-  const loadSheet = useCallback((sId: string, uri: string) => {
+  const loadSheet = useCallback((sId: string, uri: string, dims: { width?: number | null; height?: number | null }) => {
     const existing = getCalibrationForPlan(sId);
+    // Only an image-frame row sizes anything; an older row is re-checked.
+    const usable = usableCalibration(existing);
     resetForNewImage(
       uri,
       sId,
-      existing ? { p1: existing.p1, p2: existing.p2, realDistanceFt: existing.realDistanceFt } : null,
+      usable ? { p1: usable.p1, p2: usable.p2, realDistanceFt: usable.realDistanceFt } : null,
+      dims,
+      planScaleStatus(existing) === 'recheck',
     );
   }, [getCalibrationForPlan, resetForNewImage]);
 
   // ── touch ─────────────────────────────────────────────────────────────
   const onImageLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
-    setImgLayout({ w: width, h: height });
+    setCanvasSize(prev => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }));
   }, []);
 
-  const toNorm = useCallback((ex: number, ey: number): NormPoint | null => {
-    if (!imgLayout) return null;
-    return { x: Math.max(0, Math.min(1, ex / imgLayout.w)), y: Math.max(0, Math.min(1, ey / imgLayout.h)) };
-  }, [imgLayout]);
+  const onImageLoad = useCallback((e: unknown) => {
+    const ratio = imageLoadAspectRatio(e);
+    if (ratio) setImgRatio(ratio);
+  }, []);
+
+  // Canvas-relative touch → image-normalised (null until the image rect is
+  // known — a tap then has nothing honest to mean).
+  const toNorm = useCallback((ex: number, ey: number): NormPoint | null => boxToImageNorm(ex, ey, imgRect), [imgRect]);
 
   const handleTap = useCallback((e: GestureResponderEvent) => {
     // In freehand mode the path is built on grant+move; ignore the release tap.
@@ -310,29 +349,32 @@ function AreaTakeoffInner() {
   }, [freehand, mode, toNorm]);
 
   const handleDrawMove = useCallback((e: GestureResponderEvent) => {
-    if (!freehand || mode !== 'draw' || !imgLayout) return;
+    if (!freehand || mode !== 'draw' || !imgRect) return;
     const pt = toNorm(e.nativeEvent.locationX, e.nativeEvent.locationY);
     if (!pt) return;
     setDrawPoints(prev => {
       const last = prev[prev.length - 1];
       if (last) {
-        const dx = (pt.x - last.x) * imgLayout.w;
-        const dy = (pt.y - last.y) * imgLayout.h;
+        const dx = (pt.x - last.x) * imgRect.w;
+        const dy = (pt.y - last.y) * imgRect.h;
         if (dx * dx + dy * dy < 25) return prev; // throttle: skip moves < ~5px
       }
       return [...prev, pt];
     });
-  }, [freehand, mode, toNorm, imgLayout]);
+  }, [freehand, mode, toNorm, imgRect]);
 
   const confirmDistance = useCallback(() => {
     const ft = parseFloat(distanceInput);
     if (calPoints.length === 2 && Number.isFinite(ft) && ft > 0) {
       const cal = { p1: calPoints[0], p2: calPoints[1], realDistanceFt: ft };
       setCalibration(cal);
+      setScaleRecheck(false);
       setMode('draw');
-      // Persist scale back to the plan sheet so it's reused next time.
+      // Persist scale back to the plan sheet so it's reused next time —
+      // stamped as image-frame so Plan Viewer (and this screen on any
+      // device) trusts it (utils/planScale).
       if (sheetId && projectId) {
-        upsertPlanCalibration({ planSheetId: sheetId, projectId, p1: cal.p1, p2: cal.p2, realDistanceFt: ft });
+        upsertPlanCalibration({ planSheetId: sheetId, projectId, p1: stampImageFrame(cal.p1), p2: stampImageFrame(cal.p2), realDistanceFt: ft });
       }
     }
     setDistanceModal(false);
@@ -447,9 +489,13 @@ function AreaTakeoffInner() {
   }, [project, effectiveRate, billableRounded, historyRate, selectedTrade, manualRateSource, unit, updateProject, quantityLabel]);
 
   // ── render helpers ──────────────────────────────────────────────────────
-  const px = (p: NormPoint) => ({ cx: p.x * (imgLayout?.w ?? 0), cy: p.y * (imgLayout?.h ?? 0) });
-  const pointsStr = drawPoints.map(p => `${p.x * (imgLayout?.w ?? 0)},${p.y * (imgLayout?.h ?? 0)}`).join(' ');
-  const labelPt = quantity > 0 && drawPoints.length > 0 ? centroid(drawPoints) : null;
+  // Overlays draw in canvas coordinates: image-normalised → the image rect.
+  const px = (p: NormPoint) => (imgRect ? imageNormToBox(p, imgRect) : { cx: 0, cy: 0 });
+  const pointsStr = drawPoints.map(p => { const b = px(p); return `${b.cx},${b.cy}`; }).join(' ');
+  const labelNorm = quantity > 0 && drawPoints.length > 0 ? centroid(drawPoints) : null;
+  const labelPt = labelNorm && imgRect && canvasSize
+    ? { x: imageNormToBox(labelNorm, imgRect).cx / canvasSize.w, y: imageNormToBox(labelNorm, imgRect).cy / canvasSize.h }
+    : null;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -486,11 +532,20 @@ function AreaTakeoffInner() {
             <View style={styles.sheetList}>
               <Text style={styles.sheetListLabel}>Plans on this project</Text>
               {projectSheets.slice(0, 6).map(s => (
-                <TouchableOpacity key={s.id} style={styles.sheetRow} onPress={() => loadSheet(s.id, s.imageUri)} activeOpacity={0.7} testID={`takeoff-sheet-${s.id}`}>
+                <TouchableOpacity key={s.id} style={styles.sheetRow} onPress={() => loadSheet(s.id, s.imageUri, { width: s.width, height: s.height })} activeOpacity={0.7} testID={`takeoff-sheet-${s.id}`}>
                   <FileImage size={18} color={t.accent} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sheetName} numberOfLines={1}>{s.name}</Text>
-                    {getCalibrationForPlan(s.id) ? <Text style={styles.sheetCal}>scale saved · ready to trace</Text> : <Text style={styles.sheetCalMuted}>needs scale</Text>}
+                    {(() => {
+                      // 'recheck' = a scale saved before both screens measured
+                      // in the image frame; it is NOT ready to trace.
+                      const st = planScaleStatus(getCalibrationForPlan(s.id));
+                      return st === 'ready'
+                        ? <Text style={styles.sheetCal}>scale saved · ready to trace</Text>
+                        : st === 'recheck'
+                          ? <Text style={styles.sheetCalMuted}>re-check scale</Text>
+                          : <Text style={styles.sheetCalMuted}>needs scale</Text>;
+                    })()}
                   </View>
                   <ChevronLeft size={16} color={t.textMuted} style={{ transform: [{ rotate: '180deg' }] }} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -540,9 +595,9 @@ function AreaTakeoffInner() {
               onResponderRelease={handleTap}
               testID="takeoff-canvas"
             >
-              <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
-              {imgLayout && (
-                <Svg style={StyleSheet.absoluteFill} width={imgLayout.w} height={imgLayout.h}>
+              <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" onLoad={onImageLoad} />
+              {imgRect && canvasSize && (
+                <Svg style={StyleSheet.absoluteFill} width={canvasSize.w} height={canvasSize.h}>
                   {calPoints.length === 2 && (
                     <Line x1={px(calPoints[0]).cx} y1={px(calPoints[0]).cy} x2={px(calPoints[1]).cx} y2={px(calPoints[1]).cy} stroke={t.accentHot} strokeWidth={2} strokeDasharray="6,4" />
                   )}
@@ -582,7 +637,7 @@ function AreaTakeoffInner() {
           {/* Result */}
           <View style={styles.result}>
             {needsScale && !calibration ? (
-              <Text style={styles.resultHint}>Set the scale to size your takeoff.</Text>
+              <Text style={styles.resultHint}>{scaleRecheck ? PLAN_SCALE_RECHECK_COPY : 'Set the scale to size your takeoff.'}</Text>
             ) : quantity <= 0 ? (
               <Text style={styles.resultHint}>
                 {kind === 'area' ? 'Trace an area (3+ points) to size it.' : kind === 'linear' ? 'Run a line (2+ points) to measure it.' : 'Tap items to count them.'}

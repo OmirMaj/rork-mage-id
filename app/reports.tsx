@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
-import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -90,7 +90,14 @@ export default function ReportsScreen() {
   // instead of the report chrome, and WIP export actions are blocked.
   const wipUnlocked = canAccess('wip_reporting');
   // Land sub-Business users on Profit so the default tab isn't a locked wall.
-  const [tab, setTab] = useState<Tab>(wipUnlocked ? 'wip' : 'profit');
+  // A caller can name the tab (`/reports?tab=aging`): the "who owes me" entry
+  // points want the A/R list, not whichever report happens to be first. A
+  // requested WIP on a plan without it still falls back to Profit.
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<Tab>(() => {
+    if (requestedTab === 'aging' || requestedTab === 'profit') return requestedTab;
+    return wipUnlocked ? 'wip' : 'profit';
+  });
   const [generating, setGenerating] = useState(false);
 
   // Built once and spread whole into both reports, so the two tabs of this
@@ -295,7 +302,19 @@ export default function ReportsScreen() {
 
         {tab === 'wip' && !wipLocked && <WIPView    report={wip} />}
         {tab === 'profit'               && <ProfitView profit={profit} />}
-        {tab === 'aging'                && <AgingView  report={aging} anyIssued={issuedInvoices > 0} />}
+        {tab === 'aging'                && (
+          <AgingView
+            report={aging}
+            anyIssued={issuedInvoices > 0}
+            // Every aging row is "record this check" or "send a reminder" —
+            // both live on the invoice screen, so the row opens it. Same
+            // navigation as app/payment-predictions.tsx openInvoice.
+            onOpenInvoice={(r) => router.push({
+              pathname: '/invoice' as never,
+              params: { projectId: r.projectId, invoiceId: r.invoiceId } as never,
+            })}
+          />
+        )}
       </ScrollView>
 
       {/* WIP is Business-only. Render the same Paywall wip-report.tsx uses.
@@ -586,7 +605,11 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
 
 // ─── AR Aging view ───────────────────────────────────────────────────
 
-function AgingView({ report, anyIssued }: { report: ARAgingReport; anyIssued: boolean }) {
+function AgingView({ report, anyIssued, onOpenInvoice }: {
+  report: ARAgingReport;
+  anyIssued: boolean;
+  onOpenInvoice: (row: ARAgingReport['rows'][number]) => void;
+}) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   if (report.rows.length === 0) {
@@ -625,7 +648,18 @@ function AgingView({ report, anyIssued }: { report: ARAgingReport; anyIssued: bo
           r.bucket === '31-60'   ? styles.bucketPillWarn :
                                    styles.bucketPillBad;
         return (
-          <View key={r.invoiceId} style={styles.row}>
+          // A worklist, not a printout: the row opens the invoice, where Mark
+          // Paid, the pay link and Send already live. No inline duplicates of
+          // those actions here — one place to act on an invoice.
+          <TouchableOpacity
+            key={r.invoiceId}
+            style={[styles.row, Platform.OS === 'web' && styles.rowLinkWeb]}
+            onPress={() => onOpenInvoice(r)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Open invoice ${r.invoiceNumber} for ${r.projectName}, ${formatMoney(r.outstanding)} outstanding`}
+            testID={`aging-row-${r.invoiceId}`}
+          >
             <View style={styles.rowHead}>
               <Text style={styles.rowTitle}>#{r.invoiceNumber} · {r.projectName}</Text>
               <View style={[styles.bucketPill, bucketStyle]}>
@@ -633,6 +667,7 @@ function AgingView({ report, anyIssued }: { report: ARAgingReport; anyIssued: bo
                   {r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}
                 </Text>
               </View>
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </View>
             <View style={styles.kvGrid}>
               <KV k="Issued"       v={new Date(r.issueDate).toLocaleDateString()} />
@@ -641,7 +676,7 @@ function AgingView({ report, anyIssued }: { report: ARAgingReport; anyIssued: bo
               <KV k="Paid"         v={formatMoney(r.amountPaid)} />
               <KV k="Outstanding"  v={formatMoney(r.outstanding)} bold tone="bad" />
             </View>
-          </View>
+          </TouchableOpacity>
         );
       })}
     </>
@@ -838,6 +873,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: t.line, marginBottom: 10,
   },
+  // Web only: the aging row is a link, so it should look like one under the
+  // mouse. (cursor is a react-native-web style key, not in RN's types.)
+  rowLinkWeb: { cursor: 'pointer' } as object,
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   rowTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
   marginPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: Tokens.radius.full },

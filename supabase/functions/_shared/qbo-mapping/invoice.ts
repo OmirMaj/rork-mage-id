@@ -61,7 +61,16 @@ interface MageInvoiceRow {
   retention_percent: number | string | null; retention_amount: number | string | null; retention_released: number | string | null;
   qbo_id: string | null; qbo_hash: string | null;
   qbo_error?: string | null;
+  qbo_sync_status?: string | null;
+  status?: string | null;
+  /** Compare-and-set tag for the no-drift 'synced' write (#103). */
+  updated_at?: string | null;
 }
+
+/** The tax note an accepted push leaves in qbo_error (below). A no-drift pass
+ *  keeps it — it is still true of the invoice QuickBooks holds — and clears
+ *  anything else, which can only be a failure from a later attempt. */
+const TAX_NOTE_PREFIX = 'QuickBooks charged $';
 
 // --- BEGIN keepClosedFlag (twin of _shared/paymentLedger.ts) ---
 // qbo_error also carries qbo-reconciler's "closed in QuickBooks without a
@@ -81,6 +90,39 @@ function keepClosedFlag(existing: unknown, next: string | null): string | null {
   return next ? `${flag}${QBO_ERROR_SEP}${next}` : flag;
 }
 // --- END keepClosedFlag ---
+
+// --- BEGIN qboDay (twin in ./payment.ts) ---
+// The QuickBooks date for a MAGE date (audit #98). issue_date / due_date are
+// stored as INSTANTS, and payments too (stripe-webhook and the app write
+// `new Date().toISOString()`); this used to send `.slice(0, 10)` — the UTC
+// day, a day late for an evening invoice, which also shifts QuickBooks' aging
+// and its own overdue reminders. A Pay-link payment at 9:30 pm EDT
+// on Sep 30 is 2026-10-01T01:30Z, so it was booked in OCTOBER (and a Dec 31
+// evening payment in the next tax year on a cash basis); for a West Coast GC
+// the cutoff is 5 pm. The day is the company's own: the instant formatted in
+// the time zone the GC's device registered (qbo_connections.timezone, set by
+// qbo-setup through qbo-sync). A value that is already a bare day passes
+// through untouched — re-reading it as an instant would move it back a day in
+// every US zone. With no zone registered it falls back to the UTC slice, the
+// old behaviour, rather than guessing one.
+// Inlined, not imported: validate-money-definitions runs this file in a
+// sandbox holding only its siblings. validate-qbo-payment-ledger executes both
+// copies on the same cases.
+function qboDay(value: unknown, timeZone: unknown): string {
+  const raw = typeof value === 'string' ? value : '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const ms = Date.parse(raw);
+  if (typeof timeZone === 'string' && timeZone !== '' && Number.isFinite(ms)) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
+      const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+      const day = `${get('year')}-${get('month')}-${get('day')}`;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
+    } catch { /* unknown zone: the UTC day below */ }
+  }
+  return raw.slice(0, 10);
+}
+// --- END qboDay ---
 
 /** PostgREST NUMERIC → number, with a non-numeric degrading to 0 rather than
  *  propagating NaN into a ledger. Same helper `paymentMath.num` is. */
@@ -248,6 +290,35 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
   if (!row) throw new Error('invoice not found');
   const inv = row as MageInvoiceRow;
 
+  // A DRAFT IS NOT A RECEIVABLE (audit #12). addInvoice marks every new row
+  // 'pending' and fires this push, and reconciler step 1 retries any pending
+  // row — so tapping Save (draft) posted an open invoice into the GC's books,
+  // revenue for something never sent. Nothing is sent to QuickBooks for a
+  // draft, and the row is taken OUT of 'pending' (null = not synced, nothing
+  // to do) so the reconciler does not re-read it every 30 minutes forever and
+  // qbo-setup does not count it as Pending. The first non-draft save marks it
+  // pending again and pushes it. No QuickBooks call is made on this path.
+  if (inv.status === 'draft') {
+    if (inv.qbo_id) {
+      // Already in QuickBooks (sent, then put back to draft — e.g. its email
+      // failed). MAGE does not void a document in his books on its own; it
+      // says so loudly. Thrown: qbo-sync and the reconciler mark it 'error',
+      // it shows under Errors, and the reconciler's retry cap ends the retries.
+      throw new Error(
+        `Invoice #${inv.number} is a draft in MAGE but QuickBooks already has it as an open invoice. ` +
+        `Send it from MAGE, or void it in QuickBooks — MAGE will not update it there while it is a draft.`,
+      );
+    }
+    if (inv.qbo_sync_status != null || inv.qbo_error != null) {
+      const { error: skipErr } = await s.from('invoices').update({
+        qbo_sync_status: null,
+        qbo_error: keepClosedFlag(inv.qbo_error, null),
+      }).eq('id', invoiceId).eq('user_id', userId);
+      if (skipErr) throw new Error(`invoice update: ${skipErr.message}`);
+    }
+    return;
+  }
+
   // Resolve project's qbo_customer_id (push the project first if missing).
   const { data: projRow } = await s.from('projects').select('qbo_customer_id').eq('id', inv.project_id).eq('user_id', userId).maybeSingle();
   let customerId = (projRow as { qbo_customer_id?: string } | null)?.qbo_customer_id;
@@ -363,8 +434,8 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
   const body: Record<string, unknown> = {
     CustomerRef: { value: customerId },
     DocNumber: String(inv.number),
-    TxnDate: inv.issue_date.slice(0, 10),
-    DueDate: inv.due_date.slice(0, 10),
+    TxnDate: qboDay(inv.issue_date, (conn as { timezone?: unknown }).timezone),
+    DueDate: qboDay(inv.due_date, (conn as { timezone?: unknown }).timezone),
     PrivateNote: inv.notes ?? undefined,
     Line: lines,
   };
@@ -376,7 +447,40 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
   }
   // Compute hash BEFORE adding SyncToken (the token is a concurrency tag, not content).
   const hash = await qboHash(body);
-  if (inv.qbo_id && inv.qbo_hash === hash) return; // no drift
+  if (inv.qbo_id && inv.qbo_hash === hash) {
+    // NO DRIFT — and the row has to SAY so (audit #103). Every updateInvoice
+    // writes 'pending' (a recorded payment, a status flip, a pay link — none
+    // of which is in this body), and this used to return with the row still
+    // 'pending': counted under Pending on qbo-setup forever, re-run by the
+    // reconciler every 30 minutes. Same for 'error' after a transient failure
+    // (outage, token refresh): the retry matched the hash and returned, the
+    // old error text standing until the retry cap. A matching hash is only
+    // ever stored by a push whose totals QuickBooks confirmed (a rejected push
+    // writes null), so "synced" here is a fact, not a hope.
+    if (inv.qbo_sync_status !== 'synced') {
+      const rest = typeof inv.qbo_error === 'string' ? inv.qbo_error.split(QBO_ERROR_SEP) : [];
+      const own = rest.find((m, i) => (i > 0 || !m.startsWith(QBO_CLOSED_FLAG_PREFIX)) && m.startsWith(TAX_NOTE_PREFIX)) ?? null;
+      // CONDITIONAL on the row this pass read. The reconciler's sweep and the
+      // app's post-write trigger can run for the same invoice at once: a pass
+      // that read the row BEFORE an edit could land after a concurrent push of
+      // the newer body failed its post-condition (status 'error', hash null)
+      // and turn that into 'synced' with the error cleared — and 'synced' rows
+      // are never retried, so a wrong QuickBooks total stayed hidden. Same
+      // hash (no push since) and same updated_at (no edit since), or nothing.
+      let syncedUpd = s.from('invoices').update({
+        qbo_sync_status: 'synced',
+        qbo_synced_at: new Date().toISOString(),
+        qbo_retry_count: 0,
+        // The closed-in-QuickBooks flag stays (dunning pauses on it); a tax
+        // note from the accepted push stays; a stale failure message goes.
+        qbo_error: keepClosedFlag(inv.qbo_error, own),
+      }).eq('id', invoiceId).eq('user_id', userId).eq('qbo_hash', hash);
+      if (inv.updated_at) syncedUpd = syncedUpd.eq('updated_at', inv.updated_at);
+      const { error: syncedErr } = await syncedUpd;
+      if (syncedErr) throw new Error(`invoice update: ${syncedErr.message}`);
+    }
+    return;
+  }
 
   if (inv.qbo_id) {
     // QBO requires the CURRENT SyncToken for sparse updates. Fetch it via GET first.
@@ -451,7 +555,7 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
   // A warning, not a failure. The row is synced; this sentence is why the two
   // ledgers will not tie to the cent.
   const taxNote = preTaxMatch
-    ? (`QuickBooks charged $${(postedTax ?? 0).toFixed(2)} of sales tax on invoice #${inv.number} where MAGE computed `
+    ? (`${TAX_NOTE_PREFIX}${(postedTax ?? 0).toFixed(2)} of sales tax on invoice #${inv.number} where MAGE computed `
       + `$${taxAmount.toFixed(2)} — its own tax codes recomputed it. The work total matches (${workDetail}), `
       + `so the invoice is correct and synced; the tax difference is $${roundCents((postedTax ?? 0) - taxAmount).toFixed(2)}.`
     ).slice(0, 500)

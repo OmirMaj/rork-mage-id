@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -70,7 +69,6 @@ import {
   type AcceptanceState,
 } from '@/utils/paymentTerms';
 
-const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
 // The GC's last link-duration pick, remembered across PROJECTS. A GC who
 // always gives clients 90 days should not re-pick it on every new job, and the
 // per-project value alone can't carry that. Device-scoped preference, so it is
@@ -591,8 +589,6 @@ function ClientPortalSetupScreenInner() {
     expired:       { badge: themeColors.dangerSoft,  ink: themeColors.dangerLabel,   short: 'Expired' },
   };
   const tone = linkTone[linkExpiry.kind];
-
-  const deepLink = `${DEEP_LINK_SCHEME}?portalId=${portal.portalId}`;
 
   // Baked Home Passport (FAQ + counts) — generated from the closeout-binder
   // screen, persisted in AsyncStorage, baked into snapshot v9 here.
@@ -1764,12 +1760,26 @@ function ClientPortalSetupScreenInner() {
                 });
                 if (error) throw error;
                 const sent = (data as { sent?: number } | null)?.sent ?? 0;
-                showAlert(
-                  sent > 0 ? 'Preview sent' : 'No invites yet',
-                  sent > 0
-                    ? `Sent the recap to ${sent} portal invite${sent === 1 ? '' : 's'}. Check your inbox or your client's.`
-                    : 'Add a portal invite (with their email) before previewing the weekly recap.',
-                );
+                const errs = (data as { errors?: string[] } | null)?.errors ?? [];
+                // A preview that sent nothing says WHY: the function now skips
+                // a closed job and an ended portal link, and a per-invite send
+                // failure is not "no invites" either.
+                if (sent > 0) {
+                  showAlert('Preview sent', `Sent the recap to ${sent} portal invite${sent === 1 ? '' : 's'}. Check your inbox or your client's.`);
+                } else if (errs.includes('project_closed')) {
+                  // The closing email only goes out through the weekly recap's
+                  // Friday run, which skips portals with the recap off — so
+                  // promise it only when the recap is on.
+                  showAlert('Job is closed', portal.weeklyDigest?.enabled
+                    ? 'The Friday update stops at handover. Your client got (or will get on Friday) one last email saying the job is complete and when the portal link closes.'
+                    : 'The Friday update stops at handover. The weekly recap is off for this portal, so no closing email goes out — tell your client yourself when the portal link closes.');
+                } else if (errs.includes('portal_link_ended')) {
+                  showAlert('Portal link has ended', 'Send your client a new portal link before previewing the weekly update.');
+                } else if (errs.length === 0 || errs.includes('no_invites')) {
+                  showAlert('No invites yet', 'Add a portal invite (with their email) before previewing the weekly recap.');
+                } else {
+                  showAlert('Preview not sent', `The email service refused it: ${errs[0].replace(/^[^:]*:\s*/, '')}`);
+                }
               } catch (err) {
                 showAlert('Preview failed', (err as Error).message ?? 'Could not send preview.');
               }

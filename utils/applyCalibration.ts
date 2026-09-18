@@ -48,6 +48,14 @@ export interface CalibratedEstimate extends LinkedEstimate {
    */
   calibrationApplied?: Record<string, number>;
   /**
+   * PER LINE (materialId → factor already accounted for on that line). Written
+   * instead of `calibrationApplied` since audit round 2 #2: a category
+   * correction now skips lines that already sit at his book rate, so "Tile is
+   * done" is no longer true of every Tile line — only of the ones it changed.
+   * A line's residual base is this, else the legacy category record, else 1.
+   */
+  calibrationAppliedByLine?: Record<string, number>;
+  /**
    * Fingerprint of the last correction set applied. Retained for display and
    * for reading estimates written by the previous version of this module (see
    * `legacyApplied` below); the idempotence decision no longer depends on it.
@@ -69,6 +77,40 @@ export interface CalibrationApplyResult {
    *  so changedCount is 0 for that reason rather than "nothing matched". The
    *  CTA must stay hidden either way; the copy can differ. */
   alreadyApplied: boolean;
+  /** Lines in a corrected category that were LEFT ALONE because they already
+   *  sit at (or past) the rate his own jobs measured — the correction's bias
+   *  is already in their price. The CTA names them. */
+  skippedAtBookRate: Array<{ name: string; category: string }>;
+  /** Lines moved only part-way — to his measured rate — because the full
+   *  category multiplier would have overshot it. */
+  cappedToBookRate: number;
+}
+
+/**
+ * The per-line evidence the Estimate Confidence screen already computed
+ * (utils/estimateConfidence EstimateLineCheck satisfies this structurally).
+ */
+export interface CalibrationLineEvidence {
+  materialId: string;
+  trade: string;
+  unit: string;
+  learnedRate: number | null;
+  jobCount: number;
+}
+
+/** Same band utils/estimateConfidence calls 'aligned' (DEVIATION_THRESHOLD);
+ *  scripts/validate-calibration-double-count.ts pins the two equal. */
+export const ALIGNED_BAND = 0.1;
+
+/** The key estimateConfidence derives a line's lookup from, so an item and its
+ *  EstimateLineCheck meet on the same (materialId, trade, unit). */
+function evidenceKey(materialId: string, trade: string, unit: string): string {
+  return `${materialId}|${norm(trade)}|${norm(unit)}`;
+}
+function itemEvidenceKey(it: LinkedEstimateItem): string {
+  const trade = (it.category || it.csiDivision || 'Other').trim() || 'Other';
+  const unit = (it.unit || 'unit').trim() || 'unit';
+  return evidenceKey(it.materialId, trade, unit);
 }
 
 const norm = (s: string) => (s || '').trim().toLowerCase();
@@ -100,7 +142,25 @@ const RESIDUAL_EPS = 1e-9;
 export function applyCalibrationToEstimate(
   estimate: LinkedEstimate,
   corrections: AppliedCalibration[],
-  opts?: { now?: string },
+  opts?: {
+    now?: string;
+    /**
+     * WHY THIS EXISTS (audit round 2, #2 — the bias counted twice). The
+     * category multiplier is measured as actual ÷ OLD BID on his closed jobs.
+     * The cost book (utils/costDatabase suggestedRate) ALREADY moves his rate
+     * toward those actuals. A Tile line priced at the book's $11 — bids $10,
+     * actuals $12, three jobs — took the ×1.20 anyway, landed on $13.20, and
+     * the same screen then flagged it 'Padded +20%' and dropped it out of
+     * backedCost. With evidence for a line, the multiplier may move it only
+     * TOWARD his measured rate and never past it:
+     *   • at/above the rate (aligned or overpriced, for a ×>1) → untouched;
+     *   • below it → min(multiplier, rate ÷ price);
+     *   • no book entry, or one with no closed job behind it → the full
+     *     multiplier (the category factor is the only evidence there is).
+     * Mirror image for a ×<1 correction.
+     */
+    lineChecks?: ReadonlyArray<CalibrationLineEvidence>;
+  },
 ): CalibrationApplyResult {
   const signature = calibrationSignature(corrections);
   const prior = estimate as CalibratedEstimate;
@@ -111,7 +171,14 @@ export function applyCalibrationToEstimate(
   // after this ships would re-multiply every category it had already
   // corrected, which is the very bug being fixed.
   const applied: Record<string, number> = { ...(prior.calibrationApplied ?? {}) };
-  if (!prior.calibrationApplied && prior.calibrationSignature) {
+  const appliedByLine: Record<string, number> = { ...(prior.calibrationAppliedByLine ?? {}) };
+  const evidence = new Map<string, CalibrationLineEvidence>();
+  for (const c of opts?.lineChecks ?? []) evidence.set(evidenceKey(c.materialId, c.trade, c.unit), c);
+  // (An estimate written by THIS version carries calibrationAppliedByLine and
+  // still writes the signature for display — that signature must not be
+  // decoded back into a category-wide "done", or a line skipped at his book
+  // rate could never be corrected later.)
+  if (!prior.calibrationApplied && !prior.calibrationAppliedByLine && prior.calibrationSignature) {
     for (const part of prior.calibrationSignature.split('|')) {
       const idx = part.lastIndexOf(':');
       if (idx <= 0) continue;
@@ -124,26 +191,55 @@ export function applyCalibrationToEstimate(
   // already was. A repeat of the same factor residuals to 1 and changes
   // nothing; a refinement from ×1.2 to ×1.25 applies ×1.0417, landing on the
   // intended 1.25× of the ORIGINAL price rather than 1.5×.
-  const residualByCategory = new Map<string, number>();
+  // Residuals are per LINE: base = what that line already absorbed (its own
+  // stamp, else the legacy category record, else nothing).
   const targetByCategory = new Map<string, number>();
   let anyCorrection = false;
   for (const c of corrections) {
     if (!c || !c.category || typeof c.multiplier !== 'number' || !(c.multiplier > 0)) continue;
     anyCorrection = true;
-    const key = norm(c.category);
-    targetByCategory.set(key, c.multiplier);
-    const residual = c.multiplier / (applied[key] ?? 1);
-    if (Math.abs(residual - 1) > RESIDUAL_EPS) residualByCategory.set(key, residual);
+    targetByCategory.set(norm(c.category), c.multiplier);
   }
 
   let changedCount = 0;
+  let matchedCount = 0;
+  let pendingCount = 0;
+  let cappedToBookRate = 0;
   const changedCategories = new Set<string>();
+  const skippedAtBookRate: Array<{ name: string; category: string }> = [];
+  const stamped: Record<string, number> = {};
 
   const items: LinkedEstimateItem[] = estimate.items.map(item => {
-    const m = residualByCategory.get(norm(item.category));
-    if (m === undefined) return item;
+    const cat = norm(item.category);
+    const target = targetByCategory.get(cat);
+    if (target === undefined) return item;
+    matchedCount += 1;
+    const base = appliedByLine[item.materialId] ?? applied[cat] ?? 1;
+    const residual = target / base;
+    if (Math.abs(residual - 1) <= RESIDUAL_EPS) return item;
+    pendingCount += 1;
+
+    let m = residual;
+    const price = item.usesBulk ? item.bulkPrice : item.unitPrice;
+    const ev = evidence.get(itemEvidenceKey(item));
+    if (ev && ev.jobCount >= 1 && ev.learnedRate != null && ev.learnedRate > 0 && price > 0) {
+      const toRate = ev.learnedRate / price;
+      const deviation = (price - ev.learnedRate) / ev.learnedRate;
+      const alreadyThere = Math.abs(deviation) <= ALIGNED_BAND
+        || (residual > 1 ? toRate <= 1 : toRate >= 1);
+      if (alreadyThere) {
+        skippedAtBookRate.push({ name: item.name, category: item.category });
+        return item;
+      }
+      const capped = residual > 1 ? Math.min(residual, toRate) : Math.max(residual, toRate);
+      if (Math.abs(capped - residual) > RESIDUAL_EPS) cappedToBookRate += 1;
+      m = capped;
+    }
     changedCount += 1;
     changedCategories.add(item.category);
+    // Stamp the TARGET, not m: the correction is now accounted for on this
+    // line (fully, or up to his measured rate), so a revisit is a no-op.
+    stamped[item.materialId] = target;
     return {
       ...item,
       unitPrice: item.unitPrice * m,
@@ -162,7 +258,9 @@ export function applyCalibrationToEstimate(
       // "Already applied" and "nothing in this estimate matched" are different
       // sentences. It is the first only when there was something to apply and
       // every part of it is already in the price.
-      alreadyApplied: anyCorrection && residualByCategory.size === 0,
+      alreadyApplied: anyCorrection && matchedCount > 0 && pendingCount === 0,
+      skippedAtBookRate,
+      cappedToBookRate: 0,
     };
   }
 
@@ -187,12 +285,11 @@ export function applyCalibrationToEstimate(
       // factors is refined. Only categories that actually reached a line are
       // recorded: a correction for a category this estimate does not contain
       // must still apply if such a line is added later.
-      calibrationApplied: {
-        ...applied,
-        ...Object.fromEntries(
-          Array.from(changedCategories, c => [norm(c), targetByCategory.get(norm(c)) ?? 1]),
-        ),
-      },
+      // Only lines it actually changed are recorded (per line, audit round 2
+      // #2): a line skipped because it already sat at his book rate must
+      // still take the correction if he later prices it below that rate.
+      ...(prior.calibrationApplied || prior.calibrationSignature ? { calibrationApplied: applied } : {}),
+      calibrationAppliedByLine: { ...appliedByLine, ...stamped },
       calibrationSignature: signature,
       calibrationAppliedAt: opts?.now ?? new Date().toISOString(),
     },
@@ -201,5 +298,7 @@ export function applyCalibrationToEstimate(
     oldGrandTotal: estimate.grandTotal,
     newGrandTotal: grandTotal,
     alreadyApplied: false,
+    skippedAtBookRate,
+    cappedToBookRate,
   };
 }

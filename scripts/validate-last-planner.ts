@@ -31,7 +31,7 @@ import {
   taskWindow, buildLookahead, computePpc,
   commitmentRowId, commitmentToRow, constraintToRow, dispatchToRow,
   diffBucketWrites, mergeCloudIntoStore, pendingRowKey, LAST_PLANNER_TABLES,
-  hydrateLastPlannerStore, sendBackfillUntilUnsynced, LastPlannerSentLog, pendingFromQueue,
+  hydrateLastPlannerStore, sendBackfillUntilUnsynced, BACKFILL_MAX_CONSECUTIVE_FAILED, LastPlannerSentLog, pendingFromQueue,
   createLastPlannerLoader, writeStoreToCache, touchedWrites,
   LAST_PLANNER_MUTATION_KEY, lastPlannerQueryKey,
   type LastPlannerBucket, type LastPlannerStore, type LastPlannerSnapshot, type LastPlannerLoaderIo, type WeeklyCommitment, type Constraint,
@@ -332,14 +332,26 @@ console.log('\nlast planner hydrate (shared loader; the mirror\'s guarantees hol
     eq('a duplicated natural key collapses to one row', dup.store[P]?.commitments.length, 1);
     eq('...and is backfilled once', dup.backfill.length, 1);
 
-    // 9m. the backfill stops at the first write that does not land.
+    // 9m. the backfill stops when the server stops answering ('queued')...
     const writes: LastPlannerRowWrite[] = ['a', 'b', 'c', 'd'].map(t => ({
       table: LAST_PLANNER_TABLES.commitments, id: commitmentRowId(P, t, W), row: commitmentToRow(P, U, commit({ taskId: t })),
     }));
     const sent: string[] = [];
     const outcomes: LastPlannerWriteOutcome[] = ['synced', 'queued', 'synced', 'synced'];
     await sendBackfillUntilUnsynced(writes, async w => { sent.push(w.id); return outcomes[sent.length - 1]!; });
-    eq('the backfill stops after the first write that did not land (2 of 4 attempted)', sent.length, 2);
+    eq('the backfill stops after a write that was only queued (2 of 4 attempted)', sent.length, 2);
+    // 9m'. ...but a row the server REFUSED (#24: a collaborator's commitment
+    //      rejected by RLS) is skipped, and the rows behind it still go up.
+    {
+      const sent2: string[] = []; const refused: string[] = [];
+      const oc: LastPlannerWriteOutcome[] = ['failed', 'synced', 'synced', 'synced'];
+      await sendBackfillUntilUnsynced(writes, async w => { sent2.push(w.id); return oc[sent2.length - 1]!; }, () => true, w => refused.push(w.id));
+      eq('a refused first row does not block the other three', sent2.length, 4);
+      eq('...and it is named to the caller', refused.join(','), writes[0]!.id);
+      const sent3: string[] = [];
+      await sendBackfillUntilUnsynced(writes, async w => { sent3.push(w.id); return 'failed'; });
+      eq('a server refusing everything stops the run after BACKFILL_MAX_CONSECUTIVE_FAILED', sent3.length, BACKFILL_MAX_CONSECUTIVE_FAILED);
+    }
 
     // 9n. the sent log: a row stays protected until a hydrate that started
     //     AFTER it settled has run; a tenant switch forgets it.
@@ -392,6 +404,7 @@ console.log('\nlast planner loader on the real query cache (overlapping readers,
     const state = {
       session: A as string | null, sessionThrows: false, upserts: [] as string[], persists: 0,
       onUpsert: (_n: number) => {}, onPersist: () => {},
+      outcome: (_id: string): LastPlannerWriteOutcome => 'synced',
     };
     const io: LastPlannerLoaderIo = {
       queryKey: qkey,
@@ -409,7 +422,7 @@ console.log('\nlast planner loader on the real query cache (overlapping readers,
       },
       readQueue: async () => ({ entries: [], readFailed: false }),
       sessionUserId: async () => { if (state.sessionThrows) throw new Error('no session read'); return state.session; },
-      upsert: async w => { state.upserts.push(w.id); state.onUpsert(state.upserts.length); return 'synced'; },
+      upsert: async w => { state.upserts.push(w.id); state.onUpsert(state.upserts.length); return state.outcome(w.id); },
       now: Date.now,
     };
     const loader = createLastPlannerLoader(io);
@@ -567,6 +580,24 @@ console.log('\nlast planner loader on the real query cache (overlapping readers,
         commitmentsIn(JSON.parse(h.disk.value ?? '{}') as LastPlannerStore) === 1 && h.disk.value!.includes('roof'));
       eq('...and backfills the local-only row', h.state.upserts.length, 1);
     }
+    // #24: a row the server refused is not offered again on the next hydrate
+    //      (each re-send raised a "Couldn't save" toast on every load), and a
+    //      refused row ahead of the others does not keep them off the server.
+    {
+      const roofs = ['r1', 'r2', 'r3'].map(t => commit({ taskId: t }));
+      const h = harness({ local: { p2: { constraints: [], commitments: roofs, dispatches: [] } } });
+      const refusedId = commitmentRowId('p2', 'r1', W);
+      h.state.outcome = id => (id === refusedId ? 'failed' : 'synced');
+      h.net.open();
+      await h.qc.fetchQuery(h.options(A)); await h.loader.whenIdle();
+      eq('the rows behind a refused row still upload', h.state.upserts.length, 3);
+      // A later hydrate (past the sent log's same-millisecond protection).
+      await new Promise(r => setTimeout(r, 5));
+      const before = h.state.upserts.length;
+      await h.qc.fetchQuery({ ...h.options(A), staleTime: 0 }); await h.loader.whenIdle();
+      check('the next hydrate does backfill again (control: r2/r3 are not on this fake server)', h.state.upserts.length > before);
+      eq('the refused row is not re-sent on the next hydrate', h.state.upserts.filter(id => id === refusedId).length, 1);
+    }
     // The backfill asks before every row.
     {
       const writes: LastPlannerRowWrite[] = ['a', 'b', 'c'].map(t => ({
@@ -589,6 +620,13 @@ console.log('\nlast planner loader on the real query cache (overlapping readers,
   const screen = read('app', 'last-planner.tsx');
   const weekClose = read('hooks', 'useWeekClose.ts');
   const ask = read('app', 'ask.tsx');
+  // #24: two people committing the same task/week must never share a row —
+  //      the owner-only UPDATE policy refused the second one, every load.
+  const perUser = read('supabase', 'migrations', '20260918160000_last_planner_rows_per_user.sql');
+  check('commitments and dispatches are keyed per person (PRIMARY KEY (user_id, id), natural keys led by user_id)',
+    /ADD CONSTRAINT %I PRIMARY KEY \(user_id, id\)/.test(perUser)
+    && /'user_id, project_id, task_id, week_start'/.test(perUser)
+    && /'user_id, project_id, crew_key, week_start'/.test(perUser));
   check('the hook exports the storage key and query key',
     /export const LAST_PLANNER_STORAGE_KEY\b/.test(hook)
     && /export \{[^}]*\bLAST_PLANNER_QUERY_KEY\b[^}]*\}/.test(hook));

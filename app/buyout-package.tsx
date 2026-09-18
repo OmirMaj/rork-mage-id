@@ -68,6 +68,7 @@ import { complianceLabel, getComplianceStatus, reviewAwardCompliance } from '@/u
 import { subCoiExpiryAcross } from '@/utils/projectContextPure';
 import { matchSubForPhase } from '@/utils/subTradeMatch';
 import { normalizeTradeKey } from '@/utils/laborSamples';
+import { leveledBidTotal, leveledBuyoutSavings, packageBuyoutSavings, uncoveredScopeOf } from '@/utils/projectFinancials';
 
 // Invite timestamps are instants (timestamptz), shown here as the day they
 // fall on in the reader's own zone — which is what a GC means by "sent Tuesday".
@@ -99,7 +100,7 @@ export default function BuyoutPackageScreen() {
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
     awardBidPackage, getProject, prequalPackets, getSubcontractor, subcontractors,
-    updateCommitment, getCommitmentsForProject, getCOIsForSub,
+    getCOIsForSub,
     settings,
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
@@ -112,6 +113,12 @@ export default function BuyoutPackageScreen() {
   const pkg = useMemo(() => packageId ? getBidPackage(packageId) : null, [packageId, getBidPackage]);
   const bids = useMemo(() => packageId ? getBidsForPackage(packageId) : [], [packageId, getBidsForPackage]);
   const project = useMemo(() => pkg ? getProject(pkg.projectId) : null, [pkg, getProject]);
+  // Leveled savings off the awarded bid — the same figure the Award dialog
+  // showed — and the excluded scope he still has to place (audit round 2, #5).
+  const heroSavings = pkg ? packageBuyoutSavings(pkg, bids, commitments) : null;
+  const heroUncovered = pkg?.status === 'awarded'
+    ? uncoveredScopeOf(bids.find(b => b.id === pkg.awardedBidId))
+    : 0;
 
   // Identify allowance items that the package will lock to firm price
   // when awarded. This drives the "contains allowances" banner so the
@@ -595,8 +602,12 @@ export default function BuyoutPackageScreen() {
   // pinned by scripts/validate-sub-network.ts.
   const handleAward = useCallback((bid: BidPackageBid) => {
     if (!pkg) return;
-    const total = bid.amount + (bid.normalizedAdjustment ?? 0);
-    const savings = pkg.estimateBudget - total;
+    // One savings figure everywhere: the leveled one (the awarded sub does not
+    // cover excluded scope, so it is not saved money). The package hero and
+    // buyout.tsx read the same helper off the awarded bid (audit round 2, #5).
+    const total = leveledBidTotal(bid);
+    const savings = leveledBuyoutSavings(pkg.estimateBudget, bid);
+    const uncovered = uncoveredScopeOf(bid);
 
     const sub = bid.subcontractorId ? getSubcontractor(bid.subcontractorId) : null;
     const packet = sub
@@ -639,6 +650,13 @@ export default function BuyoutPackageScreen() {
     lines.push(`Vendor: ${sub?.companyName ?? bid.vendorName ?? 'Subcontractor'}`);
     lines.push(`Leveled total: ${formatMoney(total)}`);
     lines.push(`Buyout ${savings >= 0 ? 'savings' : 'overrun'}: ${formatMoney(Math.abs(savings))}`);
+    if (uncovered > 0) {
+      // Say what the leveling took out of the savings and that it is still
+      // his to buy — the commitment is the sub's bid, not the leveled total.
+      // No commitment is booked for that scope (it is not bought yet); the
+      // package hero and Job Costing carry it as uncommitted, estimated scope.
+      lines.push(`Commitment: ${formatMoney(bid.amount)} (the sub's bid). ${formatMoney(uncovered)} (est.) for ${bid.excludes || 'the scope this bid excludes'} is not in it — still yours to buy, not counted as savings.`);
+    }
     if (allowanceItems.length > 0) {
       lines.push('');
       lines.push(`- ${allowanceItems.length} allowance item${allowanceItems.length === 1 ? '' : 's'} will lock to firm price.`);
@@ -651,23 +669,15 @@ export default function BuyoutPackageScreen() {
     lines.push('Awarding will create a Commitment and mark this package complete.');
 
     const doAward = () => {
-      const commitmentId = awardBidPackage(pkg.id, bid.id);
-      if (commitmentId) {
-        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        // D4-1: record override audit line on the commitment when risks were acknowledged
-        if (isRisky) {
-          try {
-            const overrideLine = `[risk-override ${new Date().toISOString().slice(0, 10)}] Awarded despite: ${blockers.join('; ')}. Acknowledged by GC.`;
-            const existing = getCommitmentsForProject(pkg.projectId).find(c => c.id === commitmentId);
-            const existingNotes = existing?.notes ?? '';
-            updateCommitment(commitmentId, {
-              notes: (existingNotes ? existingNotes + '\n' : '') + overrideLine,
-            });
-          } catch (e) {
-            console.warn('[award-override] Failed to record override note on commitment:', e);
-          }
-        }
-      }
+      // D4-1: the override audit line rides INTO the award. It used to be a
+      // follow-up updateCommitment, which maps this render's commitments list
+      // — one that does not hold the commitment just created — so it dropped
+      // the new commitment from the device until the next reload.
+      const overrideNote = isRisky
+        ? `[risk-override ${new Date().toISOString().slice(0, 10)}] Awarded despite: ${blockers.join('; ')}. Acknowledged by GC.`
+        : undefined;
+      const commitmentId = awardBidPackage(pkg.id, bid.id, { overrideNote });
+      if (commitmentId && Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
 
     if (!isRisky) {
@@ -721,7 +731,7 @@ export default function BuyoutPackageScreen() {
         ],
       );
     }
-  }, [pkg, awardBidPackage, getSubcontractor, getCOIsForSub, prequalPackets, allowanceItems, updateCommitment, getCommitmentsForProject, router]);
+  }, [pkg, awardBidPackage, getSubcontractor, getCOIsForSub, prequalPackets, allowanceItems, router]);
 
   // Generate A401-styled subcontract PDF for the awarded sub. Pulls
   // scope, contract sum, and CSI division from the bid package; pulls
@@ -881,12 +891,15 @@ export default function BuyoutPackageScreen() {
                 <Text style={styles.heroBudgetLabel}>Estimate budget</Text>
                 <Text style={styles.heroBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
               </View>
-              {pkg.status === 'awarded' && pkg.buyoutSavings != null ? (
+              {heroSavings != null ? (
                 <View style={styles.heroBudgetCell}>
-                  <Text style={styles.heroBudgetLabel}>Buyout {pkg.buyoutSavings >= 0 ? 'savings' : 'overrun'}</Text>
-                  <Text style={[styles.heroBudgetValue, { color: pkg.buyoutSavings >= 0 ? themeColors.success : themeColors.danger }]}>
-                    {pkg.buyoutSavings >= 0 ? '+' : ''}{formatMoney(pkg.buyoutSavings)}
+                  <Text style={styles.heroBudgetLabel}>Buyout {heroSavings >= 0 ? 'savings' : 'overrun'}</Text>
+                  <Text style={[styles.heroBudgetValue, { color: heroSavings >= 0 ? themeColors.success : themeColors.danger }]}>
+                    {heroSavings >= 0 ? '+' : ''}{formatMoney(heroSavings)}
                   </Text>
+                  {heroUncovered > 0 ? (
+                    <Text style={styles.heroBudgetLabel}>{formatMoney(heroUncovered)} excluded scope (est. at award)</Text>
+                  ) : null}
                 </View>
               ) : (
                 <View style={styles.heroBudgetCell}>

@@ -346,10 +346,19 @@ export default function CloseoutBinderScreen() {
             // never became closed, so its portal link stayed open forever —
             // on exactly the jobs that were finished.
             const wasFirstDeliver = !sentAt;
+            // Say what closing does to the Friday homeowner update too: the
+            // digest stops at handover (homeowner-weekly-digest/clientVisible
+            // planHomeownerDigest) after one "project complete" email that
+            // gives the date the link closes. It used to keep sending "A quiet
+            // week on this project" forever (audit 2026-09-18 #23).
+            const digestOn = !!project.clientPortal?.weeklyDigest?.enabled;
             if (wasFirstDeliver && project.status !== 'closed') {
               showAlert(
                 'Mark project as closed?',
-                'Now that the binder is delivered, do you want to mark the whole project as closed? You can still come back to it for warranty work, punch follow-ups, or invoice tracking. The client portal link stays open for 30 more days, then closes.',
+                'Now that the binder is delivered, do you want to mark the whole project as closed? You can still come back to it for warranty work, punch follow-ups, or invoice tracking. The client portal link stays open for 30 more days, then closes.'
+                  + (digestOn
+                    ? ' The Friday update to your client stops: they get one last email saying the job is complete and the date the link closes.'
+                    : ''),
                 [
                   { text: 'Keep open', style: 'cancel' },
                   {

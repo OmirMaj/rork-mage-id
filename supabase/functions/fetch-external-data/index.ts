@@ -411,6 +411,10 @@ Deno.serve(async (req) => {
                     trade_specialty: tradeSpecialty,
                     address: place.formatted_address || null,
                     city, state,
+                    // Text Search returns neither; a Place Details call per row
+                    // would. The Companies screen therefore offers "Google Maps"
+                    // (by place_id) instead of Call/Website, and labels every row
+                    // a public Google listing, not a MAGE ID member (audit r2 #11).
                     phone: null, website: null,
                     rating: place.rating || null,
                     total_reviews: place.user_ratings_total || null,

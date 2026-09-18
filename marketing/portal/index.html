@@ -3328,8 +3328,11 @@
     while (added < days) {
       d.setDate(d.getDate() + 1);
       var day = d.getDay();
+      // utils/cpm.isWorkingDayOfWeek: 6 = no Sundays, anything under 6 =
+      // Mon-Fri. (This read `dpw === 5 ? … : Sunday-only`, so a 4-day week
+      // worked Saturdays here and nowhere else.)
       var isSkip = (dpw && dpw < 7)
-        ? (dpw === 5 ? (day === 0 || day === 6) : (day === 0))
+        ? (dpw === 6 ? (day === 0) : (day === 0 || day === 6))
         : false;
       if (isSkip) continue;
       if (isBlocked(d)) continue;
@@ -5429,6 +5432,29 @@
     } catch (e) { return null; }
   }
 
+  // Read receipt for the contractor's messages: once the live thread has been
+  // painted on this page, the client has seen them. notify batches a burst of
+  // replies ("already emailed, still unread → skip") on read_by_client, which
+  // nothing set before, so the batching was a blind 15-minute throttle.
+  // Token-gated like portal_get_messages; best-effort — a failure (or the RPC
+  // not deployed yet) changes nothing the client sees.
+  function markContractorMessagesRead(api) {
+    if (!api || !api.supabaseUrl || !api.supabaseAnonKey || !api.portalId) return;
+    var token = getPortalToken();
+    if (!token) return;
+    try {
+      fetch(api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/portal_mark_messages_read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': api.supabaseAnonKey,
+          'Authorization': 'Bearer ' + api.supabaseAnonKey,
+        },
+        body: JSON.stringify({ p_portal_id: api.portalId, p_access_token: token }),
+      }).catch(function () {});
+    } catch (e) { /* best-effort */ }
+  }
+
   async function postCOApproval(api, payload) {
     if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
     var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/portal_submit_co_approval';
@@ -7511,7 +7537,13 @@
         }
 
         function refreshLiveThread() {
-          fetchLiveMessages(data.portalApi).then(paintThread).catch(function () {});
+          fetchLiveMessages(data.portalApi).then(function (rows) {
+            paintThread(rows);
+            // Only after a real paint that holds a contractor message.
+            if (rows && rows.some(function (m) { return m.authorType === 'gc'; })) {
+              markContractorMessagesRead(data.portalApi);
+            }
+          }).catch(function () {});
         }
 
         // Initial live fetch ~250ms after render so we replace the

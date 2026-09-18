@@ -34,6 +34,20 @@ export function portalUrlFor(clientPortal: unknown): string | null {
   return `${PORTAL_BASE}/${encodeURIComponent(portalId)}?t=${encodeURIComponent(token)}`;
 }
 
+/**
+ * True when the portal's link has ENDED: portal_snapshots.expires_at (keyed by
+ * the minted portal id) is in the past. portalUrlFor cannot know this — the
+ * expiry lives on the snapshot row, not in client_portal — so every caller
+ * that puts the link in a system email reads expires_at and drops the CTA when
+ * this is true: a link that no longer opens is a dead end, the same as none.
+ * No expiry (null / unparseable) = still open.
+ */
+export function portalLinkEnded(expiresAt: string | null | undefined, nowMs: number = Date.now()): boolean {
+  if (!expiresAt) return false;
+  const ms = Date.parse(expiresAt);
+  return Number.isFinite(ms) && ms <= nowMs;
+}
+
 /** Sub-portal URL from a sub_portal_links row (`id`, `access_token`, `enabled`). */
 export function subPortalUrlFor(link: { id?: string | null; access_token?: string | null; enabled?: boolean | null } | null | undefined): string | null {
   if (!link || link.enabled === false) return null;

@@ -104,7 +104,9 @@ const NAV_ITEMS: NavItem[] = [
   // click path at all, and ⌘K could not find it either because the registry
   // indexed it as "Post-Bid Analysis". Audit 2026-09-07, navigation-ia #1.
   { key: 'post-bid',          label: 'Post a Bid',       icon: Megaphone,       route: '/post-bid',                         section: 'FIND WORK', feature: 'post-bid' },
-  { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK', feature: 'marketplace' },
+  // "(sample)": the screen is a mock catalog of invented suppliers — audit
+  // round 2, #11. Drop the suffix when real suppliers are onboarded.
+  { key: 'marketplace',       label: 'Suppliers (sample)', icon: Store,         route: '/(tabs)/marketplace',              section: 'FIND WORK', feature: 'marketplace' },
   // JUDGES bid scoring — screen self-titles "Bid Advisor" (app/judges.tsx).
   { key: 'judges',            label: 'Bid Advisor',      icon: Scale,           route: '/judges',                           section: 'FIND WORK', feature: 'judges' },
   { key: 'auto-bids',         label: 'Pre-priced Bids',  icon: Zap,             route: '/auto-bids',                        section: 'FIND WORK', feature: 'auto-bids' },

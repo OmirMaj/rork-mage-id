@@ -351,6 +351,118 @@ ok('…inside a wrapper the image and the overlay share (not over the caption)',
       && /const getPunchItemsForProject = useCallback\(\(projectId: string\) => punchItemsView\.filter\(/.test(ctxSrc));
 }
 
+// ── 6. The annotator must RENDER — every tool icon is a lucide component ─────
+// WHY: the markup → RFI / punch join above is worthless if the screen that
+// draws the markup never mounts. ad6efa08 renamed lucide's `Type` import to
+// `TypeIcon` (the typography scale in constants/typography is also `Type`) but
+// left `{ tool: 'text', icon: Type }`. The array was typed `icon: any`, so tsc
+// said nothing; at runtime `<TIcon/>` got the typography OBJECT, React threw
+// "Element type is invalid … got: object", and the root error boundary took
+// the whole app down the moment he tapped "Add markup". (Hotfix 2026-09-18 #5.)
+console.log('\n  the annotator renders: every tool icon is a lucide component');
+{
+  const src = annotator;
+  // Local names bound by `import { … } from 'lucide-react-native'` (value
+  // imports only), resolving `X as Y` to Y.
+  const lucideLocals = new Set<string>();
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*'lucide-react-native'/g)) {
+    for (const part of m[1].split(',')) {
+      const t = part.trim();
+      if (!t) continue;
+      const asM = t.match(/^(\w+)\s+as\s+(\w+)$/);
+      lucideLocals.add(asM ? asM[2] : t);
+    }
+  }
+  const typographyType = /import\s*\{[^}]*\bType\b[^}]*\}\s*from\s*'@\/constants\/typography'/.test(src);
+  const toolsDecl = src.match(/const tools:\s*\{([^}]*)\}\[\]\s*=\s*\[([\s\S]*?)\];/);
+  ok('the tool row is declared where this guard expects it', !!toolsDecl);
+  const iconRefs = toolsDecl ? [...toolsDecl[2].matchAll(/icon:\s*(\w+)/g)].map(m => m[1]) : [];
+  eq('there is one icon per tool (arrow, circle, freehand, text)', iconRefs.length, 4);
+  for (const name of iconRefs) {
+    ok(`tool icon \`${name}\` is a name imported from lucide-react-native`,
+      lucideLocals.has(name),
+      typographyType && name === 'Type'
+        ? '`Type` here is the typography scale from @/constants/typography — the lucide glyph is imported as TypeIcon'
+        : `lucide imports: ${[...lucideLocals].join(', ')}`);
+  }
+  ok('the icon field is typed (LucideIcon), not `any` — so tsc catches a same-name mix-up',
+    !!toolsDecl && /icon:\s*LucideIcon\b/.test(toolsDecl[1]));
+  ok('LucideIcon is imported as a type from lucide-react-native',
+    /import type \{[^}]*\bLucideIcon\b[^}]*\}\s*from\s*'lucide-react-native'/.test(src));
+}
+
+// Repo-wide: the same collision anywhere else. A file that imports the
+// typography `Type` must never hand it to JSX or an `icon:` slot.
+{
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const ent of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${ent.name}`;
+      if (ent.isDirectory()) { walk(rel); continue; }
+      if (!/\.tsx$/.test(ent.name)) continue;
+      const src = readFileSync(join(ROOT, rel), 'utf8');
+      if (!/import\s*\{[^}]*\bType\b[^}]*\}\s*from\s*'@\/constants\/typography'/.test(src)) continue;
+      if (/<Type[\s/>]/.test(src) || /\b[iI]con:\s*Type\b(?!\w)/.test(src)) offenders.push(rel);
+    }
+  };
+  for (const d of ['app', 'components']) if (existsSync(join(ROOT, d))) walk(d);
+  eq('no screen renders the typography `Type` object as a component', offenders, []);
+}
+
+// The Text tool is placed through the responder (touch AND mouse), never a
+// canvas onTouchEnd that a desktop-web mouse click cannot fire.
+ok('the Text tool is placed from onPanResponderGrant, not onTouchEnd',
+  !/onTouchEnd=/.test(annotator)
+  && /if \(tool === 'text'\) \{\s*if \(!pendingText\) \{ setPendingText\(p\); setTextValue\(''\); \}/.test(annotator)
+  && /onStartShouldSetPanResponder: \(\) => tool !== 'text' \|\| !pendingText/.test(annotator));
+
+// ── The annotator never opens before its photo loads ───────────────────────
+// Integration round 1: the markup crash fix made this screen reachable, and it
+// seeded its canvas ONCE from `photo?.markup` — before ProjectContext's photos
+// had landed on a web refresh / direct link — so Save wrote [] (or a stale
+// device copy) over the photo's real markup everywhere it travels.
+console.log('\n  the annotator waits for this account\'s photos');
+{
+  const gs = annotator.indexOf('// >>> photo-open-gate');
+  const ge = annotator.indexOf('// <<< photo-open-gate');
+  ok('app/photo-annotator.tsx carries the photo-open-gate block', gs > 0 && ge > gs);
+  if (gs > 0 && ge > gs) {
+    const gjs = new Bun.Transpiler({ loader: 'ts' }).transformSync(annotator.slice(gs, ge).replace(/^export /gm, ''));
+    const { photoOpenState } = new Function(`${gjs}\nreturn { photoOpenState };`)() as {
+      photoOpenState: (o: { found: boolean; photosLoaded: boolean }) => 'editor' | 'loading' | 'missing';
+    };
+    // Replay a cold web refresh: [] at mount → the signed-out cache pass (a
+    // stale copy, auth still resolving → photosLoaded false) → the account's
+    // photos land with the real markup. The editor — and so its one-time
+    // seed and its Save — exists only at the last step.
+    const seq = [
+      { found: false, photosLoaded: false },
+      { found: true, photosLoaded: false },
+      { found: true, photosLoaded: true },
+    ].map(photoOpenState);
+    eq('cold start: loading → loading (stale cache copy) → editor only once loaded', seq, ['loading', 'loading', 'editor']);
+    eq('loaded without the photo → missing, never a blank canvas', photoOpenState({ found: false, photosLoaded: true }), 'missing');
+    // Control: the old screen mounted the editor whenever the photo was
+    // present at all, so the stale cache step above would have seeded it.
+    const oldRule = (o: { found: boolean }) => (o.found ? 'editor' : 'missing');
+    ok('control — the old rule opened the editor on the stale cache copy', oldRule({ found: true }) === 'editor');
+  }
+  const code = annotator.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+  ok('the gate reads photosLoaded and mounts the editor keyed on the photo id',
+    /const \{ projectPhotos, photosLoaded, retryRemoteReads \} = useProjects\(\);/.test(code)
+    && /<PhotoAnnotatorInner key=\{photo\.id\} photo=\{photo\} \/>/.test(code));
+  ok('the editor seeds its markups from the loaded photo it was handed',
+    /function PhotoAnnotatorInner\(\{ photo \}: \{ photo: ProjectPhoto \}\)/.test(code)
+    && /useState<PhotoMarkup\[\]>\(photo\.markup \?\? \[\]\)/.test(code)
+    && !/projectPhotos\.find/.test(code.slice(code.indexOf('function PhotoAnnotatorInner'))));
+  ok('no bare router.back() — every exit is useSafeBack', !/router\.back\(\)/.test(code) && /useSafeBack\(\)/.test(code));
+  const PCX = read('contexts/ProjectContext.tsx');
+  ok('ProjectContext: photosLoaded is keyed by account and false while auth resolves',
+    /setPhotosLoadedFor\(userId \?\? ''\);/.test(PCX)
+    && /const photosLoaded = !authLoading && photosLoadedFor === \(userId \?\? ''\);/.test(PCX)
+    && /projectPhotos, photosLoaded, addProjectPhoto/.test(PCX));
+}
+
 // ── Report ──────────────────────────────────────────────────────────────────
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

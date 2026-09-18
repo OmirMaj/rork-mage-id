@@ -55,6 +55,7 @@ import { calendarDayStart, todayCalendarDay } from '@/utils/calendarDate';
 import { timeEntryDay } from '@/hooks/useTimeEntries';
 import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import { uncoveredScopeOf } from '@/utils/projectFinancials';
 import { sharePurchaseOrderPDF } from '@/utils/purchaseOrderPdf';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -103,6 +104,9 @@ function JobCostingInner() {
     // Deliveries give a purchase order its "required by" date — the only real
     // one the app holds. settings carries the branding the PO prints under.
     deliveries, settings,
+    // Awarded packages whose sub excludes scope — shown below as uncommitted,
+    // estimated scope (never as a commitment; see awardBidPackage).
+    getBidPackagesForProject, getBidsForPackage,
   } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
@@ -160,6 +164,23 @@ function JobCostingInner() {
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
     [commitments, projectId],
   );
+
+  // SCOPE THE AWARDED BIDS EXCLUDE (integration review, money). The AI-leveled
+  // cost of what an awarded sub leaves out is still his to buy, but it is not
+  // a commitment until he buys it — booking it as one made the homeowner's
+  // passport list it as a supplier and double-counted it once the real PO was
+  // in. It stays out of Committed; the projection already carries its budget
+  // in the uncommitted floor. Listed here so he knows it is still open.
+  const uncoveredScope = useMemo(() => {
+    if (!projectId) return [] as { id: string; name: string; excludes: string; amount: number }[];
+    return getBidPackagesForProject(projectId)
+      .filter(p => p.status === 'awarded' && p.awardedBidId)
+      .map(p => {
+        const bid = getBidsForPackage(p.id).find(b => b.id === p.awardedBidId);
+        return { id: p.id, name: p.name, excludes: bid?.excludes ?? '', amount: uncoveredScopeOf(bid) };
+      })
+      .filter(r => r.amount > 0);
+  }, [projectId, getBidPackagesForProject, getBidsForPackage]);
 
   // Everything the phase drill-down resolves ids against. Same arrays the
   // engine was handed, so a row can never name a record the summary did not
@@ -373,6 +394,27 @@ function JobCostingInner() {
             Method: paid + remaining committed + uncommitted budget floor
           </Text>
         </View>
+
+        {uncoveredScope.length > 0 && (
+          <View style={[styles.section, styles.warningSectionAmber]} testID="uncovered-scope-notice">
+            <View style={styles.warningHeader}>
+              <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
+              <Text style={styles.warningTitleAmber}>Scope the awarded bid excluded (est. at award, not in Committed)</Text>
+            </View>
+            {uncoveredScope.map(r => (
+              <Text key={r.id} style={styles.warningItem}>
+                {r.name}{r.excludes ? ` — ${r.excludes}` : ''}: {formatMoneyFull(r.amount)}
+              </Text>
+            ))}
+            {/* This list is read off the award, not off what he bought since:
+                a PO added here carries no link back to the bid, so nothing can
+                tell that the excluded scope has been bought. Say so rather
+                than calling it "still to buy" forever. */}
+            <Text style={styles.warningItem}>
+              The AI's estimate at award. It does not update when you buy that scope — once you add its PO here, this list is history only.
+            </Text>
+          </View>
+        )}
 
         {/* Sub-bid reality check — non-blocking, dismissible. 'fair'/'unknown' stay silent.
             'low' (scope-gap risk) = danger red; 'high' (bid looks expensive) = amber warning.
@@ -867,8 +909,9 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
       // app/material-receipt.tsx's counterparty), so the two agree by
       // construction and no rendered string changes. Two readers that could
       // not resolve a subcontract at all now can: app/lien-waivers.tsx
-      // prefilled a blank sub name, and app/handover.tsx's waiver-coverage
-      // check could only ever match a subcontract by companyId.
+      // prefilled a blank sub name. (app/handover.tsx's waiver coverage now
+      // matches a subcontract by waiver.commitmentId, then subcontractorId,
+      // then this name — utils/handoverWaivers.ts. Commitment has no companyId.)
       //
       // Re-saving an existing subcontract backfills it. A record saved before
       // this and never edited keeps the old behaviour, which is why the roster

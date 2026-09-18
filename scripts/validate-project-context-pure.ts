@@ -423,8 +423,14 @@ check('overpayment settles', shouldFlipInvoiceToPaid({ status: 'sent', totalDue:
 // must not carry a gross totalDue comparison of its own.
 const ctxSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'contexts', 'ProjectContext.tsx'), 'utf8')
   .split('\n').map(l => l.split('//')[0]).join('\n');
-check('ProjectContext flips status through shouldFlipInvoiceToPaid(next)', /if \(shouldFlipInvoiceToPaid\(next\)\)/.test(ctxSrc));
-check('ProjectContext no longer compares amountPaid against gross totalDue', !/amountPaid[^\n]*>=[^\n]*totalDue/.test(ctxSrc));
+// The merge moved to utils/invoiceWrites.mergeInvoiceUpdate (blocker #3: it
+// runs on the latest list); the context must call it, and it must flip there.
+const writesSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'utils', 'invoiceWrites.ts'), 'utf8')
+  .split('\n').map(l => l.split('//')[0]).join('\n');
+check('ProjectContext flips status through shouldFlipInvoiceToPaid (via mergeInvoiceUpdate)',
+  /mergeInvoiceUpdate\(invoicesRef\.current, id, updates, now\)/.test(ctxSrc)
+  && /if \(shouldFlipInvoiceToPaid\(merged\)\) merged\.status = 'paid';/.test(writesSrc));
+check('ProjectContext no longer compares amountPaid against gross totalDue', !/amountPaid[^\n]*>=[^\n]*totalDue/.test(ctxSrc + writesSrc));
 
 // ── MONEY-F1 · aia_pay_apps round trip ──────────────────────────────────────
 console.log('\naia_pay_apps round trip (MONEY-F1):');
@@ -544,9 +550,10 @@ check('B-3 loader: legacy money is read off the projects row through legacyMoney
 check('B-3 loader: the display-fallback role is the FRESH server role only (never the cache)', /const displayRole = rolesReadOk \? myRole : undefined;/.test(ctx));
 check('B-1 loader: the device copy is read ONCE — per-project stamps come from it and local-only rows merge from it',
   /const localById = new Map\(localForMerge\.map\(\(p\) => \[p\.id, p\] as const\)\);/.test(ctx)
-  // Integration round 1: the merge now passes through keepProjectsWrittenSince
-  // (a write made while the load was out keeps the device copy).
-  && /const merged = keepProjectsWrittenSince\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\],/.test(ctx));
+  // Integration round 1: the merge now passes through the load guard (a write
+  // made while the load was out keeps the device copy); the 2026-09-18 hotfix
+  // routes it through planProjectsLoad (pending + fold — validate-session-load-integrity).
+  && /const plan = planProjectsLoad\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\],/.test(ctx));
 check('Project type carries myRole and financialsLoaded', /myRole\?:\s*ProjectCollaborator\['role'\];/.test(types) && /financialsLoaded\?:\s*boolean;/.test(types));
 const classifyAt = ctx.indexOf('classifyProjectForSync(project, userId, userEmail)');
 const baseStart = classifyAt >= 0 ? ctx.indexOf('const base = {', classifyAt) : -1;

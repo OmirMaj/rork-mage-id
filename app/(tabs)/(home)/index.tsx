@@ -1276,6 +1276,9 @@ export default function HomeScreen() {
       <EntityActionSheet
         entityRef={actionSheetRef}
         onClose={() => setActionSheetRef(null)}
+        // The one verb the handler below performs. The sheet shows no mutating
+        // verb that nobody handles, so naming it here is what makes it appear.
+        callerVerbs={actionSheetRef?.kind === 'project' ? ['duplicate'] : []}
         onAction={(id, ref) => {
           if (id !== 'duplicate' || ref.kind !== 'project') return;
           const source = projects.find(p => p.id === ref.id);

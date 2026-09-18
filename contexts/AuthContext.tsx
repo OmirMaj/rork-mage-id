@@ -9,6 +9,7 @@ import { PENDING_DEEPLINK_KEY } from '@/utils/pendingDeepLink';
 import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
 import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
 import { processOfflineQueue, getOfflineQueue, clearOfflineQueue, retainOfflineQueueForUser } from '@/utils/offlineQueue';
+import { runPreSignOutFlushes } from '@/utils/preSignOutFlush';
 import { processPhotoUploadQueue, clearPhotoUploadQueue, retainPhotoUploadQueueForUser } from '@/utils/photoUploadQueue';
 import { clearAudioTranscribeQueue, retainAudioTranscribeQueueForUser } from '@/utils/audioTranscribeQueue';
 import { clearSyncFailures, retainSyncFailuresForUser } from '@/utils/syncLedger';
@@ -144,6 +145,14 @@ async function flushQueuesBeforeSignOut(): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const ceiling = new Promise<void>((resolve) => { timer = setTimeout(resolve, SIGN_OUT_FLUSH_CEILING_MS); });
   const flush = (async () => {
+    // Debounced project edits first (utils/preSignOutFlush): they are not in
+    // the queue yet, so draining it without them lost an edit made < 800 ms
+    // before Sign Out.
+    try {
+      await runPreSignOutFlushes();
+    } catch (err) {
+      console.log('[Auth] Pending-sync flush before sign-out failed:', err);
+    }
     try {
       await processOfflineQueue();
     } catch (err) {

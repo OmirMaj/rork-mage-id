@@ -160,7 +160,7 @@ export default function EstimateScreen() {
   }, []);
   const layout = useResponsiveLayout();
   const router = useRouter();
-  const { projects, updateProject, settings, updateSettings, contacts, commitments, getBidPackagesForProject } = useProjects();
+  const { projects, updateProject, settings, updateSettings, contacts, commitments, getBidPackagesForProject, bidPackageBids } = useProjects();
   const { isFree, canAccess } = useTierAccess();
   // Shared materials cart (used by the Materials browser too). All cart
   // mutations now flow through the context — local setCart() calls were
@@ -331,8 +331,8 @@ export default function EstimateScreen() {
   const pendingProjectBulkSavings = useMemo(() => {
     if (!pendingLinkProject) return null;
     const pkgs = getBidPackagesForProject(pendingLinkProject.id);
-    return computeBulkSavings(pendingLinkProject.id, pkgs, commitments);
-  }, [pendingLinkProject, getBidPackagesForProject, commitments]);
+    return computeBulkSavings(pendingLinkProject.id, pkgs, commitments, bidPackageBids);
+  }, [pendingLinkProject, getBidPackagesForProject, commitments, bidPackageBids]);
   const showBulkSavings = !!(
     pendingProjectBulkSavings?.hasRealData && (pendingProjectBulkSavings?.bulkSavings ?? 0) > 0
   );
@@ -1168,21 +1168,6 @@ export default function EstimateScreen() {
 
     if (options.method === 'email' && options.recipient.trim()) {
       const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
-      const emailHtml = buildEstimateEmailHtml({
-        companyName: branding.companyName,
-        recipientName: '',
-        projectName: options.fileName || 'Estimate',
-        // Whole estimate, not just the materials cart: labor and assemblies
-        // were silently missing from the figure in the email body.
-        grandTotal,
-        // The count must describe the same estimate as the total beside it.
-        itemCount: totalItemCount,
-        message: options.message,
-        contactName: branding.contactName,
-        contactEmail: branding.email,
-        contactPhone: branding.phone,
-        growthBadge: isFree,
-      });
 
       const tempProject: Project = {
         id: 'temp-email',
@@ -1204,7 +1189,53 @@ export default function EstimateScreen() {
         },
         status: 'estimated',
       };
+      // The PDF is generated BEFORE the body is written, because the body's
+      // first line depends on whether there is one to attach.
       const pdfUri = await generateEstimatePDFUri(tempProject, branding);
+
+      // Ported from the invoice screen's fix for the same defect
+      // (app/invoice.tsx, "generateInvoicePDFUri is a hard `if (Platform.OS ===
+      // 'web') return null`"). generateEstimatePDFUri has the same hard web
+      // return (utils/pdfGenerator.ts), and also returns null when expo-print
+      // throws on native. This screen used to send anyway and show "Email
+      // Sent", so a GC on the laptop emailed a homeowner "Estimate attached."
+      // with nothing attached and was told it went. Ask before sending.
+      if (!pdfUri) {
+        const proceedWithoutPdf = await new Promise<boolean>((resolve) => {
+          showAlert(
+            'PDF could not be attached',
+            Platform.OS === 'web'
+              ? `The web app cannot generate the estimate PDF file, so nothing can be attached to this email.\n\nWe can still email ${options.recipient.trim()} the estimate summary — project, item count and total. To send the PDF itself, use Share instead and save it from the print dialog, or send from the iPhone app.`
+              : `The estimate PDF could not be generated on this device, so nothing can be attached.\n\nWe can still email ${options.recipient.trim()} the estimate summary without it.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Send without PDF', onPress: () => resolve(true) },
+            ],
+            // Backdrop / Android back must resolve the promise too, or this
+            // await never settles and the send stays dead.
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!proceedWithoutPdf) return;
+      }
+
+      const emailHtml = buildEstimateEmailHtml({
+        companyName: branding.companyName,
+        recipientName: '',
+        projectName: options.fileName || 'Estimate',
+        // Whole estimate, not just the materials cart: labor and assemblies
+        // were silently missing from the figure in the email body.
+        grandTotal,
+        // The count must describe the same estimate as the total beside it.
+        itemCount: totalItemCount,
+        message: options.message,
+        contactName: branding.contactName,
+        contactEmail: branding.email,
+        contactPhone: branding.phone,
+        growthBadge: isFree,
+        // No PDF → the body must not open with "Estimate attached."
+        hasAttachment: !!pdfUri,
+      });
 
       const result = await sendEmail({
         to: options.recipient.trim(),
@@ -1216,40 +1247,63 @@ export default function EstimateScreen() {
         unsubscribe: { recipientEmail: options.recipient.trim(), eventKey: 'estimate', enabled: true },
       });
 
+      // The PDF can go missing in two places: we never had one (pdfUri null,
+      // handled above) or the service failed to encode it (attachmentsDropped).
+      // Either way the client got a summary, not the document.
+      const pdfMissing = !pdfUri || (result.attachmentsDropped ?? 0) > 0;
+
       if (result.success) {
         track(AnalyticsEvents.ESTIMATE_SHARED, {
           method: 'email',
           source: 'estimate_full',
           grand_total: grandTotal ?? 0,
+          // Lets the activation funnel tell a delivered proposal from a
+          // summary-only email instead of counting both the same.
+          with_pdf: !pdfMissing,
         });
-        showAlert('Email Sent', `Estimate emailed to ${options.recipient}`);
+        showAlert(
+          pdfMissing ? 'Sent — without the PDF' : 'Email Sent',
+          pdfMissing
+            ? `The estimate summary was emailed to ${options.recipient}, but the PDF could not be attached. Send the PDF separately if the client needs the itemized document.`
+            : `Estimate emailed to ${options.recipient}`,
+        );
       } else if (result.error === 'cancelled') {
         return;
+      } else if (result.outcome === 'composer_opened') {
+        // sendEmail could not reach Resend and dropped a draft into his mail
+        // app instead. Nothing has been sent; "could not send" would also be
+        // wrong, because the draft is sitting there waiting for him.
+        showAlert('Draft opened — not sent yet', result.error ?? 'Review the draft in your email app and press Send there.');
       } else {
         console.warn('[Estimate] Email send failed:', result.error);
         showAlert(
           'Email Issue',
-          'Could not send via email. Would you like to share the PDF using another app instead?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Share PDF',
-              onPress: async () => {
-                try {
-                  const uri = pdfUri ?? await generateEstimatePDFUri(tempProject, branding);
-                  if (uri && await Sharing.isAvailableAsync()) {
-                    await Sharing.shareAsync(uri, {
-                      mimeType: 'application/pdf',
-                      dialogTitle: options.fileName || 'Estimate',
-                      UTI: 'com.adobe.pdf',
-                    });
-                  }
-                } catch (shareErr) {
-                  console.error('[Estimate] Share fallback failed:', shareErr);
-                }
-              },
-            },
-          ]
+          pdfUri
+            ? 'Could not send via email. Would you like to share the PDF using another app instead?'
+            : `Could not send via email.${result.error ? ` ${result.error}` : ''}`,
+          // Only offer Share when there is a file to share — on web pdfUri is
+          // null and Sharing is unavailable, so the button did nothing.
+          pdfUri
+            ? [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Share PDF',
+                  onPress: async () => {
+                    try {
+                      if (await Sharing.isAvailableAsync()) {
+                        await Sharing.shareAsync(pdfUri, {
+                          mimeType: 'application/pdf',
+                          dialogTitle: options.fileName || 'Estimate',
+                          UTI: 'com.adobe.pdf',
+                        });
+                      }
+                    } catch (shareErr) {
+                      console.error('[Estimate] Share fallback failed:', shareErr);
+                    }
+                  },
+                },
+              ]
+            : undefined,
         );
       }
       return;
@@ -1283,7 +1337,7 @@ export default function EstimateScreen() {
       console.error('[Estimate] PDF share error:', e);
       showAlert('Error', 'Failed to generate PDF. Please try again.');
     }
-  }, [cart, settings, buildLinkedEstimate, cartTotal, isFree, showBulkSavings, pendingProjectBulkSavings]);
+  }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, showBulkSavings, pendingProjectBulkSavings]);
 
   const handleShareEmail = useCallback(() => {
     let text = '';

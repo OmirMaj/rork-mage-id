@@ -43,7 +43,7 @@ import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildNoticeStatus } from '@/utils/noticeClock';
 import type {
   EntityRef, Project, Invoice, RFI, Submittal, ChangeOrder, PunchItem,
-  Permit, Subcontractor, ScheduleTask, WeatherAlert, DelayEvent,
+  Permit, Subcontractor, ScheduleTask, WeatherAlert, DelayEvent, Lead,
 } from '@/types';
 
 export type InboxCategory = 'money' | 'schedule' | 'safety' | 'other';
@@ -58,7 +58,8 @@ export type InboxRule =
   | 'task_starting_today'
   | 'coi_expiring'
   | 'permit_expiring'
-  | 'notice_deadline';
+  | 'notice_deadline'
+  | 'lead_waiting';
 
 export interface InboxItem {
   /** Stable id used for dismissal tracking. `${rule}:${refKind}:${refId}` */
@@ -455,6 +456,29 @@ export function useSmartInbox(): SmartInboxResult {
         // event was entered — so that is the date the list sorts on.
         sourceDate: s.deadlineDate ?? s.firstObservedDate,
         ref: { kind: 'delayEvent', id: s.eventId, projectId: s.projectId },
+      });
+    }
+
+    // ── lead_waiting ─────────────────────────────────────────────────────
+    // A new lead nobody has answered yet. Speed-to-lead is the whole game on
+    // a homeowner inquiry, and the pipeline screen is not where he looks
+    // between site visits — this card is. An hour's grace so a lead that just
+    // landed is not already "urgent"; 4 h and a day raise it.
+    for (const l of (store.leads as Lead[] | undefined) ?? []) {
+      if (l.stage !== 'new' || l.firstRespondedAt) continue;
+      const received = Date.parse(l.receivedAt);
+      if (!Number.isFinite(received)) continue;
+      const hrs = Math.floor((nowMs - received) / 3_600_000);
+      if (hrs < 1) continue;
+      out.push({
+        id: `lead_waiting:lead:${l.id}`,
+        rule: 'lead_waiting',
+        category: 'other',
+        severity: hrs >= 24 ? 3 : hrs >= 4 ? 2 : 1,
+        title: `Lead waiting ${hrs}h · ${l.name}`,
+        subtitle: [l.projectType, l.phone].filter(Boolean).join(' · '),
+        sourceDate: l.receivedAt,
+        ref: { kind: 'lead', id: l.id },
       });
     }
 

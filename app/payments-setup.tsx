@@ -24,7 +24,7 @@
 //   5. If 'connected', show a simple confirmation + a "Manage on
 //      Stripe" link that opens Stripe's dashboard.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking, ActivityIndicator, TextInput, Switch,
 } from 'react-native';
@@ -47,6 +47,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel, STRIPE_CARD_PROCESSING } from '@/utils/platformFees';
 import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
+import ProfileLoadNotice from '@/components/ProfileLoadNotice';
 import { financingDisclosure } from '@/utils/financing';
 import type { FinancingConfig } from '@/types';
 import {
@@ -66,7 +67,7 @@ export default function PaymentsSetupScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { user } = useAuth();
-  const { settings, updateSettings } = useProjects();
+  const { settings, updateSettings, settingsLoaded } = useProjects();
   // MONEY-F8: the fee this GC actually pays, from the one schedule.
   const { tier } = useTierAccess();
 
@@ -85,7 +86,25 @@ export default function PaymentsSetupScreen() {
   const [finApr, setFinApr] = useState<string>(fin?.exampleApr != null ? String(fin.exampleApr) : '');
   const [finTerm, setFinTerm] = useState<string>(fin?.exampleTermMonths != null ? String(fin.exampleTermMonths) : '');
 
+  // The drafts above are seeded ONCE, at mount. Mounted before his profile
+  // read landed, they were seeded from the DEFAULT (no financing), and Save
+  // wrote that whole blank object over his partner, link and referral code.
+  // Re-seed once when the profile arrives; the card is not shown before then.
+  const finSeededRef = useRef(false);
+  useEffect(() => {
+    if (!settingsLoaded || finSeededRef.current) return;
+    finSeededRef.current = true;
+    const f = settings?.financing;
+    setFinEnabled(!!f?.enabled);
+    setFinPartner(f?.partnerName ?? '');
+    setFinUrl(f?.prequalBaseUrl ?? '');
+    setFinRefCode(f?.gcRefCode ?? '');
+    setFinApr(f?.exampleApr != null ? String(f.exampleApr) : '');
+    setFinTerm(f?.exampleTermMonths != null ? String(f.exampleTermMonths) : '');
+  }, [settingsLoaded, settings?.financing]);
+
   const saveFinancing = useCallback((enabled: boolean) => {
+    if (!settingsLoaded || !finSeededRef.current) return;
     const url = finUrl.trim();
     if (enabled && !/^https:\/\//i.test(url)) {
       showAlert('Invalid URL', "The partner's prequalification link must start with https://.");
@@ -110,7 +129,7 @@ export default function PaymentsSetupScreen() {
     };
     updateSettings({ financing: cfg });
     setFinEnabled(enabled);
-  }, [finUrl, finPartner, finRefCode, finApr, finTerm, updateSettings]);
+  }, [finUrl, finPartner, finRefCode, finApr, finTerm, updateSettings, settingsLoaded]);
 
   const refresh = useCallback(async (silent = false) => {
     if (!user?.id) {
@@ -314,6 +333,10 @@ export default function PaymentsSetupScreen() {
             Let homeowners pay monthly through a third-party partner — you're paid in full upfront.
           </Text>
 
+          {!settingsLoaded ? (
+            <ProfileLoadNotice testID="financing-profile-load" />
+          ) : (
+          <>
           <View style={styles.finRow}>
             <Text style={styles.heroSub}>Offer financing on estimates & invoices</Text>
             <Switch value={finEnabled} onValueChange={(v) => saveFinancing(v)} trackColor={{ false: themeColors.line, true: themeColors.accent }} thumbColor="#FFFFFF" testID="financing-enable" />
@@ -345,6 +368,8 @@ export default function PaymentsSetupScreen() {
             <Text style={styles.finStats}>
               Referrals: {referralStats.created} created · {referralStats.clicked} clicked · {referralStats.funded} funded
             </Text>
+          )}
+          </>
           )}
         </View>
 

@@ -95,6 +95,7 @@ const KIND_ICON: Record<EntityKind, React.FC<{ size: number; color: string }>> =
   prequalPacket: ClipboardList,
   priceAlert: Bell,
   delayEvent: CalendarDays,
+  lead: UserRound,
 };
 
 const KIND_LABEL: Record<EntityKind, string> = {
@@ -123,6 +124,7 @@ const KIND_LABEL: Record<EntityKind, string> = {
   prequalPacket: 'Prequal Packets',
   priceAlert: 'Price Alerts',
   delayEvent: 'Delay Events',
+  lead: 'Leads',
 };
 
 const KIND_ORDER: EntityKind[] = [

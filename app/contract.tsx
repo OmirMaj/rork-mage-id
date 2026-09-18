@@ -31,11 +31,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import {
-  fetchActiveContract, saveContract, setContractStatus,
+  loadActiveContract, saveContractDetailed, setContractStatus,
   buildDraftContract, buildProposalFromRevision,
   contractTimeline, contractTimelineSentence, suggestContractTimeline,
 } from '@/utils/contractEngine';
@@ -211,6 +212,15 @@ function ContractScreenInner() {
 
   const [contract, setContract] = useState<ProjectContract | null>(null);
   const [loading, setLoading] = useState(true);
+  // The contract read FAILED (no signal, an outage) — not "this job has no
+  // contract". While set, the screen shows a retry state and nothing that can
+  // save or sign: a draft seeded here would become a second contract.
+  const [loadFailed, setLoadFailed] = useState<string | null>(null);
+  // The load-failed screen has no header; a push cold start or a fresh web
+  // tab has nothing to pop, so its Go back falls through to home (UX-F18).
+  const goBack = useSafeBack();
+  // Bumped by Retry to re-run the load effect.
+  const [loadSeq, setLoadSeq] = useState(0);
   const [saving, setSaving] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signatureModal, setSignatureModal] = useState(false);
@@ -251,8 +261,17 @@ function ContractScreenInner() {
       // arriving late re-runs this effect): keep it — it may hold his edits.
       const held = contractRef.current;
       if (held && !held.id && held.projectId === p.id) { setLoading(false); return; }
-      const existing = await fetchActiveContract(p.id);
+      const load = await loadActiveContract(p.id);
       if (cancelled) return;
+      if (!load.ok) {
+        // Never seed a draft on a failed read — see loadActiveContract.
+        setContract(null);
+        setLoadFailed(load.error);
+        setLoading(false);
+        return;
+      }
+      setLoadFailed(null);
+      const existing = load.contract;
       if (existing) {
         setContract(existing);
         setTermsSource(null);
@@ -286,26 +305,65 @@ function ContractScreenInner() {
     })();
     return () => { cancelled = true; };
     // fromRevision is read once with the ids; the refs carry the rest.
+    // loadSeq is the Retry after a failed read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, user?.id]);
+  }, [project?.id, user?.id, loadSeq]);
 
   // Re-read the contract when this screen regains focus, so a milestone the
   // invoice editor just flipped to 'invoiced' shows as billed the moment the
   // GC lands back here. Gated on a SIGNED contract on purpose: a draft holds
   // unsaved local edits (scope text, amounts) that a refetch would silently
   // discard, and only a signed contract can be invoiced against anyway.
+  //
+  // A draft with NO id (seeded here, never saved) is re-checked too: if the job
+  // has a live contract after all — it was written on another device, or it
+  // was the first read that came back empty-handed — the seeded draft is
+  // replaced by the real one and he is told, instead of sitting on a draft
+  // whose save would now be refused as a duplicate.
+  //
+  // Keyed on PRIMITIVES (id, status, project id), never the contract object:
+  // useFocusEffect re-runs its callback on every dep change while focused, so
+  // keying on `contract` made each read's setContract trigger the next read —
+  // an endless fetch loop on a signed contract, and a read per keystroke on an
+  // unsaved draft. The held contract is read from contractRef instead, and a
+  // re-read only replaces it when the row actually changed.
+  const focusContractId = contract?.id;
+  const focusContractStatus = contract?.status;
+  const focusProjectId = project?.id;
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      const id = contract?.id;
-      if (!id || contract?.status !== 'signed' || !project) return;
+      const held = contractRef.current;
+      if (!focusProjectId || !held) return;
+      const unsavedDraft = !focusContractId;
+      if (!unsavedDraft && focusContractStatus !== 'signed') return;
       (async () => {
-        const fresh = await fetchActiveContract(project.id);
-        if (!cancelled && fresh && fresh.id === id) setContract(fresh);
+        const fresh = await loadActiveContract(focusProjectId);
+        if (cancelled || !fresh.ok || !fresh.contract) return;
+        if (unsavedDraft) {
+          if (fresh.contract.status === 'void') return;
+          setContract(fresh.contract);
+          setTermsSource(null);
+          showAlert('This job already has a contract', 'Showing the saved contract. The unsaved draft that was on screen was not saved.');
+        } else if (fresh.contract.id === focusContractId) {
+          // Compared by CONTENT, not updatedAt: nothing bumps updated_at on a
+          // write (no trigger, and writeContractRow does not set it), so a
+          // milestone flipped to 'invoiced' leaves the stamp unchanged.
+          const current = contractRef.current;
+          if (!current || JSON.stringify(current) !== JSON.stringify(fresh.contract)) setContract(fresh.contract);
+        }
       })();
       return () => { cancelled = true; };
-    }, [contract?.id, contract?.status, project]),
+    }, [focusContractId, focusContractStatus, focusProjectId]),
   );
+
+  /** Tell him the job already has a contract and show it — the refusal of a
+   *  save that would have inserted a second one. */
+  const adoptExistingContract = useCallback((existing: ProjectContract) => {
+    setContract(existing);
+    setTermsSource(null);
+    showAlert('This job already has a contract', 'Nothing was saved — a second contract would have been created. Showing the one on file.');
+  }, []);
 
   // ── Milestone → invoice ──────────────────────────────────────────
   // Invoices already billed against a milestone, keyed by milestone id. This
@@ -504,17 +562,19 @@ function ContractScreenInner() {
   const saveDraftFrom = useCallback(async (c: ProjectContract) => {
     setSaving(true);
     try {
-      const saved = await saveContract({ ...c, id: c.id || undefined });
-      if (saved) {
-        setContract(saved);
+      const saved = await saveContractDetailed({ ...c, id: c.id || undefined });
+      if (saved.ok) {
+        setContract(saved.contract);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else if (saved.reason === 'duplicate') {
+        adoptExistingContract(saved.existing);
       } else {
         showAlert('Save failed', 'Could not save the contract. Check your connection.');
       }
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [adoptExistingContract]);
 
   // The explicit "Save draft" button.
   const handleSaveDraft = useCallback(async () => {
@@ -685,11 +745,20 @@ function ContractScreenInner() {
         } catch { /* G4 */ }
       }
       // Save first to get an id.
-      const saved = await saveContract({ ...contract, id: contract.id || undefined });
-      if (!saved) {
-        showAlert('Save failed', 'Could not save the contract before signing.');
+      const savedResult = await saveContractDetailed({ ...contract, id: contract.id || undefined });
+      if (!savedResult.ok) {
+        if (savedResult.reason === 'duplicate') {
+          // The pad stays up while this speaks (see the terms refusal above:
+          // an alert raised under a dismissing Modal is torn down with it).
+          setContract(savedResult.existing);
+          setTermsSource(null);
+          showAlert('This job already has a contract', 'Nothing was signed or sent — this would have been a second contract. Close the signature pad to see the one on file.');
+        } else {
+          showAlert('Save failed', 'Could not save the contract before signing.');
+        }
         return;
       }
+      const saved = savedResult.contract;
       // Then attach the GC signature + flip status to 'sent'.
       const ok = await setContractStatus(saved.id, 'sent', {
         gcSignature: {
@@ -703,8 +772,8 @@ function ContractScreenInner() {
         showAlert('Send failed', 'Saved as draft but could not mark as sent.');
         return;
       }
-      const refreshed = await fetchActiveContract(saved.projectId);
-      if (refreshed) setContract(refreshed);
+      const refreshed = await loadActiveContract(saved.projectId);
+      if (refreshed.ok && refreshed.contract) setContract(refreshed.contract);
 
       // Milestone! Fire a celebratory confetti burst when the GC
       // signs and sends. The homeowner counter-signing also fires one
@@ -889,6 +958,25 @@ function ContractScreenInner() {
             'Edit the seeded draft, sign as the GC, and send to the homeowner for counter-signature.',
           ]}
         />
+      </View>
+    );
+  }
+  if (!loading && loadFailed) {
+    return (
+      <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]} testID="contract-load-failed">
+        <Stack.Screen options={{ headerShown: false }} />
+        <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+        <Text style={styles.loadFailedTitle}>Couldn&apos;t load this job&apos;s contract</Text>
+        <Text style={styles.loadFailedText}>
+          Check your signal and try again. Nothing is shown in its place, so no second contract can be started or signed.
+        </Text>
+        <Button
+          label="Retry"
+          variant="primary"
+          onPress={() => { setLoadFailed(null); setLoading(true); setLoadSeq(n => n + 1); }}
+          testID="contract-load-retry"
+        />
+        <Button label="Go back" variant="secondary" onPress={goBack} style={{ marginTop: Tokens.spacing.sm }} testID="contract-load-back" />
       </View>
     );
   }
@@ -1894,6 +1982,8 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
+  loadFailedTitle: { ...Type.headline, color: themeColors.text, textAlign: 'center', marginTop: Tokens.spacing.sm },
+  loadFailedText: { ...Type.subhead, color: themeColors.textSecondary, textAlign: 'center', maxWidth: 420, marginVertical: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.lg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,

@@ -43,7 +43,7 @@ export default function MessagesScreen() {
   const router = useRouter();
   const { conversations, getConversationMessages, sendMessage } = useHire();
   const { user } = useAuth();
-  const { clearBadge } = useNotifications();
+  const { syncBadge } = useNotifications();
   const [text, setText] = useState('');
   const [isAtBottom, setIsAtBottom] = useState(true);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
@@ -55,9 +55,11 @@ export default function MessagesScreen() {
   const senderId = user?.id ?? 'you';
   const senderName = user?.name ?? 'You';
 
+  // Re-read the icon badge rather than zero it: marketplace chat is not where
+  // the inbox's unread items live, and zeroing here hid real ones (#17).
   useEffect(() => {
-    void clearBadge();
-  }, [clearBadge]);
+    void syncBadge();
+  }, [syncBadge]);
 
   useEffect(() => {
     if (messages.length > prevMessageCount.current) {

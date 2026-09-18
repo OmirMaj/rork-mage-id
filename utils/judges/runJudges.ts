@@ -75,7 +75,9 @@ export async function runJudges(params: {
   const costDb = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
   let calibration; try { calibration = computeCalibration({ projects, commitments }); } catch { /* additive */ }
   let capacity; if (params.timelineWindow) { try { capacity = computeCapacityLoad(projects, params.timelineWindow.startISO, params.timelineWindow.endISO); } catch { /* additive */ } }
-  let typeMargin; try { typeMargin = aggregateTypeMargin(projects, params.projectType, commitments); } catch { /* additive */ }
+  // Revenue includes approved owner COs (audit round 2, #3) — without them a
+  // job that grew by change order reads as a thin one and pushes toward WALK.
+  let typeMargin; try { typeMargin = aggregateTypeMargin(projects, params.projectType, commitments, params.ctx.changeOrders ?? []); } catch { /* additive */ }
   let marginRisk;
   // Only a whole-job risk reading may vote. computeBidVerdict weighs margin
   // risk at 0.30 and prints "Margin-risk model scores this low" with no room

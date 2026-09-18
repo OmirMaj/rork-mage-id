@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, TextInput, Alert, Platform, Switch, Modal, Dimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Image } from 'expo-image';
@@ -44,7 +44,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import Constants from 'expo-constants';
-import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
+import { SAVED_TERMS_PENDING_LABEL, profileGateNotice } from '@/utils/settingsLoadGuard';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel } from '@/utils/paymentTerms';
 import { getOwnOfflineQueue } from '@/utils/offlineQueue';
@@ -139,21 +140,28 @@ export default function SettingsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { settings, updateSettings, projects, deleteProject, userRole } = useCoreData();
+  const { settings, settingsLoaded, settingsLoadFailed, retryRemoteReads, updateSettings, projects, deleteProject, userRole } = useCoreData();
   // "How you get paid" shortcut. The answer lives on Company Profile and is
   // asked the first time a document prints it; this row only exists because a
   // GC hunting for "deposit" looks in Settings first. It opens the same ask
   // sheet — no second form, no second storage.
   const gate = useClientDocumentGate();
+  // Until his profile loads `settings` is DEFAULT, which has no terms — so
+  // this row said "Not set" about terms he had set (finding 106). It says
+  // loading / could not load instead; a tap then gets the gate's reason and
+  // its Retry rather than a pre-filled blank sheet.
+  const savedTerms = useSavedPaymentTerms();
   const howYouGetPaidLabel = useMemo(() => {
-    const split = resolvePaymentSplit({ settings }).split;
-    const months = resolveWarrantyMonths(settings);
+    if (savedTerms.status === 'loading') return `How you get paid \u00b7 ${SAVED_TERMS_PENDING_LABEL.loading}`;
+    if (savedTerms.status === 'failed') return `How you get paid \u00b7 ${SAVED_TERMS_PENDING_LABEL.failed} your profile \u2014 tap to retry`;
+    const split = savedTerms.split;
+    const months = savedTerms.warrantyMonths;
     if (!split && months == null) return 'How you get paid \u00b7 Not set \u2014 asked the first time a document prints it';
     const warranty = months == null
       ? 'warranty not set'
       : `${months % 12 === 0 ? `${months / 12}-year` : `${months}-month`} warranty`;
     return `How you get paid \u00b7 ${split ? splitLabel(split) : 'terms not set'} \u00b7 ${warranty} \u203a`;
-  }, [settings]);
+  }, [savedTerms]);
   // Open the step the label says is missing: with the split answered and the
   // warranty not, "terms" would show him the question he already answered and
   // leave no way to set the warranty from here.
@@ -314,6 +322,18 @@ export default function SettingsScreen() {
     nextNumber: 1,
   };
   const [pdfNaming, setPdfNaming] = useState<PDFNamingSettings>(settings.pdfNaming ?? defaultPdfNaming);
+  // Seeded at mount, and this tab can mount before his profile has loaded —
+  // when `settings.pdfNaming` is DEFAULT's absent value. Every commitScreen
+  // carries this draft, so a Location blur after the load would have written
+  // "naming off" over his saved scheme. Re-seed once, the moment the real
+  // settings land (finding 14's class: a screen seeded from DEFAULT).
+  const pdfNamingSeededRef = useRef(settingsLoaded);
+  useEffect(() => {
+    if (!settingsLoaded) { pdfNamingSeededRef.current = false; return; }
+    if (pdfNamingSeededRef.current) return;
+    pdfNamingSeededRef.current = true;
+    if (settings.pdfNaming) setPdfNaming(settings.pdfNaming);
+  }, [settingsLoaded, settings.pdfNaming]);
 
   const pdfNamingPreview = useMemo(() => {
     if (!pdfNaming.enabled) return '';
@@ -428,7 +448,24 @@ export default function SettingsScreen() {
   // 'mage' when the saved hue matches no preset (a custom colour from
   // Settings → Appearance), and carrying it would overwrite that colour on
   // every Location blur. Only a chip tap writes the theme.
-  const commitScreen = useCallback((extra: Partial<AppSettings>) => {
+  // Review round 2 (finding 13 follow-on): when his profile could not be
+  // loaded, an edit here is only HELD in memory until a read lands — close
+  // the app first and it is gone, although the screen showed it as saved.
+  // So while the read has failed, a settings write refuses and says why
+  // (with Retry), the way the document gate and Company Profile do. While it
+  // is merely still loading, the held edit lands on his row when it arrives.
+  const refuseWhileProfileFailed = useCallback((): boolean => {
+    if (!settingsLoadFailed) return false;
+    const n = profileGateNotice({ failed: true });
+    showAlert(n.title, `${n.message} Settings changes wait for it too.`, [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Retry', onPress: retryRemoteReads },
+    ]);
+    return true;
+  }, [settingsLoadFailed, retryRemoteReads]);
+
+  const commitScreen = useCallback((extra: Partial<AppSettings>): boolean => {
+    if (refuseWhileProfileFailed()) return false;
     // Branding (company name, logo, signature, etc.) lives on
     // /company-profile now and is saved there. We deliberately do NOT
     // include `branding` in this call — the local state vars on this
@@ -440,12 +477,13 @@ export default function SettingsScreen() {
       pdfNaming: pdfNaming.enabled ? pdfNaming : undefined,
       ...extra,
     });
-  }, [location, biometricsEnabled, pdfNaming, updateSettings]);
+    return true;
+  }, [location, biometricsEnabled, pdfNaming, updateSettings, refuseWhileProfileFailed]);
 
   const commitLocation = useCallback(() => {
     const next = location.trim() || 'United States';
     if (next === settings.location) return;
-    commitScreen({ location: next });
+    if (!commitScreen({ location: next })) { setLocation(settings.location); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [location, settings.location, commitScreen]);
 
@@ -462,7 +500,7 @@ export default function SettingsScreen() {
       showAlert('Invalid Contingency', 'Please enter a rate between 0 and 50%.');
       return false;
     }
-    commitScreen({ taxRate: tax, contingencyRate: cont });
+    if (!commitScreen({ taxRate: tax, contingencyRate: cont })) return false;
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     return true;
   }, [taxRate, contingency, commitScreen]);
@@ -497,9 +535,9 @@ export default function SettingsScreen() {
   );
 
   const selectTheme = useCallback((themeId: string) => {
-    setSelectedTheme(themeId);
     const themePreset = THEME_PRESETS.find(t => t.id === themeId);
-    commitScreen({ themeColors: themePreset ? { primary: themePreset.primary, accent: themePreset.accent } : undefined });
+    if (!commitScreen({ themeColors: themePreset ? { primary: themePreset.primary, accent: themePreset.accent } : undefined })) return;
+    setSelectedTheme(themeId);
     if (themePreset) {
       // Only the hue: the accent family (accent / accentHot / accentSoft /
       // accentLabel / accentFill) is derived from it, and ThemeContext is
@@ -512,21 +550,38 @@ export default function SettingsScreen() {
   }, [commitScreen]);
 
   const setBiometrics = useCallback((val: boolean) => {
+    if (!commitScreen({ biometricsEnabled: val })) return;
     setBiometricsEnabled(val);
-    commitScreen({ biometricsEnabled: val });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [commitScreen]);
 
   // PDF naming is a cluster of switches, chips and two text boxes. It used to
   // be saved only by the same buried button; it now writes itself, debounced so
   // typing a prefix is one write, not one per keystroke.
+  //
+  // commitScreen is read through a ref: its identity changes on every provider
+  // render (updateSettings rides on a TanStack mutation object that is new
+  // each render), and as a dependency it re-armed this timer on every one —
+  // with his profile unreadable, the "Couldn't load your company profile"
+  // alert popped ~600 ms after each background refetch, even on another tab.
+  // A refused save puts the switches back to what is saved, as Location does:
+  // nothing was written, so the control must not look on.
   const pdfNamingSaved = JSON.stringify(settings.pdfNaming ?? null);
+  const commitScreenRef = useRef(commitScreen);
+  commitScreenRef.current = commitScreen;
+  const savedPdfNamingRef = useRef(settings.pdfNaming);
+  savedPdfNamingRef.current = settings.pdfNaming;
   useEffect(() => {
     const next = pdfNaming.enabled ? pdfNaming : undefined;
     if (JSON.stringify(next ?? null) === pdfNamingSaved) return;
-    const t = setTimeout(() => commitScreen({ pdfNaming: next }), 600);
+    const t = setTimeout(() => {
+      if (commitScreenRef.current({ pdfNaming: next })) return;
+      // Back to exactly what is saved (switched off when nothing is), so the
+      // effect finds nothing to write and does not ask again.
+      setPdfNaming(savedPdfNamingRef.current ?? { ...pdfNaming, enabled: false });
+    }, 600);
     return () => clearTimeout(t);
-  }, [pdfNaming, pdfNamingSaved, commitScreen]);
+  }, [pdfNaming, pdfNamingSaved]);
 
   const handleClearAll = useCallback(() => {
     showAlert('Clear All Data', 'This permanently deletes every project, estimate, and cached record this app stored on this device — change orders, invoices, daily reports, photos, bids, and the rest — INCLUDING any changes not yet synced and jobsite photos not yet uploaded, which cannot be recovered. Your appearance/theme setting is kept. This cannot be undone.', [
@@ -675,10 +730,11 @@ export default function SettingsScreen() {
   }, [deleteAccount, router]);
 
   const handleToggleUnits = useCallback(() => {
+    if (refuseWhileProfileFailed()) return;
     const newUnits = settings.units === 'imperial' ? 'metric' : 'imperial';
     updateSettings({ units: newUnits });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [settings.units, updateSettings]);
+  }, [settings.units, updateSettings, refuseWhileProfileFailed]);
 
   const sigPadWidth = Math.min(SCREEN_WIDTH - 80, 340);
 
@@ -2247,6 +2303,7 @@ export default function SettingsScreen() {
                       minOrderAmount: parseFloat(supMinOrder) || 0,
                       registeredAt: supplierProfile?.registeredAt ?? new Date().toISOString(),
                     };
+                    if (refuseWhileProfileFailed()) return;
                     updateSettings({ supplierProfile: profile });
                     setShowSupplierForm(false);
                     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

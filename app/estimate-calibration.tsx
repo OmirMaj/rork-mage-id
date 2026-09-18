@@ -156,6 +156,10 @@ function EstimateCalibrationInner() {
             new estimates automatically — reapply them after a reinstall or on a new
             phone. Suggestions are clamped to a 0.8–1.5 band; bias beyond that usually
             means a scope bust or an unlinked commitment, not a pricing habit.
+            When you apply them on an estimate, a line already priced at the rate
+            your jobs measured is left alone, and a line below it moves only up to
+            that rate — the factor is measured against your old bids, and your cost
+            book has already moved toward the same actuals.
           </Text>
 
           <TouchableOpacity

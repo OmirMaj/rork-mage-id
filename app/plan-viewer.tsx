@@ -47,8 +47,11 @@ import { containImageRect, imageLoadAspectRatio, planViewerImageRatio } from '@/
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { planScaleStatus, stampImageFrame, usableCalibration, PLAN_SCALE_RECHECK_COPY } from '@/utils/planScale';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
+
+const CALIBRATE_FRAME_UNKNOWN_COPY = 'This sheet\'s size is unknown, so a scale set now would be measured against the wrong frame. Reopen it once the image has loaded, then calibrate.';
 
 // Minimum pixel distance between two calibration points — below this, the
 // scale is meaningless (one-pixel jitter = wild errors in derived units).
@@ -228,6 +231,12 @@ function PlanViewerScreenInner() {
     () => (containerSize ? containImageRect(containerSize, imgRatio) ?? containerSize : null),
     [containerSize, imgRatio],
   );
+  // Whether imgLayout is the IMAGE's rect, not the whole-container fallback.
+  // A scale is stamped `frame:'image'` (utils/planScale), and every reader
+  // then trusts it as measured in the image's own frame. Points tapped while
+  // the sheet's size is unknown are in the CONTAINER's frame — the very error
+  // the re-check exists to catch — so Calibrate is refused until it is known.
+  const imageFrameKnown = !!containerSize && containImageRect(containerSize, imgRatio) != null;
   const drawingRef = useRef<boolean>(false);
 
   // Measure + calibrate state: holds 0–2 points. Both flows use the same
@@ -240,7 +249,14 @@ function PlanViewerScreenInner() {
   const projectPhotos = useMemo(() => sheet ? getPhotosForProject(sheet.projectId) : [], [sheet, getPhotosForProject]);
   const projectPunch = useMemo(() => sheet ? getPunchItemsForProject(sheet.projectId) : [], [sheet, getPunchItemsForProject]);
   const selectedPin = selectedPinId ? pins.find(p => p.id === selectedPinId) ?? null : null;
-  const calibration = useMemo(() => sheet ? getCalibrationForPlan(sheet.id) : undefined, [sheet, getCalibrationForPlan]);
+  // The saved scale, used ONLY when it was set in the image frame both this
+  // screen and Visual Takeoff now measure in (utils/planScale; audit round 2,
+  // #4). An older row was saved against whichever container drew it — this
+  // screen's own flex:1 area on one device, or Takeoff's 3:4 canvas — and
+  // nothing recorded which, so it is shown as "Re-check scale", not trusted.
+  const savedCalibration = useMemo(() => sheet ? getCalibrationForPlan(sheet.id) : undefined, [sheet, getCalibrationForPlan]);
+  const calibration = useMemo(() => usableCalibration(savedCalibration) ?? undefined, [savedCalibration]);
+  const scaleNeedsRecheck = planScaleStatus(savedCalibration) === 'recheck';
 
   // Punch layer: punch items anchored to THIS sheet that don't already have a
   // DrawingPin drawn for them (those are rendered via `pins`). This surfaces
@@ -465,6 +481,10 @@ function PlanViewerScreenInner() {
 
   const confirmCalibration = useCallback(() => {
     if (!sheet || pointBuffer.length !== 2 || !calibrationInput) return;
+    if (!imageFrameKnown) {
+      showAlert('Scale not saved', CALIBRATE_FRAME_UNKNOWN_COPY);
+      return;
+    }
     const ft = Number(calibrationInput.distanceFt.replace(/[^0-9.]/g, ''));
     if (!Number.isFinite(ft) || ft <= 0) {
       showAlert('Enter a distance', 'Type the real-world distance between the two points, in feet.');
@@ -473,14 +493,15 @@ function PlanViewerScreenInner() {
     upsertPlanCalibration({
       planSheetId: sheet.id,
       projectId: sheet.projectId,
-      p1: pointBuffer[0],
-      p2: pointBuffer[1],
+      // Image-frame stamp rides the jsonb point (utils/planScale).
+      p1: stampImageFrame(pointBuffer[0]),
+      p2: stampImageFrame(pointBuffer[1]),
       realDistanceFt: ft,
     });
     setCalibrationInput(null);
     setPointBuffer([]);
     setMode('pin');
-  }, [sheet, pointBuffer, calibrationInput, upsertPlanCalibration]);
+  }, [sheet, pointBuffer, calibrationInput, upsertPlanCalibration, imageFrameKnown]);
 
   const switchMode = useCallback((m: Mode) => {
     setPointBuffer([]);
@@ -533,6 +554,21 @@ function PlanViewerScreenInner() {
               Scale: {calibration.realDistanceFt} ft ref
             </Text>
           </View>
+        ) : scaleNeedsRecheck ? (
+          <TouchableOpacity
+            style={[styles.modePill, { backgroundColor: Colors.warningLight }]}
+            onPress={() => {
+              // Same up-front block as the Calibrate button: with the frame
+              // unknown he would tap two points and type a distance, only
+              // for confirmCalibration to refuse it.
+              if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+              switchMode('calibrate'); showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Re-check scale"
+          >
+            <Text style={[styles.modePillText, { color: Colors.warning }]}>Re-check scale</Text>
+          </TouchableOpacity>
         ) : null}
         <View style={styles.modePill}>
           <Text style={styles.modePillText}>{pins.length} {pins.length === 1 ? 'pin' : 'pins'}</Text>
@@ -794,7 +830,7 @@ function PlanViewerScreenInner() {
                 ? (pointBuffer.length === 0 ? 'Tap the start of your measurement.' :
                    pointBuffer.length === 1 ? 'Tap the end point.' :
                    measuredFt != null ? `${measuredFt.toFixed(1)} ft — tap again to re-measure.` : 'Measuring\u2026')
-                : 'Calibrate the sheet first \u2014 tap Calibrate.')
+                : (scaleNeedsRecheck ? PLAN_SCALE_RECHECK_COPY : 'Calibrate the sheet first \u2014 tap Calibrate.'))
               : (pointBuffer.length === 0 ? 'Tap one end of a known reference (e.g. a dimensioned wall).' :
                  pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
           </Text>
@@ -825,13 +861,20 @@ function PlanViewerScreenInner() {
           onPress={() => {
             if (!scaleFtPerPx) {
               // Calibrate must happen first — switch to calibrate mode and
-              // hint the user (mirrors area-takeoff.tsx:472 pattern).
+              // hint the user (mirrors area-takeoff.tsx:472 pattern). Same
+              // up-front frame block as Calibrate and the Re-check pill, and
+              // an older scale is called a re-check, not "no scale".
+              if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
               switchMode('calibrate');
-              showAlert(
-                'Set sheet scale first',
-                'Tap Calibrate, then tap two points a known distance apart (e.g. a door = 3 ft). Measure unlocks once the scale is set.',
-                [{ text: 'OK' }],
-              );
+              if (scaleNeedsRecheck) {
+                showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
+              } else {
+                showAlert(
+                  'Set sheet scale first',
+                  'Tap two points a known distance apart (e.g. a door = 3 ft). Measure unlocks once the scale is set.',
+                  [{ text: 'OK' }],
+                );
+              }
               return;
             }
             switchMode('measure');
@@ -846,7 +889,11 @@ function PlanViewerScreenInner() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive]}
-          onPress={() => switchMode('calibrate')}
+          onPress={() => {
+            // Blocked, and says why: see imageFrameKnown.
+            if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+            switchMode('calibrate');
+          }}
         >
           <Check size={18} color={mode === 'calibrate' ? '#FFFFFF' : (calibration ? themeColors.success : themeColors.text)} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, mode === 'calibrate' && styles.toolBtnTextActive]}>

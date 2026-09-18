@@ -398,6 +398,86 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
   /selectTenantKeysToWipe\(allKeys, \{ dropOfflineQueue: false \}\)/.test(authCode),
   'the sweep\'s multiRemove is unlocked too — the locked clears above cover both keys');
 
+// ── Post-ship review 2026-09-18: a GC portal message waits for its project ──
+// RLS lock 1 (20260918140000) refuses a GC row unless the server's project
+// already carries the row's portalId. A message sent while a new portalId is
+// in the 800 ms debounce, on the wire, or queued offline must go out AFTER the
+// project write — executed here against the real ordering function.
+{
+  const { writePortalMessageOrdered, isPortalLockRefusal, PORTAL_STILL_SAVING } = await import('../utils/portalMessageWrite');
+  type Log = string[];
+  function world(o: { waiting?: boolean; inFlightFor?: number; queuedAfterFlush?: boolean; queueThrows?: boolean; enqueueThrows?: boolean }) {
+    const log: Log = [];
+    let waiting = !!o.waiting;
+    let inFlight = (o.inFlightFor ?? 0) > 0;
+    let queued = false;
+    const deps = {
+      projectSyncWaiting: () => waiting,
+      flushProjectSyncs: async () => {
+        log.push('flush');
+        if (waiting) { waiting = false; if (o.queuedAfterFlush) { queued = true; log.push('project:queued'); } else log.push('project:sent'); }
+      },
+      projectSyncUnconfirmed: () => waiting || inFlight,
+      waitProjectSyncSettled: async (_id: string, _ms: number) => { log.push('wait'); await new Promise(r => setTimeout(r, o.inFlightFor ?? 0)); inFlight = false; log.push('project:settled'); },
+      projectWriteQueued: async () => { if (o.queueThrows) throw new Error('storage'); return queued; },
+      enqueue: async () => { if (o.enqueueThrows) throw new Error('full'); log.push('message:queued'); },
+      writeNow: async () => { log.push('message:sent'); return 'synced' as const; },
+    };
+    return { log, deps };
+  }
+  const row = { id: 'm1', project_id: 'p1', portal_id: 'new-portal', author_type: 'gc', body: 'hi' };
+
+  const w1 = world({ waiting: true });
+  const r1 = await writePortalMessageOrdered(row, w1.deps);
+  ok('portal message: a project write in its debounce is sent BEFORE the message',
+    r1 === 'synced' && w1.log.join(',') === 'flush,project:sent,message:sent', w1.log.join(','));
+
+  const w2 = world({ inFlightFor: 20 });
+  const r2 = await writePortalMessageOrdered(row, w2.deps);
+  ok('…a project write already on the wire is waited for, then the message is sent',
+    r2 === 'synced' && w2.log.join(',') === 'wait,project:settled,message:sent', w2.log.join(','));
+
+  const w3 = world({ waiting: true, queuedAfterFlush: true });
+  const r3 = await writePortalMessageOrdered(row, w3.deps);
+  ok('…offline: the project write fell to the queue, so the message queues behind it (never sent first)',
+    r3 === 'queued' && w3.log.join(',') === 'flush,project:queued,message:queued', w3.log.join(','));
+
+  const w4 = world({ queueThrows: true });
+  const r4 = await writePortalMessageOrdered(row, w4.deps);
+  ok('…an unreadable queue counts as holding the project write',
+    r4 === 'queued' && !w4.log.includes('message:sent'), w4.log.join(','));
+
+  const w5 = world({ queueThrows: true, enqueueThrows: true });
+  ok('…a message the queue refuses reports failed (the composer keeps the text)',
+    (await writePortalMessageOrdered(row, w5.deps)) === 'failed');
+
+  const w6 = world({});
+  const r6 = await writePortalMessageOrdered({ ...row, project_id: null }, w6.deps);
+  ok('…no project id: straight to the direct write',
+    r6 === 'synced' && w6.log.join(',') === 'message:sent', w6.log.join(','));
+
+  ok('an RLS refusal reads as "still saving", not Postgres text',
+    isPortalLockRefusal('new row violates row-level security policy for table "portal_messages"')
+      && isPortalLockRefusal('x', '42501') && !isPortalLockRefusal('Failed to fetch')
+      && /still saving/.test(PORTAL_STILL_SAVING) && !/row-level|policy/i.test(PORTAL_STILL_SAVING));
+
+  // Wiring: every GC-authored portal row goes through the ordered writer.
+  const pc = readFileSync(join(ROOT, 'contexts', 'ProjectContext.tsx'), 'utf8');
+  const pt = readFileSync(join(ROOT, 'hooks', 'usePortalThread.ts'), 'utf8');
+  ok('ProjectContext has no direct portal_messages insert left',
+    !/supabaseWrite(Detailed)?\('portal_messages', 'insert'/.test(pc.replace(/writeNow: \(data\) => supabaseWriteDetailed\('portal_messages', 'insert'/, '')));
+  ok('…its notices use writePortalMessage (3 sites)', (pc.match(/void writePortalMessage\(\{/g) ?? []).length === 3);
+  ok('…writePortalMessage wires the ordered writer with the plain RLS message',
+    /writePortalMessageOrdered\(row\.id \? row : \{ \.\.\.row, id: generateUUID\(\) \}/.test(pc)
+      && /describeFailure: \(msg, code\) => \(isPortalLockRefusal\(msg, code\) \? PORTAL_STILL_SAVING : undefined\)/.test(pc)
+      && /enqueue: \(data\) => addToOfflineQueue\(\{ table: 'portal_messages', operation: 'insert', data \}\)/.test(pc));
+  ok('usePortalThread sends through writePortalMessage, not a direct insert',
+    /await writePortalMessage\(\{ \.\.\.row \}\)/.test(pt) && !/supabaseWriteDetailed\('portal_messages'/.test(pt));
+  const oq = readFileSync(join(ROOT, 'utils', 'offlineQueue.ts'), 'utf8');
+  ok('supabaseWriteDetailed lets the caller word a refusal',
+    /oops\(plain \?\? `Couldn't save \(\$\{table\}\)\. \$\{msg\.slice\(0, 80\)\}`\)/.test(oq));
+}
+
 if (fail > 0) {
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(1);

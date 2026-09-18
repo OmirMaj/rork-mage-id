@@ -514,7 +514,9 @@ export interface LastPlannerCloudRows {
 }
 
 // `::` cannot occur in a uuid, an ISO date, or a crew key built by
-// utils/crewDispatch, so the join is unambiguous.
+// utils/crewDispatch, so the join is unambiguous. The id carries no user: the
+// SERVER's key is (user_id, id) (20260918160000), so a collaborator committing
+// the same task and week gets his own row instead of colliding with the GC's.
 export function commitmentRowId(projectId: string, taskId: string, weekStart: string): string {
   return `${projectId}::${taskId}::${weekStart}`;
 }
@@ -733,7 +735,8 @@ export function mergeCloudIntoStore(
 //     keeps its local value — the server's older copy must not revert it;
 //   - an UNREADABLE queue means "we could not look", so give up and stay on
 //     the device's copy rather than let the server win blind;
-//   - the backfill stops at the first write that does not land;
+//   - the backfill stops when the server stops answering, and skips (and
+//     stops re-offering) a row it refused;
 //   - duplicate natural keys collapse (mergeCloudIntoStore).
 
 export type LastPlannerSyncState = 'pending' | 'synced' | 'local-only';
@@ -795,26 +798,72 @@ export function pendingFromQueue(entries: readonly LastPlannerQueueEntry[]): Map
 }
 
 /**
- * Send a backfill one row at a time and STOP at the first write that does not
- * land. A backfill can be hundreds of rows; if the server stops answering, each
- * unsent row stays local-only and the next hydrate offers it again, instead of
- * flooding the FIFO-capped offline queue and pushing out someone's daily report.
+ * Send a backfill one row at a time and STOP when the server stops answering.
+ * A backfill can be hundreds of rows; if a write comes back 'queued' (offline,
+ * a transient error), each unsent row stays local-only and the next hydrate
+ * offers it again, instead of flooding the FIFO-capped offline queue and
+ * pushing out someone's daily report.
+ *
+ * A write that comes back 'failed' is different: the server ANSWERED and
+ * refused THIS row (an RLS rejection — e.g. a collaborator's commitment that
+ * collided with the owner's row before 20260918160000 keyed rows per person —
+ * or a check violation). That says nothing about the rows behind it, so skip
+ * it and keep going. Stopping there (the old rule) let one refused commitment
+ * keep every later row — his constraints, dispatches, his own projects — off
+ * the server on every load. `MAX_CONSECUTIVE_FAILED` refusals in a row do stop
+ * the run: that is a server refusing everything, not one bad row.
+ *
+ * `onFailed` names each refused row so the caller can stop re-offering it.
  * `shouldContinue` is asked before every row: a backfill that outlives its
  * session (sign-out, account switch) must not keep uploading the old account's
  * rows. Returns how many rows were attempted.
  */
+export const BACKFILL_MAX_CONSECUTIVE_FAILED = 3;
 export async function sendBackfillUntilUnsynced(
   writes: readonly LastPlannerRowWrite[],
   send: (w: LastPlannerRowWrite) => Promise<LastPlannerWriteOutcome>,
   shouldContinue: () => boolean | Promise<boolean> = () => true,
+  onFailed: (w: LastPlannerRowWrite) => void = () => {},
 ): Promise<number> {
   let attempted = 0;
+  let failedInARow = 0;
   for (const w of writes) {
     if (!(await shouldContinue())) break;
     attempted++;
-    if ((await send(w)) !== 'synced') break;
+    const outcome = await send(w);
+    if (outcome === 'synced') { failedInARow = 0; continue; }
+    if (outcome === 'queued') break;
+    onFailed(w);
+    if (++failedInARow >= BACKFILL_MAX_CONSECUTIVE_FAILED) break;
   }
   return attempted;
+}
+
+/**
+ * Rows the server refused during a backfill, remembered for this app session
+ * so the next hydrate does not send them again. Each re-send raised the queue's
+ * "Couldn't save" toast, on every load, for a row that could not land — which
+ * teaches a super to ignore the toast that matters when a daily report fails.
+ * Keyed by the row's CONTENT too: once he edits it (a review, a new outcome)
+ * it is a different write and gets its own try. The row stays on the device
+ * either way. In memory only and per user, so a tenant switch forgets it.
+ */
+export class LastPlannerRefusedLog {
+  private keys = new Set<string>();
+  private userId: string | null = null;
+  private key(w: LastPlannerRowWrite): string {
+    const row = Object.keys(w.row).sort().map(k => [k, w.row[k] ?? null]);
+    return `${pendingRowKey(w.table, w.id)}#${JSON.stringify(row)}`;
+  }
+  private forUser(userId: string) {
+    if (this.userId !== userId) { this.keys.clear(); this.userId = userId; }
+  }
+  add(userId: string, w: LastPlannerRowWrite): void { this.forUser(userId); this.keys.add(this.key(w)); }
+  /** The backfill minus the rows already refused in this session. */
+  filter(userId: string, writes: readonly LastPlannerRowWrite[]): LastPlannerRowWrite[] {
+    this.forUser(userId);
+    return writes.filter(w => !this.keys.has(this.key(w)));
+  }
 }
 
 export interface LastPlannerHydrateDeps {
@@ -939,6 +988,7 @@ export function createLastPlannerLoader(io: LastPlannerLoaderIo) {
   // Module-lifetime (one loader per app) so a push from the screen protects its
   // rows from a hydrate started by ANY reader.
   const sentLog = new LastPlannerSentLog();
+  const refusedLog = new LastPlannerRefusedLog();
   // One backfill at a time: two readers hydrating together would otherwise
   // both walk the same local-only rows.
   let backfillRunning = false;
@@ -976,13 +1026,15 @@ export function createLastPlannerLoader(io: LastPlannerLoaderIo) {
       await io.unpersistIfUnchanged(store);
       return;
     }
-    if (session === 'unknown' || backfill.length === 0 || backfillRunning) return;
+    const toSend = refusedLog.filter(userId, backfill);
+    if (session === 'unknown' || toSend.length === 0 || backfillRunning) return;
     // History recorded before the table existed, or offline and never queued —
     // the rows that made a logout destructive. Send them up, as this user only.
     backfillRunning = true;
     try {
-      await sendBackfillUntilUnsynced(backfill, w => sendRow(userId, w),
-        async () => isCurrent() && (await sessionIs(userId)) === 'same');
+      await sendBackfillUntilUnsynced(toSend, w => sendRow(userId, w),
+        async () => isCurrent() && (await sessionIs(userId)) === 'same',
+        w => refusedLog.add(userId, w));
     } catch (err) {
       console.warn('[lastPlanner] backfill failed:', err);
     } finally {

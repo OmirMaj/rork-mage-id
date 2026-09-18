@@ -55,7 +55,7 @@ import { nailIt } from '@/components/animations/NailItToast';
 import {
   buildChangeOrderFromTicket, buildPricingAuditEntries, checkFieldTicketConversion,
   checkFieldTicketReadiness, computeFieldTicketTotals, emptyFieldTicket,
-  fieldTicketLabel, fieldTicketPriceChanges, fieldTicketPricingBlockReason, formatTicketDate, pricingRoleFor,
+  fieldTicketLabel, fieldTicketMoneyHiddenReason, fieldTicketPriceChanges, fieldTicketPricingBlockReason, formatTicketDate, pricingRoleFor,
   isFieldTicketAuthorized, lastPricedAt, nextFieldTicketNumber, pricingActorName,
   suggestEquipmentRate, suggestLaborRate, ticketConversionPatch,
   type FieldTicketRateSuggestion,
@@ -63,7 +63,7 @@ import {
 import { useLaborRates } from '@/hooks/useLaborRates';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
-import { isFinancialsBlinded } from '@/utils/roleBlinding';
+import { canViewFinancials } from '@/utils/roleBlinding';
 import { todayCalendarDay } from '@/utils/calendarDate';
 import type {
   Equipment, FieldTicket, FieldTicketAuthorizerRole, FieldTicketEquipmentRow,
@@ -331,7 +331,18 @@ function FieldTicketInner() {
   // quantities only, like ProjectHero. The database still returns the priced
   // rows to a field seat (field_tickets_collab_select) — the founder decision
   // utils/roleBlinding.ts already records.
-  const moneyBlinded = isFinancialsBlinded(projectRole);
+  //
+  // FAIL CLOSED (audit #99). This read the fail-open blinding helper, which
+  // is false for a NULL role — and the role is null with no signal on site or
+  // before the collaborator read lands, so a foreman offline saw every rate,
+  // total and O&P. It now asks canViewFinancials of the PRICING role: the
+  // owner is recognised from the cached project row (pricingRoleFor), so he
+  // still sees his money offline; anyone else sees it once the read confirms
+  // a role that may. While it cannot, the screen says why (moneyHiddenReason).
+  const { user } = useAuth();
+  const pricingRole = pricingRoleFor(projectRole, project?.ownerUserId, user?.id);
+  const moneyBlinded = !canViewFinancials(pricingRole);
+  const moneyHiddenReason = fieldTicketMoneyHiddenReason(pricingRole, projectRoleError);
   /** A ticket's amount for a toast — nothing for a blinded role. */
   const amountSuffix = useCallback((n: number) => (moneyBlinded ? '' : ` — ${money(n)}`), [moneyBlinded]);
 
@@ -501,15 +512,13 @@ function FieldTicketInner() {
 
   /** Who the audit trail names: the signed-in person who set the rate, with
    *  his branding only as a fallback (see pricingActorName). */
-  const { user } = useAuth();
   const officeActor = useMemo(
     () => pricingActorName(user, settings.branding),
     [user, settings.branding],
   );
   // The owner is known from the cached project row, so a failed or pending
   // collaborator read (no signal on site) does not lock him out of his own
-  // ticket; anyone else still waits for the read (pricingRoleFor).
-  const pricingRole = pricingRoleFor(projectRole, project?.ownerUserId, user?.id);
+  // ticket; anyone else still waits for the read (pricingRoleFor, above).
   const pricingBlockReason = fieldTicketPricingBlockReason(pricingRole, projectRoleError);
 
   const handleApplyPricing = useCallback((
@@ -655,7 +664,7 @@ function FieldTicketInner() {
                 {openTicket.materials.length} material line{openTicket.materials.length === 1 ? '' : 's'} ·{' '}
                 {totals.equipmentHours} equip hr
               </Text>
-              <Text style={styles.amountSub}>Rates and totals are the office&apos;s — field access shows hours and quantities.</Text>
+              <Text style={styles.amountSub}>{moneyHiddenReason}</Text>
             </View>
           ) : (
           <View style={styles.amountCard}>
@@ -1253,12 +1262,21 @@ function FieldTicketInner() {
           <View style={styles.unbilledCard}>
             <Text style={styles.unbilledLabel}>Signed, not yet billed</Text>
             {!moneyBlinded && <Text style={styles.unbilledValue}>{money(unbilledTotal)}</Text>}
+            {moneyBlinded && moneyHiddenReason ? (
+              <Text style={styles.unbilledSub} testID="ticket-money-hidden-reason">{moneyHiddenReason}</Text>
+            ) : null}
             <Text style={styles.unbilledSub}>
               {unbilled.length} ticket{unbilled.length === 1 ? '' : 's'} the owner has already
               authorized. Convert them before closeout.
             </Text>
           </View>
         )}
+
+        {/* A blank where the amounts were must say why (a blocked control
+            says why) — the unbilled card carries it when there is one. */}
+        {moneyBlinded && moneyHiddenReason && unbilled.length === 0 && tickets.length > 0 ? (
+          <Text style={styles.ticketMeta} testID="ticket-list-money-hidden-reason">{moneyHiddenReason}</Text>
+        ) : null}
 
         {tickets.length === 0 ? (
           <EmptyState

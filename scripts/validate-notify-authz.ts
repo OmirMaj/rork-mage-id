@@ -137,7 +137,9 @@ ok('anon path is bucketed by client IP', /exceedsRateLimit\(`notify:ip:\$\{clien
 ok('client IP comes from clientIpFrom (last hop / proxy header)', /clientIpFrom\(req\.headers\)/.test(notify) && !/split\(','\)\[0\]/.test(notify));
 ok('legacy per-portal bucket is kept', /exceedsRateLimit\(`portal:\$\{portalId\}`, ANON_HOURLY_CAP\)/.test(notify));
 ok('anon callers without even the anon key get 401', /reason: 'event_not_anon_allowed'/.test(notify) && /error: 'unauthorized' \}, 401\)/.test(notify));
-ok('portal CTA URLs come from portalUrlFor', /import \{ portalUrlFor, subPortalUrlFor, APP_BASE \} from "\.\.\/_shared\/portalLinks\.ts"/.test(notify) && /portalUrlFor\(projectCtx\.client_portal\)/.test(notify));
+ok('portal CTA URLs come from portalUrlFor', /import \{ portalUrlFor, portalLinkEnded, subPortalUrlFor, APP_BASE \} from "\.\.\/_shared\/portalLinks\.ts"/.test(notify) && /portalUrlFor\(projectCtx\.client_portal\)/.test(notify));
+// An ENDED link (portal_snapshots.expires_at past) is dropped like no portal.
+ok('notify drops an ended portal link', /if \(portalLinkEnded\(snap\[0\]\?\.expires_at \?\? null\)\) portalUrl = null;/.test(notify));
 ok('sub-portal CTA URL comes from subPortalUrlFor', /subPortalUrlFor\(link\)/.test(notify));
 ok('no token-less /portal/<id> literal remains', !/mageid\.app\/portal/.test(notify) && !/PORTAL_BASE\}\/\$\{portalId\}/.test(notify));
 ok('project lookup selects client_portal (and user_id for ownership)', /select=id,name,location,user_id,client_portal/.test(notify));
@@ -198,8 +200,9 @@ ok('the page does not send the token to the dead portal_reaction call (unchanged
 console.log('\nportal links in system emails:');
 const dunning = read('supabase/functions/invoice-dunning/index.ts');
 ok('invoice-dunning loaded', dunning.length > 0);
-ok('dunning imports portalUrlFor', /import \{ portalUrlFor \} from '\.\.\/_shared\/portalLinks\.ts'/.test(dunning));
-ok('dunning builds the link from client_portal', /const portalUrl = portalUrlFor\(project\.client_portal\)/.test(dunning));
+ok('dunning imports portalUrlFor', /import \{ portalUrlFor, portalLinkEnded \} from '\.\.\/_shared\/portalLinks\.ts'/.test(dunning));
+ok('dunning builds the link from client_portal', /let portalUrl = portalUrlFor\(project\.client_portal\)/.test(dunning));
+ok('dunning drops an ended portal link', /portalLinkEnded\(\(snapRes\.data[^)]*\)\?\.expires_at \?\? null\)\) \{\s*portalUrl = null;/.test(dunning));
 ok('dunning no longer links /portal/<project.id>', !/mageid\.app\/portal\/\$\{project\.id\}/.test(dunning));
 ok('dunning omits the button when there is no tokenized URL', /opts\.portalUrl \? emailButton\('View invoice', opts\.portalUrl\) : ''/.test(dunning));
 ok('dunning still selects client_portal', /\.select\('id,user_id,name,client_portal'\)/.test(dunning));
@@ -216,7 +219,8 @@ ok('digest imports portalUrlFor', /import \{ portalUrlFor \} from '\.\.\/_shared
 ok('digest builds the link from client_portal via the helper', /const portalUrl = portalUrlFor\(portal\) \?\? undefined/.test(digest) && /const portal = project\.client_portal/.test(digest));
 ok('digest omits the CTA when there is no tokenized URL', /cta: opts\.portalUrl \? \{ label: 'View your portal', href: opts\.portalUrl \} : undefined/.test(digest));
 ok('digest no longer links /portal/<project.id> (or any token-less portal path)', !/\/portal\/\$\{/.test(digest) && !/mageid\.app\/portal\//.test(digest));
-ok('both digest project SELECTs include client_portal', (digest.match(/\.select\('id,user_id,name,status,location,client_portal,schedule'\)/g) ?? []).length === 2);
+// closed_at joined the select 2026-09-18 (audit #23: the digest stops at handover).
+ok('both digest project SELECTs include client_portal', (digest.match(/\.select\('id,user_id,name,status,closed_at,location,client_portal,schedule'\)/g) ?? []).length === 2);
 
 // ── 8. the trigger-credential migration — EDGE-F3 / DB-F1 / OPS-F2 ──────────
 console.log('\nmigration 20260904100000_notify_trigger_cron_secret:');
@@ -231,6 +235,18 @@ ok('notify_portal_message_fn is rewritten to go through fire_notify', /function 
 ok('portal_messages trigger switches to trg_notify_portal_message', /drop trigger if exists notify_portal_message on public\.portal_messages/i.test(mig) && /execute function public\.trg_notify_portal_message\(\)/i.test(mig));
 ok('trg_notify_portal_message fires for client-authored rows only', /if NEW\.author_type = 'client' then[\s\S]*?perform public\.fire_notify\(\s*'portal_message'/.test(mig));
 ok('anon loses EXECUTE on fire_notify; authenticated keeps it (SECURITY INVOKER triggers)', /revoke execute on function public\.fire_notify\(text, text, text, jsonb\) from public, anon/.test(mig) && /grant execute on function public\.fire_notify\(text, text, text, jsonb\) to authenticated, service_role/.test(mig));
+
+// Post-ship review: portal_reply mails addresses and text the GC controls, so
+// it is metered at the sender per recipient, before resend, with a global cap.
+{
+  const start = notify.indexOf("case 'portal_reply': {");
+  const pr = start > -1 ? notify.slice(start, notify.indexOf("case 'lead_received': {", start)) : '';
+  ok('portal_reply branch found', pr.length > 0);
+  ok('portal_reply charges a per-GC bucket per recipient, before sending', /for \(const rc of recipients\)[\s\S]*?exceedsRateLimit\(`notify:portal_reply:\$\{gcUserId\}`, PORTAL_REPLY_HOURLY_CAP\)[\s\S]*?sendIfNotSuppressed\(/.test(pr));
+  ok('…and a global bucket', /exceedsRateLimit\('notify:portal_reply:global', PORTAL_REPLY_GLOBAL_HOURLY_CAP\)/.test(pr));
+  ok('over the cap it logs rate_limited and sends nothing', /email_status: 'rate_limited' \}\)[\s\S]{0,40}continue;/.test(pr));
+  ok('per-GC cap matches send-email free tier (60/h), global 500/h', /const PORTAL_REPLY_HOURLY_CAP = 60;/.test(notify) && /const PORTAL_REPLY_GLOBAL_HOURLY_CAP = 500;/.test(notify));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -277,27 +277,95 @@ export async function fetchContractsForProject(projectId: string): Promise<Proje
   return (data ?? []).map(r => rowToContract(r as ProjectContractRow));
 }
 
+/**
+ * The active contract read, with a failed read kept APART from "this job has
+ * no contract". fetchActiveContract collapses both to null, and the contract
+ * screen used to read that null as "seed a fresh draft": on a job site with no
+ * signal a job with a signed contract showed a blank new Construction
+ * Agreement, and signing it once back online inserted a SECOND version-1
+ * contract — the homeowner got a second contract to sign and the billing
+ * ledger could bill deposit milestones twice. Only `ok: true` with
+ * `contract: null` means "no contract yet".
+ */
+export type ActiveContractLoad =
+  | { ok: true; contract: ProjectContract | null }
+  | { ok: false; error: string };
+
+export async function loadActiveContract(projectId: string): Promise<ActiveContractLoad> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'MAGE is not configured on this build.' };
+  try {
+    const { data, error } = await supabase
+      .from('project_contracts')
+      .select('*')
+      .eq('project_id', projectId)
+      .is('superseded_by', null)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, contract: data ? rowToContract(data as ProjectContractRow) : null };
+  } catch (err) {
+    // supabase-js returns most failures as `error`, but a dead socket can throw.
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Kept for the read-only callers (portal, project detail) that treat "could
+ *  not read" and "none" alike. A screen that WRITES a contract must use
+ *  loadActiveContract. */
 export async function fetchActiveContract(projectId: string): Promise<ProjectContract | null> {
-  if (!isSupabaseConfigured) return null;
-  const { data, error } = await supabase
-    .from('project_contracts')
-    .select('*')
-    .eq('project_id', projectId)
-    .is('superseded_by', null)
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error || !data) return null;
-  return rowToContract(data as ProjectContractRow);
+  const r = await loadActiveContract(projectId);
+  return r.ok ? r.contract : null;
+}
+
+/** Why saveContractDetailed refused or failed. 'duplicate' = the job already
+ *  has a live contract, so a row with no id would have been a second one. */
+export type ContractSaveResult =
+  | { ok: true; contract: ProjectContract }
+  | { ok: false; reason: 'duplicate'; existing: ProjectContract }
+  | { ok: false; reason: 'failed'; error: string };
+
+/**
+ * saveContract with the refusal spelled out. A save with no `id` is an INSERT
+ * of a new contract, so it first re-reads the job's live contract (not
+ * superseded, not void) and refuses if there is one — a draft seeded while the
+ * first read failed must never become a second contract. The partial unique
+ * index project_contracts_one_live_per_project (migration 20260918200000) is
+ * the backstop for the race this read cannot close (two devices at once).
+ */
+export async function saveContractDetailed(c: Omit<ProjectContract, 'id' | 'createdAt' | 'updatedAt' | 'userId'> & { id?: string }): Promise<ContractSaveResult> {
+  if (!c.id) {
+    const live = await loadActiveContract(c.projectId);
+    if (!live.ok) return { ok: false, reason: 'failed', error: live.error };
+    if (live.contract && live.contract.status !== 'void') {
+      return { ok: false, reason: 'duplicate', existing: live.contract };
+    }
+  }
+  const saved = await writeContractRow(c);
+  if ('error' in saved) {
+    // The index refused it: another device inserted this job's contract
+    // between our read and our write. Hand back the one that won.
+    if (saved.code === '23505') {
+      const live = await loadActiveContract(c.projectId);
+      if (live.ok && live.contract) return { ok: false, reason: 'duplicate', existing: live.contract };
+    }
+    return { ok: false, reason: 'failed', error: saved.error };
+  }
+  return { ok: true, contract: saved.contract };
 }
 
 export async function saveContract(c: Omit<ProjectContract, 'id' | 'createdAt' | 'updatedAt' | 'userId'> & { id?: string }): Promise<ProjectContract | null> {
-  if (!isSupabaseConfigured) return null;
+  const r = await writeContractRow(c);
+  return 'error' in r ? null : r.contract;
+}
+
+async function writeContractRow(c: Omit<ProjectContract, 'id' | 'createdAt' | 'updatedAt' | 'userId'> & { id?: string }): Promise<{ contract: ProjectContract } | { error: string; code?: string }> {
+  if (!isSupabaseConfigured) return { error: 'MAGE is not configured on this build.' };
   const session = await supabase.auth.getSession();
   const userId = session.data.session?.user?.id;
   if (!userId) {
     console.warn('[contractEngine] saveContract: no session');
-    return null;
+    return { error: 'You are signed out.' };
   }
 
   const row = {
@@ -328,16 +396,20 @@ export async function saveContract(c: Omit<ProjectContract, 'id' | 'createdAt' |
     kind: c.kind ?? null,
   };
 
-  const { data, error } = await supabase
-    .from('project_contracts')
-    .upsert(row, { onConflict: 'id' })
-    .select('*')
-    .maybeSingle();
-  if (error || !data) {
-    console.warn('[contractEngine] save error:', error?.message);
-    return null;
+  try {
+    const { data, error } = await supabase
+      .from('project_contracts')
+      .upsert(row, { onConflict: 'id' })
+      .select('*')
+      .maybeSingle();
+    if (error || !data) {
+      console.warn('[contractEngine] save error:', error?.message);
+      return { error: error?.message ?? 'The contract was not saved.', code: (error as { code?: string } | null)?.code };
+    }
+    return { contract: rowToContract(data as ProjectContractRow) };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
   }
-  return rowToContract(data as ProjectContractRow);
 }
 
 export async function setContractStatus(id: string, status: ContractStatus, extras?: { signedAt?: string; gcSignature?: ContractSignature; homeownerSignature?: ContractSignature; signedPdfUrl?: string }): Promise<boolean> {

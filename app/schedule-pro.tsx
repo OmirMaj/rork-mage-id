@@ -47,13 +47,18 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectRole } from '@/hooks/useProjectRole';
 import LockedAccessCard from '@/components/LockedAccessCard';
 import {
-  applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, rebaseWorkingTasks, scheduleWritePathForRole,
+  applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, scheduleWritePathForRole,
   sendFieldTaskPatches, staleFieldEdits, type FieldEditRefusal,
 } from '@/utils/fieldScheduleUpdate';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSchedulePresence } from '@/hooks/useSchedulePresence';
-import { useLiveSchedule } from '@/hooks/useLiveSchedule';
-import { mergeScheduleTasks } from '@/utils/scheduleMerge';
+import { useLiveSchedule, type LiveScheduleCopy } from '@/hooks/useLiveSchedule';
+import {
+  answerScheduleReread, beginScheduleReread, inLocalOrder, nextOwnScheduleStamp, takeStoreScheduleCopy, noteFieldScheduleSave, noteOwnScheduleSave, noteScheduleSocketGap, openScheduleSyncGate,
+  projectWriteQueued, queuedScheduleStamps, seedQueuedScheduleStamps, settleScheduleSyncGate, takeScheduleCopy,
+  type ScheduleCopy,
+} from '@/utils/scheduleMerge';
+import { getOwnOfflineQueue, onQueueChanged } from '@/utils/offlineQueue';
 import { PresenceBar } from '@/components/schedule/PresenceBar';
 import Paywall from '@/components/Paywall';
 import GridPane from '@/components/schedule/GridPane';
@@ -153,6 +158,23 @@ const GRID_BREAKPOINT = 900;
 // means the gantt gets ~30px of width — useless.
 const SPLIT_BREAKPOINT = 1600;
 
+/** The sub daily-update rollup on a task list: a task's progress rises to
+ *  the highest progress a sub reported, never falls. Returns `tasks` itself
+ *  when nothing rises. */
+function withSubRollup(tasks: ScheduleTask[], latestByTask: ReadonlyMap<string, number>): ScheduleTask[] {
+  if (latestByTask.size === 0) return tasks;
+  let mutated = false;
+  const next = tasks.map(t => {
+    const rollup = latestByTask.get(t.id);
+    if (rollup != null && rollup > (t.progress ?? 0)) {
+      mutated = true;
+      return { ...t, progress: rollup };
+    }
+    return t;
+  });
+  return mutated ? next : tasks;
+}
+
 export default function ScheduleProScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -195,6 +217,8 @@ function ScheduleProScreenInner() {
     projects,
     updateProject: updateProjectRaw,
     absorbServerSchedule,
+    isProjectSyncUnconfirmed,
+    onProjectSyncSettled,
     getInvoicesForProject,
     getPlanSheetsForProject,
     getPlanZonesForProject,
@@ -240,64 +264,97 @@ function ScheduleProScreenInner() {
   // Set once setHist exists (declared below); the field save uses it to put the
   // working copy back to what the server accepted.
   const resetWorkingTasksRef = React.useRef<((tasks: ScheduleTask[]) => void) | null>(null);
+  // When this screen may take a schedule copy from elsewhere — see
+  // utils/scheduleMerge.ts. While it has an unwritten edit or a write still
+  // leaving it takes no server copy (no merge, no rebase); once quiet it
+  // adopts the server's copy whole. A copy another writer on this device put
+  // in ProjectContext is taken as soon as no edit of the screen is waiting. 357d0a34 merged every realtime echo against a
+  // baseline it moved to its own save, so the echo of the save before read as
+  // a peer's change and a drag made ~1 s after the last one snapped back; the
+  // 3-way tracker that followed never converged. Every row save is stamped
+  // (schedule.updatedAt) and noted here BEFORE it reaches updateProject, which
+  // is how its echo is told from anyone else's.
+  const syncGateRef = React.useRef(openScheduleSyncGate(project?.id, project?.schedule?.updatedAt ?? null));
+  // The last copy the screen knows the server holds (the load, or the last
+  // one adopted) — the field-refusal notice reads it to tell the values the GC
+  // changed HERE from ones his stale copy merely carried.
+  const lastServerTasksRef = React.useRef<ScheduleTask[]>(project?.schedule?.tasks ?? []);
+  // Set below once the persist state exists: re-checks for quiet and adopts
+  // a parked copy.
+  const settleSyncRef = React.useRef<() => void>(() => {});
+  // The debounced persist, for handlers declared above it.
+  const schedulePersistRef = React.useRef<(tasks: ScheduleTask[]) => void>(() => {});
+  // Sub daily-update progress per task (the rollup effect below). Display
+  // only, max-wins — re-applied to every copy the screen adopts.
+  const subRollupRef = React.useRef<Map<string, number>>(new Map());
+  // Field saves between the persist timer and the RPC's answer: busy.
+  const fieldSavesInFlightRef = React.useRef(0);
   const saveAsField = useCallback(async (id: string, updates: Partial<Project>) => {
-    const current = projectsRef.current.find(p => p.id === id);
-    const currentSchedule = current?.schedule;
-    if (!currentSchedule) return;
-    const baseTasks = currentSchedule.tasks ?? [];
-    const { patches, blocked } = updates.schedule?.tasks
-      ? fieldTaskDiff(baseTasks, updates.schedule.tasks)
-      : { patches: [], blocked: [] };
-    const settingsChanged = Object.keys(updates).some(k => k !== 'schedule')
-      || fieldScheduleSettingsChanged(currentSchedule, updates.schedule);
-    let accepted = baseTasks;
-    let failure: string | null = null;
-    if (patches.length > 0) {
-      const sent = await sendFieldTaskPatches(supabase, id, patches);
-      if (sent.ok) {
-        accepted = applyFieldTaskPatches(baseTasks, patches);
-        // A task the owner deleted meanwhile was skipped by the server — no
-        // history row for it.
-        const landed = patches.filter(p => !sent.missing.includes(p.id));
-        // Local copy = what the server now holds. The row PATCH this also
-        // enqueues is refused for field (0 rows, nothing written).
-        updateProjectRaw(id, { schedule: { ...currentSchedule, tasks: accepted, updatedAt: new Date().toISOString() } });
-        // The field audit row is written HERE, after the server said yes, and
-        // only for what it took. handleEdit used to write it at the tap —
-        // before the RPC — so an offline or refused save still left
-        // "Framing → 60%" in the append-only schedule_audit_log, a record of
-        // progress that never saved, which a delay claim could be argued from.
-        const who = user?.email ?? user?.name ?? 'anonymous';
-        for (const p of landed) {
-          const b = baseTasks.find(t => t.id === p.id);
-          const a = accepted.find(t => t.id === p.id);
-          if (!b || !a) continue;
-          void appendAuditToAsyncStorage(id, buildAuditEntry({
-            user: who,
-            taskId: p.id,
-            taskTitle: b.title,
-            kind: 'progress' in p && p.progress !== b.progress ? 'progress_update' : 'task_edit',
-            summary: summarizeTaskDiff(b as unknown as Record<string, unknown>, a as unknown as Record<string, unknown>),
-            before: b as unknown as Record<string, unknown>,
-            after: a as unknown as Record<string, unknown>,
-          }));
+    fieldSavesInFlightRef.current += 1;
+    noteFieldScheduleSave(syncGateRef.current);
+    try {
+      const current = projectsRef.current.find(p => p.id === id);
+      const currentSchedule = current?.schedule;
+      if (!currentSchedule) return;
+      const baseTasks = currentSchedule.tasks ?? [];
+      const { patches, blocked } = updates.schedule?.tasks
+        ? fieldTaskDiff(baseTasks, updates.schedule.tasks)
+        : { patches: [], blocked: [] };
+      const settingsChanged = Object.keys(updates).some(k => k !== 'schedule')
+        || fieldScheduleSettingsChanged(currentSchedule, updates.schedule);
+      let accepted = baseTasks;
+      let failure: string | null = null;
+      if (patches.length > 0) {
+        const sent = await sendFieldTaskPatches(supabase, id, patches);
+        if (sent.ok) {
+          accepted = applyFieldTaskPatches(baseTasks, patches);
+          // A task the owner deleted meanwhile was skipped by the server — no
+          // history row for it.
+          const landed = patches.filter(p => !sent.missing.includes(p.id));
+          // Local copy = what the server now holds. The row PATCH this also
+          // enqueues is refused for field (0 rows, nothing written).
+          updateProjectRaw(id, { schedule: { ...currentSchedule, tasks: accepted, updatedAt: new Date().toISOString() } });
+          // The field audit row is written HERE, after the server said yes, and
+          // only for what it took. handleEdit used to write it at the tap —
+          // before the RPC — so an offline or refused save still left
+          // "Framing → 60%" in the append-only schedule_audit_log, a record of
+          // progress that never saved, which a delay claim could be argued from.
+          const who = user?.email ?? user?.name ?? 'anonymous';
+          for (const p of landed) {
+            const b = baseTasks.find(t => t.id === p.id);
+            const a = accepted.find(t => t.id === p.id);
+            if (!b || !a) continue;
+            void appendAuditToAsyncStorage(id, buildAuditEntry({
+              user: who,
+              taskId: p.id,
+              taskTitle: b.title,
+              kind: 'progress' in p && p.progress !== b.progress ? 'progress_update' : 'task_edit',
+              summary: summarizeTaskDiff(b as unknown as Record<string, unknown>, a as unknown as Record<string, unknown>),
+              before: b as unknown as Record<string, unknown>,
+              after: a as unknown as Record<string, unknown>,
+            }));
+          }
+        } else {
+          failure = sent.message;
         }
-      } else {
-        failure = sent.message;
       }
-    }
-    if (!failure && blocked.length === 0 && !settingsChanged) {
-      // A clean save clears an earlier refusal — it is no longer true.
-      if (patches.length > 0) setFieldNotice(null);
-    } else {
-      resetWorkingTasksRef.current?.(accepted);
-      const what = blocked.length > 0
-        ? `changes to ${blocked.slice(0, 3).join(', ')}${blocked.length > 3 ? ` and ${blocked.length - 3} more` : ''}`
-        : settingsChanged ? 'schedule settings' : '';
-      setFieldNotice([
-        failure,
-        what ? `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.` : null,
-      ].filter(Boolean).join(' '));
+      if (!failure && blocked.length === 0 && !settingsChanged) {
+        // A clean save clears an earlier refusal — it is no longer true.
+        if (patches.length > 0) setFieldNotice(null);
+      } else {
+        resetWorkingTasksRef.current?.(accepted);
+        const what = blocked.length > 0
+          ? `changes to ${blocked.slice(0, 3).join(', ')}${blocked.length > 3 ? ` and ${blocked.length - 3} more` : ''}`
+          : settingsChanged ? 'schedule settings' : '';
+        setFieldNotice([
+          failure,
+          what ? `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.` : null,
+        ].filter(Boolean).join(' '));
+      }
+    } finally {
+      fieldSavesInFlightRef.current -= 1;
+      // The RPC answered: its echo (or one parked meanwhile) may now be taken.
+      settleSyncRef.current();
     }
   }, [updateProjectRaw, user]);
   // #25, the second writer, owner side. The server keeps a field value newer
@@ -310,10 +367,19 @@ function ScheduleProScreenInner() {
   const [fieldConflictNotice, setFieldConflictNotice] = useState<string | null>(null);
   useEffect(() => { setFieldConflictNotice(null); }, [projectId]);
   const onFieldRefusalsRef = React.useRef<((refused: FieldEditRefusal[], kept: ScheduleTask[], sent: ScheduleTask[]) => void) | null>(null);
-  const saveAsRow = useCallback((id: string, updates: Partial<Project>) => {
+  const saveAsRow = useCallback((id: string, rawUpdates: Partial<Project>) => {
     const keptTasks = projectsRef.current.find(p => p.id === id)?.schedule?.tasks ?? [];
+    // Every schedule save gets its own stamp, strictly after the last one —
+    // some write sites here spread the stored schedule and would resend ITS
+    // updatedAt, and two saves sharing a stamp cannot be told apart when
+    // their echoes come back (utils/scheduleMerge.ts).
+    const stamp = rawUpdates.schedule ? nextOwnScheduleStamp(syncGateRef.current) : null;
+    const updates: Partial<Project> = rawUpdates.schedule && stamp
+      ? { ...rawUpdates, schedule: { ...rawUpdates.schedule, updatedAt: stamp } }
+      : rawUpdates;
     const sentTasks = updates.schedule?.tasks;
     const refused = sentTasks ? staleFieldEdits(keptTasks, sentTasks) : [];
+    if (stamp) noteOwnScheduleSave(syncGateRef.current, stamp);
     updateProjectRaw(id, updates);
     if (sentTasks && refused.length > 0) onFieldRefusalsRef.current?.(refused, keptTasks, sentTasks);
   }, [updateProjectRaw]);
@@ -340,9 +406,6 @@ function ScheduleProScreenInner() {
   useEffect(() => {
     resetWorkingTasksRef.current = (tasks) => setHist(emptyHistory(tasks));
   }, []);
-  // Last-known SERVER schedule tasks — the baseline for the Phase 2 3-way
-  // live-sync merge. Updated on project switch, and on every realtime receive.
-  const baselineRef = React.useRef<ScheduleTask[]>(project?.schedule?.tasks ?? []);
   // The row save found field values the server will keep over this edit (see
   // saveAsRow). Put the kept values back in the working copy — only where the
   // screen still holds the refused value, so a keystroke since the save is not
@@ -353,7 +416,7 @@ function ScheduleProScreenInner() {
     onFieldRefusalsRef.current = (refused, kept, sent) => {
       const keptById = new Map(kept.map(t => [t.id, t] as const));
       const sentById = new Map(sent.map(t => [t.id, t] as const));
-      const baseById = new Map(baselineRef.current.map(t => [t.id, t] as const));
+      const baseById = new Map(lastServerTasksRef.current.map(t => [t.id, t] as const));
       const val = (t: ScheduleTask | undefined, k: string) => (t as unknown as Record<string, unknown> | undefined)?.[k];
       const eq = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
       setHist(h => {
@@ -431,8 +494,46 @@ function ScheduleProScreenInner() {
   useEffect(() => {
     // Full reload for a new project — reset the undo/redo stacks entirely.
     setHist(emptyHistory(project?.schedule?.tasks ?? []));
-    baselineRef.current = project?.schedule?.tasks ?? [];
+    // A new gate for the loaded copy. The project's own save stamps live in
+    // module scope, so a remount still knows the saves its previous mount
+    // left in the sync debounce or on the wire.
+    syncGateRef.current = openScheduleSyncGate(project?.id, project?.schedule?.updatedAt ?? null);
+    lastServerTasksRef.current = project?.schedule?.tasks ?? [];
     setNamedBaselines((project?.schedule?.baselines ?? []) as NamedBaseline[]);
+  }, [project?.id]);
+
+  // Whether this project has a write in the offline queue (busy), kept
+  // current from the queue's change events. Busy until the first read says
+  // otherwise, and busy from the moment a change is signalled until it is
+  // read — a write that just queued must not look settled. The first read
+  // also seeds the stamps of saves queued before this mount (a page reloaded
+  // offline): they are this device's when they replay, not a peer's.
+  const queueBusyRef = React.useRef(true);
+  useEffect(() => {
+    const pid = project?.id;
+    if (!pid) { queueBusyRef.current = false; return; }
+    let disposed = false;
+    let seq = 0;
+    let seeded = false;
+    const refresh = () => {
+      const mine = ++seq;
+      queueBusyRef.current = true;
+      void getOwnOfflineQueue().then((queue) => {
+        if (disposed || mine !== seq) return;
+        if (!seeded) { seeded = true; seedQueuedScheduleStamps(syncGateRef.current, queuedScheduleStamps(queue, pid)); }
+        queueBusyRef.current = projectWriteQueued(queue, pid);
+        settleSyncRef.current();
+      }).catch(() => {
+        // Unreadable queue: judge by the sync state alone rather than never
+        // taking another copy.
+        if (disposed || mine !== seq) return;
+        queueBusyRef.current = false;
+        settleSyncRef.current();
+      });
+    };
+    refresh();
+    const unsubscribe = onQueueChanged(refresh);
+    return () => { disposed = true; unsubscribe(); };
   }, [project?.id]);
 
   // Mirror baselines into the ref used by schedulePersist. Without this, the
@@ -452,8 +553,8 @@ function ScheduleProScreenInner() {
     startDateRef.current = project?.schedule?.startDate;
   }, [project?.schedule?.startDate]);
 
-  // Mirror workingTasks into a ref so the unmount-flush closure (which only
-  // re-binds on cpm.projectFinish changes) always reads the latest copy.
+  // Mirror workingTasks into a ref so the unmount-flush closure (bound once,
+  // at mount) always reads the latest copy.
   // Addresses audit bug #7 — the closure-staleness race where a final
   // keystroke between the last debounce timer and unmount could be lost.
   useEffect(() => {
@@ -626,6 +727,7 @@ function ScheduleProScreenInner() {
   // deps. The `mutated` flag short-circuits no-op renders so the effect
   // is cheap even when there are no new updates.
   useEffect(() => {
+    subRollupRef.current = new Map();
     if (!project?.id) return;
     let cancelled = false;
     void (async () => {
@@ -637,21 +739,15 @@ function ScheduleProScreenInner() {
         const prev = latestByTask.get(u.taskId) ?? 0;
         if (u.progressPercent > prev) latestByTask.set(u.taskId, u.progressPercent);
       }
+      // Kept for every server copy the screen adopts later: adopted whole, it
+      // would otherwise drop the rollup off the bars.
+      subRollupRef.current = latestByTask;
       // Non-undoable refresh (progress rolled up from sub updates): replace
       // the present in place without touching the undo/redo stacks — matches
       // the pre-reducer behavior which bypassed the history snapshot.
       setHist(h => {
-        const prev = h.present;
-        let mutated = false;
-        const next = prev.map(t => {
-          const rollup = latestByTask.get(t.id);
-          if (rollup != null && rollup > (t.progress ?? 0)) {
-            mutated = true;
-            return { ...t, progress: rollup };
-          }
-          return t;
-        });
-        return mutated ? { ...h, present: next } : h;
+        const next = withSubRollup(h.present, latestByTask);
+        return next === h.present ? h : { ...h, present: next };
       });
     })();
     return () => { cancelled = true; };
@@ -723,7 +819,11 @@ function ScheduleProScreenInner() {
             );
             // Non-undoable maintenance edit (matches pre-reducer behavior,
             // which set workingTasks directly without a history snapshot).
+            // SAVED like any edit: it used to change only the screen, so it
+            // was never written, and the next server copy the screen adopts
+            // put the dead ids back.
             setHist(h => ({ ...h, present: cleanedTasks }));
+            schedulePersistRef.current(cleanedTasks);
             if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             // Toast handled by the cleanup banner re-rendering with count=0
             // — no extra UI needed.
@@ -761,8 +861,9 @@ function ScheduleProScreenInner() {
    */
   const persistTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   // True between schedulePersist and its timer firing. persistTimer.current is
-  // never cleared after it fires (the unmount flush relies on that), so it
-  // cannot answer "is a save still waiting?" — the rebase below needs to know.
+  // never cleared after it fires, so it cannot answer "is a save still
+  // waiting?" — the live-sync gate's "busy" and the unmount flush both need
+  // to know.
   const persistPendingRef = React.useRef(false);
   // Ref-mirror of namedBaselines so the persist closure always sees the
   // latest list without having to re-memoize schedulePersist on every
@@ -775,7 +876,7 @@ function ScheduleProScreenInner() {
   // Apply handler also writes it eagerly to beat the debounced persist.
   const startDateRef = React.useRef<string | undefined>(undefined);
   // Ref-mirror of workingTasks used by the unmount-flush cleanup. The
-  // cleanup only re-binds when cpm.projectFinish changes, so without this
+  // cleanup is bound once, at mount, so without this
   // ref a keystroke applied after the most recent debounce timer but
   // before unmount could be lost (audit bug #7). Sync useEffect lives
   // alongside the baselinesRef sync above.
@@ -841,52 +942,70 @@ function ScheduleProScreenInner() {
         baselines: baselinesRef.current.length,
       });
       updateProject(project.id, { schedule: withBaselines });
+      // A row save is now ProjectContext's sync (busy until it reports); a
+      // viewer's is nothing — then a copy parked meanwhile is taken now.
+      settleSyncRef.current();
     }, 500);
   }, [project, updateProject, cpm.projectFinish]);
+  useEffect(() => { schedulePersistRef.current = schedulePersist; }, [schedulePersist]);
 
   // Flush on unmount so we never lose an edit to a pending timer.
+  //
+  // UNMOUNT ONLY (deps []). It used to re-bind on [cpm.projectFinish] so its
+  // closure held the live finish — but then its CLEANUP ran on every finish
+  // change, not just on unmount: it cleared the pending persist of the very
+  // edit that moved the finish and wrote workingTasksRef.current, which still
+  // held the PREVIOUS copy (passive cleanups run before the mirror effect
+  // updates it). A drag that moved the finish date was not saved until the
+  // next edit, and lost if the tab closed; an idle second tab wrote its stale
+  // copy back whenever a peer's change moved its finish. Everything the flush
+  // needs is now read through refs at unmount, and it writes only when an
+  // edit is actually waiting (persistPendingRef) — a flush with nothing
+  // waiting is a whole-schedule write of values the server already has, or a
+  // peer's, stamped as this screen's.
+  const flushProjectRef = React.useRef(project);
+  const flushUpdateProjectRef = React.useRef(updateProject);
+  useEffect(() => {
+    flushProjectRef.current = project;
+    flushUpdateProjectRef.current = updateProject;
+  }, [project, updateProject]);
   useEffect(() => {
     return () => {
-      if (persistTimer.current) {
-        clearTimeout(persistTimer.current);
-        // One final sync using the latest working copy. Read tasks via
-        // workingTasksRef (synced in a separate useEffect) instead of
-        // closing over the workingTasks state variable — this closes the
-        // narrow audit-bug-#7 race where a final keystroke between the
-        // last debounce timer and unmount could be lost.
-        if (project) {
-          const liveCpm = cpmRef.current;
-          const stampedOnUnmount = liveCpm
-            ? stampCriticalPath(workingTasksRef.current, liveCpm)
-            : workingTasksRef.current;
-          const newSchedule = buildScheduleFromTasks(
-            project.schedule?.name ?? project.name ?? 'Schedule',
-            project.id,
-            stampedOnUnmount,
-            project.schedule?.baseline ?? null,
-            { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
-          );
-          // Same merge rule as the debounced persist above — see the note
-          // there for what hand-enumerating the sidecar fields used to lose.
-          const mergedOnUnmount = project.schedule
-            ? mergeEditedSchedule(project.schedule as ProjectSchedule, newSchedule, {
-                startDate: startDateRef.current,
-                projectId: project.id,
-              })
-            : newSchedule;
-          updateProject(project.id, {
-            schedule: { ...mergedOnUnmount, baselines: baselinesRef.current },
-          });
-        }
+      if (!persistPendingRef.current) return;
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+      persistPendingRef.current = false;
+      // One final sync using the latest working copy. Read tasks via
+      // workingTasksRef (synced in a separate useEffect) instead of
+      // closing over the workingTasks state variable — this closes the
+      // narrow audit-bug-#7 race where a final keystroke between the
+      // last debounce timer and unmount could be lost.
+      const project = flushProjectRef.current;
+      if (project) {
+        const liveCpm = cpmRef.current;
+        const stampedOnUnmount = liveCpm
+          ? stampCriticalPath(workingTasksRef.current, liveCpm)
+          : workingTasksRef.current;
+        const newSchedule = buildScheduleFromTasks(
+          project.schedule?.name ?? project.name ?? 'Schedule',
+          project.id,
+          stampedOnUnmount,
+          project.schedule?.baseline ?? null,
+          { criticalPathDays: liveCpm?.projectFinish }, // v2.1: engine-true value
+        );
+        // Same merge rule as the debounced persist above — see the note
+        // there for what hand-enumerating the sidecar fields used to lose.
+        const mergedOnUnmount = project.schedule
+          ? mergeEditedSchedule(project.schedule as ProjectSchedule, newSchedule, {
+              startDate: startDateRef.current,
+              projectId: project.id,
+            })
+          : newSchedule;
+        flushUpdateProjectRef.current(project.id, {
+          schedule: { ...mergedOnUnmount, baselines: baselinesRef.current },
+        });
       }
     };
-  // cpm.projectFinish in deps so the unmount-flush closure captures the
-  // engine-true value. workingTasks read via workingTasksRef.current (mirror
-  // synced above) — closes audit bug #7. project/updateProject are stable
-  // for the lifetime of this project's mount; capturing them at the last
-  // re-bind is correct (we want to write to the project we were editing).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cpm.projectFinish]);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Phase 2 — live sync + presence
@@ -897,62 +1016,125 @@ function ScheduleProScreenInner() {
   );
   const { peers: schedulePeers, setSelectedTask: setPresenceTask } = useSchedulePresence(project?.id, collabSelf);
   const livePeerProjectId = project?.id;
-  const onPeerSchedule = useCallback((incoming: ScheduleTask[]) => {
-    // FIRST into the shared project copy (integration round 1, field). Both
-    // saves judge this screen's edit against `projects`: saveAsRow's
-    // stampFieldEdits (via updateProject) and saveAsField's fieldTaskDiff. Fed
-    // only into `hist`, a foreman's absorbed 60% looked like the GC's own edit
-    // and his next save of ANY task minted an owner stamp that beat the
-    // foreman's later 80%; on a field phone, a task only the GC moved read as
-    // "Not saved: changes to Drywall" and was reset.
-    if (livePeerProjectId) absorbServerSchedule(livePeerProjectId, incoming);
-    const merged = mergeScheduleTasks(baselineRef.current, incoming, workingTasksRef.current);
-    baselineRef.current = incoming;
-    // Apply a peer's change to the local PRESENT only — no persist (they already
-    // saved it), no undo entry. Skip when the merge is a no-op: that's the echo
-    // of my own write, which just refreshed the baseline above.
-    if (JSON.stringify(merged) !== JSON.stringify(workingTasksRef.current)) {
-      setHist((s) => ({ ...s, present: merged }));
-      // A save still waiting on its debounce holds the PRE-echo tasks; left
-      // alone it would write the peer's key back as his change and raise a
-      // refusal notice for a task he never touched. Re-queue it with the
-      // merged copy — same rule as the rebase effect below.
-      if (persistPendingRef.current) schedulePersist(merged);
-    }
-  }, [livePeerProjectId, absorbServerSchedule, schedulePersist]);
-  useLiveSchedule(project?.id, onPeerSchedule);
-
-  // #25, the second writer, owner side. `hist` was seeded once per project and
-  // then fed only by realtime, which replays nothing it missed while the
-  // socket was down (iOS background, a sleeping laptop). So the foreground
-  // refetch put the foreman's 10:00 "Framing 60%" into `projects` but never
-  // into this screen: the GC kept looking at 0%, and his deliberate change to
-  // that task was built on a copy older than the field stamp — the server
-  // kept the foreman's value and the screen kept showing his. Now any newer
-  // server copy that reaches `project.schedule` from outside the screen (the
-  // refetch, this screen's own write coming back stamped) is rebased into the
-  // working copy without dropping unsaved edits (rebaseWorkingTasks has the
-  // rule), so what he edits next carries the field stamps and wins when he
-  // really changes it. No history entry: nothing he did. A save still waiting
-  // on its debounce was built from the pre-rebase copy, so it is re-queued
-  // with the rebased one.
-  useEffect(() => {
-    const incoming = project?.schedule?.tasks;
-    const base = baselineRef.current;
-    if (!incoming || incoming === base) return;
-    if (JSON.stringify(incoming) === JSON.stringify(base)) return;
-    baselineRef.current = incoming;
+  // Busy: an edit waiting on the persist debounce, a field RPC out, a sync of
+  // this project waiting or on the wire in ProjectContext, or a write of it in
+  // the offline queue. While busy the screen takes no copy from elsewhere.
+  const syncBusy = useCallback(() => (
+    persistPendingRef.current
+    || fieldSavesInFlightRef.current > 0
+    || (livePeerProjectId ? isProjectSyncUnconfirmed(livePeerProjectId) : false)
+    || queueBusyRef.current
+  ), [livePeerProjectId, isProjectSyncUnconfirmed]);
+  // Adopt a server copy WHOLE: the grid, its named baselines (every save
+  // writes baselinesRef back, so one captured elsewhere — a CO reflow's
+  // "Pre-CO" snapshot — must reach it first), the copy ProjectContext holds
+  // (so every other screen that writes project.schedule sends what the grid
+  // shows, and the field stamps every owner save is judged against are the
+  // server's), and the refusal notice's "server" base. Not an edit: no undo
+  // entry, no save. Never called while the screen has an edit it has not
+  // handed over, so nothing unsaved is lost. `fromServer` false: ProjectContext's
+  // own copy with a sync still out (another writer on this device) — shown,
+  // but not the server's yet, so neither base moves and the store already
+  // holds it.
+  const adoptServerCopy = useCallback((copy: ScheduleCopy, fromServer: boolean = true) => {
     setHist((h) => {
-      const merged = rebaseWorkingTasks(base, incoming, h.present);
-      if (JSON.stringify(merged) === JSON.stringify(h.present)) return h;
-      if (persistPendingRef.current) schedulePersist(merged);
-      return { ...h, present: merged };
+      // Whole in content, in the grid's own row order (inLocalOrder has why).
+      const shown = withSubRollup(inLocalOrder(copy.tasks, h.present), subRollupRef.current);
+      return JSON.stringify(shown) === JSON.stringify(h.present) ? h : { ...h, present: shown };
     });
-  // schedulePersist is read at the moment a server copy lands; re-running the
-  // rebase because its identity changed would do nothing (baseline already
-  // equals incoming).
+    if (Array.isArray(copy.baselines)) {
+      const next = copy.baselines as NamedBaseline[];
+      if (JSON.stringify(next) !== JSON.stringify(baselinesRef.current)) {
+        baselinesRef.current = next;
+        setNamedBaselines(next);
+      }
+    }
+    if (!fromServer) return;
+    lastServerTasksRef.current = copy.tasks;
+    if (livePeerProjectId) absorbServerSchedule(livePeerProjectId, copy.tasks, { stamp: copy.stamp });
+  }, [livePeerProjectId, absorbServerSchedule]);
+  // Re-check for quiet: take a parked copy, or do the re-read the gate owes —
+  // once after mount (the copy it opened on may be stale; the channel only
+  // hears events from its join) and after every socket gap.
+  const settleSync = useCallback(() => {
+    const gate = syncGateRef.current;
+    if (syncBusy()) return;
+    const parked = settleScheduleSyncGate(gate, false);
+    if (parked) adoptServerCopy(parked);
+    if (!livePeerProjectId) return;
+    const read = beginScheduleReread(gate);
+    if (!read) return;
+    const pid = livePeerProjectId;
+    const answered = (answer: ScheduleCopy | null) => {
+      if (syncGateRef.current !== gate) return;
+      // answerScheduleReread (utils/scheduleMerge.ts) drops an answer a save
+      // or an adopted copy may have overtaken while it was out — a colleague's
+      // event adopted inside the round trip must not be replaced by an older
+      // read — and says when to read again.
+      const { adopt, readAgain } = answerScheduleReread(gate, read, answer, syncBusy());
+      if (adopt) adoptServerCopy(adopt);
+      if (readAgain) settleSyncRef.current();
+    };
+    void Promise.resolve(supabase.from('projects').select('schedule').eq('id', pid).maybeSingle()).then(({ data, error }) => {
+      const schedule = (data as { schedule?: { tasks?: ScheduleTask[]; updatedAt?: unknown; baselines?: unknown } } | null)?.schedule;
+      answered(error || !Array.isArray(schedule?.tasks) ? null : {
+        tasks: schedule.tasks,
+        stamp: typeof schedule.updatedAt === 'string' ? schedule.updatedAt : null,
+        baselines: Array.isArray(schedule.baselines) ? schedule.baselines : undefined,
+      });
+    }, () => answered(null));
+  }, [syncBusy, adoptServerCopy, livePeerProjectId]);
+  useEffect(() => { settleSyncRef.current = settleSync; }, [settleSync]);
+  // A sync of this project reported: maybe quiet now.
+  useEffect(() => onProjectSyncSettled(() => settleSyncRef.current()), [onProjectSyncSettled]);
+
+  // A realtime event: placed in time by its save stamp, taken whole only
+  // while the screen is quiet, parked while it is busy, ignored when it is
+  // older than a save of this screen (utils/scheduleMerge.ts has the rule).
+  const onPeerSchedule = useCallback((incoming: LiveScheduleCopy) => {
+    const copy = takeScheduleCopy(syncGateRef.current, incoming, 'echo', syncBusy());
+    if (copy) adoptServerCopy(copy);
+  }, [syncBusy, adoptServerCopy]);
+  // The socket came back after a drop: the events in the gap are gone. Re-read
+  // the row once the screen is quiet.
+  const onLiveGap = useCallback(() => {
+    noteScheduleSocketGap(syncGateRef.current);
+    settleSyncRef.current();
+  }, []);
+  useLiveSchedule(project?.id, onPeerSchedule, onLiveGap);
+
+  // #25, the second writer, owner side. A copy reaching project.schedule from
+  // outside this screen — the foreground refetch (field progress saved while
+  // the phone was in a pocket), the re-pull after the offline queue drains,
+  // and ANOTHER WRITER ON THIS DEVICE (a client's portal approval reflowing a
+  // CO, a schedule accepted on a screen pushed over this one) — is adopted
+  // whole unless the screen has an edit it has not handed over yet (parked
+  // then; the save that follows drops it). It used to wait for every sync of
+  // the project to report, and dropped the copy meanwhile: the other writer's
+  // own sync made the screen "busy", so its change never showed and the GC's
+  // next drag overwrote it (takeStoreScheduleCopy has the rule). Skipped: this
+  // screen's own write as the store took it, and a copy it adopted itself.
+  //
+  // `rowSavesAtRender`: a save noted after the render that holds this copy
+  // (the persist timer firing before this effect flushes) is newer than it —
+  // the copy must not replace the working copy that save was built from.
+  const rowSavesAtRender = syncGateRef.current.rowSaves;
+  useEffect(() => {
+    const incoming = project?.schedule;
+    if (!incoming?.tasks) return;
+    const gate = syncGateRef.current;
+    if (gate.rowSaves !== rowSavesAtRender) return;
+    const settled = !syncBusy();
+    const copy = takeStoreScheduleCopy(gate, {
+      tasks: incoming.tasks,
+      stamp: typeof incoming.updatedAt === 'string' ? incoming.updatedAt : null,
+      baselines: Array.isArray(incoming.baselines) ? incoming.baselines : undefined,
+    }, persistPendingRef.current || fieldSavesInFlightRef.current > 0, settled);
+    if (copy) adoptServerCopy(copy, settled);
+  // Runs when the stored copy changes; syncBusy / adoptServerCopy are read
+  // at that moment and changing identity is not a new copy.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.schedule?.tasks]);
+  }, [project?.schedule?.tasks, project?.schedule?.updatedAt, project?.schedule?.baselines]);
 
   // -------------------------------------------------------------------------
   // Edit handlers — all go through a single `commit` that snapshots history

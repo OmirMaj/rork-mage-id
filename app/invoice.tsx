@@ -89,7 +89,7 @@ import {
 import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
-import { qboClosedFlagOf } from '@/utils/qboClosedFlag';
+import { qboClosedFlagOf, qboClosedFlagAlertReason } from '@/utils/qboClosedFlag';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function createId(_prefix: string): string {
@@ -498,6 +498,19 @@ function InvoiceInner() {
     payApps: projectPayApps,
   }), [existingInvoice, existingInvoices, invoiceId, project, projectPayApps]);
 
+  // Where the job's rate comes from IGNORING this invoice's own saved rate.
+  // app/bill-from-estimate.tsx stamps the resolved rate onto the draft before
+  // this editor mounts, so for that draft `retainageSeed` is always 'set on
+  // this invoice' and the provenance — including the "#1 held 0%, your
+  // contract says 10%" conflict label (audit round 2 #26) — was lost. The
+  // provenance note below reads this for an unlocked draft instead.
+  const retainageBasis = useMemo(() => resolveRetainagePercent({
+    priorInvoices: existingInvoices,
+    excludeInvoiceId: invoiceId,
+    project,
+    payApps: projectPayApps,
+  }), [existingInvoices, invoiceId, project, projectPayApps]);
+
   const [retentionPercent, setRetentionPercent] = useState<string>(String(retainageSeed.percent));
   // True until he changes it — so the screen can say where the number came from
   // rather than presenting a seeded figure as if he had chosen it.
@@ -840,16 +853,25 @@ function InvoiceInner() {
     // Pay button and no Stripe nudge — the exact "I made an invoice but
     // can't get paid" trap. Persist the invoice first so it has a stable
     // id (mirrors bill-from-estimate), then generate the link against it.
+    //
+    // CREATED AS A DRAFT, flipped to 'sent' only once the email has actually
+    // gone (invoice-to-paid blocker #3). It used to be inserted as 'sent' and
+    // rolled back on a failed or cancelled email — a rollback that could miss
+    // the server, leaving a 'sent' row that A/R aged, dunning chased and
+    // QuickBooks pushed for an invoice the client never received. Now no
+    // failure path has anything to roll back: the draft stays on his list and
+    // on the server, under its number, for him to send again.
     let workingInvoice: Invoice;
     const createdNew = !existingInvoice;
     if (existingInvoice) {
       workingInvoice = existingInvoice;
     } else {
-      workingInvoice = buildNewInvoice('sent');
+      workingInvoice = buildNewInvoice('draft');
       addInvoice(workingInvoice);
       // Bill the milestone the instant the invoice is persisted — before the
-      // email attempt, which can fail and drop the invoice back to draft. A
-      // draft invoice still exists, so the milestone is still billed.
+      // email attempt, which can fail and leave the invoice a draft. A draft
+      // invoice still exists (and stays on his list), so the milestone is
+      // still billed by it.
       void linkMilestone(workingInvoice);
     }
 
@@ -940,21 +962,24 @@ function InvoiceInner() {
     });
 
     if (!result.success) {
-      // If we created this invoice just for the send, drop it back to draft
-      // so the user can retry rather than stranding a phantom "sent" record.
+      // Nothing to roll back: a new invoice is still the draft it was created
+      // as, and an existing one was never flipped. (This branch is also reached
+      // on web when Resend is down — sendEmail returns success only for outcome
+      // 'sent', never for an opened mailto: stub.)
       //
-      // This branch is now also reached on web when Resend is down: sendEmail
-      // used to open a stub mailto: and return success:true, so the invoice was
-      // flipped to 'sent' — and A/R aging plus dunning started counting — for a
-      // client email that was never sent. success is true only for outcome
-      // 'sent' now, so the draft rollback below actually runs.
-      if (createdNew) updateInvoice(workingInvoice.id, { status: 'draft' });
+      // Point this editor AT the draft it just created, so a second tap of
+      // Send sends that invoice instead of building another one under the
+      // next number.
+      if (createdNew) router.setParams({ invoiceId: workingInvoice.id });
       if (result.error === 'cancelled') return;
       console.warn('[Invoice] Email send failed:', result.outcome, result.error);
       if (result.outcome === 'composer_opened') {
         showAlert(
           'Draft opened — not sent yet',
-          `${result.error ?? 'A draft was opened in your email app.'}\n\nInvoice #${workingInvoice.number} is still ${createdNew ? 'a draft' : 'unsent'} until it goes out.`,
+          // Say how to finish: until he taps Mark sent, the row stays a draft —
+          // not dunned, not in A/R, not pushed to QuickBooks — even once the
+          // email (with its Pay link) is in the client's inbox.
+          `${result.error ?? 'A draft was opened in your email app.'}\n\nInvoice #${workingInvoice.number} is still ${createdNew ? 'a draft' : 'unsent'} until it goes out.${createdNew || existingInvoice?.status === 'draft' ? ' Once you have sent it from your email app, tap Mark sent on the invoice so its due date, reminders and QuickBooks start.' : ''}`,
         );
         return;
       }
@@ -963,9 +988,14 @@ function InvoiceInner() {
     }
     console.log('[Invoice] Email sent successfully');
 
-    // Persist the sent state. New invoices were created as 'sent' with full
-    // data already; existing invoices need their edits + status flushed.
-    if (!createdNew && existingInvoice) {
+    // Persist the sent state. A new invoice was created as a draft with full
+    // data — it needs only the flip, with the due date counted from the send
+    // (updateInvoice reads the latest list, so it finds the invoice added
+    // above, and orders its write behind that insert). Existing invoices need
+    // their edits + status flushed.
+    if (createdNew) {
+      updateInvoice(workingInvoice.id, { status: 'sent', dueDate });
+    } else if (existingInvoice) {
       updateInvoice(existingInvoice.id, {
         lineItems,
         paymentTerms,
@@ -1600,13 +1630,14 @@ function InvoiceInner() {
    * the second invoice does not have to ask again and the retention screen has
    * something to plan a release against.
    *
-   * `assumed: false` — this came from him, not from an inference.
+   * `assumed: false` — this came from him, not from an inference, so it is a
+   * contract term that outranks a disagreeing carry-forward on later invoices
+   * (utils/retainageSource, audit round 2 #26).
    *
-   * NOT DURABLE ACROSS DEVICES YET: `projects` has no `retainage_percent`
-   * column, so the next successful server fetch drops the project-level copy
-   * (types/index.ts says so at the field). That degrades to asking again rather
-   * than to a wrong withholding, and once this invoice leaves draft the
-   * carry-forward — which lives on a row that DOES sync — covers the job.
+   * Durable across devices: since e7089d53 the rate syncs as
+   * project_financials.retainage_percent (+ retainage_percent_assumed) and
+   * contractTermsAfterLoad keeps it across fetches — the same field the
+   * project page's Retainage % edits.
    */
   const handleRetainageAnswer = useCallback((pct: number) => {
     setRetentionPercent(String(pct));
@@ -1627,6 +1658,33 @@ function InvoiceInner() {
     setShowRetainageAsk(false);
     setRetainageAskInput('');
   }, []);
+
+  /**
+   * The one line beside the Retention box saying where its number came from.
+   *
+   *  · no rate saved on this invoice → the resolver's own label (carried,
+   *    contract, pay app, conflict, or "not on file");
+   *  · an unlocked DRAFT that already holds a rate (every Bill-from-Estimate
+   *    draft) → the job's provenance when it agrees with the draft, or, when a
+   *    contract rate he typed disagrees, both numbers — so a draft seeded at
+   *    0% before he entered 10% on the project page says so instead of going
+   *    out at 0% unremarked. It is NOT changed for him: a saved rate is his.
+   *  · a sent invoice → nothing. Its rate is a fact about a document the
+   *    client already has; a later contract edit never relabels or rewrites it.
+   */
+  const retentionProvenance = useMemo<{ label: string; warn: boolean } | null>(() => {
+    if (!retentionSeedUntouched) return null;
+    if (retainageSeed.source !== 'invoice') {
+      return { label: retainageSeed.label, warn: retainageSeed.needsAsk || !!retainageSeed.conflict };
+    }
+    if (isLocked || existingInvoice?.status !== 'draft' || retainageBasis.needsAsk) return null;
+    const own = retainageSeed.percent;
+    if (retainageBasis.percent === own) return { label: retainageBasis.label, warn: false };
+    if (retainageBasis.source === 'contract' && project?.retainagePercentAssumed === false) {
+      return { label: `this draft holds ${own}%, your contract says ${retainageBasis.percent}%`, warn: true };
+    }
+    return null;
+  }, [retentionSeedUntouched, retainageSeed, retainageBasis, isLocked, existingInvoice?.status, project?.retainagePercentAssumed]);
 
   const retainageAskValue = parseFloat(retainageAskInput);
   const retainageAskValid = retainageAskInput.trim().length > 0 && isRecordedRetainageRate(retainageAskValue);
@@ -1835,16 +1893,16 @@ function InvoiceInner() {
                     and when nothing recorded one, it has to say THAT rather than
                     let a 0 in the box read as a decision he made. Tapping the
                     note reopens the ask, so declining it is never a dead end. */}
-                {retentionSeedUntouched && retainageSeed.source !== 'invoice' ? (
+                {retentionProvenance ? (
                   <TouchableOpacity
                     onPress={() => setShowRetainageAsk(true)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Retainage ${retainageSeed.label}. Set it from your contract.`}
+                    accessibilityLabel={`Retainage ${retentionProvenance.label}. Set it from your contract.`}
                     testID="retention-provenance-note"
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.retentionCarriedNote, retainageSeed.needsAsk && styles.retentionUnknownNote]}>
-                      {retainageSeed.label}
+                    <Text style={[styles.retentionCarriedNote, retentionProvenance.warn && styles.retentionUnknownNote]}>
+                      {retentionProvenance.label}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -2120,7 +2178,9 @@ function InvoiceInner() {
                   if (!qboClosedFlag) { void handleSendReminder(); return; }
                   showAlert(
                     'QuickBooks shows this invoice closed',
-                    'It was cleared there by something other than a payment, so automatic reminders are paused. Send a reminder to the client anyway?',
+                    // The reason follows the flag's own kind (void / refund
+                    // gap / credit) — one fixed sentence was wrong for two.
+                    `${qboClosedFlagAlertReason(qboClosedFlag)} Send a reminder to the client anyway?`,
                     [
                       { text: 'Cancel', style: 'cancel' },
                       { text: 'Send anyway', onPress: () => { void handleSendReminder(); } },

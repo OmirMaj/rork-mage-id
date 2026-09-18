@@ -5,9 +5,13 @@
 //   2. Marks all other responses on this RFP 'declined'
 //   3. Closes the public_bid (status='closed', awarded_response_id, awarded_at)
 //   4. Creates a project in the awarded contractor's account, populated
-//      with the homeowner's title/scope/photos/drawings/address
-//   5. Spins up the contractor's client_portal record with the homeowner
-//      as the client. Notifies both sides.
+//      with the homeowner's street address, the accepted price, photos,
+//      drawings and contact (award_rfp, 20260918120000 — before that it
+//      carried only title/scope/city and none of the rest)
+//   5. Seeds the contractor's client_portal record with the homeowner's
+//      email on the invite, and notifies the contractor. The portal opens
+//      for the homeowner only once the contractor publishes it and sends
+//      the link — so this screen promises the link, not the portal.
 //
 // The award action is irreversible from the UI; we confirm twice.
 
@@ -35,6 +39,10 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { awardCarriedItems, joinItems } from '@/supabase/functions/award-rfp/carried';
+import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+import { useProperties } from '@/contexts/PropertyContext';
+import { workOrdersAssignedByAward } from '@/utils/propertyMirror';
 
 interface ResponseRow {
   id: string;
@@ -59,9 +67,20 @@ interface RfpHeader {
   title: string;
   status: string;
   awarded_response_id: string | null;
+  // Read so the award alerts name only what award_rfp actually carries.
+  address_line: string | null;
+  photo_urls: unknown;
+  drawing_urls: unknown;
 }
 
 type SortMode = 'recent' | 'low' | 'high';
+
+// award_rfp sets a budget only for a positive bid (never $0), so the alerts
+// name a price only then — to the cent, as award_rfp stores round(bid, 2):
+// a $48,500.50 bid must not read "$48,501" on the award.
+function priceTextFor(amount: number | null | undefined): string | null {
+  return typeof amount === 'number' && amount > 0 ? formatMoney(amount, 2) : null;
+}
 
 export default function RfpResponsesReviewScreen() {
   const { colors: themeColors } = useTheme();
@@ -72,6 +91,7 @@ export default function RfpResponsesReviewScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { workOrders, updateWorkOrder } = useProperties();
   const { user } = useAuth();
   const { bidId } = useLocalSearchParams<{ bidId: string }>();
 
@@ -87,7 +107,7 @@ export default function RfpResponsesReviewScreen() {
     queryFn: async (): Promise<RfpHeader | null> => {
       const { data } = await supabase
         .from('public_bids')
-        .select('id,user_id,title,status,awarded_response_id')
+        .select('id,user_id,title,status,awarded_response_id,address_line,photo_urls,drawing_urls')
         .eq('id', bidId)
         .single();
       return data;
@@ -157,9 +177,34 @@ export default function RfpResponsesReviewScreen() {
       if (error) throw new Error(error.message);
       if (!data?.success) throw new Error(data?.error ?? 'Award failed.');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // award-rfp moved the PM's work order posted as this RFP to 'assigned'
+      // on the server, but this device only reads that copy at sign-in. Apply
+      // the same change here, or his list says "Out for bids" until a restart
+      // and his next edit upserts the stale row over the recorded assignee.
+      const awardedCompany = typeof data.companyName === 'string' && data.companyName.trim()
+        ? data.companyName.trim() : null;
+      const nowIso = new Date().toISOString();
+      for (const { id, updates } of workOrdersAssignedByAward(workOrders, bidId ?? '', awardedCompany, nowIso)) {
+        updateWorkOrder(id, updates);
+      }
+      // Say exactly what happened. This used to promise "the project + client
+      // portal are set up" — but the portal reads a snapshot the contractor
+      // has to publish, the award returned no link, and the seeded invite had
+      // no email (audit round 2, #7/#19). award_rfp now carries the address,
+      // price, photos, drawings and this homeowner's email onto the
+      // contractor's project, so the true sentence is: they have your details,
+      // and they will send the portal link to this address.
+      const company = (typeof data.companyName === 'string' && data.companyName.trim())
+        || response.company_name || 'The contractor';
+      const email = typeof data.homeownerEmail === 'string' && data.homeownerEmail.includes('@')
+        ? data.homeownerEmail : null;
+      const carried = joinItems(awardCarriedItems(rfp ?? {}, priceTextFor(response.bid_amount)));
       showAlert(
         'Awarded!',
-        'The contractor has been notified and the project + client portal are set up. They\'ll reach out to schedule kickoff.',
+        `${company} has been notified. ${carried.charAt(0).toUpperCase()}${carried.slice(1)} ${carried.includes(' and ') ? 'are' : 'is'} on their new project.\n\n`
+          + (email
+            ? `They'll set up your project portal and send the link to ${email}.`
+            : 'They\'ll set up your project portal and send you the link.'),
         [{ text: 'OK', onPress: () => { void queryClient.invalidateQueries({ queryKey: ['rfp-responses', bidId] }); void queryClient.invalidateQueries({ queryKey: ['rfp-header', bidId] }); } }],
       );
     } catch (e) {
@@ -168,18 +213,18 @@ export default function RfpResponsesReviewScreen() {
     } finally {
       setBusyId(null);
     }
-  }, [bidId, queryClient]);
+  }, [bidId, queryClient, rfp, workOrders, updateWorkOrder]);
 
   // The award is irreversible (declines every other bidder, closes the RFP,
-  // creates the contractor's project + your client portal), so we confirm
+  // creates the contractor's project), so we confirm
   // TWICE: step 1 explains the blast radius, step 2 makes the committed
   // amount + company explicit on the final button.
   const handleAward = useCallback((response: ResponseRow) => {
     const companyName = response.company_name ?? 'this contractor';
-    const amountText = response.bid_amount != null ? formatMoney(response.bid_amount) : null;
+    const amountText = response.bid_amount != null ? formatMoney(response.bid_amount, 2) : null;
     showAlert(
       'Award this contractor?',
-      `${response.company_name ?? 'This contractor'} will be notified, the project will be set up in their MAGE ID account, and your client portal will be created. All other bidders will be politely declined.\n\nThis can't be undone.`,
+      `${response.company_name ?? 'This contractor'} will be notified and get a project in their MAGE ID account with ${joinItems(awardCarriedItems(rfp ?? {}, priceTextFor(response.bid_amount)).map(i => i.replace(/^the (.*) price$/, 'their $1 price')))}. They'll send you a link to your project portal once they've set it up. All other bidders will be politely declined.\n\nThis can't be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -205,7 +250,7 @@ export default function RfpResponsesReviewScreen() {
         },
       ],
     );
-  }, [runAward]);
+  }, [runAward, rfp]);
 
   if (!isOwner) {
     return (
@@ -276,7 +321,13 @@ export default function RfpResponsesReviewScreen() {
             <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No bids yet</Text>
             <Text style={styles.emptyBody}>
-              Contractors near you will see your project and start submitting bids. New bids show up here automatically.
+              {/* Was "Contractors near you will see your project and start
+                  submitting bids" — with browsing off and no contractor
+                  service areas that could not happen (audit round 2, #8).
+                  My RFPs shows how many were actually alerted. */}
+              {RFP_BROWSE_ENABLED
+                ? 'We alerted MAGE ID contractors who cover your area, and your post is listed for contractors browsing nearby jobs. My RFPs shows how many were alerted. New bids show up here automatically.'
+                : 'Only MAGE ID contractors who cover your area are alerted — browsing posted projects isn\'t open yet. My RFPs shows how many were alerted, including if that is none. New bids show up here automatically.'}
             </Text>
           </View>
         )}

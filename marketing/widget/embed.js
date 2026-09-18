@@ -7,6 +7,11 @@
  *   <script src="https://mageid.app/widget/embed.js"
  *           data-mage-contractor="your-company-slug" defer></script>
  *
+ * data-mage-contractor is the widget ID the app's "Estimate widget" screen
+ * prints — the contractor's account id since audit round 2, #10. Older
+ * snippets carry a company-name slug; those still resolve while exactly one
+ * account slugs to that name.
+ *
  * ...and a homeowner gets a ballpark price range in ten seconds, on the
  * contractor's own domain, while the lead lands in their MAGE pipeline.
  *
@@ -384,6 +389,13 @@
           if (res.status >= 400 || !res.body || !res.body.estimate) {
             state.step = backStep;
             return done(null, false, (res.body && res.body.error) || 'Something went wrong. Try again in a moment.');
+          }
+          // A snippet whose data-mage-contractor names no account (or a
+          // company name more than one account shares) still prices the job,
+          // but the lead goes nowhere. The contractor testing his own page is
+          // the one person who can fix it, so tell him in the console.
+          if (res.body.leadError === 'unknown_contractor' && window.console && console.warn) {
+            console.warn('[MAGE ID] Instant Estimate: data-mage-contractor="' + cfg.contractorId + '" does not match exactly one MAGE ID account, so this lead was not saved. Copy a fresh snippet from the app: Estimate widget.');
           }
           done(res.body.estimate, res.body.leadCaptured, null);
         }).catch(function () {

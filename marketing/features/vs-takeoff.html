@@ -539,7 +539,7 @@
          Screenshot proof — the takeoff flows straight into a priced estimate.
          ===================================================================== -->
     <section class="section wrap-wide">
-      <div class="feature-row reverse">
+      <div class="feature-row" style="grid-template-columns: 1fr; max-width: 760px;">
         <div>
           <h2>Where standalone takeoff stops, MAGE keeps going.</h2>
           <p>
@@ -553,7 +553,11 @@
             <li>One app from takeoff to closeout</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Estimate · From the takeoff"><img src="/screenshots/screens/24-estimate-hero.png" alt="Priced estimate generated from the takeoff" /></div>
+        <!-- No screenshot here on purpose (audit 2026-09-18 #31): the only capture
+             we had, 24-estimate-hero.png, showed 0.0% on every cost line and rows
+             that did not add up to its total. Re-shoot from a real wizard-built
+             estimate on the green build before an image goes back.
+             scripts/validate-marketing-screenshots.ts keeps it out. -->
       </div>
     </section>
 

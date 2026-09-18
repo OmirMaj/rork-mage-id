@@ -24,6 +24,14 @@ export interface PublicProfileSnapshot {
     about?: string;
     yearFounded?: number;
     servingArea?: string;
+    /**
+     * The owning account's id — the /builders "Request a quote" form sends it
+     * to public-lead-intake as `contractor_id`, which routes by it before the
+     * company-name slug (audit round 2, #10: two companies with one name, an
+     * accented name, or a blank name all misrouted or lost leads by slug).
+     * Not a secret: it grants nothing, and widget snippets already carry it.
+     */
+    contractorId?: string;
   };
   project: {
     id: string;
@@ -52,6 +60,8 @@ export interface PublicProfileSnapshot {
 
 interface BuildOpts {
   project: Project;
+  /** The signed-in owner's account id (see company.contractorId). */
+  ownerId?: string;
   settings?: AppSettings;
   photos?: ProjectPhoto[];
   maxPhotos?: number;
@@ -106,6 +116,7 @@ export function buildPublicProfileSnapshot(opts: BuildOpts): PublicProfileSnapsh
       licenseNumber: companyBranding?.licenseNumber,
       tagline: companyBranding?.tagline,
       logoUri: companyBranding?.logoUri,
+      ...(opts.ownerId ? { contractorId: opts.ownerId } : {}),
     },
     project: {
       id: project.id,

@@ -13,6 +13,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import type { PublicProfileSettings } from '@/types';
 import {
   buildPublicProfileSnapshot, buildPublicProfileUrl, slugify,
@@ -36,6 +37,7 @@ export default function PublicProfileSetupScreen() {
   const fabScroll = useBrainFabScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getProject, updateProject, settings, getPhotosForProject, projects } = useProjects();
+  const { user } = useAuth();
 
   const project = useMemo(() => id ? getProject(id) : undefined, [id, getProject]);
   const photos = useMemo(() => id ? getPhotosForProject(id) : [], [id, getPhotosForProject]);
@@ -78,8 +80,12 @@ export default function PublicProfileSetupScreen() {
       project: { ...project, publicProfile: profile },
       settings,
       photos,
+      // The page's quote form routes the lead by this account id first; the
+      // company-name slug alone collides between two same-named companies
+      // and breaks the moment he renames his company.
+      ownerId: user?.id,
     });
-  }, [project, profile, settings, photos]);
+  }, [project, profile, settings, photos, user?.id]);
 
   const publicUrl = useMemo(() => {
     if (!snapshot) return '';

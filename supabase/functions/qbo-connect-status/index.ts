@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier } from "../_shared/auth.ts";
 import { loadConnection, svc } from "../_shared/qbo.ts";
+import { QBO_PENDING_COUNT_FILTER } from "../_shared/qboSyncFilter.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +32,10 @@ serve(async (req) => {
     { count: errorCount, error: e3 },
   ] = await Promise.all([
     s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).eq("qbo_sync_status", "synced"),
-    s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).eq("qbo_sync_status", "pending"),
+    // Pending = everything the reconciler still owes QuickBooks except the
+    // errors counted below: 'pending' plus a non-draft row with no status (a
+    // draft paid through its link server-side — see _shared/qboSyncFilter).
+    s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).or(QBO_PENDING_COUNT_FILTER),
     s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).eq("qbo_sync_status", "error"),
   ]);
   const firstError = e1 ?? e2 ?? e3;

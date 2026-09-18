@@ -22,6 +22,7 @@ import {
   CO_REFLOW_ACTION,
   CO_REFLOW_UNANCHORED_ACTION,
   applyCoScheduleReflow,
+  buildDeferredCoAuditEntry,
   buildUnanchoredCoAuditEntry,
   describeAnchorReason,
   eligibleAnchorTasks,
@@ -525,6 +526,25 @@ console.log('\ncopy honesty:');
   ok('project-detail offers a way to place days on an approved-but-unapplied CO',
     /place \+\{co\.scheduleImpactDays\}d on the schedule/.test(projectDetail),
     'the CO screen tells users to go there — the affordance must exist');
+
+  // Audit #37 / integration round 3: a client's PORTAL approval never
+  // rewrites the schedule in the background. The reconciler runs from the
+  // root, often under an open Schedule Pro, whose next drag could overwrite
+  // the days while the CO said "applied" — and the CO screen promises nothing
+  // moves until he applies it.
+  const rec = readFileSync(join(ROOT, 'hooks', 'usePortalApprovalReconciler.ts'), 'utf8');
+  ok('the portal reconciler approves with deferReflow',
+    /updateChangeOrder\(co\.id, \{ status: wantedStatus, auditTrail \}, \{ deferReflow: true \}\)/.test(rec));
+  const uco = ctx.slice(ctx.indexOf('const updateChangeOrder = useCallback('), ctx.indexOf('fireGradingEvent(nextCO.projectId)'));
+  ok('updateChangeOrder: deferReflow (with no anchor he picked) skips the reflow and writes the marker once',
+    /if \(shouldReflow && nextCO && reflow\?\.deferReflow && !reflow\.anchorTaskId\) \{\s*if \(normalizeImpactDays\(nextCO\.scheduleImpactDays\) > 0 && !hasUnanchoredMarker\(nextCO\)\) \{\s*const marker = buildDeferredCoAuditEntry\(/.test(uco)
+      && /\} else if \(shouldReflow && nextCO\) \{[\s\S]*applyCoScheduleReflow\(/.test(uco));
+  const deferred = buildDeferredCoAuditEntry(5, { actor: 'client', now: '2026-09-18T12:00:00.000Z', newId: () => 'm1' });
+  const deferredCo = { scheduleImpactApplied: false, auditTrail: [deferred] } as unknown as ChangeOrder;
+  ok('the deferred marker is the "place these days" marker (once-only), says 5 days wait for his review, and leaves the CO unapplied',
+    hasUnanchoredMarker(deferredCo) && !isCoScheduleReflowApplied(deferredCo)
+      && deferred.action === CO_REFLOW_UNANCHORED_ACTION && /^5 days not applied to the schedule yet/.test(deferred.detail ?? ''),
+    JSON.stringify(deferred));
 
   // The AI analysis is used, not just rendered.
   const aiPanel = readFileSync(join(ROOT, 'components', 'AIChangeOrderImpact.tsx'), 'utf8');

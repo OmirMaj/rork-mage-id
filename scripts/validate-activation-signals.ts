@@ -870,14 +870,20 @@ console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he ch
     'a blank "Due" on the deposit, progress and final rows of the PDF the homeowner signs');
 
   // The wizard preview.
-  ok('the preview reads his split through resolvePaymentSplit and prints paymentStageRows',
-    /const previewSplit = resolvePaymentSplit\(\{ settings \}\)\.split;/.test(wizardCode)
+  ok('the preview reads his split through useSavedPaymentTerms and prints paymentStageRows',
+    /const savedTerms = useSavedPaymentTerms\(\);/.test(wizardCode)
+    && /const previewSplit = savedTerms\.split;/.test(wizardCode)
     && /previewSplit \? paymentStageRows\(result\.total, previewSplit\) : \[\]/.test(wizardCode));
   const cardStart = wizardCode.indexOf('testID="wizard-payment-terms"');
   const cardEnd = wizardCode.indexOf('testID="wizard-payment-terms-set"', cardStart);
   const card = cardStart >= 0 && cardEnd > cardStart ? wizardCode.slice(cardStart, cardEnd + 200) : '';
+  const statusAt = card.indexOf("{savedTerms.status !== 'ready' ? (");
+  const splitAt = card.indexOf(': previewSplit ? (');
+  ok('…a loading / could-not-load branch comes first, with Retry on a failed read',
+    statusAt >= 0 && splitAt > statusAt && card.includes('testID="wizard-payment-terms-loading"')
+    && /onPress=\{savedTerms\.retry\}/.test(card) && card.includes('testID="wizard-payment-terms-retry"'), card.slice(0, 200));
   ok('…with a not-set branch that says so and offers "Set now" through the gate',
-    card.includes('{previewSplit ? (') && card.includes('testID="wizard-payment-terms-not-set"')
+    splitAt >= 0 && card.includes('testID="wizard-payment-terms-not-set"')
     && card.includes("You'll be asked before this goes to your client.")
     && /gate\.run\(\{ terms: true, purpose: 'proposal_pdf', total: result\.total/.test(card),
     card.slice(0, 200));

@@ -2505,10 +2505,10 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
 
   // ── The load effect never asks, and is keyed on ids. ──
   const loadStart = code.indexOf('useEffect(() => {', code.indexOf('const contractRef = useRef(contract);'));
-  const loadEnd = code.indexOf('}, [project?.id, user?.id]);', loadStart);
+  const loadEnd = code.indexOf('}, [project?.id, user?.id, loadSeq]);', loadStart);
   const loadBody = loadStart > 0 && loadEnd > loadStart ? code.slice(loadStart, loadEnd) : '';
   ok('the contract load effect is keyed on project?.id and user?.id',
-    loadBody.length > 0 && /fetchActiveContract\(p\.id\)/.test(loadBody),
+    loadBody.length > 0 && /loadActiveContract\(p\.id\)/.test(loadBody),
     'keyed on the project OBJECT it re-seeded the draft on every project save and wiped his edits');
   ok('…and contains no gate call — opening the contract never asks',
     loadBody.length > 0 && !/\bgate(Run)?\s*[.(]/.test(loadBody) && !/askContractTerms\(/.test(loadBody));
@@ -2595,7 +2595,7 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
     /if \(filled\.id \|\| a\.termsScope === 'this_job' \|\| a\.warrantyScope === 'this_job'\) \{\s*void saveDraftFrom\(filled\);/.test(askBody),
     'an answer that only reached state is gone the moment he leaves the screen');
   ok('…and saveDraftFrom takes the contract as an argument, not the render closure',
-    /const saveDraftFrom = useCallback\(async \(c: ProjectContract\) => \{[\s\S]{0,200}saveContract\(\{ \.\.\.c, id: c\.id \|\| undefined \}\)/.test(code));
+    /const saveDraftFrom = useCallback\(async \(c: ProjectContract\) => \{[\s\S]{0,200}saveContractDetailed\(\{ \.\.\.c, id: c\.id \|\| undefined \}\)/.test(code));
 
   // ── ONE TOAST PER PRESS (review round 5). ──
   //

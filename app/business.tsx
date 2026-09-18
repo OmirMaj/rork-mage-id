@@ -154,8 +154,8 @@ function BusinessInner() {
   // ── Engine outputs ────────────────────────────────────────────────────
 
   const typeProfit = useMemo(
-    () => buildTypeProfitability(projects, commitments),
-    [projects, commitments],
+    () => buildTypeProfitability(projects, commitments, changeOrders),
+    [projects, commitments, changeOrders],
   );
 
   const pipeline = useMemo(

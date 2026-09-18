@@ -142,7 +142,7 @@ export function isAppStorageKey(key: string): boolean {
  *
  * KNOWN COST, accepted deliberately. A handful of the keys this now removes are
  * local-ONLY work products with no Supabase mirror — `mageid_material_cart`,
- * `mageid_scope_sheets`, `mageid_takeoff::*`, `mageid_managed_properties`. They
+ * `mageid_scope_sheets`, `mageid_takeoff::*`. They
  * used to survive sign-out because nobody had listed them; they no longer do.
  * That is the right call at this call site and not a judgement we can defer:
  * AuthContext's own comment on onNewSessionEstablished spells out that it
@@ -163,6 +163,15 @@ export function isAppStorageKey(key: string): boolean {
  * (the Last Planner screen, the Friday Close card, Ask), so the sweep removes a
  * cache, not the record. The tables are live in production (applied
  * 2026-09-16).
+ *
+ * The Property Manager portfolio (`mageid_managed_properties::<userId>`,
+ * `mageid_work_orders::<userId>`; v1 used the bare keys) was in this class too
+ * and was named above until audit round 2 (#20): a PM's buildings and every
+ * open repair vanished on his first sign-out. contexts/PropertyContext.tsx now
+ * upserts every change to public.managed_properties / public.work_orders
+ * through the offline queue and merges the server copy back on every sign-in
+ * (utils/propertyMirror.mergeMirror), so the sweep removes a cache. Only once
+ * supabase/migrations/20260918180000_property_manager_mirror.sql is applied.
  *
  * `mageid_schedule_audit::<projectId>` (the schedule change history — who
  * moved which date, when, and under which change order) was in this class as

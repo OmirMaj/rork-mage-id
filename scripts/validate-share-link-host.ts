@@ -179,5 +179,63 @@ ok('the pattern does not flag a buildShareUrl call',
 ok('the pattern leaves the marketing portal alone',
   !HAND_ROLLED.test("const PORTAL_BASE_URL = 'https://mageid.app/portal';"));
 
+console.log('\nD. links a RECIPIENT opens (prequal invite, crew claim) are https on the app host');
+
+// The same bug a third time, one layer over (2026-09-18 audit, #33). The sub
+// prequal invite was `mageid://prequal-form?token=…` and the crew claim magic
+// link redirected to `mageid://claim-crew?token=…`. A custom scheme opens only
+// where the MAGE ID binary is installed; these links are opened by someone
+// ELSE — a sub's office manager in Outlook on Windows, a worker on a laptop —
+// so they did nothing, while the GC saw a sent invite. Both routes are public
+// Expo routes that work in any browser, so the link must be
+// `${shareLinkBase(…)}/<route>?…` on EVERY sender platform. (Switching on
+// Platform.OS, as the reset-password link does, would be wrong here: that
+// checks the sender's device, not the recipient's.)
+const RECIPIENT_ROUTES = ['prequal-form', 'claim-crew'] as const;
+const recipientAlt = RECIPIENT_ROUTES.join('|');
+// Any URL-ish composition of a recipient route: a quoted/template string
+// containing `<route>?`.
+const RECIPIENT_URL = new RegExp(String.raw`['"\`][^'"\`]*\b(?:${recipientAlt})\?`);
+// The ONE sanctioned form: the route directly after a shareLinkBase(…) base.
+const RECIPIENT_OK = new RegExp(String.raw`\$\{shareLinkBase\([^}]*\)\}/(?:${recipientAlt})\?`);
+function recipientLineBad(line: string): boolean {
+  return RECIPIENT_URL.test(line) && !RECIPIENT_OK.test(line);
+}
+const recipientOffenders: string[] = [];
+const recipientGood: string[] = [];
+for (const f of files) {
+  const rel = relative('.', f);
+  const src = readFileSync(f, 'utf-8');
+  src.split('\n').forEach((line, i) => {
+    const t = line.trim();
+    if (t.startsWith('//') || t.startsWith('*')) return; // prose
+    if (recipientLineBad(line)) recipientOffenders.push(`${rel}:${i + 1}  ${t.slice(0, 120)}`);
+    else if (RECIPIENT_OK.test(line)) recipientGood.push(rel);
+  });
+}
+ok('no recipient link is built on mageid:// or a hand-rolled host', recipientOffenders.length === 0,
+  recipientOffenders.length ? `recipient links not on shareLinkBase:\n      ${recipientOffenders.join('\n      ')}` : undefined);
+// Positive pins: the two builders exist and use the sanctioned form. Without
+// these, deleting the invite (or moving it somewhere the scan misses) would
+// pass the check above vacuously.
+ok('prequal invite is built on shareLinkBase (app/prequal-manager.tsx)',
+  recipientGood.includes('app/prequal-manager.tsx'));
+ok('crew claim redirect is built on shareLinkBase (utils/crewScan.ts)',
+  recipientGood.includes('utils/crewScan.ts'));
+// Prove the rule against the literal pre-fix lines.
+ok('the rule catches the ORIGINAL prequal invite line',
+  recipientLineBad("    const link = `${PRIMARY_SCHEME}prequal-form?token=${token}`;"));
+ok('the rule catches the ORIGINAL copy-link line',
+  recipientLineBad("                    const link = `${PRIMARY_SCHEME}prequal-form?token=${packet.inviteToken}`;"));
+ok('the rule catches the ORIGINAL crew claim redirect',
+  recipientLineBad("  const redirectTo = `${PRIMARY_SCHEME}claim-crew?token=${encodeURIComponent(claimToken)}`;"));
+ok('the rule catches the marketing host',
+  recipientLineBad("const link = `https://mageid.app/prequal-form?token=${t}`;"));
+ok('the rule accepts the sanctioned form',
+  !recipientLineBad("  return `${shareLinkBase(runtimeOrigin)}/prequal-form?token=${encodeURIComponent(token)}`;"));
+eq('a native sender still mints the app-host invite',
+  `${shareLinkBase(null)}/prequal-form?token=${encodeURIComponent('pq_1')}`,
+  `${WEB_APP_ORIGIN}/prequal-form?token=pq_1`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

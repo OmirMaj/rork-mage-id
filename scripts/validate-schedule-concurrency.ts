@@ -36,11 +36,11 @@ import { dirname, join } from 'node:path';
 import type { ScheduleTask } from '../types';
 import {
   FIELD_EDIT_STAMPS, FIELD_TASK_PATCH_KEYS, absorbServerScheduleTasks, applyFieldTaskPatches, fieldTaskDiff,
-  projectSyncSendsSchedule, rebaseWorkingTasks, stampFieldEdits, staleFieldEdits,
+  projectSyncSendsSchedule, stampFieldEdits, staleFieldEdits,
 } from '../utils/fieldScheduleUpdate';
-import { keepProjectsWrittenSince, newProjectWriteLog, noteProjectWrite } from '../utils/projectsLoadGuard';
-import { mergeScheduleTasks } from '../utils/scheduleMerge';
+import { keepProjectsWrittenSince, newProjectWriteLog, noteProjectWrite, unconfirmedProjectSyncIds } from '../utils/projectsLoadGuard';
 import { stampActuals, todayScheduleDay } from '../utils/pace/stampActuals';
+import { inLocalOrder, openScheduleSyncGate, resetScheduleSyncGatesForTest, takeStoreScheduleCopy } from '../utils/scheduleMerge';
 
 // Bun's transpiler, typed locally (the app's tsconfig carries no bun types).
 declare const Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync(code: string): string } };
@@ -68,6 +68,17 @@ function slice(src: string, start: string, end: string): string {
 const t = (o: Partial<ScheduleTask> & Record<string, unknown>): ScheduleTask => ({
   id: 'x', title: 'X', phase: 'P', durationDays: 5, startDay: 1, progress: 0, crew: '', dependencies: [], notes: '', status: 'not_started', ...o,
 } as unknown as ScheduleTask);
+/** What Schedule Pro shows after a copy reaches project.schedule from OUTSIDE
+ *  (the foreground refetch, the post-queue re-pull): the store-copy rule
+ *  (utils/scheduleMerge.ts takeStoreScheduleCopy) — not taken while the screen
+ *  has an unsaved edit (`busy` here), taken WHOLE otherwise. */
+let screenSeq = 0;
+function screenTakes(incoming: ScheduleTask[], working: ScheduleTask[], busy: boolean): ScheduleTask[] {
+  resetScheduleSyncGatesForTest();
+  const gate = openScheduleSyncGate(`conc-${++screenSeq}`, 'LOADED');
+  const copy = takeStoreScheduleCopy(gate, { tasks: incoming, stamp: 'REFETCH' }, busy, !busy);
+  return copy ? inLocalOrder(copy.tasks, working) : working;
+}
 const stamps = (task: ScheduleTask | undefined) => ((task as unknown as Record<string, unknown> | undefined)?.[FIELD_EDIT_STAMPS] ?? {}) as Record<string, string>;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,32 +147,39 @@ console.log('\nthe GC\'s own deliberate change after the foreman\'s (fix round 1
   const kept = stampFieldEdits(refetched, done(loaded0700), LATER);
   ok('...and what it reports is exactly what the save keeps from the field', kept[0].progress === 60 && kept[0].status === 'in_progress');
 
-  // WITH the rebase: the refetched copy reaches the screen before he edits.
-  const rebased = rebaseWorkingTasks(loaded0700, refetched, loaded0700);
-  ok('the foreground refetch brings the foreman\'s value and stamps into the working copy',
+  // WITH the refetch taken: it reaches the screen (quiet) before he edits.
+  const rebased = screenTakes(refetched, loaded0700, false);
+  ok('the foreground refetch brings the foreman\'s value and stamps into the working copy (quiet → taken whole)',
     rebased[0].progress === 60 && stamps(rebased[0]).progress === FIELD, JSON.stringify(rebased[0]));
   const landed = stampFieldEdits(refetched, done(rebased), LATER);
   ok('...so the GC\'s deliberate change after it LANDS, stamped later than the field write',
     landed[0].progress === 100 && landed[0].status === 'done' && Date.parse(stamps(landed[0]).progress) > Date.parse(FIELD)
       && staleFieldEdits(refetched, done(rebased)).length === 0, JSON.stringify(landed[0]));
 
-  // Unsaved local edits survive the rebase.
+  // Unsaved local edits: the screen is busy, so the copy is not taken at all
+  // (no merge) — the edits stay exactly as he left them, and whatever of the
+  // foreman's his save would overwrite is reported, not silently dropped.
   const localEdited = [{ ...loaded0700[0], startDay: 4 }, { ...loaded0700[1], startDay: 9 }];
-  const r2 = rebaseWorkingTasks(loaded0700, refetched, localEdited);
-  ok('an unsaved date move on the same task stays, and the field progress it did not touch comes in',
-    r2[0].startDay === 4 && r2[0].progress === 60 && stamps(r2[0]).progress === FIELD, JSON.stringify(r2[0]));
-  ok('an unsaved edit on another task stays', r2[1].startDay === 9);
-  const both = rebaseWorkingTasks(loaded0700, refetched, [{ ...loaded0700[0], progress: 30 }, loaded0700[1]]);
-  ok('a key BOTH changed stays local (the save decides it and the screen reports it)',
-    both[0].progress === 30 && stamps(both[0]).progress === undefined && staleFieldEdits(refetched, both).length === 1);
-  const added = rebaseWorkingTasks(loaded0700, [...refetched, t({ id: 'r3', title: 'Roof' })], [loaded0700[0], t({ id: 'r4', title: 'Mine' })]);
-  ok('a local delete stays deleted, a local add stays, a server add appears',
-    added.map(x => x.id).join() === 'r1,r4,r3', added.map(x => x.id).join());
-  ok('no unsaved edits → the server copy as it is', rebaseWorkingTasks(loaded0700, refetched, loaded0700).every((x, i) => x === refetched[i]));
-  // The screen's own write coming back stamped: it adopts its stamps.
+  const r2 = screenTakes(refetched, localEdited, true);
+  ok('an unsaved date move stays (a busy screen takes no outside copy)', r2[0].startDay === 4 && r2[1].startDay === 9 && r2 === localEdited);
+  ok('...and the save keeps the foreman\'s progress it did not touch (server rule, stampFieldEdits)',
+    stampFieldEdits(refetched, r2, LATER)[0].progress === 60 && stampFieldEdits(refetched, r2, LATER)[0].startDay === 4);
+  const both = screenTakes(refetched, [{ ...loaded0700[0], progress: 30 }, loaded0700[1]], true);
+  // (His stale copy also carries the old status; the screen's refusal notice
+  // tells the keys he changed HERE from those, against lastServerTasksRef.)
+  ok('a key BOTH changed stays local and the save reports it',
+    both[0].progress === 30 && stamps(both[0]).progress === undefined
+      && staleFieldEdits(refetched, both).some(r => r.taskId === 'r1' && r.key === 'progress'));
+  const mine = [loaded0700[0], t({ id: 'r4', title: 'Mine' })];
+  const added = screenTakes([...refetched, t({ id: 'r3', title: 'Roof' })], mine, true);
+  ok('busy: a local delete stays deleted, a local add stays', added.map(x => x.id).join() === 'r1,r4', added.map(x => x.id).join());
+  const quietAdd = screenTakes([...refetched, t({ id: 'r3', title: 'Roof' })], loaded0700, false);
+  ok('quiet: a server add appears, in the grid\'s order', quietAdd.map(x => x.id).join() === 'r1,r2,r3', quietAdd.map(x => x.id).join());
+  ok('no unsaved edits → the server copy as it is', screenTakes(refetched, loaded0700, false).every((x, i) => JSON.stringify(x) === JSON.stringify(refetched[i])));
+  // The screen's own write coming back stamped: taken whole, with its stamp.
   const sent = [{ ...loaded0700[0], progress: 40 }, loaded0700[1]];
   const echoed = stampFieldEdits(loaded0700, sent, '2026-09-17T11:00:00.000Z');
-  const afterEcho = rebaseWorkingTasks(loaded0700, echoed, sent);
+  const afterEcho = screenTakes(echoed, sent, false);
   ok('this screen\'s own write coming back stamped is absorbed with its stamp', afterEcho[0].progress === 40 && !!stamps(afterEcho[0]).progress);
 }
 {
@@ -178,15 +196,19 @@ console.log('\nthe GC\'s own deliberate change after the foreman\'s (fix round 1
 }
 {
   // Wiring in Schedule Pro.
-  const effect = slice(PRO, 'useLiveSchedule(project?.id, onPeerSchedule);', '}, [project?.schedule?.tasks]);');
-  ok('Schedule Pro rebases its working copy whenever project.schedule changes from outside',
-    /const merged = rebaseWorkingTasks\(base, incoming, h\.present\);/.test(effect) && /baselineRef\.current = incoming;/.test(effect)
-      && /if \(persistPendingRef\.current\) schedulePersist\(merged\);/.test(effect));
+  // Integration round 1: no rebase any more. A copy reaching project.schedule
+  // from outside is taken WHOLE (utils/scheduleMerge.ts takeStoreScheduleCopy —
+  // round 3: once the screen has no edit left to hand over; validate-schedule-
+  // live-merge replays it).
+  const effect = slice(PRO, 'useLiveSchedule(project?.id, onPeerSchedule, onLiveGap);', '}, [project?.schedule?.tasks, project?.schedule?.updatedAt, project?.schedule?.baselines]);');
+  ok('Schedule Pro takes a copy reaching project.schedule from outside, whole, once it has no edit left to hand over',
+    /takeStoreScheduleCopy\(gate, \{[\s\S]*\}, persistPendingRef\.current \|\| fieldSavesInFlightRef\.current > 0, settled\);\s*if \(copy\) adoptServerCopy\(copy, settled\);/.test(effect)
+      && !/rebaseWorkingTasks/.test(PRO));
   ok('...and a save still waiting knows it is waiting',
     /persistPendingRef\.current = true;\s*persistTimer\.current = setTimeout\(\(\) => \{\s*persistPendingRef\.current = false;/.test(PRO));
   const row = slice(PRO, 'const saveAsRow = useCallback(', '}, [updateProjectRaw]);');
   ok('the owner/editor save asks which field values will be refused before it writes',
-    /const refused = sentTasks \? staleFieldEdits\(keptTasks, sentTasks\) : \[\];\s*updateProjectRaw\(id, updates\);/.test(row)
+    /const refused = sentTasks \? staleFieldEdits\(keptTasks, sentTasks\) : \[\];\s*if \(stamp\) noteOwnScheduleSave\(syncGateRef\.current, stamp\);\s*updateProjectRaw\(id, updates\);/.test(row)
       && /onFieldRefusalsRef\.current\?\.\(refused, keptTasks, sentTasks\)/.test(row)
       && /writePath === 'row'\s*\? saveAsRow/.test(PRO));
   ok('...and the screen says so', /writePath === 'row' && fieldConflictNotice \?/.test(PRO) && /setFieldConflictNotice\(`\$\{title\}'s \$\{what\} was updated elsewhere — in the field or on another device — at/.test(PRO)
@@ -237,7 +259,7 @@ console.log('\nthe project sync sends the schedule only when the edit touched it
     /\.\.\.\(includeSchedule \? \{ schedule: project\.schedule as unknown \} : \{\}\),/.test(sync)
       && (sync.match(/schedule: project\.schedule/g) ?? []).length === 1, `schedule: project.schedule sites: ${(sync.match(/schedule: project\.schedule/g) ?? []).length}`);
   ok('...and an owner upsert still sends it when the server may not hold the row yet',
-    /const includeSchedule = sendsSchedule \|\| \(!shared && !serverProjectIdsRef\.current\.has\(project\.id\)\);/.test(sync)
+    /const includeSchedule = ownerUpsertCarriesSchedule\(sendsSchedule, shared, serverProjectIdsRef\.current\.has\(project\.id\)\);/.test(sync)
       && /serverProjectIdsRef\.current = new Set\(remoteIds\);/.test(CTX));
 
   const upd = slice(CTX, 'const updateProject = useCallback(', '// deleteProject is defined further down');
@@ -279,12 +301,15 @@ console.log('\nthe GC sees field progress before he edits (foreground refetch):'
   type Refetch = () => Promise<void>;
   const make = (mapSize: number, queued: number, calls: string[]) => {
     const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(`const __f = ${fnText.replace('const refetchProjectsOnForeground = useCallback(', '')}};`);
-    return new Function('flushPendingProjectSyncs', 'syncDebounceMap', 'queuedIdsFor', 'queryClient', 'userId', `${js}\nreturn __f;`)(
+    return new Function('flushPendingProjectSyncs', 'syncDebounceMap', 'inFlightProjectSyncsRef', 'unconfirmedProjectSyncIds', 'ownQueuedProjectIds', 'queryClient', 'userId', 'projectsReloadOwedRef', `${js}\nreturn __f;`)(
       async () => { calls.push('flush'); },
       { current: new Map(Array.from({ length: mapSize }, (_, i) => [`p${i}`, { inFlight: true }])) },
+      { current: new Map() },
+      unconfirmedProjectSyncIds,
       async () => new Set(Array.from({ length: queued }, (_, i) => `q${i}`)),
       { invalidateQueries: async () => { calls.push('invalidate'); } },
       'u1',
+      { current: false },
     ) as Refetch;
   };
   try {
@@ -297,10 +322,10 @@ console.log('\nthe GC sees field progress before he edits (foreground refetch):'
   } catch (e) { ok('refetchProjectsOnForeground transpiles', false, String(e)); }
   ok('...flushing pending syncs first, and skipping while a projects write is still queued',
     body.indexOf('await flushPendingProjectSyncs();') >= 0
-      && body.indexOf('await flushPendingProjectSyncs();') < body.indexOf('if (syncDebounceMap.current.size > 0) return;')
-      && body.indexOf('if (syncDebounceMap.current.size > 0) return;') < body.indexOf("invalidateQueries({ queryKey: ['projects', userId] })")
-      && body.indexOf('await flushPendingProjectSyncs();') < body.indexOf("if ((await queuedIdsFor('projects')).size > 0) return;")
-      && body.indexOf("if ((await queuedIdsFor('projects')).size > 0) return;") < body.indexOf("invalidateQueries({ queryKey: ['projects', userId] })"));
+      && body.indexOf('await flushPendingProjectSyncs();') < body.indexOf('if (unconfirmedProjectSyncIds(syncDebounceMap.current, inFlightProjectSyncsRef.current).size > 0) {')
+      && body.indexOf('if (unconfirmedProjectSyncIds(syncDebounceMap.current, inFlightProjectSyncsRef.current).size > 0) {') < body.indexOf("invalidateQueries({ queryKey: ['projects', userId] })")
+      && body.indexOf('await flushPendingProjectSyncs();') < body.indexOf('if ((await ownQueuedProjectIds(userId)).size > 0) {')
+      && body.indexOf('if ((await ownQueuedProjectIds(userId)).size > 0) {') < body.indexOf("invalidateQueries({ queryKey: ['projects', userId] })"));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -361,7 +386,8 @@ console.log('\nrealtime reaches the stamping base, not only the screen (integrat
   const server0 = [t({ id: 't1', title: 'Framing' }), t({ id: 't2', title: 'Drywall', startDay: 15 })];
   const echo60 = [t({ id: 't1', title: 'Framing', progress: 60, fieldEditedAt: { progress: S1 } }), t({ id: 't2', title: 'Drywall', startDay: 15 })];
   // The screen's working copy after onPeerSchedule's merge, then the GC drags Drywall.
-  const hist = mergeScheduleTasks(server0, echo60, server0).map(x => x.id === 't2' ? { ...x, startDay: 18 } : x);
+  // (Adopted whole — the screen was quiet — then he drags.)
+  const hist = echo60.map(x => x.id === 't2' ? { ...x, startDay: 18 } : x);
   // The server's trigger, reduced to the one key: the incoming stamp must be
   // newer than the stored one for the incoming value to land.
   const serverKeeps = (payload: ScheduleTask[]) => {
@@ -400,7 +426,7 @@ console.log('\nrealtime reaches the stamping base, not only the screen (integrat
   // Field path: a task only the peer (the GC) changed is never reported blocked.
   const fServer0 = [t({ id: 'f', title: 'Framing' }), t({ id: 'd', title: 'Drywall', startDay: 15 })];
   const fIncoming = [t({ id: 'f', title: 'Framing' }), t({ id: 'd', title: 'Drywall', startDay: 18 })];
-  const fHist = mergeScheduleTasks(fServer0, fIncoming, fServer0).map(x => x.id === 'f' ? { ...x, progress: 40 } : x);
+  const fHist = fIncoming.map(x => x.id === 'f' ? { ...x, progress: 40 } : x);
   const staleDiff = fieldTaskDiff(fServer0, fHist);
   ok('control — diffed against the unfed base, Drywall reads as the foreman\'s blocked edit', staleDiff.blocked.join() === 'Drywall');
   const fBase = absorbServerScheduleTasks(fServer0, fIncoming, fServer0);
@@ -408,18 +434,17 @@ console.log('\nrealtime reaches the stamping base, not only the screen (integrat
   ok('diffed against the fed base: nothing blocked, only his progress is sent', d.blocked.length === 0 && d.patches.length === 1 && d.patches[0].id === 'f', JSON.stringify(d));
   ok('...and the reset copy keeps the GC\'s move', applyFieldTaskPatches(fBase, d.patches).find(x => x.id === 'd')?.startDay === 18);
 
-  const peer = slice(PRO, 'const onPeerSchedule = useCallback(', 'useLiveSchedule(project?.id, onPeerSchedule);');
-  ok('schedule-pro feeds every peer write into ProjectContext before merging it into hist',
-    peer.indexOf('absorbServerSchedule(livePeerProjectId, incoming)') >= 0
-      && peer.indexOf('absorbServerSchedule(livePeerProjectId, incoming)') < peer.indexOf('mergeScheduleTasks(baselineRef.current, incoming'));
-  ok('a realtime echo re-queues a save still waiting on its debounce with the merged tasks (no stale write, no spurious refusal)',
-    /setHist\(\(s\) => \(\{ \.\.\.s, present: merged \}\)\);(?:\s*\/\/[^\n]*)*\s*if \(persistPendingRef\.current\) schedulePersist\(merged\);/.test(peer)
-      && /\[livePeerProjectId, absorbServerSchedule, schedulePersist\]/.test(peer), peer.slice(-600));
+  const adoptFn = slice(PRO, 'const adoptServerCopy = useCallback(', '}, [livePeerProjectId, absorbServerSchedule]);');
+  ok('every server copy the screen adopts reaches ProjectContext (with its stamp), so owner saves are stamped against it',
+    /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{ stamp: copy\.stamp \}\)/.test(adoptFn));
+  const peer = slice(PRO, 'const onPeerSchedule = useCallback(', 'useLiveSchedule(project?.id, onPeerSchedule, onLiveGap);');
+  ok('a realtime echo is taken only through the gate — never merged into a save still waiting (it is busy then)',
+    /takeScheduleCopy\(syncGateRef\.current, incoming, 'echo', syncBusy\(\)\)/.test(peer) && !/schedulePersist/.test(peer));
   const abs = slice(CTX, 'const absorbServerSchedule = useCallback(', 'const saveChangeOrdersMutation = useMutation(');
   ok('ProjectContext.absorbServerSchedule merges with absorbServerScheduleTasks into projectsRef, locally only',
     /absorbServerScheduleTasks\(prevServer, tasks, localTasks\)/.test(abs) && /projectsRef\.current = updated;/.test(abs)
-      && !/syncProjectToSupabase/.test(abs) && !/updatedAt/.test(abs));
-  ok('...and is exposed on the stable actions', /absorbServerSchedule,\n  \}\), \[completeOnboarding, setUserRole, flushPendingProjectSyncs, absorbServerSchedule\]\);/.test(CTX));
+      && !/syncProjectToSupabase/.test(abs) && !/\.\.\.x, updatedAt|updatedAt: nowISO/.test(abs));
+  ok('...and is exposed on the stable actions', /absorbServerSchedule,\n    isProjectSyncUnconfirmed,\n    onProjectSyncSettled,\n  \}\), \[completeOnboarding, setUserRole, flushPendingProjectSyncs, writePortalMessage, absorbServerSchedule, isProjectSyncUnconfirmed, onProjectSyncSettled\]\);/.test(CTX));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,21 +467,21 @@ console.log('\na load in flight does not undo a write made meanwhile (integratio
   ok('an untouched project takes the server\'s', out.find(p => p.id === 'p2')?.name === 'server-new-name');
   ok('one created meanwhile stays, one deleted meanwhile stays deleted', out.map(p => p.id).join() === 'p3,p1,p2', out.map(p => p.id).join());
   ok('nothing written since → the load as it came', keepProjectsWrittenSince(loaded, local, log, log.seq).map(p => p.name).join() === 'A,server-new-name,D');
-  // End to end on Schedule Pro's rebase: baselineRef already holds his saved
-  // drag (the effect set it after his updateProject); the load lands.
+  // End to end on Schedule Pro: the load lands as an OUTSIDE copy once the
+  // screen is quiet (his drag saved and reported), and is taken whole.
   const guarded = out.find(p => p.id === 'p1')!.tasks;
-  ok('...so the screen\'s rebase keeps the drag', rebaseWorkingTasks(edited, guarded, edited)[0].startDay === 9);
-  ok('control — unguarded, the rebase took the pre-drag row', rebaseWorkingTasks(edited, pre, edited)[0].startDay === 5);
+  ok('...so the screen, taking the guarded load whole, keeps the drag', screenTakes(guarded, edited, false)[0].startDay === 9);
+  ok('control — unguarded, the screen took the pre-drag row', screenTakes(pre, edited, false)[0].startDay === 5);
 
   const qf = slice(CTX, "queryKey: ['projects', userId],", 'const settingsQuery = useQuery({');
   ok('the loader takes its sequence number before the first read',
     qf.indexOf('const writeSeqAtStart = projectWriteLogRef.current.seq;') >= 0
       && qf.indexOf('const writeSeqAtStart = projectWriteLogRef.current.seq;') < qf.indexOf(".from('projects')"));
   ok('...and guards the result BEFORE caching it',
-    /const merged = keepProjectsWrittenSince\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\],\s*projectsRef\.current, projectWriteLogRef\.current, writeSeqAtStart,\s*\);/.test(qf)
-      && qf.indexOf('keepProjectsWrittenSince(') < qf.indexOf('await saveLocal(PROJECTS_KEY, merged);'));
+    /const plan = planProjectsLoad\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\],\s*planLocal, projectWriteLogRef\.current, writeSeqAtStart,\s*\{ pending: pendingAtStart, fold: foldServerSchedule<Project>\(baseAtStart\) \},\s*\);\s*const merged = plan\.projects;/.test(qf)
+      && qf.indexOf('planProjectsLoad(') < qf.indexOf('await saveLocal(PROJECTS_KEY, merged);'));
   ok('`projects` takes the result through the same guard',
-    /setProjects\(keepProjectsWrittenSince\(projectsQuery\.data, projectsRef\.current, projectWriteLogRef\.current, projectsLoadSinceRef\.current\)\);/.test(CTX)
+    /const plan = planProjectsLoad\(projectsQuery\.data, local, projectWriteLogRef\.current, projectsLoadSinceRef\.current, \{\s*pending: projectsLoadPendingRef\.current,[\s\S]{0,200}?\}\);\s*setProjects\(plan\.projects\);/.test(CTX)
       && !/if \(projectsQuery\.data\) setProjects\(projectsQuery\.data\);/.test(CTX));
   const sync = slice(CTX, 'const syncProjectToSupabase = useCallback(', 'const existing = syncDebounceMap.current.get(project.id);');
   ok('every synced project write records itself', /noteProjectWrite\(projectWriteLogRef\.current, project\.id\);\s*if \(!canSync\) return;/.test(sync));

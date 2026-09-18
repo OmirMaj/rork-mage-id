@@ -42,6 +42,7 @@ import { generateUUID } from '@/utils/generateId';
 import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
 import { showAlert } from '@/utils/alert';
 import { formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
+import { resolvePunchSub } from '@/utils/subPortalSnapshot';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
 import { nailIt } from '@/components/animations/NailItToast';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
@@ -695,6 +696,11 @@ function PunchListScreenInner() {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [assignedSub, setAssignedSub] = useState('');
+  /** The subcontractor record behind `assignedSub`, kept in step with it: set
+   *  when a sub chip is tapped, cleared when the name is typed. The sheet used
+   *  to write only the name, so reassigning an item left the old sub's id on
+   *  it — and that sub's portal (utils/subPortalSnapshot) kept the item. */
+  const [formSubId, setFormSubId] = useState<string | undefined>(undefined);
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<PunchItemPriority>('medium');
   /** The add/edit sheet's own list choice. Seeded from the list showing (new)
@@ -846,7 +852,7 @@ function PunchListScreenInner() {
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
 
   const resetForm = useCallback(() => {
-    setDescription(''); setLocation(''); setAssignedSub('');
+    setDescription(''); setLocation(''); setAssignedSub(''); setFormSubId(undefined);
     setDueDate(''); setPriority('medium'); setEditingItem(null);
     setLinkedTaskId('');
     // A new item lands on the list he is looking at.
@@ -868,6 +874,10 @@ function PunchListScreenInner() {
     setDescription(item.description);
     setLocation(item.location ?? '');
     setAssignedSub(item.assignedSub ?? '');
+    // Seed the id from the record the NAME points at: an id left behind by an
+    // older reassignment (the name says Rivera, the id says ABC) is dropped on
+    // this save instead of being carried forward.
+    setFormSubId(resolvePunchSub(item.assignedSub ?? '', [item.assignedSubId], subcontractors)?.id);
     // The field is declared YYYY-MM-DD; Supabase-synced items can carry a full
     // ISO timestamp. Slice to the form's own format (same as permits) rather
     // than seeding the input with a value it doesn't accept.
@@ -882,7 +892,7 @@ function PunchListScreenInner() {
     setAttachedPhotoUri(undefined);
     setAttachedSourcePhotoId(undefined);
     setShowForm(true);
-  }, []);
+  }, [subcontractors]);
 
   // Progress is per list — "18 of 40 punch items closed" is the number that
   // means something on the punch list; blending in crew chores would dilute it.
@@ -1162,6 +1172,9 @@ function PunchListScreenInner() {
       if (editingItem) {
         updatePunchItem(editingItem.id, {
           description: desc, location: location.trim(), assignedSub: assignedSub.trim(),
+          // Always sent, so the name and the id change together — undefined
+          // CLEARS a stale id (the reassigned-to name has no sub record).
+          assignedSubId: assignedSub.trim() ? formSubId : undefined,
           dueDate, priority,
           listType: formListType,
           linkedTaskId: linkedTaskId || undefined,
@@ -1170,7 +1183,9 @@ function PunchListScreenInner() {
       } else {
         const item: PunchItem = {
           id: createId('punch'), projectId: projectId ?? '', description: desc,
-          location: location.trim(), assignedSub: assignedSub.trim(), dueDate,
+          location: location.trim(), assignedSub: assignedSub.trim(),
+          ...(assignedSub.trim() && formSubId ? { assignedSubId: formSubId } : {}),
+          dueDate,
           priority, status: 'open',
           listType: formListType,
           linkedTaskId: linkedTaskId || undefined,
@@ -1210,7 +1225,7 @@ function PunchListScreenInner() {
       return;
     }
     commit();
-  }, [description, location, assignedSub, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId]);
+  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -1437,7 +1452,10 @@ function PunchListScreenInner() {
     setShowBulkSubPicker(false);
     runBulkUpdate(
       [...selectedIdList],
-      { assignedSub: companyName, ...(subId ? { assignedSubId: subId } : {}) },
+      // The id travels WITH the name, always: a bulk assign to a typed trade
+      // name (no sub record) must clear the previous sub's id, or that sub's
+      // portal keeps these items and the portal shortcut still opens his.
+      { assignedSub: companyName, assignedSubId: subId },
       `assigned to ${companyName}`,
     );
   }, [selectedIdList, runBulkUpdate]);
@@ -1529,19 +1547,21 @@ function PunchListScreenInner() {
     const pool = selectedCount > 0 ? selectedItems : (filterSub ? filteredItems : []);
     if (pool.length === 0) return null;
     const names = new Set<string>();
-    let assignedId: string | undefined;
+    const ids: (string | undefined)[] = [];
     for (const i of pool) {
       const n = (i.assignedSub ?? '').trim();
       if (!n) return null;                 // one unassigned item means "not one sub"
       names.add(n.toLowerCase());
-      if (i.assignedSubId) assignedId = i.assignedSubId;
+      ids.push(i.assignedSubId);
     }
     if (names.size !== 1) return null;
     const name = (pool[0].assignedSub ?? '').trim();
-    // Prefer the id already on the item; fall back to matching the free-text
-    // company name, which is what templates and older rows carry.
-    const sub = subcontractors.find(s => s.id === assignedId)
-      ?? subcontractors.find(s => (s.companyName ?? '').trim().toLowerCase() === name.toLowerCase());
+    // The NAME decides which sub this is — it is what every row shows. An id
+    // only breaks a tie between two records sharing that name; an id whose
+    // sub has a different name is a leftover from a reassignment and would
+    // open the wrong sub's portal setup (one stale ABC id among 20 Rivera
+    // items used to route "Hand Rivera Drywall their 20 items" to ABC).
+    const sub = resolvePunchSub(name, ids, subcontractors);
     return { name, sub, count: pool.length };
   }, [selectedCount, selectedItems, filterSub, filteredItems, subcontractors]);
 
@@ -2403,14 +2423,14 @@ function PunchListScreenInner() {
                       <TouchableOpacity
                         key={s.id}
                         style={[styles.subChip, assignedSub === s.companyName && styles.subChipActive]}
-                        onPress={() => setAssignedSub(s.companyName)}
+                        onPress={() => { setAssignedSub(s.companyName); setFormSubId(s.id); }}
                       >
                         <Text style={[styles.subChipText, assignedSub === s.companyName && styles.subChipTextActive]}>{s.companyName}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
                 ) : (
-                  <TextInput style={styles.input} value={assignedSub} onChangeText={setAssignedSub} placeholder="Sub name" placeholderTextColor={themeColors.textMuted} />
+                  <TextInput style={styles.input} value={assignedSub} onChangeText={t => { setAssignedSub(t); setFormSubId(undefined); }} placeholder="Sub name" placeholderTextColor={themeColors.textMuted} />
                 )}
 
                 <Text style={styles.fieldLabel}>Priority</Text>
@@ -2770,10 +2790,9 @@ function PunchListScreenInner() {
       </Modal>
 
       {/* ── Bulk: assign to a sub ────────────────────────────────────────
-          Assign only. There is deliberately no bulk "unassign": clearing
-          `assignedSubId` would send an empty value at a uuid column, and a
-          write that fails quietly in the offline queue is worse than a verb
-          that isn't offered. Clear one on the item's own edit sheet. */}
+          Assign only — there is no bulk "unassign" verb. Every assign sends
+          the id with the name (undefined for a typed trade), so a reassigned
+          item never keeps the previous sub's id. */}
       <Modal visible={showBulkSubPicker} transparent animationType="slide" onRequestClose={() => setShowBulkSubPicker(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxHeight: '80%' as const, paddingBottom: insets.bottom + 20 }]}>

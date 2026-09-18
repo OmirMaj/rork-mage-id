@@ -42,6 +42,11 @@ import { verifyUser } from '../_shared/verifyUser.ts';
 import { portalUrlFor } from '../_shared/portalLinks.ts';
 import { GEMINI_TEXT_MODEL } from '../_shared/models.ts';
 import { rateLimitCount } from '../_shared/auth.ts';
+// Only what the portal already shows, and nothing after handover — see the
+// header of clientVisible.ts (audit 2026-09-18 #18 and #23).
+import {
+  clientVisibleWeek, planHomeownerDigest, type PortalStateLike, type PortalSectionToggles,
+} from './clientVisible.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -92,14 +97,15 @@ interface ProjectRow {
   user_id: string;
   name: string;
   status: string;
+  closed_at?: string | null;
   location?: string;
-  client_portal?: {
+  client_portal?: (PortalSectionToggles & {
     enabled?: boolean;
     portalId?: string;
     accessToken?: string;
     invites?: Array<{ id?: string; email?: string; name?: string }>;
-    weeklyDigest?: { enabled?: boolean; lastSentAt?: string };
-  } | null;
+    weeklyDigest?: { enabled?: boolean; lastSentAt?: string; finalSentAt?: string };
+  }) | null;
   schedule?: {
     tasks?: Array<{ id: string; title: string; phase?: string; progress?: number; status?: string; isMilestone?: boolean }>;
   } | null;
@@ -111,6 +117,24 @@ interface ProfileRow {
   name?: string;
   company_name?: string;
   contact_name?: string;
+  /** IANA zone the GC's digests run in (morning-digest reads the same column). */
+  digest_timezone?: string | null;
+}
+
+/**
+ * The calendar day an instant falls on in the owner's zone. Handover sets the
+ * link to die at closed_at + 30 days; printed in UTC, a job closed on a US
+ * evening told the homeowner "open until October 19" when the link died on the
+ * evening of October 18 local time — a day late. An unreadable zone falls back
+ * to America/New_York (the digest default), never to UTC.
+ */
+function localDayLabel(iso: string, tz: string | null | undefined): string {
+  const opts = { month: 'long', day: 'numeric', year: 'numeric' } as const;
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { ...opts, timeZone: tz || 'America/New_York' });
+  } catch {
+    return new Date(iso).toLocaleDateString('en-US', { ...opts, timeZone: 'America/New_York' });
+  }
 }
 
 interface DfrRow {
@@ -119,6 +143,7 @@ interface DfrRow {
   date: string;
   work_performed?: string;
   manpower?: { headcount?: number; trade?: string }[];
+  portal_state?: PortalStateLike | null;
 }
 
 interface PhotoRow {
@@ -126,6 +151,7 @@ interface PhotoRow {
   project_id: string;
   uri?: string;
   created_at?: string;
+  portal_state?: PortalStateLike | null;
 }
 
 interface ChangeOrderRow {
@@ -136,7 +162,10 @@ interface ChangeOrderRow {
   description?: string;
   status?: string;
   created_at?: string;
+  portal_state?: PortalStateLike | null;
 }
+
+type SchedTask = NonNullable<NonNullable<ProjectRow['schedule']>['tasks']>[number];
 
 // ── Build a deterministic fallback summary if Gemini isn't available ──
 // The template digests the raw counts into homeowner-friendly sentences
@@ -147,6 +176,8 @@ function buildTemplateSummary(
   dfrs: DfrRow[],
   photos: PhotoRow[],
   cos: ChangeOrderRow[],
+  /** Schedule tasks the portal shows ([] when showSchedule is off). */
+  tasks: SchedTask[],
 ): { headline: string; bullets: string[] } {
   const totalCrew = dfrs.reduce(
     (sum, r) => sum + (r.manpower ?? []).reduce((s, m) => s + (m.headcount ?? 0), 0),
@@ -155,7 +186,7 @@ function buildTemplateSummary(
   const tradeSet = new Set<string>();
   for (const r of dfrs) for (const m of r.manpower ?? []) if (m.trade) tradeSet.add(m.trade);
   const trades = Array.from(tradeSet);
-  const completedTasks = (project.schedule?.tasks ?? []).filter(t => t.status === 'done' || t.progress === 100);
+  const completedTasks = tasks.filter(t => t.status === 'done' || t.progress === 100);
   const milestones = completedTasks.filter(t => t.isMilestone);
 
   const bullets: string[] = [];
@@ -172,15 +203,16 @@ function buildTemplateSummary(
     bullets.push(`${photos.length} photo${photos.length === 1 ? '' : 's'} added — see them in your portal.`);
   }
   if (cos.length > 0) {
-    const total = cos.reduce((s, c) => s + (c.change_amount ?? 0), 0);
-    const sign = total >= 0 ? '+' : '−';
-    bullets.push(`${cos.length} change order${cos.length === 1 ? '' : 's'} this week (net ${sign}$${Math.abs(total).toLocaleString()}). Check the portal for details.`);
+    // No dollar figure: the amounts are on the change orders themselves in
+    // the portal, and the sanitizer drops any sentence with money in it.
+    bullets.push(`${cos.length} change order${cos.length === 1 ? ' was' : 's were'} sent to you this week. Review ${cos.length === 1 ? 'it' : 'them'} in your portal.`);
   }
   if (bullets.length === 0) {
     bullets.push('A quiet week on this project — no major activity to report. Let us know if you have questions.');
   }
   const headline = `Week in review — ${project.name}`;
-  return { headline, bullets };
+  // The template is never less safe than the AI path: the same post-filter.
+  return { headline, bullets: bullets.map(sanitizeBullet).filter(b => b.length > 0) };
 }
 
 // ── Outbound-text guard (audit AI-F13) ──────────────────────────────
@@ -251,6 +283,7 @@ async function buildAISummary(
   dfrs: DfrRow[],
   photos: PhotoRow[],
   cos: ChangeOrderRow[],
+  tasks: SchedTask[],
 ): Promise<{ headline: string; paragraph: string; bullets: string[] } | null> {
   if (!GEMINI_API_KEY) return null;
 
@@ -259,13 +292,15 @@ async function buildAISummary(
     .slice(0, 7)
     .map(r => `- ${r.date}: ${r.work_performed ?? ''}`)
     .join('\n');
-  const completedTasks = (project.schedule?.tasks ?? [])
+  const completedTasks = tasks
     .filter(t => t.status === 'done' || t.progress === 100)
     .map(t => `- ${t.title}${t.phase ? ` (${t.phase})` : ''}`)
     .join('\n');
+  // Count only, and only change orders the GC has SENT to the portal: the
+  // rows reaching this function are already gated by clientVisibleWeek.
   const cosLine = cos.length > 0
-    ? `${cos.length} change orders this week, net total $${cos.reduce((s, c) => s + (c.change_amount ?? 0), 0).toLocaleString()}`
-    : 'no change orders';
+    ? `${cos.length} change order${cos.length === 1 ? '' : 's'} sent to the homeowner this week (amounts are in their portal; do not state any)`
+    : 'none sent this week';
 
   // Data boundary (audit AI-F13): the report text is quoted between explicit
   // markers, declared as data, and the model is told to ignore instructions
@@ -281,8 +316,8 @@ This week's daily field reports are quoted below between the markers. They were 
 ${dfrLines || '(no detailed reports this week)'}
 >>>END DAILY REPORT TEXT
 
-Completed tasks (cumulative):
-${completedTasks || '(none yet)'}
+Tasks completed so far (cumulative since the job began, NOT necessarily this week — do not describe them as this week's work):
+${completedTasks || '(none shared)'}
 
 Photos added: ${photos.length}
 Change orders: ${cosLine}
@@ -415,7 +450,7 @@ async function sendEmail(opts: { to: string; subject: string; html: string; from
 }
 
 // ── Pull a project's last-7-days data ──────────────────────────────
-async function fetchWeekDataForProject(client: SupabaseClient, projectId: string): Promise<{
+async function fetchWeekDataForProject(client: SupabaseClient, projectId: string, portal: PortalSectionToggles | null | undefined): Promise<{
   dfrs: DfrRow[];
   photos: PhotoRow[];
   cos: ChangeOrderRow[];
@@ -427,7 +462,7 @@ async function fetchWeekDataForProject(client: SupabaseClient, projectId: string
   // DFRs use a date column (yyyy-mm-dd) not timestamps.
   const dfrsRes = await client
     .from('daily_reports')
-    .select('id,project_id,date,work_performed,manpower')
+    .select('id,project_id,date,work_performed,manpower,portal_state')
     .eq('project_id', projectId)
     .gte('date', sevenDaysAgoDate)
     .lte('date', todayDate)
@@ -442,7 +477,7 @@ async function fetchWeekDataForProject(client: SupabaseClient, projectId: string
   // being photographed daily.
   const photosRes = await client
     .from('photos')
-    .select('id,project_id,uri,created_at')
+    .select('id,project_id,uri,created_at,portal_state')
     .eq('project_id', projectId)
     .gte('created_at', sevenDaysAgo)
     .order('created_at', { ascending: false });
@@ -450,12 +485,18 @@ async function fetchWeekDataForProject(client: SupabaseClient, projectId: string
 
   // change_orders has change_amount, NOT amount (verified against production).
   // Same silent shape: a 400 on the unknown column became "no change orders".
-  const cosRes = await client
-    .from('change_orders')
-    .select('id,project_id,description,change_amount,status,created_at')
-    .eq('project_id', projectId)
-    .gte('created_at', sevenDaysAgo);
-  const cos = (cosRes.data ?? []) as ChangeOrderRow[];
+  // No created_at window here: a CO drafted weeks ago and SENT this week is
+  // this week's news, so clientVisibleWeek windows on portal_state.sentAt.
+  // Not read at all when the portal hides the section.
+  let cos: ChangeOrderRow[] = [];
+  if (portal?.showChangeOrders) {
+    const cosRes = await client
+      .from('change_orders')
+      .select('id,project_id,description,change_amount,status,created_at,portal_state')
+      .eq('project_id', projectId)
+      .limit(500);
+    cos = (cosRes.data ?? []) as ChangeOrderRow[];
+  }
 
   return { dfrs, photos, cos };
 }
@@ -471,16 +512,69 @@ async function sendForProject(
   const invites = (portal?.invites ?? []).filter(i => (i.email ?? '').includes('@'));
   if (invites.length === 0) return { sent: 0, errors: ['no_invites'] };
 
-  const { dfrs, photos, cos } = await fetchWeekDataForProject(client, project.id);
-
-  // Try the AI path first; deterministic template as fallback.
-  const ai = await buildAISummary(project, dfrs, photos, cos);
-  const template = buildTemplateSummary(project, dfrs, photos, cos);
-  const headline = ai?.headline ?? template.headline;
-  const bullets = (ai?.bullets && ai.bullets.length > 0) ? ai.bullets : template.bullets;
-  const paragraph = ai?.paragraph;
+  // Handover and link expiry decide whether anything goes out — for the cron
+  // AND the GC's preview, which e-mails the homeowner for real.
+  let linkExpiresAt: string | null = null;
+  if (portal?.portalId) {
+    const snapRes = await client
+      .from('portal_snapshots')
+      .select('expires_at')
+      .eq('portal_id', portal.portalId)
+      .maybeSingle();
+    linkExpiresAt = (snapRes.data as { expires_at?: string | null } | null)?.expires_at ?? null;
+  }
+  const plan = planHomeownerDigest({
+    status: project.status,
+    closedAt: project.closed_at ?? null,
+    linkExpiresAt,
+    finalSentAt: portal?.weeklyDigest?.finalSentAt ?? null,
+    isPreview,
+    now: new Date(),
+  });
+  if (plan.kind === 'skip') return { sent: 0, errors: [plan.reason] };
 
   const companyName = ownerProfile?.company_name || ownerProfile?.contact_name || 'MAGE ID';
+
+  let headline: string;
+  let bullets: string[];
+  let paragraph: string | undefined;
+  let subject = `${project.name} — week in review`;
+  if (plan.kind === 'final') {
+    // Deterministic, never AI: a finished job has no "this week" to invent.
+    const binderRes = await client
+      .from('closeout_binders')
+      .select('id')
+      .eq('project_id', project.id)
+      .eq('status', 'sent')
+      .limit(1);
+    const hasBinder = ((binderRes.data ?? []) as unknown[]).length > 0;
+    const closesLabel = localDayLabel(plan.linkClosesAt, ownerProfile?.digest_timezone);
+    headline = `Your project is complete — ${project.name}`;
+    paragraph = `${companyName} has closed out ${project.name}. This is the last weekly update you'll get for it. Your portal link stays open until ${closesLabel}, then it closes.`;
+    bullets = [
+      hasBinder
+        ? 'Your closeout binder (warranties, maintenance schedule, contacts) is in your portal. Save a copy.'
+        : 'Save copies of anything in your portal you want to keep.',
+      `The portal link stops working after ${closesLabel}.`,
+    ];
+    subject = `${project.name} — project complete`;
+  } else {
+    // Gate at the data: neither the AI nor the template ever sees a draft CO,
+    // a hidden photo or an unsent daily report.
+    const week = await fetchWeekDataForProject(client, project.id, portal);
+    const { dfrs, photos, cos, tasks } = clientVisibleWeek(
+      portal,
+      { ...week, tasks: (project.schedule?.tasks ?? []) as SchedTask[] },
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    );
+    // Try the AI path first; deterministic template as fallback.
+    const ai = await buildAISummary(project, dfrs, photos, cos, tasks);
+    const template = buildTemplateSummary(project, dfrs, photos, cos, tasks);
+    headline = ai?.headline ?? template.headline;
+    bullets = (ai?.bullets && ai.bullets.length > 0) ? ai.bullets : template.bullets;
+    paragraph = ai?.paragraph;
+  }
+
   // Built by the shared helper (portal id + access token); null when the portal
   // is disabled or has no minted link — then the CTA is omitted entirely rather
   // than pointing at a dead page (audit EDGE-F6 / AUTH-F4).
@@ -517,7 +611,7 @@ async function sendForProject(
     });
     const result = await sendEmail({
       to: invite.email!,
-      subject: `${project.name} — week in review`,
+      subject,
       html,
       fromCompanyName: companyName,
       replyTo: ownerProfile?.email,
@@ -536,9 +630,18 @@ async function sendForProject(
   // lastSentAt and silently suppress that project's next scheduled
   // Friday cron send. Only real cron sends stamp.
   if (!isPreview && sent > 0 && portal) {
+    const stamp = new Date().toISOString();
     const updatedPortal = {
       ...portal,
-      weeklyDigest: { ...(portal.weeklyDigest ?? {}), enabled: true, lastSentAt: new Date().toISOString() },
+      weeklyDigest: {
+        ...(portal.weeklyDigest ?? {}),
+        enabled: true,
+        lastSentAt: stamp,
+        // The handover note goes once; planHomeownerDigest skips on this. A
+        // weekly send means the job was reopened, so a later closeout earns a
+        // fresh note (undefined drops the key from the jsonb).
+        finalSentAt: plan.kind === 'final' ? stamp : undefined,
+      },
     };
     await client
       .from('projects')
@@ -576,7 +679,7 @@ Deno.serve(async (req: Request) => {
   if (body.projectId) {
     const projRes = await client
       .from('projects')
-      .select('id,user_id,name,status,location,client_portal,schedule')
+      .select('id,user_id,name,status,closed_at,location,client_portal,schedule')
       .eq('id', body.projectId)
       .maybeSingle();
     if (projRes.error || !projRes.data) {
@@ -600,7 +703,7 @@ Deno.serve(async (req: Request) => {
     if (project.user_id) {
       const profRes = await client
         .from('profiles')
-        .select('id,email,name,company_name,contact_name')
+        .select('id,email,name,company_name,contact_name,digest_timezone')
         .eq('id', project.user_id)
         .maybeSingle();
       ownerProfile = (profRes.data as ProfileRow | null) ?? null;
@@ -625,7 +728,7 @@ Deno.serve(async (req: Request) => {
     // is on. We use the JSONB containment operator via filter.
     const projectsRes = await client
       .from('projects')
-      .select('id,user_id,name,status,location,client_portal,schedule')
+      .select('id,user_id,name,status,closed_at,location,client_portal,schedule')
       .filter('client_portal->weeklyDigest->>enabled', 'eq', 'true');
     if (projectsRes.error) {
       // The PostgREST detail stays in the log; the body is a fixed code (A6 / AI-F16).
@@ -640,7 +743,7 @@ Deno.serve(async (req: Request) => {
     if (ownerIds.length > 0) {
       const profRes = await client
         .from('profiles')
-        .select('id,email,name,company_name,contact_name')
+        .select('id,email,name,company_name,contact_name,digest_timezone')
         .in('id', ownerIds);
       for (const p of (profRes.data ?? []) as ProfileRow[]) profilesById.set(p.id, p);
     }
@@ -648,6 +751,10 @@ Deno.serve(async (req: Request) => {
     let totalSent = 0;
     const projectErrors: Array<{ projectId: string; errors: string[] }> = [];
     for (const project of projects) {
+      // A closed job after its one handover note: nothing, ever again (unless
+      // it is reopened). Cheap check before any read; sendForProject applies
+      // the full rule, link expiry included.
+      if (project.status === 'closed' && project.client_portal?.weeklyDigest?.finalSentAt) continue;
       // Skip if we already sent this week (lastSentAt within 6 days).
       const last = project.client_portal?.weeklyDigest?.lastSentAt;
       if (last) {

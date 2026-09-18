@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { MapPin, Star, StarHalf, ArrowLeft, Navigation, AlertCircle, Phone, Globe } from 'lucide-react-native';
+import { MapPin, Star, StarHalf, ArrowLeft, Navigation, AlertCircle, ExternalLink } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '@/constants/colors';
@@ -29,8 +29,16 @@ import {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+// Every row is a Google Places text-search result cached by
+// supabase/functions/fetch-external-data (9 metros; production 2026-09-18:
+// 2,031 rows, all with place_id, none with phone or website — Text Search
+// does not return them). These are public business listings, NOT MAGE ID
+// members: nobody here signed up, published a profile or verified anything.
+// The screen used to call them "construction firms publishing public profiles"
+// and show Call / Website buttons that could never render (audit round 2, #11).
 interface CachedCompany {
   id: string;
+  place_id: string | null;
   name: string;
   trade_specialty: string;
   rating: number;
@@ -80,24 +88,17 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handleCall = useCallback(() => {
-    if (!company.phone) return;
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const tel = `tel:${company.phone.replace(/[^\d+]/g, '')}`;
-    Linking.openURL(tel).catch(() => {
-      console.log('[Companies] Failed to open phone:', tel);
-    });
-  }, [company.phone]);
-
-  const handleWebsite = useCallback(() => {
-    if (!company.website) return;
+  // The one real action on a Google listing: open it on Google Maps, where
+  // the phone, hours and website actually live. place_id is set on every row.
+  const handleOpenMaps = useCallback(() => {
+    if (!company.place_id) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    let url = company.website;
-    if (url && !url.startsWith('http')) url = 'https://' + url;
+    const q = encodeURIComponent(company.name ?? 'business');
+    const url = `https://www.google.com/maps/search/?api=1&query=${q}&query_place_id=${encodeURIComponent(company.place_id)}`;
     Linking.openURL(url).catch(() => {
-      console.log('[Companies] Failed to open website:', url);
+      console.log('[Companies] Failed to open maps:', url);
     });
-  }, [company.website]);
+  }, [company.place_id, company.name]);
 
   const formattedAddress = useMemo(() => {
     const parts = [company.address, company.city, company.state, company.zip].filter(Boolean);
@@ -124,6 +125,7 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
           <View style={styles.cardTopInfo}>
             <Text style={styles.companyName} numberOfLines={1}>{company.name ?? 'Unknown Company'}</Text>
             <Text style={styles.specialtyText}>{company.trade_specialty ?? 'Specialty not listed'}</Text>
+            <Text style={styles.sourceText}>Public business listing (Google) · not a MAGE ID member</Text>
           </View>
         </View>
 
@@ -131,7 +133,7 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
           <Star size={14} color="#F5A623" fill="#F5A623" strokeWidth={1.75} />
           <Text style={styles.ratingValue}>{company.rating != null ? company.rating.toFixed(1) : 'N/A'}</Text>
           <StarRow rating={company.rating} />
-          <Text style={styles.reviewCount}>({company.total_reviews ?? company.review_count ?? 0} reviews)</Text>
+          <Text style={styles.reviewCount}>({company.total_reviews ?? company.review_count ?? 0} Google reviews)</Text>
         </View>
 
         <View style={styles.addressRow}>
@@ -147,24 +149,16 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
             </View>
           )}
           <View style={{ flex: 1 }} />
-          {company.phone ? (
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={(e) => { e.stopPropagation(); handleCall(); }}
-              activeOpacity={0.7}
-            >
-              <Phone size={14} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.actionBtnText}>Call</Text>
-            </TouchableOpacity>
-          ) : null}
-          {company.website ? (
+          {company.place_id ? (
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnOutline]}
-              onPress={(e) => { e.stopPropagation(); handleWebsite(); }}
+              onPress={(e) => { e.stopPropagation(); handleOpenMaps(); }}
               activeOpacity={0.7}
+              accessibilityRole="link"
+              accessibilityLabel={`Open ${company.name ?? 'this business'} on Google Maps`}
             >
-              <Globe size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={[styles.actionBtnText, { color: themeColors.accent }]}>Website</Text>
+              <ExternalLink size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={[styles.actionBtnText, { color: themeColors.accent }]}>Google Maps</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -370,7 +364,7 @@ export default function CachedCompaniesScreen() {
               <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No companies match yet</Text>
               <Text style={styles.emptySubtitle}>
-                Companies are construction firms publishing public profiles in your area. Try a wider radius, clear the specialty filter, or check back as more companies join.
+                These are public business listings from Google for nine large metros, not MAGE ID members. Try a wider radius or clear the specialty filter.
               </Text>
             </View>
           }
@@ -414,6 +408,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   avatarText: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: t.accent },
   cardTopInfo: { flex: 1 },
   companyName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
+  sourceText: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   specialtyText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' as const, marginTop: 2 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
   ratingValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#F5A623' },

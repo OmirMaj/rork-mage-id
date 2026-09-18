@@ -90,6 +90,11 @@ export interface SubPortalSnapshot {
   // start date so the portal can render real calendar dates.
   scheduleSlice?: {
     projectStartDate?: string;
+    // The calendar the page walks `startDay`/`durationDays` on (both are
+    // WORKING-day units). Absent on links shared before 2026-09-18 — the page
+    // then assumes the engine's default 5-day week.
+    workingDaysPerWeek?: number;
+    nonWorkingDates?: string[];
     tasks: {
       id: string;
       title: string;
@@ -225,14 +230,9 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
     // matching their company name (legacy free-text). Filter to open /
     // in-progress only; the sub doesn't need to scroll past completed.
     punchItems: (() => {
-      const tradeNorm = (sub.companyName ?? '').trim().toLowerCase();
       const scoped = punchItems
         .filter(p => p.projectId === project.id)
-        .filter(p => {
-          if (p.assignedSubId && p.assignedSubId === sub.id) return true;
-          if (tradeNorm && (p.assignedSub ?? '').trim().toLowerCase() === tradeNorm) return true;
-          return false;
-        })
+        .filter(p => punchItemBelongsToSub(p, sub))
         .filter(p => p.status !== 'closed')
         .slice(0, 30);
       if (!scoped.length) return undefined;
@@ -262,6 +262,8 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
       const ordered = [...scoped].sort((a, b) => a.startDay - b.startDay).slice(0, 40);
       return {
         projectStartDate: schedule.startDate,
+        workingDaysPerWeek: schedule.workingDaysPerWeek || 5,
+        ...(schedule.nonWorkingDates?.length ? { nonWorkingDates: [...schedule.nonWorkingDates] } : {}),
         tasks: ordered.map(t => ({
           id: t.id,
           title: t.title,
@@ -285,6 +287,96 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
         ?? settings?.branding?.companyName,
     },
   };
+}
+
+// ── Which sub a punch item belongs to ───────────────────────────────────────
+// A punch item names its sub twice: `assignedSub` (the company name the GC
+// sees on the row) and `assignedSubId`. Older edit paths changed the name and
+// left the id behind, so a row reading "Sub: Rivera Drywall" could still carry
+// ABC Electric's id — and landed on BOTH portals, while the "open their portal"
+// shortcut opened ABC's. The name is what the GC sees and what he last chose,
+// so an id is only trusted while its sub's name agrees with the row's name
+// (or the row has no name at all).
+const normName = (v: string | undefined | null): string => (v ?? '').trim().toLowerCase();
+
+export function punchItemBelongsToSub(
+  p: Pick<PunchItem, 'assignedSub' | 'assignedSubId'>,
+  sub: Pick<Subcontractor, 'id' | 'companyName'>,
+): boolean {
+  const name = normName(p.assignedSub);
+  const subName = normName(sub.companyName);
+  if (p.assignedSubId && p.assignedSubId === sub.id) return !name || name === subName;
+  return !!subName && name === subName;
+}
+
+/**
+ * The subcontractor record a punch item (or a pool of items that all read one
+ * name) points at: one whose name matches the row, preferring the id the items
+ * carry when two records share that name. An id whose sub now has a DIFFERENT
+ * name is stale and ignored. undefined = no sub record for that name.
+ */
+export function resolvePunchSub<S extends Pick<Subcontractor, 'id' | 'companyName'>>(
+  name: string, ids: readonly (string | undefined)[], subs: readonly S[],
+): S | undefined {
+  const n = normName(name);
+  if (!n) {
+    // No name on the row: the id is all there is.
+    const only = ids.find(Boolean);
+    return only ? subs.find(s => s.id === only) : undefined;
+  }
+  const named = subs.filter(s => normName(s.companyName) === n);
+  return named.find(s => ids.includes(s.id)) ?? named[0];
+}
+
+/**
+ * The punch items that must follow a sub's RENAME. The rules above trust an id
+ * only while the row's name still matches its sub's name, so renaming
+ * "ABC Electric" to "ABC Electric LLC" on the Subs screen took every one of
+ * his items off his portal, and the edit sheet's seed then resolved to no sub
+ * and the next save wrote assigned_sub_id = null. updateSubcontractor carries
+ * the new name onto these rows instead: his rows by id that still read the old
+ * name, plus legacy name-only rows reading the old name when no other sub
+ * record still carries it. A row already renamed to someone else keeps its
+ * name — that is a reassignment, not this sub.
+ *
+ * Legacy name-only rows are taken ONLY on projects he owns (`ownsProject`).
+ * His sub list is private (subcontractors RLS is owner-only) but the punch
+ * items he can read include the owner's rows on jobs he was invited to; a
+ * name-only row there is the OWNER's name for the OWNER's sub, and rewriting
+ * it to his new name + his private sub id took it off the owner's portal. A
+ * row carrying his own sub's id is his assignment wherever it sits.
+ */
+export function punchItemsFollowingSubRename(
+  items: readonly (Pick<PunchItem, 'id' | 'assignedSub' | 'assignedSubId'> & { projectId?: string })[],
+  sub: Pick<Subcontractor, 'id'>,
+  oldName: string,
+  newName: string,
+  otherSubs: readonly Pick<Subcontractor, 'id' | 'companyName'>[],
+  ownsProject: (projectId: string | undefined) => boolean,
+): string[] {
+  const from = normName(oldName);
+  if (!from || from === normName(newName)) return [];
+  const nameStillTaken = otherSubs.some(s => s.id !== sub.id && normName(s.companyName) === from);
+  return items
+    .filter(p => normName(p.assignedSub) === from
+      && (p.assignedSubId ? p.assignedSubId === sub.id : (!nameStillTaken && ownsProject(p.projectId))))
+    .map(p => p.id);
+}
+
+/**
+ * Whether this user owns the naming on a project's punch items: ownerUserId is
+ * him. Strict on purpose, like classifyProjectForSync (no ownerUserId = treat
+ * as shared): every server load stamps ownerUserId from the row, and the cost
+ * of a miss is only that a legacy row keeps its old name (the pre-cascade
+ * behaviour), while a false "his" rewrites someone else's rows. An unknown
+ * project id is not his to rewrite.
+ */
+export function ownsProjectFor(
+  projects: readonly { id: string; ownerUserId?: string }[],
+  userId: string | null | undefined,
+): (projectId: string | undefined) => boolean {
+  const owned = new Set(projects.filter(p => !!userId && p.ownerUserId === userId).map(p => p.id));
+  return (projectId) => !!projectId && owned.has(projectId);
 }
 
 function encodeBase64Url(input: string): string {

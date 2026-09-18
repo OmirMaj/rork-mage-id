@@ -10,10 +10,10 @@
 //   - AI score badge with the reason inline.
 //   - Inline voice fill for the whole record (re-dictate to update).
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Platform, KeyboardAvoidingView, Modal,
-  type LayoutChangeEvent,
+  AppState, type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -21,8 +21,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Phone, Mail, MapPin, ChevronRight, MessageSquare, Calendar, Clock,
-  Trash2, Save, ArrowRight, Briefcase, Mic, X,
+  Trash2, Save, ArrowRight, Briefcase, Mic, X, AlertTriangle,
 } from 'lucide-react-native';
+import { Button } from '@/components/ui/Button';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -81,7 +83,131 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
+// >>> lead-contact-log (pure; scripts/validate-lead-contact-log.ts evaluates this block)
+type ContactKind = 'call' | 'text' | 'email';
+interface PendingContact { kind: ContactKind; startedAt: number; leftApp: boolean }
+
+/** After this long away the prompt would be about a stale tap, not this call. */
+const CONTACT_LOG_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Whether coming back to the app should ask "Log this call?" (audit round 2,
+ * #9). The Call / Text / Email buttons used to only open the dialer, so a GC
+ * who called a website lead from here left firstRespondedAt empty: the card
+ * kept reading "waiting" and Avg response dropped the lead he answered. But a
+ * dial is not a response — a mis-tap, a cancelled "Call 555-0142?" sheet or an
+ * unanswered ring must not mark the lead answered either. So nothing is logged
+ * on the tap; when the app returns to the foreground after ACTUALLY leaving
+ * (iOS's call-confirm sheet only makes the app 'inactive', never 'background')
+ * he is asked, and one tap logs it through addLeadTouch, which stamps
+ * firstRespondedAt for any non-note touch.
+ */
+function contactToConfirm(pending: PendingContact | null, nowMs: number): ContactKind | null {
+  if (!pending || !pending.leftApp) return null;
+  if (nowMs - pending.startedAt > CONTACT_LOG_WINDOW_MS) return null;
+  return pending.kind;
+}
+
+const CONTACT_LOG_COPY: Record<ContactKind, { title: string; touch: string }> = {
+  call: { title: 'Log this call?', touch: 'Called from MAGE ID' },
+  text: { title: 'Log this text?', touch: 'Texted from MAGE ID' },
+  email: { title: 'Log this email?', touch: 'Emailed from MAGE ID' },
+};
+// <<< lead-contact-log
+
+// >>> lead-open-gate (pure; scripts/validate-records-open-before-load.ts evaluates this block)
+/**
+ * Whether /lead-detail?leadId= may mount its form yet. Every field is seeded
+ * ONCE from the stored lead, and the website-lead alert (push, email, inbox)
+ * opens a lead the server inserted seconds ago — the list is read once, 5-min
+ * stale, no realtime — so the form mounted BLANK (source 'other', stage 'new')
+ * and Save wrote that over the lead, stripping its website marker. The form
+ * now waits: 'loading' until this account's list has landed AND a fresh read
+ * made for this lead has settled; 'missing' if it still is not there; never a
+ * blank form under a lead's id.
+ */
+function leadOpenState(o: {
+  leadId: string | null;
+  found: boolean;
+  leadsLoaded: boolean;
+  refreshSettled: boolean;
+}): 'editor' | 'loading' | 'missing' {
+  if (!o.leadId) return 'editor';
+  // `found` does not short-circuit: before this account's read lands, a hit
+  // may be the device's hours-old copy, and the form seeds only once.
+  if (!o.leadsLoaded) return 'loading';
+  if (o.found) return 'editor';
+  return o.refreshSettled ? 'missing' : 'loading';
+}
+// <<< lead-open-gate
+
 export default function LeadDetailScreen() {
+  const { leadId, mode } = useLocalSearchParams<{ leadId?: string; mode?: string }>();
+  const { getLead, leadsLoaded, refreshLeads } = useProjects();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const goBack = useSafeBack();
+  const namedId = mode === 'new' || !leadId ? null : leadId;
+  const found = namedId ? getLead(namedId) : null;
+  // One fresh read per lead id the list does not hold — the alert's lead is
+  // usually newer than the cached list.
+  const [refreshedFor, setRefreshedFor] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const needsRefresh = !!namedId && leadsLoaded && !found && refreshedFor !== namedId;
+  const inFlightRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    if (!needsRefresh || !namedId || inFlightRef.current === namedId) return;
+    inFlightRef.current = namedId;
+    setRefreshing(true);
+    void refreshLeads()
+      .catch(() => { /* a failed read settles into 'missing' with Try again */ })
+      .finally(() => {
+        if (inFlightRef.current === namedId) inFlightRef.current = null;
+        if (!mountedRef.current) return;
+        setRefreshing(false);
+        setRefreshedFor(namedId);
+      });
+  }, [needsRefresh, namedId, refreshLeads]);
+  const retry = useCallback(() => { setRefreshedFor(null); }, []);
+  const state = leadOpenState({
+    leadId: namedId,
+    found: !!found,
+    leadsLoaded,
+    refreshSettled: refreshedFor === namedId && !refreshing,
+  });
+  if (state === 'editor') {
+    // Keyed on the lead so every field re-seeds if the link changes under it.
+    return <LeadDetailEditor key={found?.id ?? 'new'} />;
+  }
+  return (
+    <>
+      <Stack.Screen options={{ title: 'Lead', headerLargeTitle: false }} />
+      <View style={[styles.root, styles.openGateBody, { paddingBottom: insets.bottom }]} testID={`lead-open-${state}`}>
+        {state === 'loading' ? (
+          <>
+            <Text style={styles.openGateText}>Loading this lead…</Text>
+            <Button label="Go back" variant="secondary" onPress={goBack} testID="lead-open-loading-back" />
+          </>
+        ) : (
+          <>
+            <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.openGateTitle}>Lead not found</Text>
+            <Text style={styles.openGateText}>
+              It may have been deleted, or it hasn&apos;t synced to this device yet. Nothing was opened in its place, so nothing can be overwritten.
+            </Text>
+            <Button label="Try again" variant="primary" onPress={retry} testID="lead-open-retry" />
+            <Button label="Go back" variant="secondary" onPress={goBack} testID="lead-open-back" />
+          </>
+        )}
+      </View>
+    </>
+  );
+}
+
+function LeadDetailEditor() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -107,6 +233,54 @@ export default function LeadDetailScreen() {
 
   const isNew = mode === 'new' || !leadId;
   const existing = !isNew && leadId ? getLead(leadId) : null;
+
+  // Call / Text / Email → ask on return whether to log it (see contactToConfirm).
+  const pendingContactRef = useRef<PendingContact | null>(null);
+  const existingIdRef = useRef<string | null>(null);
+  existingIdRef.current = existing?.id ?? null;
+  const existingNameRef = useRef<string>('');
+  existingNameRef.current = existing?.name ?? '';
+  const startContact = useCallback((kind: ContactKind, url: string) => {
+    pendingContactRef.current = { kind, startedAt: Date.now(), leftApp: false };
+    void Linking.openURL(url).catch(() => { pendingContactRef.current = null; });
+  }, []);
+  useEffect(() => {
+    const markLeft = () => {
+      if (pendingContactRef.current) pendingContactRef.current.leftApp = true;
+    };
+    const askOnReturn = () => {
+      const pending = pendingContactRef.current;
+      if (!pending) return;
+      const kind = contactToConfirm(pending, Date.now());
+      pendingContactRef.current = null;
+      const leadIdNow = existingIdRef.current;
+      if (!kind || !leadIdNow) return;
+      const copy = CONTACT_LOG_COPY[kind];
+      const who = existingNameRef.current.trim() || 'this lead';
+      showAlert(copy.title, `Adds it to ${who}'s activity and counts as your first response if it's the first one. Skip it if nobody picked up.`, [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Log it', onPress: () => addLeadTouch(leadIdNow, kind, copy.touch) },
+      ]);
+    };
+    const sub = AppState.addEventListener('change', (next) => {
+      if (!pendingContactRef.current) return;
+      if (next === 'background') { markLeft(); return; }
+      if (next === 'active') askOnReturn();
+    });
+    // Desktop web: tel:/sms:/mailto: hand off to FaceTime / Messages / Mail
+    // and the tab never goes 'background' (it stays visible), so AppState
+    // alone never asked and a GC working from app.mageid.app could not log a
+    // call. The window losing focus to that app is the web's "left", and
+    // getting it back is the return.
+    const win = Platform.OS === 'web' && typeof window !== 'undefined' ? window : null;
+    win?.addEventListener('blur', markLeft);
+    win?.addEventListener('focus', askOnReturn);
+    return () => {
+      sub.remove();
+      win?.removeEventListener('blur', markLeft);
+      win?.removeEventListener('focus', askOnReturn);
+    };
+  }, [addLeadTouch]);
   // The last Instant Bid quote, recovered from the activity log — the only
   // durable store it has until Lead carries a quotedAmount (QUOTE-PERSIST-1).
   const quoted = useMemo(() => quotedFromTouches(existing?.touches), [existing?.touches]);
@@ -174,6 +348,13 @@ export default function LeadDetailScreen() {
   }), [name, phone, email, address, projectType, scope, budgetMin, budgetMax, timeline, source, stage, score, scoreReason, lostReason]);
 
   const saveAndExit = useCallback(() => {
+    if (!isNew && !existing) {
+      // The gate only mounts this editor once the lead is loaded; if it has
+      // gone since (deleted elsewhere), saving would write nothing and look
+      // like it worked.
+      showAlert('Not saved', "This lead isn't on this device any more — it may have been deleted. Go back and open it again.");
+      return;
+    }
     if (!canSave) {
       showAlert('Missing name', 'Add a name for this lead.');
       return;
@@ -288,12 +469,12 @@ export default function LeadDetailScreen() {
               {!!existing.phone && (
                 <>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
-                    onPress={() => Linking.openURL(`tel:${existing.phone}`)}>
+                    onPress={() => startContact('call', `tel:${existing.phone}`)}>
                     <Phone size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.quickBtnText}>Call</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
-                    onPress={() => Linking.openURL(`sms:${existing.phone}`)}>
+                    onPress={() => startContact('text', `sms:${existing.phone}`)}>
                     <MessageSquare size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.quickBtnText}>Text</Text>
                   </TouchableOpacity>
@@ -301,7 +482,7 @@ export default function LeadDetailScreen() {
               )}
               {!!existing.email && (
                 <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
-                  onPress={() => Linking.openURL(buildMailtoUrl({
+                  onPress={() => startContact('email', buildMailtoUrl({
                     to: existing.email!,
                     subject: existing.projectType
                       ? `Following up on your ${existing.projectType.toLowerCase()} project`
@@ -684,6 +865,9 @@ const LOST_REASONS = [
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   quickRow: { flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 0, flexWrap: 'wrap' },
+  openGateBody: { alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.lg },
+  openGateTitle: { ...Type.headline, color: t.text, textAlign: 'center' },
+  openGateText: { ...Type.subhead, color: t.textSecondary, textAlign: 'center', maxWidth: 420 },
   quickBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: t.surface,

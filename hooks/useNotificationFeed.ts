@@ -89,6 +89,26 @@ export function useNotificationFeed() {
     },
   });
 
+  // "Mark all read" is a SERVER-side sweep, not the id list of the 80 rows
+  // this feed loaded: the icon badge (NotificationContext.syncBadge) counts
+  // every unread row on the server, so a user with more than 80 unread kept a
+  // badge after tapping it. Same filter as the badge count, so the two agree.
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) return;
+      const { error } = await supabase
+        .from('notification_outbox')
+        .update({ read_at: new Date().toISOString() })
+        .eq('recipient_user_id', user.id)
+        .is('read_at', null)
+        .not('event_type', 'in', '(daily_digest_sent)');
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['notificationFeed', user?.id ?? null] });
+    },
+  });
+
   const dismissMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -111,9 +131,8 @@ export function useNotificationFeed() {
     [dismissMutation],
   );
   const markAllRead = useCallback(() => {
-    const ids = (query.data ?? []).filter(i => !i.readAt).map(i => i.id);
-    markReadMutation.mutate(ids);
-  }, [query.data, markReadMutation]);
+    markAllReadMutation.mutate();
+  }, [markAllReadMutation]);
 
   // Realtime: bell badge updates the moment a new outbox row lands.
   // Pattern: register the .on() listener BEFORE .subscribe() so Supabase

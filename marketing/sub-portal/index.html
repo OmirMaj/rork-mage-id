@@ -753,6 +753,48 @@
     if (isNaN(d)) return iso;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
+  // ── Calendar days and working days (mirrors marketing/portal) ──────────
+  // A bare YYYY-MM-DD is a CALENDAR DAY, not an instant: `new Date('2026-10-20')`
+  // is UTC midnight, i.e. Oct 19 in the evening anywhere in the US, so a punch
+  // item due the 20th read "Due Oct 19" here while the GC's app said the 20th.
+  function parseCalendarDate(value) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    var d = new Date(value);
+    if (isNaN(d)) return d;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  function fmtCalendarDay(value) {
+    if (!value) return '—';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return fmtDate(value);
+    var d = parseCalendarDate(value);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  // Same walk and the same weekday rule as utils/scheduleEngine.addWorkingDays
+  // (utils/cpm.isWorkingDayOfWeek: 7 = every day, 6 = no Sundays, otherwise
+  // Mon-Fri), closures as local YYYY-MM-DD keys.
+  function addWorkingDays(start, days, dpw, nonWorkingDates) {
+    var d = new Date(start);
+    var blocked = (nonWorkingDates && nonWorkingDates.length) ? nonWorkingDates : null;
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    var added = 0;
+    while (added < days) {
+      d.setDate(d.getDate() + 1);
+      var day = d.getDay();
+      if (dpw < 7 && (dpw === 6 ? day === 0 : (day === 0 || day === 6))) continue;
+      if (blocked && blocked.indexOf(d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate())) > -1) continue;
+      added++;
+    }
+    return d;
+  }
+  // utils/scheduleEngine.getTaskDateRange, on the page.
+  function subTaskDateRange(anchor, startDay, durationDays, dpw, nonWorking) {
+    if (!anchor || isNaN(anchor.getTime())) return null;
+    var start = addWorkingDays(anchor, Math.max(0, (startDay == null ? 1 : startDay) - 1), dpw, nonWorking);
+    var end = addWorkingDays(start, Math.max(0, (durationDays == null ? 1 : durationDays) - 1), dpw, nonWorking);
+    return { start: start, end: end };
+  }
   function timeAgo(iso) {
     if (!iso) return 'recently';
     var diff = Date.now() - new Date(iso).getTime();
@@ -976,7 +1018,7 @@
     var rows = items.map(function (p) {
       var priorityColor = p.priority === 'high' ? '#E5484D' : p.priority === 'medium' ? '#FF6A1A' : '#6B7177';
       var statusLabel = (p.status || 'open').replace(/_/g, ' ');
-      var dueLine = p.dueDate ? '<span class="punch-due">Due ' + esc(fmtDate(p.dueDate)) + '</span>' : '';
+      var dueLine = p.dueDate ? '<span class="punch-due">Due ' + esc(fmtCalendarDay(p.dueDate)) + '</span>' : '';
       var locLine = p.location ? '<span class="punch-loc">' + esc(p.location) + '</span>' : '';
       return '' +
         '<div class="punch-row">' +
@@ -1008,19 +1050,26 @@
     var sec = document.getElementById('schedule-section');
     if (!sec) return;
     if (!slice || !slice.tasks || !slice.tasks.length) { sec.innerHTML = ''; return; }
-    var anchor = slice.projectStartDate ? new Date(slice.projectStartDate) : null;
-    function dayToDate(offsetDays) {
-      if (!anchor || isNaN(anchor.getTime())) return null;
-      var d = new Date(anchor.getTime() + offsetDays * 86400000);
-      return isNaN(d.getTime()) ? null : d;
-    }
+    // `startDay` is a 1-based WORKING-day ordinal (day 1 IS the start date)
+    // and `durationDays` a working-day count — the convention the app's
+    // Gantt, the homeowner portal and utils/scheduleEngine.getTaskDateRange
+    // all use. This used to add them as CALENDAR days from a UTC-midnight
+    // anchor with no `- 1`, so every date read early by one day (the ordinal),
+    // one more west of UTC (the parse), plus every weekend and closure before
+    // the task — the sub rolled a crew to a slab that wasn't poured.
+    // Links shared before the calendar rode along have no workingDaysPerWeek:
+    // fall back to the engine's default 5-day week, never to calendar days.
+    var anchor = slice.projectStartDate ? parseCalendarDate(slice.projectStartDate) : null;
+    var dpw = slice.workingDaysPerWeek || 5;
+    var nonWorking = slice.nonWorkingDates && slice.nonWorkingDates.length ? slice.nonWorkingDates : null;
     var rows = slice.tasks.map(function (t) {
-      var start = dayToDate(t.startDay);
-      var end = dayToDate(t.startDay + Math.max(0, t.durationDays - 1));
+      var range = subTaskDateRange(anchor, t.startDay, t.durationDays, dpw, nonWorking);
+      var start = range && range.start;
+      var end = range && range.end;
       var dateRange;
       if (start && end) {
-        var startStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        var endStr = end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        var startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        var endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         dateRange = (start.getTime() === end.getTime()) ? startStr : startStr + ' → ' + endStr;
       } else {
         dateRange = (t.durationDays || 1) + ' day' + (t.durationDays === 1 ? '' : 's');

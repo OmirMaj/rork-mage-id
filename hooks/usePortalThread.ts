@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { supabaseWriteDetailed, onQueueFlushed, onQueueChanged, onQueueDropped, getOwnOfflineQueue, type WriteOutcome } from '@/utils/offlineQueue';
+import { onQueueFlushed, onQueueChanged, onQueueDropped, getOwnOfflineQueue, type WriteOutcome } from '@/utils/offlineQueue';
 import { oops } from '@/components/animations/NailItToast';
 import { generateUUID } from '@/utils/generateId';
 import type { PortalMessage, ClientCOApproval } from '@/types';
+import { useProjectActions } from '@/contexts/ProjectContext';
 
 // Fetches the GC↔client message thread for a project AND any pending CO
 // approvals. RLS scopes both tables to projects the GC owns.
@@ -109,6 +110,7 @@ interface BridgedMessage { message: PortalMessage; since: number }
 
 export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
   const queryClient = useQueryClient();
+  const { writePortalMessage } = useProjectActions();
   const enabled = !!portalId && isSupabaseConfigured;
 
   const messagesQ = useQuery({
@@ -277,7 +279,11 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
         read_by_client: false,
         created_at: new Date().toISOString(),
       };
-      const outcome = await supabaseWriteDetailed('portal_messages', 'insert', { ...row });
+      // Ordered behind the project's own write: RLS refuses a GC row whose
+      // portalId the server's project does not carry yet (a first enable or
+      // re-enable still in its debounce, or queued offline). 'queued' is
+      // shown by the queued echo like any offline send.
+      const outcome = await writePortalMessage({ ...row });
       if (outcome === 'failed') throw new Error('Message did not send');
       return { outcome, message: rowToMessage(row) };
     },

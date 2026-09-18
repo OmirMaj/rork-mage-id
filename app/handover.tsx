@@ -50,6 +50,7 @@ import type { InvoiceStatus, Project } from '@/types';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
+import { lienWaiverCoverage } from '@/utils/handoverWaivers';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -231,20 +232,13 @@ export default function HandoverScreen() {
     const finalInv = sortedInvoices[0];
     const invoiceRow = finalInvoiceState(finalInv);
 
-    // Lien waivers — at least one signed waiver per active commitment.
-    const activeCommitments = projectCommitments.filter((c: any) => c.status !== 'draft');
-    const subsCovered = new Set(
-      waivers
-        .filter(w => w.status === 'signed' || w.status === 'received')
-        .map(w => w.subCompanyId ?? w.subName)
-        .filter(Boolean),
-    );
-    const allCovered = activeCommitments.length > 0
-      && activeCommitments.every((c: any) => subsCovered.has(c.companyId) || subsCovered.has(c.vendorName));
-    const waiverStatus: HandoverItem['status'] =
-      activeCommitments.length === 0 ? 'open'
-      : allCovered ? 'done'
-      : (subsCovered.size > 0 ? 'partial' : 'open');
+    // Lien waivers — a signed waiver per active commitment, matched by the
+    // ids the app writes (commitmentId, then sub id, then name). It used to
+    // key on a Commitment.companyId that does not exist, so no waiver the app
+    // created could ever count (audit round 2, #22) — see utils/handoverWaivers.
+    const waiverCov = lienWaiverCoverage(projectCommitments, waivers);
+    const allCovered = waiverCov.status === 'done';
+    const waiverStatus: HandoverItem['status'] = waiverCov.status;
 
     return [
       {
@@ -319,11 +313,11 @@ export default function HandoverScreen() {
       {
         key: 'waivers',
         label: 'Lien waivers collected',
-        detail: activeCommitments.length === 0
+        detail: waiverCov.total === 0
           ? 'No subcontractor commitments on file. Add commitments to track lien waivers.'
           : allCovered
-            ? `Signed waiver for every sub (${activeCommitments.length})`
-            : `${subsCovered.size} of ${activeCommitments.length} subs have a signed waiver`,
+            ? `Signed waiver for every commitment (${waiverCov.total})`
+            : `${waiverCov.covered} of ${waiverCov.total} commitments have a signed waiver`,
         icon: ScrollText,
         status: waiverStatus,
         cta: '/lien-waivers',

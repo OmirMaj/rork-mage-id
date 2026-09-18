@@ -261,10 +261,14 @@ export function taskWorkingDayLabel(
  * them separately.
  */
 export function isTaskActiveOnScheduleDay(
-  task: Pick<ScheduleTask, 'startDay' | 'durationDays' | 'status'>,
+  task: Pick<ScheduleTask, 'startDay' | 'durationDays' | 'status'> & { progress?: number },
   dayNumber: number,
 ): boolean {
-  if (task.status === 'done') return false;
+  // Finished = 'done' OR 100% — the catch-up planner's isTaskDone test. A task
+  // dragged to 100% without the status flipped is not on site, and the server
+  // morning brief (supabase/functions/morning-digest/scheduleToday.ts) uses the
+  // same test; scripts/validate-digest-schedule-today.ts holds them together.
+  if (task.status === 'done' || (task.progress ?? 0) >= 100) return false;
   const start = Math.max(1, task.startDay ?? 1);
   const dur = Math.max(0, task.durationDays ?? 0);
   return dayNumber >= start && dayNumber <= start + dur - 1;
@@ -272,10 +276,10 @@ export function isTaskActiveOnScheduleDay(
 
 /** Does a milestone land exactly on schedule day `dayNumber`? */
 export function isMilestoneOnScheduleDay(
-  task: Pick<ScheduleTask, 'startDay' | 'status' | 'isMilestone'>,
+  task: Pick<ScheduleTask, 'startDay' | 'status' | 'isMilestone'> & { progress?: number },
   dayNumber: number,
 ): boolean {
-  if (task.status === 'done') return false;
+  if (task.status === 'done' || (task.progress ?? 0) >= 100) return false;
   if (!task.isMilestone) return false;
   return dayNumber === Math.max(1, task.startDay ?? 1);
 }

@@ -142,7 +142,9 @@ ok('search charges per-call (1)', /aiUsageIncrement\(auth\.userId,\s*"project_me
 const lead = read('supabase/functions/public-lead-intake/index.ts');
 ok('public-lead-intake loaded', lead.length > 0);
 ok('lead-intake rate-limits per IP', /rateLimitCount\(`lead:ip:/.test(lead));
-ok('lead-intake rate-limits per slug', /rateLimitCount\(`lead:slug:/.test(lead));
+// Per resolved account, not per caller-chosen slug string (audit round 2
+// review: a fixed contractor_id + random slug got a fresh bucket each time).
+ok('lead-intake rate-limits per contractor account', /rateLimitCount\(`lead:gc:\$\{userId\}`\)/.test(lead));
 ok('lead-intake returns 429 when over the limit', /LEAD_IP_HOURLY_LIMIT|LEAD_SLUG_HOURLY_LIMIT/.test(lead) && /429/.test(lead));
 
 // ═══════════════════════════════════════════════════════════════════════════

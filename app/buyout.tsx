@@ -51,6 +51,7 @@ import { cardSurface } from '@/components/ui';
 import { estimateItemsToScope } from '@/utils/estimateItemsToScope';
 import { fetchBidInvitesForProject } from '@/utils/bidInvites';
 import { bidDueLabel, bidDueState, inviteCoverage, type BidInviteRecord } from '@/utils/bidInviteCore';
+import { packageBuyoutSavings } from '@/utils/projectFinancials';
 
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
   open: '#FF6A1A',
@@ -87,7 +88,7 @@ export default function BuyoutScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, getProject, getBidPackagesForProject, getBidsForPackage, addBidPackage } = useProjects();
+  const { projects, commitments, getProject, getBidPackagesForProject, getBidsForPackage, addBidPackage } = useProjects();
 
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(projectId);
   const project = useMemo(() => {
@@ -114,9 +115,11 @@ export default function BuyoutScreen() {
       .filter(p => p.status === 'awarded')
       .reduce((s, p) => s + p.estimateBudget, 0);
     const pctBoughtOut = totalBudget > 0 ? Math.round((committedBudget / totalBudget) * 100) : 0;
+    // Leveled savings — the figure the Award dialog showed him, not bid-only
+    // (utils/projectFinancials.packageBuyoutSavings; audit round 2, #5).
     const savingsToDate = packages
       .filter(p => p.status === 'awarded')
-      .reduce((s, p) => s + (p.buyoutSavings ?? 0), 0);
+      .reduce((s, p) => s + (packageBuyoutSavings(p, getBidsForPackage(p.id), commitments) ?? 0), 0);
     // OVERDUE now reads `dueDate`, the field the create sheet below actually
     // writes. It used to read `requiredByDate`, which has no writer anywhere in
     // the repo — so the badge and this count could never render, on a screen
@@ -133,7 +136,7 @@ export default function BuyoutScreen() {
       total, awarded, open, leveling, totalBudget, committedBudget, pctBoughtOut, savingsToDate,
       overdue: overdue.length, undated: undated.length,
     };
-  }, [packages]);
+  }, [packages, getBidsForPackage, commitments]);
 
   // ── Who still owes him a number, across every package ───────────────────
   // ONE project-scoped read, not one per card: finding out who had gone quiet
@@ -399,6 +402,7 @@ export default function BuyoutScreen() {
                   const bids = getBidsForPackage(pkg.id);
                   const lowest = bids.length > 0 ? bids.reduce((m, b) => b.amount < m ? b.amount : m, bids[0].amount) : 0;
                   const live = pkg.status !== 'awarded' && pkg.status !== 'cancelled';
+                  const savings = packageBuyoutSavings(pkg, bids, commitments);
                   const dueState = bidDueState(pkg.dueDate, Date.now());
                   const overdue = live && dueState === 'overdue';
                   // Only rendered when the invite read actually succeeded —
@@ -460,11 +464,11 @@ export default function BuyoutScreen() {
                           <Text style={styles.pkgBudgetLabel}>Budget</Text>
                           <Text style={styles.pkgBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
                         </View>
-                        {pkg.status === 'awarded' && pkg.buyoutSavings != null ? (
+                        {savings != null ? (
                           <View style={styles.pkgBudgetCell}>
-                            <Text style={styles.pkgBudgetLabel}>Buyout {pkg.buyoutSavings >= 0 ? 'savings' : 'overrun'}</Text>
-                            <Text style={[styles.pkgBudgetValue, { color: pkg.buyoutSavings >= 0 ? themeColors.success : themeColors.danger }]}>
-                              {pkg.buyoutSavings >= 0 ? '+' : ''}{formatMoney(pkg.buyoutSavings)}
+                            <Text style={styles.pkgBudgetLabel}>Buyout {savings >= 0 ? 'savings' : 'overrun'}</Text>
+                            <Text style={[styles.pkgBudgetValue, { color: savings >= 0 ? themeColors.success : themeColors.danger }]}>
+                              {savings >= 0 ? '+' : ''}{formatMoney(savings)}
                             </Text>
                           </View>
                         ) : bids.length > 0 ? (

@@ -39,6 +39,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useProperties } from '@/contexts/PropertyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { uploadRfpAttachment } from '@/utils/storage';
@@ -48,6 +49,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useClientPaywall } from '@/hooks/useClientPaywall';
 import { showAlert } from '@/utils/alert';
+import { postedAlertBody } from '@/supabase/functions/notify-nearby-contractors/reach';
+import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
 
 interface PickedAttachment {
   uri: string;
@@ -114,6 +117,7 @@ export default function PostRfpScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { updateWorkOrder } = useProperties();
 
   // Optional prefill — when another screen routes here with context already
   // in hand (today: the Property Manager work-order "Post for bids" bridge),
@@ -128,6 +132,9 @@ export default function PostRfpScreen() {
     prefillBudgetMin?: string;
     prefillBudgetMax?: string;
     prefillWorkType?: string;
+    // The Property Manager work order this RFP is posted FOR (work-order.tsx
+    // "Post for bids"). Marked 'Out for bids' + linked only after the insert.
+    workOrderId?: string;
   }>();
   const p1 = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v) ?? '';
   const initialWorkType = ((): WorkType => {
@@ -408,13 +415,27 @@ export default function PostRfpScreen() {
       });
       if (insertErr) throw insertErr;
 
+      // Only now — after the RFP row exists — does the work order it came
+      // from flip to 'Out for bids' and learn the RFP id (work-order.tsx shows
+      // the link once rfpId is set). An abandoned or failed post never
+      // claims bids that were never asked for.
+      const woId = p1(prefill.workOrderId);
+      if (woId) updateWorkOrder(woId, { status: 'posted_for_bids', rfpId });
+
       // Clear the draft now that the row is committed.
       try { await AsyncStorage.removeItem(DRAFT_PREFIX + user.id); } catch {}
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // No promise about who is alerted: the fan-out runs after this insert
+      // and, until 2026-09-18, its count went nowhere while this alert told
+      // every homeowner contractors "will be notified" — including when none
+      // cover the area, and always when "verified pros only" was on (no
+      // contractor has a license on file). The count now lands on the row and
+      // My RFPs shows it; this sentence comes from the same module the fan-out
+      // matches with (audit round 2, #8).
       showAlert(
         'Posted!',
-        `Your project is live. Contractors near ${cityState.city || 'your location'} who match the requirements will be notified.`,
+        postedAlertBody(cityState.city, verifiedOnly, RFP_BROWSE_ENABLED),
         [{ text: 'See my RFPs', onPress: () => router.replace('/my-rfps' as never) }],
       );
     } catch (e) {
@@ -424,7 +445,7 @@ export default function PostRfpScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [finalValidate, user, attachments, description, extraScope, address, workType, budgetMin, budgetMax, deadline, latLng, desiredStart, addressVerified, verifiedOnly, router, gateClientPaywall]);
+  }, [finalValidate, user, attachments, description, extraScope, address, workType, budgetMin, budgetMax, deadline, latLng, desiredStart, addressVerified, verifiedOnly, router, gateClientPaywall, prefill.workOrderId, updateWorkOrder]);
 
   const isLastStep = step === 'review';
 
@@ -653,7 +674,7 @@ function DetailsStep({
       {/* Address */}
       <FadeRise delay={60}>
         <View style={styles.card}>
-          <CardHead icon={MapPin} title="Project address" subtitle="We'll use this to find verified contractors near you." styles={styles} themeColors={themeColors} />
+          <CardHead icon={MapPin} title="Project address" subtitle="We use it to alert contractors who work in your area." styles={styles} themeColors={themeColors} />
           <View style={styles.inputRow}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
@@ -925,6 +946,13 @@ function BudgetStep({
             <Text style={styles.verifyToggleTitle}>Notify verified pros only</Text>
             <Text style={styles.verifyToggleSub}>
               We only alert contractors with a current license on file. Fewer bids, higher quality.
+            </Text>
+            {/* Audit round 2, #8: licenses are self-added and contractor_licenses
+                is select-own under RLS, so this screen cannot count them — and
+                production had zero on 2026-09-02. Say the consequence before
+                the homeowner turns it on, not only afterwards in My RFPs. */}
+            <Text style={styles.verifyToggleSub}>
+              If no contractor with a license on file covers your area, nobody is alerted. My RFPs shows the real count.
             </Text>
           </View>
           <View style={[styles.verifyCheckbox, verifiedOnly && styles.verifyCheckboxOn]}>

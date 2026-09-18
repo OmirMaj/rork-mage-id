@@ -982,6 +982,21 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
  * Pure and money-safe by construction: it only reads ConsumerPassport, which
  * already excludes every cost/markup/margin field.
  */
+/**
+ * "Completed <date>" / "Completed" / "In progress" for one job, from the
+ * builder's `state` — never from `completedOn` alone. A job whose status is
+ * 'closed' but has no substantial-completion date is completed; keying the
+ * label on the date made the card and the shared text call a finished kitchen
+ * "In progress" while the same text's header counted it as completed.
+ */
+export function passportProjectStatusLabel(
+  p: Pick<PassportProject, 'state' | 'completedOn'>,
+  fmtDate: (isoDay: string) => string,
+): string {
+  if (p.state !== 'completed') return 'In progress';
+  return p.completedOn ? `Completed ${fmtDate(p.completedOn)}` : 'Completed';
+}
+
 export function buildPassportHandoff(p: ConsumerPassport, maxItemsPerSection = 8): string {
   const lines: string[] = [];
   const push = (s: string) => lines.push(s);
@@ -994,7 +1009,8 @@ export function buildPassportHandoff(p: ConsumerPassport, maxItemsPerSection = 8
     push('');
     push('WORK HISTORY');
     for (const j of p.projects.slice(0, maxItemsPerSection)) {
-      const when = j.completedOn ? `completed ${j.completedOn}` : 'in progress';
+      // Same verdict as the card: `state`, with the date only when there is one.
+      const when = passportProjectStatusLabel(j, (d) => d).toLowerCase();
       push(`- ${j.name} (${j.type}), ${when}${j.contractorName ? ` — ${j.contractorName}` : ''}`);
     }
   }

@@ -445,8 +445,12 @@
          ===================================================================== -->
     <section class="hero-video-wrap">
       <div class="shot-frame">
-        <img src="/screenshots/screens/16-ai-estimator.png" alt="MAGE ID AI estimator — a priced estimate generated from an uploaded plan set" loading="lazy" />
-        <span class="shot-caption"><span class="dot"></span>Plan upload → priced estimate</span>
+        <!-- Was 16-ai-estimator.png: the wizard's first step with a red
+             "Maximum update depth exceeded" error toast across the bottom,
+             captioned as a priced estimate (audit 2026-09-18 #31). This is the
+             real plan-upload screen, captioned as exactly that. -->
+        <img src="/screenshots/screens/17-takeoff.png" alt="MAGE ID quantity takeoff — upload a drawings PDF and choose how carefully the AI reads it" loading="lazy" />
+        <span class="shot-caption"><span class="dot"></span>Step one: upload the plan set</span>
       </div>
       <p class="section-sub-light" style="margin: 20px auto 0;">
         The core loop, on real screens: drop a plan set, the AI reads it and prices a starting estimate,
@@ -524,9 +528,11 @@
 
         <!-- Drawing analyzer -->
         <div class="tutorial-card">
-          <div class="shot-frame">
-            <img src="/screenshots/screens/24-estimate-hero.png" alt="AI drawing analyzer — a priced, CSI-organized estimate with reasoning and concerns" loading="lazy" />
-          </div>
+          <!-- No screenshot here on purpose (audit 2026-09-18 #31): the only capture
+               we had, 24-estimate-hero.png, showed 0.0% on every cost line and rows
+               that did not add up to its total. Re-shoot from a real wizard-built
+               estimate on the green build before an image goes back.
+               scripts/validate-marketing-screenshots.ts keeps it out. -->
           <div class="tc-body">
             <div class="tc-eyebrow">AI drawing analyzer</div>
             <h3>Plans &rarr; priced starting estimate</h3>

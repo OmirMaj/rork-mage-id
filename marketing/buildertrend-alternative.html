@@ -94,7 +94,7 @@
     </section>
 
     <section class="section wrap-wide" style="padding-top: 8px;">
-      <div class="feature-row">
+      <div class="feature-row" style="grid-template-columns: 1fr; max-width: 760px;">
         <div>
           <div class="section-title" style="text-align: left; margin-bottom: 8px;">Priced to win</div>
           <h2>Bids built off your real costs.</h2>
@@ -104,7 +104,11 @@
             pricing yourself out. Good/better/best, priced to win.
           </p>
         </div>
-        <div class="screenshot phone" data-label="Proposal · Priced to win"><img src="/screenshots/screens/24-estimate-hero.png" alt="MAGE ID estimate proposal priced to win" /></div>
+        <!-- No screenshot here on purpose (audit 2026-09-18 #31): the only capture
+             we had, 24-estimate-hero.png, showed 0.0% on every cost line and rows
+             that did not add up to its total. Re-shoot from a real wizard-built
+             estimate on the green build before an image goes back.
+             scripts/validate-marketing-screenshots.ts keeps it out. -->
       </div>
     </section>
 

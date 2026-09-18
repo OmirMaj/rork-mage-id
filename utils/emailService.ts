@@ -764,16 +764,25 @@ export function buildEstimateEmailHtml(opts: {
   /** Free-tier "Built with MAGE ID" growth footer (estimates are ungated +
       high-frequency, so this is a prime product-led acquisition surface). */
   growthBadge?: boolean;
+  /** Whether the estimate PDF is actually riding on this email. The web app
+      cannot render the PDF (generateEstimatePDFUri returns null there), and
+      when the GC sends anyway the body must not say "Estimate attached." to a
+      client who will find nothing attached. Defaults to true so a caller that
+      does attach is unchanged; pass false whenever the attachment list is
+      empty. */
+  hasAttachment?: boolean;
 }): string {
   const {
     companyName, recipientName, projectName, grandTotal,
     itemCount, message, contactName, contactEmail, contactPhone, financingHtml,
-    growthBadge,
+    growthBadge, hasAttachment = true,
   } = opts;
 
   const bodyHtml = `
     ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
-    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">Estimate attached. Summary below.</p>'}
+    ${message ? emailQuote(message) : hasAttachment
+      ? '<p style="margin:0 0 6px;">Estimate attached. Summary below.</p>'
+      : '<p style="margin:0 0 6px;">Here is a summary of your estimate. Reply if you would like the full itemized breakdown.</p>'}
     ${emailStatCard(`
       ${emailStatRow('Project', projectName)}
       ${emailStatRow('Line items', `${itemCount} items`)}

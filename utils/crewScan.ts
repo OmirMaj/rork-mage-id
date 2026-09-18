@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { IdDocumentType } from '@/types';
-import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
+import { shareLinkBase } from '@/utils/webAppOrigin';
 
 export interface IdScanResult {
   fullName: string;
@@ -38,9 +38,18 @@ export async function scanCertification(imageBase64: string, mimeType = 'image/j
 }
 
 /** Send a branded magic-link invite so a worker can claim their CrewMember.
- *  The redirectTo carries the claim token; app/claim-crew.tsx redeems it. */
+ *  The redirectTo carries the claim token; app/claim-crew.tsx redeems it.
+ *
+ *  The link is opened on the WORKER's device, not the GC's, and he may read
+ *  the email on a laptop or on a phone that does not have MAGE ID yet. It was
+ *  `mageid://claim-crew?…`, which opens only where the binary is installed —
+ *  a dead link for exactly the person being invited. claim-crew is a public
+ *  Expo route (app/_layout.tsx) and supabase-js picks the session out of the
+ *  URL on web (lib/supabase.ts detectSessionInUrl), so the https route works
+ *  anywhere. Always the production app host: a runtime origin is the GC's,
+ *  and a dev server on his laptop is no place to send a worker. */
 export async function sendClaimInvite(email: string, claimToken: string): Promise<void> {
-  const redirectTo = `${PRIMARY_SCHEME}claim-crew?token=${encodeURIComponent(claimToken)}`;
+  const redirectTo = `${shareLinkBase(null)}/claim-crew?token=${encodeURIComponent(claimToken)}`;
   const { error } = await supabase.functions.invoke('auth-magic-link', {
     body: { email, redirectTo },
   });

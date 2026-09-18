@@ -42,9 +42,10 @@ import { mageAISmart } from '@/utils/mageAI';
 import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
-import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
+import { PROFILE_FAILED_TITLE } from '@/utils/settingsLoadGuard';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
-import { acceptanceSentence, paymentStageRows, resolvePaymentSplit } from '@/utils/paymentTerms';
+import { acceptanceSentence, paymentStageRows } from '@/utils/paymentTerms';
 import {
   EMPTY_GROUNDING, buildGroundingFacts, estimateThinkingSteps, groundingChipLabel, selectGroundingEntries,
   type GroundingBundle, type ScopeHints,
@@ -100,12 +101,26 @@ const hintsFrom = (a: WizardAnswers): ScopeHints => ({
 
 /** Bid-vs-actual calibration: one sentence about the worst-calibrated
  *  category, when there is history to say it. A FACT for the prompt, never an
- *  ENTRY for the chip count (utils/groundingChip.buildGroundingFacts). */
-function calibrationFactFor(projects: Project[], commitments: Commitment[]): string | null {
+ *  ENTRY for the chip count (utils/groundingChip.buildGroundingFacts).
+ *
+ *  NOT FOR A TRADE WHOSE RATE IS ALREADY IN THE PROMPT (audit round 2, #2).
+ *  The cost-book rate for a trade with closed jobs behind it has already moved
+ *  toward his actuals; "You under-estimate Tile by 20% … ×1.20" beside "Tile
+ *  runs $11/SF on your jobs" tells the model to add the bias on top of a rate
+ *  that absorbed it. `groundedTrades` are the prompt's measured-rate trades;
+ *  the sentence goes to the worst-calibrated category NOT among them. */
+function calibrationFactFor(
+  projects: Project[],
+  commitments: Commitment[],
+  groundedTrades: ReadonlyArray<{ trade: string; jobCount: number }> = [],
+): string | null {
   try {
     const cal = computeCalibration({ projects, commitments });
-    const top = cal.hasData ? cal.categories[0] : undefined;
-    return top && top.direction !== 'aligned' ? top.detail : null;
+    if (!cal.hasData) return null;
+    const key = (s: string) => (s || '').trim().toLowerCase();
+    const grounded = new Set(groundedTrades.filter(e => e.jobCount >= 1).map(e => key(e.trade)));
+    const top = cal.categories.find(c => c.direction !== 'aligned' && !grounded.has(key(c.category)));
+    return top ? top.detail : null;
   } catch {
     return null;
   }
@@ -329,6 +344,10 @@ function EstimateWizardScreenInner() {
   // his profile has none, one question per step, and runs the send from the
   // last press with the answers as arguments.
   const gate = useClientDocumentGate();
+  // His saved split, or an honest loading / could-not-load state: before the
+  // profile read lands `settings` is the DEFAULT, which has no split, so the
+  // card used to say "not set yet" to a GC who had set it (#106).
+  const savedTerms = useSavedPaymentTerms();
   const [newProjectName, setNewProjectName] = useState('');
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   // The project the estimate was ACTUALLY written to by the ?projectId
@@ -445,10 +464,8 @@ function EstimateWizardScreenInner() {
   // groundingUsed so every surface describes the same prompt.
   const groundingFor = useCallback((a: WizardAnswers): GroundingBundle => {
     try {
-      return buildGroundingFacts(
-        selectGroundingEntries(costDb.entries, hintsFrom(a), 6),
-        calibrationFactFor(projects, commitments),
-      );
+      const entries = selectGroundingEntries(costDb.entries, hintsFrom(a), 6);
+      return buildGroundingFacts(entries, calibrationFactFor(projects, commitments, entries));
     } catch {
       return EMPTY_GROUNDING;
     }
@@ -1041,7 +1058,7 @@ function EstimateWizardScreenInner() {
     // Payment terms preview — the GC's own split, the same rows the PDF prints
     // (utils/paymentTerms.paymentStageRows). Not set → the card says so and
     // offers to set it; the PDF cannot go out without it (share asks first).
-    const previewSplit = resolvePaymentSplit({ settings }).split;
+    const previewSplit = savedTerms.split;
     const previewStages = previewSplit ? paymentStageRows(result.total, previewSplit) : [];
 
     return (
@@ -1428,7 +1445,18 @@ function EstimateWizardScreenInner() {
               schedule the homeowner would never receive. */}
           <View style={styles.paymentCard} testID="wizard-payment-terms">
             <Text style={styles.sectionTitle}>Payment Terms</Text>
-            {previewSplit ? (
+            {savedTerms.status !== 'ready' ? (
+              <View style={styles.paymentNotSet} testID="wizard-payment-terms-loading">
+                <Text style={styles.paymentRowDesc}>
+                  {savedTerms.status === 'loading'
+                    ? 'Loading your payment terms…'
+                    : `Payment terms — ${PROFILE_FAILED_TITLE.toLowerCase()}. Check your signal.`}
+                </Text>
+                {savedTerms.status === 'failed' ? (
+                  <Button label="Retry" size="sm" variant="secondary" onPress={savedTerms.retry} testID="wizard-payment-terms-retry" />
+                ) : null}
+              </View>
+            ) : previewSplit ? (
               previewStages.map((row, i) => (
                 <View
                   key={row.key}

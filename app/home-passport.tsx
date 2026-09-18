@@ -11,7 +11,7 @@
 // Client-safe by construction: consumerPassport can never emit the GC's cost,
 // markup or margin — enforced by its own tests.
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,12 +23,17 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { shareText } from '@/utils/shareText';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
-import { useCoreData, useFinancialsData, useDocsData } from '@/contexts/ProjectContext';
+import { useCoreData, useFinancialsData, useDocsData, useFieldData, usePreconData } from '@/contexts/ProjectContext';
 import { HomePassportCard } from '@/components/passport/HomePassportCard';
 import {
   buildConsumerPassport, buildPassportHandoff,
-  type PassportJobInput,
 } from '@/utils/passport/consumerPassport';
+import {
+  passportContractorFromBranding, passportJobsFromProjects, passportExtrasFor,
+  type PassportJobExtras,
+} from '@/utils/passport/passportInputs';
+import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { showAlert } from '@/utils/alert';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -47,7 +52,9 @@ export default function HomePassportScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { isDesktop } = useResponsiveLayout();
-  const { projects } = useCoreData();
+  const { projects, settings } = useCoreData();
+  const { projectPhotos } = useFieldData();
+  const { subcontractors } = usePreconData();
   const { invoices, commitments } = useFinancialsData();
   const { warranties, permits } = useDocsData();
 
@@ -68,26 +75,49 @@ export default function HomePassportScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const active = homes.find((h) => h.key === selected) ?? homes[0] ?? null;
 
+  // Selections (model numbers / SKUs) and the closeout binder's maintenance
+  // schedule are not held in any context — one fetch each per job at this
+  // home, the same two the closeout binder makes for its own passport. Keyed
+  // by project id; a failed fetch leaves that job's sections empty rather
+  // than blocking the rest of the record.
+  const activeJobIds = useMemo(() => (active?.jobs ?? []).map((p) => p.id), [active]);
+  const activeJobKey = activeJobIds.join('|');
+  const [extras, setExtras] = useState<Record<string, PassportJobExtras | undefined>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const ids = activeJobKey ? activeJobKey.split('|') : [];
+    void Promise.all(ids.map(async (id) => {
+      const [selections, binder] = await Promise.all([
+        fetchSelectionsForProject(id).catch(() => []),
+        fetchCloseoutBinder(id).catch(() => null),
+      ]);
+      return [id, { selections, maintenanceSchedule: binder?.maintenanceSchedule ?? null }] as const;
+    })).then((rows) => {
+      if (cancelled) return;
+      setExtras((prev) => ({ ...prev, ...Object.fromEntries(rows) }));
+    });
+    return () => { cancelled = true; };
+  }, [activeJobKey]);
+
   const passport = useMemo(() => {
     if (!active) return null;
-    const jobs: PassportJobInput[] = active.jobs.map((p) => ({
-      id: p.id,
-      name: p.name,
-      location: p.location,
-      type: String(p.type ?? ''),
-      status: String(p.status ?? ''),
-      createdAt: p.createdAt,
-      squareFootage: p.squareFootage,
-    }));
+    // Completion dates + the GC ride on each job (audit round 2, #21): without
+    // them the record printed no finish date and never named who built it.
+    const jobs = passportJobsFromProjects(active.jobs, passportContractorFromBranding(settings?.branding));
+    const more = passportExtrasFor(activeJobIds, extras, subcontractors, projectPhotos);
     return buildConsumerPassport({
       projects: jobs,
       warranties: warranties ?? [],
       permits: permits ?? [],
       commitments: commitments ?? [],
       invoices: invoices ?? [],
+      selections: more.selections,
+      maintenance: more.maintenance,
+      subcontractors: more.subcontractors,
+      photos: more.photos,
       nowMs: Date.now(),
     });
-  }, [active, warranties, permits, commitments, invoices]);
+  }, [active, activeJobIds, extras, settings, subcontractors, projectPhotos, warranties, permits, commitments, invoices]);
 
   const onShare = async () => {
     if (!passport) return;

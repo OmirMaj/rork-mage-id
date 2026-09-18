@@ -17,7 +17,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
+// The invite is opened on the SUB's device — an office PC, Outlook, a phone
+// without MAGE ID — so it is an https link on the host that serves the Expo
+// route (prequal-form is public and loads the packet anonymously by token),
+// never mageid://, which only opens where the binary is installed. Built on
+// shareLinkBase so it can never land on the marketing host, whose catch-all
+// 404s every Expo route. Guarded by scripts/validate-share-link-host.ts.
+import { shareLinkBase } from '@/utils/webAppOrigin';
 import {
   ShieldCheck, ShieldAlert, ShieldX, Clock, Send, ChevronRight,
   ChevronLeft, X, CheckCircle2, AlertTriangle, Copy, Scale,
@@ -47,6 +53,13 @@ import {
 } from '@/types';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
+
+/** Recipient-safe prequal invite URL. Independent of the SENDER's platform:
+ *  the GC on his iPhone and on the laptop mint the same https link. */
+function prequalInviteUrl(token: string): string {
+  const runtimeOrigin = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null;
+  return `${shareLinkBase(runtimeOrigin)}/prequal-form?token=${encodeURIComponent(token)}`;
+}
 
 /**
  * Sentence-case labels for the three OFF-PATH prequal states, for the
@@ -193,7 +206,7 @@ function PrequalManagerInner() {
     upsertPrequalPacket(packet);
 
     // Compose email.
-    const link = `${PRIMARY_SCHEME}prequal-form?token=${token}`;
+    const link = prequalInviteUrl(token);
     const subject = encodeURIComponent(`Prequalification for ${sub.companyName}`);
     const body = encodeURIComponent(
       `Hi ${sub.contactName || 'there'},\n\n` +
@@ -590,7 +603,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                 <TouchableOpacity
                   style={styles.copyLinkRow}
                   onPress={async () => {
-                    const link = `${PRIMARY_SCHEME}prequal-form?token=${packet.inviteToken}`;
+                    const link = prequalInviteUrl(packet.inviteToken ?? '');
                     const ok = await copyToClipboard(link);
                     showAlert(
                       ok ? 'Copied' : 'Copy failed',

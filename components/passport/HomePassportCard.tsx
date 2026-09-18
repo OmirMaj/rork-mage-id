@@ -26,6 +26,7 @@ import { PassportSection, PassportRow } from '@/components/passport/PassportSect
 import type {
   ConsumerPassport, PassportAlert, PassportContractorRole, WarrantyState,
 } from '@/utils/passport/consumerPassport';
+import { passportProjectStatusLabel } from '@/utils/passport/consumerPassport';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -203,7 +204,10 @@ export function HomePassportCard({
         {passport.projects.slice(0, maxPerSection).map((p) => {
           const detail = [
             p.contractorName,
-            p.completedOn ? `Completed ${fmtDate(p.completedOn)}` : 'In progress',
+            // The builder's `state` is the verdict: a job marked closed with no
+            // completion date is still finished. It used to read "In progress"
+            // here because the label keyed on the date alone (audit round 2, #21).
+            passportProjectStatusLabel(p, fmtDate),
           ].filter(Boolean).join('  ·  ');
           const row = (
             <PassportRow

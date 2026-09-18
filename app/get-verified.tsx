@@ -45,6 +45,7 @@ import { sendEmail } from '@/utils/emailService';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
+import ProfileLoadNotice from '@/components/ProfileLoadNotice';
 import { US_STATES } from '@/constants/regions';
 import { normalizeState, splitLocationText } from '@/utils/codeJurisdiction';
 import {
@@ -60,7 +61,36 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// The form renders only once THIS account's profile is in state (finding 14).
+// It prefills the licence number, state and expiry once, at mount, and its
+// submit writes them onto the saved branding. Mounted over DEFAULT_SETTINGS it
+// prefilled blanks and could save them; until the load the screen says what
+// is happening (ProfileLoadNotice) and, when the read failed, offers Retry.
 export default function GetVerifiedScreen() {
+  const { settingsLoaded } = useProjects();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  if (settingsLoaded) return <GetVerifiedForm />;
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.eyebrow}>Trust & credibility</Text>
+          <Text style={styles.title}>Get verified</Text>
+        </View>
+      </View>
+      <ProfileLoadNotice testID="get-verified-loading" />
+    </View>
+  );
+}
+
+function GetVerifiedForm() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();

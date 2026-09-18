@@ -18,7 +18,7 @@ const read = (p: string): string => { try { return readFileSync(p, 'utf8'); } ca
 const portal = read('marketing/portal/index.html');
 ok('portal/index.html loaded', portal.length > 0);
 ok('portal defines getPortalToken() from ?t=', /function getPortalToken\(\)/.test(portal) && /URLSearchParams\(window\.location\.search\)\.get\('t'\)/.test(portal));
-for (const rpc of ['portal_get_snapshot', 'portal_get_messages', 'portal_post_message', 'portal_submit_co_approval', 'portal_submit_budget_proposal']) {
+for (const rpc of ['portal_get_snapshot', 'portal_get_messages', 'portal_mark_messages_read', 'portal_post_message', 'portal_submit_co_approval', 'portal_submit_budget_proposal']) {
   ok(`portal calls /rpc/${rpc}`, portal.includes('/rest/v1/rpc/' + rpc));
 }
 ok('portal passes p_access_token on every portal RPC', (portal.match(/p_access_token:\s*(getPortalToken\(\)|token\b)/g) ?? []).length >= 5);
@@ -28,6 +28,18 @@ ok('portal has NO direct portal_snapshots REST read', !/\/rest\/v1\/portal_snaps
 ok('portal has NO direct portal_messages REST access', !/\/rest\/v1\/portal_messages(\?|['"])/.test(portal));
 ok('portal has NO direct change_order_approvals REST insert', !/\/rest\/v1\/change_order_approvals/.test(portal));
 ok('portal has NO direct portal_budget_proposals REST insert', !/\/rest\/v1\/portal_budget_proposals/.test(portal));
+
+// The read-receipt RPC is token-gated like the reads, and may only flip the
+// GC's messages of that one portal to read (never PUBLIC-executable).
+{
+  const mig = read('supabase/migrations/20260918210000_portal_mark_messages_read.sql');
+  ok('portal_mark_messages_read resolves the token via portal_project_for_token',
+    /v_pid := public\.portal_project_for_token\(p_portal_id, p_access_token\);\s*if v_pid is null then raise exception 'portal_denied'/.test(mig));
+  ok('portal_mark_messages_read only marks GC messages of that portal read',
+    /set read_by_client = true\s*where m\.portal_id = p_portal_id\s*and m\.author_type = 'gc'/.test(mig));
+  ok('portal_mark_messages_read revokes PUBLIC execute',
+    /revoke execute on function public\.portal_mark_messages_read\(text, text\) from public;/.test(mig));
+}
 
 // ── Sub-portal HTML ───────────────────────────────────────────────────────────
 const sub = read('marketing/sub-portal/index.html');

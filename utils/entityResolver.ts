@@ -244,6 +244,10 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
         params: { projectId: ref.projectId, delayEventId: ref.id },
       };
 
+    case 'lead':
+      // app/lead-detail.tsx reads `leadId` (and `mode`, unused here).
+      return { pathname: '/lead-detail', params: { leadId: ref.id } };
+
     default: {
       // Exhaustiveness guard — a new EntityKind added to types/index.ts will
       // surface a TS error here.
@@ -313,6 +317,7 @@ export function resolveEntityObject(
     case 'prequalPacket':
     case 'priceAlert':
     case 'delayEvent':
+    case 'lead':
       // These live outside the core projects store. Consumers that need the
       // object can pass a richer store; we return null for the default shape.
       return null;
@@ -354,6 +359,7 @@ const KIND_LABEL: Record<EntityKind, string> = {
   prequalPacket: 'Prequal',
   priceAlert: 'Price Alert',
   delayEvent: 'Delay Event',
+  lead: 'Lead',
 };
 
 /**

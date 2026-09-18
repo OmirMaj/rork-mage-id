@@ -165,10 +165,22 @@ for (const { table, builder, columns } of ROW_BUILDERS) {
 
   // The UPDATE must go through the builder — hand-listing columns at the
   // update site is precisely how these three drifted in the first place.
+  // Either inline — supabaseWrite('t', 'update', { ...builder(x), … }) — or
+  // bound once (`const p = { ...builder(x), … }`) and that same name handed to
+  // EVERY update write of the table: the direct one and any queued one
+  // (updateChangeOrder queues its update behind a queued create, so it names
+  // the payload once and uses it at both sites). A bound payload only counts
+  // when no update site of the table passes anything else.
+  const inlineUpdate = new RegExp(`supabaseWrite(?:Detailed)?\\(\\s*'${table}'\\s*,\\s*'update'\\s*,\\s*\\{\\s*\\.\\.\\.${builder}\\(`).test(code);
+  const boundNames = new Set([...code.matchAll(new RegExp(`const\\s+(\\w+)\\s*=\\s*\\{\\s*\\.\\.\\.${builder}\\(`, 'g'))].map(m => m[1]));
+  const directArgs = [...code.matchAll(new RegExp(`supabaseWrite(?:Detailed)?\\(\\s*'${table}'\\s*,\\s*'update'\\s*,\\s*(\\w+|\\{)`, 'g'))].map(m => m[1]);
+  const queuedArgs = [...code.matchAll(new RegExp(`addToOfflineQueue\\(\\{\\s*table:\\s*'${table}'\\s*,\\s*operation:\\s*'update'\\s*,\\s*data:\\s*(\\w+|\\{)`, 'g'))].map(m => m[1]);
+  const boundUpdate = directArgs.length > 0 && directArgs.every(a => boundNames.has(a)) && queuedArgs.every(a => boundNames.has(a));
   check(
     `${table}: the update payload spreads ${builder}`,
-    new RegExp(`supabaseWrite\\(\\s*'${table}'\\s*,\\s*'update'\\s*,\\s*\\{\\s*\\.\\.\\.${builder}\\(`).test(code),
-    `Build the update payload as { ...${builder}(x), updated_at: now } so it cannot drop a column the insert writes.`,
+    // supabaseWriteDetailed is the same queue path, returning where it landed.
+    inlineUpdate || boundUpdate,
+    `Build the update payload as { ...${builder}(x), updated_at: now } — inline, or bound to one name used at every update site — so it cannot drop a column the insert writes.`,
   );
 
   // …and so must the INSERT, or the two can drift the other way.

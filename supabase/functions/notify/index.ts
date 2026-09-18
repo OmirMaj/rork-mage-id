@@ -32,6 +32,10 @@
 //     'bid_question_asked'         — contractor asks pre-bid question → RFP poster
 //     'bid_question_answered'      — RFP poster answers → all bidders
 //     'closeout_binder_sent'       — GC delivers binder → homeowner + GC summary
+//     'portal_reply'               — GC answers in the portal thread → homeowner
+//                                    (trigger only; audit round 2, #16)
+//     'lead_received'              — website quote form / widget lead → GC
+//                                    (trigger only; audit round 2, #9)
 //
 // DEPLOY ORDER (review 2026-09-04, advisory 4): marketing/portal/index.html must
 // be live BEFORE this function is deployed. Anonymous callers (that page) now
@@ -63,7 +67,7 @@ import { verifyUser, isServiceRoleToken } from "../_shared/verifyUser.ts";
 import { isValidCron } from "../_shared/cronAuth.ts";
 // EDGE-F6: every customer-facing portal URL is built by the shared helper so it
 // carries the MINTED portal id and the ?t= access token the page requires.
-import { portalUrlFor, subPortalUrlFor, APP_BASE } from "../_shared/portalLinks.ts";
+import { portalUrlFor, portalLinkEnded, subPortalUrlFor, APP_BASE } from "../_shared/portalLinks.ts";
 // EDGE-F4/F5: the pure authorization pieces (unit-tested by scripts/validate-notify-authz.ts).
 import {
   ANON_ALLOWED_EVENTS,
@@ -80,6 +84,10 @@ import {
   userMayAddress,
   type Caller,
 } from "../_shared/notifyGuards.ts";
+// Audit round 2, #12: the ONE event -> screen table. The app's push-tap handler
+// and in-app inbox import this same file, so an email button, a push tap and an
+// inbox row for one event cannot open different screens (or the wrong param).
+import { notificationRoute, routeHref } from "./routes.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -155,6 +163,13 @@ interface BidQuestionRow {
   created_at: string | null;
 }
 
+interface ChangeOrderRow {
+  number: number | null;
+  change_amount: number | string | null;
+  new_contract_total: number | string | null;
+  description: string | null;
+}
+
 interface SubInvoiceRow {
   id: string;
   sub_portal_id: string | null;
@@ -224,6 +239,106 @@ function bidInviteExpiryText(expiresAt: unknown, nowMs: number): string {
 }
 // <<< bid-invite-format
 
+// >>> notify-format (pure; scripts/validate-notification-routes.ts and
+//     scripts/validate-lead-contact-log.ts evaluate this block)
+/**
+ * Money to the cent: "$4,812.50", "$4,812" when the cents are zero, a leading
+ * minus for a deduct CO. The shared fmtMoney rounds to whole dollars — fine
+ * for a proposal headline, wrong for a signed change order a GC reconciles
+ * against his own number. Null for anything that is not a finite number, so a
+ * missing amount drops its line instead of printing "$0".
+ */
+function fmtMoneyCents(v: unknown): string | null {
+  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
+  if (!Number.isFinite(n)) return null;
+  const cents = Math.round(Math.abs(n) * 100);
+  const whole = Math.floor(cents / 100).toLocaleString('en-US');
+  const frac = cents % 100;
+  return `${n < 0 && cents > 0 ? '-' : ''}$${whole}${frac ? '.' + String(frac).padStart(2, '0') : ''}`;
+}
+
+/** True when a change order's amount is present and exactly zero (to the cent). */
+function coAmountIsZero(v: unknown): boolean {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : typeof v === 'number' ? v : NaN;
+  return Number.isFinite(n) && Math.round(n * 100) === 0;
+}
+
+/**
+ * How a change order is named in a push / subject: its real number from the
+ * change_orders row. Never its uuid — "CO #9b1e44c0" matches nothing the GC
+ * or the homeowner has ever seen on paper. No number, no "#".
+ */
+function coLabel(num: unknown): string {
+  const n = typeof num === 'number' ? num : typeof num === 'string' && /^\d+$/.test(num.trim()) ? Number(num.trim()) : NaN;
+  return Number.isInteger(n) && n > 0 ? `CO #${n}` : 'a change order';
+}
+
+/** widget-estimate prints the range it showed the homeowner into `scope` as
+ *  "Instant Estimate shown: $38,000–$52,000" (budget_min/max stay empty, audit
+ *  #24); utils/widgetLeadCore.ts reads it back with the same pattern. */
+const WIDGET_BALLPARK_RX = /Instant Estimate shown: \$([\d,]+)\s*[\u2013-]\s*\$([\d,]+)/;
+const WIDGET_MARK_RX = /Instant Estimate (shown|could not price)/;
+
+function widgetBallparkText(scope: unknown): string | null {
+  if (typeof scope !== 'string') return null;
+  const m = WIDGET_BALLPARK_RX.exec(scope);
+  return m ? `$${m[1]}\u2013$${m[2]}` : null;
+}
+
+/** The homeowner's own words: scope minus the widget's ballpark segment. */
+function scopeWithoutBallpark(scope: unknown): string {
+  if (typeof scope !== 'string') return '';
+  return scope.split(' \u00B7 ').filter((part) => !WIDGET_MARK_RX.test(part)).join(' \u00B7 ').trim();
+}
+
+/** A widget lead's scope is text widget-estimate assembled (type · size ·
+ *  finish · zip · notes · origin), not a sentence the homeowner typed. */
+function isWidgetScope(scope: unknown): boolean {
+  return typeof scope === 'string' && WIDGET_MARK_RX.test(scope);
+}
+
+/** A system portal row (ProjectContext's send/recall notices) still ends with
+ *  the in-app "Tap to review." — meaningless in an email with a button. */
+function portalBodyForEmail(body: string): string {
+  return body.replace(/\s*Tap to review\.?\s*$/i, '').trim();
+}
+
+interface PortalInviteLike { id?: unknown; email?: unknown; name?: unknown }
+
+/**
+ * Who a GC's portal reply goes to (audit round 2, #16). The GC's own row never
+ * carries an invite (hooks/usePortalThread.ts writes invite_id: null), so the
+ * addressee is whoever wrote last: the invite on the newest client-authored
+ * message in the thread. If that invite is gone — or nobody has written yet —
+ * every invite on the portal is told, de-duplicated by address.
+ */
+function replyRecipients(invites: unknown, lastClientInviteId: string | null, cap = 10): { inviteId: string | null; email: string; name: string | null }[] {
+  const list = (Array.isArray(invites) ? invites : []) as PortalInviteLike[];
+  const clean = list
+    .map((i) => ({
+      inviteId: typeof i.id === 'string' ? i.id : null,
+      email: typeof i.email === 'string' ? i.email.trim().toLowerCase() : '',
+      name: typeof i.name === 'string' && i.name.trim() ? i.name.trim() : null,
+    }))
+    .filter((i) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(i.email));
+  const match = lastClientInviteId ? clean.filter((i) => i.inviteId === lastClientInviteId) : [];
+  const chosen = match.length > 0 ? match : clean;
+  const seen = new Set<string>();
+  return chosen.filter((i) => (seen.has(i.email) ? false : (seen.add(i.email), true))).slice(0, cap);
+}
+
+/**
+ * The lock-screen number (audit round 2, #17): the recipient's unread inbox
+ * rows, plus the one this push is about to add (the outbox row is written
+ * after the send). Null when the count could not be read — the push then
+ * carries no badge and iOS leaves the icon as it was, rather than stamping a
+ * made-up "1" that nothing in the app ever clears.
+ */
+function badgeFromUnread(unread: number | null): number | null {
+  return typeof unread === 'number' && Number.isInteger(unread) && unread >= 0 ? unread + 1 : null;
+}
+// <<< notify-format
+
 // ─── Supabase REST helpers ────────────────────────────────────────────
 async function sbGet(path: string): Promise<unknown> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -253,6 +368,35 @@ async function sbInsert(table: string, body: unknown): Promise<void> {
   if (!r.ok) {
     const t = await r.text().catch(() => "");
     throw new Error(`sbInsert ${table} → ${r.status}: ${t}`);
+  }
+}
+
+/**
+ * Unread inbox rows for a user — the same rows app/notifications-inbox.tsx
+ * lists (recipient_user_id, read_at null, the daily_digest_sent audit marker
+ * excluded). A HEAD count: the app's feed stops at 80 rows, this does not.
+ * Null on any failure (see badgeFromUnread).
+ */
+async function unreadCountFor(userId: string | null | undefined): Promise<number | null> {
+  if (!isUuid(userId)) return null;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/notification_outbox?recipient_user_id=eq.${userId}&read_at=is.null&event_type=neq.daily_digest_sent&select=id`,
+      {
+        method: 'HEAD',
+        headers: {
+          apikey: SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+          Prefer: 'count=exact',
+          Range: '0-0',
+        },
+      },
+    );
+    // PostgREST answers "0-0/17" (or "*/0" when empty) in Content-Range.
+    const total = Number((r.headers.get('content-range') ?? '').split('/')[1]);
+    return r.ok || r.status === 206 ? (Number.isInteger(total) && total >= 0 ? total : null) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -449,7 +593,7 @@ function prefAllows(prefs: Record<string, unknown> | null | undefined, key: stri
 }
 
 // ─── Push sender (email goes through shared resendSend) ──────────────
-async function sendPush(token: string, title: string, body: string, data?: Record<string, unknown>): Promise<{ ok: boolean; resp?: unknown }> {
+async function sendPush(token: string, title: string, body: string, data?: Record<string, unknown>, badge?: number | null): Promise<{ ok: boolean; resp?: unknown }> {
   if (!token) return { ok: false };
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json", "Accept": "application/json" };
@@ -460,7 +604,10 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
       body: JSON.stringify({
         to: token, title, body, data: data ?? {},
         sound: "default", priority: "high",
-        badge: 1,
+        // Audit round 2, #17: the recipient's real unread count, never a
+        // hard-coded 1 — that stamped "1" on the icon for good (nothing in the
+        // app cleared it) and read the same for one push as for five.
+        ...(typeof badge === 'number' ? { badge } : {}),
         _displayInForeground: true,
       }),
     });
@@ -507,6 +654,21 @@ async function exceedsRateLimit(scope: string, cap: number): Promise<boolean> {
 }
 
 // ─── Event dispatch ───────────────────────────────────────────────────
+/** Events only a trigger (service caller) may raise — see dispatch(). */
+/** lead_received pushes/emails per GC per hour (public-lead-intake caps
+ *  captured leads at 30/h per account; this backs it up at the sender). */
+const LEAD_NOTIFY_HOURLY_CAP = 20;
+/** portal_reply emails per GC per hour, charged per RECIPIENT — the same
+ *  number as send-email's free-tier RECIPIENTS_PER_HOUR_FREE. The invite list
+ *  and the message text are both his, so without a sender-side cap this
+ *  branch is an unmetered mail relay on the shared sending domain. */
+const PORTAL_REPLY_HOURLY_CAP = 60;
+/** All portal_reply emails, every GC together, per hour (send-email's
+ *  GLOBAL_RECIPIENTS_PER_HOUR) — the ceiling if many accounts are abused at once. */
+const PORTAL_REPLY_GLOBAL_HOURLY_CAP = 500;
+
+const SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set(['portal_reply', 'lead_received']);
+
 interface DispatchResult {
   ok: boolean;
   reason?: string;
@@ -515,6 +677,10 @@ interface DispatchResult {
   portal_id?: string | null;
   /** Set on authorization / abuse refusals; the handler maps it to the HTTP status. */
   httpStatus?: number;
+  /** True when at least one push or email of this dispatch was actually SENT
+   *  (not skipped by prefs, suppressed, token-less or failed). A 200 alone
+   *  only means "handled" — notify-nearby-contractors counts on this. */
+  delivered?: boolean;
 }
 
 async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): Promise<DispatchResult> {
@@ -530,6 +696,12 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
 
   if (isAnonCaller && !ANON_ALLOWED_EVENTS.has(event)) {
     return { ok: false, reason: 'event_not_anon_allowed', event };
+  }
+  // portal_reply mails a homeowner and lead_received names a stranger's phone
+  // number: both are raised only by their AFTER INSERT triggers (the cron
+  // secret), never by a JWT that could aim them at somebody else.
+  if (!isService && SERVICE_ONLY_EVENTS.has(event)) {
+    return { ok: false, reason: 'service_only_event', event, httpStatus: 403 };
   }
   // EDGE-F4: the two events that address another tenant's user come only from
   // award-rfp / notify-nearby-contractors (service role) — never from a JWT.
@@ -682,7 +854,20 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     : (projectId || effectivePortalId) ? 'your project' : ((payload.project_name as string) || 'your project');
 
   // EDGE-F6: tokenized portal URL or nothing — never a token-less /portal/<id>.
-  const portalUrl = portalUrlFor(projectCtx.client_portal);
+  let portalUrl = portalUrlFor(projectCtx.client_portal);
+  // An ENDED link (portal_snapshots.expires_at in the past) is treated exactly
+  // like no portal: every template already omits the CTA / skips the client
+  // email when portalUrl is null. A failed read keeps the link (fail open —
+  // the page itself refuses an expired token with a clear message).
+  if (portalUrl) {
+    const cpId = ((projectCtx.client_portal ?? {}) as { portalId?: unknown }).portalId;
+    if (typeof cpId === 'string' && cpId.trim()) {
+      try {
+        const snap = await sbGet(`portal_snapshots?portal_id=eq.${encodeURIComponent(cpId.trim())}&select=expires_at&limit=1`) as { expires_at: string | null }[];
+        if (portalLinkEnded(snap[0]?.expires_at ?? null)) portalUrl = null;
+      } catch { /* keep the link */ }
+    }
+  }
   const portalLink = portalUrl ?? APP_BASE;
 
   // Reusable email "shell" args populated for every dispatch.
@@ -702,6 +887,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
   // passes the fully-built email shell; we wrap with wrapEmailHtml,
   // call resendSend (which adds plaintext, headers, FROM), and log
   // outcome to notification_outbox.
+  let deliveredAny = false;
   const dispatchOne = async (kind: 'gc' | 'client' | 'sub', spec: {
     /** Event-prefs key. */
     prefKey: string;
@@ -715,6 +901,11 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     email?: string | null;
     /** Where replies go. Defaults to GC email when undefined. */
     replyTo?: string;
+    /** Footer "Sent by …" override. sharedEmail's sender is the GC, which is
+     *  right for client/sub mail and wrong for mail TO the GC about someone
+     *  else (he would read "Sent by <himself>. Replies go to them"). Pass
+     *  null to print no sender line. */
+    sender?: { name?: string; email?: string; phone?: string } | null;
     /** Email subject — usually different (and tighter) than push title. */
     emailSubject: string;
     /** wrapEmailHtml inputs. We add the shell defaults around it. */
@@ -738,7 +929,8 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     const allowEmail = prefAllows(gc.notification_preferences, spec.prefKey, 'email');
 
     if (allowPush && spec.pushToken) {
-      const r = await sendPush(spec.pushToken, spec.pushTitle, spec.pushBody, spec.pushData);
+      const badge = badgeFromUnread(await unreadCountFor(gcUserId));
+      const r = await sendPush(spec.pushToken, spec.pushTitle, spec.pushBody, spec.pushData, badge);
       pushStatus = r.ok ? 'sent' : 'failed';
       pushResp = r.resp;
     }
@@ -758,6 +950,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         const html = wrapEmailHtml({
           ...spec.emailWrap,
           ...sharedEmail,
+          ...(spec.sender !== undefined ? { sender: spec.sender ?? undefined } : {}),
           unsubscribe,
         });
         const replyTo = spec.replyTo ?? (kind === 'gc' ? undefined : (gc.email ?? undefined));
@@ -774,6 +967,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       }
     }
 
+    if (pushStatus === 'sent' || emailStatus === 'sent') deliveredAny = true;
     await sbInsert('notification_outbox', {
       event_type: event,
       source_table: source_table ?? null,
@@ -791,9 +985,20 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     }).catch((e) => console.log('[notify] outbox insert failed', e));
   };
 
-  // Project deep-link helper (when we have a projectId).
-  const projectDeepLink = (route: string): string =>
-    projectId ? `${APP_BASE}/${route}?projectId=${encodeURIComponent(projectId)}` : APP_BASE;
+  // Every in-app email button goes through the shared route table (./routes.ts)
+  // — the same one the push tap and the inbox read — so the param each screen
+  // actually reads is the one the link sends. Nothing openable: the app root,
+  // never a screen that will say "not found".
+  const appLink = (routeEvent: string, data: Record<string, unknown>): string => {
+    const r = notificationRoute(routeEvent, data);
+    return r ? `${APP_BASE}${routeHref(r)}` : APP_BASE;
+  };
+  const projectData = { project_id: projectId };
+
+  // Audit round 2, #13: the outbox payload is what the inbox (summarize) and
+  // daily-digest read later, and no trigger sends the project's name — so the
+  // one notify already resolved is written into it. RFP events have no project.
+  if (projectCtx.id) payload.project_name = projectCtx.name;
 
   // ─── Per-event branches ───
   switch (event) {
@@ -813,9 +1018,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           preheader: `${author}: ${body.slice(0, 100)}`,
           eyebrow: 'New portal message',
           title: `${author} sent you a message`,
-          subtitle: `Reply through MAGE ID — your client sees it instantly in their portal.`,
+          subtitle: `Reply through MAGE ID — your client gets an email with your answer and a link back to their portal.`,
           bodyHtml: emailQuote(trimmed),
-          cta: { label: 'Reply in MAGE ID', href: projectDeepLink('client-messages') },
+          cta: { label: 'Reply in MAGE ID', href: appLink('portal_message', projectData) },
           secondaryCta: portalUrl ? { label: 'View their portal', href: portalUrl } : undefined,
         },
       });
@@ -840,7 +1045,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           title: `${proposer} suggested ${fmtMoney(amount)}`,
           subtitle: 'Accept it as the project target, counter back, or just message — you decide.',
           bodyHtml: `${emailStatCard(emailStatRow('Proposed budget', fmtMoney(amount), { emphasize: true }))}${note ? emailQuote(note) : ''}`,
-          cta: { label: 'Open the project', href: projectDeepLink('project-detail') },
+          cta: { label: 'Review the proposal', href: appLink('budget_proposal', projectData) },
         },
       });
       break;
@@ -849,32 +1054,71 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     case 'co_approval': {
       const decision = (payload.decision as string) ?? 'approved';
       const signerName = (payload.signer_name as string) || 'your client';
-      const coId = (payload.change_order_id as string) || '';
-      const coNumber = (payload.co_number as string) || coId.slice(0, 8);
-      const coAmount = payload.co_amount as number | string | undefined;
+      const coId = uuidOrNull(payload.change_order_id);
+      const note = typeof payload.note === 'string' ? payload.note.trim() : '';
+      // Audit round 2, #13: the trigger sends only the CO's uuid, so the push
+      // read "approved CO #9b1e44c0" with no amount. Read the row — scoped to
+      // THIS project as well as the id, so a change_order_id supplied through a
+      // portal can never pull another job's number and amount into the email —
+      // and write what it says into the stored payload, where the inbox and
+      // daily-digest read it too.
+      let co: ChangeOrderRow | null = null;
+      if (coId && projectCtx.id) {
+        try {
+          const rows = await sbGet(`change_orders?id=eq.${coId}&project_id=eq.${projectCtx.id}&select=number,change_amount,new_contract_total,description&limit=1`) as ChangeOrderRow[];
+          co = rows[0] ?? null;
+        } catch { co = null; }
+      }
+      if (co) {
+        // `number` is an integer column; String() is the conversion the old
+        // `as string` cast only pretended to do.
+        if (typeof co.number === 'number') payload.co_number = String(co.number);
+        if (co.change_amount != null) payload.co_amount = Number(co.change_amount);
+        if (co.new_contract_total != null) payload.new_contract_total = Number(co.new_contract_total);
+        if (co.description) payload.co_description = co.description;
+      } else {
+        // A number the caller supplied is not the record's number; say nothing.
+        delete payload.co_number;
+        delete payload.co_amount;
+      }
+      const coName = coLabel(payload.co_number);
+      // A $0 CO (scope swap, no cost change) prints no amount in the push or
+      // subject — "approved CO #3 ($0)" reads like a missing number — and the
+      // stat card says "No cost change", matching the inbox's fmtMoneyExact.
+      const coNoCost = coAmountIsZero(payload.co_amount);
+      const coAmount = coNoCost ? null : fmtMoneyCents(payload.co_amount);
+      const newTotal = fmtMoneyCents(payload.new_contract_total);
+      const description = typeof payload.co_description === 'string' ? payload.co_description : '';
       const isApproved = decision === 'approved';
+      const verb = isApproved ? 'approved' : 'declined';
       const symbol = isApproved ? EMOJI.approved : EMOJI.declined;
       await dispatchOne('gc', {
         prefKey: 'co_approval',
         pushTitle: `${isApproved ? 'CO approved' : 'CO declined'} · ${projectName}`,
-        pushBody: `${signerName} ${isApproved ? 'approved' : 'declined'} CO #${coNumber}${coAmount ? ` (${fmtMoney(coAmount)})` : ''}`,
-        pushData: { projectId, portalId, kind: 'co_approval', changeOrderId: coId },
+        pushBody: `${signerName} ${verb} ${coName}${coAmount ? ` (${coAmount})` : ''}${!isApproved && note ? ` — "${note.slice(0, 90)}"` : ''}`,
+        pushData: { projectId, portalId, kind: 'co_approval', changeOrderId: coId ?? undefined },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${symbol} CO #${coNumber} ${isApproved ? 'approved' : 'declined'}${coAmount ? ` · ${fmtMoney(coAmount)}` : ''}`,
+        emailSubject: `${symbol} ${coName === 'a change order' ? 'Change order' : coName} ${verb}${coAmount ? ` · ${coAmount}` : ''} · ${projectName}`,
         emailWrap: {
-          preheader: `${signerName} ${isApproved ? 'approved' : 'declined'} change order #${coNumber}.`,
+          preheader: `${signerName} ${verb} ${coName}${coAmount ? ` for ${coAmount}` : ''}.`,
           eyebrow: isApproved ? 'Change order approved' : 'Change order declined',
-          title: isApproved
-            ? `${signerName} approved CO #${coNumber}`
-            : `${signerName} declined CO #${coNumber}`,
+          title: `${signerName} ${verb} ${coName}`,
           subtitle: isApproved
             ? 'Approval is logged and time-stamped — proceed with the work.'
-            : 'Reach out to clarify, then revise and re-issue if appropriate.',
-          bodyHtml: coAmount
-            ? emailStatCard(`${emailStatRow('Change order', `#${escapeHtml(coNumber)}`)}${emailStatRow('Amount', fmtMoney(coAmount), { emphasize: true, valueColor: isApproved ? '#1E8E4A' : '#C2410C' })}${emailStatRow('Decision', isApproved ? 'Approved' : 'Declined')}`)
-            : emailStatCard(`${emailStatRow('Change order', `#${escapeHtml(coNumber)}`)}${emailStatRow('Decision', isApproved ? 'Approved' : 'Declined', { emphasize: true })}`),
-          cta: { label: 'View change order', href: projectDeepLink('change-order') },
+            : note
+              ? 'Their reason is below — answer it, then revise and re-issue if it still applies.'
+              : 'They gave no reason. Reach out to clarify, then revise and re-issue if appropriate.',
+          bodyHtml: `${emailStatCard([
+            coName !== 'a change order' ? emailStatRow('Change order', escapeHtml(coName.replace('CO ', ''))) : '',
+            description ? emailStatRow('Scope', escapeHtml(description.length > 80 ? description.slice(0, 80) + '…' : description)) : '',
+            coAmount ? emailStatRow('Amount', coAmount, { emphasize: true, valueColor: isApproved ? '#1E8E4A' : '#C2410C' }) : '',
+            coNoCost ? emailStatRow('Amount', 'No cost change') : '',
+            isApproved && newTotal ? emailStatRow('New contract total', newTotal) : '',
+            emailStatRow('Decision', isApproved ? 'Approved' : 'Declined', coAmount ? undefined : { emphasize: true }),
+          ].join(''))}${!isApproved && note ? emailQuote(note) : ''}`,
+          // Lands on THIS change order (projectId + coId), not a blank new one.
+          cta: { label: 'View change order', href: appLink('co_approval', { project_id: projectId, change_order_id: coId }) },
         },
       });
       break;
@@ -899,7 +1143,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           title: `${submitter} sent invoice #${num}`,
           subtitle: 'Review the lines, approve, and mark paid when the wire clears.',
           bodyHtml: emailStatCard(`${emailStatRow('Invoice', `#${escapeHtml(num)}`)}${emailStatRow('From', escapeHtml(submitter))}${lineCount ? emailStatRow('Line items', String(lineCount)) : ''}${emailStatRow('Total due', fmtMoney(amount), { emphasize: true })}`),
-          cta: { label: 'Review invoice', href: projectDeepLink('sub-portals') },
+          cta: { label: 'Review invoice', href: appLink('sub_invoice_submitted', projectData) },
         },
       });
       break;
@@ -990,7 +1234,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const budgetLine = (budgetMin || budgetMax)
         ? `${budgetMin ? fmtMoney(budgetMin) : '—'} – ${budgetMax ? fmtMoney(budgetMax) : '—'}`
         : 'Budget TBD';
-      const detailUrl = `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}`;
+      const detailUrl = appLink('nearby_rfp_posted', { rfp_id: rfpId });
       await dispatchOne('gc', {
         prefKey: 'nearby_rfp_posted',
         pushTitle: `New project nearby · ${cityState || 'your area'}`,
@@ -1016,11 +1260,19 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const newProjectId = (payload.project_id as string) || '';
       const heroPhoto = (payload.hero_photo_url as string) || undefined;
       const contractValue = payload.contract_value as number | string | undefined;
-      const newProjectLink = newProjectId ? `${APP_BASE}/project-detail?projectId=${encodeURIComponent(newProjectId)}` : APP_BASE;
+      // To the cent (award_rfp stores round(bid, 2)); a $0 / missing value drops the line.
+      const awardedValueText = Number(contractValue) > 0 ? fmtMoneyCents(contractValue) : null;
+      // award-rfp forwards the homeowner's email (20260918120000+). The
+      // homeowner is told the contractor will send the portal link, so the
+      // email says exactly that and names where to send it.
+      const homeownerEmail = typeof payload.homeowner_email === 'string' ? payload.homeowner_email.trim() : '';
+      // project-detail reads `id`; this link used to send `projectId` and the
+      // first tap on "You won the bid" said the project did not exist (#12).
+      const newProjectLink = appLink('rfp_awarded', { project_id: newProjectId });
       await dispatchOne('gc', {
         prefKey: 'rfp_awarded',
         pushTitle: `🎉 You won the bid · ${projectName}`,
-        pushBody: `The homeowner picked you. Project is set up — open to start the kickoff message.`,
+        pushBody: `The homeowner picked you. Project is set up — open it to publish their portal and send them the link.`,
         pushData: { projectId: newProjectId, kind: 'rfp_awarded' },
         pushToken: gc.push_token,
         email: gc.email,
@@ -1030,10 +1282,10 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           accent: '#1E8E4A',
           eyebrow: 'Bid awarded',
           title: 'You won.',
-          subtitle: `The homeowner just awarded ${projectName} to you. We've set up the project in MAGE ID with their drawings, photos, scope, and a live portal between the two of you.`,
+          subtitle: `The homeowner just awarded ${projectName} to you. We've set up the project in MAGE ID with their address, photos, drawings, scope and the price they accepted. Their email is already on the client-portal invite — open portal setup to publish it and send them the link.`,
           bodyHtml: `
-            ${emailHero({ kicker: 'Project awarded', bigText: projectName, subText: contractValue ? `${fmtMoney(contractValue)} contract value` : undefined, photoUrl: heroPhoto, accent: '#1E8E4A' })}
-            <p style="margin:0 0 12px;"><strong>What's next:</strong> open the project, review what the homeowner posted, and send a kickoff message through the portal so they know you're on it.</p>
+            ${emailHero({ kicker: 'Project awarded', bigText: projectName, subText: awardedValueText ? `${awardedValueText} contract value` : undefined, photoUrl: heroPhoto, accent: '#1E8E4A' })}
+            <p style="margin:0 0 12px;"><strong>What's next:</strong> open the project, review what the homeowner posted, then publish their portal and send the link to ${homeownerEmail ? escapeHtml(homeownerEmail) : 'the homeowner'} so they know you're on it.</p>
             <p style="margin:0;color:#9AA3AD;font-size:13px;">Other bidders were politely declined automatically — you don't need to do anything on that side.</p>
           `,
           cta: { label: 'Open the project', href: newProjectLink },
@@ -1065,7 +1317,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
             ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow('Signed by', escapeHtml(signerName))}${contractValue ? emailStatRow('Contract value', fmtMoney(contractValue), { emphasize: true, valueColor: '#1E8E4A' }) : ''}${emailStatRow('Signed at', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}`)}
             <p style="margin:0;">The signed PDF is in MAGE ID under this project's Contract section — pull it for your records. A copy lives in the homeowner's portal too, so they can reference it any time.</p>
           `,
-          cta: { label: 'View signed contract', href: projectDeepLink('contract') },
+          cta: { label: 'View signed contract', href: appLink('contract_signed', projectData) },
           secondaryCta: portalUrl ? { label: 'Open client portal', href: portalUrl } : undefined,
         },
       });
@@ -1095,7 +1347,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           bodyHtml: `
             ${emailProductCard({ imageUrl: productImage, productName, brand, category, price: totalCost ? fmtMoney(totalCost) : undefined, overBudget })}
           `,
-          cta: { label: 'View in MAGE ID', href: projectDeepLink('selections') },
+          cta: { label: 'View in MAGE ID', href: appLink('selection_chosen', projectData) },
           secondaryCta: portalUrl ? { label: 'Open client portal', href: portalUrl } : undefined,
         },
       });
@@ -1109,7 +1361,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const rfpTitle = (payload.rfp_title as string) || projectName || 'your RFP';
       const homeownerEmail = (payload.homeowner_email as string) || gc.email;
       const homeownerToken = (payload.homeowner_push_token as string) || gc.push_token;
-      const detailUrl = rfpId ? `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : APP_BASE;
+      const detailUrl = appLink('bid_question_asked', { rfp_id: rfpId });
       await dispatchOne('gc', {
         prefKey: 'bid_question_asked',
         pushTitle: `New bid question · ${rfpTitle}`,
@@ -1135,7 +1387,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const rfpTitle = (payload.rfp_title as string) || projectName || 'an RFP you bid on';
       const question = (payload.question as string) || '';
       const answer = (payload.answer as string) || '';
-      const detailUrl = rfpId ? `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : APP_BASE;
+      const detailUrl = appLink('bid_question_answered', { rfp_id: rfpId });
       // EDGE-F4: a user-JWT caller's bidders were resolved server-side from
       // bid_responses (resolvedBidders); only a service-role caller may ship a
       // list, and it is capped at MAX_RECIPIENTS either way.
@@ -1145,7 +1397,8 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         const em = r.email ?? null;
         if (!em && !pushTok) continue;
         if (pushTok) {
-          await sendPush(pushTok, `Answer posted · ${rfpTitle}`, `${question.slice(0, 80)}…`, { rfpId, kind: 'bid_question_answered' });
+          const badge = badgeFromUnread(await unreadCountFor(r.user_id));
+          await sendPush(pushTok, `Answer posted · ${rfpTitle}`, `${question.slice(0, 80)}…`, { rfpId, kind: 'bid_question_answered' }, badge);
         }
         if (em) {
           const html = wrapEmailHtml({
@@ -1274,7 +1527,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
               ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${photoCount ? emailStatRow('Photos delivered', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties packaged', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
               <p style="margin:0;">Their warranty walk reminder is set for 11 months from substantial completion — we'll surface it on your home tab when it's time.</p>
             `,
-            cta: { label: 'View binder', href: projectDeepLink('closeout-binder') },
+            cta: { label: 'View binder', href: appLink('closeout_binder_sent', projectData) },
             secondaryCta: portalUrl ? { label: 'See homeowner portal', href: portalLink2 } : undefined,
           },
         });
@@ -1358,11 +1611,189 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       break;
     }
 
+    // Audit round 2, #16: the GC answered in the portal thread. Before this
+    // branch nothing told the homeowner — the trigger only fired for client
+    // rows — while the preferences page promised a "portal_message" email "when
+    // your client or contractor sends a message". Client-bound, so it goes out
+    // through sendIfNotSuppressed (the homeowner's unsubscribe, not the GC's
+    // notification preferences, decides) and is logged recipient_kind 'client'.
+    case 'portal_reply': {
+      const outboxBase = { event_type: event, source_table: source_table ?? null, source_id: source_id ?? null, recipient_kind: 'client', payload };
+      if (payload.author_type !== 'gc' || !effectivePortalId || !projectCtx.viaPortal) {
+        await sbInsert('notification_outbox', { ...outboxBase, email_status: 'skipped_not_gc_reply' }).catch(() => {});
+        break;
+      }
+      // Cross-tenant lock: notify resolves the project PORTAL-first, so a row
+      // filed under the author's project but naming another contractor's
+      // portal would email THAT contractor's homeowner, in his name. The row's
+      // own project must be the project that owns the portal. (The migration's
+      // RLS and trigger refuse this too; this is the last of three locks.)
+      if (!projectCtx.id || uuidOrNull(payload.project_id)?.toLowerCase() !== projectCtx.id.toLowerCase()) {
+        await sbInsert('notification_outbox', { ...outboxBase, email_status: 'skipped_portal_mismatch' }).catch(() => {});
+        break;
+      }
+      // A person's reply only. System notices (no author_name) are not emailed
+      // until the portal snapshot republishes with the send/recall (#23, #44).
+      if (!strOrNull(payload.author_name)) {
+        await sbInsert('notification_outbox', { ...outboxBase, email_status: 'skipped_system_notice' }).catch(() => {});
+        break;
+      }
+      // No live portal link, no email: a reply they cannot open is worse than none.
+      if (!portalUrl) {
+        await sbInsert('notification_outbox', { ...outboxBase, email_status: 'skipped_portal_unavailable' }).catch(() => {});
+        break;
+      }
+      // Neutral wording ("sent you a message"), kept from when system notices
+      // also came through here.
+      const body = portalBodyForEmail(typeof payload.body === 'string' ? payload.body : '');
+      const trimmed = body.length > 600 ? body.slice(0, 600) + '…' : body;
+      const company = gc.company_name || gc.contact_name || 'Your contractor';
+      let lastClientInvite: string | null = null;
+      try {
+        const rows = await sbGet(`portal_messages?portal_id=eq.${encodeURIComponent(effectivePortalId)}&author_type=eq.client&select=invite_id&order=created_at.desc&limit=1`) as { invite_id: string | null }[];
+        lastClientInvite = strOrNull(rows[0]?.invite_id);
+      } catch { lastClientInvite = null; }
+      const cp = (projectCtx.client_portal ?? {}) as { invites?: unknown };
+      const recipients = replyRecipients(cp.invites, lastClientInvite);
+      if (recipients.length === 0) {
+        await sbInsert('notification_outbox', { ...outboxBase, email_status: 'skipped_no_email' }).catch(() => {});
+        break;
+      }
+      const since = new Date(Date.now() - 15 * 60_000).toISOString();
+      for (const rc of recipients) {
+        // Batch a burst of replies: if this address was already emailed about
+        // this portal in the last 15 minutes and that message is still unread
+        // in the portal, the earlier email already brings them to this one.
+        try {
+          const prior = await sbGet(`notification_outbox?event_type=eq.portal_reply&email_status=eq.sent&recipient_email=eq.${encodeURIComponent(rc.email)}&payload->>portal_id=eq.${encodeURIComponent(effectivePortalId)}&created_at=gte.${encodeURIComponent(since)}&select=source_id&order=created_at.desc&limit=1`) as { source_id: string | null }[];
+          const priorMsg = uuidOrNull(prior[0]?.source_id);
+          if (priorMsg) {
+            const m = await sbGet(`portal_messages?id=eq.${priorMsg}&select=read_by_client&limit=1`) as { read_by_client: boolean | null }[];
+            if (m[0] && m[0].read_by_client !== true) {
+              await sbInsert('notification_outbox', { ...outboxBase, recipient_email: rc.email, email_status: 'batched_unread' }).catch(() => {});
+              continue;
+            }
+          }
+        } catch { /* a failed batching read sends rather than drops */ }
+        // Sender-side cap, charged per recipient (post-ship review): he writes
+        // both the text and the invite list, and the 15-minute batching above
+        // is per recipient and resettable, so it is not a throttle. Over either
+        // cap the message stays in the portal and is logged; only the email is
+        // held back.
+        if (
+          await exceedsRateLimit(`notify:portal_reply:${gcUserId}`, PORTAL_REPLY_HOURLY_CAP)
+          || await exceedsRateLimit('notify:portal_reply:global', PORTAL_REPLY_GLOBAL_HOURLY_CAP)
+        ) {
+          await sbInsert('notification_outbox', { ...outboxBase, recipient_email: rc.email, email_status: 'rate_limited' }).catch(() => {});
+          continue;
+        }
+        const unsubscribe: UnsubscribeOpts = { recipientEmail: rc.email, eventKey: 'portal_message', enabled: true };
+        const html = wrapEmailHtml({
+          preheader: `${company}: ${body.slice(0, 100)}`,
+          eyebrow: 'New message in your portal',
+          title: `${rc.name ? `Hi ${rc.name.split(' ')[0]} — ` : ''}new message from ${company}`,
+          subtitle: `About ${projectName}. Reply in your portal so the answer stays with the project.`,
+          bodyHtml: emailQuote(trimmed),
+          cta: { label: 'Read and reply in your portal', href: portalUrl },
+          companyName: gc.company_name ?? undefined,
+          sender: { name: gc.contact_name ?? gc.company_name ?? undefined, email: gc.email ?? undefined, phone: gc.phone ?? undefined },
+          project: { name: projectName, location: projectCtx.location },
+          unsubscribe,
+        });
+        const r = await sendIfNotSuppressed({
+          to: rc.email,
+          subject: `${company} sent you a message · ${projectName}`,
+          html,
+          fromCompanyName: gc.company_name ?? undefined,
+          replyTo: gc.email ?? undefined,
+          unsubscribe,
+          eventKey: 'portal_message',
+        });
+        await sbInsert('notification_outbox', {
+          ...outboxBase,
+          recipient_email: rc.email,
+          email_status: r.suppressed ? 'suppressed_unsubscribed' : (r.ok ? 'sent' : 'failed'),
+          email_response: r.resp,
+          delivered_at: r.ok ? new Date().toISOString() : null,
+        }).catch(() => {});
+      }
+      break;
+    }
+
+    // Audit round 2, #9: a homeowner asked for a price on the GC's website (the
+    // quote form or the Instant Estimate widget). Raised by the AFTER INSERT
+    // trigger on leads for service-written website leads only, so a lead he
+    // typed in himself never pings him. The first callback usually wins the
+    // job, so the push carries what he needs to call back from the lock screen.
+    case 'lead_received': {
+      const leadId = uuidOrNull(payload.lead_id);
+      const who = strOrNull(payload.name) ?? 'A homeowner';
+      const phone = strOrNull(payload.phone);
+      const leadEmail = strOrNull(payload.email);
+      const kind = strOrNull(payload.project_type) ?? 'a project';
+      const saw = widgetBallparkText(payload.scope);
+      const stated = [fmtMoneyCents(payload.budget_min), fmtMoneyCents(payload.budget_max)];
+      const budget = stated[0] && stated[1] ? `${stated[0]}\u2013${stated[1]}` : (stated[0] ?? stated[1]);
+      const ownWords = scopeWithoutBallpark(payload.scope);
+      const fromWidget = isWidgetScope(payload.scope);
+      // Per-GC cap. The trigger fires for every service-written website lead,
+      // and both public endpoints are anonymous, so a flood against one GC
+      // must not become a flood of lock-screen pushes. Over the cap the lead
+      // is still in his pipeline and still logged here (so it reaches the
+      // inbox); only the push and email are held back.
+      if (await exceedsRateLimit(`notify:lead:${gcUserId}`, LEAD_NOTIFY_HOURLY_CAP)) {
+        await sbInsert('notification_outbox', {
+          event_type: event, source_table: source_table ?? null, source_id: source_id ?? null,
+          recipient_kind: 'gc', recipient_user_id: gcUserId, recipient_email: gc.email ?? null,
+          push_status: 'rate_limited', email_status: 'rate_limited', payload,
+        }).catch(() => {});
+        break;
+      }
+      await dispatchOne('gc', {
+        prefKey: 'lead_received',
+        pushTitle: `New website lead · ${kind}`,
+        pushBody: [who, saw ? `saw ${saw}` : null, budget ? `budget ${budget}` : null, phone].filter(Boolean).join(' · '),
+        pushData: { kind: 'lead_received', leadId: leadId ?? undefined },
+        pushToken: gc.push_token,
+        email: gc.email,
+        // The mail is TO him ABOUT the homeowner: the footer names the lead
+        // (not "Sent by <his own company>") and Reply reaches the homeowner
+        // when they left an email — the daily-digest mistake of 2026-09-08.
+        sender: { name: who, email: leadEmail ?? undefined, phone: phone ?? undefined },
+        // Only a well-formed address: Resend refuses the whole send on a bad
+        // reply_to, and a typo'd lead email must not cost him the lead alert.
+        replyTo: leadEmail && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(leadEmail) ? leadEmail : undefined,
+        emailSubject: `New website lead · ${kind} · ${who}`,
+        emailWrap: {
+          preheader: `${who} asked about ${kind}${saw ? ` after seeing ${saw}` : ''}. Call back tonight.`,
+          eyebrow: 'New website lead',
+          title: `${who} wants a price`,
+          subtitle: saw
+            ? `Your Instant Estimate widget showed them ${saw} — a published national range, not your price. They are waiting for a real number.`
+            : 'Most homeowners ask two or three contractors. The first one to call back usually gets the site visit.',
+          bodyHtml: `${emailStatCard([
+            emailStatRow('Name', escapeHtml(who)),
+            emailStatRow('Project', escapeHtml(kind)),
+            phone ? emailStatRow('Phone', escapeHtml(phone), { emphasize: true }) : '',
+            leadEmail ? emailStatRow('Email', escapeHtml(leadEmail)) : '',
+            saw ? emailStatRow('Widget range shown', escapeHtml(saw)) : '',
+            budget ? emailStatRow('Their budget', escapeHtml(budget)) : '',
+            // The widget builds its scope from the form fields, so it is shown
+            // as request details, not quoted as if the homeowner wrote it.
+            fromWidget && ownWords ? emailStatRow('Request details', escapeHtml(ownWords.length > 400 ? ownWords.slice(0, 400) + '…' : ownWords)) : '',
+          ].join(''))}${!fromWidget && ownWords ? emailQuote(ownWords.length > 400 ? ownWords.slice(0, 400) + '…' : ownWords) : ''}`,
+          cta: { label: 'Open the lead', href: appLink('lead_received', { lead_id: leadId }) },
+          secondaryCta: phone ? { label: `Call ${phone}`, href: `tel:${phone.replace(/[^\d+]/g, '')}` } : undefined,
+        },
+      });
+      break;
+    }
+
     default:
       return { ok: false, reason: 'unknown_event', event };
   }
 
-  return { ok: true, event, gc: gcUserId };
+  return { ok: true, event, gc: gcUserId, delivered: deliveredAny };
 }
 
 serve(async (req) => {

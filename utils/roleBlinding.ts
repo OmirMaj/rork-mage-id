@@ -37,7 +37,12 @@ export function canViewFinancials(role: ProjectRole): boolean {
   return !FINANCIAL_BLIND_ROLES.includes(role);
 }
 
-/** Convenience inverse — true when the current role must have financials hidden. */
+/** Convenience inverse — true when the current role must have financials hidden.
+ *  FAIL-OPEN on null: only for a role you KNOW is resolved (the role picker).
+ *  A screen reading a live role — null offline, or before the collaborator
+ *  read lands — must use !canViewFinancials(role): app/field-ticket.tsx used
+ *  this one and showed a foreman with no signal every rate and total (audit
+ *  #99). Offline owners stay recognised through pricingRoleFor, not here. */
 export function isFinancialsBlinded(role: ProjectRole): boolean {
   return role != null && FINANCIAL_BLIND_ROLES.includes(role);
 }

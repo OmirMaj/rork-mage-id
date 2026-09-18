@@ -128,7 +128,9 @@ serve(async (req) => {
     // EDGE-F6: the client's CURRENT link, built by the shared helper (minted id
     // + ?t= token), so the GC can re-share it straight from the notice. null =
     // portal disabled / no token → omitted, never a dead /portal/<project.id>.
-    const portalUrl = portalUrlFor(proj.client_portal);
+    // An EXPIRED link is not re-shareable — it opens nothing — so the notice
+    // carries it only while it still works (the "expiring" warning).
+    const portalUrl = kind === "portal_link_expired" ? null : portalUrlFor(proj.client_portal);
 
     const daysLeft = Math.max(0, Math.ceil((expMs - nowMs) / 86_400_000));
     const title = kind === "portal_link_expired"

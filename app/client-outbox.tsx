@@ -175,10 +175,19 @@ export default function ClientOutboxScreen() {
     }
   }, [busy, drafts, projectId, batchSendToClientPortal]);
 
+  // Every query key here must be one the TARGET screen reads in its
+  // useLocalSearchParams — `?id=` is not a generic "the record" param. Four of
+  // these sent `id` to screens that read `coId` / `invoiceId` / `rfiId` /
+  // `submittalId` / `reportId`, so tapping a waiting CO, invoice, RFI,
+  // submittal or daily report opened a BLANK NEW one (numbered next, dated
+  // today) in place of the item he came to share — and saving it made a
+  // duplicate. typedRoutes does not type-check query keys on static routes,
+  // so scripts/validate-records-open-before-load.ts checks each case against
+  // the screen's own param keys.
   const routeForKind = (k: SendableItemKind, id: string, pid: string): string => {
     switch (k) {
-      case 'change_order': return `/change-order?id=${id}&projectId=${pid}`;
-      case 'invoice':      return `/invoice?id=${id}&projectId=${pid}`;
+      case 'change_order': return `/change-order?coId=${id}&projectId=${pid}`;
+      case 'invoice':      return `/invoice?invoiceId=${id}&projectId=${pid}`;
       // aia-pay-app is INVOICE-keyed: it reads `invoiceId`, never `id`, and our
       // itemId here is the pay app's own id. Passing `?id=<payAppId>` therefore
       // opened the screen with nothing selected — the row looked live and
@@ -192,12 +201,14 @@ export default function ClientOutboxScreen() {
           ? `/aia-pay-app?invoiceId=${invoiceId}&projectId=${pid}`
           : `/aia-pay-app?projectId=${pid}`;
       }
-      case 'rfi':          return `/rfi?id=${id}&projectId=${pid}`;
-      case 'submittal':    return `/submittal?id=${id}&projectId=${pid}`;
-      case 'daily_report': return `/daily-report?id=${id}&projectId=${pid}`;
+      case 'rfi':          return `/rfi?rfiId=${id}&projectId=${pid}`;
+      case 'submittal':    return `/submittal?submittalId=${id}&projectId=${pid}`;
+      case 'daily_report': return `/daily-report?reportId=${id}&projectId=${pid}`;
       case 'photo':        return `/project-detail?id=${pid}&tile=photos`;
       case 'selection':    return `/selections?projectId=${pid}`;
-      case 'warranty':     return `/warranties?id=${id}&projectId=${pid}`;
+      // The warranties screen is a per-project list with no item param; the
+      // old `?id=` was read by nothing.
+      case 'warranty':     return `/warranties?projectId=${pid}`;
     }
   };
 

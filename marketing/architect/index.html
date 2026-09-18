@@ -301,10 +301,19 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+  // `rfis.date_required` / `submittals.required_date` are text columns. The
+  // RFI default due date is saved as a bare CALENDAR DAY (app/rfi.tsx:
+  // toCalendarDayString), and `new Date('2026-09-30')` is UTC midnight — the
+  // evening of the 29th anywhere in the US — so the architect was told the
+  // response was due a day before the date on the GC's RFI log. A bare
+  // YYYY-MM-DD is built from its parts in local time (as lien-waiver/ and
+  // portal/ do); a real timestamp (a date picked in the app is saved as noon
+  // UTC) is still an instant and already renders right.
   function fmtDate(iso) {
     if (!iso) return '—';
     try {
-      var d = new Date(iso);
+      var cal = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+      var d = cal ? new Date(Number(cal[1]), Number(cal[2]) - 1, Number(cal[3])) : new Date(iso);
       if (isNaN(d.getTime())) return iso;
       return d.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
     } catch (e) { return iso; }
@@ -322,7 +331,12 @@
     }).then(function (r) {
       if (!r.ok) {
         return r.text().then(function (t) {
-          throw new Error('Server returned ' + r.status + ': ' + (t || ''));
+          // Keep the status: a 4xx means the server ANSWERED and refused this
+          // token (a mangled link is not a uuid → 400), which is a dead link,
+          // not a connection problem. Only a fetch rejection has no status.
+          var e = new Error('Server returned ' + r.status + ': ' + (t || ''));
+          e.status = r.status;
+          throw e;
         });
       }
       return r.json();
@@ -524,6 +538,20 @@
     });
   }
 
+  // Told apart the way the lien-waiver and bid-invite pages do: a reviewer
+  // with a broken link was told to check his Wi-Fi and retry forever, so the
+  // RFI sat unanswered instead of him asking for a new link.
+  function loadFailureMessage(err) {
+    var status = err && err.status;
+    if (status >= 400 && status < 500) {
+      return 'This link is invalid or expired. Ask the contractor to send you a new one.';
+    }
+    if (status >= 500) {
+      return 'The server could not load this document right now. Try again in a few minutes — if it keeps happening, ask the contractor to send a new link.';
+    }
+    return 'Could not reach the server. Check your connection and try again.';
+  }
+
   // ── Boot ────────────────────────────────────────────────────────
   function boot() {
     if (!TOKEN) {
@@ -547,7 +575,7 @@
       })
       .catch(function (err) {
         console.error('[ArchitectPortal] Fetch failed:', err);
-        renderError('Could not reach the server. Check your connection and try again.');
+        renderError(loadFailureMessage(err));
       });
   }
 

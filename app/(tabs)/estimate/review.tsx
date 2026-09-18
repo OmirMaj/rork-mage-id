@@ -19,8 +19,9 @@ import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabS
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { toClientEstimateView } from '@/utils/clientEstimateView';
-import { proposalPaymentLines, resolvePaymentSplit } from '@/utils/paymentTerms';
-import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import { proposalPaymentLines } from '@/utils/paymentTerms';
+import { PROFILE_FAILED_TITLE } from '@/utils/settingsLoadGuard';
+import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import { Button, Card } from '@/components/ui';
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
@@ -257,7 +258,11 @@ export default function EstimateReviewScreen() {
   // profile here only to decide what the GC-only preview says; the link itself
   // is built from the split the gate hands its continuation (see below).
   const gate = useClientDocumentGate();
-  const savedSplit = resolvePaymentSplit({ settings }).split;
+  // Through useSavedPaymentTerms, not resolvePaymentSplit on raw settings:
+  // before his profile loads `settings` is DEFAULT, and this preview said
+  // "not set yet" about terms he had set (finding 106).
+  const savedTerms = useSavedPaymentTerms();
+  const savedSplit = savedTerms.split;
 
   // Build the client-safe proposal link and copy it. The token is built from
   // clientView only, so the shared URL can never carry costs or markups.
@@ -423,7 +428,27 @@ export default function EstimateReviewScreen() {
                     as his terms) and says so. This note sits outside
                     EstimateClientView and never enters the share token — only
                     the GC sees it. */}
-                {!savedSplit ? (
+                {savedTerms.status !== 'ready' ? (
+                  // Not known yet — never "not set". Loading says so; a failed
+                  // read says so and offers Retry (a "Set now" here would
+                  // only answer "One second").
+                  <Card radius="md" pad={14} style={styles.termsNote} testID="review-terms-loading">
+                    <Text style={styles.termsNoteText}>
+                      {savedTerms.status === 'loading'
+                        ? 'Loading your payment terms\u2026'
+                        : `Payment schedule \u2014 ${PROFILE_FAILED_TITLE.toLowerCase()}. Check your signal.`}
+                    </Text>
+                    {savedTerms.status === 'failed' ? (
+                      <Button
+                        label="Retry"
+                        variant="secondary"
+                        size="sm"
+                        onPress={savedTerms.retry}
+                        testID="review-terms-retry"
+                      />
+                    ) : null}
+                  </Card>
+                ) : !savedSplit ? (
                   <Card radius="md" pad={14} style={styles.termsNote} testID="review-terms-not-set">
                     <Text style={styles.termsNoteText}>
                       Payment schedule — not set yet. You’ll be asked before you share.

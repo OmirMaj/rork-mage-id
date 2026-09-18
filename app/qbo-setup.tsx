@@ -15,6 +15,7 @@ import { connectQuickBooks, fetchQboStatus, type QboStatus } from '@/utils/qboSy
 import { QboSuccessCheckmark } from '@/components/QboSuccessCheckmark';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import { Button } from '@/components/ui';
 import { useQboCostLines } from '@/hooks/useQboCostLines';
 import { showAlert } from '@/utils/alert';
 import { useQuery } from '@tanstack/react-query';
@@ -51,50 +52,147 @@ function paymentsNotInQuickBooks(invoices: readonly Pick<Invoice, 'qboId' | 'pay
 // flag qbo-reconciler writes when QuickBooks shows an invoice paid that no
 // payment explains. The validator pins the two strings equal.
 const QBO_CLOSED_WITHOUT_PAYMENT_PREFIX = 'QuickBooks shows this invoice closed without a payment';
-function invoicesClosedWithoutPayment(invoices: readonly { qboError?: string | null }[]): number {
-  return invoices.filter((i) => typeof i.qboError === 'string' && i.qboError.startsWith(QBO_CLOSED_WITHOUT_PAYMENT_PREFIX)).length;
+/**
+ * Flagged invoices, split by what MAGE itself says (audit #10). The flag is
+ * only set or lifted by the reconciler's pull, which never re-reads an invoice
+ * QuickBooks has not changed — so once the GC had recorded the money in MAGE
+ * the card still said "MAGE still shows them open". Those are a different
+ * problem (two ledgers closed two different ways) and are counted apart.
+ */
+// Twin of utils/qboClosedFlag QBO_REFUND_GAP_FLAG_MARKER (pinned equal): a
+// refund-gap flag on an invoice MAGE shows paid is a different story from a
+// credit/void — QuickBooks took a real payment, MAGE recorded a refund, and
+// the client has since paid again in MAGE. Counted apart so its card can say so.
+const QBO_REFUND_GAP_MARKER = 'as refunded or charged back';
+function invoicesClosedWithoutPayment(invoices: readonly { qboError?: string | null; status?: string | null }[]): { open: number; paidInMage: number; refundGapPaid: number } {
+  let open = 0, paidInMage = 0, refundGapPaid = 0;
+  for (const i of invoices) {
+    if (typeof i.qboError !== 'string' || !i.qboError.startsWith(QBO_CLOSED_WITHOUT_PAYMENT_PREFIX)) continue;
+    const flag = i.qboError.split('\n\nAlso: ')[0];
+    if (i.status !== 'paid') open++;
+    else if (flag.includes(QBO_REFUND_GAP_MARKER)) refundGapPaid++;
+    else paidInMage++;
+  }
+  return { open, paidInMage, refundGapPaid };
 }
 
 // Twin of MAX_PAYMENT_PUSH_ATTEMPTS in _shared/paymentLedger.ts (pinned equal).
 const QBO_PAYMENT_PUSH_MAX_ATTEMPTS = 5;
+// Twin of PAYMENT_SWEEP_FLOOR (pinned equal). The floor the reconciler really
+// uses is the later of this and the connection's creation; qbo-sync hands that
+// back (sweepFloor) and it wins once it has loaded.
+const QBO_PAYMENT_SWEEP_FLOOR = '2026-09-17T00:00:00.000Z';
+type LedgerRaw = {
+  id?: unknown; amount?: unknown; qboId?: unknown; qboError?: unknown; qboAttempts?: unknown; source?: unknown;
+  method?: unknown; kind?: unknown; paymentIntentId?: unknown; date?: unknown; qboReversalRecordedAt?: unknown; qboReversalRecordedAmount?: unknown;
+} | null;
+
+/** Twin of unsyncedPaymentState: what the reconciler will actually do with it. */
+type StuckState = 'reversed' | 'stopped' | 'not-swept' | 'refused' | 'retrying';
+function unsyncedStateOf(e: NonNullable<LedgerRaw>, ledger: readonly LedgerRaw[], floorIso: string): StuckState {
+  const reversed = typeof e.paymentIntentId === 'string' && e.paymentIntentId !== ''
+    && ledger.some((r) => !!r && r !== e && (r.kind === 'refund' || r.kind === 'dispute') && r.paymentIntentId === e.paymentIntentId);
+  if (reversed) return 'reversed';
+  if (Number(e.qboAttempts ?? 0) >= QBO_PAYMENT_PUSH_MAX_ATTEMPTS) return 'stopped';
+  // INSTANTS, not calendar days: the sweep compares the entry's stored stamp
+  // (an instant from the webhook / app) with the floor instant in ms, and
+  // this label must be that exact comparison — parity, not a local reading.
+  const stamp: unknown = e.date;
+  const floorStamp: string = floorIso;
+  const at = typeof stamp === 'string' ? Date.parse(stamp) : NaN;
+  const floor = Date.parse(floorStamp);
+  if (!Number.isFinite(at) || (Number.isFinite(floor) && at < floor)) return 'not-swept';
+  if (typeof e.qboError === 'string' && /^QuickBooks (shows only|already shows invoice)/.test(e.qboError)) return 'refused';
+  return 'retrying';
+}
+
 /** One payment that did not reach QuickBooks, with the reason the reconciler
  *  recorded on it (entry.qboError). The count alone left the GC with nothing
  *  to act on, and the card's copy promised a retry the reconciler will not
- *  make for a refused or exhausted payment. */
+ *  make for a refused, exhausted, refunded or pre-sweep payment. */
 interface StuckQboPayment {
   key: string;
   invoiceNumber: number | string | null;
   amount: number;
   reason: string;
-  /** 'stopped' = out of attempts; 'refused' = the sweep will not send it while
-   *  QuickBooks shows less open (a likely duplicate); 'retrying' = it will. */
-  state: 'stopped' | 'refused' | 'retrying';
+  state: StuckState;
 }
 function stuckQboPayments(
   invoices: readonly { number?: number | string | null; qboId?: string; payments?: unknown }[],
+  floorIso: string = QBO_PAYMENT_SWEEP_FLOOR,
 ): StuckQboPayment[] {
   const out: StuckQboPayment[] = [];
   for (const inv of invoices) {
     if (!inv.qboId || !Array.isArray(inv.payments)) continue;
-    for (const raw of inv.payments as unknown[]) {
-      const e = raw as { id?: unknown; amount?: unknown; qboId?: unknown; qboError?: unknown; qboAttempts?: unknown; source?: unknown; method?: unknown; kind?: unknown } | null;
+    const ledger = inv.payments as LedgerRaw[];
+    for (const e of ledger) {
       if (!e || typeof e !== 'object' || typeof e.id !== 'string' || e.qboId) continue;
-      if (typeof e.qboError !== 'string' || e.qboError === '') continue;
       if (e.source === 'qbo' || e.method === 'qbo' || e.kind === 'refund' || e.kind === 'dispute') continue;
       const amount = Number(e.amount ?? 0);
       if (!Number.isFinite(amount) || amount <= 0) continue;
-      const attempts = Number(e.qboAttempts ?? 0);
-      const state: StuckQboPayment['state'] = attempts >= QBO_PAYMENT_PUSH_MAX_ATTEMPTS ? 'stopped'
-        : /^QuickBooks (shows only|already shows invoice)/.test(e.qboError) ? 'refused'
-        : 'retrying';
-      out.push({ key: `${String(inv.qboId)}:${e.id}`, invoiceNumber: inv.number ?? null, amount, reason: e.qboError, state });
+      const state = unsyncedStateOf(e, ledger, floorIso);
+      const recorded = typeof e.qboError === 'string' && e.qboError !== '' ? e.qboError : null;
+      // A refunded payment is listed even with no push error: it will never
+      // go, and somebody has to book the net by hand.
+      if (!recorded && state !== 'reversed') continue;
+      out.push({
+        key: `${String(inv.qboId)}:${e.id}`,
+        invoiceNumber: inv.number ?? null,
+        amount,
+        reason: recorded ?? 'Refunded or charged back in Stripe, so MAGE did not send it to QuickBooks.',
+        state,
+      });
+    }
+  }
+  return out;
+}
+
+/** Twin of reversalsNotInQbo (audit #97): money MAGE already sent to
+ *  QuickBooks that has since been refunded or lost in a chargeback. */
+interface QboReversalLine {
+  key: string;
+  invoiceId: string;
+  entryId: string;
+  invoiceNumber: number | string | null;
+  amount: number;
+  kind: 'refund' | 'dispute';
+  paymentQboId: string;
+}
+function reversalsNotInQuickBooks(
+  invoices: readonly { id?: string; number?: number | string | null; qboId?: string; payments?: unknown }[],
+): QboReversalLine[] {
+  const out: QboReversalLine[] = [];
+  for (const inv of invoices) {
+    if (!inv.qboId || !Array.isArray(inv.payments)) continue;
+    const ledger = inv.payments as LedgerRaw[];
+    for (const r of ledger) {
+      if (!r || typeof r !== 'object' || typeof r.id !== 'string') continue;
+      if (r.kind !== 'refund' && r.kind !== 'dispute') continue;
+      const amt = Number(r.amount ?? 0);
+      if (!Number.isFinite(amt) || amt > -0.01 || r.qboId || typeof r.paymentIntentId !== 'string' || !r.paymentIntentId) continue;
+      // Less what he already said he recorded — a second partial refund grows
+      // the same (already stamped) entry. Twin of the server rule.
+      const recorded = r.qboReversalRecordedAt ? Number(r.qboReversalRecordedAmount ?? -amt) : 0;
+      const open = Math.round((-amt - (Number.isFinite(recorded) ? recorded : 0)) * 100) / 100;
+      if (open < 0.01) continue;
+      const orig = ledger.find((e) => !!e && e !== r && e.paymentIntentId === r.paymentIntentId && Number(e.amount) > 0 && !!e.qboId);
+      if (!orig) continue;
+      out.push({
+        key: `${String(inv.qboId)}:${r.id}`,
+        invoiceId: String(inv.id ?? ''),
+        entryId: r.id,
+        invoiceNumber: inv.number ?? null,
+        amount: open,
+        kind: r.kind,
+        paymentQboId: String(orig.qboId),
+      });
     }
   }
   return out;
 }
 // --- END paymentsNotInQuickBooks ---
 
-type QboLedgerRow = Pick<Invoice, 'qboId' | 'payments'> & { qboError?: string | null; number?: number | null };
+type QboLedgerRow = Pick<Invoice, 'qboId' | 'payments'> & { id: string; qboError?: string | null; number?: number | null; status?: string | null };
 
 /**
  * The SERVER's copy of every QuickBooks-linked invoice's ledger. Counting the
@@ -109,20 +207,49 @@ async function fetchQboLedgerRows(userId: string): Promise<QboLedgerRow[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('invoices')
-      .select('id,number,qbo_id,payments,qbo_error')
+      .select('id,number,qbo_id,payments,qbo_error,status')
       .eq('user_id', userId)
       .not('qbo_id', 'is', null)
       .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);
-    const rows = (data ?? []) as { number: number | null; qbo_id: string | null; payments: unknown; qbo_error: string | null }[];
+    const rows = (data ?? []) as { id: string; number: number | null; qbo_id: string | null; payments: unknown; qbo_error: string | null; status: string | null }[];
     for (const r of rows) {
-      out.push({ qboId: r.qbo_id ?? undefined, payments: r.payments as Invoice['payments'], qboError: r.qbo_error, number: r.number });
+      out.push({ id: r.id, qboId: r.qbo_id ?? undefined, payments: r.payments as Invoice['payments'], qboError: r.qbo_error, number: r.number, status: r.status });
     }
     if (rows.length < PAGE) return out;
   }
 }
 
+
+/**
+ * Registers this device's time zone with the QuickBooks connection and reads
+ * back the reconciler's sweep floor (qbo-sync kind 'connection'). The zone is
+ * how QuickBooks gets the COMPANY's calendar day for a payment or invoice
+ * instead of the UTC one (an evening payment on Sep 30 used to land in
+ * October); the floor is what makes "will retry" the reconciler's own rule.
+ * Null when it could not be read — the screen then uses the floor constant,
+ * the earliest the real floor can be.
+ */
+/** Sent when the device cannot name its zone. qbo-sync refuses to store a zone
+ *  Intl does not know (and this one fails its pattern too), yet still answers
+ *  with the sweep floor — so an unreadable zone never overwrites a real one
+ *  with a guessed 'UTC'. */
+const QBO_UNKNOWN_TIME_ZONE = '-';
+
+async function registerQboConnection(): Promise<{ sweepFloor: string | null }> {
+  let timeZone = '';
+  try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? ''; } catch { timeZone = ''; }
+  const { data, error } = await supabase.functions.invoke<{ success?: boolean; sweepFloor?: string }>('qbo-sync', {
+    body: { kind: 'connection', op: 'upsert', objectId: timeZone || QBO_UNKNOWN_TIME_ZONE },
+  });
+  // THROW, don't resolve {sweepFloor:null}: a resolved failure was cached for
+  // the 10-minute staleTime, so the visit where he reconnects (the server
+  // answers 409 while the connection is reauth_required) never registered
+  // the zone. A thrown failure is retried on the next mount / status change.
+  if (error || !data?.success) throw new Error(error?.message ?? 'QuickBooks connection not registered');
+  return { sweepFloor: typeof data.sweepFloor === 'string' ? data.sweepFloor : null };
+}
 
 export default function QboSetupScreen() {
   // Client-side tier gate BEFORE the OAuth browser can open. The server
@@ -161,6 +288,20 @@ function QboSetupScreenInner() {
   // RLS-scoped; 5-min stale via the shared hook.
   const { pendingCount } = useQboCostLines();
   const { user } = useAuth();
+  const [status, setStatus] = useState<QboStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  // Registered only while the connection is 'connected' (qbo-sync answers 409
+  // otherwise) and keyed on that status, so reconnecting on this screen
+  // registers the zone in the same visit instead of 10 minutes later.
+  const qboConnected = status?.status === 'connected';
+  const connectionQuery = useQuery({
+    queryKey: ['qbo-setup-connection', user?.id ?? 'anon', qboConnected ? 'connected' : 'not-connected'],
+    queryFn: registerQboConnection,
+    enabled: !!user?.id && qboConnected,
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+  const sweepFloor = connectionQuery.data?.sweepFloor ?? QBO_PAYMENT_SWEEP_FLOOR;
   const ledgerQuery = useQuery({
     queryKey: ['qbo-setup-ledger', user?.id ?? 'anon'],
     queryFn: () => fetchQboLedgerRows(user!.id),
@@ -168,11 +309,32 @@ function QboSetupScreenInner() {
   });
   const ledgerRows = ledgerQuery.data;
   const unsyncedPayments = useMemo(() => (ledgerRows ? paymentsNotInQuickBooks(ledgerRows) : null), [ledgerRows]);
-  const stuckPayments = useMemo(() => (ledgerRows ? stuckQboPayments(ledgerRows) : []), [ledgerRows]);
-  const closedWithoutPayment = useMemo(() => (ledgerRows ? invoicesClosedWithoutPayment(ledgerRows) : 0), [ledgerRows]);
+  const stuckPayments = useMemo(() => (ledgerRows ? stuckQboPayments(ledgerRows, sweepFloor) : []), [ledgerRows, sweepFloor]);
+  const reversals = useMemo(() => (ledgerRows ? reversalsNotInQuickBooks(ledgerRows) : []), [ledgerRows]);
+  const closedWithoutPayment = useMemo(() => (ledgerRows ? invoicesClosedWithoutPayment(ledgerRows) : { open: 0, paidInMage: 0, refundGapPaid: 0 }), [ledgerRows]);
+  // The GC's "I recorded it in QuickBooks" on a refund of a payment MAGE had
+  // already sent. Server-side, on a fresh read by entry id (qbo-sync kind
+  // 'reversal'); needs a connection — offline it says so instead of pretending.
+  const [ackBusy, setAckBusy] = useState<string | null>(null);
+  const onAckReversal = useCallback(async (line: QboReversalLine) => {
+    if (ackBusy) return;
+    setAckBusy(line.key);
+    try {
+      const { data, error } = await supabase.functions.invoke<{ success?: boolean; error?: string }>('qbo-sync', {
+        // listedAmount: the open amount this line showed — the server stamps
+        // that, so a refund that grew since the list stays listed.
+        body: { kind: 'reversal', op: 'upsert', objectId: `${line.invoiceId}::${line.entryId}`, listedAmount: line.amount },
+      });
+      if (error || !data?.success) {
+        showAlert('Not saved', `${data?.error ?? error?.message ?? 'MAGE could not reach the server.'} Check your connection and try again — the refund stays listed until this is saved.`);
+        return;
+      }
+      await ledgerQuery.refetch();
+    } finally {
+      setAckBusy(null);
+    }
+  }, [ackBusy, ledgerQuery]);
   const refetchLedger = ledgerQuery.refetch;
-  const [status, setStatus] = useState<QboStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   // Briefly show the animated celebration when the status transitions from
   // not-connected to connected during this screen visit. Doesn't fire on
@@ -345,13 +507,18 @@ function QboSetupScreenInner() {
                 ) : (
                   <>
                     <View style={styles.row}>
-                      {unsyncedPayments > 0
+                      {/* The green check only when BOTH counts are zero: a payment
+                          MAGE sent and Stripe then refunded is "in QuickBooks"
+                          and wrong there (audit #97). */}
+                      {unsyncedPayments > 0 || reversals.length > 0
                         ? <AlertTriangle size={18} color={colors.warningLabel} strokeWidth={1.75} />
                         : <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} />}
                       <Text style={[styles.cardTitle, { flex: 1 }]}>
                         {unsyncedPayments > 0
                           ? `${unsyncedPayments} payment${unsyncedPayments === 1 ? '' : 's'} not in QuickBooks yet`
-                          : 'Every payment on a synced invoice is in QuickBooks'}
+                          : reversals.length > 0
+                            ? `${reversals.length} refund${reversals.length === 1 ? '' : 's'} not recorded in QuickBooks`
+                            : 'Every payment on a synced invoice is in QuickBooks'}
                       </Text>
                     </View>
                     {unsyncedPayments > 0 ? (
@@ -363,26 +530,80 @@ function QboSetupScreenInner() {
                       <View key={p.key} style={{ marginTop: 10 }} testID="qbo-stuck-payment">
                         <Text style={styles.cardTitle}>
                           {`${p.invoiceNumber != null ? `Invoice #${p.invoiceNumber}` : 'Invoice'} · $${p.amount.toFixed(2)} · `}
-                          {p.state === 'stopped' ? 'stopped trying — match by hand'
+                          {p.state === 'reversed' ? 'refunded — record the net in QuickBooks by hand'
+                            : p.state === 'stopped' ? 'stopped trying — match by hand'
                             : p.state === 'refused' ? 'not sent — match by hand'
+                            : p.state === 'not-swept' ? 'from before automatic sending — match by hand'
                             : 'will retry next reconcile'}
                         </Text>
                         <Text style={styles.cardSub}>{p.reason}</Text>
                       </View>
                     ))}
+                    {reversals.map((r) => (
+                      <View key={r.key} style={{ marginTop: 10 }} testID="qbo-reversal-not-recorded">
+                        <Text style={styles.cardTitle}>
+                          {`${r.invoiceNumber != null ? `Invoice #${r.invoiceNumber}` : 'Invoice'} · −$${r.amount.toFixed(2)} · ${r.kind === 'dispute' ? 'charged back' : 'refunded'} after it was sent to QuickBooks`}
+                        </Text>
+                        <Text style={styles.cardSub}>
+                          {`QuickBooks still counts this money (its payment ${r.paymentQboId}). Record a refund receipt there, or edit that payment — MAGE does not do it for you, because how to book it is your bookkeeper's call.`}
+                        </Text>
+                        <Button
+                          label={ackBusy === r.key ? 'Saving…' : 'I recorded it in QuickBooks'}
+                          onPress={() => { void onAckReversal(r); }}
+                          variant="secondary"
+                          size="sm"
+                          loading={ackBusy === r.key}
+                          disabled={ackBusy !== null}
+                          style={{ marginTop: 6, alignSelf: 'flex-start' }}
+                          testID="qbo-reversal-ack"
+                        />
+                      </View>
+                    ))}
                   </>
                 )}
               </View>
-              {closedWithoutPayment > 0 ? (
+              {closedWithoutPayment.open > 0 ? (
                 <View style={[styles.card, styles.cardWarn]} testID="qbo-closed-without-payment">
                   <View style={styles.row}>
                     <AlertTriangle size={18} color={colors.warningLabel} strokeWidth={1.75} />
                     <Text style={[styles.cardTitle, { flex: 1 }]}>
-                      {`${closedWithoutPayment} invoice${closedWithoutPayment === 1 ? '' : 's'} closed in QuickBooks without a payment`}
+                      {`${closedWithoutPayment.open} invoice${closedWithoutPayment.open === 1 ? '' : 's'} closed in QuickBooks without a payment`}
+                    </Text>
+                  </View>
+                  {/* Never tells him to record the payment in MAGE first: that pushed the money
+                      into QuickBooks a second time as unapplied credit (audit
+                      #10). The invoice screen shows each one's own reason. */}
+                  <Text style={styles.cardSub}>
+                    QuickBooks shows these paid, but not with money MAGE can count — a credit memo, journal entry, write-off, a void, or a refunded payment it still carries. MAGE still shows them open and has paused automatic reminders to the client. Check each invoice in QuickBooks; if the client really paid, fix it there first (reverse the credit memo or journal entry), then record the payment in MAGE.
+                  </Text>
+                </View>
+              ) : null}
+              {closedWithoutPayment.paidInMage > 0 ? (
+                <View style={[styles.card, styles.cardWarn]} testID="qbo-closed-paid-in-mage">
+                  <View style={styles.row}>
+                    <AlertTriangle size={18} color={colors.warningLabel} strokeWidth={1.75} />
+                    <Text style={[styles.cardTitle, { flex: 1 }]}>
+                      {`${closedWithoutPayment.paidInMage} invoice${closedWithoutPayment.paidInMage === 1 ? '' : 's'} paid in MAGE, closed a different way in QuickBooks`}
                     </Text>
                   </View>
                   <Text style={styles.cardSub}>
-                    QuickBooks cleared these with a credit memo, journal entry or write-off. MAGE still shows them open and has paused automatic reminders to the client. Record the payment in MAGE, or check the invoice in QuickBooks.
+                    MAGE has the payment; QuickBooks closed the invoice with a credit, a journal entry or a void. The two books disagree on how it was settled — reconcile it by hand in QuickBooks. MAGE did not send the payment there, so it is not counted twice.
+                  </Text>
+                </View>
+              ) : null}
+              {closedWithoutPayment.refundGapPaid > 0 ? (
+                <View style={[styles.card, styles.cardWarn]} testID="qbo-closed-refund-gap-paid">
+                  <View style={styles.row}>
+                    <AlertTriangle size={18} color={colors.warningLabel} strokeWidth={1.75} />
+                    <Text style={[styles.cardTitle, { flex: 1 }]}>
+                      {`${closedWithoutPayment.refundGapPaid} invoice${closedWithoutPayment.refundGapPaid === 1 ? '' : 's'} paid again in MAGE after a refund`}
+                    </Text>
+                  </View>
+                  {/* Not the credit/void card: here QuickBooks closed the
+                      invoice with a REAL payment, and MAGE was short only
+                      because it recorded a refund or chargeback. */}
+                  <Text style={styles.cardSub}>
+                    QuickBooks closed these with a real payment. MAGE recorded part of that money as refunded or charged back, and now shows them paid again, so both books say paid. Check in QuickBooks that it does not still carry the refunded money as well. This stays listed until QuickBooks next changes the invoice, because MAGE only re-reads invoices QuickBooks has changed.
                   </Text>
                 </View>
               ) : null}

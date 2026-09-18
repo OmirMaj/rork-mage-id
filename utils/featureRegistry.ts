@@ -233,7 +233,7 @@ const REGISTRY = [
   { id: 'quick-quote', title: 'Quick Quote', synonyms: ['quote', 'fast estimate', 'ballpark'], route: '/quick-quote', icon: 'Zap', group: 'find-work' },
   { id: 'smart-proposal', title: 'Smart Proposal', synonyms: ['proposal', 'good better best', 'pitch'], route: '/smart-proposal', requires: 'job_costing', icon: 'FileSignature', group: 'find-work' },
   { id: 'leads', title: 'Leads', synonyms: ['crm', 'pipeline', 'prospects', 'inquiries'], route: '/leads', icon: 'UserPlus', group: 'find-work' },
-  { id: 'marketplace', title: 'Suppliers', synonyms: ['vendors', 'marketplace', 'yards'], route: '/(tabs)/marketplace', icon: 'Store', group: 'find-work' },
+  { id: 'marketplace', title: 'Suppliers (sample)', synonyms: ['vendors', 'marketplace', 'yards'], route: '/(tabs)/marketplace', icon: 'Store', group: 'find-work' },
 
   // ── Network ───────────────────────────────────────────────────────────
   { id: 'contacts', title: 'Contacts', synonyms: ['address book', 'directory', 'people', 'architects'], route: '/contacts', icon: 'Users', group: 'network' },

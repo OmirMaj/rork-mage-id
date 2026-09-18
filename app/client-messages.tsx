@@ -413,7 +413,9 @@ export default function ClientMessagesScreen() {
           style={styles.input}
           value={composeBody}
           onChangeText={setComposeBody}
-          placeholder="iMessage"
+          // This is the portal thread, not iMessage — the old placeholder said
+          // otherwise and read as if the reply went to the client's phone.
+          placeholder={portal?.invites?.[0]?.name?.trim() ? `Reply to ${portal.invites[0].name.trim()}` : 'Reply to your client'}
           placeholderTextColor={themeColors.textMuted}
           multiline
           textAlignVertical="top"

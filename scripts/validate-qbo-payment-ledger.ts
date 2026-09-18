@@ -44,8 +44,8 @@ type Entry = {
   id: string; amount: number; method?: string; kind?: string; date?: string; paymentIntentId?: string;
   qboId?: string; source?: 'mage' | 'qbo'; qboError?: string; qboAttempts?: number; notes?: string;
 };
-type Linked = { id: string; txnDate?: string | null; applied: number };
-type Plan = { appended: Entry[]; matched: string[]; changed: boolean; ledger: Entry[]; amountPaid: number; unexplained: number };
+type Linked = { id: string; txnDate?: string | null; applied: number; credit?: number; createdAt?: string | null; mageEntryId?: string | null };
+type Plan = { appended: Entry[]; matched: string[]; changed: boolean; ledger: Entry[]; amountPaid: number; unexplained: number; creditApplied: number; refundGap: number; uncountedQboIds: string[] };
 interface LedgerModule {
   planQboPaidReconcile: (i: { payments: unknown; totalAmt: number; linkedPayments: Linked[]; fallbackDate?: string }) => Plan;
   paymentsToPushToQbo: (p: unknown, o?: { notBefore?: string | null }) => Entry[];
@@ -54,7 +54,7 @@ interface LedgerModule {
   ledgerInstantForDay: (d: string | null | undefined) => string | undefined;
   isPerObjectQboError: (e: unknown) => boolean;
   QBO_CLOSED_WITHOUT_PAYMENT_PREFIX: string;
-  closedWithoutPaymentNote: (n: number) => string;
+  closedWithoutPaymentNote: (n: number, creditApplied?: number) => string;
   isClosedWithoutPaymentNote: (s: unknown) => boolean;
   countPaymentsNotInQbo: (p: unknown) => number;
   markPushFailure: (p: unknown, id: string, msg: string, opts?: { countAttempt?: boolean }) => Entry[] | null;
@@ -72,6 +72,17 @@ interface LedgerModule {
   nextInvoicePullCursor: (i: { sinceIso: string | null | undefined; queryStartMs: number; rows: { MetaData?: { LastUpdatedTime?: string } }[] }) => string;
   INVOICE_PULL_PAGE_SIZE: number;
   INVOICE_PULL_LOOKBACK_MS: number;
+  linkedPaymentCash: (pay: unknown, invoiceQboId: string) => { cash: number; credit: number };
+  toLinkedPayment: (pay: unknown, invoiceQboId: string, id?: string) => Linked;
+  closedFlagForPlan: (plan: Plan) => string | null;
+  alreadyPaidRefusal: (n: number | string) => string;
+  magePaymentTag: (id: string) => string;
+  mageEntryIdFromNote: (note: unknown) => string | null;
+  reversalsNotInQbo: (p: unknown) => { entryId: string; amount: number; kind: string; paymentQboId: string }[];
+  markReversalRecorded: (p: unknown, id: string, at: string, listedAmount?: number) => Entry[] | null;
+  unsyncedPaymentState: (e: Entry, ledger: Entry[], floorIso?: string) => string;
+  voidFlagFor: (i: { totalAmt: unknown; balance: unknown; mageOutstanding: number }) => string | null;
+  voidedInQuickBooksNote: () => string;
 }
 
 // A variable specifier: tsc refuses a literal '.ts' import path (and would then
@@ -101,7 +112,7 @@ console.log('  1. QuickBooks says paid — what MAGE still needs');
   check('...even when QuickBooks lists that same Payment', !p2.changed && p2.amountPaid === 30_000);
 
   // A pay-link payment MAGE had not pushed yet; the bookkeeper keyed it in.
-  const p3 = L.planQboPaidReconcile({ payments: [stripe('stripe-cs_1', 30_000)], totalAmt: 30_000, linkedPayments: [{ id: 'P9', txnDate: '2026-09-12', applied: 30_000 }] });
+  const p3 = L.planQboPaidReconcile({ payments: [stripe('stripe-cs_1', 30_000)], totalAmt: 30_000, linkedPayments: [{ id: 'P9', txnDate: '2026-09-12', applied: 30_000, createdAt: '2026-09-12T10:00:00-07:00' }] });
   check('a Stripe payment the bookkeeper keyed in is MATCHED, not added', p3.appended.length === 0 && p3.matched.join() === 'stripe-cs_1', JSON.stringify(p3));
   check('...its qboId is stamped so the push sweep never sends it', p3.ledger[0].qboId === 'P9' && p3.changed);
   check('...and the cash is still $30,000', p3.amountPaid === 30_000);
@@ -174,6 +185,12 @@ console.log('\n  3. closed without a payment, refunds');
     totalAmt: 30_000, linkedPayments: [],
   });
   check('a refunded Stripe payment is not re-added as a "shortfall"', !refunded.changed && refunded.amountPaid === 0, JSON.stringify(refunded));
+  // #100: …but QuickBooks paid while MAGE's net ledger is $30k short is not
+  // silent any more — the flag pauses reminders and says what disagrees.
+  const refundedFlag = L.closedFlagForPlan(refunded) ?? '';
+  check('...and the disagreement is flagged (QuickBooks paid, MAGE net short by refunded cash)',
+    refunded.refundGap === 30_000 && L.isClosedWithoutPaymentNote(refundedFlag) && /refunded or charged back/.test(refundedFlag)
+      && !/credit memo, journal entry or write-off/.test(refundedFlag), refundedFlag);
 
   // The one that separates "cash received" from "net ledger": $20k pushed,
   // $10k Stripe payment later refunded, and QuickBooks still shows the invoice
@@ -190,6 +207,19 @@ console.log('\n  3. closed without a payment, refunds');
   });
   check('refunded money QuickBooks still counts is never booked back into MAGE',
     rePaid.appended.length === 0 && rePaid.amountPaid === 20_000, JSON.stringify(rePaid));
+  // #100 — the audit's exact ledger: the client paid again by check (P2), or
+  // QuickBooks still carries the refunded money. MAGE cannot tell; it must SAY.
+  const rePaidFlag = L.closedFlagForPlan(rePaid) ?? '';
+  check('#100: ...and the $10k disagreement is flagged, naming the uncounted QuickBooks payment',
+    rePaid.refundGap === 10_000 && rePaid.unexplained === 0 && L.isClosedWithoutPaymentNote(rePaidFlag)
+      && /\$10000\.00 more than MAGE holds/.test(rePaidFlag) && /payment P2 was not counted/.test(rePaidFlag), rePaidFlag);
+  const lifted = L.planQboPaidReconcile({
+    payments: [...rePaid.ledger, mage('pay-p2', 10_000, 'P2')], totalAmt: 30_000, linkedPayments: [],
+  });
+  check('#100: ...and it lifts once the check is recorded in MAGE (net covers QuickBooks\' total)',
+    L.closedFlagForPlan(lifted) === null && lifted.refundGap === 0, JSON.stringify(lifted));
+  const fullyPushed = L.planQboPaidReconcile({ payments: [mage('pay-1', 30_000, 'P1')], totalAmt: 30_000, linkedPayments: [] });
+  check('#100: an ordinary paid invoice raises no flag', L.closedFlagForPlan(fullyPushed) === null);
 }
 
 // ── 4. #15: which payments still have to reach QuickBooks ──────────────────
@@ -252,15 +282,15 @@ console.log('\n  4. the push sweep');
   // The app rewrote `payments` from a copy older than pay-1's qboId: QuickBooks
   // HAS P1, the ledger lost the id. Matching must restore it, not re-push.
   const lostId = [mage('pay-1', 30_000), mage('pay-2', 5_000)];
-  const m = L.matchUnpushedPayments(lostId, [{ id: 'P1', txnDate: '2026-09-10', applied: 30_000 }]);
+  const m = L.matchUnpushedPayments(lostId, [{ id: 'P1', txnDate: '2026-09-10', applied: 30_000, createdAt: '2026-09-10T16:00:00-07:00' }]);
   check('an entry whose qboId was clobbered is matched back to its QuickBooks Payment',
     m.matches.length === 1 && m.matches[0].entryId === 'pay-1' && m.matches[0].qboId === 'P1', JSON.stringify(m.matches));
   const written = L.applyQboMatches([...lostId, stripe('stripe-cs_new', 99)], m.matches);
   check('...applied to a FRESH read by id, keeping a payment written in between',
     written?.length === 3 && written[0].qboId === 'P1' && !written[1].qboId && written[2].id === 'stripe-cs_new');
-  const two = L.matchUnpushedPayments([mage('a', 100), mage('b', 100)], [{ id: 'X', applied: 100 }]);
+  const two = L.matchUnpushedPayments([mage('a', 100), mage('b', 100)], [{ id: 'X', applied: 100, createdAt: '2026-09-10T16:00:00-07:00' }]);
   check('matching is one-to-one', two.matches.length === 1);
-  const off = L.matchUnpushedPayments([mage('a', 100)], [{ id: 'X', applied: 100.01 }]);
+  const off = L.matchUnpushedPayments([mage('a', 100)], [{ id: 'X', applied: 100.01, createdAt: '2026-09-10T16:00:00-07:00' }]);
   check('...and exact to the cent', off.matches.length === 0);
 }
 
@@ -294,14 +324,16 @@ console.log('\n  5. the setup screen counts what the reconciler works down');
     // QuickBooks") and lacked the qboId payment.ts stamps server-side (a false
     // "not in QuickBooks yet"). The count is the server's ledger.
     check('...counted from the server read, not the device copy of invoices',
-      /\.from\('invoices'\)\s*\.select\('id,number,qbo_id,payments,qbo_error'\)/.test(screen) && !/useFinancialsData\(\)/.test(screen));
+      /\.from\('invoices'\)\s*\.select\('id,number,qbo_id,payments,qbo_error,status'\)/.test(screen) && !/useFinancialsData\(\)/.test(screen));
     check('...and says nothing reassuring until that read has landed',
       /\{unsyncedPayments === null \? \(/.test(screen) && /ledgerRows \? paymentsNotInQuickBooks\(ledgerRows\) : null/.test(screen));
     const clientPrefix = /const QBO_CLOSED_WITHOUT_PAYMENT_PREFIX = '([^']+)'/.exec(screen)?.[1];
     check('the screen\'s closed-without-payment prefix is the reconciler\'s', clientPrefix === L.QBO_CLOSED_WITHOUT_PAYMENT_PREFIX, clientPrefix);
-    const closedCount = new Function(`${js}\nreturn invoicesClosedWithoutPayment;`)() as (r: { qboError?: string | null }[]) => number;
-    check('...and it counts exactly the flagged invoices',
-      closedCount([{ qboError: L.closedWithoutPaymentNote(5) }, { qboError: 'QuickBooks charged $1.00 of sales tax' }, {}]) === 1);
+    const closedCount = new Function(`${js}\nreturn invoicesClosedWithoutPayment;`)() as (r: { qboError?: string | null; status?: string }[]) => { open: number; paidInMage: number };
+    const cc = closedCount([{ qboError: L.closedWithoutPaymentNote(5) }, { qboError: 'QuickBooks charged $1.00 of sales tax' }, {},
+      { qboError: L.closedWithoutPaymentNote(9), status: 'paid' }]);
+    check('...and it counts exactly the flagged invoices, apart from those MAGE itself shows paid (#10)',
+      cc.open === 1 && cc.paidInMage === 1, JSON.stringify(cc));
     check('the screen no longer promises every payment "in seconds"', !/payments to your books in seconds/.test(screen));
 
     // Round-3 critic: the sweep records WHY a payment was refused, but no
@@ -309,13 +341,14 @@ console.log('\n  5. the setup screen counts what the reconciler works down');
     const stuck = new Function(`${js}\nreturn stuckQboPayments;`)() as
       (r: { number?: number; qboId?: string; payments: unknown }[]) => { invoiceNumber: unknown; amount: number; reason: string; state: string }[];
     const refusal = L.sweepPushRefusal(1000, 970.6, 12) ?? '';
+    const D = '2026-09-18T10:00:00.000Z';
     const rows = stuck([{ number: 12, qboId: 'Q', payments: [
-      { id: 'a', amount: 1000, qboError: refusal, qboAttempts: 1 },
-      { id: 'b', amount: 50, qboError: 'QBO 400 /payment: bad', qboAttempts: L.MAX_PAYMENT_PUSH_ATTEMPTS },
-      { id: 'c', amount: 20, qboError: 'QBO 400 /payment: bad', qboAttempts: 1 },
-      { id: 'd', amount: 30, qboId: 'P9', qboError: 'old' },
-      { id: 'e', amount: 40 },
-      { id: 'f', amount: 60, qboError: L.sweepPushRefusal(60, 0, 12), qboAttempts: 2 },
+      { id: 'a', amount: 1000, qboError: refusal, qboAttempts: 1, date: D },
+      { id: 'b', amount: 50, qboError: 'QBO 400 /payment: bad', qboAttempts: L.MAX_PAYMENT_PUSH_ATTEMPTS, date: D },
+      { id: 'c', amount: 20, qboError: 'QBO 400 /payment: bad', qboAttempts: 1, date: D },
+      { id: 'd', amount: 30, qboId: 'P9', qboError: 'old', date: D },
+      { id: 'e', amount: 40, date: D },
+      { id: 'f', amount: 60, qboError: L.sweepPushRefusal(60, 0, 12), qboAttempts: 2, date: D },
     ] }]);
     check('qbo-setup lists each refused / stopped payment with its recorded reason',
       rows.length === 4 && rows[0].invoiceNumber === 12 && rows[0].reason === refusal
@@ -330,7 +363,25 @@ console.log('\n  5. the setup screen counts what the reconciler works down');
       const flagSpec = join(ROOT, 'utils', 'qboClosedFlag.ts');
       const C = await import(pathToFileURL(flagSpec).href) as {
         QBO_CLOSED_WITHOUT_PAYMENT_PREFIX: string; QBO_ERROR_APPEND_SEP: string; qboClosedFlagOf: (e: unknown) => string | null;
+        QBO_REFUND_GAP_FLAG_MARKER: string; qboClosedFlagKind: (f: string) => string; qboClosedFlagAlertReason: (f: string) => string;
       };
+      // #100 wording: each flag is explained by its OWN kind. The kinds are
+      // read off the reconciler's real note text, so a reworded note that
+      // drops a marker turns this red instead of silently falling to 'credit'.
+      const gapNote = (L as unknown as { refundGapNote: (g: number, r: number, ids: string[]) => string }).refundGapNote(500, 500, ['77']);
+      const kinds = [L.closedWithoutPaymentNote(300), L.voidedInQuickBooksNote(), gapNote].map((n) => C.qboClosedFlagKind(n));
+      check('#100: the app reads each flag\'s kind off the reconciler\'s own notes (credit, void, refund gap)',
+        kinds.join() === 'credit,void,refund_gap', kinds.join());
+      check('#100: the "Send anyway" reason is true to the kind — a refund gap is not "cleared by something other than a payment"',
+        !/something other than a payment/.test(C.qboClosedFlagAlertReason(gapNote)) && !/something other than a payment/.test(C.qboClosedFlagAlertReason(L.voidedInQuickBooksNote()))
+          && /voided/.test(C.qboClosedFlagAlertReason(L.voidedInQuickBooksNote())) && /refunded or charged back/.test(C.qboClosedFlagAlertReason(gapNote)));
+      {
+        const cw = new Function(`${js}\nreturn invoicesClosedWithoutPayment;`)() as (r: { qboError?: string | null; status?: string }[]) => { open: number; paidInMage: number; refundGapPaid: number };
+        const r = cw([{ qboError: gapNote, status: 'paid' }, { qboError: L.voidedInQuickBooksNote(), status: 'paid' }, { qboError: gapNote, status: 'sent' }]);
+        check('#100: qbo-setup puts a refund gap MAGE shows paid on its own card, not the credit/void one',
+          r.refundGapPaid === 1 && r.paidInMage === 1 && r.open === 1 && /testID="qbo-closed-refund-gap-paid"/.test(screen)
+            && /const QBO_REFUND_GAP_MARKER = '([^']+)'/.exec(screen)?.[1] === C.QBO_REFUND_GAP_FLAG_MARKER, JSON.stringify(r));
+      }
       const both = `${L.closedWithoutPaymentNote(812.4)}\n\nAlso: QBO 400 /invoice: x`;
       check('the app\'s closed-flag reader matches the reconciler (prefix, separator, flag part)',
         C.QBO_CLOSED_WITHOUT_PAYMENT_PREFIX === L.QBO_CLOSED_WITHOUT_PAYMENT_PREFIX
@@ -341,7 +392,8 @@ console.log('\n  5. the setup screen counts what the reconciler works down');
       check('the invoice screen shows the flag by Send reminder and confirms a manual reminder on a flagged invoice',
         /const qboClosedFlag = qboClosedFlagOf\(existingInvoice\?\.qboError\);/.test(inv)
         && /testID="reminder-qbo-closed-flag"/.test(inv)
-        && /if \(!qboClosedFlag\) \{ void handleSendReminder\(\); return; \}[\s\S]{0,400}'Send anyway'/.test(inv));
+        && /if \(!qboClosedFlag\) \{ void handleSendReminder\(\); return; \}[\s\S]{0,700}'Send anyway'/.test(inv)
+        && /\$\{qboClosedFlagAlertReason\(qboClosedFlag\)\} Send a reminder to the client anyway\?/.test(inv));
     }
     check('the cursor is labelled as what it is, not "Last reconcile"',
       !/Last reconcile:/.test(screen) && /QuickBooks changes read up to:/.test(screen));
@@ -388,7 +440,7 @@ console.log('\n  6. qbo-reconciler and qbo-sync use them');
   check('...waiting for the row to settle (an app push may be in flight)', /\.lt\("updated_at", settledCutoff\)/.test(sweep));
 
   check('an invoice QuickBooks closed without a payment is flagged, not silent',
-    /const flag = plan\.unexplained > 0 \? closedWithoutPaymentNote\(plan\.unexplained\) : null;/.test(rec) &&
+    /const flag = closedFlagForPlan\(plan\);/.test(rec) &&
     /\.\.\.flagChange,/.test(rec) && /update\(flagChange\)/.test(rec));
   {
     const fl = L.closedWithoutPaymentNote(400);
@@ -571,7 +623,7 @@ export function svc() {
       const q: any = {
         select: () => q, eq: () => q,
         maybeSingle: async () => ({ data: H().read(table), error: null }),
-        update: (patch: any) => { H().updates.push({ table, patch }); const t: any = { eq: () => t, then: (r: any) => r({ error: null }) }; return t; },
+        update: (patch: any) => { const filters: [string, unknown][] = []; H().updates.push({ table, patch, filters }); const t: any = { eq: (c: string, v: unknown) => { filters.push([c, v]); return t; }, then: (r: any) => r({ error: null }) }; return t; },
       };
       return q;
     },
@@ -613,6 +665,474 @@ export function svc() {
   check('an entry deleted mid-push is not written back (no resurrection, no throw)', removed.threw === '' && removed.written === undefined,
     removed.threw || JSON.stringify(removed.written));
   console.warn = warn;
+}
+
+// ── 9. post-ship money-qbo (2026-09-18): #9 #10 #11 #97 #98 #100 #101 #102 ──
+console.log('\n  9. post-ship: credit is not cash, a payment goes once, the right day, a void stops the chase');
+{
+  // #9 — a credit memo applied through QuickBooks' Receive Payment flow is a
+  // $0 Payment linking the invoice AND the credit memo. It is not money.
+  const inv = (id: string, amt: number) => ({ Amount: amt, LinkedTxn: [{ TxnId: id, TxnType: 'Invoice' }] });
+  const cm = (amt: number) => ({ Amount: amt, LinkedTxn: [{ TxnId: 'CM1', TxnType: 'CreditMemo' }] });
+  const pure = L.linkedPaymentCash({ TotalAmt: 0, Line: [inv('14', 10_000), cm(10_000)] }, '14');
+  check('#9: a $0 credit application puts $0 cash on the invoice ($10k credit)', pure.cash === 0 && pure.credit === 10_000, JSON.stringify(pure));
+  const mixed = L.linkedPaymentCash({ TotalAmt: 20_000, Line: [inv('14', 30_000), cm(10_000)] }, '14');
+  check('#9: $20k check + $10k credit memo in one Payment: $20k cash, $10k credit', mixed.cash === 20_000 && mixed.credit === 10_000, JSON.stringify(mixed));
+  const multi = { TotalAmt: 30_000, Line: [inv('A', 30_000), inv('B', 10_000), cm(10_000)] };
+  const a = L.linkedPaymentCash(multi, 'A'), b = L.linkedPaymentCash(multi, 'B');
+  check('#9: a check paying two invoices with a credit is shared pro rata, never the whole check to each',
+    a.cash === 22_500 && b.cash === 7_500 && a.cash + b.cash === 30_000, JSON.stringify({ a, b }));
+  check('#9: a plain check is all cash; its unapplied remainder is not this invoice\'s',
+    L.linkedPaymentCash({ TotalAmt: 12_000, Line: [inv('14', 10_000)] }, '14').cash === 10_000
+      && L.linkedPaymentCash({ Line: [inv('14', 10_000)] }, '14').cash === 10_000);
+  check('#9: cash stays exact to the cent', L.linkedPaymentCash({ TotalAmt: 100, Line: [inv('A', 33.33), inv('B', 66.67), cm(0)] }, 'A').cash === 33.33);
+  check('#9: a journal-entry line is credit too', L.linkedPaymentCash({ TotalAmt: 0, Line: [inv('14', 500), { Amount: 500, LinkedTxn: [{ TxnId: 'J', TxnType: 'JournalEntry' }] }] }, '14').cash === 0);
+
+  const P2 = L.toLinkedPayment({ Id: 'P2', TxnDate: '2026-10-05', TotalAmt: 0, Line: [inv('14', 10_000), cm(10_000)], MetaData: { CreateTime: '2026-10-05T09:00:00-07:00' } }, '14');
+  const repro = L.planQboPaidReconcile({ payments: [mage('pay-1', 20_000, 'P1')], totalAmt: 30_000, linkedPayments: [P2] });
+  check('#9 repro: the credit-memo Payment books NOTHING as cash (amount_paid stays $20,000)',
+    repro.appended.length === 0 && repro.amountPaid === 20_000 && !repro.changed, JSON.stringify(repro));
+  const reproFlag = L.closedFlagForPlan(repro) ?? '';
+  check('#9 repro: ...the $10,000 stays unexplained and the closed-without-a-payment flag fires, naming the credit',
+    repro.unexplained === 10_000 && L.isClosedWithoutPaymentNote(reproFlag) && /\$10000\.00 of credit/.test(reproFlag), reproFlag);
+  const pending = L.planQboPaidReconcile({
+    payments: [mage('pay-1', 20_000, 'P1'), { ...stripe('stripe-cs_x', 10_000), date: '2026-10-04T15:00:00.000Z' }],
+    totalAmt: 30_000, linkedPayments: [P2],
+  });
+  check('#9: a $0 credit application never absorbs an unsynced Pay-link payment of the same amount',
+    pending.matched.length === 0 && !pending.ledger.find((e) => e.id === 'stripe-cs_x')?.qboId, JSON.stringify(pending.matched));
+  const rec = read('supabase/functions/qbo-reconciler/index.ts');
+  check('#9: the reconciler reduces each Payment through toLinkedPayment (TotalAmt read), not a sum of its lines',
+    /out\.push\(toLinkedPayment\(pay, String\(qInv\.Id\), pid\)\);/.test(rec) && !/sum \+ \(Number\(line\.Amount\) \|\| 0\)/.test(rec));
+
+  // #11 — amount alone paired a Pay-link payment with an older check.
+  const payLink = { ...stripe('stripe-cs_oct20', 10_000), date: '2026-10-20T18:00:00.000Z' };
+  const P7 = (createdAt: string | null, txnDate: string | null, extra: Partial<Linked> = {}): Linked => ({ id: 'P7', applied: 10_000, createdAt, txnDate, ...extra });
+  check('#11 repro: a check keyed Oct 1 does NOT match a Pay-link payment of Oct 20',
+    L.matchUnpushedPayments([payLink], [P7('2026-10-01T10:00:00-07:00', '2026-10-01')]).matches.length === 0);
+  check('#11: the bookkeeper keying the Pay-link payment itself on Oct 21 DOES match',
+    L.matchUnpushedPayments([payLink], [P7('2026-10-21T10:00:00-07:00', '2026-10-20')]).matches.length === 1);
+  check('#11: an Oct 1 check keyed late in a batch (Oct 21) keeps its own date and does NOT match',
+    L.matchUnpushedPayments([payLink], [P7('2026-10-21T10:00:00-07:00', '2026-10-01')]).matches.length === 0);
+  check('#11: a Payment with no CreateTime is not matchable by amount',
+    L.matchUnpushedPayments([payLink], [P7(null, '2026-10-20')]).matches.length === 0);
+  check('#11: a date-only MAGE entry keyed the evening before (Pacific) still matches — one day of slack',
+    L.matchUnpushedPayments([{ ...mage('m', 10_000), date: '2026-10-20' }], [P7('2026-10-19T17:00:00-07:00', '2026-10-19')]).matches.length === 1);
+  check('#11: payment.ts\'s tag matches its own entry exactly, whatever the dates',
+    L.matchUnpushedPayments([payLink], [P7('2026-01-01T00:00:00Z', '2026-01-01', { mageEntryId: 'stripe-cs_oct20', applied: 9_000 })]).matches[0]?.qboId === 'P7');
+  check('#11: ...and a Payment tagged for ANOTHER entry is never paired by amount',
+    L.matchUnpushedPayments([payLink], [P7('2026-10-21T10:00:00-07:00', '2026-10-20', { mageEntryId: 'pay-other' })]).matches.length === 0);
+  const two = L.matchUnpushedPayments([payLink], [
+    { id: 'PA', applied: 10_000, createdAt: '2026-10-25T10:00:00-07:00', txnDate: '2026-10-22' },
+    { id: 'PB', applied: 10_000, createdAt: '2026-10-21T10:00:00-07:00', txnDate: '2026-10-20' },
+  ]);
+  check('#11: with two candidates the closest-keyed one wins (deterministic)', two.matches[0]?.qboId === 'PB', JSON.stringify(two.matches));
+  check('#11: the tag round-trips', L.mageEntryIdFromNote(`${L.magePaymentTag('stripe-cs_1')} MAGE recorded $5.00`) === 'stripe-cs_1'
+    && L.mageEntryIdFromNote('hand-keyed') === null);
+
+  // #10 — the flag copy no longer tells him to do the thing that doubles it.
+  for (const n of [L.closedWithoutPaymentNote(30_000), L.closedWithoutPaymentNote(10_000, 10_000), L.voidedInQuickBooksNote(),
+    L.closedFlagForPlan(L.planQboPaidReconcile({ payments: [stripe('s', 5), { id: 'r', amount: -5, kind: 'refund' }], totalAmt: 5, linkedPayments: [] })) ?? '']) {
+    check(`#10: flag copy never says "Record the payment in MAGE" (${n.slice(55, 90)}…)`, !/Record the payment in MAGE/.test(n) && L.isClosedWithoutPaymentNote(n));
+  }
+  const screen = read('app/qbo-setup.tsx');
+  check('#10: ...nor does qbo-setup, which counts invoices MAGE shows paid apart',
+    !/Record the payment in MAGE/.test(screen) && /testID="qbo-closed-paid-in-mage"/.test(screen) && /closedWithoutPayment\.open > 0/.test(screen));
+
+  // #101 — a void in QuickBooks.
+  check('#101: voided in QuickBooks with MAGE still owed: flagged', L.voidFlagFor({ totalAmt: 0, balance: 0, mageOutstanding: 4_200 }) === L.voidedInQuickBooksNote()
+    && L.isClosedWithoutPaymentNote(L.voidedInQuickBooksNote()) && /voided in QuickBooks/.test(L.voidedInQuickBooksNote())
+    && /Pay link still works/.test(L.voidedInQuickBooksNote()) && !/credit memo/.test(L.voidedInQuickBooksNote()));
+  check('#101: the note names only steps MAGE has (invoices have no void or delete)',
+    !/void or delete the invoice in MAGE/.test(L.voidedInQuickBooksNote()) && /note to the invoice in MAGE/.test(L.voidedInQuickBooksNote()));
+  {
+    // The void bumps LastUpdatedTime ONCE: a swallowed DB error loses the flag
+    // for good. Both the read and the write must throw (cursor not stamped).
+    const at = rec.indexOf('if (Number(qInv.TotalAmt) === 0) {');
+    const branch = at >= 0 ? rec.slice(at, rec.indexOf('continue;\n        }', at) + 10) : '';
+    check('#101: the void branch throws on a read error and on a write error, like the paid path',
+      /error: vErr \} = await s[\s\S]{0,400}if \(vErr\) throw/.test(branch)
+        && /const \{ error: vwErr \} = await s\.from\("invoices"\)\.update\(voidChange\)[\s\S]{0,120}if \(vwErr\) throw/.test(branch),
+      branch.slice(0, 200));
+  }
+  check('#101: a genuine $0 invoice (nothing owed in MAGE) is not', L.voidFlagFor({ totalAmt: 0, balance: 0, mageOutstanding: 0 }) === null);
+  check('#101: an open or non-zero invoice is not a void', L.voidFlagFor({ totalAmt: 500, balance: 0, mageOutstanding: 500 }) === null
+    && L.voidFlagFor({ totalAmt: 0, balance: 5, mageOutstanding: 5 }) === null);
+  check('#101: the reconciler flags it through closedFlagChange (a push error on the row survives) instead of skipping it',
+    /if \(Number\(qInv\.TotalAmt\) === 0\) \{[\s\S]{0,2600}closedFlagChange\(voided\.qbo_error, voidFlagFor\(\{ totalAmt: qInv\.TotalAmt, balance: qInv\.Balance, mageOutstanding: outstanding \}\)\)/.test(rec)
+      && /const outstanding = toCents2\(netPayable\(voided\) - ledgerSum\(ledgerFrom\(voided\.payments\)\)\);/.test(rec)
+      && !/qInv\.Balance > 0 \|\| qInv\.TotalAmt === 0/.test(rec));
+  {
+    const pushErr = 'QBO 400 /invoice: x';
+    const ch = L.closedFlagChange(pushErr, L.voidedInQuickBooksNote());
+    check('#101: ...keeping an existing push error after it', typeof ch.qbo_error === 'string' && ch.qbo_error.endsWith(pushErr) && L.isClosedWithoutPaymentNote(ch.qbo_error));
+  }
+
+  // #97 — money MAGE sent to QuickBooks and Stripe then gave back.
+  const pushed = (id: string, amt: number, pi: string, q: string): Entry => ({ ...stripe(id, amt), paymentIntentId: pi, qboId: q, source: 'mage' });
+  const fixtures: Entry[][] = [
+    [pushed('s1', 12_000, 'pi1', 'Q1'), { id: 'r1', amount: -12_000, method: 'stripe', kind: 'refund', paymentIntentId: 'pi1' }],
+    [pushed('s2', 12_000, 'pi2', 'Q2'), { id: 'r2', amount: -2_500.5, method: 'stripe', kind: 'refund', paymentIntentId: 'pi2' }],
+    [pushed('s3', 800, 'pi3', 'Q3'), { id: 'd3', amount: -800, method: 'stripe', kind: 'dispute', paymentIntentId: 'pi3' }],
+    [{ ...stripe('s4', 900), paymentIntentId: 'pi4' }, { id: 'r4', amount: -900, method: 'stripe', kind: 'refund', paymentIntentId: 'pi4' }],
+    [pushed('s5', 700, 'pi5', 'Q5'), { id: 'r5', amount: -700, kind: 'refund', paymentIntentId: 'pi5', qboReversalRecordedAt: '2026-10-02T00:00:00Z' } as Entry],
+    // A SECOND partial refund after he acknowledged the first: Stripe's
+    // cumulative entry grew from -2,000 to -3,250.25 and kept his stamp.
+    [pushed('s6', 12_000, 'pi6', 'Q6'), { id: 'r6', amount: -3_250.25, kind: 'refund', paymentIntentId: 'pi6', qboReversalRecordedAt: '2026-10-02T00:00:00Z', qboReversalRecordedAmount: 2_000 } as Entry],
+  ];
+  const got = fixtures.map((f) => L.reversalsNotInQbo(f).map((x) => `${x.entryId}:${x.amount}:${x.kind}:${x.paymentQboId}`).join());
+  check('#97: pushed + full refund, partial refund, lost dispute are listed with the REVERSAL amount and the QuickBooks payment',
+    got[0] === 'r1:12000:refund:Q1' && got[1] === 'r2:2500.5:refund:Q2' && got[2] === 'd3:800:dispute:Q3', got.join(' | '));
+  check('#97: ...a refund of a payment never sent is not listed twice (the original is already counted)', got[3] === '' && L.countPaymentsNotInQbo(fixtures[3]) === 1);
+  check('#97: ...one he marked recorded is not listed', got[4] === '');
+  check('#97: a second partial refund on an already-acknowledged entry lists the UNRECORDED difference',
+    got[5] === 'r6:1250.25:refund:Q6', got[5]);
+  {
+    // End to end through the real webhook fold: first refund, he acknowledges
+    // it, Stripe's cumulative entry grows, the difference comes back.
+    const first = [pushed('s7', 1_000, 'pi7', 'Q7'), { id: 'r7', amount: -300, kind: 'refund', paymentIntentId: 'pi7' } as Entry];
+    const ack = L.markReversalRecorded(first, 'r7', '2026-10-04T00:00:00.000Z');
+    const grown = ack ? ack.map((e) => (e.id === 'r7' ? { ...e, amount: -450 } : e)) : [];
+    check('#97: acknowledge $300 → nothing listed; cumulative grows to $450 → $150 listed; acknowledge again → nothing',
+      !!ack && L.reversalsNotInQbo(ack).length === 0
+        && L.reversalsNotInQbo(grown).map((x) => x.amount).join() === '150'
+        && L.reversalsNotInQbo(L.markReversalRecorded(grown, 'r7', 'y') ?? grown).length === 0,
+      JSON.stringify(L.reversalsNotInQbo(grown)));
+  }
+  {
+    // Round 4: the refund GROWS between the list and the tap. qbo-setup listed
+    // −$300; a second partial refund of $150 folds into the same cumulative
+    // entry (−$450) before he taps "I recorded it". Stamping the whole entry
+    // marked $150 he never saw as recorded. The stamp is what he was shown.
+    const listed = [pushed('s8', 1_000, 'pi8', 'Q8'), { id: 'r8', amount: -300, kind: 'refund', paymentIntentId: 'pi8' } as Entry];
+    const shown = L.reversalsNotInQbo(listed)[0]?.amount;
+    const grewBeforeTap = listed.map((e) => (e.id === 'r8' ? { ...e, amount: -450 } : e));
+    const tapped = L.markReversalRecorded(grewBeforeTap, 'r8', '2026-10-05T00:00:00.000Z', shown);
+    check('#97 r4: a refund that grew between list and tap stamps only what he was shown ($300); the $150 stays listed',
+      shown === 300 && !!tapped && L.reversalsNotInQbo(tapped).map((x) => x.amount).join() === '150',
+      JSON.stringify(tapped && L.reversalsNotInQbo(tapped)));
+    const again = tapped && L.markReversalRecorded(tapped, 'r8', '2026-10-06T00:00:00.000Z', 150);
+    check('#97 r4: ...acknowledging the $150 next clears it (recorded 300 + 150 = 450, capped at the entry)',
+      !!again && L.reversalsNotInQbo(again).length === 0
+        && (again.find((e) => e.id === 'r8') as { qboReversalRecordedAmount?: number } | undefined)?.qboReversalRecordedAmount === 450);
+    const over = L.markReversalRecorded(listed, 'r8', 'z', 999);
+    check('#97 r4: a listed amount larger than the entry is capped at the entry',
+      (over?.find((e) => e.id === 'r8') as { qboReversalRecordedAmount?: number } | undefined)?.qboReversalRecordedAmount === 300);
+    check('#97 r4: qbo-setup sends the amount the line showed, and qbo-sync passes it through',
+      /objectId: `\$\{line\.invoiceId\}::\$\{line\.entryId\}`, listedAmount: line\.amount/.test(screen)
+      && /markReversalRecorded\([\s\S]{0,120}, listed\)/.test(read('supabase/functions/qbo-sync/index.ts')));
+  }
+  const acked = L.markReversalRecorded([...fixtures[0], stripe('late', 50)], 'r1', '2026-10-03T00:00:00.000Z');
+  check('#97: "I recorded it" stamps the reversal on a fresh read, keeping a payment written in between',
+    !!acked && acked.length === 3 && L.reversalsNotInQbo(acked).length === 0 && acked[2].id === 'late');
+  check('#97: ...and refuses an entry that is not a pending reversal', L.markReversalRecorded(fixtures[3], 'r4', 'x') === null);
+  {
+    const a2 = screen.indexOf('// --- BEGIN paymentsNotInQuickBooks'), b2 = screen.indexOf('// --- END paymentsNotInQuickBooks ---');
+    const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(screen.slice(a2, b2));
+    const clientRev = new Function(`${js}\nreturn reversalsNotInQuickBooks;`)() as (r: { id?: string; qboId?: string; payments: unknown }[]) => { entryId: string; amount: number; kind: string; paymentQboId: string }[];
+    check('#97: the screen\'s twin lists exactly what the server rule lists, on every fixture',
+      fixtures.every((f) => clientRev([{ id: 'i', qboId: 'INV', payments: f }]).map((x) => `${x.entryId}:${x.amount}:${x.kind}:${x.paymentQboId}`).join()
+        === L.reversalsNotInQbo(f).map((x) => `${x.entryId}:${x.amount}:${x.kind}:${x.paymentQboId}`).join()));
+    check('#97: the green "every payment is in QuickBooks" check needs zero reversals too, and each line can be acknowledged',
+      /unsyncedPayments > 0 \|\| reversals\.length > 0\s*\?\s*<AlertTriangle/.test(screen) && /testID="qbo-reversal-not-recorded"/.test(screen)
+        && /kind: 'reversal', op: 'upsert', objectId: `\$\{line\.invoiceId\}::\$\{line\.entryId\}`/.test(screen));
+
+    // #102 — the label is the sweep's own predicate.
+    const clientState = new Function(`${js}\nreturn unsyncedStateOf;`)() as (e: Entry, l: Entry[], f: string) => string;
+    const floor = L.PAYMENT_SWEEP_FLOOR;
+    const after = '2026-09-20T10:00:00.000Z';
+    const cases: [Entry, Entry[]][] = [];
+    const refunded = { ...stripe('x1', 500), date: after, paymentIntentId: 'pX', qboError: 'Project missing QBO customer', qboAttempts: 1 };
+    cases.push([refunded, [refunded, { id: 'rx', amount: -500, kind: 'refund', paymentIntentId: 'pX' }]]);
+    const disputed = { ...stripe('x2', 500), date: after, paymentIntentId: 'pY', qboError: 'QBO 400', qboAttempts: 1 };
+    cases.push([disputed, [disputed, { id: 'dy', amount: -500, kind: 'dispute', paymentIntentId: 'pY' }]]);
+    const old = { ...mage('x3', 70), date: '2026-08-01T10:00:00.000Z', qboError: 'QBO 400', qboAttempts: 1 };
+    const undated = { id: 'x4', amount: 70, qboError: 'QBO 400', qboAttempts: 1 };
+    const stopped = { ...mage('x5', 70), date: after, qboError: 'QBO 400', qboAttempts: 5 };
+    const refusedE = { ...mage('x6', 70), date: after, qboError: L.alreadyPaidRefusal(3), qboAttempts: 1 };
+    const retry = { ...mage('x7', 70), date: after, qboError: 'QBO 400', qboAttempts: 1 };
+    for (const e of [old, undated, stopped, refusedE, retry]) cases.push([e, [e]]);
+    const serverStates = cases.map(([e, l]) => L.unsyncedPaymentState(e, l, floor));
+    check('#102: refunded, disputed, pre-floor, undated, stopped, refused and retrying each get their own state',
+      serverStates.join() === 'reversed,reversed,not-swept,not-swept,stopped,refused,retrying', serverStates.join());
+    // (A 'refused' one IS re-tried — and re-refused, spending an attempt — so
+    // it is labelled for what happens: not sent.)
+    check('#102: ..."retrying" is only ever a payment paymentsToPushToQbo returns; reversed, pre-floor and stopped ones it never returns',
+      cases.every(([e, l]) => {
+        const st = L.unsyncedPaymentState(e, l, floor);
+        const swept = L.paymentsToPushToQbo(l, { notBefore: floor }).some((x) => x.id === e.id);
+        return st === 'retrying' ? swept : st === 'refused' ? true : !swept;
+      }));
+    check('#102: the screen\'s twin agrees with the server on every case, and with a later connection floor',
+      cases.every(([e, l]) => clientState(e, l, floor) === L.unsyncedPaymentState(e, l, floor)
+        && clientState(e, l, '2026-10-01T00:00:00.000Z') === L.unsyncedPaymentState(e, l, '2026-10-01T00:00:00.000Z')));
+    check('#102: its floor constant is the reconciler\'s, and the server floor wins once loaded',
+      /const QBO_PAYMENT_SWEEP_FLOOR = '([^']+)'/.exec(screen)?.[1] === L.PAYMENT_SWEEP_FLOOR
+        && /stuckQboPayments\(ledgerRows, sweepFloor\)/.test(screen) && /connectionQuery\.data\?\.sweepFloor \?\? QBO_PAYMENT_SWEEP_FLOOR/.test(screen));
+    check('#102: the list labels a refunded payment and a pre-sweep one honestly',
+      /p\.state === 'reversed' \? 'refunded — record the net in QuickBooks by hand'/.test(screen) && /p\.state === 'not-swept' \? 'from before automatic sending — match by hand'/.test(screen));
+  }
+
+  // #10/#11/#98 twins inlined in payment.ts / invoice.ts (sandboxed files).
+  const payTs = read('supabase/functions/_shared/qbo-mapping/payment.ts');
+  const invTs = read('supabase/functions/_shared/qbo-mapping/invoice.ts');
+  const load = (src: string, B: string, E: string, name: string) => {
+    const i = src.indexOf(B), j = src.indexOf(E);
+    if (i < 0 || j < 0) return null;
+    return new Function(`${new Bun.Transpiler({ loader: 'ts' }).transformSync(src.slice(i, j))}\nreturn ${name};`)();
+  };
+  const refuseTwin = load(payTs, '// --- BEGIN payment twins', '// --- END payment twins ---', 'alreadyPaidRefusal') as ((n: number) => string) | null;
+  const tagTwin = load(payTs, '// --- BEGIN payment twins', '// --- END payment twins ---', 'magePaymentTag') as ((s: string) => string) | null;
+  check('#10/#11: payment.ts\'s inlined refusal and tag are paymentLedger\'s, byte for byte',
+    !!refuseTwin && !!tagTwin && refuseTwin(12) === L.alreadyPaidRefusal(12) && refuseTwin(12) === L.sweepPushRefusal(1, 0, 12)
+      && tagTwin('stripe-cs_1') === L.magePaymentTag('stripe-cs_1'));
+  const dayPay = load(payTs, '// --- BEGIN qboDay', '// --- END qboDay ---', 'qboDay') as ((v: unknown, tz: unknown) => string) | null;
+  const dayInv = load(invTs, '// --- BEGIN qboDay', '// --- END qboDay ---', 'qboDay') as ((v: unknown, tz: unknown) => string) | null;
+  const dayCases: [unknown, unknown, string][] = [
+    ['2026-10-01T01:30:00.000Z', 'America/New_York', '2026-09-30'],   // the audit: 9:30 pm EDT Sep 30
+    ['2027-01-01T04:59:00.000Z', 'America/New_York', '2026-12-31'],   // Dec 31 evening stays in the tax year
+    ['2026-10-01T00:30:00.000Z', 'America/Los_Angeles', '2026-09-30'], // 5:30 pm PDT
+    ['2026-10-01T15:00:00.000Z', 'America/New_York', '2026-10-01'],
+    ['2026-09-30', 'America/New_York', '2026-09-30'],                 // a bare day passes through unchanged
+    ['2026-09-30', undefined, '2026-09-30'],
+    ['2026-10-01T01:30:00.000Z', null, '2026-10-01'],                 // no zone registered: the old UTC day, not a guess
+    ['2026-10-01T01:30:00.000Z', 'Not/AZone', '2026-10-01'],
+  ];
+  for (const [v, tz, want] of dayCases) {
+    check(`#98: ${String(v)} in ${String(tz)} → ${want} (payment.ts and invoice.ts)`,
+      !!dayPay && !!dayInv && dayPay(v, tz) === want && dayInv(v, tz) === want, `${dayPay?.(v, tz)} / ${dayInv?.(v, tz)}`);
+  }
+  check('#98: both mappers send QuickBooks the company day',
+    /TxnDate: qboDay\(pay\.date, \(conn as \{ timezone\?: unknown \}\)\.timezone\),/.test(payTs)
+      && /TxnDate: qboDay\(inv\.issue_date, \(conn as \{ timezone\?: unknown \}\)\.timezone\),/.test(invTs)
+      && /DueDate: qboDay\(inv\.due_date, \(conn as \{ timezone\?: unknown \}\)\.timezone\),/.test(invTs)
+      && !/\.slice\(0, 10\),\s*$/m.test(payTs.replace(/\/\/ --- BEGIN qboDay[\s\S]*?\/\/ --- END qboDay ---/, '')));
+  const sync = read('supabase/functions/qbo-sync/index.ts');
+  check('#98/#102: qbo-setup registers the device zone through qbo-sync, which stores a valid one and returns the sweep floor',
+    /kind: 'connection', op: 'upsert', objectId: timeZone \|\| QBO_UNKNOWN_TIME_ZONE/.test(screen)
+      && /body\.kind === 'connection' && body\.op === 'upsert'/.test(sync) && /update\(\{ timezone: tz \}\)/.test(sync)
+      && /sweepFloor: paymentSweepFloor\(/.test(sync));
+  // Integration review: an unreadable zone must not overwrite a real one with
+  // 'UTC', a failure must not be cached for 10 minutes, and the registration
+  // runs while (and as soon as) the connection is 'connected'.
+  {
+    const unknownTz = /const QBO_UNKNOWN_TIME_ZONE = '([^']*)';/.exec(screen)?.[1];
+    let storedByServer = true;
+    try { new Intl.DateTimeFormat('en-US', { timeZone: String(unknownTz) }); storedByServer = /^[A-Za-z_]+(\/[A-Za-z0-9_+\-]+)*$/.test(String(unknownTz)); } catch { storedByServer = false; }
+    check('#98: the unknown-zone sentinel is non-empty and qbo-sync refuses to store it (no guessed UTC)',
+      !!unknownTz && !storedByServer && !/objectId: timeZone \|\| 'UTC'/.test(screen));
+    check('#98: a failed registration throws (not cached as {sweepFloor:null})',
+      /if \(error \|\| !data\?\.success\) throw new Error\(/.test(screen) && !/return \{ sweepFloor: null \}/.test(screen));
+    check('#98: registration is enabled only while connected, keyed on that status',
+      /enabled: !!user\?\.id && qboConnected,/.test(screen) && /queryKey: \['qbo-setup-connection', user\?\.id \?\? 'anon', qboConnected \?/.test(screen));
+  }
+  check('#97: qbo-sync stamps a reversal on a fresh read by id (markReversalRecorded)',
+    /body\.kind === 'reversal' && body\.op === 'upsert'[\s\S]{0,700}markReversalRecorded\(\(fresh as/.test(sync));
+  const mig = read('supabase/migrations/20260918190000_qbo_connections_timezone.sql');
+  check('#98: the migration adds qbo_connections.timezone without opening the table to clients',
+    /add column if not exists timezone text/.test(mig) && !/create policy|grant /i.test(mig.replace(/--.*$/gm, '')));
+}
+
+// ── 10. the mappers, executed: payment.ts refuses at zero, tags, dates;
+//        invoice.ts leaves drafts alone and marks a no-drift row synced ────
+console.log('\n  10. payment.ts and invoice.ts, executed');
+{
+  const dir = mkdtempSync(join(tmpdir(), 'mage-qbo-map-'));
+  mkdirSync(join(dir, '_shared', 'qbo-mapping'), { recursive: true });
+  const S = join(ROOT, 'supabase/functions/_shared');
+  copyFileSync(join(S, 'paymentMath.ts'), join(dir, '_shared', 'paymentMath.ts'));
+  copyFileSync(join(S, 'qbo-mapping', 'payment.ts'), join(dir, '_shared', 'qbo-mapping', 'payment.ts'));
+  copyFileSync(join(S, 'qbo-mapping', 'invoice.ts'), join(dir, '_shared', 'qbo-mapping', 'invoice.ts'));
+  writeFileSync(join(dir, '_shared', 'qbo.ts'), `
+export interface QboConnectionRow { realm_id?: string }
+const H = () => (globalThis as any).__MAP_HARNESS;
+export async function qboFetch(_c: unknown, path: string, init: any) { H().fetches.push({ path, init }); return H().fetch(path, init); }
+export async function qboHash(_o: unknown) { return 'HASH'; }
+export function svc() {
+  return {
+    from(table: string) {
+      const q: any = {
+        select: () => q, eq: () => q,
+        maybeSingle: async () => ({ data: H().read(table), error: null }),
+        update: (patch: any) => { const filters: [string, unknown][] = []; H().updates.push({ table, patch, filters }); const t: any = { eq: (c: string, v: unknown) => { filters.push([c, v]); return t; }, then: (r: any) => r({ error: null }) }; return t; },
+      };
+      return q;
+    },
+  };
+}
+`);
+  writeFileSync(join(dir, '_shared', 'qbo-mapping', 'financials.ts'), 'export async function readLinkedEstimateItems() { return []; }\n');
+  writeFileSync(join(dir, '_shared', 'qbo-mapping', 'item.ts'), 'export async function upsertItem() {}\n');
+  writeFileSync(join(dir, '_shared', 'qbo-mapping', 'customer.ts'), 'export async function upsertCustomer() {}\n');
+  type H = { fetches: { path: string; init: { method?: string; body?: string } }[]; updates: { table: string; patch: Record<string, unknown>; filters?: [string, unknown][] }[]; read: (t: string) => unknown; fetch: (p: string, i: { method?: string }) => unknown };
+  const invRow = (over: Record<string, unknown>) => ({
+    id: 'inv-1', user_id: 'u1', project_id: 'p1', number: 14, issue_date: '2026-10-01T01:30:00.000Z', due_date: '2026-10-31T01:30:00.000Z',
+    notes: null, line_items: [{ id: 'l', name: 'Work', quantity: 1, unitPrice: 1000, total: 1000 }], subtotal: '1000', total_due: '1000',
+    tax_amount: null, type: null, progress_percent: null, retention_percent: null, retention_amount: null, retention_released: null,
+    qbo_id: null, qbo_hash: null, qbo_error: null, qbo_sync_status: 'pending', status: 'sent', payments: [], ...over,
+  });
+  const install = (row: Record<string, unknown>, balance: number) => {
+    const h: H = {
+      fetches: [], updates: [],
+      read: (t) => (t === 'projects' ? { qbo_customer_id: 'CUST-1' } : row),
+      fetch: (path, init) => {
+        if (init?.method === 'GET' && path.startsWith('/invoice/')) return { Invoice: { SyncToken: '1', Balance: balance } };
+        if (path === '/payment') return { Payment: { Id: 'P-NEW' } };
+        if (path.startsWith('/invoice')) return { Invoice: { Id: 'QI', TotalAmt: 1000 } };
+        return {};
+      },
+    };
+    (globalThis as { __MAP_HARNESS?: unknown }).__MAP_HARNESS = h;
+    return h;
+  };
+  const pay = await import(pathToFileURL(join(dir, '_shared', 'qbo-mapping', 'payment.ts')).href) as { upsertPaymentForInvoice: (c: unknown, id: string, u: string) => Promise<void> };
+  const invm = await import(pathToFileURL(join(dir, '_shared', 'qbo-mapping', 'invoice.ts')).href) as { upsertInvoice: (c: unknown, id: string, u: string) => Promise<void> };
+  const warn = console.warn; console.warn = () => {};
+  const tryRun = async (f: () => Promise<void>) => { try { await f(); return ''; } catch (e) { return (e as Error).message; } };
+
+  // #10: balance 0 → no Payment posted, the sweep's own sentence.
+  {
+    const h = install(invRow({ qbo_id: 'QI', qbo_hash: 'HASH', qbo_sync_status: 'synced', payments: [{ id: 'pay-9', date: '2026-10-02T15:00:00.000Z', amount: 30_000 }] }), 0);
+    const threw = await tryRun(() => pay.upsertPaymentForInvoice({ timezone: 'America/New_York' }, 'inv-1::pay-9', 'u1'));
+    check('#10: the app\'s push onto an invoice QuickBooks shows paid posts NOTHING', !h.fetches.some((f) => f.path === '/payment'), JSON.stringify(h.fetches.map((f) => f.path)));
+    check('#10: ...and throws the sweep\'s refusal (qbo-sync stamps it; qbo-setup reads it as refused)', threw === L.alreadyPaidRefusal(14), threw);
+  }
+  // #11 + #98: an evening Pay-link payment, pushed with a tag and the company day.
+  {
+    const h = install(invRow({ qbo_id: 'QI', qbo_hash: 'HASH', qbo_sync_status: 'synced', payments: [{ id: 'stripe-cs_ev', date: '2026-10-01T01:30:00.000Z', amount: 400 }] }), 1000);
+    const threw = await tryRun(() => pay.upsertPaymentForInvoice({ timezone: 'America/New_York' }, 'inv-1::stripe-cs_ev', 'u1'));
+    const body = JSON.parse(h.fetches.find((f) => f.path === '/payment')?.init.body ?? '{}') as { TxnDate?: string; PrivateNote?: string };
+    check('#98: a 9:30 pm EDT Sep 30 payment is dated Sep 30 in QuickBooks', threw === '' && body.TxnDate === '2026-09-30', threw || JSON.stringify(body));
+    check('#11: ...and carries its MAGE entry tag', L.mageEntryIdFromNote(body.PrivateNote) === 'stripe-cs_ev', String(body.PrivateNote));
+  }
+  // #12: a draft never reaches QuickBooks.
+  {
+    const h = install(invRow({ status: 'draft' }), 0);
+    const threw = await tryRun(() => invm.upsertInvoice({}, 'inv-1', 'u1'));
+    const patch = h.updates.at(-1)?.patch ?? {};
+    check('#12: a draft makes no QuickBooks call at all', threw === '' && h.fetches.length === 0, threw || JSON.stringify(h.fetches));
+    check('#12: ...and leaves "pending" (not re-read every 30 minutes, not counted as Pending)', 'qbo_sync_status' in patch && patch.qbo_sync_status === null, JSON.stringify(patch));
+    const flagged = install(invRow({ status: 'draft', qbo_error: L.closedWithoutPaymentNote(5) }), 0);
+    await tryRun(() => invm.upsertInvoice({}, 'inv-1', 'u1'));
+    check('#12: ...keeping a closed-in-QuickBooks flag', flagged.updates.at(-1)?.patch.qbo_error === L.closedWithoutPaymentNote(5));
+    const back = install(invRow({ status: 'draft', qbo_id: 'QI', qbo_hash: 'OLD' }), 0);
+    const threwBack = await tryRun(() => invm.upsertInvoice({}, 'inv-1', 'u1'));
+    check('#12: a draft already in QuickBooks is not updated there, and says so loudly',
+      back.fetches.length === 0 && /is a draft in MAGE but QuickBooks already has it as an open invoice/.test(threwBack), threwBack);
+    const sent = install(invRow({ status: 'sent' }), 0);
+    await tryRun(() => invm.upsertInvoice({ timezone: 'America/New_York' }, 'inv-1', 'u1'));
+    const posted = JSON.parse(sent.fetches.find((f) => f.path === '/invoice')?.init.body ?? '{}') as { TxnDate?: string; DueDate?: string };
+    check('#12: the first non-draft push goes', !!sent.fetches.find((f) => f.path === '/invoice'));
+    check('#98: ...with the company\'s issue and due day, not the UTC one', posted.TxnDate === '2026-09-30' && posted.DueDate === '2026-10-30', JSON.stringify(posted));
+  }
+  // #103: a no-drift pass marks the row synced.
+  {
+    const tax = 'QuickBooks charged $70.00 of sales tax on invoice #14 where MAGE computed $82.50';
+    const flag = L.closedWithoutPaymentNote(40);
+    const run = async (status: string, qboError: string | null) => {
+      const h = install(invRow({ qbo_id: 'QI', qbo_hash: 'HASH', qbo_sync_status: status, qbo_error: qboError, issue_date: '2026-09-30', due_date: '2026-10-30', updated_at: '2026-10-02T10:00:00.000Z' }), 0);
+      const threw = await tryRun(() => invm.upsertInvoice({}, 'inv-1', 'u1'));
+      return { threw, h, patch: h.updates.at(-1)?.patch, filters: h.updates.at(-1)?.filters ?? [] };
+    };
+    const p1 = await run('pending', tax);
+    check('#103: a payment-only edit (pending, hash unchanged) is marked synced, with no QuickBooks write',
+      p1.threw === '' && p1.patch?.qbo_sync_status === 'synced' && p1.patch?.qbo_retry_count === 0 && !p1.h.fetches.some((f) => f.init?.method === 'POST'), JSON.stringify(p1.patch));
+    check('#103: ...keeping the accepted push\'s tax note', p1.patch?.qbo_error === tax, String(p1.patch?.qbo_error));
+    const p2 = await run('error', `${flag}${L.QBO_ERROR_APPEND_SEP}QBO 503 /invoice: down`);
+    check('#103: a transient error whose retry finds no drift is synced, the stale error gone and the dunning flag kept',
+      p2.patch?.qbo_sync_status === 'synced' && p2.patch?.qbo_error === flag, JSON.stringify(p2.patch));
+    const has = (f: [string, unknown][], c: string, v: unknown) => f.some(([k, x]) => k === c && x === v);
+    check('#103: the synced write is conditional on the row this pass read (same hash, same updated_at) — a stale pass cannot clear a newer push\'s error',
+      has(p1.filters, 'qbo_hash', 'HASH') && has(p1.filters, 'updated_at', '2026-10-02T10:00:00.000Z')
+        && has(p2.filters, 'qbo_hash', 'HASH'), JSON.stringify(p1.filters));
+    const p3 = await run('synced', null);
+    check('#103: an already-synced row is not rewritten', p3.threw === '' && p3.h.updates.length === 0);
+  }
+  console.warn = warn;
+}
+
+// ── Round 4: a draft paid through its link still reaches QuickBooks ─────────
+// A draft is inserted with qbo_sync_status null (#12). If the client pays its
+// link while it is still a draft on the server, stripe-webhook moves it
+// draft → paid and (by design, pinned above) never touches QuickBooks columns.
+// Step 1 used to select only pending/error rows and step 1b needs qbo_id, so
+// neither the invoice nor its payment was ever pushed, and qbo-connect-status
+// counted it nowhere. The step-1 filter now owes a push to any non-draft row
+// with no status; the screen's Pending count is the same set minus errors.
+{
+  console.log('\nRound 4 — a draft paid server-side is still owed a QuickBooks push');
+  const F = await import('../supabase/functions/_shared/qboSyncFilter' + '.ts') as {
+    QBO_PUSH_OWED_FILTER: string; QBO_PENDING_COUNT_FILTER: string;
+    qboPushOwed: (r: { qbo_sync_status?: string | null; status?: string | null }) => boolean;
+  };
+  const M = await import('../supabase/functions/_shared/paymentMath' + '.ts') as {
+    applyLedgerEntry: (l: unknown[], e: unknown) => { applied: boolean; ledger: unknown[]; delta: number };
+    settlementStatus: (prev: string | null, paid: number, inv: Record<string, unknown>) => string;
+    ledgerFrom: (raw: unknown) => unknown[];
+    toCents2: (n: number) => number;
+  };
+  type Row = Record<string, unknown>;
+  // A PostgREST `or=(…)` evaluator for the operators these filters use, with
+  // SQL NULL semantics (NULL = x and NULL <> x are not true).
+  const splitTop = (src: string): string[] => {
+    const out: string[] = []; let depth = 0, cur = '';
+    for (const ch of src) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  const evalTerm = (t: string, r: Row): boolean => {
+    const m = /^(and|or)\((.*)\)$/.exec(t);
+    if (m) {
+      const parts = splitTop(m[2]).map((x) => evalTerm(x, r));
+      return m[1] === 'and' ? parts.every(Boolean) : parts.some(Boolean);
+    }
+    const [col, op, ...rest] = t.split('.');
+    const val = rest.join('.');
+    const v = r[col] ?? null;
+    if (op === 'is') return val === 'null' ? v === null : String(v) === val;
+    if (v === null) return false;
+    if (op === 'eq') return String(v) === val;
+    if (op === 'neq') return String(v) !== val;
+    throw new Error(`operator ${op} not modelled`);
+  };
+  const orFilter = (f: string, r: Row) => splitTop(f).some((t) => evalTerm(t, r));
+
+  // The replay: the new-invoice Send inserts a draft (qbo null), mints the
+  // link, the email fails; the client pays $8,400 through the link. The
+  // webhook's own money rules move the row.
+  const draftRow: Row = { id: 'inv-12', status: 'draft', qbo_sync_status: null, qbo_id: null, total_due: 8400, amount_paid: 0, payments: [], subtotal: 8400, retention_percent: 0, retention_amount: 0, retention_released: 0 };
+  const applied = M.applyLedgerEntry(M.ledgerFrom(draftRow.payments), { id: 'stripe-cs_12', amount: 8400, method: 'stripe', kind: 'payment', date: '2026-10-01T00:00:00Z' });
+  const paidAmt = M.toCents2(0 + applied.delta);
+  const paidRow: Row = { ...draftRow, amount_paid: paidAmt, payments: applied.ledger, status: M.settlementStatus('draft', paidAmt, draftRow) };
+  check('replay: the webhook moves the draft straight to paid with no QuickBooks status',
+    paidRow.status === 'paid' && paidRow.qbo_sync_status === null, JSON.stringify({ s: paidRow.status, q: paidRow.qbo_sync_status }));
+  check('replay: reconciler step 1 now selects it (the invoice is pushed, then step 1b pushes the $8,400)',
+    orFilter(F.QBO_PUSH_OWED_FILTER, paidRow));
+  check('replay: qbo-connect-status counts it as Pending, so qbo-setup is not green',
+    orFilter(F.QBO_PENDING_COUNT_FILTER, paidRow));
+  check('mutation: the OLD step-1 filter (pending/error only) does not select it — this is the bug',
+    !orFilter('qbo_sync_status.eq.pending,qbo_sync_status.eq.error', paidRow));
+  check('a draft is still never selected or counted (#12: a draft is not a receivable)',
+    !orFilter(F.QBO_PUSH_OWED_FILTER, draftRow) && !orFilter(F.QBO_PENDING_COUNT_FILTER, draftRow));
+  const grid: Row[] = [];
+  for (const q of [null, 'pending', 'error', 'synced']) for (const st of [null, 'draft', 'sent', 'partially_paid', 'paid']) grid.push({ qbo_sync_status: q, status: st });
+  check('the row predicate is the filter, on every status × sync-status pair',
+    grid.every((r) => F.qboPushOwed(r) === orFilter(F.QBO_PUSH_OWED_FILTER, r)));
+  check('Pending + Errors partitions the owed set (nothing double-counted, nothing dropped)',
+    grid.every((r) => orFilter(F.QBO_PUSH_OWED_FILTER, r)
+      === (orFilter(F.QBO_PENDING_COUNT_FILTER, r) !== (r.qbo_sync_status === 'error'))));
+  check('a synced row is not re-pushed by step 1 (its payments go through step 1b)',
+    !orFilter(F.QBO_PUSH_OWED_FILTER, { qbo_sync_status: 'synced', status: 'paid' }));
+  const recon = read('supabase/functions/qbo-reconciler/index.ts');
+  const status = read('supabase/functions/qbo-connect-status/index.ts');
+  check('wiring: reconciler step 1 uses the shared filter',
+    /\.or\(QBO_PUSH_OWED_FILTER\)/.test(recon) && !/\.or\("qbo_sync_status\.eq\.pending,qbo_sync_status\.eq\.error"\)/.test(recon));
+  check('wiring: qbo-connect-status counts Pending with the shared filter, not eq(pending)',
+    /\.or\(QBO_PENDING_COUNT_FILTER\)/.test(status) && !/\.eq\("qbo_sync_status", "pending"\)/.test(status));
 }
 
 if (failures > 0) {

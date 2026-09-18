@@ -8,10 +8,13 @@
 // - Android/web: modal with a button list (+ dim backdrop).
 //
 // The sheet reads the action catalog from `utils/entityActions.ts` and wires
-// the verbs itself (Open → navigate; Copy link → clipboard; Share → Share API;
-// Mark complete / Duplicate / Delete → caller-provided `onAction` callback).
-// Consumers that don't need state mutations can omit `onAction` — the sheet
-// still handles Open / Copy / Share on its own.
+// the verbs itself: Open → navigate; Copy link / Share → an https link on the
+// web-app origin; Mark complete / Delete → the ProjectContext mutator for the
+// kinds listed in entityActions SHEET_WIRED (RFI close, punch close + delete).
+// Any other mutating verb is shown ONLY when the caller names it in
+// `callerVerbs` and handles it in `onAction`. A verb nobody performs is not
+// offered — audit round 2 #34 found Duplicate, Mark complete and a red Delete
+// that closed the sheet and did nothing on the project page and activity feed.
 // ============================================================================
 
 import React, { useMemo } from 'react';
@@ -26,13 +29,14 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import {
-  getEntityActions, getEntityDeepLink, getEntityShareBody,
+  getRunnableEntityActions, getEntityDeepLink, getEntityShareBody,
+  sheetWiresVerb, rfiClosePatch, punchClosePatch,
   type EntityAction, type EntityActionId,
 } from '@/utils/entityActions';
 import { shareText } from '@/utils/shareText';
 import { formatEntityLabel } from '@/utils/entityResolver';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { EntityRef } from '@/types';
+import type { EntityRef, PunchItem, RFI } from '@/types';
 import type { EntityStore } from '@/utils/entityResolver';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
@@ -45,14 +49,21 @@ export interface EntityActionSheetProps {
   /** Called whenever the sheet is dismissed (after action or cancel). */
   onClose: () => void;
   /**
-   * Optional callback for actions the sheet can't wire itself.
-   * Called with the action id and the ref. Open / Copy / Share are handled
-   * internally and do NOT invoke this — set `onAction` only to handle
-   * markComplete / duplicate / delete.
+   * Callback for the mutating verbs the sheet can't wire itself. It is only
+   * ever called for a verb listed in `callerVerbs` — and only those verbs are
+   * shown — so passing `onAction` can no longer surface a menu item that the
+   * handler quietly ignores. Open / Copy / Share never reach it.
    */
   onAction?: (id: EntityActionId, ref: EntityRef) => void;
+  /** The verbs `onAction` really performs for the current `entityRef`. */
+  callerVerbs?: EntityActionId[];
   /** Optional filter — drop any actions whose id isn't in the allowlist. */
   allowed?: EntityActionId[];
+}
+
+/** window.location.origin on web (so a deploy preview links to itself); null elsewhere. */
+function runtimeOrigin(): string | null {
+  return Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null;
 }
 
 const ICONS: Record<NonNullable<EntityAction['icon']>, React.FC<{ size: number; color: string }>> = {
@@ -63,19 +74,41 @@ export default function EntityActionSheet({
   entityRef,
   onClose,
   onAction,
+  callerVerbs,
   allowed,
 }: EntityActionSheetProps) {
-  const store = useProjects() as unknown as EntityStore;
+  const projectsCtx = useProjects();
+  const store = projectsCtx as unknown as EntityStore;
+  const { rfis, punchItems, updateRFI, updatePunchItem, deletePunchItem } = projectsCtx;
   const { navigateTo } = useEntityNavigation();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
+  // The live record, for the kinds the sheet mutates itself — its status
+  // decides whether "Mark complete" is still meaningful, and RFI close needs
+  // its ball-in-court + hand-off log.
+  const record = useMemo<RFI | PunchItem | undefined>(() => {
+    if (!entityRef) return undefined;
+    if (entityRef.kind === 'rfi') return (rfis as RFI[]).find(r => r.id === entityRef.id);
+    if (entityRef.kind === 'punchItem') return (punchItems as PunchItem[]).find(p => p.id === entityRef.id);
+    return undefined;
+  }, [entityRef, rfis, punchItems]);
+
   const actions = useMemo<EntityAction[]>(() => {
     if (!entityRef) return [];
-    const all = getEntityActions(entityRef);
+    const all = getRunnableEntityActions(entityRef, {
+      callerVerbs: onAction ? callerVerbs : [],
+      status: record?.status,
+    }).filter(a => {
+      // A self-wired verb needs the record in the store; a ref whose row is
+      // not loaded (another device's, or just deleted) cannot be closed here.
+      if (a.id === 'open' || a.id === 'copyLink' || a.id === 'share') return true;
+      if (onAction && callerVerbs?.includes(a.id)) return true;
+      return sheetWiresVerb(entityRef.kind, a.id) && !!record;
+    });
     return allowed ? all.filter(a => allowed.includes(a.id)) : all;
-  }, [entityRef, allowed]);
+  }, [entityRef, allowed, onAction, callerVerbs, record]);
 
   const title = useMemo(
     () => (entityRef ? formatEntityLabel(entityRef, store) : ''),
@@ -94,7 +127,7 @@ export default function EntityActionSheet({
         return;
 
       case 'copyLink': {
-        const link = getEntityDeepLink(entityRef);
+        const link = getEntityDeepLink(entityRef, runtimeOrigin());
         if (!link) {
           showAlert('No link', 'This item doesn\u2019t have a shareable link yet.');
           return;
@@ -110,7 +143,7 @@ export default function EntityActionSheet({
       }
 
       case 'share': {
-        const body = getEntityShareBody(entityRef, title);
+        const body = getEntityShareBody(entityRef, title, runtimeOrigin());
         try {
           if (Platform.OS === 'web') {
             if (typeof navigator !== 'undefined' && (navigator as any).share) {
@@ -133,14 +166,47 @@ export default function EntityActionSheet({
 
       case 'markComplete':
       case 'duplicate':
-      case 'delete':
-        onAction?.(id, entityRef);
+      case 'delete': {
+        // The caller's handler wins for the verbs it claims (Home's project
+        // Duplicate). Everything else offered here is self-wired — the
+        // `actions` memo never lists a verb neither side performs.
+        if (onAction && callerVerbs?.includes(id)) {
+          onAction(id, entityRef);
+          return;
+        }
+        runSelfWired(id, entityRef);
         return;
+      }
 
       default: {
         const _exhaustive: never = id;
         void _exhaustive;
       }
+    }
+  };
+
+  const runSelfWired = (id: EntityActionId, ref: EntityRef) => {
+    const now = new Date().toISOString();
+    if (ref.kind === 'rfi' && id === 'markComplete') {
+      const rfi = record as RFI | undefined;
+      if (!rfi) return;
+      updateRFI(ref.id, rfiClosePatch(rfi, now));
+      return;
+    }
+    if (ref.kind === 'punchItem' && id === 'markComplete') {
+      if (!record) return;
+      updatePunchItem(ref.id, punchClosePatch(now));
+      return;
+    }
+    if (ref.kind === 'punchItem' && id === 'delete') {
+      if (!record) return;
+      // A red Delete deletes — after a confirm, like app/punch-list.tsx,
+      // because the delete syncs to every device and cannot be undone.
+      showAlert('Delete punch item?', `${title} will be removed from the punch list on every device. This can't be undone.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deletePunchItem(ref.id) },
+      ]);
+      return;
     }
   };
 

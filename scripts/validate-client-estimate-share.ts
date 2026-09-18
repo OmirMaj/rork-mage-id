@@ -205,7 +205,16 @@ assert(!!shareRun && /afterDismiss/.test(shareRun.span),
 // The client preview: his split when set, a not-set branch when not.
 assert(/paymentSchedule=\{\s*savedSplit\s*\?\s*proposalPaymentLines\(\s*clientView\.projectTotal\s*,\s*savedSplit\s*\)\s*:\s*undefined\s*\}/.test(review),
   'the client preview prints proposalPaymentLines when set and no schedule when not');
-const notSet = /\{!savedSplit \?/.exec(review);
+// While his profile is still loading (or the read failed) the card says so
+// instead of "not set" — so the not-set branch now sits after a status branch,
+// reached as `) : !savedSplit ? (`. Anchor on either form, and pin that the
+// loading/failed branch comes FIRST so "not set" can never show before a load.
+const notSet = /(?:\{|:\s*)!savedSplit \?/.exec(review);
+const statusBranch = review.indexOf("savedTerms.status !== 'ready' ? (");
+assert(statusBranch >= 0 && !!notSet && statusBranch < notSet.index,
+  'the terms card checks the profile-load status before it can say "not set yet"');
+assert(/testID="review-terms-loading"/.test(review) && /onPress=\{savedTerms\.retry\}/.test(review),
+  '…and the loading/failed branch has its own card with a Retry on a failed read');
 const notSetSpan = notSet ? review.slice(notSet.index, notSet.index + 900) : '';
 assert(/Payment schedule — not set yet\. You’ll be asked before you share\./.test(notSetSpan),
   'the client preview has the GC-only "not set yet" line');

@@ -12,12 +12,12 @@
 // All color references are semantic ThemeColors or Colors.*; text via Type.*;
 // spacing via Tokens.spacing.*; radius via Tokens.radius.*.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Platform,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -45,6 +45,9 @@ import { Tokens } from '@/constants/designTokens';
 import type { WizardAnswers } from '@/utils/scopeQuestions';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
+import { resolveTargetMargin } from '@/utils/judges/targetMargin';
+import { MARKUP_CHOICES, marginOf } from '@/utils/estimateMarkup';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -74,7 +77,14 @@ function JudgesInner() {
   const insets = useSafeAreaInsets();
   const goBack = useSafeBack();
   const { isDesktop } = useResponsiveLayout();
-  const { projects, commitments, changeOrders, invoices, equipment, permits, subcontractors } = useProjects();
+  const { projects, projectsLoaded, settings, commitments, changeOrders, invoices, equipment, permits, subcontractors } = useProjects();
+  // His markup — the one answer the wizard, Quick Quote and takeoff-estimate
+  // all honor. The verdict is scored at THIS, never at an assumed 20% margin
+  // (audit round 2, #6; utils/judges/targetMargin.ts).
+  const { globalMarkup: savedMarkup, markupDecided, recordMarkupDecision } = useMaterialCart();
+  // "Score with Bid Advisor" on bid-leveling / buyout-package passes the
+  // project. It used to be dropped and he landed on a blank describe form.
+  const { projectId: routeProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { receipts } = useMaterialReceipts();
   // Self-perform labor samples (D6) — crew hours × configured loaded rates
   // fold into the cost book the judges score against.
@@ -98,6 +108,8 @@ function JudgesInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<JudgesResult | null>(null);
+  /** Where the scored margin came from, printed on the verdict card. */
+  const [marginLabel, setMarginLabel] = useState<string | null>(null);
 
   // ── Context object ────────────────────────────────────────────────────
   // The same seven cost streams Job Costing prices. runJudges lets the margin
@@ -129,6 +141,8 @@ function JudgesInner() {
   // ── Describe path: draft + judge ─────────────────────────────────────
   const handleDescribeJudge = useCallback(async () => {
     if (!scope.trim()) return;
+    const tm = resolveTargetMargin({ savedMarkupPct: savedMarkup, markupDecided });
+    if (!tm.ok) { setError(tm.reason); return; }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -137,7 +151,9 @@ function JudgesInner() {
       const answers: WizardAnswers = {
         projectType,
         sizeSqft: sizeSqft.trim(),
-        location: '',
+        // His business location from settings — a regional pricing hint for
+        // the drafted lines (was '' — every describe job priced nowhere).
+        location: typeof settings?.location === 'string' ? settings.location : '',
         quality,
         scope: scope.trim(),
         timelineWeeks: timelineWeeks.trim(),
@@ -154,10 +170,11 @@ function JudgesInner() {
         lines: drafted.lines,
         projectType,
         timelineWindow,
-        targetMargin: 0.2,
+        targetMargin: tm.targetMargin,
         ctx,
         scopeSummary: drafted.summary,
       });
+      setMarginLabel(tm.label);
       setResult(res);
       // DESCRIBE MODE IS DELIBERATELY *NOT* RECORDED TO THE PREDICTION LEDGER.
       //
@@ -191,12 +208,21 @@ function JudgesInner() {
     } finally {
       setLoading(false);
     }
-  }, [scope, projectType, sizeSqft, quality, timelineWeeks, ctx]);
+  }, [scope, projectType, sizeSqft, quality, timelineWeeks, ctx, savedMarkup, markupDecided, settings?.location]);
 
   // ── Pick-existing path: map estimate items + judge ────────────────────
   const handlePickProject = useCallback(async (projectId: string) => {
     const project = projects.find(p => p.id === projectId);
     if (!project?.linkedEstimate) return;
+    // The estimate's own markup, else his saved one, else BLOCKED — the old
+    // `m > 0 ? m/(1+m) : 0.2` scored an unmarked estimate at 20% and wrote
+    // that 20 into the prediction ledger for gradeJudges to grade against.
+    const tm = resolveTargetMargin({
+      estimateMarkupPct: project.linkedEstimate.globalMarkup ?? null,
+      savedMarkupPct: savedMarkup,
+      markupDecided,
+    });
+    if (!tm.ok) { setError(tm.reason); return; }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -210,9 +236,7 @@ function JudgesInner() {
         // Bulk-priced items are actually costed at bulkPrice, not unitPrice.
         bidUnit: item.usesBulk && item.bulkPrice > 0 ? item.bulkPrice : item.unitPrice,
       }));
-      // Derive targetMargin from globalMarkup: m/(1+m) with m = globalMarkup/100
-      const m = (est.globalMarkup ?? 0) / 100;
-      const targetMargin = m > 0 ? m / (1 + m) : 0.2;
+      const targetMargin = tm.targetMargin;
       const timelineWindow = buildTimelineWindow(timelineWeeks);
       const res = await runJudges({
         lines,
@@ -222,6 +246,7 @@ function JudgesInner() {
         project,
         ctx,
       });
+      setMarginLabel(tm.label);
       setResult(res);
       // G4: fire-and-forget capture — pick mode (gradeable via realized margin at close)
       try {
@@ -246,7 +271,63 @@ function JudgesInner() {
     } finally {
       setLoading(false);
     }
-  }, [projects, timelineWeeks, ctx]);
+  }, [projects, timelineWeeks, ctx, savedMarkup, markupDecided]);
+
+  // ── Deep link: score the project the caller named ─────────────────────
+  // Runs once, after the projects AND the markup answer have loaded (a
+  // markupDecided of null would read as "not set" and block a verdict the
+  // saved markup can score). A project with no estimate says so instead of
+  // leaving him on an empty form.
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current || !routeProjectId) return;
+    if (!projectsLoaded || markupDecided === null) return;
+    deepLinkHandledRef.current = true;
+    const target = projects.find(p => p.id === routeProjectId);
+    setMode('pick');
+    if (!target) {
+      setError('That project isn’t in your list any more — pick an estimate below.');
+      return;
+    }
+    if (!target.linkedEstimate) {
+      setError(`${target.name} has no estimate yet — build one first, then score it here.`);
+      return;
+    }
+    void handlePickProject(routeProjectId);
+  }, [routeProjectId, projectsLoaded, markupDecided, projects, handlePickProject]);
+
+  // Shown whenever a verdict would be blocked on the markup: the same ladder
+  // the wizard and takeoff-estimate offer, routed through recordMarkupDecision
+  // so answering here answers everywhere. Hidden once he has answered.
+  const markupUnset = markupDecided === false;
+  const chooseMarkup = useCallback((pct: number) => {
+    recordMarkupDecision(pct);
+    setError(null);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [recordMarkupDecision]);
+  const markupRow = markupUnset ? (
+    <View style={styles.markupWrap}>
+      <Text style={styles.fieldLabel}>Your markup — not set. Bid Advisor scores the job at it.</Text>
+      <View style={styles.qualityRow}>
+        {MARKUP_CHOICES.map(m => (
+          <TouchableOpacity
+            key={m}
+            style={styles.qualityBtn}
+            onPress={() => chooseMarkup(m)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${m} percent markup, a ${Math.round(marginOf(m) * 100)} percent margin`}
+          >
+            <Text style={styles.qualityBtnText}>{m}%</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  ) : markupDecided === true ? (
+    <Text style={styles.markupNote}>
+      Scored at your {savedMarkup}% markup ({Math.round(marginOf(savedMarkup) * 100)}% margin){mode === 'pick' ? ' unless the estimate carries its own' : ''}.
+    </Text>
+  ) : null;
 
   // ── Projects with estimates (pick mode) ──────────────────────────────
   const projectsWithEstimate = useMemo(
@@ -256,6 +337,7 @@ function JudgesInner() {
 
   const handleReset = useCallback(() => {
     setResult(null);
+    setMarginLabel(null);
     setError(null);
     setScope('');
     setSizeSqft('');
@@ -285,7 +367,7 @@ function JudgesInner() {
           contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
         >
-          <VerdictCard result={result} />
+          <VerdictCard result={result} marginSource={marginLabel} />
           <TouchableOpacity style={styles.resetBtn} onPress={handleReset} activeOpacity={0.85}>
             <Text style={styles.resetBtnText}>Judge another</Text>
           </TouchableOpacity>
@@ -414,10 +496,12 @@ function JudgesInner() {
               ))}
             </View>
 
+            {markupRow}
+
             <TouchableOpacity
-              style={[styles.judgeBtn, (!scope.trim() || loading) && styles.judgeBtnDisabled]}
+              style={[styles.judgeBtn, (!scope.trim() || loading || markupUnset) && styles.judgeBtnDisabled]}
               onPress={handleDescribeJudge}
-              disabled={!scope.trim() || loading}
+              disabled={!scope.trim() || loading || markupUnset}
               activeOpacity={0.85}
             >
               {loading
@@ -435,6 +519,7 @@ function JudgesInner() {
         {mode === 'pick' && (
           <>
             <Text style={styles.sectionTitle}>Pick an estimate to judge</Text>
+            {markupRow}
 
             {/* Optional timeline for capacity analysis */}
             <Text style={styles.fieldLabel}>Timeline (weeks) — optional, enables capacity check</Text>
@@ -518,6 +603,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 12, marginBottom: 14,
   },
   errorText: { fontSize: Type.footnote.fontSize, color: t.danger, lineHeight: 19 },
+
+  markupWrap: { marginTop: 4 },
+  markupNote: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 12 },
 
   sectionTitle: {
     fontSize: Type.subheadline.fontSize, fontWeight: '700' as const,

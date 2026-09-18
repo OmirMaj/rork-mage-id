@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments, usePathname } from "expo-router";
+import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
@@ -39,7 +39,7 @@ import { THEME_PRESETS } from "@/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { processOfflineQueue } from "@/utils/offlineQueue";
+import { processOfflineQueue, onQueueChanged } from "@/utils/offlineQueue";
 import { processPhotoUploadQueue } from "@/utils/photoUploadQueue";
 import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
 import * as Linking from "expo-linking";
@@ -359,6 +359,7 @@ function OfflineSyncManager() {
   const { flushPendingProjectSyncs } = useProjectActions();
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffMs = useRef(0);
+  const draining = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -396,6 +397,7 @@ function OfflineSyncManager() {
       if (cancelled) return;
       if (reset) backoffMs.current = 0;
       clearRetry();
+      draining.current = true;
       // Photo bytes drain on the SAME triggers as text mutations (startup,
       // foreground, backoff) but on their own queue — see utils/photoUploadQueue.
       // Chained rather than raced so a jobsite's uplink isn't split between
@@ -411,6 +413,7 @@ function OfflineSyncManager() {
         // number of retries under this JWT would ever send them.
         return { processed: res.processed, remaining: res.remaining + photos.remaining };
       }).then(({ processed, remaining }) => {
+        draining.current = false;
         if (cancelled) return;
         if (processed > 0) {
           console.log('[OfflineSync] Processed', processed, 'queued mutations');
@@ -421,6 +424,7 @@ function OfflineSyncManager() {
           backoffMs.current = 0;
         }
       }).catch((err) => {
+        draining.current = false;
         console.log('[OfflineSync] Failed to process queue:', err);
         // An unexpected flush failure is treated like a non-empty queue: back
         // off and try again rather than silently giving up.
@@ -429,6 +433,22 @@ function OfflineSyncManager() {
     };
 
     drain(true);
+
+    // A write that lands in the queue WHILE ONLINE (one network blip on a
+    // direct write, or a project edit the ordered writer put behind an earlier
+    // queued one) used to wait for the next foreground/background change: the
+    // backoff above is armed only by a drain that left items, and nothing had
+    // drained. Meanwhile every later edit of that project queued behind it and
+    // other devices, the client portal and Schedule Pro (busy while its project
+    // has queued writes) saw none of it. So a queue that gains entries with no
+    // drain running and no retry armed gets one soon. The delay is fixed, not
+    // the growing backoff: this is a fresh write, and if we are really offline
+    // that drain leaves items and arms the backoff as usual. Changes the drain
+    // itself makes are ignored (draining), so this cannot loop.
+    const unsubscribeQueue = onQueueChanged((depth) => {
+      if (cancelled || depth === 0 || draining.current || retryTimer.current) return;
+      retryTimer.current = setTimeout(() => { retryTimer.current = null; drain(false); }, BASE_DELAY);
+    });
 
     // SYNC-F7: on the way OUT of the foreground, fire every debounced project
     // sync and drain the queue. iOS freezes JS timers in the background and
@@ -471,6 +491,7 @@ function OfflineSyncManager() {
     return () => {
       cancelled = true;
       clearRetry();
+      unsubscribeQueue();
       subscription.remove();
       if (hasWindow) window.removeEventListener('pagehide', onPageHide);
     };
@@ -479,10 +500,39 @@ function OfflineSyncManager() {
   return null;
 }
 
+/**
+ * The query string to stash alongside a bounced path. On web it is the URL's
+ * own `search`, exactly as typed or pasted. Elsewhere it is rebuilt from the
+ * router's global params, minus the ones that fill a dynamic segment
+ * (`[id]`), which are already inside `pathname`.
+ */
+function pendingLinkQuery(segments: string[], params: Record<string, string | string[] | undefined>): string {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') return window.location.search ?? '';
+  const dynamic = new Set(
+    segments.map(seg => seg.match(/^\[(?:\.\.\.)?([^\]]+)\]$/)?.[1]).filter((k): k is string => !!k),
+  );
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (dynamic.has(k) || v == null) continue;
+    for (const one of Array.isArray(v) ? v : [v]) q.append(k, one);
+  }
+  const qs = q.toString();
+  return qs ? `?${qs}` : '';
+}
+
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const pathname = usePathname();
+  // usePathname() carries NO query string, so the pending-link stash below
+  // used to save `/invoice` from `/invoice?projectId=…&invoiceId=…` and the
+  // replay landed a teammate on an empty editor. The row menu's "Copy link"
+  // now hands out https links on the web-app origin whose record lives
+  // entirely in the query (audit round 2 #34), so the stash must keep it.
+  // Held in a ref: the auth gate must not re-run on every param change.
+  const globalParams = useGlobalSearchParams();
+  const globalParamsRef = useRef(globalParams);
+  globalParamsRef.current = globalParams;
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
 
@@ -542,7 +592,7 @@ function RootLayoutNav() {
       // bounce or public routes that don't require auth.
       const firstSeg = pathname.replace(/^\//, '').split('?')[0];
       if (pathname !== '/login' && !PUBLIC_PATHS.has(firstSeg)) {
-        void setPendingDeepLink(pathname);
+        void setPendingDeepLink(pathname + pendingLinkQuery(segments as string[], globalParamsRef.current));
       }
       router.replace('/login');
       return;

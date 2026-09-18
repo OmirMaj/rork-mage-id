@@ -442,7 +442,7 @@ export default function DiscoverScreen() {
           iconColor={Colors.infoLabel}
           iconBg={Colors.info + '15'}
           title="Companies"
-          subtitle="Bond capacity & certifications"
+          subtitle="Public Google business listings, 9 metros"
           onPress={() => navigateTo('/(tabs)/discover/companies')}
         />
 

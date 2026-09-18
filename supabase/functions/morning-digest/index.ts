@@ -39,9 +39,16 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // Shared email helpers — same shell every transactional email uses so
 // the morning digest matches sub-portal invites, contract sends, payment
 // receipts, COI warnings, and the homeowner weekly digest.
-import { wrapEmailHtml, resendSend } from '../_shared/email.ts';
+import { wrapEmailHtml, resendSend, isEmailUnsubscribed } from '../_shared/email.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
+// Today's tasks by the app's own working-day rules (audit 2026-09-18 #14) and
+// the unsubscribe gate (#15) — see the headers of both files.
+import {
+  todayOnSite, calendarDayInZone, localHourInZone, digestGreeting, epochDayOf, isoOfEpochDay,
+  DEFAULT_DIGEST_TIMEZONE, type TodayOnSite,
+} from './scheduleToday.ts';
+import { sendDigestUnlessUnsubscribed, GC_DIGEST_EVENT_KEY } from './digestGate.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -96,6 +103,7 @@ interface SchedTask {
   status?: string;
   isCriticalPath?: boolean;
   isWeatherSensitive?: boolean;
+  isMilestone?: boolean;
   crew?: string;
   assignedSubName?: string;
 }
@@ -106,7 +114,12 @@ interface ProjectRow {
   location?: string;
   location_latitude?: number | null;
   location_longitude?: number | null;
-  schedule?: { tasks?: SchedTask[]; startDate?: string } | null;
+  schedule?: {
+    tasks?: SchedTask[];
+    startDate?: string;
+    workingDaysPerWeek?: number;
+    nonWorkingDates?: string[];
+  } | null;
 }
 interface ProfileRow {
   id: string;
@@ -163,6 +176,9 @@ async function fetchTodayWeather(lat: number, lng: number): Promise<WeatherToday
 interface ProjectBriefing {
   projectId: string;
   name: string;
+  /** Why the task list is what it is — a closed day and an undated schedule
+   *  must not render as "Nothing scheduled today". */
+  onSite: TodayOnSite<SchedTask>;
   todayTasks: SchedTask[];
   criticalCount: number;
   weather: WeatherToday | null;
@@ -175,21 +191,13 @@ function buildProjectBriefing(
   project: ProjectRow,
   yesterdayDfrs: DfrRow[],
   weather: WeatherToday | null,
+  /** Today as a calendar day in the USER's zone, not the server's. */
+  todayIso: string,
 ): ProjectBriefing {
-  const tasks = project.schedule?.tasks ?? [];
-  const startDate = project.schedule?.startDate;
-  let todayDay = 0;
-  if (startDate) {
-    const startMs = Date.parse(startDate);
-    if (Number.isFinite(startMs)) {
-      todayDay = Math.floor((Date.now() - startMs) / 86_400_000) + 1;
-    }
-  }
-  const todayTasks = tasks.filter(t => {
-    const start = t.startDay;
-    const end = t.startDay + Math.max(0, t.durationDays - 1);
-    return todayDay >= start && todayDay <= end && (t.status ?? 'not_started') !== 'completed';
-  });
+  // Working-day membership, finished tasks dropped — the same answer the
+  // app's TODAY ON SITE card gives for this job this morning.
+  const onSite = todayOnSite(project.schedule, todayIso);
+  const todayTasks = onSite.tasks;
   const criticalCount = todayTasks.filter(t => t.isCriticalPath).length;
   const weatherRiskTasks = weather && !weather.workable
     ? todayTasks.filter(t => t.isWeatherSensitive).map(t => t.title)
@@ -203,6 +211,7 @@ function buildProjectBriefing(
   return {
     projectId: project.id,
     name: project.name,
+    onSite,
     todayTasks,
     criticalCount,
     weather,
@@ -214,14 +223,15 @@ function buildProjectBriefing(
 
 // ── HTML email composition ──────────────────────────────────────────
 function renderDigestHtml(opts: {
-  userName: string;
+  /** 'Good morning, Sam.' before noon in his zone, a plain title after. */
+  greetingTitle: string;
   todayDateLabel: string;
   briefings: ProjectBriefing[];
   openRfisCount: number;
   /** Required for the in-body unsubscribe link — see the note at the bottom. */
   recipientEmail: string;
 }): string {
-  const { userName, todayDateLabel, briefings, openRfisCount, recipientEmail } = opts;
+  const { greetingTitle, todayDateLabel, briefings, openRfisCount, recipientEmail } = opts;
 
   const projectBlocks = briefings.length === 0
     ? `<p style="margin:0;color:${STONE};">No active projects today. Enjoy the quiet.</p>`
@@ -232,13 +242,26 @@ function renderDigestHtml(opts: {
                ${b.weather.workable ? '' : ' · <strong>Not workable for weather-sensitive tasks</strong>'}
              </p>`
           : `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">No weather available — set the project address to enable hyperlocal forecasts.</p>`;
-        const tasksLine = b.todayTasks.length === 0
-          ? `<p style="margin:0;color:${FOG};font-size:13px;">Nothing scheduled today.</p>`
+        // A closed day, a job that has not started and an undated schedule each
+        // say what they are. None of them lists tasks: a list on a closed day
+        // is how a sub gets called out to a locked site.
+        const quietLine = (text: string) => `<p style="margin:0;color:${FOG};font-size:13px;">${escapeHtml(text)}</p>`;
+        const milestoneLine = b.onSite.state === 'working' && b.onSite.milestones.length > 0
+          ? `<p style="margin:6px 0 0;color:${STONE};font-size:13px;"><strong style="color:${INK};">Milestone today:</strong> ${b.onSite.milestones.slice(0, 3).map(m => escapeHtml(m.title)).join(', ')}</p>`
+          : '';
+        const tasksLine = b.onSite.state === 'closed_day'
+          ? quietLine('Not a working day on this job\'s schedule.')
+          : b.onSite.state === 'not_started'
+          ? quietLine(`Work starts ${formatIsoDay(b.onSite.startIso)}.`)
+          : b.onSite.state === 'undated'
+          ? quietLine('This schedule has no start date, so today\'s tasks cannot be placed. Set the start date in the app.')
+          : b.todayTasks.length === 0
+          ? quietLine('Nothing scheduled today.') + milestoneLine
           : `<p style="margin:0 0 6px;color:${STONE};font-size:14px;line-height:1.5;">
                <strong style="color:${INK};">${b.todayTasks.length} task${b.todayTasks.length === 1 ? '' : 's'} today</strong>${b.criticalCount > 0 ? ` (${b.criticalCount} on critical path)` : ''}:
                ${b.todayTasks.slice(0, 4).map(t => `<br/>• ${escapeHtml(t.title)}${t.crew ? ` — <span style="color:${FOG};">${escapeHtml(t.crew)}</span>` : ''}`).join('')}
                ${b.todayTasks.length > 4 ? `<br/><span style="color:${FOG};">…and ${b.todayTasks.length - 4} more</span>` : ''}
-             </p>`;
+             </p>${milestoneLine}`;
         const riskLine = b.weatherRiskTasks.length > 0
           ? `<p style="margin:6px 0 0;color:#B45309;font-size:13px;"><strong>Weather risk:</strong> ${b.weatherRiskTasks.slice(0, 3).map(escapeHtml).join(', ')}${b.weatherRiskTasks.length > 3 ? ' +more' : ''}</p>`
           : '';
@@ -261,12 +284,10 @@ function renderDigestHtml(opts: {
     ? `<p style="margin:0 0 16px;color:${STONE};font-size:14px;">You have <strong style="color:${INK};">${openRfisCount} open RFI${openRfisCount === 1 ? '' : 's'}</strong> waiting on a reply.</p>`
     : '';
 
-  const greetingFirstName = userName ? userName.split(' ')[0] : '';
-
   return wrapEmailHtml({
     preheader: `${briefings.length} active project${briefings.length === 1 ? '' : 's'} · ${todayDateLabel}`,
     eyebrow: todayDateLabel,
-    title: greetingFirstName ? `Good morning, ${greetingFirstName}.` : 'Good morning.',
+    title: greetingTitle,
     subtitle: "Here's what's on the boards today across your active projects.",
     bodyHtml: `${rfiLine}${projectBlocks}`,
     // No CTA — the digest is read-only context. User opens the app via
@@ -284,7 +305,18 @@ function renderDigestHtml(opts: {
 }
 
 // ── Push sender (copied from notify/index.ts — same Expo push contract) ──
-async function sendPush(token: string, title: string, body: string, data?: Record<string, unknown>): Promise<{ ok: boolean; resp?: unknown }> {
+// 'Sep 17' for a calendar day, read as a calendar day (no zone shift).
+function formatIsoDay(iso: string): string {
+  const day = epochDayOf(iso);
+  if (day == null) return iso;
+  return new Date(day * 86_400_000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+// `badge` is the icon count the phone should show: every unread inbox row.
+// It used to be a hard-coded 1, which reset a badge of 9 to 1 every morning
+// and put a 1 on the icon of someone who had read everything. null = the count
+// could not be read, so the badge is left alone rather than guessed.
+async function sendPush(token: string, title: string, body: string, data?: Record<string, unknown>, badge?: number | null): Promise<{ ok: boolean; resp?: unknown }> {
   if (!token) return { ok: false };
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
@@ -295,7 +327,7 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
       body: JSON.stringify({
         to: token, title, body, data: data ?? {},
         sound: 'default', priority: 'high',
-        badge: 1,
+        ...(typeof badge === 'number' ? { badge } : {}),
         _displayInForeground: true,
       }),
     });
@@ -306,15 +338,16 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
   }
 }
 
-async function sendDigestEmail(to: string, html: string, todayDateLabel: string): Promise<boolean> {
+async function sendDigestEmail(to: string, html: string, subject: string): Promise<boolean> {
   if (!RESEND_API_KEY) return false;
   // Routes through resendSend → retry-with-backoff on 429, plaintext
   // fallback, List-Unsubscribe headers (Gmail bulk-sender compliance).
+  // Callers reach this ONLY through sendDigestUnlessUnsubscribed.
   const result = await resendSend(RESEND_API_KEY, {
     to,
-    subject: `Morning briefing — ${todayDateLabel}`,
+    subject,
     html,
-    unsubscribe: { recipientEmail: to, eventKey: 'daily_digest', enabled: true },
+    unsubscribe: { recipientEmail: to, eventKey: GC_DIGEST_EVENT_KEY, enabled: true },
   });
   return result.ok;
 }
@@ -341,8 +374,16 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
   // job this user owns — whoever logged them. The flip side is deliberate: a
   // foreman's own reports on someone else's job no longer land in HIS digest,
   // which is about his own jobs.
+  // "Today" is HIS calendar day. The server runs on UTC, so an 8 PM Pacific
+  // brief (03:00 UTC) used to be dated tomorrow and read tomorrow's tasks.
+  const now = new Date();
+  const tz = profile.digest_timezone || DEFAULT_DIGEST_TIMEZONE;
+  const todayIso = calendarDayInZone(now, tz);
+  const localHour = localHourInZone(now, tz);
+  const todayEpoch = epochDayOf(todayIso);
+
   const activeIds = activeProjects.map(p => String(p.id)).filter(Boolean);
-  const yesterdayIso = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const yesterdayIso = todayEpoch != null ? isoOfEpochDay(todayEpoch - 1) : new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   let yesterdayDfrs: DfrRow[] = [];
   if (activeIds.length > 0) {
     const { data: dfrs } = await supabase
@@ -387,14 +428,19 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
     const lat = p.location_latitude;
     const lng = p.location_longitude;
     const weather = (lat != null && lng != null) ? await fetchTodayWeather(lat, lng) : null;
-    briefings.push(buildProjectBriefing(p, yesterdayDfrs, weather));
+    briefings.push(buildProjectBriefing(p, yesterdayDfrs, weather, todayIso));
   }
 
-  const todayDateLabel = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  });
+  let todayDateLabel: string;
+  try {
+    todayDateLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz });
+  } catch {
+    todayDateLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: DEFAULT_DIGEST_TIMEZONE });
+  }
+  const firstName = profile.name ? profile.name.split(' ')[0] : '';
+  const greeting = digestGreeting(localHour, firstName);
   const html = renderDigestHtml({
-    userName: profile.name ?? '',
+    greetingTitle: greeting.title,
     todayDateLabel,
     briefings,
     openRfisCount: openRfisCount ?? 0,
@@ -405,13 +451,19 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
   const summary = briefings.length === 0
     ? 'No active projects today.'
     : `${briefings.length} project${briefings.length === 1 ? '' : 's'} active. ${totalTasksToday} task${totalTasksToday === 1 ? '' : 's'} today${(openRfisCount ?? 0) > 0 ? ` · ${openRfisCount} open RFI${openRfisCount === 1 ? '' : 's'}` : ''}.`;
-  const title = `Morning briefing — ${todayDateLabel}`;
+  const title = `${greeting.subjectPrefix} — ${todayDateLabel}`;
 
   let emailStatus: string | null = null;
   let sent = false;
   if (channels.email !== false && profile.email && !hasNothingToSay) {
-    sent = await sendDigestEmail(profile.email, html, todayDateLabel);
-    emailStatus = sent ? 'sent' : 'failed';
+    // The unsubscribe link in this email's footer and header must stop THIS
+    // email (audit 2026-09-18 #15). Suppressed = not sent, recorded as such.
+    const email = profile.email;
+    emailStatus = await sendDigestUnlessUnsubscribed({
+      isUnsubscribed: () => isEmailUnsubscribed(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, email, GC_DIGEST_EVENT_KEY),
+      send: () => sendDigestEmail(email, html, title),
+    });
+    sent = emailStatus === 'sent';
   } else if (hasNothingToSay) {
     emailStatus = 'skipped_nothing_to_report';
   }
@@ -422,7 +474,16 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
   let pushStatus: string | null = null;
   let pushResp: unknown = null;
   if (channels.in_app !== false && profile.push_token && !hasNothingToSay) {
-    const pushResult = await sendPush(profile.push_token, title, summary, { kind: 'morning_brief' });
+    // Unread inbox rows (the same set NotificationContext.syncBadge counts)
+    // plus the morning_brief row written just below.
+    const { count: unread, error: unreadErr } = await supabase
+      .from('notification_outbox')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_user_id', userId)
+      .is('read_at', null)
+      .neq('event_type', 'daily_digest_sent');
+    const badge = unreadErr || typeof unread !== 'number' ? null : unread + 1;
+    const pushResult = await sendPush(profile.push_token, title, summary, { kind: 'morning_brief' }, badge);
     pushStatus = pushResult.ok ? 'sent' : 'failed';
     pushResp = pushResult.resp ?? null;
   }
@@ -446,7 +507,7 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
       payload: {
         title,
         body: summary,
-        briefings: briefings.map(b => ({ projectId: b.projectId, name: b.name, todayCount: b.todayTasks.length, weatherWorkable: b.weather?.workable ?? null })),
+        briefings: briefings.map(b => ({ projectId: b.projectId, name: b.name, todayCount: b.todayTasks.length, scheduleDay: b.onSite.state, weatherWorkable: b.weather?.workable ?? null })),
       },
       delivered_at: (pushStatus === 'sent' || sent) ? new Date().toISOString() : null,
     });

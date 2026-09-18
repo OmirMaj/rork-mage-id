@@ -33,10 +33,23 @@
 //
 //   1. this invoice's own saved rate  — including a deliberate 0. An issued
 //      invoice is a document; its rate is a fact about it, not a preference.
-//   2. the most recent NON-DRAFT invoice on the job — the existing carry, kept
-//      first-in-line so nothing that works today regresses. Drafts are excluded
-//      because a draft is a guess in progress.
+//   2. the most recent NON-DRAFT invoice on the job — the existing carry.
+//      Drafts are excluded because a draft is a guess in progress. EXCEPT when
+//      he has TYPED a contract rate that disagrees with it (below).
 //   3. Project.retainagePercent — the contract term, when he has told us.
+//
+// THE ONE EXCEPTION TO "CARRY FIRST" (audit round 2, #26). The carry outranked
+// the project field because that field began life as an inferred back-fill.
+// e7089d53 made it a contract term he types on the project page
+// (retainagePercentAssumed === false). On a job whose invoice #1 went out at
+// 0% — any job billed before that field existed, or a deposit bill — the carry
+// then silently beat the 10% he had just entered: every later draw asked for
+// 100%, the owner's AP held 10% anyway, and MAGE showed that 10% as overdue on
+// invoices the owner considers paid. So a TYPED contract rate that differs
+// from the carried one wins, and the label names both numbers
+// ("#1 held 0%, your contract says 10%") instead of silently taking either.
+// An assumed / back-filled rate (flag true or absent) still sits behind the
+// carry: it was inferred from that paperwork, so it cannot overrule it.
 //   4. the newest saved G702 pay application — a job already certifying at 10%
 //      on a signed pay app must never be asked what its retainage is.
 //   5. nothing. `needsAsk` is true and `percent` is 0, because 0 is what the
@@ -60,6 +73,9 @@ export interface ResolvedRetainage {
   label: string;
   /** Nothing anywhere records a rate for this job. Ask; do not guess. */
   needsAsk: boolean;
+  /** Set when a typed contract rate overruled a DIFFERENT carried rate — the
+   *  invoice it disagreed with, so the screen can flag it rather than bury it. */
+  conflict?: { invoiceNumber: number; carriedPercent: number };
 }
 
 /** Prior invoices on the same job, in any order. */
@@ -87,6 +103,11 @@ export function isRecordedRetainageRate(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
 }
 
+/** 10 → "10", 7.5 → "7.5" — a label, not a money figure. */
+function fmtRate(n: number): string {
+  return String(Math.round(n * 100) / 100);
+}
+
 export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRetainage {
   // 1 — this invoice's own rate. A deliberate 0 wins here; app/invoice.tsx
   // persists 0 AS 0 precisely so "withheld nothing" stays distinguishable from
@@ -104,7 +125,20 @@ export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRe
     .filter(i => i.id !== input.excludeInvoiceId && i.status !== 'draft' && isRecordedRetainageRate(i.retentionPercent))
     .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0];
   if (prior) {
-    return { percent: prior.retentionPercent as number, source: 'carried', label: `same as #${prior.number}`, needsAsk: false };
+    const carried = prior.retentionPercent as number;
+    const contract = input.project?.retainagePercent;
+    // `=== false`, not `!== true`: only a rate he entered himself (project-detail
+    // and the invoice ask both write false) may overrule a sent invoice's rate.
+    if (input.project?.retainagePercentAssumed === false && isRecordedRetainageRate(contract) && contract !== carried) {
+      return {
+        percent: contract,
+        source: 'contract',
+        label: `#${prior.number} held ${fmtRate(carried)}%, your contract says ${fmtRate(contract)}%`,
+        needsAsk: false,
+        conflict: { invoiceNumber: prior.number, carriedPercent: carried },
+      };
+    }
+    return { percent: carried, source: 'carried', label: `same as #${prior.number}`, needsAsk: false };
   }
 
   // 3 — the contract term, if he has told us. `retainagePercentAssumed` means the

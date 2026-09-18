@@ -11,7 +11,9 @@ import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
   SavedAIAPayApp, PortalState, ProjectSchedule, Permit, Warranty,
+  SendableItemKind,
 } from '@/types';
+import { portalLiveOverrides, PORTAL_MAX_INVOICE_LINES } from '@/utils/portalFreeze';
 import { punchListTypeOf } from '@/types';
 import { dayOrInstantDate } from '@/utils/calendarDate';
 import { getUIStrings } from './portalLanguages';
@@ -36,20 +38,37 @@ import {
  * Per-item visibility gate. Undefined `portalState` is grandfathered as Sent
  * so existing client portals don't lose items overnight when this feature
  * ships. Explicit 'sent' status is also visible. 'draft' and 'recalled' hide.
+ * Exported for scripts/validate-homeowner-digest-gates.ts, which holds the
+ * Friday homeowner email's copy of this rule (homeowner-weekly-digest/
+ * clientVisible.ts isPortalShared) to this one.
  */
-function isShared(s?: PortalState): boolean {
+export function isShared(s?: PortalState): boolean {
   return s == null || s.status === 'sent';
 }
 
 /**
  * Returns the per-item serializable payload. If `lastSentSnapshot` is set
- * (post-Send), we render that exact snapshot — edits-after-send never leak.
- * Falls back to the live serializer for grandfathered items.
+ * (post-Send), the item's FROZEN copy is rendered — edits-after-send never
+ * leak — but through the SAME serializer as a live item, with the live state
+ * fields laid over it (portalLiveOverrides). Returning the parsed snapshot
+ * as-is sent the client raw domain JSON: an invoice with no balance and no
+ * Pay button, a change order with no dateSubmitted, and fields the serializer
+ * exists to strip or gate. Falls back to the live item for grandfathered
+ * items and for a snapshot that does not parse.
  */
-function renderSerialized<T>(item: T & { portalState?: PortalState }, serialize: (i: T) => unknown): unknown {
+function renderSerialized<T>(
+  kind: SendableItemKind,
+  item: T & { portalState?: PortalState },
+  serialize: (i: T) => unknown,
+): unknown {
   const snap = item.portalState?.lastSentSnapshot;
   if (snap) {
-    try { return JSON.parse(snap); } catch { /* malformed snapshot → fall through */ }
+    try {
+      const frozen = JSON.parse(snap) as Record<string, unknown>;
+      if (frozen && typeof frozen === 'object' && !Array.isArray(frozen)) {
+        return serialize({ ...frozen, ...portalLiveOverrides(kind, item), portalState: item.portalState } as unknown as T);
+      }
+    } catch { /* malformed snapshot → fall through */ }
   }
   return serialize(item);
 }
@@ -1331,7 +1350,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     aiaPayApps = [], invite, messages = [],
     supabaseUrl, supabaseAnonKey, contactEmail, contactName,
     maxPhotos = 24, maxDailyReports = 10, maxAIAPayApps = 6,
-    maxInvoiceLines = 10, maxMessages = 20,
+    maxInvoiceLines = PORTAL_MAX_INVOICE_LINES, maxMessages = 20,
   } = opts;
 
   const sections: PortalSnapshot['sections'] = {};
@@ -1429,7 +1448,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   if (portal.showInvoices) {
     const visibleInvoices = invoices.filter(i => isShared(i.portalState));
     if (visibleInvoices.length) {
-      sections.invoices = visibleInvoices.map(i => renderSerialized(i, (inv) => {
+      sections.invoices = visibleInvoices.map(i => renderSerialized('invoice', i, (inv) => {
         const total = inv.totalDue ?? 0;
         const amountPaid = inv.amountPaid ?? 0;
         // MONEY-F5: the balance the client sees is net of held retention.
@@ -1504,7 +1523,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       // The invoice a pay application certifies. One billing period is ONE
       // obligation, however many documents describe it.
       const invoiceById = new Map(invoices.map(i => [i.id, i]));
-      sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => renderSerialized(a, (app) => {
+      sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => renderSerialized('aia_pay_app', a, (app) => {
         // `paidAt` is hydrated from aia_pay_apps.paid_at by the context mapper
         // (MONEY-F1/F16); read defensively so an older local record is just "unpaid".
         const paidAt = (app as SavedAIAPayApp & { paidAt?: string }).paidAt || undefined;
@@ -1599,7 +1618,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   if (portal.showChangeOrders) {
     const visibleCOs = changeOrders.filter(c => isShared(c.portalState));
     if (visibleCOs.length) {
-      sections.changeOrders = visibleCOs.map(c => renderSerialized(c, (co) => ({
+      sections.changeOrders = visibleCOs.map(c => renderSerialized('change_order', c, (co) => ({
         id: co.id,
         number: co.number,
         description: co.description ?? co.reason ?? '',
@@ -1624,7 +1643,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
         return tb - ta;
       });
-      sections.photos = (sorted.slice(0, maxPhotos).map(p => renderSerialized(p, (photo) => ({
+      sections.photos = (sorted.slice(0, maxPhotos).map(p => renderSerialized('photo', p, (photo) => ({
         url: photo.uri ?? '',
         caption: photo.tag ?? photo.location,
         timestamp: photo.timestamp,
@@ -1651,7 +1670,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         return Number.isFinite(t) ? t : 0;
       };
       const sorted = [...visibleDFRs].sort((a, b) => dfrTime(b.date) - dfrTime(a.date));
-      sections.dailyReports = sorted.slice(0, maxDailyReports).map(d => renderSerialized(d, (dfr) => {
+      sections.dailyReports = sorted.slice(0, maxDailyReports).map(d => renderSerialized('daily_report', d, (dfr) => {
         const totalManHours = (dfr.manpower ?? []).reduce(
           (s, m) => s + ((m.hoursWorked ?? 0) * (m.headcount ?? 1)),
           0,
@@ -1710,7 +1729,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   if (portal.showRFIs) {
     const visibleRFIs = rfis.filter(r => isShared(r.portalState));
     if (visibleRFIs.length) {
-      sections.rfis = visibleRFIs.map(r => renderSerialized(r, (rfi) => ({
+      sections.rfis = visibleRFIs.map(r => renderSerialized('rfi', r, (rfi) => ({
         id: rfi.id,
         number: rfi.number,
         subject: rfi.subject ?? rfi.question ?? '',

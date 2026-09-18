@@ -179,7 +179,7 @@
 
     <!-- It learns your costs (screenshot). -->
     <section class="section wrap-wide" style="padding-top: 8px;">
-      <div class="feature-row">
+      <div class="feature-row" style="grid-template-columns: 1fr; max-width: 760px;">
         <div>
           <div class="section-title" style="text-align: left; margin-bottom: 8px;">It learns</div>
           <h2>An estimate priced off your own jobs.</h2>
@@ -189,7 +189,11 @@
             get sharper every time you close a job.
           </p>
         </div>
-        <div class="screenshot phone" data-label="AI Estimator · Cost-learning"><img src="/screenshots/screens/16-ai-estimator.png" alt="MAGE ID AI estimator drafting a line-item estimate" /></div>
+        <!-- No screenshot here on purpose (integration review 2026-09-18): 16-ai-estimator.png
+             showed an error toast, and 25-generating.jpg is the old Quick Estimate overlay reading
+             "Pulling materials, labor, and 2025 pricing" — a lookup that does not exist, withdrawn
+             from the app (components/AIQuickEstimate.tsx). Re-shoot the current overlay on the
+             green build before an image goes back. scripts/validate-marketing-screenshots.ts keeps both out. -->
       </div>
     </section>
 

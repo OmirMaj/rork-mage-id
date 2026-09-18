@@ -10,6 +10,49 @@ interface InvoicePaymentBlob {
   qboApplied?: number;
 }
 
+// --- BEGIN qboDay (twin in ./invoice.ts) ---
+// The QuickBooks date for a MAGE date (audit #98). The ledger stores INSTANTS
+// (stripe-webhook and the app write `new Date().toISOString()`), and this used
+// to send `date.slice(0, 10)` — the UTC day. A Pay-link payment at 9:30 pm EDT
+// on Sep 30 is 2026-10-01T01:30Z, so it was booked in OCTOBER (and a Dec 31
+// evening payment in the next tax year on a cash basis); for a West Coast GC
+// the cutoff is 5 pm. The day is the company's own: the instant formatted in
+// the time zone the GC's device registered (qbo_connections.timezone, set by
+// qbo-setup through qbo-sync). A value that is already a bare day passes
+// through untouched — re-reading it as an instant would move it back a day in
+// every US zone. With no zone registered it falls back to the UTC slice, the
+// old behaviour, rather than guessing one.
+// Inlined, not imported: validate-money-definitions runs this file in a
+// sandbox holding only its siblings. validate-qbo-payment-ledger executes both
+// copies on the same cases.
+function qboDay(value: unknown, timeZone: unknown): string {
+  const raw = typeof value === 'string' ? value : '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const ms = Date.parse(raw);
+  if (typeof timeZone === 'string' && timeZone !== '' && Number.isFinite(ms)) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
+      const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+      const day = `${get('year')}-${get('month')}-${get('day')}`;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
+    } catch { /* unknown zone: the UTC day below */ }
+  }
+  return raw.slice(0, 10);
+}
+// --- END qboDay ---
+
+// --- BEGIN payment twins (of _shared/paymentLedger.ts) ---
+// The zero-balance refusal and the entry tag, byte-for-byte the sentences
+// paymentLedger's alreadyPaidRefusal / magePaymentTag produce (pinned by
+// validate-qbo-payment-ledger). Inlined for the same sandbox reason as qboDay.
+function alreadyPaidRefusal(invoiceNumber: number | string): string {
+  return `QuickBooks already shows invoice #${invoiceNumber} paid, so this payment was not sent (it would be recorded twice). Check the invoice in QuickBooks.`;
+}
+function magePaymentTag(entryId: string): string {
+  return `[MAGE payment ${entryId}]`;
+}
+// --- END payment twins ---
+
 export async function upsertPaymentForInvoice(conn: QboConnectionRow, encodedId: string, userId: string): Promise<void> {
   const [invoiceId, paymentId] = encodedId.split('::');
   if (!invoiceId || !paymentId) throw new Error(`bad payment id ${encodedId}`);
@@ -86,21 +129,35 @@ export async function upsertPaymentForInvoice(conn: QboConnectionRow, encodedId:
   }
   const amount = Math.round((pay.amount || 0) * 100) / 100;
   if (amount <= 0) throw new Error(`Payment ${paymentId} has no amount to apply.`);
+  // NOTHING OPEN, NOTHING SENT (audit #10). At Balance 0 this still posted a
+  // Payment with TotalAmt and no Line — the whole amount as unapplied customer
+  // credit, a duplicate for a bookkeeper to find. The reconciler's sweep
+  // already refused exactly this; the app's own push (qbo-sync, e.g. after the
+  // "closed in QuickBooks" flag) did not. Throwing is enough: qbo-sync's catch
+  // stamps it on the entry (markPushFailure), qbo-setup lists it as refused,
+  // and the sweep keeps refusing it. Only the ZERO balance is refused here — a
+  // payment above a positive balance is often a deliberate overpayment, and
+  // the unapplied-credit note below is what records that.
+  if (Math.round(balance * 100) <= 0) throw new Error(alreadyPaidRefusal(inv.number));
   const applied = Math.min(amount, balance);
 
   const body: Record<string, unknown> = {
     CustomerRef: { value: customerId },
     TotalAmt: amount,
-    TxnDate: pay.date.slice(0, 10),
+    TxnDate: qboDay(pay.date, (conn as { timezone?: unknown }).timezone),
   };
   if (applied > 0) {
     body.Line = [{ Amount: applied, LinkedTxn: [{ TxnId: inv.qbo_id, TxnType: 'Invoice' }] }];
   }
+  // The tag lets the reconciler match this Payment to THIS entry exactly if
+  // the qboId write below is lost (audit #11) — amount alone paired a Pay-link
+  // payment with an older check. `PrivateNote` is internal-only in QuickBooks.
+  body.PrivateNote = magePaymentTag(paymentId);
   if (applied < amount) {
     // Say so in the books rather than leaving an accountant to find an
-    // unexplained credit. `PrivateNote` is internal-only in QuickBooks.
-    body.PrivateNote =
-      `MAGE recorded $${amount.toFixed(2)} against invoice #${inv.number}, which was open for $${balance.toFixed(2)}. ` +
+    // unexplained credit.
+    body.PrivateNote +=
+      ` MAGE recorded $${amount.toFixed(2)} against invoice #${inv.number}, which was open for $${balance.toFixed(2)}. ` +
       `$${(amount - applied).toFixed(2)} is unapplied customer credit.`;
   }
   const r = await qboFetch(conn, '/payment', { method: 'POST', body: JSON.stringify(body) }) as { Payment?: { Id?: string } };

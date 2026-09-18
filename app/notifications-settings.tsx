@@ -10,7 +10,7 @@ import * as Notifications from 'expo-notifications';
 import {
   ChevronLeft, MessageSquare, HandCoins, CheckCircle2, Inbox, Bell,
   PenTool, ShoppingCart, HelpCircle, Hammer, Sunrise, MapPin, Clock,
-  Mail, Smartphone, Send, CalendarCheck, History, Lock, FileWarning,
+  Mail, Smartphone, Send, CalendarCheck, History, Lock, FileWarning, Globe,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
@@ -18,7 +18,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useProjects } from '@/contexts/ProjectContext';
+import { useProjects, useCoreData } from '@/contexts/ProjectContext';
+import { PROFILE_FAILED_REASON, PROFILE_FAILED_TITLE, PROFILE_LOADING_REASON } from '@/utils/settingsLoadGuard';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -41,12 +42,12 @@ interface CategoryDef {
   key:
     | 'portal_message' | 'budget_proposal' | 'co_approval' | 'sub_invoice'
     | 'contract_signed' | 'selection_chosen'
-    | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted';
+    | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted' | 'lead_received';
   label: string;
   description: string;
   icon: React.ReactNode;
   /** Group label for the section header. */
-  group: 'client' | 'sub' | 'marketplace';
+  group: 'leads' | 'client' | 'sub' | 'marketplace';
   /** When true, the toggle defaults OFF instead of ON. Used for opt-in
    *  channels like the daily digest where users must actively subscribe. */
   defaultOff?: boolean;
@@ -55,6 +56,16 @@ interface CategoryDef {
 }
 
 const CATEGORIES: CategoryDef[] = [
+  // ─── Website → GC ───
+  // notify's lead_received (push + email, prefKey 'lead_received') had no row
+  // here, so a GC could neither mute website-lead pushes nor see they exist.
+  {
+    key: 'lead_received',
+    label: 'Website leads',
+    description: 'Someone asks for a price through your website quote form or Instant Estimate widget.',
+    icon: <Globe size={18} color={Colors.accent} strokeWidth={1.75} />,
+    group: 'leads',
+  },
   // ─── Client → GC ───
   {
     key: 'portal_message',
@@ -103,7 +114,10 @@ const CATEGORIES: CategoryDef[] = [
   {
     key: 'nearby_rfp_posted',
     label: 'New nearby RFPs',
-    description: 'A homeowner posts a project in your service area.',
+    // The fan-out only alerts a company whose SERVICE AREA covers the RFP
+    // (notify-nearby-contractors/reach.ts), and no screen sets one yet — so
+    // the toggle says it cannot fire today instead of implying it will.
+    description: 'A homeowner posts a project in your service area. You\'ll get these once your service area is set up — that setup isn\'t available yet.',
     icon: <Hammer size={18} color={Colors.purple} strokeWidth={1.75} />,
     group: 'marketplace',
   },
@@ -124,6 +138,7 @@ const CATEGORIES: CategoryDef[] = [
 ];
 
 const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: string }> = {
+  leads:       { title: 'Website → You',        subtitle: 'When a homeowner asks for a price on your website.' },
   client:      { title: 'Client → You',         subtitle: 'When the homeowner does something on the portal.' },
   sub:         { title: 'Subcontractor → You',  subtitle: 'When a sub does something through their portal link.' },
   marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
@@ -152,18 +167,44 @@ export default function NotificationsSettingsScreen() {
   const fabScroll = useBrainFabScroll();
   const { user } = useAuth();
   const { settings, updateSettings, projects } = useProjects();
+  // The digest lives in his profile row. Until that read lands, `settings` is
+  // the DEFAULT (digest off), so the card would show "Off" to a GC who opted
+  // in, and a tap would write a digest object built from the default over
+  // his real one. Controls are refused, with the reason, until it loads.
+  const { settingsLoaded, settingsLoadFailed, sourceFailed, retryRemoteReads } = useCoreData();
+  const profileFailed = settingsLoadFailed || sourceFailed;
+  const refuseUntilLoaded = useCallback((): boolean => {
+    if (settingsLoaded) return false;
+    showAlert(
+      profileFailed ? PROFILE_FAILED_TITLE : 'Still loading your settings',
+      profileFailed ? PROFILE_FAILED_REASON : PROFILE_LOADING_REASON,
+      [{ text: 'Not now', style: 'cancel' }, { text: 'Retry', onPress: () => retryRemoteReads() }],
+    );
+    return true;
+  }, [settingsLoaded, profileFailed, retryRemoteReads]);
   const { pushToken } = useNotifications();
   const { canAccess } = useTierAccess();
   const [prefs, setPrefs] = useState<Prefs>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  // Whether the digest email is stopped by an unsubscribe link (audit
+  // 2026-09-18 #15). The footer link and Gmail's one-click Unsubscribe write a
+  // suppression row the digests now honour; without reading it here the Email
+  // switch below said "on" for an email that was not coming, and switching it
+  // off and on could never bring it back. 'unknown' (read failed, or the
+  // 20260918170000 migration is not applied yet) shows the stored switch.
+  const [digestSuppression, setDigestSuppression] = useState<'none' | 'digest' | 'all' | 'unknown'>('unknown');
+  const [resumingEmail, setResumingEmail] = useState(false);
 
   // Digest preferences pulled from settings (which read from profiles row).
   // Defaults: opt-in (off), 6 AM, both channels.
   const digestEnabled = !!settings.digest?.enabled;
   const digestHour = settings.digest?.hour ?? 6;
-  const digestEmailOn = settings.digest?.channels?.email ?? true;
+  const digestEmailStored = settings.digest?.channels?.email ?? true;
+  const digestEmailSuppressed = digestSuppression === 'digest' || digestSuppression === 'all';
+  // What will actually happen, not what was last stored.
+  const digestEmailOn = digestEmailStored && !digestEmailSuppressed;
   const digestInAppOn = settings.digest?.channels?.in_app ?? true;
   const digestTimezone = settings.digest?.timezone ?? (
     typeof Intl !== 'undefined'
@@ -266,6 +307,22 @@ export default function NotificationsSettingsScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    if (!user?.id) return;
+    // A read — the caller's own sign-in address only (SECURITY DEFINER RPC).
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('my_digest_email_suppression');
+        if (cancelled) return;
+        setDigestSuppression(!error && (data === 'none' || data === 'digest' || data === 'all') ? data : 'unknown');
+      } catch {
+        if (!cancelled) setDigestSuppression('unknown');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
     if (!user?.id) { setLoading(false); return; }
     (async () => {
       try {
@@ -287,6 +344,7 @@ export default function NotificationsSettingsScreen() {
   }, [user?.id]);
 
   const updateDigest = useCallback((patch: Partial<NonNullable<typeof settings.digest>>) => {
+    if (refuseUntilLoaded()) return;
     void Haptics.selectionAsync().catch(() => {});
     const current = settings.digest ?? {
       enabled: false, hour: 6, timezone: digestTimezone, channels: { email: true, in_app: true },
@@ -310,7 +368,46 @@ export default function NotificationsSettingsScreen() {
       if (!next.enabled || serverPushCovers) void disarmDailyBriefNudge();
       else void armDailyBriefNudge({ hour: next.hour, prompt: patch.enabled === true });
     }
-  }, [settings.digest, updateSettings, digestTimezone, canAccess, pushToken]);
+  }, [settings.digest, updateSettings, digestTimezone, canAccess, pushToken, refuseUntilLoaded]);
+
+  // The Email switch. Turning it ON while an unsubscribe is in force has to
+  // clear that suppression first, or the switch lies. This is an RPC, not an
+  // offline-queue write, on purpose: the switch may only show ON once the
+  // server confirms the email will really come, so it needs the answer now.
+  const setDigestEmail = useCallback(async (v: boolean) => {
+    // Before the resume RPC too — it changes the server state the switch shows.
+    if (refuseUntilLoaded()) return;
+    // Every turn-ON goes through the RPC, not only while suppression reads
+    // digest/all: an unsubscribe also set notification_preferences.daily_digest
+    // .email = false, and "Turn email back on" on the preferences page only
+    // deletes the unsubscribe row — so after it the switch reads a plain Off
+    // and a queue write alone would leave the legacy digest key off for good.
+    // The RPC is idempotent and restores that key when nothing suppresses.
+    if (!v) {
+      updateDigest({ channels: { email: false, in_app: digestInAppOn } });
+      return;
+    }
+    setResumingEmail(true);
+    try {
+      const { data, error } = await supabase.rpc('resume_my_digest_email');
+      if (error) {
+        showAlert("Couldn't turn email back on", 'We could not reach the server. Check your connection and try again.');
+        return;
+      }
+      const state = data === 'none' || data === 'digest' || data === 'all' ? data : 'unknown';
+      setDigestSuppression(state);
+      if (state === 'all') {
+        showAlert(
+          'All MAGE ID email is off for your address',
+          'You unsubscribed from every MAGE ID email using a link in one of them. Open "Manage email preferences" at the bottom of any MAGE ID email and tap "Turn email back on", then switch this on again.',
+        );
+        return;
+      }
+      updateDigest({ channels: { email: true, in_app: digestInAppOn } });
+    } finally {
+      setResumingEmail(false);
+    }
+  }, [digestInAppOn, updateDigest, refuseUntilLoaded]);
 
   const previewDigest = useCallback(async () => {
     if (!user?.id) return;
@@ -523,10 +620,12 @@ export default function NotificationsSettingsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.digestTitle}>Send me a daily brief</Text>
-                <Text style={styles.digestSubtitle}>
-                  {digestEnabled
-                    ? `On — fires at ${formatHour(digestHour)} ${digestTimezone.split('/').pop()?.replace(/_/g, ' ')}`
-                    : 'Off — opt in to start receiving briefs'}
+                <Text style={styles.digestSubtitle} testID="digest-status">
+                  {!settingsLoaded
+                    ? (profileFailed ? `${PROFILE_FAILED_TITLE} — tap the switch to retry` : 'Loading your digest setting…')
+                    : digestEnabled
+                      ? `On — fires at ${formatHour(digestHour)} ${digestTimezone.split('/').pop()?.replace(/_/g, ' ')}`
+                      : 'Off — opt in to start receiving briefs'}
                 </Text>
               </View>
               <Switch
@@ -583,11 +682,19 @@ export default function NotificationsSettingsScreen() {
                   </View>
                   <Switch
                     value={digestEmailOn}
-                    onValueChange={v => updateDigest({ channels: { email: v, in_app: digestInAppOn } })}
+                    disabled={resumingEmail}
+                    onValueChange={v => { void setDigestEmail(v); }}
                     trackColor={{ false: themeColors.line, true: themeColors.accent }}
                     thumbColor="#FFF"
                   />
                 </View>
+                {digestEmailSuppressed && (
+                  <Text style={styles.nudgeNote}>
+                    {digestSuppression === 'all'
+                      ? 'Off because you unsubscribed from all MAGE ID email using a link in one of our emails.'
+                      : 'Off because you unsubscribed using the link in the digest email. Turn it on to start receiving it again.'}
+                  </Text>
+                )}
                 <View style={styles.channelRow}>
                   <View style={styles.channelInfo}>
                     <Smartphone size={16} color={themeColors.text} strokeWidth={1.75} />
@@ -595,7 +702,7 @@ export default function NotificationsSettingsScreen() {
                   </View>
                   <Switch
                     value={digestInAppOn}
-                    onValueChange={v => updateDigest({ channels: { email: digestEmailOn, in_app: v } })}
+                    onValueChange={v => updateDigest({ channels: { email: digestEmailStored, in_app: v } })}
                     trackColor={{ false: themeColors.line, true: themeColors.accent }}
                     thumbColor="#FFF"
                   />
@@ -828,7 +935,7 @@ export default function NotificationsSettingsScreen() {
             <ActivityIndicator size="small" color={themeColors.accent} />
           </View>
         ) : (
-          (['client', 'sub', 'marketplace'] as CategoryDef['group'][]).map(group => {
+          (['leads', 'client', 'sub', 'marketplace'] as CategoryDef['group'][]).map(group => {
             const groupCats = CATEGORIES.filter(c => c.group === group);
             if (groupCats.length === 0) return null;
             const meta = GROUP_LABELS[group];

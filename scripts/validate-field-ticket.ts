@@ -53,7 +53,9 @@ import {
   fieldTicketPricingBlockReason,
   pricingRoleFor,
   pricingActorName,
+  fieldTicketMoneyHiddenReason,
 } from '../utils/fieldTicketCore';
+import { canViewFinancials } from '../utils/roleBlinding';
 import type { ChangeOrder, FieldTicket } from '../types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -726,7 +728,32 @@ console.log('\npricing names the signed-in user, and only the owner or an editor
 // pricing was gated, the display was not.
 console.log('\nfield access sees hours and quantities, not the office\'s rates:');
 {
-  ok('the screen decides it from the role (isFinancialsBlinded)', /const moneyBlinded = isFinancialsBlinded\(projectRole\);/.test(screen));
+  // Audit #99: isFinancialsBlinded(null) is FALSE, and the role is null with
+  // no signal on site — a field seat offline saw every rate and total. The
+  // screen now fails closed on the pricing role (owner rescued offline by
+  // pricingRoleFor), and a hidden amount says why.
+  const shown = (role: Parameters<typeof pricingRoleFor>[0], owner: string, me: string) =>
+    canViewFinancials(pricingRoleFor(role, owner, me));
+  ok('a field seat with the role unresolved (no signal) does NOT see money', shown(null, 'o', 'u') === false);
+  ok('...the OWNER with the role unresolved still does (cached project row)', shown(null, 'o', 'o') === true);
+  ok('...a resolved field seat does not, even as the project owner id', shown('field', 'o', 'o') === false);
+  ok('...owner / editor / viewer do once resolved', shown('owner', 'o', 'u') && shown('editor', 'o', 'u') && shown('viewer', 'o', 'u'));
+  for (const r of [null, 'owner', 'editor', 'viewer', 'field'] as const) {
+    for (const err of [false, true]) {
+      ok(`money-hidden reason agrees with canViewFinancials (${String(r)}, readFailed=${err})`,
+        (fieldTicketMoneyHiddenReason(r, err) === null) === canViewFinancials(r));
+    }
+  }
+  ok('...a role still resolving says so; a failed read says that', /Checking your access/.test(fieldTicketMoneyHiddenReason(null) ?? '')
+    && /Couldn’t confirm your access/.test(fieldTicketMoneyHiddenReason(null, true) ?? ''));
+  ok('the screen decides it fail-closed from the pricing role, not isFinancialsBlinded(projectRole)',
+    /const pricingRole = pricingRoleFor\(projectRole, project\?\.ownerUserId, user\?\.id\);\s*const moneyBlinded = !canViewFinancials\(pricingRole\);/.test(screen)
+      && !/isFinancialsBlinded\(/.test(screen)
+      && screen.indexOf('const moneyBlinded = !canViewFinancials(pricingRole);') < screen.indexOf('const amountSuffix'));
+  ok('...and a hidden amount says why (detail card, unbilled card, list)',
+    /<Text style=\{styles\.amountSub\}>\{moneyHiddenReason\}<\/Text>/.test(screen)
+      && /testID="ticket-money-hidden-reason"/.test(screen) && /testID="ticket-list-money-hidden-reason"/.test(screen)
+      && /const moneyHiddenReason = fieldTicketMoneyHiddenReason\(pricingRole, projectRoleError\);/.test(screen));
   ok('...the open ticket shows quantities in place of the total and O&P',
     /\{moneyBlinded \? \(\s*<View style=\{styles\.amountCard\} testID="ticket-amount-blinded">/.test(screen));
   ok('...no labour, equipment or material rate on its rows',

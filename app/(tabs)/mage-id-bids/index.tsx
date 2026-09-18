@@ -491,7 +491,7 @@ export default function MageIdBidsTabScreen() {
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
             <Text style={styles.emptyBody}>
               {!location
-                ? 'Homeowners post their remodel + new-build RFPs here for verified contractors to bid on. Allow location access or expand your radius to see what\'s near you.'
+                ? 'Homeowners post their remodel + new-build RFPs here for contractors to bid on. Allow location access or expand your radius to see what\'s near you.'
                 : 'New projects show up here as homeowners post them. Try a wider radius, clear your scope filters, or check back tomorrow.'}
             </Text>
           </View>
@@ -533,7 +533,7 @@ export default function MageIdBidsTabScreen() {
             <Hammer size={28} color={Colors.primary} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>You haven&apos;t posted anything yet</Text>
             <Text style={styles.emptyBody}>
-              Post your first project. Verified contractors near you will be notified and start submitting bids — usually within a day.
+              Post your first project. We alert MAGE ID contractors who cover your area and show you how many that was — including if that is none.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={handlePost}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />

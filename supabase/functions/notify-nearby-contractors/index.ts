@@ -4,13 +4,22 @@
 // area overlaps a newly-posted homeowner RFP. Called from a postgres
 // AFTER INSERT trigger on public_bids when is_homeowner_rfp=true.
 //
-// Matching rules:
-//   1. companies.service_states must contain the RFP's state (or be empty
-//      meaning "anywhere — match against radius only").
-//   2. If service_origin_lat/lng + service_radius_miles are populated AND
-//      the RFP has lat/lng, distance must be ≤ radius.
-//   3. We dedupe by user_id so a contractor with multiple companies only
+// Matching rules — see reach.ts companyServesRfp, which this file and the
+// app share:
+//   1. A company with NO service area (no states and no origin) is not
+//      alerted. It used to be treated as "anywhere", which matched every RFP
+//      in the country — and no screen writes those columns, so that was every
+//      row (audit round 2, #8).
+//   2. States set → the RFP's state must be one of them.
+//   3. Origin set → the RFP must be within service_radius_miles of it.
+//   4. We dedupe by user_id so a contractor with multiple companies only
 //      gets one notification.
+//
+// REACH WRITE-BACK: when the fan-out finishes it PATCHes
+// public_bids.notified_count / notified_at (migration 20260918120100). The
+// DB trigger that calls us discards our response, so that row is the only
+// place the homeowner can learn how many contractors were really alerted —
+// post-rfp and my-rfps read it instead of promising "will be notified".
 //
 // We pass the actual fan-out off to the existing /notify dispatcher for
 // each matched contractor — that handles Expo Push + Resend + outbox
@@ -29,6 +38,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { isValidCron } from "../_shared/cronAuth.ts";
+import { companyServesRfp } from "./reach.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY =
@@ -81,19 +91,6 @@ interface LicenseRow {
   expires_date: string | null;
 }
 
-// Haversine — returns miles between two lat/lng pairs.
-function distanceMiles(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const R = 3958.8;
-  const toRad = (d: number) => d * Math.PI / 180;
-  const dLat = toRad(bLat - aLat);
-  const dLng = toRad(bLng - aLng);
-  const lat1 = toRad(aLat); const lat2 = toRad(bLat);
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.sin(dLng/2) * Math.sin(dLng/2) * Math.cos(lat1) * Math.cos(lat2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
 async function rest<T = unknown>(path: string): Promise<T> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     headers: {
@@ -103,6 +100,27 @@ async function rest<T = unknown>(path: string): Promise<T> {
   });
   if (!r.ok) throw new Error(`Supabase REST ${r.status}: ${await r.text().catch(() => "")}`);
   return r.json() as Promise<T>;
+}
+
+// Record what the fan-out reached on the RFP row. Best-effort: a failed PATCH
+// leaves notified_at NULL, which the app reads as "no record of anyone being
+// alerted" — never as a count.
+async function recordReach(rfpId: string, notifiedCount: number): Promise<void> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/public_bids?id=eq.${encodeURIComponent(rfpId)}`, {
+      method: "PATCH",
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ notified_count: notifiedCount, notified_at: new Date().toISOString() }),
+    });
+    if (!r.ok) console.warn('[notify-nearby] reach write-back failed', r.status, await r.text().catch(() => ''));
+  } catch (err) {
+    console.warn('[notify-nearby] reach write-back failed', err);
+  }
 }
 
 serve(async (req) => {
@@ -171,20 +189,8 @@ serve(async (req) => {
       // (non-expired) license on file.
       if (verifiedOnly && !verifiedUserIds.has(c.user_id)) continue;
 
-      const states: string[] = Array.isArray(c.service_states) ? c.service_states : [];
-      const stateMatch = states.length === 0 || (rfp.state ? states.includes(rfp.state) : true);
-      if (!stateMatch) continue;
-
-      // Distance check, only when both sides have coords.
-      if (c.service_origin_lat != null && c.service_origin_lng != null
-          && rfp.latitude != null && rfp.longitude != null) {
-        const radius = c.service_radius_miles ?? 25;
-        const d = distanceMiles(
-          Number(c.service_origin_lat), Number(c.service_origin_lng),
-          Number(rfp.latitude), Number(rfp.longitude),
-        );
-        if (d > radius) continue;
-      }
+      // Only a company whose declared service area covers this RFP.
+      if (!companyServesRfp(c, rfp)) continue;
 
       matched.push(c);
     }
@@ -219,7 +225,12 @@ serve(async (req) => {
       console.warn(`[notify-nearby] capped fan-out at ${MAX_FAN_OUT}, skipped ${skipped} extra recipients for rfp ${rfp.id}`);
     }
 
+    // dispatched = contractors a push or email actually reached (notify's
+    // `delivered`); undelivered = notify handled it but sent nothing (alerts
+    // off, no push token, unsubscribed). A bare 200 is NOT an alert — the
+    // homeowner's count is only the first number.
     let dispatched = 0;
+    let undelivered = 0;
     let failed = 0;
     const dispatchPromises = recipients.map((c, i) =>
       new Promise<void>((resolve) => {
@@ -247,7 +258,9 @@ serve(async (req) => {
                 },
               }),
             });
-            if (resp.ok) dispatched++; else failed++;
+            if (!resp.ok) { failed++; return; }
+            const j = await resp.json().catch(() => null) as { result?: { delivered?: boolean } } | null;
+            if (j?.result?.delivered === true) dispatched++; else undelivered++;
           } catch (err) {
             failed++;
             console.warn('[notify-nearby] dispatch failed for', c.user_id, err);
@@ -259,10 +272,20 @@ serve(async (req) => {
     );
     await Promise.all(dispatchPromises);
 
+    // Write the reach back. When contractors matched but NONE was reached
+    // (every send failed, or each had alerts off / no push token), write
+    // nothing: a recorded 0 reads "no contractor covers your area", which is
+    // not what happened — no report is the honest state. A positive count is
+    // contractors actually reached, so "N were alerted" is true.
+    if (uniq.length === 0 || dispatched > 0) {
+      await recordReach(rfp.id, dispatched);
+    }
+
     return jsonResponse({
       success: true,
       matched_count: uniq.length,
       dispatched,
+      undelivered,
       failed,
       skipped_over_cap: skipped,
     });

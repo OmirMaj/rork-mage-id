@@ -42,11 +42,45 @@ import {
 } from '@/utils/bidDocumentIdentity';
 import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
+import ProfileLoadNotice from '@/components/ProfileLoadNotice';
 import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel, warrantyShortLabel } from '@/utils/paymentTerms';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// The form renders only once THIS account's profile is in state (finding 14).
+// Its fields are seeded once, at mount; mounted over DEFAULT_SETTINGS they
+// were blank, and the state picker, logo, signature and Save each wrote a
+// whole `branding` built from those blanks over his real company details.
+// Until then the screen says what is happening (ProfileLoadNotice) and, when
+// the read failed, offers Retry. The payment-terms rows live in the form, so
+// they can no longer say "Not set" about terms that have not loaded (106).
 export default function CompanyProfileScreen() {
+  const { settingsLoaded } = useProjects();
+  const { colors: themeColors } = useTheme();
+  const router = useRouter();
+  if (settingsLoaded) return <CompanyProfileForm />;
+  return (
+    <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
+      <Stack.Screen
+        options={{
+          title: 'Company Profile',
+          headerStyle: { backgroundColor: themeColors.bg },
+          headerTintColor: themeColors.accent,
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
+            </TouchableOpacity>
+          ),
+          headerRight: () => null,
+        }}
+      />
+      <ProfileLoadNotice testID="company-profile-loading" />
+    </View>
+  );
+}
+
+function CompanyProfileForm() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();

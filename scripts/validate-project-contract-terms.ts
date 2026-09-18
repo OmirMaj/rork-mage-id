@@ -209,7 +209,8 @@ if (save) {
   check('handleSaveEdit skips the terms when hidden or locked', /!contractAccess\.hidden && !contractAccess\.lockedReason/.test(save[1]));
 }
 check('edit modal validates against CONTRACT_TERM_RANGES', /CONTRACT_TERM_RANGES\.gmpCap/.test(detail) && /CONTRACT_TERM_RANGES\.retainagePercent/.test(detail) && /CONTRACT_TERM_RANGES\.contractorFeePercent/.test(detail));
-check('edit modal hides the block from a money-blinded role', /isFinancialsBlinded\(project\.myRole/.test(detail) && /\{!contractAccess\.hidden && \(/.test(detail));
+check('edit modal hides the block from a money-blinded role', /const role = pricingRoleFor\(project\.myRole \?\? null, project\.ownerUserId, authUser\?\.id\);\s*if \(isFinancialsBlinded\(role\)\)/.test(detail) && /\{!contractAccess\.hidden && \(/.test(detail));
+check('…and locks it (fail-closed, with the reason) while the role is unconfirmed', /if \(!canViewFinancials\(role\)\) return \{ hidden: false, lockedReason: "Your access to this job hasn't been confirmed/.test(detail));
 check('edit modal says when the portal breakdown has no commitments', /portalShowsCost && projectCommitments\.length === 0/.test(detail));
 check('edit modal mode picker iterates CONTRACT_MODES', /CONTRACT_MODES\.map\(/.test(detail));
 

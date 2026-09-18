@@ -604,6 +604,9 @@
         fetch(INTAKE_URL, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            // The account id baked into the snapshot routes the lead first;
+            // the slug is the fallback for pages published before it existed.
+            contractor_id: (company && company.contractorId) || '',
             company_slug: slug, name: name, email: email, phone: phone,
             address: document.getElementById('lf-address').value.trim(),
             scope: document.getElementById('lf-scope').value.trim(),

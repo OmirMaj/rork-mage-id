@@ -150,7 +150,9 @@ function LienWaiversScreenInner() {
       const commit = (getCommitmentsForProject(projectId ?? '') ?? []).find((c: any) => c.id === invoice.commitmentId);
       if (commit) {
         subName = commit.vendorName ?? '';
-        subCompanyId = commit.companyId ?? commit.subcontractorId;
+        // Commitment has no companyId; the sub's roster id is subcontractorId.
+        // Handover matches on commitmentId first, then this id.
+        subCompanyId = commit.subcontractorId ?? undefined;
         if (subCompanyId) {
           const sub = subcontractors?.find((s: any) => s.id === subCompanyId);
           if (sub) subEmail = sub.email ?? undefined;

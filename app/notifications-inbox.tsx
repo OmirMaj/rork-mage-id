@@ -1,14 +1,14 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
   ChevronLeft, Bell, MessageSquare, HandCoins, CheckCircle2, Inbox,
   Trash2, X, CheckCheck, Settings,
-  PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package, Sunrise, CalendarCheck,
+  PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package, Sunrise, CalendarCheck, UserPlus,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -18,6 +18,10 @@ import { useNotificationFeed, type NotificationFeedItem } from '@/hooks/useNotif
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useNotifications } from '@/contexts/NotificationContext';
+// The one event -> screen table, shared with the push-tap handler and the
+// notify edge function's email buttons (audit round 2, #12).
+import { notificationRoute, routeHref } from '@/supabase/functions/notify/routes';
 
 // Friendly metadata for every event that can land in the inbox. Keep
 // the eyebrow labels SHORT (≤16 chars) so they fit on narrow screens
@@ -35,6 +39,9 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
   // Sub → GC
   sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Sub invoice' },
   sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Invoice update' },
+
+  // Website → GC
+  lead_received:         { icon: <UserPlus    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Website lead' },
 
   // Marketplace
   nearby_rfp_posted:     { icon: <Hammer      size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'New project nearby' },
@@ -69,6 +76,14 @@ function fmtMoney(raw: unknown): string {
   return `$${n.toLocaleString('en-US')}`;
 }
 
+/** Exact money for a change order ("$4,812.50") — a CO is reconciled to the
+ *  cent, unlike the compact "$45K" a budget headline can afford. */
+function fmtMoneyExact(raw: unknown): string {
+  const n = typeof raw === 'string' ? parseFloat(raw) : typeof raw === 'number' ? raw : NaN;
+  if (!Number.isFinite(n) || n === 0) return '';
+  return `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function summarize(item: NotificationFeedItem): { title: string; body: string } {
   const p = item.payload as Record<string, unknown>;
   const projectName = (p.project_name as string) || (p.projectName as string) || 'your project';
@@ -95,15 +110,21 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const decision = String(p.decision || 'updated');
       const signer = (p.signer_name as string) || 'your client';
       const verb = decision === 'approved' ? 'approved' : decision === 'declined' ? 'declined' : 'reviewed';
-      const coNum = (p.co_number as string) || '';
-      const amount = fmtMoney(p.co_amount);
+      // notify writes co_number / co_amount / project_name into the stored
+      // payload from the change_orders row (audit round 2, #13). co_number is
+      // stringified there; accept a number too for rows written in between.
+      const coNum = /^\d+$/.test(String(p.co_number ?? '')) ? String(p.co_number) : '';
+      const amount = fmtMoneyExact(p.co_amount);
+      // A decline carries the homeowner's reason — the one line that saves the
+      // phone call. Before, the inbox dropped it and said "Synced…".
+      const note = decision === 'declined' && typeof p.note === 'string' && p.note.trim()
+        ? `"${p.note.trim().slice(0, 120)}"`
+        : '';
       return {
         title: coNum
           ? `${signer} ${verb} CO #${coNum}`
           : `${signer} ${verb} a change order`,
-        body: amount
-          ? `${amount} change · ${projectName}`
-          : `Synced to your CO record automatically.`,
+        body: [note, amount ? `${amount} change` : '', projectName].filter(Boolean).join(' · '),
       };
     }
     case 'contract_signed': {
@@ -197,6 +218,23 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         body: 'Re-read the scope and update your bid before the deadline.',
       };
     }
+    case 'lead_received': {
+      const who = (p.name as string) || 'A homeowner';
+      const kind = (p.project_type as string) || 'a project';
+      const phone = (p.phone as string) || '';
+      return {
+        title: `${who} asked for a price`,
+        body: [kind, phone].filter(Boolean).join(' · '),
+      };
+    }
+    case 'morning_brief':
+    case 'week_close':
+      // morning-digest writes its own title/body into the payload; the row was
+      // blank because this switch never read them.
+      return {
+        title: (typeof p.title === 'string' && p.title.trim()) || EVENT_META[item.eventType].label,
+        body: typeof p.body === 'string' ? p.body.slice(0, 160) : '',
+      };
     default:
       // Unknown / new event type — fall back to a humanized version of
       // the event_type so the user never sees "selection_chosen" raw.
@@ -209,55 +247,11 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
   }
 }
 
+/** Where a row opens — the shared table (supabase/functions/notify/routes.ts),
+ *  so the inbox, the push tap and the email button for one event agree. */
 function deepLinkFor(item: NotificationFeedItem): string | null {
-  const p = item.payload as Record<string, unknown>;
-  const projectId = (p.project_id as string | undefined) ?? (p.projectId as string | undefined);
-  switch (item.eventType) {
-    case 'portal_message':
-      // Open the portal-setup screen (which surfaces messages in-line).
-      return projectId ? `/client-portal-setup?id=${projectId}` : null;
-    case 'budget_proposal':
-      // Same screen — proposals show up there for review/accept.
-      return projectId ? `/client-portal-setup?id=${projectId}` : null;
-    case 'co_approval': {
-      // Route directly to the change order, not the portal setup screen.
-      // Falls back to project-detail if we don't have a CO id.
-      const coId = (p.change_order_id as string | undefined) ?? (p.changeOrderId as string | undefined);
-      if (projectId && coId) return `/change-order?projectId=${projectId}&coId=${coId}`;
-      if (projectId) return `/project-detail?id=${projectId}`;
-      return null;
-    }
-    case 'contract_signed':
-      // Contract just got countersigned — route straight to the contract.
-      return projectId ? `/contract?projectId=${projectId}` : null;
-    case 'selection_chosen':
-      // Homeowner picked a selection — route to selections so the GC can
-      // see the new pick + flag if it's over allowance.
-      return projectId ? `/selections?projectId=${projectId}` : null;
-    case 'closeout_binder_sent':
-      return projectId ? `/closeout-binder?projectId=${projectId}` : null;
-    case 'bid_question_asked':
-    case 'bid_question_answered': {
-      const rfpId = (p.rfp_id as string | undefined) ?? (p.bid_id as string | undefined);
-      return rfpId ? `/rfp-detail?bidId=${rfpId}` : null;
-    }
-    case 'sub_invoice_submitted':
-    case 'sub_invoice_reviewed': {
-      // If we know the project + sub portal, route to that specific sub
-      // portal setup screen so the GC can review the invoice.
-      const subId = (p.sub_id as string | undefined) ?? (p.subId as string | undefined);
-      if (projectId && subId) return `/sub-portal-setup?projectId=${projectId}&subId=${subId}`;
-      return '/sub-portals';
-    }
-    case 'rfp_awarded':
-      return projectId ? `/project-detail?id=${projectId}` : null;
-    case 'nearby_rfp_posted': {
-      const rfpId = (p.rfp_id as string | undefined) ?? (p.bid_id as string | undefined);
-      return rfpId ? `/rfp-detail?bidId=${rfpId}` : null;
-    }
-    default:
-      return null;
-  }
+  const route = notificationRoute(item.eventType, item.payload);
+  return route ? routeHref(route) : null;
 }
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8). summarize() runs
@@ -286,10 +280,21 @@ export default function NotificationsInboxScreen() {
     void feed.refetch().finally(() => setRechecking(false));
   }, [feed, rechecking]);
 
+  // The app-icon badge follows the inbox: whenever the unread count here moves
+  // (a tap, Mark all read, Clear all, a new row), re-read the server count —
+  // the feed itself stops at 80 rows, the server count does not (#17).
+  const { syncBadge } = useNotifications();
+  useEffect(() => {
+    if (feed.isLoading) return;
+    void syncBadge();
+  }, [feed.unreadCount, feed.isLoading, syncBadge]);
+
   const handleTap = useCallback((item: NotificationFeedItem) => {
     if (!item.readAt) feed.markRead(item.id);
     const link = deepLinkFor(item);
-    if (link) router.push(link as never);
+    // Every pathname in the table is checked against app/ by
+    // scripts/validate-notification-routes.ts.
+    if (link) router.push(link as Href);
   }, [feed, router]);
 
   const handleClearAll = useCallback(() => {

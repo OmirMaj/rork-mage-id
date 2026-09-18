@@ -115,17 +115,32 @@ function EstimateConfidenceInner() {
   // applyCalibrationToEstimate now stamps the correction set it applied and
   // returns changedCount 0 / alreadyApplied for a repeat, so the CTA below
   // hides itself. A genuinely DIFFERENT correction still applies.
+  //
+  // NOT TWICE. The category multiplier is actual ÷ OLD BID; the book rate each
+  // line was checked against above already moved toward those actuals. So the
+  // report's own line checks go in, and a line already at (or past) his
+  // measured rate is left alone — the ×1.20 used to land a line priced AT the
+  // book's $11 on $13.20, which this same screen then flagged 'Padded'
+  // (audit round 2, #2; utils/applyCalibration lineChecks).
   const calibPreview = useMemo(() => {
     if (!project?.linkedEstimate || corrections.length === 0) return null;
-    return applyCalibrationToEstimate(project.linkedEstimate, corrections);
-  }, [project, corrections]);
+    return applyCalibrationToEstimate(project.linkedEstimate, corrections, { lineChecks: report?.lines ?? [] });
+  }, [project, corrections, report]);
+
+  /** "3 lines already at your job-history rate are left alone: Tile floor, …" */
+  const skippedCopy = useMemo(() => {
+    const sk = calibPreview?.skippedAtBookRate ?? [];
+    if (sk.length === 0) return '';
+    const names = sk.slice(0, 3).map(x => x.name).join(', ') + (sk.length > 3 ? ` +${sk.length - 3} more` : '');
+    return `${sk.length} line${sk.length > 1 ? 's' : ''} already priced at the rate your jobs measured ${sk.length > 1 ? 'are' : 'is'} left alone (${names}) — the correction is already in ${sk.length > 1 ? 'their' : 'its'} price.`;
+  }, [calibPreview]);
 
   const onApplyCalibration = useCallback(() => {
     if (!project?.linkedEstimate || !calibPreview || calibPreview.changedCount === 0) return;
     const delta = calibPreview.newGrandTotal - calibPreview.oldGrandTotal;
     showAlert(
       'Apply your cost corrections?',
-      `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be re-priced from your job history.\n\n${formatMoney(calibPreview.oldGrandTotal)} → ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
+      `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be re-priced from your job history${calibPreview.cappedToBookRate > 0 ? ` (${calibPreview.cappedToBookRate} only up to your measured rate, not past it)` : ''}.${skippedCopy ? `\n\n${skippedCopy}` : ''}\n\n${formatMoney(calibPreview.oldGrandTotal)} → ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -137,7 +152,7 @@ function EstimateConfidenceInner() {
         },
       ],
     );
-  }, [project, calibPreview, updateProject]);
+  }, [project, calibPreview, updateProject, skippedCopy]);
 
   const scoreColor = report
     ? report.score >= 70 ? t.success : report.score >= 40 ? t.accentHot : t.danger
@@ -197,6 +212,15 @@ function EstimateConfidenceInner() {
             </View>
           )}
 
+          {calibPreview && calibPreview.changedCount === 0 && !calibPreview.alreadyApplied && skippedCopy ? (
+            <View style={styles.disclose}>
+              <CheckCircle2 size={15} color={t.success} strokeWidth={1.9} />
+              <Text style={styles.discloseText}>
+                Nothing to correct: {skippedCopy}
+              </Text>
+            </View>
+          ) : null}
+
           {calibPreview && calibPreview.changedCount > 0 && (
             <TouchableOpacity
               activeOpacity={0.85}
@@ -210,6 +234,9 @@ function EstimateConfidenceInner() {
                 <Text style={{ fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 2 }}>
                   {calibPreview.changedCount} line{calibPreview.changedCount > 1 ? 's' : ''} · {formatMoney(calibPreview.oldGrandTotal)} → {formatMoney(calibPreview.newGrandTotal)}
                 </Text>
+                {skippedCopy ? (
+                  <Text style={{ fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 2 }}>{skippedCopy}</Text>
+                ) : null}
               </View>
               <ChevronLeft size={18} color={t.textMuted} strokeWidth={2} style={{ transform: [{ rotate: '180deg' }] }} />
             </TouchableOpacity>

@@ -20,8 +20,8 @@
 // The next refetch hydrates dueDate from r.due_date, so the device lost the new
 // date too — the GC could not see anything had gone wrong.
 //
-// WHAT THIS PINS. The payload builder is EXTRACTED from the shipped
-// contexts/ProjectContext.tsx and executed against the real release patch and
+// WHAT THIS PINS. The payload builder (utils/invoiceWrites, which the shipped
+// contexts/ProjectContext.tsx is held to calling) is executed against the real release patch and
 // a draft-then-send edit. A presence regex would pass a column written under
 // the wrong condition.
 //
@@ -39,6 +39,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildRetainageReleasePatch, PAYMENT_TERM_DAYS } from '../utils/retainage';
+import { invoiceUpdatePayload } from '../utils/invoiceWrites';
 import type { Invoice } from '../types';
 
 declare const Bun: {
@@ -59,33 +60,21 @@ const src = read(CTX);
 
 console.log(`\ninvoice due date reaches the server (${CTX}):\n`);
 
-// ── extract the updateInvoice payload builder ──────────────────────────────
+// ── the updateInvoice payload builder ──────────────────────────────────────
+// It moved out of the context into utils/invoiceWrites.ts (blocker #3: the
+// context now runs it on the latest list, or on `{ id, ...updates }` for a row
+// not in memory). It is imported and executed here; the context is held to
+// calling it, so a second inline builder cannot drift from this one.
 const fnStart = src.indexOf('const updateInvoice = useCallback(');
-const BEGIN = "const payload: Record<string, unknown> = { id, updated_at: now, qbo_sync_status: 'pending' };";
-// The write is now ASSIGNED — `invoiceWrite = supabaseWrite(...)` — so the
-// payment push can wait for the invoice row to land (audit round 2, #15). The
-// slice must end BEFORE that statement starts, or the extracted body ends in a
-// dangling assignment and the transpile throws. Both spellings are listed so
-// this guard survives either, and an unlisted third fails loudly below.
-const END_FORMS = [
-  "invoiceWrite = supabaseWrite('invoices', 'update', payload);",
-  "void supabaseWrite('invoices', 'update', payload);",
-];
-const from = src.indexOf(BEGIN, fnStart);
-const to = END_FORMS.map((e) => src.indexOf(e, from)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? -1;
-if (fnStart < 0 || from < 0 || to < 0) {
-  console.error('  ✗ could not find updateInvoice\'s payload builder in', CTX);
-  console.error('    Someone renamed or moved it; this guard would silently stop checking. Update the anchors.');
-  process.exit(1);
-}
-const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(`${src.slice(from, to)}\nreturn payload;`);
-const buildPayload = new Function('id', 'now', 'updates', 'inv', js) as (
-  id: string, now: string, updates: Partial<Invoice>, inv: Invoice,
-) => Record<string, unknown>;
+const fnEnd = src.indexOf('const getInvoicesForProject = useCallback(', fnStart);
+const updateBody = fnStart >= 0 && fnEnd > fnStart ? src.slice(fnStart, fnEnd) : '';
+check('ProjectContext.updateInvoice builds its payload with invoiceUpdatePayload',
+  /const payload = invoiceUpdatePayload\(inv, updates, id, now\);/.test(updateBody)
+  && !/payload\.due_date =/.test(updateBody));
 
 /** What updateInvoice does: merge, then build the queued payload. */
 const queued = (prev: Invoice, updates: Partial<Invoice>) =>
-  buildPayload(prev.id, '2026-10-20T15:00:00.000Z', updates, { ...prev, ...updates } as Invoice);
+  invoiceUpdatePayload({ ...prev, ...updates } as Invoice, updates, prev.id, '2026-10-20T15:00:00.000Z');
 
 const base = {
   id: 'inv-7', projectId: 'p1', number: 7, type: 'full', status: 'draft',

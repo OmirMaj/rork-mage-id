@@ -7,10 +7,9 @@
 //
 // Pure. No React. No network. Never throws.
 
-import type { Project, Commitment, ProjectType } from '@/types';
+import type { Project, Commitment, ProjectType, ChangeOrder } from '@/types';
 import { PROJECT_TYPES } from '@/types';
-import { realizedMarginPct } from '@/utils/judges/typeMargin';
-import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { realizedMarginPct, realizedRevenue } from '@/utils/judges/typeMargin';
 
 export interface TypeProfitRow {
   type: ProjectType;
@@ -46,6 +45,11 @@ const isClosed = (p: Project) => p.status === 'completed' || p.status === 'close
 export function buildTypeProfitability(
   projects: Project[],
   commitments: Commitment[],
+  // Required, not defaulted: an omitted list measured revenue as the bare
+  // estimate (audit round 2 #3). /business, JUDGES and the AI's fact block
+  // (utils/oneMind/factBlocks.ts) all pass the CO list, so "margin by job
+  // type" is one number everywhere; validate-judges-type-margin pins it.
+  changeOrders: ChangeOrder[],
 ): TypeProfitabilityResult {
   // Per-type accumulator
   const typeMap = new Map<
@@ -64,8 +68,11 @@ export function buildTypeProfitability(
     closedTotal++;
     const acc = typeMap.get(p.type);
     if (!acc) continue; // unrecognized type — skip
-    const m = realizedMarginPct(p, commitments);
-    const rev = effectiveEstimateTotal(p);
+    const m = realizedMarginPct(p, commitments, changeOrders);
+    // Weight by the SAME revenue the margin was measured on (estimate +
+    // approved owner COs). This used to be the bare estimate while the margin
+    // used grandTotal — two bases in one number (audit round 2, #3).
+    const rev = realizedRevenue(p, changeOrders);
     if (m !== null && rev > 0) {
       closedWithBasis++;
       acc.margins.push(m);
@@ -108,6 +115,6 @@ export function buildTypeProfitability(
       closedWithBasis,
     },
     definitionNote:
-      'Margin = (contract − committed cost) ÷ contract. Excludes approved change orders from cost — same definition used in Bid Advisor.',
+      'Margin = (contract − cost) ÷ contract, where contract is your estimate plus approved change orders and cost is what you paid or committed to subs, whichever is higher. Same definition Bid Advisor uses.',
   };
 }
