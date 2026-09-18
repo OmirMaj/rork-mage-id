@@ -11,6 +11,7 @@ import { toolboxGaps, type ToolboxDraft, type SuggestedTopic } from './toolboxGa
 import { buildToolboxGrounding } from './toolboxGrounding';
 import { mageAI } from '@/utils/mageAI';
 import { createId } from '@/utils/scheduleEngine';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface ToolboxApplied { route: '/safety-toolbox'; projectId: string; params: { projectId: string } }
 
@@ -124,7 +125,10 @@ export const toolboxCapability: CopilotCapability<ToolboxDraft, ToolboxApplied> 
       id: createId('tbt'),
       projectId: ctx.projectId,
       topic: topic.slice(0, 80),
-      date: now.slice(0, 10),
+      // The foreman's calendar day. `now.slice(0, 10)` is the UTC day, so an
+      // end-of-shift talk after 5pm Pacific was dated tomorrow — on a record
+      // that locks the moment anyone signs it (audit round 2 #6).
+      date: todayCalendarDay(),
       presenter: (draft.presenter ?? '').trim(),
       notes,
       attendees: [],

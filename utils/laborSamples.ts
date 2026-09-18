@@ -25,6 +25,21 @@
 
 import type { TimeEntry } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
+import { toCalendarDayString } from '@/utils/calendarDate';
+
+/** The local calendar day a shift was worked, from its clock-in instant; the
+ *  stored `date` only when there is no usable clock-in. Older rows wrote
+ *  `date` as the UTC day, so an evening shift's cost sample was dated the
+ *  next day (integration round 1 — the #9 reader class the time clock, the
+ *  DFR and timesheets already moved). Same rule as dfrClockCrew.clockInLocalDay
+ *  (which imports THIS module, so the rule is restated rather than imported). */
+function shiftDay(e: Pick<TimeEntry, 'clockIn' | 'date'>): string {
+  if (e.clockIn) {
+    const d = new Date(e.clockIn);
+    if (!Number.isNaN(d.getTime())) return toCalendarDayString(d);
+  }
+  return e.date || '';
+}
 
 /** Normalized trade key → loaded $/hour the GC pays for that trade. */
 export type LaborRateMap = Record<string, number>;
@@ -165,7 +180,8 @@ export function buildLaborSamples(
       g.hours += e.totalHours;
       g.cost += cost;
       g.overtime = g.overtime || overtime;
-      if (e.date > g.lastDate) g.lastDate = e.date;
+      const day = shiftDay(e);
+      if (day > g.lastDate) g.lastDate = day;
     } else {
       groups.set(key, {
         projectId: e.projectId,
@@ -175,7 +191,7 @@ export function buildLaborSamples(
         hours: e.totalHours,
         cost,
         overtime,
-        lastDate: e.date || '',
+        lastDate: shiftDay(e),
       });
     }
   }

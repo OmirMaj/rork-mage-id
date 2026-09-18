@@ -51,7 +51,7 @@ import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
-import { buildPortalProposal, PROPOSAL_NOT_A_CONTRACT_NOTE, type PortalProposal } from '@/utils/portalSnapshot';
+import { buildPortalProposal, PROPOSAL_ESIGN_VERSION, PROPOSAL_NOT_A_CONTRACT_NOTE, type PortalProposal } from '@/utils/portalSnapshot';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -1280,7 +1280,32 @@ export default function ClientViewScreen() {
                     ))}
                   </>
                 )}
-                {proposalBlock.payment.map(m => (
+                {/* Payment lines only for a proposal the portal would let the
+                    client accept: the current record version with confirmed
+                    terms. A pending proposal has none to show and says so; an
+                    older-version proposal (pushed by a build that still
+                    printed MAGE's 10% deposit) is hidden the same way the
+                    portal page hides it. */}
+                {/* Who is reading decides the wording. In SNAPSHOT mode this
+                    is the homeowner's tokenized view (app/_layout lets it
+                    through the auth gate), so it speaks the portal page's
+                    sentences; a GC-addressed "your client can't accept"
+                    here would be read by the client (integration round 3).
+                    The GC's local preview keeps the instruction he can act
+                    on. */}
+                {proposalBlock.paymentTermsPending ? (
+                  <Text style={styles.budgetCaption} testID="proposal-terms-pending">
+                    {isSnapshotMode
+                      ? 'Your contractor is confirming the payment schedule. You can accept once it is set.'
+                      : 'Payment terms not confirmed — your client can\u2019t accept until you confirm them in Client Portal.'}
+                  </Text>
+                ) : proposalBlock.version !== PROPOSAL_ESIGN_VERSION ? (
+                  <Text style={styles.budgetCaption} testID="proposal-version-outdated">
+                    {isSnapshotMode
+                      ? 'Your contractor is updating this proposal. You can accept it once they have.'
+                      : 'This proposal was published by an older version of the app — open Client Portal to republish it with your payment terms.'}
+                  </Text>
+                ) : proposalBlock.payment.map(m => (
                   <View key={m.label} style={styles.budgetRow}>
                     <Text style={styles.budgetLabel}>{m.label} — {m.detail}</Text>
                     <Text style={styles.budgetValue}>
@@ -1290,11 +1315,15 @@ export default function ClientViewScreen() {
                 ))}
                 <Text style={styles.budgetCaption}>{PROPOSAL_NOT_A_CONTRACT_NOTE}</Text>
                 {/* Say plainly where the signature happens. A read-only screen
-                    that stays silent about that reads as a dead end. */}
-                <Text style={styles.budgetCaption} testID="proposal-accept-location">
-                  To accept, open the portal link your contractor sent — that page
-                  captures the signature. This view is read-only.
-                </Text>
+                    that stays silent about that reads as a dead end. Only
+                    when the proposal CAN be accepted — under a pending or
+                    outdated note it contradicted the line above it. */}
+                {!proposalBlock.paymentTermsPending && proposalBlock.version === PROPOSAL_ESIGN_VERSION && (
+                  <Text style={styles.budgetCaption} testID="proposal-accept-location">
+                    To accept, open the portal link your contractor sent — that page
+                    captures the signature. This view is read-only.
+                  </Text>
+                )}
               </View>
             )}
           </View>

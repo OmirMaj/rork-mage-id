@@ -3,7 +3,7 @@
 // Builds and delivers a per-user morning briefing combining:
 //   • Today's schedule tasks (from project.schedule.tasks)
 //   • Yesterday's DFRs (work progress chips, manpower totals, issues)
-//   • Open RFIs assigned to the user
+//   • Open RFIs on the user's jobs (whoever logged them)
 //   • Hyperlocal weather using project.location_latitude/longitude
 //   • Submittal / sub-portal-link / notification-outbox deltas (placeholder)
 //
@@ -330,19 +330,44 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
     .eq('status', 'in_progress');
   const activeProjects = (projects ?? []) as ProjectRow[];
 
+  // JOB-SCOPED, NOT AUTHOR-SCOPED (audit round 2 #28). Both reads used to be
+  // `.eq('user_id', userId)` — the rows this user WROTE. On a job where the
+  // super files the daily report, that is none of them: the GC saw the
+  // foreman's report on the project screen (ProjectContext reads
+  // daily_reports / rfis with no author filter, RLS scoping it) and then got
+  // "no report, 0 crew" in his 6 am email for the same day. This function runs
+  // as the SERVICE ROLE, so RLS scopes nothing here and the project filter is
+  // the whole boundary: reports on the jobs being briefed, open RFIs on every
+  // job this user owns — whoever logged them. The flip side is deliberate: a
+  // foreman's own reports on someone else's job no longer land in HIS digest,
+  // which is about his own jobs.
+  const activeIds = activeProjects.map(p => String(p.id)).filter(Boolean);
   const yesterdayIso = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-  const { data: dfrs } = await supabase
-    .from('daily_reports')
-    .select('id, project_id, date, work_performed, manpower, issues_and_delays')
-    .eq('user_id', userId)
-    .gte('date', yesterdayIso);
-  const yesterdayDfrs = (dfrs ?? []) as DfrRow[];
+  let yesterdayDfrs: DfrRow[] = [];
+  if (activeIds.length > 0) {
+    const { data: dfrs } = await supabase
+      .from('daily_reports')
+      .select('id, project_id, date, work_performed, manpower, issues_and_delays')
+      .in('project_id', activeIds)
+      .gte('date', yesterdayIso);
+    yesterdayDfrs = (dfrs ?? []) as DfrRow[];
+  }
 
-  const { count: openRfisCount } = await supabase
-    .from('rfis')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('status', 'open');
+  const { data: ownedRows } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('user_id', userId);
+  const ownedIds = ((ownedRows ?? []) as { id: string }[]).map(p => String(p.id)).filter(Boolean);
+  let openRfisCount = 0;
+  // Chunked: the id list rides in the query string.
+  for (let i = 0; i < ownedIds.length; i += 100) {
+    const { count } = await supabase
+      .from('rfis')
+      .select('*', { count: 'exact', head: true })
+      .in('project_id', ownedIds.slice(i, i + 100))
+      .eq('status', 'open');
+    openRfisCount += count ?? 0;
+  }
 
   // No job in progress means a briefing has nothing to be about — there is no
   // schedule to read, no weather that matters and no crew on site. Sending

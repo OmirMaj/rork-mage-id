@@ -38,6 +38,7 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 
 export default function SmartProposalScreen() {
   const router = useRouter();
@@ -77,7 +78,7 @@ function SmartProposalInner() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId, leadId } = useLocalSearchParams<{ projectId?: string; leadId?: string }>();
-  const { getProject, leads, updateLead } = useProjects();
+  const { getProject, leads, updateLead, settings } = useProjects();
   const { addProposal, updateProposal } = useSmartProposals();
 
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
@@ -109,6 +110,7 @@ function SmartProposalInner() {
   const typicalMarkup = Math.max(0, (parseFloat(markupStr) || 0) / 100);
   const competitorCount = Math.max(0, parseInt(competitorsStr, 10) || 0);
 
+  const warrantyMonths = resolveWarrantyMonths(settings);
   const built = useMemo(() => {
     if (cost <= 0) return null;
     return buildProposalTiers({
@@ -118,8 +120,11 @@ function SmartProposalInner() {
       competitorCount,
       clientName,
       projectName: project?.name,
+      // His one saved warranty on every tier, or "Workmanship warranty" with
+      // no period until he sets one — the tiers never invent a period.
+      warrantyMonths,
     });
-  }, [cost, leads, typicalMarkup, competitorCount, clientName, project?.name]);
+  }, [cost, leads, typicalMarkup, competitorCount, clientName, project?.name, warrantyMonths]);
 
   const [selectedTierKey, setSelectedTierKey] = useState<ProposalTierKey>('signature');
   const [proposalId, setProposalId] = useState<string | null>(null);

@@ -6,7 +6,8 @@
 // ranked risk factors and a recommendation per factor.
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -16,6 +17,10 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { computeMarginRisk, riskBandLabel, type RiskBand, type RiskFactor } from '@/utils/marginRiskScore';
@@ -56,13 +61,33 @@ function MarginRiskInner() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, changeOrders, commitments, invoices } = useProjects();
+  const {
+    getProject, changeOrders, commitments, invoices, equipment, permits, subcontractors,
+  } = useProjects();
+  // The cost streams Job Costing prices — receipts (incl. QBO bills confirmed
+  // into receipts), priced crew hours, equipment, permits, the sub roster.
+  // Without them this screen priced the job on subcontracts alone and a
+  // self-perform overrun read as the bid margin (audit round 2, #16).
+  const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+  // Those stores default to [] / {} while AsyncStorage is read; scoring on
+  // that beat showed a self-perform job's LOW risk at its bid margin, a guess
+  // rendered as a score. Hold the score until they have loaded. The mirror
+  // hook has no loading flag, so read its cache entry; this screen re-renders
+  // when it resolves because useTimeEntriesMirror subscribes.
+  const queryClient = useQueryClient();
+  const mirrorLoaded = queryClient.getQueryState(TIME_ENTRIES_MIRROR_QUERY_KEY)?.data !== undefined;
+  const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const risk = useMemo(() => {
     if (!project) return null;
-    return computeMarginRisk({ project, changeOrders, commitments, invoices });
-  }, [project, changeOrders, commitments, invoices]);
+    return computeMarginRisk({ project, changeOrders, commitments, invoices, costSources });
+  }, [project, changeOrders, commitments, invoices, costSources]);
 
   if (!project) {
     return (
@@ -103,7 +128,17 @@ function MarginRiskInner() {
       </View>
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
-        {!risk?.hasBasis ? (
+        {!costSourcesReady ? (
+          <View
+            style={styles.loading}
+            testID="margin-risk-loading"
+            accessibilityRole="progressbar"
+            accessibilityLabel="Loading crew hours and receipts"
+          >
+            <ActivityIndicator size="small" color={t.accent} />
+            <Text style={styles.loadingText}>Loading crew hours and receipts before scoring…</Text>
+          </View>
+        ) : !risk?.hasBasis ? (
           <View style={styles.infoCard}>
             <ShieldAlert size={26} color={t.accent} strokeWidth={1.7} />
             <Text style={styles.infoTitle}>No margin to score yet</Text>
@@ -207,6 +242,8 @@ function FactorCard({ f, t, styles }: { f: RiskFactor; t: ThemeColors; styles: R
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  loading: { alignItems: 'center' as const, justifyContent: 'center' as const, gap: 10, padding: 24 },
+  loadingText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const },
   header: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,

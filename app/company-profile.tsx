@@ -24,7 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   ChevronLeft, Building2, Type as TypeIcon, User, Phone, Mail,
   MapPin, Award, Image as ImageIcon, Camera, Trash2, PenTool, X,
-  FileText, Save, Landmark, Check,
+  FileText, Save, Landmark, Check, Wallet, ShieldCheck,
 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -40,6 +40,9 @@ import { US_STATES } from '@/constants/regions';
 import {
   bidLicenceRuleForState, bidLicenceStateSource, mergedBidBranding,
 } from '@/utils/bidDocumentIdentity';
+import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
+import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel, warrantyShortLabel } from '@/utils/paymentTerms';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -53,6 +56,15 @@ export default function CompanyProfileScreen() {
   const router = useRouter();
   const { settings, updateSettings } = useProjects();
   const { user } = useAuth();
+  // HOW YOU GET PAID. Direction B has no setup form: his payment split and
+  // warranty are asked the first time a client document prints them. These
+  // rows are where he finds and changes the answer afterwards. They open the
+  // same ask sheet, pre-filled, and save through savePaymentTerms ONLY — never
+  // through this screen's branding Save or the logo/signature autoSave, whose
+  // whole-branding writes would otherwise race the terms write.
+  const gate = useClientDocumentGate();
+  const savedSplit = resolvePaymentSplit({ settings }).split;
+  const savedWarrantyMonths = resolveWarrantyMonths(settings);
 
   const branding = settings.branding ?? {
     companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
@@ -393,6 +405,48 @@ export default function CompanyProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        <Text style={styles.sectionHeader}>HOW YOU GET PAID</Text>
+        <Text style={styles.sectionSubtext}>
+          Asked the first time a document prints it. Changes apply to new proposals and contracts — anything already sent keeps the terms it went out with.
+        </Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => gate.edit('terms')}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={`Payment terms, ${savedSplit ? splitLabel(savedSplit) : 'not set'}. Tap to change.`}
+            testID="company-payment-terms"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.surfaceAlt }]}>
+              <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Payment terms</Text>
+              <Text style={styles.rowSubtext}>Deposit / progress / final</Text>
+            </View>
+            <Text style={styles.rowValue}>{savedSplit ? splitLabel(savedSplit) : 'Not set'}</Text>
+          </TouchableOpacity>
+          <View style={styles.rowSeparator} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => gate.edit('warranty')}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={`Workmanship warranty, ${savedWarrantyMonths != null ? warrantyShortLabel(savedWarrantyMonths) : 'not set'}. Tap to change.`}
+            testID="company-warranty"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.surfaceAlt }]}>
+              <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Workmanship warranty</Text>
+              <Text style={styles.rowSubtext}>Printed in your construction agreement</Text>
+            </View>
+            <Text style={styles.rowValue}>{savedWarrantyMonths != null ? warrantyShortLabel(savedWarrantyMonths) : 'Not set'}</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionHeader}>COMPANY LOGO</Text>
         <Text style={styles.sectionSubtext}>
           Upload your company logo to include on PDF documents.
@@ -545,6 +599,8 @@ export default function CompanyProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      <ClientDocumentAskSheet {...gate.sheet} />
 
       <Modal
         visible={showSignatureModal}

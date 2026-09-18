@@ -37,6 +37,7 @@ import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import ReactivationBanner from '@/components/ReactivationBanner';
 import { parseLeadFromTranscript } from '@/utils/voiceFormParsers';
 import { formatMoney } from '@/utils/formatters';
+import { statedBudgetOf } from '@/utils/widgetLeadCore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -273,8 +274,13 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
   const ageHours = Math.floor(ageMs / 3600000);
   const overdue = waiting && ageHours >= 1;
 
-  const budget = lead.budgetMax || lead.budgetMin
-    ? formatMoney(lead.budgetMax ?? lead.budgetMin ?? 0)
+  // The HOMEOWNER'S budget only. A widget lead captured before the edge-fn
+  // fix (#24) also has its national ballpark in budget_min/max; the card used
+  // to print that as their budget. statedBudgetOf is the same reader
+  // lead-detail, Instant Bid and Convert use.
+  const stated = statedBudgetOf(lead);
+  const budget = stated.max || stated.min
+    ? formatMoney(stated.max || stated.min || 0)
     : null;
 
   return (

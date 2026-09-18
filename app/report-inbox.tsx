@@ -30,7 +30,7 @@ import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { daysUntilCalendarDay } from '@/utils/calendarDate';
+import { daysUntilCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8) — a bad row here
 // costs this screen, not the whole bundle.
@@ -86,13 +86,13 @@ export default function ReportInboxScreen() {
     for (const dr of dailyReports) {
       const proj = projectsById.get(dr.projectId);
       if (!proj) continue;
-      const ts = new Date(dr.date).getTime();
+      const ts = dayOrInstantDate(dr.date).getTime();
       list.push({
         key: `dfr-${dr.id}`,
         kind: 'dfr',
         projectId: dr.projectId,
         projectName: proj.name,
-        primary: new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        primary: dayOrInstantDate(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
         secondary: `${dr.weather?.conditions || 'No weather'} · ${dr.manpower.reduce((s: number, m: { headcount: number }) => s + m.headcount, 0)} workers`,
         badgeText: dr.status === 'sent' ? 'Sent' : 'Saved',
         // UX-F7: every badge pairs a themed SOFT fill with its LABEL ink. The

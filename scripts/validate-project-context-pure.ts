@@ -544,7 +544,9 @@ check('B-3 loader: legacy money is read off the projects row through legacyMoney
 check('B-3 loader: the display-fallback role is the FRESH server role only (never the cache)', /const displayRole = rolesReadOk \? myRole : undefined;/.test(ctx));
 check('B-1 loader: the device copy is read ONCE — per-project stamps come from it and local-only rows merge from it',
   /const localById = new Map\(localForMerge\.map\(\(p\) => \[p\.id, p\] as const\)\);/.test(ctx)
-  && /const merged = \[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\];/.test(ctx));
+  // Integration round 1: the merge now passes through keepProjectsWrittenSince
+  // (a write made while the load was out keeps the device copy).
+  && /const merged = keepProjectsWrittenSince\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\],/.test(ctx));
 check('Project type carries myRole and financialsLoaded', /myRole\?:\s*ProjectCollaborator\['role'\];/.test(types) && /financialsLoaded\?:\s*boolean;/.test(types));
 const classifyAt = ctx.indexOf('classifyProjectForSync(project, userId, userEmail)');
 const baseStart = classifyAt >= 0 ? ctx.indexOf('const base = {', classifyAt) : -1;

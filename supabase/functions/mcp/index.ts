@@ -254,12 +254,64 @@ const TOOLS = [
   },
 ];
 
-async function projectNameMap(userId: string): Promise<Record<string, string>> {
-  const rows = await rest<{ id: string; name: string }>(`projects?user_id=eq.${userId}&select=id,name`);
+// The jobs this user works on: the ones he OWNS plus the ones he is an
+// ACCEPTED collaborator on (audit round 2 #28). Every read here runs under the
+// SERVICE ROLE, so nothing but this list scopes the field-data tools: RFIs used
+// to be `rfis?user_id=eq.<me>` — the rows he typed himself — so a GC asking
+// Claude "what RFIs are open?" never heard about the one his foreman logged on
+// Henderson, which the app itself shows him on the project screen (RLS lets an
+// owner read every collaborator's RFIs). And a collaborator's own project was
+// missing from the name map, so his RFIs came back tagged "—".
+//
+// Money tools (invoices, change orders, financial_summary) stay OWNER-scoped by
+// user_id: the name map being wider changes only the label they print.
+async function accessibleProjectNames(userId: string): Promise<Record<string, string>> {
   const m: Record<string, string> = {};
-  for (const r of rows) m[r.id] = r.name;
+  for (const r of await rest<{ id: string; name: string }>(`projects?user_id=eq.${userId}&select=id,name`)) m[r.id] = r.name;
+  const memberIds = (await rest<{ project_id: string }>(
+    `project_collaborators?user_id=eq.${userId}&status=eq.accepted&select=project_id`,
+  )).map((r) => String(r.project_id)).filter((id) => /^[0-9a-f-]{36}$/i.test(id) && !(id in m));
+  for (let i = 0; i < memberIds.length; i += 100) {
+    // uuid-shaped ids only (checked above), so the in-list cannot be spliced.
+    for (const r of await rest<{ id: string; name: string }>(`projects?id=in.(${memberIds.slice(i, i + 100).join(",")})&select=id,name`)) {
+      m[r.id] = r.name;
+    }
+  }
   return m;
 }
+const projectNameMap = accessibleProjectNames;
+
+/**
+ * Open RFIs on every job the user works on, whoever logged them. One request
+ * per 100 projects (the ids ride in the query string); `extra` is the rest of
+ * the PostgREST query (select / order / limit).
+ */
+async function openRfisOnProjects(projectIds: string[], extra: string): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let i = 0; i < projectIds.length; i += 100) {
+    out.push(...await rest<Record<string, unknown>>(
+      `rfis?project_id=in.(${projectIds.slice(i, i + 100).join(",")})&status=eq.open&${extra}`,
+    ));
+  }
+  return out;
+}
+
+/** "logged by <name>" for rows someone OTHER than the caller wrote. */
+async function authorNames(userId: string, rows: Record<string, unknown>[]): Promise<Record<string, string>> {
+  const ids = [...new Set(rows.map((r) => String(r.user_id ?? "")).filter((id) => id && id !== userId && /^[0-9a-f-]{36}$/i.test(id)))];
+  const m: Record<string, string> = {};
+  for (let i = 0; i < ids.length; i += 100) {
+    for (const p of await rest<{ id: string; name?: string; company_name?: string }>(`profiles?id=in.(${ids.slice(i, i + 100).join(",")})&select=id,name,company_name`)) {
+      m[p.id] = (p.name || p.company_name || "").trim();
+    }
+  }
+  return m;
+}
+const loggedBy = (userId: string, authors: Record<string, string>, r: Record<string, unknown>) => {
+  const uid = String(r.user_id ?? "");
+  if (!uid || uid === userId) return "";
+  return ` · logged by ${authors[uid] || "a teammate"}`;
+};
 
 async function runTool(name: string, args: Record<string, unknown>, userId: string): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
   switch (name) {
@@ -319,17 +371,22 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
 
     case "list_open_rfis": {
       const limit = Math.min(200, Math.max(1, num(args.limit) || 100));
-      const rows = await rest<Record<string, unknown>>(
-        `rfis?user_id=eq.${userId}&status=eq.open&select=number,subject,priority,assigned_to,date_required,project_id&order=created_at.desc&limit=${limit}`,
-      );
-      if (!rows.length) return text("No open RFIs. 🎉");
       const names = await projectNameMap(userId);
+      const rows = (await openRfisOnProjects(
+        Object.keys(names),
+        `select=number,subject,priority,assigned_to,date_required,project_id,user_id,created_at&order=created_at.desc&limit=${limit}`,
+      ))
+        // Several chunks each come back sorted; re-sort the union, then cap.
+        .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
+        .slice(0, limit);
+      if (!rows.length) return text("No open RFIs. 🎉");
+      const authors = await authorNames(userId, rows);
       const lines = rows.map((r) => {
         const proj = names[String(r.project_id)] || "—";
         const pr = r.priority ? ` (${r.priority})` : "";
         const need = r.date_required ? ` · needs response by ${r.date_required}` : "";
         const who = r.assigned_to ? ` · assigned to ${r.assigned_to}` : "";
-        return `• RFI #${r.number} — ${r.subject}${pr} [${proj}]${who}${need}`;
+        return `• RFI #${r.number} — ${r.subject}${pr} [${proj}]${who}${need}${loggedBy(userId, authors, r)}`;
       });
       return text(`${rows.length} open RFI(s):\n${lines.join("\n")}`);
     }
@@ -360,10 +417,14 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
         // is open; a draft is not billed and never overdue.
         return String(inv.status) !== "draft" && bal > 0 && inv.due_date && String(inv.due_date) < t;
       });
-      const rfis = await rest<Record<string, unknown>>(
-        `rfis?user_id=eq.${userId}&status=eq.open&select=number,subject,date_required,project_id&order=date_required.asc`,
+      const rfis = await openRfisOnProjects(
+        Object.keys(names),
+        `select=number,subject,date_required,project_id,user_id&order=date_required.asc`,
       );
-      const overdueRfi = rfis.filter((r) => r.date_required && String(r.date_required) < t);
+      const overdueRfi = rfis
+        .filter((r) => r.date_required && String(r.date_required) < t)
+        .sort((a, b) => String(a.date_required).localeCompare(String(b.date_required)));
+      const rfiAuthors = await authorNames(userId, overdueRfi);
       const out: string[] = [];
       if (overdueInv.length) {
         out.push(`Overdue invoices (${overdueInv.length}):`);
@@ -375,7 +436,7 @@ async function runTool(name: string, args: Record<string, unknown>, userId: stri
       if (overdueRfi.length) {
         out.push(`${out.length ? "\n" : ""}Overdue RFIs (${overdueRfi.length}):`);
         for (const r of overdueRfi) {
-          out.push(`• RFI #${r.number} — ${r.subject} (needed ${r.date_required}) [${names[String(r.project_id)] || "—"}]`);
+          out.push(`• RFI #${r.number} — ${r.subject} (needed ${r.date_required}) [${names[String(r.project_id)] || "—"}]${loggedBy(userId, rfiAuthors, r)}`);
         }
       }
       return text(out.length ? out.join("\n") : "Nothing overdue right now. ✅");

@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects, useProjectActions } from "@/contexts/ProjectContext";
 import { SafetyProvider } from "@/contexts/SafetyContext";
 import { CrewProvider } from "@/contexts/CrewContext";
+import { TimeEntriesProvider } from "@/contexts/TimeEntriesContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
@@ -1334,6 +1335,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="dev-ar-measure"
+        options={{
+          title: "AR Measure (dev)",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="report-inbox"
         options={{
           title: "Report Inbox",
@@ -1576,6 +1584,13 @@ export default Sentry.wrap(function RootLayout() {
                   <ScanProvider>
                   <WipProvider>
                   <CrewProvider>
+                  {/* Time entries: ONE store for the Time Tracking screen and
+                      the global voice mic (BrainSurface). As a per-mount hook
+                      each copy overwrote the other's clock-ins on disk and
+                      posted shift alerts the other could not cancel (audit
+                      round 2, field-ops #8). Below AuthProvider (reads the
+                      user) and QueryClientProvider (invalidates the mirror). */}
+                  <TimeEntriesProvider>
                   <SafetyProvider>
                   <PropertyProvider>
                   <MaterialCartProvider>
@@ -1618,6 +1633,7 @@ export default Sentry.wrap(function RootLayout() {
                   </MaterialCartProvider>
                   </PropertyProvider>
                   </SafetyProvider>
+                  </TimeEntriesProvider>
                   </CrewProvider>
                   </WipProvider>
                   </ScanProvider>

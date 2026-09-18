@@ -7,19 +7,34 @@ import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
 import { formatMoneyShort } from '@/utils/formatters';
+import { cashBalanceTone } from '@/utils/cashFlowEngine';
 
 interface MoneyStripProps {
   budget: number;
   outstanding: number;
   /** null = cash flow not set up → renders '—'. */
   cash4wk: number | null;
+  /** When the starting balance behind cash4wk was last set (ISO instant). */
+  cashAsOf?: string | null;
   onPressOutstanding: () => void;
   onPressCash: () => void;
 }
 
-export function MoneyStrip({ budget, outstanding, cash4wk, onPressOutstanding, onPressCash }: MoneyStripProps) {
+/** "as of Sep 1" — the balance date is an instant the GC stamped, so a local
+ *  date read is the right one. Null when there is nothing parseable. */
+function cashAsOfLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `bal. as of ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+}
+
+export function MoneyStrip({ budget, outstanding, cash4wk, cashAsOf, onPressOutstanding, onPressCash }: MoneyStripProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const tone = cashBalanceTone(cash4wk);
+  const cashColor = tone === 'danger' ? colors.danger : tone === 'success' ? colors.success : colors.textMuted;
+  const asOf = cashAsOfLabel(cashAsOf);
 
   return (
     <View style={styles.card} testID="summary-money">
@@ -54,12 +69,13 @@ export function MoneyStrip({ budget, outstanding, cash4wk, onPressOutstanding, o
           testID="summary-money-cash"
         >
           <Text
-            style={[styles.val, { color: cash4wk !== null && cash4wk > 0 ? colors.success : colors.textMuted }]}
+            style={[styles.val, { color: cashColor }]}
             numberOfLines={1}
           >
             {cash4wk === null ? '—' : formatMoneyShort(cash4wk)}
           </Text>
           <Text style={styles.lbl}>CASH · 4WK</Text>
+          {asOf ? <Text style={styles.asOf} numberOfLines={1}>{asOf}</Text> : null}
         </TouchableOpacity>
       </View>
     </View>
@@ -76,5 +92,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cell: { flex: 1, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center' as const },
   cellBorder: { borderLeftWidth: 1, borderLeftColor: t.line },
   val: { fontSize: 18, fontWeight: '800' as const, letterSpacing: -0.4 },
+  asOf: { fontSize: 9.5, fontWeight: '600' as const, color: t.textMuted, marginTop: 2 },
   lbl: { fontSize: 9.5, fontWeight: '700' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.4, marginTop: 3 },
 });

@@ -27,6 +27,14 @@ export type ExpectedRedirect = {
 
 export const EXPECTED_REDIRECTS: ExpectedRedirect[] = [
   {
+    from: '/dev-ar-measure',
+    to: '/',
+    why:
+      'Owner-only AR measurement dev harness: app/dev-ar-measure.tsx redirects '
+      + 'every non-owner to Home, and the smoke user is not in OWNER_EMAILS.',
+    states: ['empty', 'populated'],
+  },
+  {
     from: '/login',
     to: '/',
     why:

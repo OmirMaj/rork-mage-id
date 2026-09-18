@@ -92,6 +92,28 @@ const EXCLUDED_AS_ENTRY_POINT = new Set([
   join('utils', 'routeTitle.ts'),      // path → document title map
 ]);
 
+// Route literals that are redirect TARGETS, not doors. utils/deepLinksInvite
+// rebuilds `/accept-invite?token=…` so a collaborator who had to sign in
+// first lands back on the invite — nobody taps it. Counting it would retire
+// the accept-invite exemption and record a door that does not exist. Only the
+// one literal is blanked (the same file also builds login's real "Create
+// Account" door to /signup), and a literal that is no longer there fails
+// below, so this cannot quietly hide a new link.
+const REDIRECT_TARGET_LITERALS: { file: string; literal: string }[] = [
+  { file: join('utils', 'deepLinksInvite.ts'), literal: '`/accept-invite?token=${t}`' },
+];
+const redirectLiteralsFound = new Set<string>();
+function readAsEntrySource(f: string): string {
+  let src = readFileSync(f, 'utf8');
+  for (const r of REDIRECT_TARGET_LITERALS) {
+    if (relative(ROOT, f) === r.file && src.includes(r.literal)) {
+      redirectLiteralsFound.add(r.literal);
+      src = src.split(r.literal).join('REDIRECT_TARGET');
+    }
+  }
+  return src;
+}
+
 const allSources = [
   ...listFiles(join(ROOT, 'app')),
   ...listFiles(join(ROOT, 'components')),
@@ -105,8 +127,12 @@ const allSources = [
 const DISCOVER_TAB = join('app', '(tabs)', 'discover') + sep;
 const desktopSources = allSources.filter(f => !relative(ROOT, f).startsWith(DISCOVER_TAB));
 
-const anySrc = allSources.map(f => readFileSync(f, 'utf8')).join('\n');
-const desktopSrc = desktopSources.map(f => readFileSync(f, 'utf8')).join('\n');
+const anySrc = allSources.map(readAsEntrySource).join('\n');
+const desktopSrc = desktopSources.map(readAsEntrySource).join('\n');
+for (const r of REDIRECT_TARGET_LITERALS) {
+  ok(`redirect-target literal ${r.literal} is still in ${r.file}`, redirectLiteralsFound.has(r.literal),
+    'it moved or changed — update REDIRECT_TARGET_LITERALS rather than letting a redirect count as a door');
+}
 
 ok('found the navigation sources', allSources.length >= 300, `only ${allSources.length} files scanned`);
 ok('desktop source set excludes the Discover tab',
@@ -139,6 +165,7 @@ const NO_ENTRY_POINT_EXEMPT: Record<string, string> = {
   'claim-crew': 'entered by a crew member from a tokenized invite link, pre-auth',
   'accept-invite': 'entered by a collaborator from a tokenized invite email, possibly before they have an account',
   integrations: 'OAuth callback page — Intuit and friends redirect an in-app browser here; it authenticates on a signed state HMAC, not a session',
+  'dev-ar-measure': 'owner-only AR measurement dev harness; it redirects everyone else, and validate-ar-spike asserts it is deliberately doorless (no tab, no sidebar)',
   'integrations/qbo/callback': 'the QuickBooks half of the same OAuth callback: Intuit redirects to this URL directly, so nothing in the app links it',
 };
 

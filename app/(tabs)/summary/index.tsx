@@ -1,9 +1,9 @@
-import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { FolderOpen, ChevronRight, Briefcase, CalendarOff, CloudOff } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -17,8 +17,8 @@ import { Skeleton, SkeletonCard } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
-import { generateForecast } from '@/utils/cashFlowEngine';
-import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
+import { fourWeekCashPosition } from '@/utils/cashFlowEngine';
+import { loadCashFlowSettings, type CashFlowSettings } from '@/utils/cashFlowStorage';
 import {
   computeTodayTasks, computeWeekLoad,
   type AttentionItem,
@@ -31,6 +31,7 @@ import { MoneyStrip } from '@/components/summary/MoneyStrip';
 import { NeedsYou } from '@/components/summary/NeedsYou';
 import { ToolsSheet } from '@/components/summary/ToolsSheet';
 import StatusBarMask from '@/components/StatusBarMask';
+import PendingInvitesCard from '@/components/collaborators/PendingInvitesCard';
 
 // Summary tab — the "Morning Briefing". A glanceable, portfolio-wide login
 // dashboard: greeting hero + today's on-site schedule + this-week load +
@@ -50,7 +51,7 @@ export default function SummaryScreen() {
   // renders as a calm, empty, all-clear briefing — the foreman plans his
   // morning off a day that actually has open tasks (audit 2026-09-07 #1).
   const { projects, isLoading, sourceFailed, retryRemoteReads } = useCoreData();
-  const { invoices } = useFinancialsData();
+  const { invoices, commitments, changeOrders } = useFinancialsData();
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -113,38 +114,44 @@ export default function SummaryScreen() {
 
   // Cash · 4wk — projected running balance at the end of week 4 of the forecast.
   // null when the user hasn't set up cash flow yet (renders as "—").
-  const [cash4wk, setCash4wk] = useState<number | null>(null);
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const done = await isSetupComplete();
-        if (!done) { setCash4wk(null); return; }
-        const data = await loadCashFlowData();
-        // Gate on MONEY, not on row count. `expenses.length > 0` counts rows
-        // that may all be $0, which is the same "signal vs rows" mistake that
-        // made /cash-flow print "Healthy" beside a $0 balance — a tile showing
-        // a 4-week cash figure derived from nothing is the same lie in a
-        // smaller box (polish audit 2026-09-10).
-        const hasCashSignal =
-          data.startingBalance > 0
-          || data.expenses.some(e => (e.amount ?? 0) > 0)
-          || data.expectedPayments.some(p => (p.amount ?? 0) > 0);
-        if (hasCashSignal) {
-          const forecast = generateForecast(
-            data.startingBalance, data.expenses, [], data.expectedPayments, 12, data.defaultPaymentTerms,
-          );
-          const wk4 = forecast[3] ?? forecast[forecast.length - 1];
-          setCash4wk(wk4 ? wk4.runningBalance : null);
-        } else {
-          setCash4wk(null);
-        }
-      } catch (err) {
+  //
+  // SAME FORECAST AS /cash-flow (audit round 2, #17). This tile used to forecast
+  // on its own: the device cache only (no user id, so '—' on the web and on a
+  // second phone even with a server row), the stored balance without the
+  // payments recorded since, no invoices, no signed subcontracts or POs, no
+  // COs — and it only re-ran when `projects` changed. $40k in the bank, $6k a
+  // week of overhead and a $52k framing draw read +$16k in green here and
+  // −$36k on the screen the tile opens. fourWeekCashPosition goes through the
+  // one buildForecastInputs both screens share.
+  const [cashSettings, setCashSettings] = useState<CashFlowSettings | null>(null);
+  const userId = user?.id;
+  const loadCash = useCallback(() => {
+    let cancelled = false;
+    loadCashFlowSettings(userId)
+      .then(settings => { if (!cancelled) setCashSettings(settings); })
+      .catch(err => {
         console.log('[Summary] cash forecast load failed:', err);
-        setCash4wk(null);
-      }
-    };
-    void load();
-  }, [projects]);
+        if (!cancelled) setCashSettings(null);
+      });
+    return () => { cancelled = true; };
+  }, [userId]);
+  // Re-read on focus: the balance and the bill list are edited on /cash-flow,
+  // and this tab stays mounted underneath it.
+  useFocusEffect(loadCash);
+  const cash4wk = useMemo(() => {
+    try {
+      return fourWeekCashPosition({
+        cashData: cashSettings?.data ?? null,
+        setupComplete: cashSettings?.setupComplete ?? false,
+        invoices, commitments, projects, changeOrders,
+      });
+    } catch (err) {
+      console.log('[Summary] cash forecast failed:', err);
+      return null;
+    }
+  }, [cashSettings, invoices, commitments, projects, changeOrders]);
+  // How stale the starting balance is — the whole forecast hangs off it.
+  const cashAsOf = cash4wk === null ? null : cashSettings?.data.balanceAsOf ?? null;
 
   const greetingName = useMemo(() => {
     const raw = (user?.name ?? '').trim().split(/\s+/)[0] ?? '';
@@ -222,6 +229,13 @@ export default function SummaryScreen() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
         <Text style={styles.heading}>Summary</Text>
+        {/* Invites waiting for this email. login's no-invite fallback lands
+            HERE, and a first-time foreman has no projects of his own — the
+            exact state where a lost invite link strands him (audit round 2
+            #29). Home mounts the same card. Renders nothing when none wait. */}
+        <View style={{ marginHorizontal: 16, marginTop: 16 }}>
+          <PendingInvitesCard />
+        </View>
         <EmptyState
           icon={<FolderOpen size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="No projects yet"
@@ -266,6 +280,11 @@ export default function SummaryScreen() {
             <Text style={styles.unreachableRetry}>Try again</Text>
           </TouchableOpacity>
         )}
+        {/* Same card on a populated Summary: a GC invited onto another
+            contractor's job still lands here after sign-in. */}
+        <View style={{ marginHorizontal: 16 }}>
+          <PendingInvitesCard />
+        </View>
         <BriefingHero
           greetingName={greetingName}
           attentionCount={attention.length}
@@ -313,6 +332,7 @@ export default function SummaryScreen() {
           budget={budget}
           outstanding={outstanding}
           cash4wk={cash4wk}
+          cashAsOf={cashAsOf}
           onPressOutstanding={() => router.push('/reports' as any)}
           onPressCash={() => router.push('/cash-flow' as any)}
         />

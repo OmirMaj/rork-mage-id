@@ -33,6 +33,10 @@ import {
   milestoneBlockMessage,
   deriveMilestoneInvoiceLine,
   milestoneInvoiceNote,
+  milestoneBillEffect,
+  progressRowOpen,
+  milestoneTriggerText,
+  attributableContractBilling,
   targetDunningStage,
   nextDunningStage,
   reminderEligibility,
@@ -41,6 +45,8 @@ import {
   MANUAL_REMINDER_MIN_INTERVAL_MS,
   type MilestoneLike,
 } from '../utils/billingFlowCore';
+import { contractScheduleFromSplit, milestoneDueText, stageAmounts } from '../utils/paymentTerms';
+import type { PaymentSplit } from '../types';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -457,6 +463,276 @@ console.log('\nsurfaces:');
   ok('the breakdown tap is withheld when the legacy estimate is not the headline',
     /estimate && !linkedEstimate \? openDetail\('total'\) : undefined/.test(detailSrc) &&
     !/\{heroLabel\}\{estimate \? ' · Tap for breakdown' : ''\}/.test(detailSrc));
+}
+
+// ── 9. The GC's split, billed (Direction B, 2026-09-17) ──────────────
+// A new contract's schedule is the GC's own deposit / progress / final split
+// (utils/paymentTerms.contractScheduleFromSplit), not the 25/25/25/25 seed.
+// Three things must hold or the schedule he signs cannot be billed as printed:
+//   · the progress row ("Billed as work is completed") is NEVER a lump invoice
+//     — composing it would bill the homeowner 65% the day after signing;
+//   · the deposit and the final bill EXACTLY the cents the contract printed;
+//   · after the deposit and every cent of progress, the final is still under
+//     the ceiling — billing refuses a milestone even 1 cent over what is left.
+console.log('\nthe GC\'s split, billed (Direction B):');
+{
+  const S = (d: number, p: number, f: number): PaymentSplit => ({ depositPct: d, progressPct: p, finalPct: f });
+  const cents = (n: number) => Math.round(n * 100);
+  let ids = 0;
+  const nextId = () => `ms-${++ids}`;
+
+  // (a) the progress arm — executed on the row the split actually seeds.
+  const seeded = contractScheduleFromSplit(100_000, S(25, 65, 10), nextId);
+  const progressRow = seeded.find(m => m.trigger === 'on_invoice');
+  ok('a 25 / 65 / 10 split seeds a pending on_invoice progress row at 65%',
+    !!progressRow && progressRow.percent === 65 && progressRow.status === 'pending', JSON.stringify(seeded));
+  if (progressRow) {
+    const bill = milestoneBillability({ milestone: progressRow, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: 0 });
+    ok('…which billability alone would happily compose (pending, signed, under the ceiling)',
+      bill.billable, JSON.stringify(bill));
+    const effect = milestoneBillEffect(bill, progressRow, { contractValue: 100_000, title: 'Agreement' });
+    ok('milestoneBillEffect on that row is kind "progress" — never a lump invoice',
+      effect.kind === 'progress', JSON.stringify(effect));
+    ok('…and carries NO invoice line, note or milestone id to compose from',
+      !('line' in effect) && !('note' in effect) && !('milestoneId' in effect), JSON.stringify(effect));
+    const invoiced = milestoneBillEffect(
+      milestoneBillability({ milestone: { ...progressRow, status: 'invoiced', invoiceId: 'inv-x' }, contractValue: 100_000, contractStatus: 'signed' }),
+      { ...progressRow, status: 'invoiced', invoiceId: 'inv-x' }, { contractValue: 100_000 });
+    ok('…even a legacy on_invoice row that was lump-billed before never composes a second line',
+      invoiced.kind !== 'compose', JSON.stringify(invoiced));
+  }
+  const depositRow = seeded.find(m => m.trigger === 'on_signing');
+  if (depositRow) {
+    const eff = milestoneBillEffect(
+      milestoneBillability({ milestone: depositRow, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: 0 }),
+      depositRow, { contractValue: 100_000 });
+    ok('the deposit row still composes its invoice (only the progress row is diverted)',
+      eff.kind === 'compose' && near(eff.line.total, 25_000), JSON.stringify(eff));
+  }
+
+  // (b) + (c) — a sweep of contract values (odd cents included) × splits.
+  const values = [1, 99.99, 100.01, 1_234.56, 9_999.99, 12_345.67, 33_333.33, 130_052, 131_502.37, 400_000, 999_999.99];
+  const splits = [S(25, 65, 10), S(10, 80, 10), S(33, 34, 33), S(15, 70, 15), S(1, 98, 1), S(50, 0, 50), S(0, 90, 10), S(0, 0, 100), S(100, 0, 0), S(30, 60, 10), S(20, 0, 80)];
+  const printedMismatch: string[] = [];
+  const ceilingRefusals: string[] = [];
+  const footMismatch: string[] = [];
+  for (const v of values) {
+    for (const sp of splits) {
+      const sched = contractScheduleFromSplit(v, sp, nextId);
+      const tag = `$${v} @ ${sp.depositPct}/${sp.progressPct}/${sp.finalPct}`;
+      const sumCents = sched.reduce((t, m) => t + cents(m.amount ?? 0), 0);
+      if (sumCents !== cents(v)) footMismatch.push(`${tag}: schedule ${sumCents}¢ ≠ contract ${cents(v)}¢`);
+
+      // Deposit and final: the invoice line equals the printed row, to the cent.
+      let billedSoFar = 0;
+      const invoices: { status: string; sourceMilestoneId?: string; type?: string; lineItems: { total: number; sourceEstimateItemId?: string }[] }[] = [];
+      const lump = sched.filter(m => m.trigger !== 'on_invoice');
+      const dep = lump.find(m => m.trigger === 'on_signing');
+      const fin = lump.find(m => m.trigger === 'on_final');
+      const billLump = (m: typeof sched[number]) => {
+        const bill = milestoneBillability({
+          milestone: m, contractValue: v, contractStatus: 'signed',
+          contractBilledToDate: attributableContractBilling(invoices),
+        });
+        const eff = milestoneBillEffect(bill, m, { contractValue: v });
+        if (eff.kind !== 'compose') {
+          ceilingRefusals.push(`${tag} ${m.label}: ${eff.kind} ${eff.kind === 'refuse' ? eff.message : ''}`);
+          return;
+        }
+        if (cents(eff.line.total) !== cents(m.amount ?? 0)) {
+          printedMismatch.push(`${tag} ${m.label}: invoice ${eff.line.total} ≠ printed ${m.amount}`);
+        }
+        invoices.push({ status: 'sent', sourceMilestoneId: eff.milestoneId, lineItems: [{ total: eff.line.total, sourceEstimateItemId: eff.line.sourceEstimateItemId }] });
+        billedSoFar += eff.line.total;
+      };
+      if (dep) billLump(dep);
+      // Progress: billed through Bill from Estimate up to EXACTLY its printed
+      // remainder — schedule-of-values lines, keyed, as that screen writes them.
+      const prog = sched.find(m => m.trigger === 'on_invoice');
+      if (prog && (prog.amount ?? 0) > 0) {
+        invoices.push({ status: 'sent', type: 'full', lineItems: [{ total: prog.amount ?? 0, sourceEstimateItemId: 'est-row-1' }] });
+        billedSoFar += prog.amount ?? 0;
+      }
+      if (fin) billLump(fin);
+      void billedSoFar;
+    }
+  }
+  ok('every seeded schedule foots to the contract value to the cent',
+    footMismatch.length === 0, footMismatch.slice(0, 5).join('\n      '));
+  ok('the deposit and final invoice lines equal the printed row amounts to the cent (sweep)',
+    printedMismatch.length === 0, printedMismatch.slice(0, 5).join('\n      '));
+  ok('the final is never refused by the ceiling after the deposit and all progress are billed (sweep)',
+    ceilingRefusals.length === 0, ceilingRefusals.slice(0, 5).join('\n      '));
+  ok('…and the sweep really covered deposit + progress + final shapes',
+    stageAmounts(12_345.67, S(25, 65, 10)).progress > 0 && values.length * splits.length >= 100);
+
+  // The invoice line's "when" is the contract's wording, not its own.
+  ok('an invoice line for the progress, deposit and final rows reads as the contract prints them',
+    milestoneTriggerText({ id: 'x', label: 'P', status: 'pending', trigger: 'on_invoice' }) === milestoneDueText({ trigger: 'on_invoice' })
+    && milestoneTriggerText({ id: 'x', label: 'D', status: 'pending', trigger: 'on_signing' }) === 'Due on signing'
+    && milestoneTriggerText({ id: 'x', label: 'F', status: 'pending', trigger: 'on_final' }) === 'Due at substantial completion'
+    && milestoneDueText({ trigger: 'on_invoice' }) === 'Billed as work is completed');
+}
+
+// ── 10. The contract screen routes the progress row, not a lump invoice ──
+console.log('\ncontract screen — progress rows (Direction B):');
+{
+  const contractSrc = read('app/contract.tsx');
+  const code = contractSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  // "Create invoice · $X" must not be offered on a progress row.
+  const createBtn = code.search(/Create invoice · \{formatMoney\(billability\.amount\)\}/);
+  const createGate = code.lastIndexOf("{billability?.billable && milestone.trigger !== 'on_invoice' && (", createBtn);
+  ok('the "Create invoice ·" button renders only on non-progress rows',
+    createBtn > 0 && createGate > 0 && createBtn - createGate < 700,
+    'the lump-invoice button must sit behind `milestone.trigger !== \'on_invoice\'`');
+
+  ok('an on_invoice row on a signed contract offers "Bill progress" instead',
+    /\{billability && isProgressRow && !billability\.existingInvoiceId && progressRowOpen\(billability\) && \(/.test(code)
+    && /const isProgressRow = milestone\.trigger === 'on_invoice';/.test(code)
+    && /testID=\{`milestone-bill-progress-\$\{milestone\.id\}`\}/.test(code)
+    && /onPress=\{onBillProgress\}/.test(code));
+  ok('…and "Bill progress" routes to /bill-from-estimate with the project',
+    /onBillProgress=\{\(\) => router\.push\(\{ pathname: '\/bill-from-estimate', params: \{ projectId \} \}/.test(code));
+  // THE BILLABILITY THE LUMP BUTTON USES, READ FOR WHAT A PROGRESS ROW CAN DO
+  // WITH IT (review rounds 4 and 5). Offered on `billability` alone the action
+  // outlived every reason there was nothing left to bill — skipped, paid, a
+  // contract at its ceiling. Gated on `billable` outright it died at the
+  // ceiling instead, on the one row that never bills its own amount. Both are
+  // pinned: the raw gates are banned, progressRowOpen is required, and its
+  // answers are executed below.
+  ok('…and it is NOT gated on either raw expression',
+    !/\{billability && isProgressRow && !billability\.existingInvoiceId && \(/.test(code)
+    && !/\{billability\?\.billable && isProgressRow/.test(code),
+    'skipped / paid must hide it; the cross-ledger ceiling must not');
+  ok('…and a closed progress row says why, in milestoneBlockMessage\'s words',
+    /\{billability && isProgressRow && !progressRowOpen\(billability\) && !billability\.existingInvoiceId && billability\.reason && \(/.test(code)
+    && /testID=\{`milestone-progress-blocked-\$\{milestone\.id\}`\}/.test(code)
+    && /\{milestoneBlockMessage\(billability\.reason, billability\.ceiling, billability\.amount\)\}/.test(code),
+    'an action that disappears with no sentence is a control that neither works nor says why');
+  // EXECUTED, on the row a 25 / 65 / 10 split actually seeds: which states
+  // open the action and which close it.
+  {
+    const row: MilestoneLike = { id: 'p', label: 'Progress payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' };
+    const at = (billedToDate: number, patch: Partial<MilestoneLike> = {}) => milestoneBillability({
+      milestone: { ...row, ...patch }, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: billedToDate,
+    });
+    const live = at(0);
+    const skipped = at(0, { status: 'skipped' });
+    const ceiling = at(100_000);
+    ok('a pending progress row under the ceiling is billable (the button shows)',
+      live.billable === true && progressRowOpen(live) === true);
+    ok('…a skipped one is not, and says so', skipped.billable === false && skipped.reason === 'skipped'
+      && progressRowOpen(skipped) === false
+      && /skipped/.test(milestoneBlockMessage(skipped.reason, skipped.ceiling, skipped.amount)));
+    ok('…and one on a fully-billed contract is not, with the arithmetic in the sentence',
+      ceiling.billable === false && ceiling.reason === 'contract_fully_billed'
+      && progressRowOpen(ceiling) === false
+      && /\$100,000\.00/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount)));
+    // THE BUG THE PLAIN `billable` GATE CREATED. The row is 65% of the
+    // contract, so from the FIRST draw past 35% its own amount no longer fits
+    // and milestoneBillability refuses it — on the row whose entire purpose is
+    // to be drawn against again and again. Every dollar from $35,001 to
+    // $99,999 left "Bill progress" hidden behind a sentence whose own remedy
+    // is the screen that button opens.
+    const midJob = [35_001, 57_500, 80_000, 99_999.99];
+    ok('…but a HALF-DRAWN one stays open all the way to the last cent of the contract',
+      midJob.every(b => {
+        const bill = at(b);
+        return bill.billable === false && bill.reason === 'contract_fully_billed' && progressRowOpen(bill) === true;
+      }),
+      JSON.stringify(midJob.map(b => [b, progressRowOpen(at(b))])));
+    ok('…and it closes exactly when nothing is left, not one dollar before',
+      progressRowOpen(at(100_000)) === false && progressRowOpen(at(99_999.999)) === false
+      && progressRowOpen(at(99_999.98)) === true,
+      'the boundary is ceiling.remaining > half a cent');
+    // AND WHEN IT IS CLOSED, THE SENTENCE HAS A REMEDY (review round 6). This
+    // is the only state in which a progress row prints a block note at all —
+    // progressRowOpen keeps it open for every ceiling refusal above zero — so
+    // this exact string is what the GC reads. The round-3 copy ended "Bill the
+    // remainder from Bill from Estimate", which is the screen the hidden
+    // button opens, for a remainder the same sentence printed as $0.00.
+    ok('…and the sentence it prints then does not send him to bill a $0.00 remainder',
+      ceiling.reason === 'contract_fully_billed'
+      && /leaving nothing to bill against it/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount))
+      && /change order/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount))
+      && !/Bill from Estimate/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount)),
+      milestoneBlockMessage('contract_fully_billed', ceiling.ceiling, ceiling.amount));
+    // …while the same refusal WITH room left — what a lump row prints, and
+    // what a progress row is kept open by — still names the route that works,
+    // so the two sentences can never collapse into one.
+    ok('…and a refusal with a real remainder keeps the Bill from Estimate route',
+      (() => {
+        const partial = at(99_000); // $1,000 left, a $65,000 row
+        return partial.reason === 'contract_fully_billed'
+          && /leaving \$1,000\.00/.test(milestoneBlockMessage(partial.reason, partial.ceiling, partial.amount))
+          && /Bill from Estimate/.test(milestoneBlockMessage(partial.reason, partial.ceiling, partial.amount));
+      })(),
+      'the remedy that exists must still be named');
+    ok('…while a reason that IS about this row still closes it whatever is left',
+      progressRowOpen(at(0, { status: 'paid' })) === false
+      && progressRowOpen(at(0, { status: 'invoiced' })) === false
+      && progressRowOpen(at(0, { percent: 0, amount: 0 })) === false
+      && progressRowOpen(milestoneBillability({ milestone: { ...row }, contractValue: 100_000, contractStatus: 'draft' })) === false);
+  }
+
+  // THE STATUS PILL (review round 5). Bill from Estimate writes its own lines
+  // and stamps no sourceMilestoneId, so nothing ever flips a progress row:
+  // `status` stays 'pending' however much of the 65% has been invoiced, and
+  // milestoneBillability only blocks it once the whole CONTRACT hits its
+  // ceiling. A PENDING pill on a half-drawn row states a fact about itself
+  // that stopped being true, so the row reports the one thing that stays true.
+  ok('a progress row never wears a PENDING pill — nothing can ever clear it',
+    /const isProgressRow = milestone\.trigger === 'on_invoice';\s*\n\s*const cfg =/.test(code)
+    && /isProgressRow\s+\? \{ bg: themeColors\.surfaceAlt, color: themeColors\.textMuted, label: 'AS WORK IS DONE' \} :/.test(code),
+    "the on_invoice arm must sit between 'skipped' and the PENDING fallback");
+  ok('…while a hand-set paid / invoiced / skipped still wins, because somebody chose it',
+    code.indexOf("label: 'PAID'") < code.indexOf("label: 'AS WORK IS DONE'")
+    && code.indexOf("label: 'SKIPPED'") < code.indexOf("label: 'AS WORK IS DONE'")
+    && code.indexOf("label: 'AS WORK IS DONE'") < code.indexOf("label: 'PENDING'"));
+  // EXECUTED: the state the pill used to lie about — $57,500 of the contract
+  // drawn, the row's own status untouched by any of it.
+  {
+    const row = { id: 'p', label: 'Progress payments', trigger: 'on_invoice', percent: 65, amount: 65_000, status: 'pending' } as const;
+    const half = milestoneBillability({
+      milestone: { ...row }, contractValue: 100_000, contractStatus: 'signed', contractBilledToDate: 57_500,
+    });
+    ok('…the row a GC has drawn $57,500 against still reports status "pending"',
+      row.status === 'pending' && half.existingInvoiceId === undefined,
+      'nothing flips a progress row, so PENDING would outlive the whole job');
+  }
+
+  const h = code.indexOf('const handleCreateInvoiceFromMilestone = useCallback(');
+  const hEnd = code.indexOf('}, [contract, projectId, billabilityFor, router]);', h);
+  const body = h > 0 && hEnd > h ? code.slice(h, hEnd) : '';
+  const progIdx = body.indexOf("if (effect.kind === 'progress') {");
+  const refuseIdx = body.indexOf("if (effect.kind === 'refuse') {");
+  const composeIdx = body.indexOf('prefillLines: JSON.stringify([effect.line])');
+  ok('handleCreateInvoiceFromMilestone handles "progress" before the refuse and compose arms',
+    body.length > 0 && progIdx > 0 && refuseIdx > progIdx && composeIdx > progIdx,
+    `progress@${progIdx} refuse@${refuseIdx} compose@${composeIdx}`);
+  const progArm = progIdx > 0 ? body.slice(progIdx, body.indexOf('}', body.indexOf('return;', progIdx)) + 1) : '';
+  ok('…and the progress arm opens /bill-from-estimate and stops',
+    /pathname: '\/bill-from-estimate'/.test(progArm) && /return;/.test(progArm), progArm);
+
+  const core = read('utils/billingFlowCore.ts');
+  const valueImports = [...core.matchAll(/^import\s+(?!type\b)[^;]*?from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]);
+  ok('billingFlowCore value-imports only ./invoiceBilling and ./paymentTerms',
+    valueImports.length === 2 && valueImports.includes('./invoiceBilling') && valueImports.includes('./paymentTerms'),
+    JSON.stringify(valueImports));
+  // AND NOT THROUGH THE ALIAS, type-only imports included (review round 5).
+  // The check above deliberately ignores `import type`, which is erased — so
+  // it said nothing when a `from '@/types'` appeared in a module whose header
+  // promises it resolves without the app's tooling. The erasure is not the
+  // point: the file has to stay READABLE as what it claims to be, and the day
+  // a Deno edge function or a bare `bun` run imports it, an alias only the
+  // app's tsconfig knows is the thing that breaks.
+  const aliasImports = [...core.matchAll(/^import\s[^;]*?from\s+['"](@\/[^'"]+)['"]/gm)].map(m => m[1]);
+  ok('…and NOTHING in it resolves through the @/ alias, type-only imports included',
+    aliasImports.length === 0, JSON.stringify(aliasImports));
+  const terms = read('utils/paymentTerms.ts');
+  ok('…and paymentTerms stays free of react-native / expo / supabase / billingFlowCore (no cycle)',
+    !/from\s+['"](react-native|expo[^'"]*|@\/lib\/supabase|\.\/billingFlowCore|@\/utils\/billingFlowCore)['"]/.test(terms));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

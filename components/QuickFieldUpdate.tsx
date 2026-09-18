@@ -32,6 +32,13 @@ import {
 import type { Project, ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { supabase } from '@/lib/supabase';
+import {
+  applyFieldTaskPatches,
+  scheduleWritePathForRole,
+  sendFieldTaskPatches,
+  type FieldTaskPatch,
+} from '@/utils/fieldScheduleUpdate';
 import QuickUpdateClarifier, {
   type ClarifierAction,
   type ClarifierResult,
@@ -69,6 +76,7 @@ type ClarifierSeed = {
 
 type ParseOutcome =
   | { kind: 'applied'; message: string }
+  | { kind: 'refused'; message: string }
   | {
       kind: 'needs_clarification';
       reason: 'no_task_match' | 'unknown_action' | 'low_confidence';
@@ -163,18 +171,28 @@ export default function QuickFieldUpdate() {
 
   /**
    * Core mutator — applies a concrete (task, action, value) tuple to the
-   * project's schedule via ProjectContext. Shared by both the fast parser
-   * path and the clarifier submission path so the write behavior stays
-   * identical. Returns a short confirmation message for the feedback row.
+   * project's schedule. Shared by both the fast parser path and the clarifier
+   * submission path so the write behavior stays identical. Resolves to the
+   * feedback row: a confirmation only when the change was actually accepted.
+   *
+   * WHERE IT WRITES depends on the caller's role on the project (#25):
+   *   owner / editor → updateProject (the row PATCH projects_update admits);
+   *   field          → the field_update_schedule_tasks RPC, which the database
+   *                    accepts for progress/status/notes/actuals only. The row
+   *                    PATCH was refused by RLS with 200 + 0 rows, so a
+   *                    foreman's "Framing → 60%" was confirmed here and gone on
+   *                    his next reload. The local copy is updated only after
+   *                    the server said yes, and a failure says it didn't save;
+   *   viewer         → refused up front, with the reason.
    */
   const applyUpdate = useCallback(
-    (
+    async (
       project: Project,
       task: ScheduleTask,
       action: ClarifierAction,
       value?: number,
       noteText?: string,
-    ): string => {
+    ): Promise<{ ok: boolean; message: string }> => {
       const schedule = project.schedule!;
       const tasks = schedule.tasks;
       const patch: Partial<ScheduleTask> = {};
@@ -217,22 +235,41 @@ export default function QuickFieldUpdate() {
         }
       }
 
-      const updatedTasks = tasks.map((t) => (t.id === task.id ? { ...t, ...patch } : t));
-      updateProject(project.id, {
-        schedule: { ...schedule, tasks: updatedTasks, updatedAt: new Date().toISOString() },
-      });
+      const writePath = scheduleWritePathForRole(project.myRole);
+      if (writePath === 'none') {
+        return { ok: false, message: `Not saved — you have view-only access to ${project.name}. Ask the project owner for field or editor access.` };
+      }
+      if (writePath === 'field_rpc') {
+        const fieldPatch = { id: task.id, ...patch } as FieldTaskPatch;
+        const sent = await sendFieldTaskPatches(supabase, project.id, [fieldPatch]);
+        if (!sent.ok) return { ok: false, message: sent.message };
+        if (sent.missing.includes(task.id)) {
+          return { ok: false, message: `Not saved — ${task.title} is no longer on this schedule. Pull to refresh and try again.` };
+        }
+        // Local copy = what the server now holds. This also enqueues the usual
+        // row PATCH, which projects_update refuses for field (0 rows, nothing
+        // written) — the RPC above is the write that counted.
+        updateProject(project.id, {
+          schedule: { ...schedule, tasks: applyFieldTaskPatches(tasks, [fieldPatch]), updatedAt: new Date().toISOString() },
+        });
+      } else {
+        const updatedTasks = tasks.map((t) => (t.id === task.id ? { ...t, ...patch } : t));
+        updateProject(project.id, {
+          schedule: { ...schedule, tasks: updatedTasks, updatedAt: new Date().toISOString() },
+        });
+      }
 
       switch (action) {
         case 'update_progress':
-          return `${task.title} → ${patch.progress}%`;
+          return { ok: true, message: `${task.title} → ${patch.progress}%` };
         case 'mark_complete':
-          return `${task.title} marked complete`;
+          return { ok: true, message: `${task.title} marked complete` };
         case 'start_task':
-          return `${task.title} → in progress`;
+          return { ok: true, message: `${task.title} → in progress` };
         case 'add_note':
-          return `Note added to ${task.title}`;
+          return { ok: true, message: `Note added to ${task.title}` };
         case 'log_issue':
-          return `Issue logged on ${task.title}`;
+          return { ok: true, message: `Issue logged on ${task.title}` };
       }
     },
     [updateProject],
@@ -245,7 +282,7 @@ export default function QuickFieldUpdate() {
    * "seed the clarifier."
    */
   const evaluateParse = useCallback(
-    (parsed: ParsedVoiceCommand, project: Project): ParseOutcome => {
+    async (parsed: ParsedVoiceCommand, project: Project): Promise<ParseOutcome> => {
       const schedule = project.schedule;
       if (!schedule) return { kind: 'applied', message: 'No schedule on this project.' };
       const tasks = schedule.tasks;
@@ -339,8 +376,8 @@ export default function QuickFieldUpdate() {
       }
 
       // All green — apply immediately.
-      const message = applyUpdate(project, task, clarifierAction, parsed.value, parsed.text);
-      return { kind: 'applied', message };
+      const result = await applyUpdate(project, task, clarifierAction, parsed.value, parsed.text);
+      return result.ok ? { kind: 'applied', message: result.message } : { kind: 'refused', message: result.message };
     },
     [applyUpdate, text],
   );
@@ -369,8 +406,14 @@ export default function QuickFieldUpdate() {
         crew: t.crew,
       }));
       const parsed = await parseVoiceCommand(input, taskContext, selectedProject.name);
-      const outcome = evaluateParse(parsed, selectedProject);
-      if (outcome.kind === 'applied') {
+      const outcome = await evaluateParse(parsed, selectedProject);
+      if (outcome.kind === 'refused') {
+        // Keep the text so he can retry once he has a signal / access.
+        setFeedback({ kind: 'error', message: outcome.message });
+        if (Platform.OS !== 'web') {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+      } else if (outcome.kind === 'applied') {
         setFeedback({ kind: 'success', message: outcome.message });
         setText('');
         if (Platform.OS !== 'web') {
@@ -398,18 +441,22 @@ export default function QuickFieldUpdate() {
   }, [text, selectedProject, evaluateParse, openClarifier]);
 
   const handleClarifierSubmit = useCallback(
-    (result: ClarifierResult) => {
+    async (result: ClarifierResult) => {
       if (!selectedProject) return;
-      const msg = applyUpdate(
+      const applied = await applyUpdate(
         selectedProject,
         result.task,
         result.action,
         result.value,
         result.text,
       );
-      setFeedback({ kind: 'success', message: msg });
-      setText('');
       setClarifierOpen(false);
+      if (!applied.ok) {
+        setFeedback({ kind: 'error', message: applied.message });
+        return;
+      }
+      setFeedback({ kind: 'success', message: applied.message });
+      setText('');
     },
     [selectedProject, applyUpdate],
   );

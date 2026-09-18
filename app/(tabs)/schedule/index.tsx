@@ -106,6 +106,9 @@ import {
   calendarDayToDate, calendarIndexToWorkingOrdinal,
 } from '@/utils/cpm';
 import { showAlert } from '@/utils/alert';
+import { useProjectRole } from '@/hooks/useProjectRole';
+import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
+import LockedAccessCard from '@/components/LockedAccessCard';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
@@ -605,14 +608,57 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     nonWorkingDates: activeSchedule?.nonWorkingDates,
   }), [activeSchedule?.startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // WHAT THIS SCREEN'S WRITES DO FOR A COLLABORATOR, by role (#25).
+  //
+  // Every schedule write below is a PATCH of the projects row, which
+  // projects_update admits only for the owner or an editor. PostgREST answers
+  // an RLS-refused UPDATE with 200 and zero rows and the offline queue does not
+  // count rows, so a field or view-only collaborator saw the plan change on
+  // screen, nothing reached the server, and his next reload put it back.
+  //
+  // Field access has one server door — field_update_schedule_tasks — and it
+  // merges task progress, status, notes and actual start/finish ONLY. Not one
+  // of the five writes gated here is that: they set the start date, lock a
+  // baseline, switch What-If scenarios, answer the start-day-basis question, or
+  // replace the whole task list after an edit/build (which also reflows
+  // dependent dates and re-stamps project.status). So there is nothing to
+  // route — the honest move is to refuse before the edit and say why, with the
+  // surface that DOES save his progress named in the reason.
+  // ─────────────────────────────────────────────────────────────────────────
+  const projectRole = useProjectRole(selectedProject?.id);
+  // The loaded project.myRole covers the window where the collaborator read is
+  // still resolving — an owner has no myRole, so they keep 'row' and never see
+  // a read-only flash.
+  const scheduleWritePath = scheduleWritePathForRole(projectRole ?? selectedProject?.myRole);
+  const scheduleWriteBlockedReason = useMemo<string | null>(() => {
+    if (scheduleWritePath === 'row') return null;
+    return scheduleWritePath === 'field_rpc'
+      ? 'Field access saves task progress, status, notes and actual start/finish — from Quick Field Update on Home, or the Schedule tab on your phone. Moving dates, locking a plan or changing the task list needs editor access from the project owner.'
+      : 'You have view-only access to this project, so schedule changes are not saved. Ask the project owner for field or editor access.';
+  }, [scheduleWritePath]);
+  /**
+   * Gate for every schedule write on this screen. Returns true (and says why)
+   * when the write must not be attempted. Called BEFORE the write and before
+   * any confirm, so nobody confirms a lock or a rebuild that is then dropped.
+   */
+  const refuseScheduleWrite = useCallback((what: string): boolean => {
+    if (!scheduleWriteBlockedReason) return false;
+    showAlert(`${what} not saved`, scheduleWriteBlockedReason);
+    return true;
+  }, [scheduleWriteBlockedReason]);
+
   const handleScheduleScenariosChange = useCallback(
     (patch: Partial<ProjectSchedule>) => {
       if (!selectedProject || !activeSchedule) return;
+      // A scenario switch writes `activeScenarioId`/`scenarios` onto the row —
+      // refused for field and viewer, so it is refused here out loud.
+      if (refuseScheduleWrite('What-If scenarios')) return;
       updateProject(selectedProject.id, {
         schedule: { ...activeSchedule, ...patch, updatedAt: new Date().toISOString() },
       });
     },
-    [selectedProject, activeSchedule, updateProject],
+    [selectedProject, activeSchedule, updateProject, refuseScheduleWrite],
   );
 
   /**
@@ -780,6 +826,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const saveSchedule = useCallback((schedule: ProjectSchedule, project: Project | null) => {
     console.log('[Schedule] Saving schedule', { projectId: project?.id, taskCount: schedule.tasks.length });
     if (project) {
+      // THE sink for every task edit, template pick and AI build on this
+      // screen. It replaces the task list wholesale (dependent startDays
+      // reflowed by the rebuild) and re-stamps project.status in the same row
+      // PATCH, so there is no version of it the field RPC can carry — refuse it
+      // before the edit rather than after the server drops it (#25). A field
+      // collaborator's progress still saves from Quick Field Update and the
+      // phone schedule; the reason says so.
+      if (refuseScheduleWrite('Schedule changes')) return;
       // startDate policy (finish-jump bug, sim-audit #2):
       //  - project already has a schedule → preserve ITS anchor exactly,
       //    including "no anchor". Retro-stamping today onto a dateless
@@ -826,7 +880,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     };
     addProject(newProject);
     setSelectedProjectId(newProject.id);
-  }, [addProject, updateProject]);
+  }, [addProject, updateProject, refuseScheduleWrite]);
 
   // One opener for every "set start date" door (both start bars and the
   // undated-lock refusal), so each opens pre-filled with the date on screen
@@ -842,6 +896,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   // Save a new project start date onto the schedule. Tasks keep their startDay
   // offsets, so the schedule "slides" to the new date wholesale.
   const setProjectStartDate = useCallback((isoYYYYMMDD: string) => {
+    // The anchor moves every calendar date on the job. The field RPC refuses
+    // schedule settings outright, so this is refused first (#25).
+    if (refuseScheduleWrite('Start date')) return;
     // Validate YYYY-MM-DD
     const m = /^\d{4}-\d{2}-\d{2}$/.exec(isoYYYYMMDD.trim());
     if (!m) { showAlert('Invalid date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).'); return; }
@@ -884,7 +941,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     }
     setIsProjectStartDatePickerOpen(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [activeSchedule, saveSchedule, selectedProject, updateProject]);
+  }, [activeSchedule, saveSchedule, selectedProject, updateProject, refuseScheduleWrite]);
 
   // Legacy day-scale disclosure — the `utils/scheduleRebase.ts` population.
   // `setProjectStartDate` directly above is one of the three call sites that
@@ -910,7 +967,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
    * purpose is to set it. Declining stamps the flag and touches no task.
    */
   const answerStartDayBasis = useCallback((accept: boolean) => {
-    if (!selectedProject || !activeSchedule) return;
+    // `startDayBasis` (and, on a yes, every remapped startDay) is a schedule
+    // setting the field RPC refuses — so the question is answered by whoever
+    // can actually record the answer (#25). Folded into the one null guard:
+    // validate-startdate-rebase pins this callback to a single early return.
+    if (!selectedProject || !activeSchedule || refuseScheduleWrite('Day-scale answer')) return;
     // The whole policy is in the patch (utils/cpm.startDayBasisAnswerPatch):
     // a no writes only the flag, a yes writes the remapped tasks with it, and a
     // yes built on a preview that says "don't ask" writes only the flag too.
@@ -923,7 +984,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       },
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [selectedProject, activeSchedule, startDayBasisPreview, updateProject]);
+  }, [selectedProject, activeSchedule, startDayBasisPreview, updateProject, refuseScheduleWrite]);
 
   /**
    * Centralized persist helper for all mobile task edits (tap-edit + copilot
@@ -1244,6 +1305,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     // and writing the stale snapshot would silently revert it.
     const schedule = latestScheduleRef.current;
     if (!selectedProject || !schedule) return;
+    // A lock writes `baselines` plus a baselineStartDay/baselineEndDay on every
+    // task — none of it a field-access field (#25). Guarded here as well as in
+    // handleSaveBaseline: this is the write, and the write is what must refuse.
+    if (refuseScheduleWrite('Plan lock')) return;
     const res = lockTabPlan(schedule, selectedProject.id, auditUser, new Date().toISOString());
     if (!res.ok) { showAlert(res.title, res.reason); return; }
     updateProject(selectedProject.id, { schedule: res.schedule });
@@ -1262,12 +1327,15 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       `${finishLabel ? `The finish you are promising is ${finishLabel}. ` : ''}"Behind plan" and each task's variance now count from these dates.`,
     );
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [selectedProject, updateProject, auditUser]);
+  }, [selectedProject, updateProject, auditUser, refuseScheduleWrite]);
 
   /** The button. Refusals first (with the way out), then a confirm when the
    *  lock would MOVE the yardstick or when a What-If is on screen. */
   const handleSaveBaseline = useCallback(() => {
     if (!activeSchedule) return;
+    // Access first, so nobody confirms "Re-lock the plan?" for a lock that is
+    // then dropped.
+    if (refuseScheduleWrite('Plan lock')) return;
     const refusal = tabLockRefusal(activeSchedule);
     if (refusal) {
       const undated = !resolveScheduleAnchor(activeSchedule).dated && activeSchedule.tasks.length > 0;
@@ -1299,7 +1367,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         { text: current ? 'Re-lock' : 'Lock', onPress: () => commitPlanLock() },
       ],
     );
-  }, [activeSchedule, commitPlanLock, openStartDatePicker]);
+  }, [activeSchedule, commitPlanLock, openStartDatePicker, refuseScheduleWrite]);
 
   const handleTemplateSelect = useCallback((template: ScheduleTemplate, _startDate: Date) => {
     const tasks: ScheduleTask[] = [];
@@ -1338,6 +1406,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       showAlert('No Estimate', 'This project needs an estimate first.');
       return;
     }
+    // Before the generator runs, not after: the AI path costs a call and then
+    // hands off to /schedule-review, whose save is the same row PATCH this
+    // role cannot make. Refusing here is the difference between "you can't
+    // build the schedule on this access" and a review screen that quietly
+    // loses the plan it just built (#25).
+    if (refuseScheduleWrite('Schedule build')) return;
 
     const linkedEst = selectedProject.linkedEstimate;
 
@@ -1435,7 +1509,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       saveSchedule(schedule, selectedProject);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-  }, [selectedProject, saveSchedule, projects, router]);
+  }, [selectedProject, saveSchedule, projects, router, refuseScheduleWrite]);
 
   const handleOnRampPick = useCallback((path: OnRampPath) => {
     switch (path) {
@@ -2602,6 +2676,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           </TouchableOpacity>
         </View>
 
+        {/* WHAT YOUR ACCESS SAVES ON THIS SCREEN (#25) — stated before he
+            edits, not after the server drops it. Owners and editors never see
+            it. */}
+        {scheduleWriteBlockedReason && (
+          <LockedAccessCard
+            what={scheduleWritePath === 'field_rpc' ? 'Schedule editing' : 'Schedule changes'}
+            detail={scheduleWriteBlockedReason}
+            style={{ marginHorizontal: 16, marginBottom: 8 }}
+          />
+        )}
+
         {activeSchedule && (
           <View
             /* SCHED-NO-ANCHOR: this row is the disclosure. Undated, it must not
@@ -3030,6 +3115,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             {hasScheduleData && renderHealthBadge()}
           </View>
         </View>
+
+        {/* WHAT YOUR ACCESS SAVES ON THIS SCREEN (#25) — the same statement the
+            desktop layout carries, above the first control it applies to. */}
+        {scheduleWriteBlockedReason && (
+          <LockedAccessCard
+            what={scheduleWritePath === 'field_rpc' ? 'Schedule editing' : 'Schedule changes'}
+            detail={scheduleWriteBlockedReason}
+            style={{ marginHorizontal: 16, marginBottom: 8 }}
+          />
+        )}
 
         {/* Legacy day-scale disclosure. Renders null for every schedule that is
             fine, so it is mounted unconditionally — and it sits at the top of

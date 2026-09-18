@@ -17,7 +17,7 @@
 //     tap, through the pure gate in utils/fieldTicketCore that refuses an
 //     unsigned ticket and refuses to convert the same ticket twice.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,
   Platform, KeyboardAvoidingView, ActivityIndicator,
@@ -31,6 +31,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, Minus, Trash2, Camera, X, Check, Package, Truck, HardHat,
   ChevronRight, Lock, Share2, Repeat, FileSignature, MapPin, ImagePlus,
+  DollarSign, Sparkles,
 } from 'lucide-react-native';
 
 import type { ThemeColors } from '@/constants/colors';
@@ -44,6 +45,7 @@ import Paywall from '@/components/Paywall';
 import SignaturePad from '@/components/SignaturePad';
 import EmptyState from '@/components/EmptyState';
 import { Button } from '@/components/ui/Button';
+import { cardSurface } from '@/components/ui';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
 import { generateUUID } from '@/utils/generateId';
@@ -51,12 +53,20 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateFieldTicketPDF } from '@/utils/pdfGenerator';
 import { nailIt } from '@/components/animations/NailItToast';
 import {
-  buildChangeOrderFromTicket, checkFieldTicketConversion, checkFieldTicketReadiness,
-  computeFieldTicketTotals, emptyFieldTicket, fieldTicketLabel, formatTicketDate,
-  isFieldTicketAuthorized, nextFieldTicketNumber, ticketConversionPatch,
+  buildChangeOrderFromTicket, buildPricingAuditEntries, checkFieldTicketConversion,
+  checkFieldTicketReadiness, computeFieldTicketTotals, emptyFieldTicket,
+  fieldTicketLabel, fieldTicketPriceChanges, fieldTicketPricingBlockReason, formatTicketDate, pricingRoleFor,
+  isFieldTicketAuthorized, lastPricedAt, nextFieldTicketNumber, pricingActorName,
+  suggestEquipmentRate, suggestLaborRate, ticketConversionPatch,
+  type FieldTicketRateSuggestion,
 } from '@/utils/fieldTicketCore';
+import { useLaborRates } from '@/hooks/useLaborRates';
+import { useAuth } from '@/contexts/AuthContext';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { isFinancialsBlinded } from '@/utils/roleBlinding';
+import { todayCalendarDay } from '@/utils/calendarDate';
 import type {
-  FieldTicket, FieldTicketAuthorizerRole, FieldTicketEquipmentRow,
+  Equipment, FieldTicket, FieldTicketAuthorizerRole, FieldTicketEquipmentRow,
   FieldTicketLaborRow, FieldTicketMaterialRow, FieldTicketPhoto, FieldTicketStatus,
 } from '@/types';
 
@@ -145,7 +155,13 @@ function FieldTicketInner() {
     projects, getProject, settings,
     fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject,
     changeOrders, addChangeOrder, getChangeOrdersForProject,
+    getEquipmentForProject,
   } = useProjects();
+  // The office's own numbers, for the "price this signed ticket" sheet: the
+  // loaded $/hr per trade he already entered in Time Tracking, and the day
+  // rate of the machines assigned to this job. Offered as suggestions, never
+  // written silently — see PricingModal.
+  const { rates: laborRates } = useLaborRates();
 
   // Opened from the Tools hub / search / a deep link there is no projectId, so
   // the ToolProjectPicker sets one locally — same pattern as ai-punch and
@@ -184,7 +200,10 @@ function FieldTicketInner() {
   // ── Composer state ────────────────────────────────────────────────────────
   const [workDescription, setWorkDescription] = useState(prefillWork ?? '');
   const [reasonExtra, setReasonExtra] = useState(prefillReason ?? '');
-  const [workDate, setWorkDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // The LOCAL day. The UTC day is tomorrow from about 5 pm Pacific, and the
+  // signature seals whatever is here — the CO and the PDF then print "extra
+  // work performed" a day late.
+  const [workDate, setWorkDate] = useState(() => todayCalendarDay());
   const [labor, setLabor] = useState<FieldTicketLaborRow[]>([]);
   const [materials, setMaterials] = useState<FieldTicketMaterialRow[]>([]);
   const [equipment, setEquipment] = useState<FieldTicketEquipmentRow[]>([]);
@@ -221,7 +240,7 @@ function FieldTicketInner() {
 
   const resetComposer = useCallback(() => {
     setWorkDescription(''); setReasonExtra('');
-    setWorkDate(new Date().toISOString().slice(0, 10));
+    setWorkDate(todayCalendarDay());
     setLabor([]); setMaterials([]); setEquipment([]); setPhotos([]); setMarkup('');
   }, []);
 
@@ -303,6 +322,19 @@ function FieldTicketInner() {
    * optional — without it, "Save" produces a ticket that can never be billed,
    * which is exactly the dead end this feature exists to eliminate.
    */
+  // Who may put dollars on a sealed ticket — owner or editor only.
+  const { role: projectRole, isError: projectRoleError } = useProjectRoleState(activeProjectId || undefined);
+  // And who may SEE them (integration round 1). The field role is sold as
+  // "Schedule & field work — no costs or margins", and a foreman opens these
+  // tickets from Field Ops and the DFR; once the office priced one, he saw its
+  // rates, total and O&P. For field the saved tickets show hours and
+  // quantities only, like ProjectHero. The database still returns the priced
+  // rows to a field seat (field_tickets_collab_select) — the founder decision
+  // utils/roleBlinding.ts already records.
+  const moneyBlinded = isFinancialsBlinded(projectRole);
+  /** A ticket's amount for a toast — nothing for a blinded role. */
+  const amountSuffix = useCallback((n: number) => (moneyBlinded ? '' : ` — ${money(n)}`), [moneyBlinded]);
+
   const handleSign = useCallback(async (
     name: string, title: string, role: FieldTicketAuthorizerRole, paths: string[],
   ) => {
@@ -345,7 +377,7 @@ function FieldTicketInner() {
         setSignOpen(false);
         setSignTargetId(null);
         setOpenTicketId(signTargetId);
-        nailIt(`${fieldTicketLabel(existing.number)} signed — ${money(computeFieldTicketTotals(existing).billableTotal)}`);
+        nailIt(`${fieldTicketLabel(existing.number)} signed${amountSuffix(computeFieldTicketTotals(existing).billableTotal)}`);
         return;
       }
 
@@ -371,13 +403,13 @@ function FieldTicketInner() {
       resetComposer();
       setView('list');
       setOpenTicketId(ticket.id);
-      nailIt(`${fieldTicketLabel(ticket.number)} signed — ${money(computeFieldTicketTotals(ticket).billableTotal)}`);
+      nailIt(`${fieldTicketLabel(ticket.number)} signed${amountSuffix(computeFieldTicketTotals(ticket).billableTotal)}`);
     } finally {
       setBusy(false);
     }
   }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
       reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer,
-      signTargetId, fieldTickets, updateFieldTicket]);
+      signTargetId, fieldTickets, updateFieldTicket, amountSuffix]);
 
   /** Save without a signature. Honest about what it is: a reminder, not evidence. */
   const handleSaveUnsigned = useCallback(() => {
@@ -411,10 +443,17 @@ function FieldTicketInner() {
       showAlert("Can't bill this yet", gate.reason ?? 'This ticket cannot be converted.');
       return;
     }
-    const totals = computeFieldTicketTotals(ticket);
+    // A half-priced ticket still converts — but the rows with no rate produce
+    // no line item at all (groupHourlyByRate skips them), so 18 signed carpentry
+    // hours can vanish off an owner-approved change order without a word. The
+    // warning is the whole point of the gate returning one: say it before he
+    // taps Create, while pricing the ticket is still an option.
     showAlert(
       'Create change order',
-      `${fieldTicketLabel(ticket.number)} becomes a draft change order for ${money(totals.billableTotal)}. You still review and send it.`,
+      [
+        `${fieldTicketLabel(ticket.number)} becomes a draft change order for ${money(computeFieldTicketTotals(ticket).billableTotal)}. You still review and send it.`,
+        gate.warning,
+      ].filter(Boolean).join('\n\n'),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -447,6 +486,73 @@ function FieldTicketInner() {
       ],
     );
   }, [changeOrders, projectCOs, project, addChangeOrder, updateFieldTicket, router]);
+
+  // ── Price a signed ticket ─────────────────────────────────────────────────
+  // The rep signs for HOURS; the office attaches the money afterwards. Until
+  // this sheet existed there was no control anywhere that could do that, so a
+  // ticket signed the designed way was signed evidence that could never be
+  // billed. The seal still holds for everything the rep actually attested to —
+  // updateFieldTicket refuses the write if a single hour, quantity or
+  // description moved — and every rate applied here is written into the
+  // ticket's own auditTrail, so the record always shows which half was signed
+  // on site and which half the office added later.
+
+  const [pricingOpen, setPricingOpen] = useState(false);
+
+  /** Who the audit trail names: the signed-in person who set the rate, with
+   *  his branding only as a fallback (see pricingActorName). */
+  const { user } = useAuth();
+  const officeActor = useMemo(
+    () => pricingActorName(user, settings.branding),
+    [user, settings.branding],
+  );
+  // The owner is known from the cached project row, so a failed or pending
+  // collaborator read (no signal on site) does not lock him out of his own
+  // ticket; anyone else still waits for the read (pricingRoleFor).
+  const pricingRole = pricingRoleFor(projectRole, project?.ownerUserId, user?.id);
+  const pricingBlockReason = fieldTicketPricingBlockReason(pricingRole, projectRoleError);
+
+  const handleApplyPricing = useCallback((
+    ticket: FieldTicket,
+    next: Pick<FieldTicket, 'labor' | 'materials' | 'equipment'>,
+  ) => {
+    // The button is hidden for these roles; this holds the line if the sheet
+    // was already open when the role resolved.
+    if (pricingBlockReason) { showAlert('Not saved', pricingBlockReason); return; }
+    const changes = fieldTicketPriceChanges(ticket, next);
+    if (changes.length === 0) { setPricingOpen(false); return; }
+    const now = new Date().toISOString();
+    // Only the categories whose rates actually moved. Sending all three would
+    // make the write depend on arrays the seal can't judge — a ticket whose
+    // `materials` was never populated would be refused for an edit it isn't
+    // making. Each category named here provably had rows before, because
+    // fieldTicketPriceChanges only reports a change when both sides are arrays.
+    const patch: Partial<FieldTicket> = {};
+    for (const c of changes) {
+      if (c.category === 'labor') patch.labor = next.labor;
+      else if (c.category === 'materials') patch.materials = next.materials;
+      else patch.equipment = next.equipment;
+    }
+    const ok = updateFieldTicket(ticket.id, {
+      ...patch,
+      auditTrail: [
+        ...(ticket.auditTrail ?? []),
+        ...buildPricingAuditEntries(changes, officeActor, now),
+      ],
+    });
+    if (!ok) {
+      // The data layer refused — something other than a rate moved. Say what
+      // the rule is rather than leaving a silently-unsaved sheet behind.
+      showAlert(
+        'Not saved',
+        'Only the rates can change after a signature. The hours, quantities and descriptions are what the owner’s rep put their name on.',
+      );
+      return;
+    }
+    setPricingOpen(false);
+    const priced = computeFieldTicketTotals({ ...ticket, ...next });
+    nailIt(`${fieldTicketLabel(ticket.number)} priced — ${money(priced.billableTotal)}`);
+  }, [updateFieldTicket, officeActor, pricingBlockReason]);
 
   const handleShare = useCallback(async (ticket: FieldTicket) => {
     if (!project) return;
@@ -509,6 +615,13 @@ function FieldTicketInner() {
     const billedCO = gate.existingChangeOrderId
       ? changeOrders.find(c => c.id === gate.existingChangeOrderId)
       : undefined;
+    // Pricing is the office's job and it happens AFTER the signature. It stays
+    // open while the ticket is signed and unbilled; once a change order exists
+    // the rates are on a client-facing document and moving them here would
+    // leave the two silently disagreeing.
+    const pricingOpenForTicket = openTicket.status === 'signed' && !billedCO;
+    const canPrice = pricingOpenForTicket && !pricingBlockReason;
+    const pricedAt = lastPricedAt(openTicket);
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -528,11 +641,23 @@ function FieldTicketInner() {
               <Lock size={14} color={t.accent} strokeWidth={2} />
               <Text style={styles.sealBannerText}>
                 Sealed. This is the record {openTicket.authorization?.name ?? 'the signer'} put their
-                name on — it can&apos;t be edited.
+                name on — the hours, quantities and descriptions can&apos;t be edited. Rates are the
+                office&apos;s to attach, and every one is logged.
               </Text>
             </View>
           )}
 
+          {moneyBlinded ? (
+            <View style={styles.amountCard} testID="ticket-amount-blinded">
+              <Text style={styles.amountLabel}>Signed quantities</Text>
+              <Text style={styles.amountValue}>{totals.laborHours} labor hr</Text>
+              <Text style={styles.amountSub}>
+                {openTicket.materials.length} material line{openTicket.materials.length === 1 ? '' : 's'} ·{' '}
+                {totals.equipmentHours} equip hr
+              </Text>
+              <Text style={styles.amountSub}>Rates and totals are the office&apos;s — field access shows hours and quantities.</Text>
+            </View>
+          ) : (
           <View style={styles.amountCard}>
             <Text style={styles.amountLabel}>Ticket total</Text>
             <Text style={styles.amountValue}>{money(totals.billableTotal)}</Text>
@@ -541,7 +666,24 @@ function FieldTicketInner() {
               {totals.equipmentHours} equip hr
               {totals.markupAmount > 0 ? ` · ${totals.markupPercent}% O&P` : ''}
             </Text>
+            {/* What the total is NOT. Without this the number reads as the
+                value of the signed work, when part of that work has no rate
+                and is worth $0 on this screen and $0 on the change order. */}
+            {totals.unpricedRowCount > 0 && (
+              <Text style={styles.amountWarn}>
+                Excludes {totals.unpricedRowCount} signed line
+                {totals.unpricedRowCount === 1 ? '' : 's'} with no rate
+                {totals.unpricedLaborHours > 0 ? ` (${totals.unpricedLaborHours} labor hr)` : ''}.
+              </Text>
+            )}
+            {!!pricedAt && (
+              <Text style={styles.amountSub}>
+                Rates applied in the office {formatTicketDate(pricedAt)} — the signature covers the
+                hours and quantities.
+              </Text>
+            )}
           </View>
+          )}
 
           <ReadBlock label="Work performed" value={openTicket.workDescription} />
           <ReadBlock label="Why it's extra" value={openTicket.reasonExtra} />
@@ -556,7 +698,7 @@ function FieldTicketInner() {
                     {r.workerName || 'Unnamed'} · {r.trade}
                   </Text>
                   <Text style={styles.readRowValue}>
-                    {r.hours} hr{r.rate ? ` @ ${money(r.rate)}` : ' · rate TBD'}
+                    {r.hours} hr{moneyBlinded ? '' : r.rate ? ` @ ${money(r.rate)}` : ' · rate TBD'}
                   </Text>
                 </View>
               ))}
@@ -569,7 +711,7 @@ function FieldTicketInner() {
                 <View key={r.id} style={styles.readRow}>
                   <Text style={styles.readRowMain} numberOfLines={1}>{r.description || 'Material'}</Text>
                   <Text style={styles.readRowValue}>
-                    {r.quantity} {r.unit}{r.unitCost ? ` @ ${money(r.unitCost)}` : ' · cost TBD'}
+                    {r.quantity} {r.unit}{moneyBlinded ? '' : r.unitCost ? ` @ ${money(r.unitCost)}` : ' · cost TBD'}
                   </Text>
                 </View>
               ))}
@@ -582,7 +724,7 @@ function FieldTicketInner() {
                 <View key={r.id} style={styles.readRow}>
                   <Text style={styles.readRowMain} numberOfLines={1}>{r.description || 'Equipment'}</Text>
                   <Text style={styles.readRowValue}>
-                    {r.hours} hr{r.rate ? ` @ ${money(r.rate)}` : ' · rate TBD'}
+                    {r.hours} hr{moneyBlinded ? '' : r.rate ? ` @ ${money(r.rate)}` : ' · rate TBD'}
                   </Text>
                 </View>
               ))}
@@ -657,6 +799,46 @@ function FieldTicketInner() {
           )}
 
           <View style={styles.detailActions}>
+            {/* The missing half of the designed flow: hours on site, money in
+                the office. Without this control a ticket signed with blank
+                rates could never reach a dollar amount and so could never
+                become a change order. */}
+            {canPrice && (
+              <Button
+                label={totals.unpricedRowCount > 0 ? 'Price this ticket' : 'Adjust rates'}
+                onPress={() => setPricingOpen(true)}
+                variant={totals.unpricedRowCount > 0 ? 'primary' : 'secondary'}
+                fullWidth
+                iconLeft={
+                  <DollarSign
+                    size={16}
+                    color={totals.unpricedRowCount > 0 ? '#FFF' : t.text}
+                    strokeWidth={2}
+                  />
+                }
+                testID="ticket-price"
+              />
+            )}
+            {/* A ticket that could be priced, for someone who may not: say
+                why instead of a missing button. */}
+            {pricingOpenForTicket && !!pricingBlockReason && (
+              <Text style={styles.gateReason} testID="ticket-price-blocked">{pricingBlockReason}</Text>
+            )}
+            {/* Keyed on the ticket's OWN conversion marker first, not on the
+                CO object: gate.existingChangeOrderId is only ever set from a
+                change order found in this same array, so keying on it alone
+                made the deleted-CO branch below unreachable. A change order
+                that has been deleted — or that has not synced to this device
+                yet — still leaves the ticket converted, and a screen that
+                silently offers no pricing control and no explanation is the
+                dead end this whole fix exists to remove. */}
+            {!!(openTicket.convertedChangeOrderId || gate.existingChangeOrderId) && totals.unpricedRowCount > 0 && (
+              <Text style={styles.gateReason}>
+                {billedCO
+                  ? `Rates are locked now that CO #${billedCO.number} exists — changing them here would leave the change order saying something different. Revise the change order instead.`
+                  : 'This ticket was already billed, so its rates are locked. The change order it became is no longer in this project — revise or re-raise that change order rather than re-pricing the signed ticket.'}
+              </Text>
+            )}
             {!billedCO && openTicket.status !== 'void' && (
               <Button
                 label={gate.canConvert ? `Bill it — create change order` : "Can't bill yet"}
@@ -696,10 +878,24 @@ function FieldTicketInner() {
           <SignatureModal
             visible
             busy={busy}
-            amount={totals.billableTotal}
+            amount={moneyBlinded ? null : totals.billableTotal}
             summary={openTicket.workDescription}
             onClose={() => { setSignOpen(false); setSignTargetId(null); }}
             onSign={handleSign}
+          />
+        )}
+
+        {/* Mounted only while open, same reason as the signature pad: a sheet
+            that survives between opens can carry one ticket's rates onto the
+            next one. */}
+        {pricingOpen && canPrice && (
+          <PricingModal
+            visible
+            ticket={openTicket}
+            laborRates={laborRates}
+            equipment={getEquipmentForProject(openTicket.projectId)}
+            onClose={() => setPricingOpen(false)}
+            onApply={next => handleApplyPricing(openTicket, next)}
           />
         )}
       </View>
@@ -1056,7 +1252,7 @@ function FieldTicketInner() {
         {unbilled.length > 0 && (
           <View style={styles.unbilledCard}>
             <Text style={styles.unbilledLabel}>Signed, not yet billed</Text>
-            <Text style={styles.unbilledValue}>{money(unbilledTotal)}</Text>
+            {!moneyBlinded && <Text style={styles.unbilledValue}>{money(unbilledTotal)}</Text>}
             <Text style={styles.unbilledSub}>
               {unbilled.length} ticket{unbilled.length === 1 ? '' : 's'} the owner has already
               authorized. Convert them before closeout.
@@ -1086,7 +1282,7 @@ function FieldTicketInner() {
                 onPress={() => setOpenTicketId(x.id)}
                 testID={`ticket-row-${x.id}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${fieldTicketLabel(x.number)}, ${STATUS_LABEL[x.status]}, ${money(tot.billableTotal)}`}
+                accessibilityLabel={`${fieldTicketLabel(x.number)}, ${STATUS_LABEL[x.status]}${moneyBlinded ? '' : `, ${money(tot.billableTotal)}`}`}
               >
                 <View style={styles.ticketRowMain}>
                   <View style={styles.ticketRowHead}>
@@ -1104,7 +1300,7 @@ function FieldTicketInner() {
                   </Text>
                 </View>
                 <View style={styles.ticketRowRight}>
-                  <Text style={styles.ticketAmount}>{money(tot.billableTotal)}</Text>
+                  {!moneyBlinded && <Text style={styles.ticketAmount}>{money(tot.billableTotal)}</Text>}
                   <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
                 </View>
               </TouchableOpacity>
@@ -1195,14 +1391,31 @@ function MoneyInput({ label, value, onChange, testID }: {
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
+  // The field renders the RAW keystrokes, not the parsed number. Rendering
+  // String(value) back made the decimal point untypable: parseFloat('95.') is
+  // 95, which re-renders as "95", so the '.' never sticks and $95.50 comes out
+  // as 9550. This is the one surface where T&M rates are entered to the cent.
+  const [raw, setRaw] = useState(value == null ? '' : String(value));
+  // What this field last handed upward. Re-seeding only when the prop moves
+  // AWAY from that means a suggestion chip (or a fresh row) refills the box,
+  // while the value echoing back from our own keystroke leaves it alone.
+  const lastLifted = useRef(value);
+  useEffect(() => {
+    if (value === lastLifted.current) return;
+    lastLifted.current = value;
+    setRaw(value == null ? '' : String(value));
+  }, [value]);
   return (
     <View style={styles.moneyWrap}>
       <TextInput
         style={[styles.input, styles.moneyInput]}
-        value={value == null ? '' : String(value)}
+        value={raw}
         onChangeText={v => {
+          setRaw(v);
           const n = parseFloat(v);
-          onChange(v.trim() === '' || Number.isNaN(n) ? undefined : n);
+          const next = v.trim() === '' || Number.isNaN(n) ? undefined : n;
+          lastLifted.current = next;
+          onChange(next);
         }}
         placeholder="—"
         placeholderTextColor={t.textMuted}
@@ -1211,6 +1424,204 @@ function MoneyInput({ label, value, onChange, testID }: {
       />
       <Text style={styles.moneyLabel}>{label}</Text>
     </View>
+  );
+}
+
+/**
+ * A rate the app can already work out, offered rather than written. Tapping it
+ * fills the field; it never lands on a ticket the GC didn't look at, and it
+ * always says where the number came from — a suggested rate is not a fact
+ * about this job until he says it is.
+ */
+function RateSuggestion({ suggestion, unit, onUse, testID }: {
+  suggestion: FieldTicketRateSuggestion;
+  unit: string;
+  onUse: () => void;
+  testID?: string;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
+  return (
+    <TouchableOpacity style={styles.suggestChip} onPress={onUse} testID={testID}>
+      <Sparkles size={12} color={t.accent} strokeWidth={2} />
+      <Text style={styles.suggestChipText} numberOfLines={1}>
+        Use {money(suggestion.rate)}{unit} · {suggestion.source}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * The office half of the ticket. The rep signed for hours standing in a
+ * hallway; this is where the money gets attached, days later, at a desk.
+ *
+ * Everything except the three rate fields is rendered read-only on purpose —
+ * it is what the signature covers. The write goes through
+ * ProjectContext.updateFieldTicket, which re-checks row by row and refuses the
+ * whole update if anything but a rate moved.
+ */
+function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply }: {
+  visible: boolean;
+  ticket: FieldTicket;
+  laborRates: Record<string, number>;
+  equipment: Equipment[];
+  onClose: () => void;
+  onApply: (next: Pick<FieldTicket, 'labor' | 'materials' | 'equipment'>) => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: t } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Seeded once, at mount. The caller mounts this only while the sheet is open,
+  // so every open is a fresh seed — and deliberately NOT re-seeded from `ticket`
+  // while open: the ticket object is replaced whenever anything else syncs (a
+  // photo upload draining, for one), and re-seeding on that would wipe rates he
+  // is halfway through typing.
+  const [labor, setLabor] = useState<FieldTicketLaborRow[]>(ticket.labor ?? []);
+  const [materials, setMaterials] = useState<FieldTicketMaterialRow[]>(ticket.materials ?? []);
+  const [equipRows, setEquipRows] = useState<FieldTicketEquipmentRow[]>(ticket.equipment ?? []);
+
+  const preview = useMemo(
+    () => computeFieldTicketTotals({ ...ticket, labor, materials, equipment: equipRows }),
+    [ticket, labor, materials, equipRows],
+  );
+
+  const changeCount = useMemo(
+    () => fieldTicketPriceChanges(ticket, { labor, materials, equipment: equipRows }).length,
+    [ticket, labor, materials, equipRows],
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 10 }]}>
+          <Text style={styles.modalTitle}>Price this ticket</Text>
+          <Text style={styles.modalAttest}>
+            {ticket.authorization?.name ?? 'The signer'} signed for the hours and quantities below.
+            They stay exactly as signed — only the rates can change here, and each one is written
+            into the ticket&apos;s history with your name and today&apos;s date.
+          </Text>
+          {/* What the numbers below turn into. The suggestion chips offer the
+              GC's LOADED COST from Time Tracking, so the ticket's own markup is
+              the only thing between a cost and what the owner is billed —
+              saying it here is the difference between billing 18 hr at $58 and
+              billing them at $95. Silence on a 0% ticket would read as "O&P is
+              handled somewhere else"; it is not. */}
+          <Text style={preview.markupPercent > 0 ? styles.modalAttest : styles.priceWarn}>
+            {preview.markupPercent > 0
+              ? `This ticket adds ${preview.markupPercent}% O&P on top of the rates you enter.`
+              : 'This ticket carries no O&P markup — whatever you enter here is exactly what the owner is billed.'}
+          </Text>
+
+          <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            {labor.length > 0 && <Text style={styles.priceGroupLabel}>Labor</Text>}
+            {labor.map((row, i) => {
+              const suggestion = suggestLaborRate(row.trade, laborRates);
+              return (
+                <View key={row.id} style={styles.priceRow}>
+                  <View style={styles.priceRowText}>
+                    <Text style={styles.priceRowMain} numberOfLines={1}>
+                      {row.workerName || 'Unnamed'} · {row.trade}
+                    </Text>
+                    <Text style={styles.priceRowSub}>{row.hours} hr signed</Text>
+                    {!!suggestion && !row.rate && (
+                      <RateSuggestion
+                        suggestion={suggestion}
+                        unit="/hr"
+                        onUse={() => setLabor(p => p.map((r, j) => j === i ? { ...r, rate: suggestion.rate } : r))}
+                        testID={`ticket-price-labor-suggest-${i}`}
+                      />
+                    )}
+                  </View>
+                  <MoneyInput
+                    label="$/hr"
+                    value={row.rate}
+                    onChange={v => setLabor(p => p.map((r, j) => j === i ? { ...r, rate: v } : r))}
+                    testID={`ticket-price-labor-${i}`}
+                  />
+                </View>
+              );
+            })}
+
+            {materials.length > 0 && <Text style={styles.priceGroupLabel}>Materials</Text>}
+            {materials.map((row, i) => (
+              <View key={row.id} style={styles.priceRow}>
+                <View style={styles.priceRowText}>
+                  <Text style={styles.priceRowMain} numberOfLines={1}>{row.description || 'Material'}</Text>
+                  <Text style={styles.priceRowSub}>{row.quantity} {row.unit} signed</Text>
+                </View>
+                <MoneyInput
+                  label="$/unit"
+                  value={row.unitCost}
+                  onChange={v => setMaterials(p => p.map((r, j) => j === i ? { ...r, unitCost: v } : r))}
+                  testID={`ticket-price-material-${i}`}
+                />
+              </View>
+            ))}
+
+            {equipRows.length > 0 && <Text style={styles.priceGroupLabel}>Equipment</Text>}
+            {equipRows.map((row, i) => {
+              const suggestion = suggestEquipmentRate(row.description, equipment);
+              return (
+                <View key={row.id} style={styles.priceRow}>
+                  <View style={styles.priceRowText}>
+                    <Text style={styles.priceRowMain} numberOfLines={1}>{row.description || 'Equipment'}</Text>
+                    <Text style={styles.priceRowSub}>{row.hours} hr signed</Text>
+                    {!!suggestion && !row.rate && (
+                      <RateSuggestion
+                        suggestion={suggestion}
+                        unit="/hr"
+                        onUse={() => setEquipRows(p => p.map((r, j) => j === i ? { ...r, rate: suggestion.rate } : r))}
+                        testID={`ticket-price-equipment-suggest-${i}`}
+                      />
+                    )}
+                  </View>
+                  <MoneyInput
+                    label="$/hr"
+                    value={row.rate}
+                    onChange={v => setEquipRows(p => p.map((r, j) => j === i ? { ...r, rate: v } : r))}
+                    testID={`ticket-price-equipment-${i}`}
+                  />
+                </View>
+              );
+            })}
+
+            {preview.unpricedRowCount > 0 && (
+              <Text style={styles.priceWarn}>
+                {preview.unpricedRowCount} line{preview.unpricedRowCount === 1 ? '' : 's'} still
+                without a rate. Those hours are authorized work, but they will not appear on the
+                change order.
+              </Text>
+            )}
+          </ScrollView>
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.modalCancel} onPress={onClose}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalConfirm, changeCount === 0 && styles.signBtnDisabled]}
+              onPress={() => onApply({ labor, materials, equipment: equipRows })}
+              disabled={changeCount === 0}
+              testID="ticket-price-save"
+            >
+              <Check size={16} color={changeCount > 0 ? '#FFF' : t.textMuted} strokeWidth={2.5} />
+              <Text style={[styles.modalConfirmText, changeCount === 0 && styles.disabledText]}>
+                Save rates · {money(preview.billableTotal)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.sealNote}>
+            <Lock size={12} color={t.textMuted} strokeWidth={1.75} />
+            <Text style={styles.sealNoteText}>
+              {changeCount === 0
+                ? 'Change a rate to save. Nothing else on a signed ticket can move.'
+                : `${changeCount} rate${changeCount === 1 ? '' : 's'} will be logged against your name.`}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1233,7 +1644,8 @@ function ReadBlock({ label, value }: { label: string; value: string }) {
 function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
   visible: boolean;
   busy: boolean;
-  amount: number;
+  /** Null for a role blinded from money — the button then reads "Sign & seal". */
+  amount: number | null;
   summary: string;
   onClose: () => void;
   onSign: (name: string, title: string, role: FieldTicketAuthorizerRole, paths: string[]) => void;
@@ -1332,7 +1744,7 @@ function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
                 <>
                   <Check size={16} color={ready ? '#FFF' : t.textMuted} strokeWidth={2.5} />
                   <Text style={[styles.modalConfirmText, !ready && styles.disabledText]}>
-                    Sign &amp; seal · {money(amount)}
+                    Sign &amp; seal{amount == null ? '' : ` · ${money(amount)}`}
                   </Text>
                 </>
               )}
@@ -1566,6 +1978,36 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   gateReason: {
     fontSize: Type.caption1.fontSize, color: t.textMuted,
     textAlign: 'center', lineHeight: 17, paddingHorizontal: Tokens.spacing.sm,
+  },
+  // Money that is NOT in the headline number. Warning-toned on purpose: an
+  // unpriced signed line is authorized work the change order will drop.
+  amountWarn: {
+    fontSize: Type.footnote.fontSize, color: t.warningLabel, fontWeight: '700',
+    marginTop: 4, lineHeight: 18,
+  },
+
+  // ── Pricing sheet ──
+  priceGroupLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted,
+    letterSpacing: 0.6, textTransform: 'uppercase',
+    marginTop: Tokens.spacing.sm, marginBottom: Tokens.spacing.xxs,
+  },
+  priceRow: {
+    ...cardSurface(t, { radius: 'md', pad: Tokens.spacing.sm }),
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6,
+  },
+  priceRowText: { flex: 1, gap: 2 },
+  priceRowMain: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  priceRowSub: { fontSize: Type.caption1.fontSize, color: t.textMuted },
+  suggestChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    marginTop: 4, paddingHorizontal: 9, paddingVertical: 6,
+    borderRadius: Tokens.radius.full, backgroundColor: t.accentSoft,
+  },
+  suggestChipText: { flexShrink: 1, fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.accent },
+  priceWarn: {
+    fontSize: Type.caption1.fontSize, color: t.warningLabel, lineHeight: 17,
+    marginTop: Tokens.spacing.sm,
   },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

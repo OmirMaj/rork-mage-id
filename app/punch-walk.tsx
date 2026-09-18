@@ -36,6 +36,13 @@
 //     client's view, twenty chores filed to the punch list land in front of it.
 //   • Session roll-up at the bottom: "captured 7 items this walk" with
 //     undo. The list clears when the user leaves the screen.
+//   • PHOTO, THEN PIN, THEN DESCRIPTION (founder, 2026-09-17, on a real walk).
+//     The moment the camera returns, components/punch/PlanPinStep opens full
+//     screen on the job's plan: he taps where he is standing, Next, and he is
+//     back on this form with the pin attached ("Pinned on A-101") and the mic
+//     under his thumb. Skip saves the item exactly as it saved before the step
+//     existed. The pin rides on the draft beside the photo, independent of it —
+//     removing the photo does not quietly drop where the defect is.
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
@@ -87,6 +94,11 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { neutralInk, labelOn } from '@/components/ui/ink';
 import { showAlert } from '@/utils/alert';
+import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
+import PlanPinStep from '@/components/punch/PlanPinStep';
+import {
+  durablePinSheetCount, punchPinFields, shouldAutoOpenPinStep, type WalkPin,
+} from '@/utils/punchPlanPin';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Anything not recognized falls back to 'General'.
@@ -117,6 +129,12 @@ const TRADE_ORDER: SubTrade[] = SUB_TRADES;
  * rooms he is actually walking are the ones that stay in it.
  */
 const LOCATION_CHIP_LIMIT = 10;
+
+// How long the iOS camera's dismiss animation runs after launchCameraAsync has
+// already resolved (expo-image-picker resolves, THEN calls dismiss(animated:)).
+// The pin step's full-screen Modal is presented after it, so UIKit never sees a
+// second presentation while the first is still animating out.
+const CAMERA_DISMISS_MS = 450;
 
 /**
  * Ink for text and icons sitting ON `accentFill`. Not a theme token on
@@ -228,6 +246,8 @@ interface SessionCapture {
   priority: PunchItemPriority;
   listType: PunchListType;
   photoUri?: string;
+  /** "A-101 · Level 2" when the item was pinned, for the roll-up line. */
+  pinLabel?: string;
   capturedAt: string;
 }
 
@@ -249,7 +269,7 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
   const router = useRouter();
   // Look up the project for AI-context (description -> location/trade/priority).
   // The voice parser needs the project; `punchItems` feeds the location chips.
-  const { getProject, punchItems } = useProjects();
+  const { getProject, punchItems, getPlanSheetsForProject, updatePunchItem } = useProjects();
   const project = getProject(projectId);
 
   // Draft — what the user is building right now. Each save clears it
@@ -267,6 +287,11 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
     /** Drives the banner. See LocationOrigin — a carried-forward room must
      *  never look the same as one he chose for this item. */
     locationOrigin: LocationOrigin;
+    /** Where on the plan this item is, from the pin step. Undefined = not
+     *  pinned (skipped, or no plan) — handleSave then writes no plan fields. */
+    pin?: WalkPin;
+    /** The sheet's label at the moment he pinned, for the "Pinned on" chip. */
+    pinLabel?: string;
   }>({ description: '', location: '', trade: 'General', priority: 'medium', locationOrigin: 'none' });
 
   // The list each saved item is filed to. Deliberately NOT part of the draft:
@@ -282,6 +307,42 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [showTradeOverride, setShowTradeOverride] = useState(false);
   const [showAllLocations, setShowAllLocations] = useState(false);
+
+  // ── Pin step ─────────────────────────────────────────────────────────────
+  // `pinStepOpen` is the full-screen "Where is this?" step. `lastPinSheetId`
+  // lives OUTSIDE the draft for the same reason the list does: he walks one
+  // floor at a time, so the next photo should open on the sheet he just used,
+  // and the draft is rebuilt on every save.
+  const [pinStepOpen, setPinStepOpen] = useState(false);
+  const [lastPinSheetId, setLastPinSheetId] = useState<string | null>(null);
+  // Set when he skips the "no plan on this job" screen. See
+  // shouldAutoOpenPinStep: that screen is shown once a walk, not once a photo.
+  const [dismissedNoPlan, setDismissedNoPlan] = useState(false);
+  // DURABLE sheets, not merely listed or locally renderable ones: a sheet with
+  // no image saved (IMG_1668 on any other device) has nothing to pin on, and a
+  // device-only one (IMG_1668 on the phone that imported it) must be saved
+  // before it takes a pin. Counting either re-opened the step after every
+  // photo with no way to mute it; as "no plan", the first photo offers the
+  // add/save and one Skip mutes it for the walk.
+  const planSheetCount = durablePinSheetCount(getPlanSheetsForProject(projectId), projectId);
+  // The iOS camera resolves BEFORE its dismiss animation finishes; presenting
+  // the pin step's full-screen Modal inside that animation can be dropped by
+  // UIKit ("presentation in progress"), leaving pinStepOpen true and nothing on
+  // screen. The open waits out the dismiss, and is cancelled on unmount.
+  const pinOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (pinOpenTimerRef.current) clearTimeout(pinOpenTimerRef.current); }, []);
+  // If UIKit drops the presentation anyway, pinStepOpen is already true and a
+  // plain setPinStepOpen(true) is a no-op — the step could never be reopened.
+  // Closing first and reopening on the next frame always presents it.
+  const openPinStep = useCallback(() => {
+    setPinStepOpen(false);
+    requestAnimationFrame(() => setPinStepOpen(true));
+  }, []);
+
+  // The GPS fix for the photo on the draft. It no longer blocks the shutter,
+  // so a fast save can land before it; handleSave then writes the stamp onto
+  // the saved item when it arrives, instead of dropping it.
+  const pendingStampRef = useRef<{ shotUri: string; promise: Promise<PhotoGeoStamp | null> } | null>(null);
 
   // ── Locations ────────────────────────────────────────────────────────────
   // Two sources, merged and deduped by utils/punchLocations: rooms already
@@ -445,26 +506,71 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
       result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
     }
     if (!result.canceled && result.assets[0]) {
-      // Geo-stamp runs in parallel with the camera dismiss animation; its
-      // own 3s timeout means a missing GPS fix never blocks the next punch.
-      const stamp = await stampPhotoLocation();
-      setDraft(d => ({
-        ...d,
-        photoUri: result.assets[0].uri,
-        photoStamp: stamp ?? undefined,
-        // If the user hasn't typed a location yet, seed it with the geo
-        // label so the punch still has SOMETHING for the closeout report.
-        location: d.location || stamp?.label || '',
-        // Say where that came from. A reverse-geocoded street label is not a
-        // room he chose, and the banner labels it "from photo GPS" rather than
-        // letting it pass as one.
-        locationOrigin: d.location
-          ? d.locationOrigin
-          : (stamp?.label ? 'gps' : d.locationOrigin),
-      }));
+      const shotUri = result.assets[0].uri;
+      // The photo lands on the draft NOW and the pin step opens NOW; the GPS
+      // stamp (up to 3s on a cold fix) follows in the background. Awaiting it
+      // first put seconds between the shutter and the plan on every item of a
+      // sixty-item walk.
+      setDraft(d => ({ ...d, photoUri: result.assets[0].uri, photoStamp: undefined }));
+      const stampPromise = stampPhotoLocation();
+      pendingStampRef.current = { shotUri, promise: stampPromise };
+      void stampPromise.then(stamp => {
+        if (!stamp) return;
+        setDraft(d => {
+          // He retook or removed the photo while the fix was coming in: this
+          // stamp belongs to a picture that is no longer on the draft.
+          if (d.photoUri !== shotUri) return d;
+          return {
+            ...d,
+            photoStamp: stamp,
+            // If the user hasn't typed a location yet, seed it with the geo
+            // label so the punch still has SOMETHING for the closeout report.
+            location: d.location || stamp.label || '',
+            // Say where that came from. A reverse-geocoded street label is not a
+            // room he chose, and the banner labels it "from photo GPS" rather than
+            // letting it pass as one.
+            locationOrigin: d.location
+              ? d.locationOrigin
+              : (stamp.label ? 'gps' : d.locationOrigin),
+          };
+        });
+      }).catch(() => { /* no fix — the item saves without a stamp, as before */ });
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Photo, THEN pin, then description: the plan comes up before the form
+      // so he pins while he is still standing on the spot.
+      if (shouldAutoOpenPinStep({ pinnableSheetCount: planSheetCount, dismissedNoPlanThisWalk: dismissedNoPlan })) {
+        if (pinOpenTimerRef.current) clearTimeout(pinOpenTimerRef.current);
+        pinOpenTimerRef.current = setTimeout(() => {
+          pinOpenTimerRef.current = null;
+          setPinStepOpen(true);
+        }, Platform.OS === 'ios' ? CAMERA_DISMISS_MS : 0);
+      }
     }
+  }, [planSheetCount, dismissedNoPlan]);
+
+  const handlePinNext = useCallback((pin: WalkPin, sheetLabel: string) => {
+    // Location is left exactly as it is: a point on a drawing is not a room
+    // name, and inventing one from coordinates would be a guess he never made.
+    setDraft(d => ({ ...d, pin, pinLabel: sheetLabel }));
+    setLastPinSheetId(pin.sheetId);
+    setPinStepOpen(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
+
+  const handlePinSkip = useCallback(({ hadPlan }: { hadPlan: boolean }) => {
+    // Skip means "no pin for this item" — including clearing one he placed
+    // earlier and came back to change.
+    setDraft(d => ({ ...d, pin: undefined, pinLabel: undefined }));
+    if (!hadPlan) setDismissedNoPlan(true);
+    setPinStepOpen(false);
+  }, []);
+
+  const handleRemovePin = useCallback(() => {
+    setDraft(d => ({ ...d, pin: undefined, pinLabel: undefined }));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  const sessionItemIds = useMemo(() => session.map(c => c.id), [session]);
 
   const cycleTrade = useCallback(() => {
     setDraft(d => {
@@ -489,7 +595,9 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
       return;
     }
     const now = new Date().toISOString();
-    const due = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    // Local calendar day, not a UTC slice — an evening walk would otherwise
+    // date every item a day late (utils/calendarDate).
+    const due = toCalendarDayString(addCalendarDays(new Date(), 7));
     const sub = pickSubForTrade(draft.trade, subcontractors, projectId);
     const id = generateUUID();
 
@@ -511,10 +619,29 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
         photoLocationAccuracyMeters: draft.photoStamp.accuracyMeters,
         photoLocationLabel: draft.photoStamp.label,
       } : null),
+      // planSheetId / pinX / pinY from the pin step; nothing at all when he
+      // skipped it, so an unpinned item saves exactly as it always has.
+      ...punchPinFields(draft.pin),
       createdAt: now,
       updatedAt: now,
     };
     onAdd(item);
+    const pendingStamp = pendingStampRef.current;
+    if (!draft.photoStamp && draft.photoUri && pendingStamp && pendingStamp.shotUri === draft.photoUri) {
+      // Saved before the fix arrived: attach the location to THIS item when it
+      // comes in. The room he typed stays as saved — a late street label must
+      // not overwrite it.
+      void pendingStamp.promise.then(stamp => {
+        if (!stamp) return;
+        updatePunchItem(id, {
+          photoLatitude: stamp.latitude,
+          photoLongitude: stamp.longitude,
+          photoLocationAccuracyMeters: stamp.accuracyMeters,
+          photoLocationLabel: stamp.label,
+        });
+      }).catch(() => { /* no fix — saved without a stamp, as before */ });
+    }
+    pendingStampRef.current = null;
 
     setSession(s => [{
       id,
@@ -524,12 +651,15 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
       priority: item.priority,
       listType,
       photoUri: item.photoUri,
+      pinLabel: item.planSheetId ? draft.pinLabel : undefined,
       capturedAt: now,
     }, ...s]);
 
     // Reset draft but KEEP the location. The whole point of walk mode
     // is the super stays in one room and captures 5 items before moving.
-    // photoStamp is dropped \u2014 next photo gets its own fresh fix.
+    // photoStamp is dropped \u2014 next photo gets its own fresh fix. So is the
+    // pin: the next defect is somewhere else on the plan, and lastPinSheetId
+    // (outside the draft) is what brings the next pin step back to this sheet.
     //
     // The origin drops to 'carried': the room survives, his confirmation of it
     // does not. That is what the banner reads to stop the next item inheriting
@@ -543,7 +673,7 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
     });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [draft, listType, subcontractors, projectId, onAdd]);
+  }, [draft, listType, subcontractors, projectId, onAdd, updatePunchItem]);
 
   const handleUndo = useCallback((id: string) => {
     onDelete(id);
@@ -822,6 +952,46 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* The pin. Tapping the chip re-opens the step on the same sheet
+                with the pin where he left it, so a wrong spot is fixed without
+                retaking the photo. Unpinned-with-a-photo offers the step back
+                (after a Skip, or on a job where it did not open by itself). */}
+            {draft.pin ? (
+              <View style={styles.pinRow}>
+                <TouchableOpacity
+                  style={styles.pinChip}
+                  onPress={openPinStep}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Pinned on ${draft.pinLabel ?? 'plan'}. Change the pin`}
+                  testID="walk-pin-chip"
+                >
+                  <MapPin size={12} color={ON_ACCENT_INK} strokeWidth={2.5} />
+                  <Text style={styles.pinChipText} numberOfLines={1}>Pinned on {draft.pinLabel ?? 'plan'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleRemovePin}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove the pin"
+                  testID="walk-pin-remove"
+                >
+                  <X size={15} color={themeColors.textMuted} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
+            ) : draft.photoUri ? (
+              <TouchableOpacity
+                style={styles.pinAdd}
+                onPress={openPinStep}
+                accessibilityRole="button"
+                accessibilityLabel="Pin this item on the plan"
+                testID="walk-pin-open"
+              >
+                <MapPin size={12} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.pinAddText}>Not pinned {'·'} Pin on plan</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           {/* Action bar */}
@@ -840,7 +1010,7 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
                 ]}
               />
             </View>
-            <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera}>
+            <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera} accessibilityRole="button" accessibilityLabel="Take a photo, then pin it on the plan" testID="walk-camera">
               <Camera size={18} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.cameraBtnText}>Photo</Text>
             </TouchableOpacity>
@@ -913,6 +1083,7 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
                         {c.listType === 'punch' ? 'Punch' : 'Crew'}
                       </Text>
                       {' · '}{c.location} · {c.trade} · {c.priority}
+                      {c.pinLabel ? ` · pinned on ${c.pinLabel}` : ''}
                     </Text>
                   </View>
                   <TouchableOpacity onPress={() => handleUndo(c.id)} hitSlop={12}>
@@ -933,6 +1104,19 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Pin step — photo, then pin, then description. */}
+      <PlanPinStep
+        visible={pinStepOpen}
+        projectId={projectId}
+        photoUri={draft.photoUri}
+        initialPin={draft.pin ?? null}
+        sessionSheetId={lastPinSheetId}
+        sessionItemIds={sessionItemIds}
+        onNext={handlePinNext}
+        onSkip={handlePinSkip}
+        onClose={() => setPinStepOpen(false)}
+      />
 
       {/* Trade override sheet */}
       <Modal visible={showTradeOverride} animationType="slide" transparent onRequestClose={() => setShowTradeOverride(false)}>
@@ -1231,6 +1415,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11,
     backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center',
   },
+
+  pinRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
+  pinChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1,
+    paddingHorizontal: 11, paddingVertical: 8,
+    borderRadius: Tokens.radius.full, backgroundColor: t.accentFill,
+  },
+  pinChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: ON_ACCENT_INK, flexShrink: 1 },
+  pinAdd: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, alignSelf: 'flex-start', paddingVertical: 6 },
+  pinAddText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.accent },
 
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, marginTop: 14 },
   voiceWrap: { flex: 1, alignItems: 'center' },

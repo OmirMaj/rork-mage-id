@@ -31,7 +31,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
-import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useLaborCostSamples, useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { VerdictCard } from '@/components/judges/VerdictCard';
 import { draftLinesFromScope, runJudges } from '@/utils/judges/runJudges';
@@ -73,7 +74,7 @@ function JudgesInner() {
   const insets = useSafeAreaInsets();
   const goBack = useSafeBack();
   const { isDesktop } = useResponsiveLayout();
-  const { projects, commitments, changeOrders, invoices } = useProjects();
+  const { projects, commitments, changeOrders, invoices, equipment, permits, subcontractors } = useProjects();
   const { receipts } = useMaterialReceipts();
   // Self-perform labor samples (D6) — crew hours × configured loaded rates
   // fold into the cost book the judges score against.
@@ -99,9 +100,19 @@ function JudgesInner() {
   const [result, setResult] = useState<JudgesResult | null>(null);
 
   // ── Context object ────────────────────────────────────────────────────
+  // The same seven cost streams Job Costing prices. runJudges lets the margin
+  // factor (0.30 weight) vote only when costSources is present — without it a
+  // pick-mode verdict is scored with no margin-risk voice at all, and a
+  // self-perform overrun reads as the bid margin (audit round 2, #16).
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+
   const ctx = useMemo(
-    () => ({ projects, commitments, changeOrders, invoices, receipts, laborSamples, seeds }),
-    [projects, commitments, changeOrders, invoices, receipts, laborSamples, seeds],
+    () => ({ projects, commitments, changeOrders, invoices, costSources, receipts, laborSamples, seeds }),
+    [projects, commitments, changeOrders, invoices, costSources, receipts, laborSamples, seeds],
   );
 
   // ── Timeline window builder ───────────────────────────────────────────

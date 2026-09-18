@@ -58,6 +58,7 @@ import { verifyUser } from '../_shared/verifyUser.ts';
 // column only as a fallback). This function prints the amount it demands, so a
 // second copy of the arithmetic here is a second place to demand the wrong one.
 import { netPayable as netPayableOf } from '../_shared/paymentMath.ts';
+import { isClosedWithoutPaymentNote } from '../_shared/paymentLedger.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -109,6 +110,9 @@ interface InvoiceRow {
   user_id: string;
   dunning_stage: number | null;
   dunning_last_sent_at: string | null;
+  /** Set by qbo-reconciler when QuickBooks shows the invoice closed by
+   *  something other than a payment (see isClosedWithoutPaymentNote). */
+  qbo_error?: string | null;
 }
 
 interface ProjectRow {
@@ -157,7 +161,8 @@ function nextDunningStage(currentStage: number | null | undefined, targetStage: 
 
 type SkipReason =
   | 'draft' | 'paid' | 'nothing_outstanding' | 'bad_due_date' | 'not_overdue'
-  | 'unsubscribed' | 'stage_already_sent' | 'too_soon' | 'no_recipient' | 'send_failed';
+  | 'unsubscribed' | 'stage_already_sent' | 'too_soon' | 'no_recipient' | 'send_failed'
+  | 'closed_in_quickbooks';
 
 /**
  * Return whether the invoice should receive a dunning email right now.
@@ -348,6 +353,15 @@ async function processInvoice(
     // Not yet overdue.
     return skip('not_overdue');
   }
+  // The bookkeeper closed this invoice in QuickBooks with a credit memo,
+  // journal entry or write-off. MAGE rightly does not count that as cash, so
+  // the balance above still reads open — but a client chased toward a FINAL
+  // NOTICE for an invoice the GC's own books call settled is the worst email
+  // this function can send. The cron waits; the GC can still send one by hand
+  // from the invoice screen once they have looked, and qbo-setup counts these.
+  if (!manual && isClosedWithoutPaymentNote(invoice.qbo_error)) {
+    return skip('closed_in_quickbooks');
+  }
 
   const daysOverdue = Math.floor((nowMs - dueMs) / 86400000);
   const target = targetDunningStage(daysOverdue);
@@ -516,7 +530,7 @@ Deno.serve(async (req: Request) => {
   if (body.invoiceId) {
     const invRes = await client
       .from('invoices')
-      .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
+      .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at,qbo_error')
       .eq('id', body.invoiceId)
       .maybeSingle();
 
@@ -569,7 +583,7 @@ Deno.serve(async (req: Request) => {
   // logic filter.
   const invRes = await client
     .from('invoices')
-    .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at')
+    .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at,qbo_error')
     .not('status', 'in', '("paid","draft")')
     .not('due_date', 'is', null);
 

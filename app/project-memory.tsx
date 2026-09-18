@@ -25,6 +25,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import {
   extractMemoryDocs, answerFromMemorySemantic, syncMemoryEmbeddings, PROJECT_MEMORY_SUGGESTIONS,
+  PROJECT_MEMORY_SYNC_SCOPE, type MemorySyncStatus,
 } from '@/utils/projectMemory';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -38,6 +39,8 @@ interface Turn {
   refs?: string[];
   searched?: number;
   semantic?: boolean;
+  /** Semantic answers: records the index held with current text at answer time. */
+  indexed?: number;
 }
 
 export default function ProjectMemoryScreen() {
@@ -82,10 +85,28 @@ function ProjectMemoryInner() {
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Best-effort: keep the semantic index fresh when the screen opens / records
-  // change. No-op (silent) until the v2 embed function is deployed.
+  // Keep the semantic index in step when the screen opens / records change.
+  // Incremental: only new or edited records are embedded, and records that no
+  // longer exist are pruned — this screen's doc list is the complete set for
+  // its five record types, which is what makes PROJECT_MEMORY_SYNC_SCOPE safe.
+  //
+  // "Complete" is true only once ProjectContext has hydrated, and it hydrates
+  // the five collections from five independent queries, so this effect can fire
+  // with (say) the submittals still in flight. It runs anyway — waiting would
+  // mean guessing when hydration is done, and a diff-only sync would leave
+  // deleted records citable. What makes that safe is the shape of the gap: a
+  // half-hydrated manifest is missing WHOLE record types, and diffIndex refuses
+  // a prune that would delete every indexed doc of a type the manifest does not
+  // mention at all (WHOLE_TYPE_PRUNE_GUARD_MIN). The next run, with the query
+  // landed, prunes for real.
+  // The status feeds the "N of M indexed" line, so a partly-built index is
+  // never presented as a search over every record.
+  const [syncStatus, setSyncStatus] = useState<MemorySyncStatus | null>(null);
   useEffect(() => {
-    if (projectId && docs.length > 0) void syncMemoryEmbeddings(projectId, docs);
+    if (!projectId || docs.length === 0) return;
+    let live = true;
+    void syncMemoryEmbeddings(projectId, docs, PROJECT_MEMORY_SYNC_SCOPE).then(st => { if (live) setSyncStatus(st); });
+    return () => { live = false; };
   }, [projectId, docs]);
 
   const ask = useCallback(async (question: string) => {
@@ -117,6 +138,7 @@ function ProjectMemoryInner() {
       setTurns(prev => [...prev, {
         role: 'assistant', text: res.answer, error: !!res.errorKind,
         refs: res.matched ? res.usedRefs : undefined, searched: res.searched, semantic: res.semantic,
+        indexed: res.indexed,
       }]);
     } finally {
       setBusy(false);
@@ -164,6 +186,12 @@ function ProjectMemoryInner() {
                 I&apos;ve read {docs.length} record{docs.length === 1 ? '' : 's'} from this job — RFIs, daily reports,
                 change orders, submittals and punch items. Ask why something happened or how it was handled.
               </Text>
+              {syncStatus && syncStatus.total > 0 && syncStatus.indexed < syncStatus.total ? (
+                <Text style={styles.indexNote} testID="memory-index-status">
+                  {syncStatus.indexed} of {syncStatus.total} indexed for meaning search
+                  {syncStatus.reason ? ` — ${syncStatus.reason}` : ' so far'}. Meaning search covers only indexed records; when nothing there matches, every record is searched by keyword.
+                </Text>
+              ) : null}
               <View style={styles.suggestions}>
                 {PROJECT_MEMORY_SUGGESTIONS.map(s => (
                   <TouchableOpacity key={s} style={styles.suggestion} onPress={() => ask(s)} activeOpacity={0.85} testID="memory-suggestion">
@@ -185,7 +213,12 @@ function ProjectMemoryInner() {
                 </View>
                 {turn.role === 'assistant' && !turn.error && (turn.searched ?? 0) > 0 && (
                   <Text style={styles.cite}>
-                    {turn.semantic ? 'Semantic search · ' : 'Searched '}{turn.searched} record{turn.searched === 1 ? '' : 's'}
+                    {/* Semantic answers say how much of the record the index
+                        actually covers; a keyword answer read every record
+                        on the device, so its count is the whole list. */}
+                    {turn.semantic
+                      ? `Semantic search · ${typeof turn.indexed === 'number' ? `${Math.min(turn.indexed, turn.searched ?? 0)} of ${turn.searched}` : turn.searched} record${turn.searched === 1 ? '' : 's'} indexed`
+                      : `Searched ${turn.searched} record${turn.searched === 1 ? '' : 's'}`}
                     {turn.refs && turn.refs.length > 0 ? ` · ${turn.refs.slice(0, 4).join(', ')}` : ''}
                   </Text>
                 )}
@@ -251,6 +284,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, textAlign: 'center', letterSpacing: -0.3 },
   emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 8, maxWidth: 340 },
+  indexNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 17, marginTop: 8, maxWidth: 340 },
   suggestions: { gap: 8, marginTop: 22, alignSelf: 'stretch' },
   suggestion: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 13,

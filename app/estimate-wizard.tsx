@@ -42,7 +42,9 @@ import { mageAISmart } from '@/utils/mageAI';
 import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
-import { bidIdentityGap, mergedBidBranding } from '@/utils/bidDocumentIdentity';
+import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
+import { acceptanceSentence, paymentStageRows, resolvePaymentSplit } from '@/utils/paymentTerms';
 import {
   EMPTY_GROUNDING, buildGroundingFacts, estimateThinkingSteps, groundingChipLabel, selectGroundingEntries,
   type GroundingBundle, type ScopeHints,
@@ -69,7 +71,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage, getFreeTrialsRemaining, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
-import type { Commitment, CompanyBranding, Project, ProjectType, QualityTier } from '@/types';
+import type { Commitment, CompanyBranding, PaymentSplit, Project, ProjectType, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, SCOPE_STEPS, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
   estimateSchema, QUALITY_LABELS, stepBlockReason,
@@ -77,7 +79,7 @@ import {
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { Button, cardSurface } from '@/components/ui';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -193,7 +195,7 @@ function EstimateWizardScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
-  const { settings, getProject, updateProject, updateSettings, addProject, projects, commitments } = useProjects();
+  const { settings, getProject, updateProject, addProject, projects, commitments } = useProjects();
   const { maybeAskForPush } = useNotifications();
   const { receipts } = useMaterialReceipts();
   // Self-perform labor (D6): crew hours × configured loaded rates, folded
@@ -229,7 +231,7 @@ function EstimateWizardScreenInner() {
   // state flag is only true on the NEXT render, so two taps landing before that
   // render both read `false` — two PDFs and, worse, two ESTIMATE_SHARED events
   // on the activation funnel. Two buttons reach the send (the share button and
-  // the identity ask's "Save and send"), so the latch lives on the send itself.
+  // the ask sheet's last press), so the latch lives on the send itself.
   const sharingRef = useRef(false);
   // THE MODEL RETURNS COST. THE CONTRACTOR SENDS A PRICE. Those are two
   // different numbers and this screen now holds them separately.
@@ -270,6 +272,12 @@ function EstimateWizardScreenInner() {
   // Holds the action to run once he answers, so the tap he made is honoured
   // instead of being swallowed by a modal.
   const pendingAfterMarkupRef = useRef<null | ((pct: number) => void)>(null);
+  // iOS only: the answered continuation, waiting for the markup Modal to finish
+  // sliding out. The continuation opens the ask sheet (a second Modal) or the
+  // share sheet, and iOS refuses to present either while a modal is still
+  // dismissing — the tap would be honoured by nothing. Same pattern as the
+  // estimator cart (app/(tabs)/estimate/full.tsx, Modal onDismiss).
+  const afterMarkupDismissRef = useRef<null | (() => void)>(null);
   // The ?projectId auto-link, deferred when the markup is still unknown. Without
   // this the wizard would commit an at-cost estimate onto his project a beat
   // before asking what he charges, and the answer would land on a stale write.
@@ -314,12 +322,13 @@ function EstimateWizardScreenInner() {
   // one, folding the AI line items into its linkedEstimate.
   const [showSaveModal, setShowSaveModal] = useState(false);
 
-  // The identity gate on the share (see utils/bidDocumentIdentity.ts). Draft
-  // lives here rather than in settings so a half-typed licence number is never
-  // written to the profile.
-  const [showIdentityModal, setShowIdentityModal] = useState(false);
-  const [identityDraft, setIdentityDraft] = useState<{ companyName: string; licenseNumber: string }>({ companyName: '', licenseNumber: '' });
-  const [identityHint, setIdentityHint] = useState<string | null>(null);
+  // "Ask when it matters" (hooks/useClientDocumentGate). The share used to
+  // carry its own identity modal and printed 25 / 65 / 10 that nobody chose;
+  // both now go through the one ask sheet, which asks for the company identity
+  // only when the bid gate blocks and for the GC's own payment terms only when
+  // his profile has none, one question per step, and runs the send from the
+  // last press with the answers as arguments.
+  const gate = useClientDocumentGate();
   const [newProjectName, setNewProjectName] = useState('');
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   // The project the estimate was ACTUALLY written to by the ?projectId
@@ -710,8 +719,22 @@ function EstimateWizardScreenInner() {
     const then = pendingAfterMarkupRef.current;
     pendingAfterMarkupRef.current = null;
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    then?.(pct);
+    if (!then) return;
+    // Web and Android run it in THIS press: on web the PDF's window.open only
+    // survives inside the user gesture. iOS waits for the Modal's onDismiss.
+    if (Platform.OS === 'ios') {
+      afterMarkupDismissRef.current = () => then(pct);
+    } else {
+      then(pct);
+    }
   }, [recordMarkupDecision, projectId, commitAutoLink]);
+
+  /** iOS: the markup sheet is fully gone — run what he was doing when asked. */
+  const onMarkupSheetDismissed = useCallback(() => {
+    const next = afterMarkupDismissRef.current;
+    afterMarkupDismissRef.current = null;
+    next?.();
+  }, []);
 
   // The answer can arrive AFTER the park. `markupDecided` is null until
   // AsyncStorage resolves, so a generation that lands first parks the link-back
@@ -746,25 +769,27 @@ function EstimateWizardScreenInner() {
    *  primary button below says "not saved yet" instead of "Saved to …". */
   const dismissMarkupSheet = useCallback(() => {
     pendingAfterMarkupRef.current = null;
+    afterMarkupDismissRef.current = null;
     setShowMarkupSheet(false);
   }, []);
 
   // The PDF actually goes out from here, and ONLY from here. It takes the
-  // branding as an argument rather than reading `settings` itself, because the
-  // identity ask below has to hand it values that were typed one tick ago:
-  // updateSettings writes through the offline queue, so the `settings` captured
-  // in this closure is still the blank one the user was just asked to fill in.
+  // branding and the payment split as arguments rather than reading `settings`
+  // itself, because the ask sheet hands it values that were typed one tick ago:
+  // updateSettings / savePaymentTerms write through the offline queue, so the
+  // `settings` captured in this closure is still the blank one the user was
+  // just asked to fill in.
   //
   // It also takes the PRICED estimate as an argument, for the same reason: the
   // markup gate can hand it a freshly-priced breakdown one tick before React
   // has re-rendered `result`. Reading `result` from the closure here would
   // print the contractor's cost on the homeowner's PDF.
-  const generateAndSharePdf = useCallback(async (branding: CompanyBranding, priced: EstimateResult) => {
+  const generateAndSharePdf = useCallback(async (branding: CompanyBranding, priced: EstimateResult, split: PaymentSplit) => {
     if (sharingRef.current) return;
     sharingRef.current = true;
     setSharingPdf(true);
     try {
-      await shareQuickEstimatePDF(priced, answers, branding);
+      await shareQuickEstimatePDF(priced, answers, branding, split);
       // Activation funnel: the final funnel step — priced estimate sent to client.
       track(AnalyticsEvents.ESTIMATE_SHARED, {
         method: 'pdf_share',
@@ -795,56 +820,43 @@ function EstimateWizardScreenInner() {
     }
   }, [answers, isOnboarding, router, maybeAskForPush, committedProjectId, savedProjectId]);
 
-  /** The saved branding, with no vendor-name fallback. The old
-   *  `?? 'MAGE ID'` default is what put the software's name on the header of a
-   *  contractor's bid; the gate below is what fills the field instead. */
-  const savedBranding = useCallback(
-    (): CompanyBranding => mergedBidBranding(settings?.branding, {}),
-    [settings?.branding],
-  );
-
   const share = useCallback(() => {
     if (!costResult) return;
     const go = (pct: number) => {
       const priced = priceCostBreakdown(costResult, pct);
-      const branding = savedBranding();
-      const gap = bidIdentityGap(branding, settings?.location);
-      if (gap.blocking) {
-        // Blocked, and the block says why — this is a document a homeowner will
-        // be holding, not a form field we want filled for its own sake.
-        setIdentityDraft({
-          companyName: gap.needsCompanyName ? '' : branding.companyName,
-          licenseNumber: branding.licenseNumber,
-        });
-        setIdentityHint(null);
-        setShowIdentityModal(true);
-        if (Platform.OS !== 'web') void Haptics.selectionAsync();
-        return;
-      }
-      void generateAndSharePdf(branding, priced);
+      // Held between the two halves below on native. `then` keeps the press
+      // (web: window.open must happen inside it); the native print → share
+      // sheet waits for the ask sheet to finish sliding out, because iOS will
+      // not present a share sheet over a modal that is still dismissing.
+      let answered: { branding: CompanyBranding; split: PaymentSplit } | null = null;
+      gate.run(
+        {
+          identity: true,
+          terms: true,
+          purpose: 'proposal_pdf',
+          total: priced.total,
+          projectType: scopedProject?.type ?? null,
+        },
+        (a) => {
+          if (Platform.OS === 'web') void generateAndSharePdf(a.branding, priced, a.split);
+          else answered = { branding: a.branding, split: a.split };
+        },
+        {
+          afterDismiss: () => {
+            if (answered) void generateAndSharePdf(answered.branding, priced, answered.split);
+          },
+        },
+      );
     };
-    // Two gates now stand between this tap and a homeowner's inbox, and they
-    // guard the same thing from different sides: `bidIdentityGap` refuses to
-    // send a bid with nobody's name on it, and this one refuses to send a bid
-    // with nobody's profit in it.
+    // Two gates stand between this tap and a homeowner's inbox. The markup
+    // sheet refuses to send a bid with nobody's profit in it; the ask sheet
+    // refuses to send one with nobody's name on it, or with payment terms the
+    // GC never gave. The markup sheet comes first, and on iOS its continuation
+    // (which may open the ask sheet) runs from its onDismiss, so the two are
+    // never on screen together.
     if (!requireMarkup(go)) return;
     go(markupPct as number);
-  }, [costResult, savedBranding, generateAndSharePdf, requireMarkup, markupPct, settings?.location]);
-
-  // Save what they typed to the profile — once, so the second bid never asks —
-  // and send the PDF built from those exact values.
-  const saveIdentityAndShare = useCallback(() => {
-    const merged = mergedBidBranding(settings?.branding, identityDraft);
-    const gap = bidIdentityGap(merged, settings?.location);
-    if (gap.blocking) { setIdentityHint(gap.reason); return; }
-    updateSettings({ branding: merged });
-    setShowIdentityModal(false);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Safe to read `result` here: the identity modal is its own round trip, so
-    // any markup answered on the way in has long since flushed. Guarded anyway
-    // — an unpriced send is the one outcome this screen must not have.
-    if (result) void generateAndSharePdf(merged, result);
-  }, [settings?.branding, settings?.location, identityDraft, updateSettings, generateAndSharePdf, result]);
+  }, [costResult, gate, scopedProject?.type, generateAndSharePdf, requireMarkup, markupPct]);
 
   const reset = useCallback(() => {
     // Same seed as mount: "start over" must not un-learn his market.
@@ -1026,10 +1038,11 @@ function EstimateWizardScreenInner() {
     })();
     const todayLabel = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-    // Payment terms preview — same defaults as the PDF (25/65/10).
-    const depositAmt = result.total * 0.25;
-    const progressAmt = result.total * 0.65;
-    const completionAmt = result.total * 0.10;
+    // Payment terms preview — the GC's own split, the same rows the PDF prints
+    // (utils/paymentTerms.paymentStageRows). Not set → the card says so and
+    // offers to set it; the PDF cannot go out without it (share asks first).
+    const previewSplit = resolvePaymentSplit({ settings }).split;
+    const previewStages = previewSplit ? paymentStageRows(result.total, previewSplit) : [];
 
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
@@ -1410,38 +1423,45 @@ function EstimateWizardScreenInner() {
             <Text style={styles.excludedItem}>• Sales tax (where required) · Financing costs · Insurance riders</Text>
           </View>
 
-          {/* Payment Terms — 25/65/10 deposit / progress / final. Same
-              defaults as the PDF. Future: let GC override per-project. */}
-          <View style={styles.paymentCard}>
+          {/* Payment Terms — his split, never a default. When he has not
+              given one, this GC-only line says so rather than showing a
+              schedule the homeowner would never receive. */}
+          <View style={styles.paymentCard} testID="wizard-payment-terms">
             <Text style={styles.sectionTitle}>Payment Terms</Text>
-            <View style={styles.paymentRow}>
-              <View style={styles.paymentRowLeft}>
-                <Text style={styles.paymentRowTitle}>Deposit (25%)</Text>
-                <Text style={styles.paymentRowDesc}>Due upon signed agreement, before work begins</Text>
+            {previewSplit ? (
+              previewStages.map((row, i) => (
+                <View
+                  key={row.key}
+                  style={[styles.paymentRow, i === previewStages.length - 1 && { borderBottomWidth: 0 }]}
+                >
+                  <View style={styles.paymentRowLeft}>
+                    <Text style={styles.paymentRowTitle}>{`${row.label} (${row.pct}%)`}</Text>
+                    <Text style={styles.paymentRowDesc}>{row.detail}</Text>
+                  </View>
+                  <Text style={styles.paymentRowAmt}>${row.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                </View>
+              ))
+            ) : (
+              <View style={styles.paymentNotSet} testID="wizard-payment-terms-not-set">
+                <Text style={styles.paymentRowDesc}>
+                  Payment terms — not set yet. You'll be asked before this goes to your client.
+                </Text>
+                <Button
+                  label="Set now"
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => { gate.run({ terms: true, purpose: 'proposal_pdf', total: result.total, projectType: scopedProject?.type ?? null }, () => {}); }}
+                  testID="wizard-payment-terms-set"
+                />
               </View>
-              <Text style={styles.paymentRowAmt}>${depositAmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-            </View>
-            <View style={styles.paymentRow}>
-              <View style={styles.paymentRowLeft}>
-                <Text style={styles.paymentRowTitle}>Progress (65%)</Text>
-                <Text style={styles.paymentRowDesc}>Billed against documented progress per contract schedule</Text>
-              </View>
-              <Text style={styles.paymentRowAmt}>${progressAmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-            </View>
-            <View style={[styles.paymentRow, { borderBottomWidth: 0 }]}>
-              <View style={styles.paymentRowLeft}>
-                <Text style={styles.paymentRowTitle}>Final (10%)</Text>
-                <Text style={styles.paymentRowDesc}>Due at substantial completion, after walk-through and punch list</Text>
-              </View>
-              <Text style={styles.paymentRowAmt}>${completionAmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-            </View>
+            )}
           </View>
 
           {/* Acceptance / Next Steps — soft CTA to the client. */}
           <View style={styles.acceptanceCard}>
             <Text style={styles.acceptanceTitle}>Ready to move forward?</Text>
             <Text style={styles.acceptanceBody}>
-              To proceed, the client replies with approval and we'll prepare a formal contract reflecting the scope and terms above. Final pricing is locked once the contract is signed and the deposit received.
+              {acceptanceSentence(previewSplit)}
             </Text>
           </View>
 
@@ -1693,7 +1713,7 @@ function EstimateWizardScreenInner() {
             this sheet from the share and save paths, so nothing at cost can
             reach a client without him having said, in as many words, that
             that is what he wants. */}
-        <Modal visible={showMarkupSheet} transparent animationType="slide" onRequestClose={dismissMarkupSheet}>
+        <Modal visible={showMarkupSheet} transparent animationType="slide" onRequestClose={dismissMarkupSheet} onDismiss={onMarkupSheetDismissed}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={styles.saveOverlay}>
               <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
@@ -1772,93 +1792,9 @@ function EstimateWizardScreenInner() {
           </KeyboardAvoidingView>
         </Modal>
 
-        {/* Identity gate on the share. The PDF header prints the company name
-            and licence line straight from CompanyBranding, so an unfilled
-            profile put "MAGE ID" and a missing licence number on the first
-            document a homeowner ever sees. Asked HERE, at the send, once —
-            not as another onboarding screen the user taps past. */}
-        <Modal visible={showIdentityModal} transparent animationType="slide" onRequestClose={() => setShowIdentityModal(false)}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.saveOverlay}>
-              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
-                {(() => {
-                  const gap = bidIdentityGap(mergedBidBranding(settings?.branding, identityDraft), settings?.location);
-                  const savedGap = bidIdentityGap(savedBranding(), settings?.location);
-                  return (
-                    <>
-                      <View style={styles.saveHeader}>
-                        <Text style={styles.saveTitle}>{savedGap.title}</Text>
-                        <TouchableOpacity onPress={() => setShowIdentityModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                          <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
-                        </TouchableOpacity>
-                      </View>
-
-                      <Text style={styles.identityReason} testID="wizard-identity-reason">{savedGap.reason}</Text>
-
-                      <Text style={styles.saveSectionLabel}>Company name</Text>
-                      <TextInput
-                        style={styles.saveInput}
-                        value={identityDraft.companyName}
-                        onChangeText={(v) => { setIdentityDraft(d => ({ ...d, companyName: v })); setIdentityHint(null); }}
-                        placeholder="Your company, as the homeowner should see it"
-                        placeholderTextColor={themeColors.textMuted}
-                        autoCapitalize="words"
-                        testID="wizard-identity-company"
-                      />
-
-                      {savedGap.rule && (
-                        <>
-                          <Text style={[styles.saveSectionLabel, { marginTop: 14 }]}>
-                            {savedGap.rule.authority} licence number
-                          </Text>
-                          <TextInput
-                            style={styles.saveInput}
-                            value={identityDraft.licenseNumber}
-                            onChangeText={(v) => { setIdentityDraft(d => ({ ...d, licenseNumber: v })); setIdentityHint(null); }}
-                            placeholder="e.g. 1043927"
-                            placeholderTextColor={themeColors.textMuted}
-                            autoCapitalize="characters"
-                            autoCorrect={false}
-                            testID="wizard-identity-licence"
-                          />
-                          <Text style={styles.identityCitation}>{savedGap.rule.citation}</Text>
-                        </>
-                      )}
-
-                      {!!identityHint && <Text style={styles.identityHint} testID="wizard-identity-hint">{identityHint}</Text>}
-
-                      {/* `disabled` while a share is already running, not just
-                          dimmed: the main share button carries the same guard,
-                          and without it here two taps inside one frame both run
-                          saveIdentityAndShare — two PDFs, and two
-                          ESTIMATE_SHARED events on the activation funnel this
-                          wave exists to keep honest. */}
-                      <TouchableOpacity
-                        style={[styles.identitySaveBtn, (gap.blocking || sharingPdf) && { opacity: 0.5 }]}
-                        onPress={saveIdentityAndShare}
-                        disabled={sharingPdf}
-                        activeOpacity={0.85}
-                        testID="wizard-identity-save"
-                      >
-                        <FileDown size={16} color="#FFF" strokeWidth={2} />
-                        <Text style={styles.saveCreateText}>{sharingPdf ? 'Sending…' : 'Save and send'}</Text>
-                      </TouchableOpacity>
-                      {/* Not "you will not be asked again": the licence half of
-                          this gate is keyed off the state in your profile
-                          address, so a contractor who has no address yet and
-                          later types a CA, FL or AZ one is asked once more, for
-                          the number. Promising otherwise is a promise the code
-                          does not keep. */}
-                      <Text style={styles.identityFootnote}>
-                        Saved to your company profile — the next bid goes straight out.
-                      </Text>
-                    </>
-                  );
-                })()}
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
+        {/* The one ask sheet (identity, then payment terms) behind the share
+            and "Set now". Rendered once; it owns no copy of its own. */}
+        <ClientDocumentAskSheet {...gate.sheet} />
 
         <UpgradeSheet
           visible={!!upgradeLimit}
@@ -2457,6 +2393,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     gap: 12,
   },
   paymentRowLeft: { flex: 1 },
+  paymentNotSet: { gap: 10, alignItems: 'flex-start' as const, paddingTop: 4 },
   paymentRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
   paymentRowDesc: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2, lineHeight: 16 },
   paymentRowAmt: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.accent },
@@ -2673,39 +2610,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     marginTop: 2,
   },
 
-  // ── Identity gate on the share (utils/bidDocumentIdentity.ts) ──────────
+  // Reason line under the markup sheet's title.
   identityReason: {
     fontSize: Type.footnote.fontSize,
     lineHeight: 19,
     color: themeColors.textMuted,
     marginBottom: 18,
-  },
-  identityCitation: {
-    fontSize: Type.caption2.fontSize,
-    color: themeColors.textMuted,
-    marginTop: 6,
-  },
-  identityHint: {
-    fontSize: Type.footnote.fontSize,
-    color: themeColors.warningLabel,
-    marginTop: 12,
-  },
-  identitySaveBtn: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 8,
-    backgroundColor: themeColors.accentFill,
-    borderRadius: Tokens.radius.card,
-    paddingVertical: 14,
-    marginTop: 20,
-    minHeight: 48,
-  },
-  identityFootnote: {
-    fontSize: Type.caption2.fontSize,
-    color: themeColors.textMuted,
-    textAlign: 'center' as const,
-    marginTop: 10,
   },
   saveProjectRow: {
     flexDirection: 'row' as const,

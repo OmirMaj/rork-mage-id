@@ -23,6 +23,18 @@
 //
 // So the tier check is now asked only about the roles it is actually about.
 // Keep it below the role test: a field invite must never reach /paywall.
+//
+// ── THE ROSTER ROLE PICKER (audit round 2 #27) ──────────────────────────────
+// Each row used to carry ONE chip, `role === 'editor' ? 'viewer' : 'editor'`.
+// On a Field row that read "Make editor": one tap, no dialog, and the foreman
+// saw the job's estimate, markup and contract terms from his next load — the
+// numbers the field role exists to keep from the crew. Nothing could set Field
+// on an existing row, so the only way back was to re-invite him, which reset
+// his row to 'pending' and locked him out of the whole project. Now every row
+// has the same Editor / Viewer / Field picker the invite form has, a move that
+// LIFTS financial blinding asks first and names what they will see, and
+// re-inviting an active member is refused (here, and by project-invite,
+// which answers code 'already_member').
 
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
@@ -34,9 +46,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { useProjectRole } from '@/hooks/useProjectRole';
-import { ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/utils/roleBlinding';
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, isFinancialsBlinded } from '@/utils/roleBlinding';
 import { useAccountSeats } from '@/hooks/useAccountSeats';
 import { isBillableSeat } from '@/utils/seatModel';
+import type { ProjectCollaborator } from '@/types';
 import { showAlert } from '@/utils/alert';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -64,6 +77,18 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
 
   const onInvite = useCallback(() => {
     if (!validEmail) return;
+    // Someone already active on this job is never re-invited: the invite
+    // resets his row to 'pending' and he loses the project until he accepts
+    // again. Point at the row's role picker instead.
+    const typed = email.trim().toLowerCase();
+    const active = collaborators.find((c) => c.status === 'accepted' && c.email.trim().toLowerCase() === typed);
+    if (active) {
+      showAlert(
+        'Already on this job',
+        `${active.email} is already here as ${ROLE_LABELS[active.role] ?? active.role}. To change what they can see, use the role buttons on their row below. Sending a new invite would lock them out until they accept it again.`,
+      );
+      return;
+    }
     // Role FIRST, tier second — see the header. Field invites are free at every
     // tier and must never be bounced to the paywall.
     if (isBillableSeat(inviteRole) && !canAccess('schedule_collaboration')) { router.push('/paywall'); return; }
@@ -108,7 +133,56 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
       return;
     }
     send();
-  }, [validEmail, canAccess, router, invite, email, inviteRole, seatPreview, seats]);
+  }, [validEmail, canAccess, router, invite, email, inviteRole, seatPreview, seats, collaborators]);
+
+  // Change an existing collaborator's role from the row picker.
+  const requestRoleChange = useCallback((c: ProjectCollaborator, next: 'editor' | 'viewer' | 'field') => {
+    if (c.role === next || changeRole.isPending) return;
+    const label = ROLE_LABELS[next];
+    const run = () => {
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+      changeRole.mutate(
+        { collaboratorId: c.id, role: next },
+        {
+          onSuccess: () => { void seats.refetch(); },
+          onError: (err) => showAlert("Couldn't change the role", (err as Error)?.message ?? 'Please try again.'),
+        },
+      );
+    };
+    // Field → Editor/Viewer is an UPGRADE into a paid seat. Same rules as an
+    // invite (the server's changeRole runs the same seatCheck and would 402).
+    // No /paywall push here — the invite gate is the one routing point.
+    let seatLine = '';
+    if (isBillableSeat(next) && !isBillableSeat(c.role)) {
+      if (!canAccess('schedule_collaboration')) {
+        showAlert(
+          `${label} needs a Pro plan`,
+          `Editors and viewers use a team seat, which starts on Pro. ${c.email} can stay on Field — free — with the schedule, daily reports, photos and RFIs.`,
+        );
+        return;
+      }
+      const preview = seats.preview(next, c.email);
+      if (!preview.allowed) {
+        showAlert('Out of team seats', `${preview.message}\n\n${c.email} can stay on Field, which doesn't use a seat.`);
+        return;
+      }
+      if (preview.bills) seatLine = `\n\n${preview.message}`;
+    }
+    // Lifting financial blinding is the one move that needs a second look:
+    // one mis-tap used to hand the crew the job's markup.
+    if (isFinancialsBlinded(c.role) && !isFinancialsBlinded(next)) {
+      showAlert(
+        `Make ${c.email} ${next === 'editor' ? 'an' : 'a'} ${label}?`,
+        `${label}s see costs, margins, the estimate and contract terms on this job.${seatLine}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: `Make ${label}`, onPress: run },
+        ],
+      );
+      return;
+    }
+    run();
+  }, [changeRole, canAccess, seats]);
 
   const copyLink = useCallback(async () => {
     if (!lastLink) return;
@@ -221,21 +295,35 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
               <Text style={[styles.rowMeta, { color: t.textSecondary }]}>
                 {ROLE_LABELS[c.role] ?? 'Owner'} · {c.status === 'accepted' ? 'Active' : 'Invited'}
               </Text>
+              {/* Role picker — the invite form's chips, per row; the current
+                  role is the filled chip. Under the address, not beside it:
+                  three chips and the email do not fit one 375pt row. */}
+              {isOwner ? (
+              <View style={styles.rowRoles} accessibilityRole="radiogroup" accessibilityLabel={`Role for ${c.email}`}>
+                {(['editor', 'viewer', 'field'] as const).map((r) => {
+                  const current = c.role === r;
+                  return (
+                    <TouchableOpacity
+                      key={r}
+                      onPress={() => requestRoleChange(c, r)}
+                      disabled={changeRole.isPending}
+                      style={[styles.smallChip, { borderColor: t.line }, current && { backgroundColor: t.accentSoft, borderColor: t.accent }]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: current, disabled: changeRole.isPending }}
+                      accessibilityLabel={current ? `${ROLE_LABELS[r]}, current role` : `Make ${ROLE_LABELS[r]}`}
+                      testID={`collab-role-${c.id}-${r}`}
+                    >
+                      <Text style={[styles.smallChipText, { color: current ? t.accent : t.textSecondary }]}>{ROLE_LABELS[r]}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              ) : null}
             </View>
             {isOwner ? (
-              <>
-                <TouchableOpacity
-                  onPress={() => changeRole.mutate({ collaboratorId: c.id, role: c.role === 'editor' ? 'viewer' : 'editor' })}
-                  style={[styles.smallChip, { borderColor: t.line }]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Switch to ${c.role === 'editor' ? 'viewer' : 'editor'}`}
-                >
-                  <Text style={[styles.smallChipText, { color: t.textSecondary }]}>{c.role === 'editor' ? 'Make viewer' : 'Make editor'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => revoke.mutate(c.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Revoke">
-                  <Trash2 size={16} color={t.danger} strokeWidth={1.75} />
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity onPress={() => revoke.mutate(c.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Revoke">
+                <Trash2 size={16} color={t.danger} strokeWidth={1.75} />
+              </TouchableOpacity>
             ) : null}
           </View>
         ))
@@ -269,6 +357,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: Tokens.radius.card, padding: 12 },
   rowEmail: { fontSize: Type.subhead.fontSize, fontWeight: '700' },
   rowMeta: { fontSize: Type.caption1.fontSize, marginTop: 1 },
+  rowRoles: { flexDirection: 'row', gap: 6, marginTop: 8 },
   smallChip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
   smallChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' },
 });

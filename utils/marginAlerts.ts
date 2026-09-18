@@ -20,6 +20,7 @@
 import type { Project, ChangeOrder, Commitment, Invoice } from '@/types';
 import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
 import { computeMarginRisk, type RiskBand, riskBandLabel } from '@/utils/marginRiskScore';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 
 export type AlertSeverity = 'critical' | 'high' | 'warning' | 'info';
 export type AlertDirection = 'worsened' | 'recovered';
@@ -71,8 +72,21 @@ export interface MarginBaseline {
    * shipped the fix.
    */
   bidAtCost: boolean;
+  /**
+   * What cost the engines measured: 'all_sources' (receipts, priced crew
+   * hours, equipment — costSources passed) or 'committed_only' (subcontracts
+   * and POs). Absent on baselines stored before #16 added costSources, which
+   * were all committed-only. A baseline on a DIFFERENT basis is not compared
+   * against: the first run after that change would otherwise push "risk rose
+   * to high — climbed from 22 to 61/100" on a job where nothing happened, only
+   * the measurement changed. It is treated as first sight instead.
+   */
+  costBasis?: MarginCostBasis;
   asOf: string;
 }
+
+export type MarginCostBasis = 'all_sources' | 'committed_only';
+const basisOf = (b: MarginBaseline): MarginCostBasis => b.costBasis ?? 'committed_only';
 
 export type BaselineMap = Record<string, MarginBaseline>;
 
@@ -86,6 +100,16 @@ export interface PortfolioInput {
   changeOrders: ChangeOrder[];
   commitments: Commitment[];
   invoices: Invoice[];
+  /**
+   * Receipts, priced crew hours, equipment, permits and the sub roster — the
+   * streams Job Costing prices. Forwarded to both engines per project. Without
+   * it a self-perform job bleeding on labor and materials reads 'healthy' and
+   * this alert, which exists to warn about exactly that fade, stays silent
+   * (audit round 2, #16). Both production callers (app/margin-alerts.tsx,
+   * components/MarginAlertManager.tsx) pass it; validate-margin-cost-sources
+   * fails the build if either stops.
+   */
+  costSources?: JobCostActualSources;
 }
 
 const HEALTH_RANK: Record<MarginHealth, number> = { healthy: 0, watch: 1, critical: 2 };
@@ -120,15 +144,15 @@ export function computeCurrentBaselines(input: PortfolioInput): {
   baselines: BaselineMap;
   names: Record<string, string>;
 } {
-  const { projects, changeOrders, commitments, invoices } = input;
+  const { projects, changeOrders, commitments, invoices, costSources } = input;
   const baselines: BaselineMap = {};
   const names: Record<string, string> = {};
 
   for (const project of projects) {
     if (!isActive(project)) continue;
-    const le = computeLivingEstimate({ project, changeOrders, commitments, invoices });
+    const le = computeLivingEstimate({ project, changeOrders, commitments, invoices, costSources });
     if (!le.hasMarginBasis) continue;
-    const risk = computeMarginRisk({ project, changeOrders, commitments, invoices });
+    const risk = computeMarginRisk({ project, changeOrders, commitments, invoices, costSources });
     baselines[project.id] = {
       projectId: project.id,
       health: le.health,
@@ -138,6 +162,7 @@ export function computeCurrentBaselines(input: PortfolioInput): {
       erosionPoints: le.marginErosionPoints,
       erosionStep: erosionStepOf(le.marginErosionPoints),
       bidAtCost: le.bidAtCost,
+      costBasis: costSources ? 'all_sources' : 'committed_only',
       asOf: le.asOf,
     };
     names[project.id] = project.name;
@@ -290,7 +315,10 @@ export function computeAlerts(
 ): MarginAlert[] {
   const alerts: MarginAlert[] = [];
   for (const id of Object.keys(current)) {
-    const cands = candidatesFor(previous[id], current[id], names[id] ?? 'Project');
+    // A baseline measured on another cost basis is not a before-picture of
+    // this job (see MarginBaseline.costBasis) — compare as first sight.
+    const prev = previous[id] && basisOf(previous[id]) === basisOf(current[id]) ? previous[id] : undefined;
+    const cands = candidatesFor(prev, current[id], names[id] ?? 'Project');
     if (cands.length === 0) continue;
     cands.sort(
       (a, b) =>

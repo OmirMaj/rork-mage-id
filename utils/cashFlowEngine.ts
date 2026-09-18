@@ -629,6 +629,131 @@ export function forecastHasCashMovement(weeks: CashFlowWeek[]): boolean {
 }
 
 /**
+ * The cash-flow setup a forecast is built from — the fields of
+ * utils/cashFlowStorage's CashFlowData this engine reads. Declared here,
+ * structurally, because storage already imports this module.
+ */
+export interface ForecastCashData {
+  startingBalance: number;
+  balanceAsOf?: string;
+  expenses: CashFlowExpense[];
+  expectedPayments: ExpectedPayment[];
+  defaultPaymentTerms: string;
+}
+
+export interface ForecastInputs {
+  /** The stored bank balance plus every payment recorded after balanceAsOf. */
+  startingBalance: number;
+  /** The GC's typed rows PLUS the rows derived from signed commitments. */
+  expenses: CashFlowExpense[];
+  invoices: Invoice[];
+  expectedPayments: ExpectedPayment[];
+  defaultPaymentTerms: string;
+  changeOrders: ChangeOrder[];
+  /** The whole commitment breakdown, for the screens that show undated money
+   *  and possible duplicates beside the runway. */
+  committed: CommittedOutflows;
+}
+
+/**
+ * ONE assembly of what a forecast is made of, for every screen that shows one.
+ *
+ * The home tab's "CASH · 4WK" tile used to call generateForecast itself with
+ * the stored balance, the typed expenses, no invoices, no commitments and no
+ * change orders, while the /cash-flow screen the tile opens forecast with all
+ * of them. A $40k balance, $6k/week of overhead and a $52k framing draw due in
+ * week 3 read +$16k in green on the tile and −$36k on the screen: the tile was
+ * green in the week the account overdrew (audit round 2, #17). Two numbers for
+ * the same four weeks is how an owner learns to trust neither. Both call sites
+ * now go through here, so they cannot drift apart again.
+ *
+ * `cashData` null (setup not loaded yet) yields a zero balance and only the
+ * derived commitment rows — what /cash-flow has always shown before its load.
+ */
+export function buildForecastInputs(args: {
+  cashData: ForecastCashData | null;
+  invoices: Invoice[];
+  commitments: Commitment[];
+  projects: Project[];
+  changeOrders: ChangeOrder[];
+  /** Clock for the commitment draw dates only (generateForecast reads today). */
+  now?: Date;
+}): ForecastInputs {
+  const { cashData, invoices, commitments, projects, changeOrders, now } = args;
+  const typed = cashData?.expenses ?? [];
+  const committed = buildCommittedOutflows({ commitments, projects, expenses: typed, now });
+  return {
+    startingBalance: cashData
+      ? getEffectiveStartingBalance(cashData.startingBalance, cashData.balanceAsOf, invoices)
+      : 0,
+    // Derived rows are concatenated here and NOWHERE else — they are never
+    // handed to saveCashFlowData, so nothing generated from a commitment can be
+    // frozen into `mage_cashflow_data` and then counted a second time against
+    // the live commitment on the next load.
+    expenses: [...typed, ...committed.scheduled],
+    invoices,
+    expectedPayments: cashData?.expectedPayments ?? [],
+    defaultPaymentTerms: cashData?.defaultPaymentTerms ?? 'net_30',
+    changeOrders,
+    committed,
+  };
+}
+
+/** generateForecast over assembled inputs. */
+export function forecastFromInputs(inputs: ForecastInputs, weeks: number): CashFlowWeek[] {
+  return generateForecast(
+    inputs.startingBalance,
+    inputs.expenses,
+    inputs.invoices,
+    inputs.expectedPayments,
+    weeks,
+    inputs.defaultPaymentTerms,
+    inputs.changeOrders,
+  );
+}
+
+/**
+ * The home tile: projected balance at the end of week 4, or null when there is
+ * nothing to forecast from (setup not done, or no money anywhere — a figure
+ * derived from nothing is a lie in a small box, polish audit 2026-09-10).
+ * Same inputs as /cash-flow, so the tile and the screen it opens agree.
+ */
+export function fourWeekCashPosition(args: {
+  cashData: ForecastCashData | null;
+  setupComplete: boolean;
+  invoices: Invoice[];
+  commitments: Commitment[];
+  projects: Project[];
+  changeOrders: ChangeOrder[];
+}): number | null {
+  if (!args.setupComplete || !args.cashData) return null;
+  const inputs = buildForecastInputs(args);
+  // 12 weeks, as /cash-flow does by default, then read week 4 off it.
+  const forecast = forecastFromInputs(inputs, 12);
+  // Gate on MONEY, not on row count: rows that are all $0 are not a signal.
+  const hasCashSignal =
+    inputs.startingBalance !== 0
+    || args.cashData.expenses.some(e => (e.amount ?? 0) > 0)
+    || args.cashData.expectedPayments.some(p => (p.amount ?? 0) > 0)
+    || forecastHasCashMovement(forecast);
+  if (!hasCashSignal) return null;
+  const wk4 = forecast[3] ?? forecast[forecast.length - 1];
+  return wk4 ? wk4.runningBalance : null;
+}
+
+/**
+ * A projected balance's tone. Below zero is the overdraft the home tile exists
+ * to warn about, so it reads as danger — the tile used to paint every
+ * non-positive figure the same muted grey as "nothing here", so even a correct
+ * −$36k looked like an absence rather than an alarm (audit round 2, #17).
+ */
+export function cashBalanceTone(balance: number | null): 'danger' | 'success' | 'muted' {
+  if (balance === null || !Number.isFinite(balance)) return 'muted';
+  if (balance < 0) return 'danger';
+  return balance > 0 ? 'success' : 'muted';
+}
+
+/**
  * WHY nothing landed in the horizon — so the screen can name the missing input
  * instead of guessing at it.
  *

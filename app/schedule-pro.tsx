@@ -45,6 +45,11 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectRole } from '@/hooks/useProjectRole';
+import LockedAccessCard from '@/components/LockedAccessCard';
+import {
+  applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, rebaseWorkingTasks, scheduleWritePathForRole,
+  sendFieldTaskPatches, staleFieldEdits, type FieldEditRefusal,
+} from '@/utils/fieldScheduleUpdate';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSchedulePresence } from '@/hooks/useSchedulePresence';
 import { useLiveSchedule } from '@/hooks/useLiveSchedule';
@@ -122,11 +127,18 @@ import {
 import { buildShareUrl, buildSnapshotShareUrl } from '@/utils/webAppOrigin';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import { supabase } from '@/lib/supabase';
-import type { ScheduleTask, ProjectSchedule } from '@/types';
+import type { Project, ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { copyToClipboard } from '@/utils/clipboard';
+
+/** How the refused-edit notice names a field-owned task key. */
+const FIELD_KEY_LABEL: Record<string, string> = {
+  progress: 'progress', status: 'status', notes: 'notes',
+  actualStartDate: 'actual start', actualStartDay: 'actual start',
+  actualEndDate: 'actual finish', actualEndDay: 'actual finish',
+};
 
 // Desktop/tablet-landscape breakpoint. Below this we send users to the
 // classic mobile experience — the grid is genuinely unusable under 900px.
@@ -182,6 +194,7 @@ function ScheduleProScreenInner() {
   const {
     projects,
     updateProject: updateProjectRaw,
+    absorbServerSchedule,
     getInvoicesForProject,
     getPlanSheetsForProject,
     getPlanZonesForProject,
@@ -197,20 +210,120 @@ function ScheduleProScreenInner() {
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
 
-  // Viewer collaborators can't persist schedule edits — guard the writer at the
-  // source so every updateProject(...) in this screen is a no-op for viewers
-  // (Supabase RLS also denies their UPDATE). role is null while loading, so
-  // owners/editors keep editing without a read-only flash.
-  const role = useProjectRole(projectId);
-  const canEdit = role !== 'viewer';
-  const updateProject = useMemo<typeof updateProjectRaw>(
-    () => (canEdit ? updateProjectRaw : () => {}),
-    [canEdit, updateProjectRaw],
-  );
-
   const project = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
     [projects, projectId],
+  );
+
+  // WHERE THIS SCREEN'S SCHEDULE WRITES GO, by the caller's role (#25).
+  //
+  //   owner / editor (and null while the role loads, so they never see a
+  //   read-only flash) → updateProject, the projects-row PATCH.
+  //   viewer → nowhere; every updateProject(...) below is a no-op.
+  //   field  → the field_update_schedule_tasks RPC. The row PATCH is refused by
+  //   projects_update for field users with 200 + 0 rows, so a foreman's drag
+  //   or progress edit looked saved here and was gone on his next reload. The
+  //   RPC saves progress, status, notes and actual start/finish ONLY; anything
+  //   else he changed (dates, durations, links, tasks added or removed,
+  //   settings) is NOT saved, the working copy is put back to what the server
+  //   holds, and the notice below says so instead of letting it vanish later.
+  const role = useProjectRole(projectId);
+  const writePath = scheduleWritePathForRole(role ?? project?.myRole);
+  const [fieldNotice, setFieldNotice] = useState<string | null>(null);
+  // A refusal on one project is not news on the next: the notice belongs to
+  // the project it was about (the picker can switch projects in place).
+  useEffect(() => { setFieldNotice(null); }, [projectId]);
+  // Latest projects for the async field save — the closure that fires can
+  // predate the render that holds the edit it is diffing against.
+  const projectsRef = React.useRef(projects);
+  useEffect(() => { projectsRef.current = projects; }, [projects]);
+  // Set once setHist exists (declared below); the field save uses it to put the
+  // working copy back to what the server accepted.
+  const resetWorkingTasksRef = React.useRef<((tasks: ScheduleTask[]) => void) | null>(null);
+  const saveAsField = useCallback(async (id: string, updates: Partial<Project>) => {
+    const current = projectsRef.current.find(p => p.id === id);
+    const currentSchedule = current?.schedule;
+    if (!currentSchedule) return;
+    const baseTasks = currentSchedule.tasks ?? [];
+    const { patches, blocked } = updates.schedule?.tasks
+      ? fieldTaskDiff(baseTasks, updates.schedule.tasks)
+      : { patches: [], blocked: [] };
+    const settingsChanged = Object.keys(updates).some(k => k !== 'schedule')
+      || fieldScheduleSettingsChanged(currentSchedule, updates.schedule);
+    let accepted = baseTasks;
+    let failure: string | null = null;
+    if (patches.length > 0) {
+      const sent = await sendFieldTaskPatches(supabase, id, patches);
+      if (sent.ok) {
+        accepted = applyFieldTaskPatches(baseTasks, patches);
+        // A task the owner deleted meanwhile was skipped by the server — no
+        // history row for it.
+        const landed = patches.filter(p => !sent.missing.includes(p.id));
+        // Local copy = what the server now holds. The row PATCH this also
+        // enqueues is refused for field (0 rows, nothing written).
+        updateProjectRaw(id, { schedule: { ...currentSchedule, tasks: accepted, updatedAt: new Date().toISOString() } });
+        // The field audit row is written HERE, after the server said yes, and
+        // only for what it took. handleEdit used to write it at the tap —
+        // before the RPC — so an offline or refused save still left
+        // "Framing → 60%" in the append-only schedule_audit_log, a record of
+        // progress that never saved, which a delay claim could be argued from.
+        const who = user?.email ?? user?.name ?? 'anonymous';
+        for (const p of landed) {
+          const b = baseTasks.find(t => t.id === p.id);
+          const a = accepted.find(t => t.id === p.id);
+          if (!b || !a) continue;
+          void appendAuditToAsyncStorage(id, buildAuditEntry({
+            user: who,
+            taskId: p.id,
+            taskTitle: b.title,
+            kind: 'progress' in p && p.progress !== b.progress ? 'progress_update' : 'task_edit',
+            summary: summarizeTaskDiff(b as unknown as Record<string, unknown>, a as unknown as Record<string, unknown>),
+            before: b as unknown as Record<string, unknown>,
+            after: a as unknown as Record<string, unknown>,
+          }));
+        }
+      } else {
+        failure = sent.message;
+      }
+    }
+    if (!failure && blocked.length === 0 && !settingsChanged) {
+      // A clean save clears an earlier refusal — it is no longer true.
+      if (patches.length > 0) setFieldNotice(null);
+    } else {
+      resetWorkingTasksRef.current?.(accepted);
+      const what = blocked.length > 0
+        ? `changes to ${blocked.slice(0, 3).join(', ')}${blocked.length > 3 ? ` and ${blocked.length - 3} more` : ''}`
+        : settingsChanged ? 'schedule settings' : '';
+      setFieldNotice([
+        failure,
+        what ? `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.` : null,
+      ].filter(Boolean).join(' '));
+    }
+  }, [updateProjectRaw, user]);
+  // #25, the second writer, owner side. The server keeps a field value newer
+  // than the one this screen's edit was built on (migration 20260917160000's
+  // trigger; updateProject applies the same rule locally). Without this, the
+  // GC's change to a task the foreman had updated looked saved here and was
+  // gone on the next load. So the row save asks first which values will be
+  // refused, and hands them to the screen (declared below, where the working
+  // copy lives) to put back and — when he changed them HERE — to say so.
+  const [fieldConflictNotice, setFieldConflictNotice] = useState<string | null>(null);
+  useEffect(() => { setFieldConflictNotice(null); }, [projectId]);
+  const onFieldRefusalsRef = React.useRef<((refused: FieldEditRefusal[], kept: ScheduleTask[], sent: ScheduleTask[]) => void) | null>(null);
+  const saveAsRow = useCallback((id: string, updates: Partial<Project>) => {
+    const keptTasks = projectsRef.current.find(p => p.id === id)?.schedule?.tasks ?? [];
+    const sentTasks = updates.schedule?.tasks;
+    const refused = sentTasks ? staleFieldEdits(keptTasks, sentTasks) : [];
+    updateProjectRaw(id, updates);
+    if (sentTasks && refused.length > 0) onFieldRefusalsRef.current?.(refused, keptTasks, sentTasks);
+  }, [updateProjectRaw]);
+  const updateProject = useMemo<typeof updateProjectRaw>(
+    () => (writePath === 'row'
+      ? saveAsRow
+      : writePath === 'field_rpc'
+        ? (id, updates) => { void saveAsField(id, updates); }
+        : () => {}),
+    [writePath, updateProjectRaw, saveAsField, saveAsRow],
   );
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
@@ -224,9 +337,56 @@ function ScheduleProScreenInner() {
     () => emptyHistory(project?.schedule?.tasks ?? []),
   );
   const workingTasks = hist.present;
+  useEffect(() => {
+    resetWorkingTasksRef.current = (tasks) => setHist(emptyHistory(tasks));
+  }, []);
   // Last-known SERVER schedule tasks — the baseline for the Phase 2 3-way
   // live-sync merge. Updated on project switch, and on every realtime receive.
   const baselineRef = React.useRef<ScheduleTask[]>(project?.schedule?.tasks ?? []);
+  // The row save found field values the server will keep over this edit (see
+  // saveAsRow). Put the kept values back in the working copy — only where the
+  // screen still holds the refused value, so a keystroke since the save is not
+  // stepped on — and report the ones the GC changed on THIS screen (they
+  // differ from the last server copy it absorbed). A refused value he never
+  // touched is just his stale copy catching up: it updates without a notice.
+  useEffect(() => {
+    onFieldRefusalsRef.current = (refused, kept, sent) => {
+      const keptById = new Map(kept.map(t => [t.id, t] as const));
+      const sentById = new Map(sent.map(t => [t.id, t] as const));
+      const baseById = new Map(baselineRef.current.map(t => [t.id, t] as const));
+      const val = (t: ScheduleTask | undefined, k: string) => (t as unknown as Record<string, unknown> | undefined)?.[k];
+      const eq = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+      setHist(h => {
+        let changed = false;
+        const present = h.present.map((t) => {
+          const mine = refused.filter(r => r.taskId === t.id && eq(val(t, r.key), val(sentById.get(t.id), r.key)));
+          if (mine.length === 0) return t;
+          const k0 = keptById.get(t.id);
+          const next = { ...(t as unknown as Record<string, unknown>) };
+          for (const r of mine) {
+            const v = val(k0, r.key);
+            if (v === undefined) delete next[r.key]; else next[r.key] = v;
+          }
+          const keptStamps = val(k0, 'fieldEditedAt');
+          if (keptStamps !== undefined) next.fieldEditedAt = keptStamps;
+          changed = true;
+          return next as unknown as ScheduleTask;
+        });
+        return changed ? { ...h, present } : h;
+      });
+      const reported = refused.filter(r => !eq(val(sentById.get(r.taskId), r.key), val(baseById.get(r.taskId), r.key)));
+      if (reported.length === 0) return;
+      const first = reported[0];
+      const title = sentById.get(first.taskId)?.title || 'A task';
+      const when = new Date(first.fieldEditedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      const what = FIELD_KEY_LABEL[first.key] ?? first.key;
+      // Neutral about WHO: any stamp this runtime did not mint reads as
+      // someone else's — the foreman's RPC, but equally the GC's own phone or
+      // a PM on editor access. Naming the field would be a guess shown as fact.
+      const more = reported.length > 1 ? ` ${reported.length - 1} other change${reported.length > 2 ? 's were' : ' was'} kept the same way.` : '';
+      setFieldConflictNotice(`${title}'s ${what} was updated elsewhere — in the field or on another device — at ${when}, after this screen loaded, so your change was not saved. It now shows that value — change it again if yours is right.${more}`);
+    };
+  }, []);
 
   // The view-switcher now lives inside the Timeline tab (GanttTab owns all
   // five layouts). We only derive the tab's opening layout from width below.
@@ -600,6 +760,10 @@ function ScheduleProScreenInner() {
    * navigates away. This keeps typing snappy even in a large schedule.
    */
   const persistTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True between schedulePersist and its timer firing. persistTimer.current is
+  // never cleared after it fires (the unmount flush relies on that), so it
+  // cannot answer "is a save still waiting?" — the rebase below needs to know.
+  const persistPendingRef = React.useRef(false);
   // Ref-mirror of namedBaselines so the persist closure always sees the
   // latest list without having to re-memoize schedulePersist on every
   // capture (which would kick off the debounce + potentially lose edits).
@@ -625,7 +789,9 @@ function ScheduleProScreenInner() {
   useEffect(() => { cpmRef.current = cpm; }, [cpm]);
   const schedulePersist = useCallback((tasks: ScheduleTask[]) => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistPendingRef.current = true;
     persistTimer.current = setTimeout(() => {
+      persistPendingRef.current = false;
       if (!project) return;
       // Stamp the ENGINE's critical path onto the rows we are about to write.
       // ScheduleTask.isCriticalPath is what the client portal, the schedule PDF,
@@ -730,7 +896,16 @@ function ScheduleProScreenInner() {
     [user?.id],
   );
   const { peers: schedulePeers, setSelectedTask: setPresenceTask } = useSchedulePresence(project?.id, collabSelf);
+  const livePeerProjectId = project?.id;
   const onPeerSchedule = useCallback((incoming: ScheduleTask[]) => {
+    // FIRST into the shared project copy (integration round 1, field). Both
+    // saves judge this screen's edit against `projects`: saveAsRow's
+    // stampFieldEdits (via updateProject) and saveAsField's fieldTaskDiff. Fed
+    // only into `hist`, a foreman's absorbed 60% looked like the GC's own edit
+    // and his next save of ANY task minted an owner stamp that beat the
+    // foreman's later 80%; on a field phone, a task only the GC moved read as
+    // "Not saved: changes to Drywall" and was reset.
+    if (livePeerProjectId) absorbServerSchedule(livePeerProjectId, incoming);
     const merged = mergeScheduleTasks(baselineRef.current, incoming, workingTasksRef.current);
     baselineRef.current = incoming;
     // Apply a peer's change to the local PRESENT only — no persist (they already
@@ -738,9 +913,46 @@ function ScheduleProScreenInner() {
     // of my own write, which just refreshed the baseline above.
     if (JSON.stringify(merged) !== JSON.stringify(workingTasksRef.current)) {
       setHist((s) => ({ ...s, present: merged }));
+      // A save still waiting on its debounce holds the PRE-echo tasks; left
+      // alone it would write the peer's key back as his change and raise a
+      // refusal notice for a task he never touched. Re-queue it with the
+      // merged copy — same rule as the rebase effect below.
+      if (persistPendingRef.current) schedulePersist(merged);
     }
-  }, []);
+  }, [livePeerProjectId, absorbServerSchedule, schedulePersist]);
   useLiveSchedule(project?.id, onPeerSchedule);
+
+  // #25, the second writer, owner side. `hist` was seeded once per project and
+  // then fed only by realtime, which replays nothing it missed while the
+  // socket was down (iOS background, a sleeping laptop). So the foreground
+  // refetch put the foreman's 10:00 "Framing 60%" into `projects` but never
+  // into this screen: the GC kept looking at 0%, and his deliberate change to
+  // that task was built on a copy older than the field stamp — the server
+  // kept the foreman's value and the screen kept showing his. Now any newer
+  // server copy that reaches `project.schedule` from outside the screen (the
+  // refetch, this screen's own write coming back stamped) is rebased into the
+  // working copy without dropping unsaved edits (rebaseWorkingTasks has the
+  // rule), so what he edits next carries the field stamps and wins when he
+  // really changes it. No history entry: nothing he did. A save still waiting
+  // on its debounce was built from the pre-rebase copy, so it is re-queued
+  // with the rebased one.
+  useEffect(() => {
+    const incoming = project?.schedule?.tasks;
+    const base = baselineRef.current;
+    if (!incoming || incoming === base) return;
+    if (JSON.stringify(incoming) === JSON.stringify(base)) return;
+    baselineRef.current = incoming;
+    setHist((h) => {
+      const merged = rebaseWorkingTasks(base, incoming, h.present);
+      if (JSON.stringify(merged) === JSON.stringify(h.present)) return h;
+      if (persistPendingRef.current) schedulePersist(merged);
+      return { ...h, present: merged };
+    });
+  // schedulePersist is read at the moment a server copy lands; re-running the
+  // rebase because its identity changed would do nothing (baseline already
+  // equals incoming).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.schedule?.tasks]);
 
   // -------------------------------------------------------------------------
   // Edit handlers — all go through a single `commit` that snapshots history
@@ -784,7 +996,12 @@ function ScheduleProScreenInner() {
       }
     }
     // Log to the audit before applying so we have the "before" snapshot.
-    if (before && project?.id) {
+    // Row write path only. On field access nothing here has saved yet: the
+    // RPC runs at the debounced persist and may fail offline or be refused,
+    // so saveAsField writes the field audit row once the server has taken the
+    // change (and a date / dependency edit it refuses is never logged).
+    const auditable = writePath === 'row';
+    if (before && project?.id && auditable) {
       const isLogicChange = 'dependencies' in effective || 'dependencyLinks' in effective;
       const isProgressChange = 'progress' in effective && effective.progress !== before.progress;
       const entry = buildAuditEntry({
@@ -801,14 +1018,21 @@ function ScheduleProScreenInner() {
       void appendAuditToAsyncStorage(project.id, entry);
     }
     commit(prev => prev.map(t => (t.id === taskId ? { ...t, ...effective } : t)));
-  }, [commit, workingTasks, project?.id, user]);
+  }, [commit, workingTasks, project?.id, user, writePath]);
 
   // Small helper so task create/delete can drop audit entries the same way
   // handleEdit does — builds the entry and enqueues the AsyncStorage append.
+  //
+  // Only on the row write path. Its callers (add, delete, the start-day-basis
+  // reflow) are all edits the field RPC refuses; on field / viewer access the
+  // change is reported blocked and the working copy reset, so an entry here
+  // would put "Deleted task…" into the append-only schedule_audit_log for a
+  // deletion that never happened — the false record a delay claim must not be
+  // argued from (same gate as MobileScheduleScreen).
   const writeAudit = useCallback((entry: Parameters<typeof buildAuditEntry>[0]) => {
-    if (!project?.id) return;
+    if (!project?.id || writePath !== 'row') return;
     void appendAuditToAsyncStorage(project.id, buildAuditEntry(entry));
-  }, [project?.id]);
+  }, [project?.id, writePath]);
 
   // -------------------------------------------------------------------------
   // Legacy day-scale disclosure (the utils/scheduleRebase.ts population)
@@ -1413,7 +1637,9 @@ function ScheduleProScreenInner() {
     // Skip summary rows — their startDay is derived from children (rollup), not
     // user-owned, so we never write a leveled value back onto them.
     commit(prev => prev.map(t => (!t.isSummary && p.leveled.has(t.id)) ? { ...t, startDay: p.leveled.get(t.id)! } : t));
-    if (project?.id) {
+    // Row write path only: leveling moves start days, which the field RPC
+    // refuses — the shift is reported blocked and reset, so no audit row.
+    if (project?.id && writePath === 'row') {
       void appendAuditToAsyncStorage(project.id, buildAuditEntry({
         user: user?.email ?? user?.name ?? 'anonymous',
         kind: 'reflow',
@@ -1421,7 +1647,7 @@ function ScheduleProScreenInner() {
       }));
     }
     setLevelingPreview(null);
-  }, [levelingPreview, commit, project?.id, user?.email, user?.name]);
+  }, [levelingPreview, commit, project?.id, user?.email, user?.name, writePath]);
 
   // -------------------------------------------------------------------------
   // Named baselines — capture / switch / compare via BaselineManagerModal.
@@ -2073,6 +2299,27 @@ function ScheduleProScreenInner() {
               is fine, so it is mounted unconditionally. Above the tab shell:
               the finish date it is talking about is the one in the header KPIs
               directly below it. */}
+          {writePath === 'field_rpc' ? (
+            fieldNotice ? (
+              <LockedAccessCard
+                what="Date and task editing"
+                detail={fieldNotice}
+                style={{ marginHorizontal: 16, marginTop: 8 }}
+              />
+            ) : (
+              <Text style={[styles.headerBtnHint, { marginHorizontal: 16, marginTop: 8 }]} testID="schedule-field-access-hint">
+                Field access: progress, status, notes and actual start/finish save. Moving dates or changing tasks needs editor access.
+              </Text>
+            )
+          ) : null}
+          {writePath === 'row' && fieldConflictNotice ? (
+            <View style={styles.fieldConflict} testID="schedule-field-conflict-notice" accessibilityRole="alert">
+              <Text style={styles.fieldConflictText}>{fieldConflictNotice}</Text>
+              <TouchableOpacity onPress={() => setFieldConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+                <Text style={styles.fieldConflictDismiss}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <StartDayBasisNotice
             preview={startDayBasisPreview}
             projectStartDate={project?.schedule?.startDate ? projectStartDate : null}
@@ -2562,6 +2809,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
   // Keyboard shortcut hint shown next to label on web only.
   headerBtnHint: { fontSize: Type.caption2.fontSize, fontWeight: '500', color: t.textSecondary },
+  // A GC edit the server refused because the field set that value later.
+  fieldConflict: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    marginHorizontal: 16, marginTop: 8, padding: 10,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.warningSoft,
+  },
+  fieldConflictText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.warningLabel },
+  fieldConflictDismiss: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
 
   body: {
     flex: 1,

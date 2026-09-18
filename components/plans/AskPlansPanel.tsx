@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  Search, RefreshCw, BookOpen, Lock, ArrowRight,
+  Search, RefreshCw, BookOpen, Lock, ArrowRight, AlertTriangle,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -23,7 +23,8 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { askPlans, indexPlanSheets } from '@/utils/plans/askYourPlans';
+import { askPlans, indexPlanSheets, type PlanIndexResult } from '@/utils/plans/askYourPlans';
+import { summarizePlanIndex, type IndexTone } from '@/utils/plans/memoryIndexCore';
 import type { PlanSheet } from '@/types';
 
 interface Props {
@@ -61,9 +62,14 @@ function AskPlansPanelInner({
   const [answer, setAnswer] = useState('');
   const [citations, setCitations] = useState<{ ref: string; sheetId: string }[]>([]);
   const [noneFound, setNoneFound] = useState(false);
+  const [weakGrounding, setWeakGrounding] = useState(false);
+  // The SEARCH failed, which is not "your plans don't say". Kept apart from
+  // `answer` so a server refusal can never be worded as a plan answer.
+  const [searchFailed, setSearchFailed] = useState<string | null>(null);
 
   const [indexState, setIndexState] = useState<IndexState>('idle');
-  const [indexedCount, setIndexedCount] = useState(0);
+  const [indexResult, setIndexResult] = useState<PlanIndexResult | null>(null);
+  const [indexProgress, setIndexProgress] = useState<{ done: number; total: number } | null>(null);
 
   const handleAsk = useCallback(async () => {
     const q = question.trim();
@@ -72,16 +78,22 @@ function AskPlansPanelInner({
     setAnswer('');
     setCitations([]);
     setNoneFound(false);
+    setWeakGrounding(false);
+    setSearchFailed(null);
     try {
       const result = await askPlans(projectId, q);
       setAnswer(result.answer);
       setCitations(result.citations);
       setNoneFound(result.noneFound);
-      setAskState('answered');
+      setWeakGrounding(result.weakGrounding);
+      setSearchFailed(result.searchFailed);
+      setAskState(result.searchFailed ? 'error' : 'answered');
     } catch {
-      setAnswer("Couldn't reach the plan brain right now — try again.");
+      setAnswer('');
       setCitations([]);
       setNoneFound(false);
+      setWeakGrounding(false);
+      setSearchFailed("the plan search could not be reached");
       setAskState('error');
     }
   }, [projectId, question, askState]);
@@ -89,13 +101,16 @@ function AskPlansPanelInner({
   const handleIndex = useCallback(async () => {
     if (indexState === 'indexing') return;
     setIndexState('indexing');
-    setIndexedCount(0);
+    setIndexResult(null);
+    setIndexProgress(null);
     try {
-      const count = await indexPlanSheets(projectId, sheets);
-      setIndexedCount(count);
+      const result = await indexPlanSheets(projectId, sheets, (done, total) => setIndexProgress({ done, total }));
+      setIndexResult(result);
       setIndexState('done');
     } catch {
       setIndexState('error');
+    } finally {
+      setIndexProgress(null);
     }
   }, [projectId, sheets, indexState]);
 
@@ -103,12 +118,31 @@ function AskPlansPanelInner({
     router.push({ pathname: '/plan-viewer', params: { sheetId } });
   }, [router]);
 
+  // Superseded revisions are never indexed — the count on the button is the
+  // count the run will actually try to cover.
+  const currentCount = sheets.filter(s => !s.superseded).length;
+  // What the run did, worded by summarizePlanIndex: "All 60 sheets indexed",
+  // "Indexed 41 of 60 — 19 not searchable", or "0 of 60 … can't use your plans
+  // yet". The old label said "Indexing complete" in success green when NOTHING
+  // was indexed (every web run), and the next answer was "not in your plans".
+  const summary = indexState === 'done' && indexResult ? summarizePlanIndex(indexResult) : null;
   const indexLabel = (() => {
-    if (indexState === 'indexing') return `Indexing ${sheets.length} sheet${sheets.length === 1 ? '' : 's'}…`;
-    if (indexState === 'done') return indexedCount > 0 ? `${indexedCount} chunk${indexedCount === 1 ? '' : 's'} indexed` : 'Indexing complete';
+    if (indexState === 'indexing') {
+      if (indexProgress && indexProgress.total > 0) return `Reading sheet ${Math.min(indexProgress.done + 1, indexProgress.total)} of ${indexProgress.total}…`;
+      return `Checking ${currentCount} sheet${currentCount === 1 ? '' : 's'}…`;
+    }
+    if (summary) return summary.label;
     if (indexState === 'error') return 'Indexing failed — try again';
-    return sheets.length > 0 ? `Index ${sheets.length} sheet${sheets.length === 1 ? '' : 's'}` : 'Index plans';
+    return currentCount > 0 ? `Index ${currentCount} sheet${currentCount === 1 ? '' : 's'}` : 'Index plans';
   })();
+  const toneColor = (tone: IndexTone | undefined): string =>
+    tone === 'success' ? t.successLabel
+      : tone === 'warning' ? t.warningLabel
+        : tone === 'danger' ? t.dangerLabel
+          : t.textMuted;
+  const indexColor = indexState === 'error' ? t.dangerLabel : toneColor(summary?.tone);
+  // A citation can only open a sheet this device still has.
+  const liveCitations = citations.filter(c => sheets.some(s => s.id === c.sheetId));
 
   return (
     <View style={styles.panel}>
@@ -159,13 +193,13 @@ function AskPlansPanelInner({
           <Text style={styles.answerText}>{answer}</Text>
 
           {/* Citations */}
-          {citations.length > 0 && (
+          {liveCitations.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.citationRow}
             >
-              {citations.map(({ ref, sheetId }) => (
+              {liveCitations.map(({ ref, sheetId }) => (
                 <TouchableOpacity
                   key={sheetId}
                   style={styles.citationChip}
@@ -181,12 +215,36 @@ function AskPlansPanelInner({
             </ScrollView>
           )}
 
+          {/* Grounding chip. The answer came from the nearest sheets even
+              though none of them scored as a confident match, so it is
+              presented as a lead to check, not as a fact off the drawing. */}
+          {weakGrounding && (
+            <View style={styles.weakRow}>
+              <AlertTriangle size={12} color={t.warningLabel} strokeWidth={2} />
+              <Text style={styles.weakText}>
+                Weak match — no sheet scored as a close match to that question. Open the cited sheet and verify before you build to this.
+              </Text>
+            </View>
+          )}
+
           {/* None-found message */}
           {noneFound && (
             <Text style={styles.noneFoundText}>
               I couldn't find that in the indexed plans — try rephrasing, or index new sheets below.
             </Text>
           )}
+        </View>
+      ) : null}
+
+      {/* The search itself failed or was refused. Deliberately NOT the
+          none-found line: #19's harm was a server error reading as "it isn't
+          in your plans", which teaches the PM to distrust correct answers. */}
+      {askState === 'error' && searchFailed ? (
+        <View style={styles.weakRow}>
+          <AlertTriangle size={12} color={t.dangerLabel} strokeWidth={2} />
+          <Text style={[styles.weakText, { color: t.dangerLabel }]}>
+            Couldn&apos;t search your plans just now — {searchFailed}. Your plans may still hold the answer.
+          </Text>
         </View>
       ) : null}
 
@@ -202,16 +260,26 @@ function AskPlansPanelInner({
         {indexState === 'indexing' ? (
           <ActivityIndicator size="small" color={t.accent} />
         ) : (
-          <RefreshCw size={13} color={indexState === 'done' ? t.success : t.textMuted} strokeWidth={1.75} />
+          <RefreshCw size={13} color={indexColor} strokeWidth={1.75} />
         )}
-        <Text style={[
-          styles.indexBtnText,
-          indexState === 'done' && { color: t.success },
-          indexState === 'error' && { color: t.danger },
-        ]}>
+        <Text style={[styles.indexBtnText, { color: indexColor }]}>
           {indexLabel}
         </Text>
       </TouchableOpacity>
+
+      {/* Why sheets are not searchable — the plan-extract refusal in its own
+          words (monthly cap, hourly limit, unreadable sheet), grouped. Without
+          this, "not found" in an answer could silently mean "never indexed". */}
+      {summary && summary.reasons.length > 0 ? (
+        <View style={styles.skipList} accessibilityRole="summary">
+          {summary.reasons.slice(0, 3).map(line => (
+            <Text key={line} style={styles.skipText}>{line}</Text>
+          ))}
+          {summary.reasons.length > 3 ? (
+            <Text style={styles.skipText}>+{summary.reasons.length - 3} more reasons</Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -335,6 +403,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     lineHeight: 17,
   },
 
+  weakRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 6,
+  },
+  weakText: {
+    ...Type.caption1,
+    color: t.warningLabel,
+    lineHeight: 17,
+    flex: 1,
+  },
+
   indexBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -353,6 +433,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     ...Type.caption1,
     color: t.textMuted,
     fontWeight: '600' as const,
+  },
+
+  skipList: {
+    gap: 3,
+  },
+  skipText: {
+    ...Type.caption1,
+    color: t.textSecondary,
+    lineHeight: 16,
   },
 
   upsellCard: {

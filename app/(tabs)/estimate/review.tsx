@@ -18,10 +18,14 @@ import { EstimateClientView } from '@/components/estimate/EstimateClientView';
 import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabState';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
-import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
+import { toClientEstimateView } from '@/utils/clientEstimateView';
+import { proposalPaymentLines, resolvePaymentSplit } from '@/utils/paymentTerms';
+import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
+import { Button, Card } from '@/components/ui';
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
 import { buildShareUrl } from '@/utils/webAppOrigin';
-import type { LinkedEstimate } from '@/types';
+import type { LinkedEstimate, PaymentSplit } from '@/types';
 import { CATEGORY_META } from '@/constants/materials';
 import { cartTotals } from '@/utils/estimateMarkup';
 import { formatMoney } from '@/utils/formatters';
@@ -37,6 +41,10 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+// Static, not `await import(...)`: the clipboard write has to start inside the
+// press on web (navigator.clipboard refuses a write that is not a user
+// gesture), and a dynamic import is an await before it.
+import { copyToClipboard } from '@/utils/clipboard';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // Redesigned estimate REVIEW — the approved ink+amber summary view reading the
@@ -244,32 +252,72 @@ export default function EstimateReviewScreen() {
     return toClientEstimateView(est);
   }, [cart, laborCart, assemblyCart, globalMarkup, directCost, markups]);
 
+  // "Ask when it matters": the link prints a payment schedule, so it prints the
+  // GC's OWN split — never a guessed 10% deposit. Resolved from his saved
+  // profile here only to decide what the GC-only preview says; the link itself
+  // is built from the split the gate hands its continuation (see below).
+  const gate = useClientDocumentGate();
+  const savedSplit = resolvePaymentSplit({ settings }).split;
+
   // Build the client-safe proposal link and copy it. The token is built from
   // clientView only, so the shared URL can never carry costs or markups.
-  const handleShareProposal = useCallback(async () => {
+  //
+  // Split in two because the two halves have different timing needs:
+  //   · the clipboard write STARTS in the press (web refuses a write outside a
+  //     user gesture) — the gate runs `then` synchronously in the last press;
+  //   · the haptic + "Proposal link copied" alert present native UI, so they
+  //     wait for the ask sheet to finish sliding away on iOS (`afterDismiss`),
+  //     and run straight after the copy everywhere else / when nothing asked.
+  // `split` is the gate's answer, passed in: savePaymentTerms has only just
+  // written it, so this closure's `settings` may still be the old one.
+  const copyProposalLink = useCallback((split: PaymentSplit) => {
     const gcName = settings?.branding?.companyName || undefined;
     const payload = buildClientEstimateSharePayload(clientView, {
       projectName: gcName ? `${gcName} — Estimate` : 'Project Estimate',
       gcName,
-      paymentSchedule: defaultPaymentSchedule(clientView.projectTotal),
+      paymentSchedule: proposalPaymentLines(clientView.projectTotal, split),
     });
     const token = encodeClientEstimateToken(payload);
     const url = buildShareUrl('shared-estimate', token,
       Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null);
-    const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const copied = copyToClipboard(url);
     track(AnalyticsEvents.ESTIMATE_SHARED, {
       method: 'proposal_link',
       source: 'estimate_review',
       grand_total: clientView?.projectTotal ?? 0,
     });
-    showAlert(
-      ok ? 'Proposal link copied' : 'Proposal link',
-      ok
-        ? 'Client-safe link copied to your clipboard. Paste it into a text or email — no login needed, and it shows no costs, markups or margin.'
-        : url,
-    );
+    return { url, copied };
   }, [clientView, settings]);
+
+  const handleShareProposal = useCallback(() => {
+    // Filled by the continuation; read by afterDismiss. Closing the sheet
+    // without answering drops both, so nothing is copied and nothing is said.
+    let started: { url: string; copied: Promise<boolean> } | null = null;
+    gate.run(
+      { terms: true, purpose: 'proposal_link', total: clientView.projectTotal },
+      (a) => { started = copyProposalLink(a.split); },
+      {
+        afterDismiss: () => {
+          const s = started;
+          if (!s) return;
+          void s.copied.then((ok) => {
+            if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showAlert(
+              ok ? 'Proposal link copied' : 'Proposal link',
+              ok
+                ? 'Client-safe link copied to your clipboard. Paste it into a text or email — no login needed, and it shows no costs, markups or margin.'
+                : s.url,
+            );
+          });
+        },
+      },
+    );
+  }, [gate, clientView, copyProposalLink]);
+
+  // "Set now" on the GC-only note: the same sheet, nothing paused behind it.
+  const handleSetTermsNow = useCallback(() => {
+    gate.run({ terms: true, purpose: 'proposal_link', total: clientView.projectTotal }, () => {});
+  }, [gate, clientView]);
 
   return (
     <View style={styles.root}>
@@ -367,13 +415,34 @@ export default function EstimateReviewScreen() {
               )
             ) : (
               <View style={isDesktop ? styles.clientDesktopWrap : undefined}>
-                <EstimateClientView view={clientView} paymentSchedule={defaultPaymentSchedule(clientView.projectTotal)} />
+                <EstimateClientView
+                  view={clientView}
+                  paymentSchedule={savedSplit ? proposalPaymentLines(clientView.projectTotal, savedSplit) : undefined}
+                />
+                {/* Not set: the preview prints NO schedule (a guessed one reads
+                    as his terms) and says so. This note sits outside
+                    EstimateClientView and never enters the share token — only
+                    the GC sees it. */}
+                {!savedSplit ? (
+                  <Card radius="md" pad={14} style={styles.termsNote} testID="review-terms-not-set">
+                    <Text style={styles.termsNoteText}>
+                      Payment schedule — not set yet. You’ll be asked before you share.
+                    </Text>
+                    <Button
+                      label="Set now"
+                      variant="secondary"
+                      size="sm"
+                      onPress={handleSetTermsNow}
+                      testID="review-set-terms-now"
+                    />
+                  </Card>
+                ) : null}
                 <TouchableOpacity
                   accessibilityRole="button"
                   accessibilityLabel="Share proposal"
                   accessibilityHint="Copies a client-safe link with no costs or markups"
                   style={styles.shareBtn}
-                  onPress={() => { void handleShareProposal(); }}
+                  onPress={handleShareProposal}
                   activeOpacity={0.85}
                   testID="review-share-proposal"
                 >
@@ -385,6 +454,8 @@ export default function EstimateReviewScreen() {
           </>
         )}
       </ScrollView>
+
+      <ClientDocumentAskSheet {...gate.sheet} />
 
       {showTotalsBar && (
         <View style={[styles.totalsBarWrap, { paddingBottom: insets.bottom }]} onLayout={onTotalsBarLayout}>
@@ -439,6 +510,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   scrollDesktop: { width: '100%', maxWidth: 1500, alignSelf: 'center', paddingHorizontal: 24 },
   clientDesktopWrap: { maxWidth: 900, alignSelf: 'center', width: '100%' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
+  termsNote: { marginTop: 14, gap: 10, alignItems: 'flex-start' },
+  termsNoteText: { ...Type.footnote, color: t.textSecondary },
   shareBtnText: { ...Type.subheadEmphasized, color: t.surface },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
   emptyTitle: { color: t.text, fontSize: Type.headline.fontSize, fontWeight: '700' },

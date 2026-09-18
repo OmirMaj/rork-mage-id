@@ -383,8 +383,9 @@ export default function BillFromEstimateScreen() {
   // ───────────────────────────────────────────────────────────────────────────
   // MONEY-LEDGER-1 (audit 2026-09-11). ONE contract, ONE billed-to-date.
   //
-  // Every contract MAGE creates is seeded with a 25/25/25/25 payment schedule
-  // (utils/contractEngine.defaultPaymentSchedule), and app/contract.tsx puts
+  // Contracts used to be seeded 25/25/25/25; since 2026-09-17 they carry the
+  // GC's own deposit / progress / final split
+  // (utils/paymentTerms.contractScheduleFromSplit). Either way app/contract.tsx puts
   // the milestone "Create invoice" action and a button that lands HERE on the
   // same screen. A milestone invoice is a lump sum against the whole contract:
   // it has no estimate line to attach to, so the per-row attribution above

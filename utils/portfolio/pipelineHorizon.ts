@@ -18,6 +18,7 @@ import { computeCapacityLoad } from '@/utils/judges/capacityLoad';
 import { computeWIPReport } from '@/utils/financialReports';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { outboundBidRecordsFromResponses, bidHistoryFacts } from '@/utils/bidHistoryFacts';
+import { statedBudgetOf } from '@/utils/widgetLeadCore';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -112,10 +113,14 @@ export function buildPipelineHorizon(input: PipelineHorizonInput): PipelineHoriz
   const pipelineLeads = leads.filter(l => pipelineStages.has(l.stage));
   let leadPipeline$ = 0;
   for (const l of pipelineLeads) {
+    // The homeowner's STATED budget only: a legacy website-widget lead carries
+    // the widget's own ballpark in budgetMin/Max, which is MAGE's guess, not
+    // the client's money (statedBudgetOf strips it).
+    const b = statedBudgetOf(l);
     const mid =
-      l.budgetMin != null && l.budgetMax != null
-        ? (l.budgetMin + l.budgetMax) / 2
-        : l.budgetMin ?? l.budgetMax ?? 0;
+      b.min != null && b.max != null
+        ? (b.min + b.max) / 2
+        : b.min ?? b.max ?? 0;
     leadPipeline$ += mid;
   }
 

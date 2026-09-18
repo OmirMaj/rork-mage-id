@@ -36,7 +36,8 @@ import { useSafety } from '@/contexts/SafetyContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useBidResponsesPortfolio } from '@/hooks/useBidResponsesPortfolio';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
-import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useLaborCostSamples, useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { askOneMind, type OneMindCitation } from '@/utils/oneMind/answer';
@@ -98,6 +99,7 @@ export default function AskMageScreen() {
   const {
     projects, invoices, leads, changeOrders, rfis,
     commitments, dailyReports, permits, submittals, punchItems, aiaPayApps,
+    equipment, subcontractors,
     projectsLoaded,
   } = useProjects();
   const safety = useSafety();
@@ -105,6 +107,14 @@ export default function AskMageScreen() {
   const { bidResponses } = useBidResponsesPortfolio();
   const { receipts } = useMaterialReceipts();
   const laborSamples = useLaborCostSamples();
+  // The seven cost streams Job Costing prices. Without them the MARGIN and RISK
+  // blocks are built on subcontracts alone — and they SAY so — so a self-perform
+  // job's crew overrun never reaches the answer (audit round 2, #16).
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
   const [allConstraints, setAllConstraints] = useState<Record<string, Constraint[]>>({});
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -124,12 +134,13 @@ export default function AskMageScreen() {
       // has already billed.
       aiaPayApps,
       receipts,
+      costSources,
       laborSamples,
       constraints: allConstraints,
     };
   }, [
     projects, commitments, changeOrders, invoices, rfis, leads, dailyReports,
-    permits, submittals, punchItems, safety, bidResponses, aiaPayApps, receipts, laborSamples,
+    permits, submittals, punchItems, safety, bidResponses, aiaPayApps, receipts, costSources, laborSamples,
     allConstraints,
   ]);
 

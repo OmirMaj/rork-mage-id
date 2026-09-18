@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTimeEntries } from '@/hooks/useTimeEntries';
+import { todayCalendarDay } from '@/utils/calendarDate';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseVoiceAction, type VoiceActionResult } from '@/utils/voiceActionParser';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
@@ -30,6 +31,13 @@ import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { supabase } from '@/lib/supabase';
+import {
+  applyFieldTaskPatches,
+  scheduleWritePathForRole,
+  sendFieldTaskPatches,
+  type FieldTaskPatch,
+} from '@/utils/fieldScheduleUpdate';
 
 // Floating "speak anywhere" button. Opens a modal with the project picker
 // + voice recorder; after the AI parses intent, drafts the appropriate
@@ -379,7 +387,10 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         // captures the work + materials. Everything created is a draft /
         // reversible edit; the GC reviews the daily-report draft later.
         const now = new Date().toISOString();
-        const today = now.split('T')[0];
+        // The LOCAL day (field-ops #9). The ISO string's date half is the UTC
+        // day: "2 hours punch" said at 6 pm Friday Pacific was filed as a
+        // Saturday 8 am shift, and the daily-report draft below as Saturday's.
+        const today = todayCalendarDay();
         const company = ctx.settings?.branding?.companyName ?? '';
         const summaryParts: string[] = [];
 
@@ -414,8 +425,36 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
             return { ...t, progress: pct, status };
           });
           if (workProgress.length > 0) {
-            ctx.updateProject(proj.id, { schedule: { ...schedule, tasks: updatedTasks } });
-            summaryParts.push(`${workProgress.length} task${workProgress.length > 1 ? 's' : ''} updated`);
+            // Same routing as QuickFieldUpdate (#25). The row PATCH is refused
+            // by RLS for a field collaborator, so on field access the progress
+            // goes through the field RPC; on view-only it is refused up front.
+            // Before this the mic said "N tasks updated" either way, and any
+            // change the DFR ratchet ignores (a lowered %, a 0% status) was
+            // silently lost on the next reload.
+            const tasksUpdated = (n: number) => `${n} task${n > 1 ? 's' : ''} updated`;
+            const writePath = scheduleWritePathForRole(proj.myRole);
+            if (writePath === 'none') {
+              summaryParts.push(`schedule not updated — you have view-only access to ${proj.name}`);
+            } else if (writePath === 'field_rpc') {
+              const patches: FieldTaskPatch[] = updatedTasks
+                .filter(t => workProgress.some(w => w.taskId === t.id))
+                .map(t => ({ id: t.id, progress: t.progress, status: t.status }));
+              const sent = await sendFieldTaskPatches(supabase, proj.id, patches);
+              if (!sent.ok) {
+                summaryParts.push(`schedule not updated — ${sent.message}`);
+              } else {
+                const landed = patches.length - sent.missing.length;
+                // Local copy = what the server now holds (see QuickFieldUpdate).
+                ctx.updateProject(proj.id, {
+                  schedule: { ...schedule, tasks: applyFieldTaskPatches(schedule.tasks, patches), updatedAt: new Date().toISOString() },
+                });
+                if (landed > 0) summaryParts.push(tasksUpdated(landed));
+                if (sent.missing.length > 0) summaryParts.push(`${sent.missing.length} no longer on the schedule`);
+              }
+            } else {
+              ctx.updateProject(proj.id, { schedule: { ...schedule, tasks: updatedTasks } });
+              summaryParts.push(tasksUpdated(workProgress.length));
+            }
           }
         }
 

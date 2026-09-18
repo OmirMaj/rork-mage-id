@@ -9,17 +9,21 @@
 // utils/marginRiskScore); no new math, no network. Tap a row to drill in.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ShieldAlert, BellRing } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { computeLivingEstimate } from '@/utils/livingEstimate';
@@ -28,7 +32,7 @@ import {
   computeCurrentBaselines, computeAlerts, countActionable,
   MARGIN_ALERTS_BASELINE_KEY, type BaselineMap,
 } from '@/utils/marginAlerts';
-import { formatMoney } from '@/utils/jobCostEngine';
+import { formatMoney, type JobCostActualSources } from '@/utils/jobCostEngine';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -81,7 +85,28 @@ function PortfolioMarginInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projects, changeOrders, commitments, invoices } = useProjects();
+  const {
+    projects, changeOrders, commitments, invoices, equipment, permits, subcontractors,
+  } = useProjects();
+  // The same cost streams app/job-costing.tsx hands computeJobCost (audit
+  // round 2, #16). This board is the number the owner opens first; priced on
+  // subcontracts alone it showed a self-perform job bleeding on crew hours and
+  // receipts at its bid margin while Job Costing showed the overrun.
+  const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+  // Hold the board until those stores have loaded. They default to [] / {}
+  // while AsyncStorage is read, and for that beat every self-perform job
+  // priced at its bid margin — a guess rendered as a reading — and the
+  // unread-alerts count was taken off the same partial picture. The mirror
+  // hook exposes no loading flag, so read its cache entry; this screen
+  // re-renders when it resolves because useTimeEntriesMirror subscribes.
+  const queryClient = useQueryClient();
+  const mirrorLoaded = queryClient.getQueryState(TIME_ENTRIES_MIRROR_QUERY_KEY)?.data !== undefined;
+  const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;
 
   // Unread margin-alert count — what crossed since the user last acknowledged
   // in the alerts inbox. Surfaced as a tappable banner so the board doubles as
@@ -98,9 +123,10 @@ function PortfolioMarginInner() {
     return () => { alive = false; };
   }, []);
   const unreadAlerts = useMemo(() => {
-    const { baselines, names } = computeCurrentBaselines({ projects, changeOrders, commitments, invoices });
+    if (!costSourcesReady) return 0;
+    const { baselines, names } = computeCurrentBaselines({ projects, changeOrders, commitments, invoices, costSources });
     return countActionable(computeAlerts(baselines, names, acknowledged));
-  }, [projects, changeOrders, commitments, invoices, acknowledged]);
+  }, [costSourcesReady, projects, changeOrders, commitments, invoices, costSources, acknowledged]);
 
   const { rows, totalRevenue, totalMargin, blendedPct, atRisk } = useMemo(() => {
     const active = projects.filter(
@@ -108,9 +134,9 @@ function PortfolioMarginInner() {
     );
     const built: PortfolioRow[] = [];
     for (const project of active) {
-      const le = computeLivingEstimate({ project, changeOrders, commitments, invoices });
+      const le = computeLivingEstimate({ project, changeOrders, commitments, invoices, costSources });
       if (!le.hasMarginBasis) continue;
-      const risk = computeMarginRisk({ project, changeOrders, commitments, invoices });
+      const risk = computeMarginRisk({ project, changeOrders, commitments, invoices, costSources });
       built.push({
         project,
         projectedRevenue: le.projected.revenue,
@@ -133,7 +159,7 @@ function PortfolioMarginInner() {
     const blendedPct = totalRevenue > 0 ? totalMargin / totalRevenue : 0;
     const atRisk = built.filter(r => r.band === 'elevated' || r.band === 'high').length;
     return { rows: built, totalRevenue, totalMargin, blendedPct, atRisk };
-  }, [projects, changeOrders, commitments, invoices]);
+  }, [projects, changeOrders, commitments, invoices, costSources]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -150,7 +176,17 @@ function PortfolioMarginInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      {rows.length === 0 ? (
+      {!costSourcesReady ? (
+        <View
+          style={styles.loading}
+          testID="portfolio-margin-loading"
+          accessibilityRole="progressbar"
+          accessibilityLabel="Loading crew hours and receipts"
+        >
+          <ActivityIndicator size="small" color={t.accent} />
+          <Text style={styles.loadingText}>Loading crew hours and receipts before reading margins…</Text>
+        </View>
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={36} color={t.accent} strokeWidth={1.6} />}
           title="No margin to roll up yet"
@@ -252,6 +288,8 @@ function PortfolioMarginInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  loading: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 10, padding: 24 },
+  loadingText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const },
   header: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,

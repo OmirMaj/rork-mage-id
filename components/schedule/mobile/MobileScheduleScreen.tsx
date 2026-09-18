@@ -12,6 +12,13 @@ import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProjectRole } from '@/hooks/useProjectRole';
+import { supabase } from '@/lib/supabase';
+import LockedAccessCard from '@/components/LockedAccessCard';
+import {
+  applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, FIELD_TASK_PATCH_KEYS,
+  scheduleWritePathForRole, sendFieldTaskPatches, staleFieldEdits,
+} from '@/utils/fieldScheduleUpdate';
 import type { Project, ProjectSchedule, ScheduleAuditEntry, ScheduleTask } from '@/types';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
@@ -93,6 +100,22 @@ const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living Pl
 const AUDIT_IGNORED_KEYS = new Set(['isCriticalPath']);
 /** Fields a status tap or a progress stepper writes (stampActuals included). */
 const PROGRESS_KEYS = new Set(['progress', 'status', 'actualStartDate', 'actualEndDate', 'actualStartDay', 'actualEndDay']);
+
+/** What a VIEWER collaborator is told, standing, instead of taps that do
+ *  nothing (#25 — a blocked control says why). */
+const VIEWER_SCHEDULE_NOTICE = 'You have view-only access to this project, so nothing you change here is saved. Ask the project owner for field or editor access.';
+/** What a FIELD collaborator is told BEFORE he taps. The same sentence
+ *  schedule-pro prints, so the phone and the laptop promise the same thing. */
+const FIELD_SCHEDULE_HINT = 'Field access: progress, status, notes and actual start/finish save. Moving dates or changing tasks needs editor access.';
+/** …and what he is told after a change this screen could not save. Same
+ *  wording as app/schedule-pro.tsx `saveAsField`. */
+/** How the row-conflict notice names a field-owned key. */
+const ROW_FIELD_KEY_LABEL: Record<string, string> = {
+  progress: 'progress', status: 'status', notes: 'notes',
+  actualStartDate: 'actual start', actualStartDay: 'actual start',
+  actualEndDate: 'actual finish', actualEndDay: 'actual finish',
+};
+const FIELD_NOT_SAVED = (what: string) => `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.`;
 
 /**
  * Before/after snapshots holding only what really changed. summarizeTaskDiff
@@ -198,7 +221,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   const router = useRouter();
   const {
     projects,
-    updateProject,
+    updateProject: updateProjectRaw,
     getPlanSheetsForProject,
   } = useProjects();
   const { colors } = useTheme();
@@ -269,6 +292,142 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // (Progress' milestone column, the Living Plan's "today" index) — always
   // under the banner. See the report note: both should take `string | null`.
   const previewStartDate = anchor.iso ?? anchor.unanchoredPreviewIso;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // WHERE THIS SCREEN'S SCHEDULE WRITES GO, by the caller's role (#25).
+  //
+  //   owner / editor (and null while the role loads, so they never see a
+  //   read-only flash) → updateProject, the projects-row PATCH.
+  //   viewer → nowhere; every updateProject(...) below is a no-op that raises
+  //   the standing notice instead of looking like it worked.
+  //   field  → the field_update_schedule_tasks RPC. projects_update refuses the
+  //   row PATCH for a field collaborator with 200 + 0 rows, so on THE PRIMARY
+  //   PLATFORM his progress tap, his status change and his stamped actuals
+  //   looked saved here and were gone on the next reload, with nothing said.
+  //   The RPC saves progress, status, notes and actual start/finish ONLY;
+  //   anything else this screen writes — the start date (applyStartDate), the
+  //   baseline lock (lockPlan), the start-day-basis answer (answerStartDayBasis),
+  //   a date/duration/dependency edit or an added or removed task (saveTasks) —
+  //   is NOT saved, and the notice below says which, rather than letting it
+  //   vanish on his next reload.
+  //
+  // Same shape as app/schedule-pro.tsx `saveAsField`; the two screens must
+  // stay in step (scripts/validate-field-schedule-update.ts pins both).
+  // ─────────────────────────────────────────────────────────────────────────
+  const role = useProjectRole(selectedProject?.id);
+  const writePath = scheduleWritePathForRole(role ?? selectedProject?.myRole);
+  const [fieldNotice, setFieldNotice] = useState<string | null>(null);
+  // Owner/editor side of #25 on this screen: a change made in the open task
+  // sheet that the server will not keep (see saveAsRow).
+  const [rowConflictNotice, setRowConflictNotice] = useState<string | null>(null);
+  // A refusal on one project is not news on the next — the picker switches
+  // projects in place (same reset as schedule-pro's).
+  useEffect(() => { setFieldNotice(null); setRowConflictNotice(null); }, [selectedProject?.id]);
+  // The field keys the task sheet's CURRENT change touched, set by
+  // onUpdateTask around its saveTasks call so saveAsRow can tell a value he
+  // changed from one the sheet merely carried in from when it opened.
+  const sheetTouchedRef = useRef<{ taskId: string; keys: string[] } | null>(null);
+  // Latest projects for the async field save — the closure that fires can
+  // predate the render that holds the edit it is diffing against.
+  const projectsRef = useRef(projects);
+  useEffect(() => { projectsRef.current = projects; }, [projects]);
+  const saveAsField = useCallback(async (id: string, updates: Partial<Project>) => {
+    const currentSchedule = projectsRef.current.find((p) => p.id === id)?.schedule;
+    if (!currentSchedule) return;
+    const baseTasks = currentSchedule.tasks ?? [];
+    const { patches, blocked } = updates.schedule?.tasks
+      ? fieldTaskDiff(baseTasks, updates.schedule.tasks)
+      : { patches: [], blocked: [] };
+    const settingsChanged = Object.keys(updates).some((k) => k !== 'schedule')
+      || fieldScheduleSettingsChanged(currentSchedule, updates.schedule);
+    let accepted = baseTasks;
+    let failure: string | null = null;
+    if (patches.length > 0) {
+      const sent = await sendFieldTaskPatches(supabase, id, patches);
+      if (sent.ok) {
+        accepted = applyFieldTaskPatches(baseTasks, patches);
+        // Local copy = what the server now holds. The row PATCH this also
+        // enqueues is refused for field (0 rows, nothing written).
+        updateProjectRaw(id, { schedule: { ...currentSchedule, tasks: accepted, updatedAt: new Date().toISOString() } });
+      } else {
+        failure = sent.message;
+      }
+    }
+    if (failure || blocked.length > 0 || settingsChanged) {
+      // The one working copy this screen keeps outside `projects` is the open
+      // task sheet — put it back to what the server accepted so the row it
+      // shows can never read as saved.
+      setDetailTask((t) => (t ? accepted.find((x) => x.id === t.id) ?? null : t));
+      const what = blocked.length > 0
+        ? `changes to ${blocked.slice(0, 3).join(', ')}${blocked.length > 3 ? ` and ${blocked.length - 3} more` : ''}`
+        : settingsChanged ? 'schedule settings' : '';
+      setFieldNotice([failure, what ? FIELD_NOT_SAVED(what) : null].filter(Boolean).join(' '));
+    } else {
+      // Everything he changed was saved — a stale refusal must not linger over
+      // an edit that did land.
+      setFieldNotice(null);
+    }
+  }, [updateProjectRaw]);
+  // The row save. The list is built from `projects`, but the open task sheet
+  // is its own copy, taken when it opened: a refetch or realtime event that
+  // lands while it is open brings a newer field value (the foreman's 60%)
+  // the sheet never saw, and updateProject's stampFieldEdits puts that value
+  // back over the sheet's — correctly, the trigger would too. Nothing on the
+  // iPhone said so: the list showed the server's value while the sheet still
+  // showed his. Now the sheet catches up to what is kept, and when the value
+  // was one he changed in the sheet just now, the notice says his change was
+  // not saved.
+  const saveAsRow = useCallback((id: string, updates: Partial<Project>) => {
+    const kept = projectsRef.current.find((p) => p.id === id)?.schedule?.tasks ?? [];
+    const sent = updates.schedule?.tasks;
+    const refused = sent ? staleFieldEdits(kept, sent) : [];
+    updateProjectRaw(id, updates);
+    if (refused.length === 0) return;
+    const keptById = new Map(kept.map((t) => [t.id, t] as const));
+    setDetailTask((t) => {
+      if (!t) return t;
+      const mine = refused.filter((r) => r.taskId === t.id);
+      if (mine.length === 0) return t;
+      const k0 = keptById.get(t.id) as unknown as Record<string, unknown> | undefined;
+      const next = { ...(t as unknown as Record<string, unknown>) };
+      for (const r of mine) {
+        if (k0 && r.key in k0) next[r.key] = k0[r.key]; else delete next[r.key];
+      }
+      if (k0?.fieldEditedAt !== undefined) next.fieldEditedAt = k0.fieldEditedAt;
+      return next as unknown as ScheduleTask;
+    });
+    const touched = sheetTouchedRef.current;
+    const reported = refused.filter((r) => touched?.taskId === r.taskId && touched.keys.includes(r.key));
+    if (reported.length === 0) return;
+    const first = reported[0];
+    const title = keptById.get(first.taskId)?.title || 'This task';
+    const when = new Date(first.fieldEditedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const what = ROW_FIELD_KEY_LABEL[first.key] ?? first.key;
+    // Neutral about who: a stamp this device did not mint may be the foreman's
+    // or the GC's own other device.
+    setRowConflictNotice(`${title}'s ${what} was updated elsewhere — in the field or on another device — at ${when}, after you opened it, so your change was not saved. It now shows that value — change it again if yours is right.`);
+  }, [updateProjectRaw]);
+  const updateProject = useMemo<typeof updateProjectRaw>(
+    () => (writePath === 'row'
+      ? saveAsRow
+      : writePath === 'field_rpc'
+        ? (id, updates) => { void saveAsField(id, updates); }
+        : () => { setFieldNotice(VIEWER_SCHEDULE_NOTICE); }),
+    [writePath, updateProjectRaw, saveAsField, saveAsRow],
+  );
+  /**
+   * Why the two WHOLE-PLAN actions (bring the plan up to date, lock the plan)
+   * cannot run on this access, or null when they can. Both are dates and
+   * settings from end to end — the field RPC carries neither — and both confirm
+   * themselves out loud, so they are refused before the confirmation rather
+   * than announcing a move the server dropped.
+   */
+  const wholePlanWriteBlocked = useMemo<string | null>(() => {
+    if (writePath === 'row') return null;
+    return writePath === 'field_rpc'
+      ? 'Field access can’t move schedule dates or lock a plan. Your progress, status, notes and actual start/finish still save — ask the project owner for editor access to do this.'
+      : VIEWER_SCHEDULE_NOTICE;
+  }, [writePath]);
 
   const [showExport, setShowExport] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -522,8 +681,13 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       ? mergeEditedSchedule(activeSchedule, next, { projectId: selectedProject.id })
       : { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() };
     updateProject(selectedProject.id, { schedule: merged });
-    if (auditDraft) void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry(auditDraft));
-  }, [selectedProject, activeSchedule, updateProject, anchor.date, auditUser]);
+    // The audit row describes THIS write, so it is only written when this write
+    // is the one that lands. On field access the server merges a subset (and
+    // refuses the rest) and on view-only nothing is written at all — a local row
+    // saying "finish Mar 3 → Mar 14" for a change the database dropped is
+    // exactly the false record a delay claim must not be argued from.
+    if (auditDraft && writePath === 'row') void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry(auditDraft));
+  }, [selectedProject, activeSchedule, updateProject, writePath, anchor.date, auditUser]);
 
   const onUpdateTask = useCallback((next: ScheduleTask) => {
     // Pace flywheel: this is a full-object sink — `next` spreads the previous
@@ -541,9 +705,20 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         recordDidForYou(`Auto-stamped actual dates for ${prev.title}`, selectedProject?.id);
       }
     }
-    saveTasks(tasks.map((t) => (t.id === stamped.id ? stamped : t)));
+    // The sheet first, THEN the save: saveAsRow may put a refused value back
+    // into the sheet, and a setDetailTask(stamped) after it would undo that.
     setDetailTask(stamped);
-  }, [tasks, saveTasks, activeSchedule?.startDate, selectedProject?.id]);
+    const shown = detailTask?.id === stamped.id ? detailTask as unknown as Record<string, unknown> : null;
+    const sr = stamped as unknown as Record<string, unknown>;
+    sheetTouchedRef.current = shown
+      ? { taskId: stamped.id, keys: FIELD_TASK_PATCH_KEYS.filter((k) => JSON.stringify(shown[k] ?? null) !== JSON.stringify(sr[k] ?? null)) }
+      : null;
+    try {
+      saveTasks(tasks.map((t) => (t.id === stamped.id ? stamped : t)));
+    } finally {
+      sheetTouchedRef.current = null;
+    }
+  }, [tasks, saveTasks, activeSchedule?.startDate, selectedProject?.id, detailTask]);
 
   const onCreate = useCallback((values: NewTaskValues) => {
     // startDay is 1-indexed to MATCH the desktop + CPM engine (day 1 = schedule
@@ -609,6 +784,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
    */
   const applyCatchUp = useCallback(() => {
     if (!catchUp || catchUp.changes.length === 0) return;
+    // A catch-up re-dates every task that is behind — dates end to end, so
+    // there is no field-access version of it. Refused BEFORE the confirmation,
+    // or the alert below would announce a move the server never made (#25).
+    if (wholePlanWriteBlocked) { showAlert('Schedule not changed', wholePlanWriteBlocked); setShowFinishSheet(false); return; }
     const before = tasks;
     saveTasks(catchUp.tasks, { reason: 'Brought the plan up to date' });
     setShowFinishSheet(false);
@@ -622,7 +801,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         { text: 'Keep it' },
       ],
     );
-  }, [catchUp, tasks, saveTasks]);
+  }, [catchUp, tasks, saveTasks, wholePlanWriteBlocked]);
 
   const openAddAt = useCallback((iso: string) => {
     setAddPrefillDate(iso);
@@ -703,18 +882,25 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       ? calendarDayToDate(planAnchor.date, cpm.projectFinish)
         .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       : null;
-    void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
-      user: auditUser,
-      kind: 'baseline_capture',
-      summary: `Locked the plan as baseline ${snap.name}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
-    }));
+    // Only when the lock is actually written (see saveTasks): the field RPC
+    // refuses `baselines`, so on field or view-only access this row would
+    // record a baseline the server never took.
+    if (writePath === 'row') {
+      void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
+        user: auditUser,
+        kind: 'baseline_capture',
+        summary: `Locked the plan as baseline ${snap.name}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+      }));
+    }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [selectedProject, updateProject, auditUser]);
+  }, [selectedProject, updateProject, writePath, auditUser]);
 
   /** The sheet's button. A first lock is the obvious act; a RE-lock moves the
    *  yardstick every later "behind plan" is measured from, so it asks first. */
   const requestLockPlan = useCallback(() => {
     if (!activeSchedule) return;
+    // Access first, so nobody confirms a re-lock that the server refuses (#25).
+    if (wholePlanWriteBlocked) { showAlert('Plan not locked', wholePlanWriteBlocked); return; }
     if (!activeBaseline) { lockPlan(activeSchedule); return; }
     const lockedOn = new Date(activeBaseline.savedAt)
       .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -726,7 +912,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         { text: 'Re-lock', onPress: () => lockPlan(activeSchedule) },
       ],
     );
-  }, [activeSchedule, activeBaseline, lockPlan]);
+  }, [activeSchedule, activeBaseline, lockPlan, wholePlanWriteBlocked]);
 
   const [showHistory, setShowHistory] = useState(false);
 
@@ -757,17 +943,23 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     const finishLabel = cpm.projectFinish > 0
       ? calendarDayToDate(day, cpm.projectFinish).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       : null;
-    void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
-      user: auditUser,
-      kind: 'reflow',
-      summary: `Start date ${activeSchedule.startDate ? `moved ${activeSchedule.startDate} → ${iso}` : `set to ${iso}`}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
-    }));
+    // Same rule as saveTasks/lockPlan: the anchor is a schedule setting the
+    // field RPC refuses, so only an owner/editor write gets a row.
+    if (writePath === 'row') {
+      void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry({
+        user: auditUser,
+        kind: 'reflow',
+        summary: `Start date ${activeSchedule.startDate ? `moved ${activeSchedule.startDate} → ${iso}` : `set to ${iso}`}${finishLabel ? ` — finish ${finishLabel}` : ''}`,
+      }));
+    }
     // THE MOMENT TO LOCK. A start date plus a task list is the first time this
     // schedule has a finish DATE — the date he is promising. Asked once, here,
     // and only when nothing is locked yet; declining leaves the button in the
     // finish sheet. The locked schedule is `nextSchedule`, not the stale
     // `activeSchedule` (see lockPlan).
-    if (nextTasks.length > 0 && (activeSchedule.baselines?.length ?? 0) === 0 && finishLabel) {
+    // …and only when the anchor above was actually written: offering to lock a
+    // start date the server refused would promise a finish nobody holds.
+    if (writePath === 'row' && nextTasks.length > 0 && (activeSchedule.baselines?.length ?? 0) === 0 && finishLabel) {
       showAlert(
         'Lock this as the plan?',
         `Every task now has a date, and the finish is ${finishLabel} — the date you are promising. Lock it, and later the schedule can say how many days behind or ahead of this plan you are, not just how the pace looks.`,
@@ -777,7 +969,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         ],
       );
     }
-  }, [selectedProject, activeSchedule, updateProject, auditUser, lockPlan]);
+  }, [selectedProject, activeSchedule, updateProject, writePath, auditUser, lockPlan]);
 
   // Explicit project picker (sim-audit #11): tapping the title used to
   // silently CYCLE through projects — zero affordance, and with several
@@ -892,6 +1084,35 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* WHAT YOUR ACCESS SAVES (#25). Stated BEFORE he taps, because a
+          refusal that only arrives after the edit is the silent-drop bug in a
+          politer coat. The card replaces the hint the moment something was
+          actually refused, carrying that refusal's own wording. */}
+      {writePath === 'none' ? (
+        <LockedAccessCard
+          what="Schedule editing"
+          detail={VIEWER_SCHEDULE_NOTICE}
+          style={{ marginHorizontal: 16, marginTop: 10 }}
+        />
+      ) : writePath === 'row' && rowConflictNotice ? (
+        <View style={styles.rowConflict} testID="schedule-row-conflict-notice" accessibilityRole="alert">
+          <Text style={styles.rowConflictText}>{rowConflictNotice}</Text>
+          <TouchableOpacity onPress={() => setRowConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+            <Text style={styles.rowConflictDismiss}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      ) : writePath === 'field_rpc' ? (
+        fieldNotice ? (
+          <LockedAccessCard
+            what="Date and task editing"
+            detail={fieldNotice}
+            style={{ marginHorizontal: 16, marginTop: 10 }}
+          />
+        ) : (
+          <Text style={styles.fieldAccessHint} testID="schedule-field-access-hint">{FIELD_SCHEDULE_HINT}</Text>
+        )
+      ) : null}
 
       {/* Legacy day-scale disclosure. Renders null for every schedule that is
           fine. Sits with the undated banner because both are statements about
@@ -1062,6 +1283,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         nonWorkingDates={activeSchedule?.nonWorkingDates}
         catchUp={catchUp}
         hasDataDate={todayCalendarIndex != null}
+        // A blocked control says why: on field / view-only access the two
+        // whole-plan buttons are disabled with the reason on them, not left
+        // live to fail after the tap (#25).
+        writeBlockedReason={wholePlanWriteBlocked}
         onSetStartDate={() => { setShowFinishSheet(false); setShowStartDatePicker(true); }}
         onApplyCatchUp={applyCatchUp}
         onPressTask={(t) => { setShowFinishSheet(false); setDetailTask(t); }}
@@ -1145,7 +1370,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
 
 function FinishDateSheet({
   visible, onClose, verdict, finishDateLabel, tasks, cpm, anchorDate,
-  workingDaysPerWeek, nonWorkingDates, catchUp, hasDataDate,
+  workingDaysPerWeek, nonWorkingDates, catchUp, hasDataDate, writeBlockedReason,
   onSetStartDate, onApplyCatchUp, onPressTask,
   activeBaseline, baselineFinishLabel, onLockPlan, onShowHistory,
 }: {
@@ -1160,6 +1385,8 @@ function FinishDateSheet({
   nonWorkingDates?: string[];
   catchUp: CatchUpPlan | null;
   hasDataDate: boolean;
+  /** Why this access cannot re-date or lock the plan, or null when it can. */
+  writeBlockedReason: string | null;
   onSetStartDate: () => void;
   onApplyCatchUp: () => void;
   onPressTask: (task: ScheduleTask) => void;
@@ -1281,6 +1508,23 @@ function FinishDateSheet({
                   <Text style={styles.finishLinkText}>{UNDATED_SCHEDULE_CTA}</Text>
                 </TouchableOpacity>
               </>
+            ) : writeBlockedReason ? (
+              <>
+                {/* The same shape as the undated refusal: the reason, then the
+                    button it applies to, disabled and labelled with it. */}
+                <Text style={styles.finishEmpty}>{writeBlockedReason}</Text>
+                <TouchableOpacity
+                  style={[styles.finishBtn, styles.finishBtnDisabled]}
+                  disabled
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: true }}
+                  accessibilityLabel={`Bring the plan up to date. Unavailable: ${writeBlockedReason}`}
+                  testID="catch-up-blocked-by-access"
+                >
+                  <RefreshCw size={16} color={colors.textMuted} strokeWidth={2} />
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Bring the plan up to date</Text>
+                </TouchableOpacity>
+              </>
             ) : changeCount === 0 ? (
               <Text style={styles.finishEmpty}>
                 Nothing is behind as of today — the plan already matches the field.
@@ -1335,6 +1579,27 @@ function FinishDateSheet({
                   <Lock size={16} color={colors.textMuted} strokeWidth={2} />
                   <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Lock this plan as the baseline</Text>
                 </TouchableOpacity>
+              </>
+            ) : writeBlockedReason ? (
+              <>
+                <Text style={styles.finishEmpty}>{writeBlockedReason}</Text>
+                <TouchableOpacity
+                  style={[styles.finishBtn, styles.finishBtnDisabled]}
+                  disabled
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: true }}
+                  accessibilityLabel={`Lock this plan as the baseline. Unavailable: ${writeBlockedReason}`}
+                  testID="lock-plan-blocked-by-access"
+                >
+                  <Lock size={16} color={colors.textMuted} strokeWidth={2} />
+                  <Text style={[styles.finishBtnText, { color: colors.textMuted }]}>Lock this plan as the baseline</Text>
+                </TouchableOpacity>
+                {!!activeBaseline && (
+                  <Text style={styles.finishNote}>
+                    {`${activeBaseline.name}, locked ${new Date(activeBaseline.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                    {baselineFinishLabel ? ` — planned finish ${baselineFinishLabel}.` : '.'}
+                  </Text>
+                )}
               </>
             ) : !activeBaseline ? (
               <>
@@ -1611,6 +1876,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
     marginHorizontal: 16, marginTop: 10, paddingVertical: 10, paddingHorizontal: 12,
     borderRadius: Tokens.radius.md, backgroundColor: t.warningSoft,
+  },
+  // The standing field-access line. Muted, not a warning: field access is a
+  // setting the GC turned on, not a fault (LockedAccessCard's tone).
+  rowConflict: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10,
+    marginHorizontal: 16, marginTop: 10, padding: 10,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.warningSoft,
+  },
+  rowConflictText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.warningLabel },
+  rowConflictDismiss: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.accent },
+  fieldAccessHint: {
+    fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textMuted,
+    marginHorizontal: 16, marginTop: 10, lineHeight: 17,
   },
   undatedTitle: { fontSize: 13.5, fontWeight: '800' as const, color: t.warningLabel },
   undatedBody: { fontSize: 12, fontWeight: '600' as const, color: t.textSecondary, marginTop: 2 },

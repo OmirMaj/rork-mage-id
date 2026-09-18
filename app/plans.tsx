@@ -13,14 +13,13 @@
 //   • "Import image" — picks a single PNG/JPG (existing flow). Useful for
 //                       photos of paper drawings or markup screenshots.
 
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform, TextInput, Modal, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 // expo-document-picker provides the native PDF picker. Pinned in package.json
 // at ~14.0.7 (matches Expo SDK 54). Run `bun install` after pulling this for
 // the first time so the native module is linked.
@@ -29,7 +28,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft, Plus, MapPin, Trash2, Image as ImageIcon,
-  ChevronRight, AlertTriangle, FileImage, X, Check, FileText,
+  ChevronRight, AlertTriangle, FileImage, X, Check, FileText, Upload,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -45,6 +44,10 @@ import type { PlanSheet } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { addFloorPlan, attachFloorPlanImage, uploadDeviceOnlyFloorPlan, type FloorPlanActions } from '@/utils/addFloorPlan';
+import { pickFloorPlanImage } from '@/utils/pickFloorPlanImage';
+import { floorPlanNameFromFile, planSheetImageState, shouldRepickAfterDeviceUploadFailure, type FloorPlanImage } from '@/utils/planSheetImageCore';
+import { pdfPageSheetName, priorImportOf } from '@/utils/planSheetBatchCore';
 
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
@@ -59,14 +62,21 @@ export default function PlansScreen() {
   const { canAccess } = useTierAccess();
   const { refresh: refreshQuota } = useUsageStatus();
   const {
-    projects, getProject, getPlanSheetsForProject, addPlanSheet, deletePlanSheet,
+    projects, getProject, getPlanSheetsForProject, addPlanSheet, addPlanSheets, updatePlanSheet, deletePlanSheet,
     getPinsForPlan,
   } = useProjects();
+  // The upload in addFloorPlan takes seconds, and addPlanSheet/updatePlanSheet
+  // persist the planSheets array they closed over. Reading them through a ref
+  // at write time means a sheet that landed during the upload is not dropped.
+  const planActionsRef = useRef<FloorPlanActions>({ addPlanSheet, updatePlanSheet });
+  planActionsRef.current = { addPlanSheet, updatePlanSheet };
 
   const [importing, setImporting] = useState<boolean>(false);
   const [pdfImporting, setPdfImporting] = useState<boolean>(false);
   const [pdfStatus, setPdfStatus] = useState<string>('');
-  const [newSheet, setNewSheet] = useState<{ uri: string; name: string; sheetNumber: string; width?: number; height?: number } | null>(null);
+  const [newSheet, setNewSheet] = useState<{ image: FloorPlanImage; name: string; sheetNumber: string } | null>(null);
+  const [savingSheet, setSavingSheet] = useState<boolean>(false);
+  const [repairingId, setRepairingId] = useState<string | null>(null);
 
   const project = projectId ? getProject(projectId) : null;
   // Hide superseded sheets by default — when a sheet number gets
@@ -82,27 +92,18 @@ export default function PlansScreen() {
   const supersededCount = useMemo(() => allSheets.filter(s => s.superseded).length, [allSheets]);
 
   const handleImport = useCallback(async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== 'granted') {
-      showAlert('Permission needed', 'Photo library access is required to import plan sheets.');
-      return;
-    }
     setImporting(true);
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 1.0,
-        allowsEditing: false,
-        exif: false,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-      const a = result.assets[0];
+      const picked = await pickFloorPlanImage('library');
+      if (picked.status === 'blocked') {
+        showAlert('Can\u2019t open photos', picked.reason);
+        return;
+      }
+      if (picked.status !== 'picked') return;
       setNewSheet({
-        uri: a.uri,
-        name: a.fileName?.replace(/\.[^/.]+$/, '') ?? `Sheet ${sheets.length + 1}`,
+        image: picked.image,
+        name: floorPlanNameFromFile(picked.image.fileName, `Sheet ${sheets.length + 1}`),
         sheetNumber: '',
-        width: a.width,
-        height: a.height,
       });
     } finally {
       setImporting(false);
@@ -133,6 +134,27 @@ export default function PlansScreen() {
       // pages quota is tight. The edge function enforces the same check
       // server-side; doing it client-side is purely UX (fail fast, no
       // long upload + 429).
+      // Same file already imported? Rendering it again charges the month's
+      // takeoff pages again (convert-pdf-to-images bills per page), so ask
+      // BEFORE the upload. Going ahead replaces those pages (Rev +1, the old
+      // ones hidden as superseded) instead of listing every page twice.
+      const baseName = asset.name?.replace(/\.[^/.]+$/, '') ?? 'Plan set';
+      const prior = priorImportOf(allSheets, projectId, baseName);
+      if (prior.length > 0) {
+        const again = await new Promise<boolean>((resolve) => {
+          showAlert(
+            'Already imported',
+            `\u201C${baseName}\u201D is already on this project (${prior.length} sheet${prior.length === 1 ? '' : 's'}). Importing it again uses takeoff pages again and replaces those sheets with the new copy. Pins stay on the old sheets.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Import again', onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!again) return;
+      }
+
       setPdfImporting(true);
       setPdfStatus('Reading PDF\u2026');
       const pageCount = await countPdfPages(asset.uri);
@@ -155,32 +177,38 @@ export default function PlansScreen() {
 
       setPdfStatus(`Saving ${pages.length} sheet${pages.length === 1 ? '' : 's'}\u2026`);
 
-      const baseName = asset.name?.replace(/\.[^/.]+$/, '') ?? 'Plan set';
-      pages.forEach((p) => {
-        addPlanSheet({
-          projectId,
-          name: pages.length === 1 ? baseName : `${baseName} \u2014 Page ${p.pageNumber}`,
-          sheetNumber: undefined,
-          // DB-F11: `storagePath` is what reaches plan_sheets.image_uri (the
-          // context's durablePlanSheetValue picks it); `imageUri` carries the
-          // freshly-signed url so the thumbnail renders right now without a
-          // re-fetch. This line used to persist `p.publicUrl` — a permanent
-          // unsigned link to a construction drawing.
-          storagePath: p.storagePath,
-          imageUri: p.viewUrl,
-          width: p.width,
-          height: p.height,
-          pageNumber: p.pageNumber,
-        });
-      });
+      // ONE call for the whole set (audit round 2, #18). A forEach of
+      // addPlanSheet kept only the last page on screen and in the cache while
+      // the alert claimed all of them.
+      const { created, superseded } = addPlanSheets(pages.map((p) => ({
+        projectId,
+        name: pdfPageSheetName(baseName, pages.length, p.pageNumber),
+        sheetNumber: undefined,
+        // DB-F11: `storagePath` is what reaches plan_sheets.image_uri (the
+        // context's durablePlanSheetValue picks it); `imageUri` carries the
+        // freshly-signed url so the thumbnail renders right now without a
+        // re-fetch. This line used to persist `p.publicUrl` — a permanent
+        // unsigned link to a construction drawing.
+        storagePath: p.storagePath,
+        imageUri: p.viewUrl,
+        width: p.width,
+        height: p.height,
+        pageNumber: p.pageNumber,
+      })), { matchUnnumberedByPage: true });
 
       setPdfStatus('');
       // Refresh the usage badge so the user sees the new "X of Y pages
       // remaining" reflecting the just-charged pages without remounting.
       refreshQuota();
+      // Counts what was actually created, not what the renderer returned.
+      const replacedNote = superseded.length > 0
+        ? ` ${superseded.length} earlier sheet${superseded.length === 1 ? ' from this set was' : 's from this set were'} replaced \u2014 the old copies are under \u201CShow superseded\u201D.`
+        : '';
       showAlert(
         'PDF imported',
-        `${pages.length} sheet${pages.length === 1 ? '' : 's'} added. Open one to start dropping pins.`,
+        created.length > 0
+          ? `${created.length} sheet${created.length === 1 ? '' : 's'} added.${replacedNote} Open one to start dropping pins.`
+          : 'The PDF rendered no pages, so no sheets were added.',
       );
     } catch (err) {
       const msg = (err as Error).message || 'Could not import that PDF.';
@@ -189,25 +217,93 @@ export default function PlansScreen() {
       setPdfImporting(false);
       setPdfStatus('');
     }
-  }, [projectId, addPlanSheet, router, refreshQuota]);
+  }, [projectId, allSheets, addPlanSheets, router, refreshQuota]);
 
-  const confirmImport = useCallback(() => {
+  // Upload FIRST, then create the sheet with its storage path (utils/addFloorPlan).
+  // This used to call addPlanSheet with the picker's file:// and upload
+  // nothing, so plan_sheets.image_uri was '' and the sheet was blank on every
+  // other device — the founder's IMG_1668 row. On failure the modal stays open
+  // with the reason, and no empty sheet is created.
+  const confirmImport = useCallback(async () => {
     if (!newSheet || !newSheet.name.trim() || !projectId) {
       showAlert('Name required', 'Give the sheet a name before saving.');
       return;
     }
-    const created = addPlanSheet({
-      projectId,
-      name: newSheet.name.trim(),
-      sheetNumber: newSheet.sheetNumber.trim() || undefined,
-      imageUri: newSheet.uri,
-      width: newSheet.width,
-      height: newSheet.height,
-      pageNumber: 1,
-    });
-    setNewSheet(null);
-    router.push({ pathname: '/plan-viewer' as never, params: { sheetId: created.id } as never });
-  }, [newSheet, projectId, addPlanSheet, router]);
+    setSavingSheet(true);
+    try {
+      const result = await addFloorPlan({
+        projectId,
+        image: newSheet.image,
+        name: newSheet.name.trim(),
+        sheetNumber: newSheet.sheetNumber,
+      }, () => planActionsRef.current);
+      if (!result.ok) {
+        showAlert('Plan not saved', result.reason);
+        return;
+      }
+      setNewSheet(null);
+      router.push({ pathname: '/plan-viewer' as never, params: { sheetId: result.sheet.id } as never });
+    } finally {
+      setSavingSheet(false);
+    }
+  }, [newSheet, projectId, router]);
+
+  // Repair a sheet whose image never reached storage. On the phone that
+  // imported it the picker file may still exist, so upload that; everywhere
+  // else (and once iOS purged it) ask for the image again. Either way the
+  // sheet id is kept, so pins and punch items on it survive.
+  const repickAndAttach = useCallback(async (sheet: PlanSheet) => {
+    setRepairingId(sheet.id);
+    try {
+      const picked = await pickFloorPlanImage('library');
+      if (picked.status === 'blocked') {
+        showAlert('Can\u2019t open photos', picked.reason);
+        return;
+      }
+      if (picked.status !== 'picked') return;
+      const result = await attachFloorPlanImage(sheet, picked.image, () => planActionsRef.current);
+      if (!result.ok) {
+        showAlert('Plan not saved', result.reason);
+        return;
+      }
+      showAlert('Plan saved', `\u201C${sheet.name}\u201D now shows on every device.`);
+    } finally {
+      setRepairingId(null);
+    }
+  }, []);
+
+  const handleRepairImage = useCallback(async (sheet: PlanSheet) => {
+    if (planSheetImageState(sheet) === 'device-only') {
+      setRepairingId(sheet.id);
+      let direct: Awaited<ReturnType<typeof uploadDeviceOnlyFloorPlan>>;
+      try {
+        direct = await uploadDeviceOnlyFloorPlan(sheet, () => planActionsRef.current);
+      } finally {
+        setRepairingId(null);
+      }
+      if (direct.ok) {
+        showAlert('Plan saved', `\u201C${sheet.name}\u201D now shows on every device.`);
+        return;
+      }
+      // A vanished local file, or a local file the plan store cannot take
+      // (an old full-quality import copied the HEIC/oversize original), is
+      // worth re-picking for — a fresh pick comes back as a JPEG. No signal
+      // or an RLS refusal would fail the same way with a new image.
+      if (!shouldRepickAfterDeviceUploadFailure(direct.kind)) {
+        showAlert('Plan not saved', direct.reason);
+        return;
+      }
+      // Say why the photo library is about to open — dropping him into the
+      // picker with no word reads as the app misfiring (blocked controls say
+      // why). He chooses to go on; nothing opens on its own.
+      showAlert('Pick the plan again', `The copy of \u201C${sheet.name}\u201D on this phone can\u2019t be saved. ${direct.reason}\n\nPick the same plan from your photos \u2014 its pins and punch items stay on this sheet.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Pick plan', onPress: () => { void repickAndAttach(sheet); } },
+      ]);
+      return;
+    }
+    await repickAndAttach(sheet);
+  }, [repickAndAttach]);
 
   const handleDelete = useCallback((sheet: PlanSheet) => {
     showAlert('Delete sheet', `Remove \u201C${sheet.name}\u201D? All pins and markup on this sheet will also be removed.`, [
@@ -285,6 +381,10 @@ export default function PlansScreen() {
         ) : (
           sheets.map((s) => {
             const pinCount = getPinsForPlan(s.id).length;
+            // 'device-only' / 'missing' = the image never reached storage
+            // (Import image before 2026-09-17). Said out loud, with the fix.
+            const imageState = planSheetImageState(s);
+            const repairing = repairingId === s.id;
             return (
               <TouchableOpacity
                 key={s.id}
@@ -294,7 +394,11 @@ export default function PlansScreen() {
                 testID={s.superseded ? `sheet-row-superseded-${s.id}` : undefined}
               >
                 <View style={[styles.sheetThumbWrap, s.superseded && styles.sheetThumbWrapSuperseded]}>
-                  <Image source={{ uri: s.imageUri }} style={styles.sheetThumb} resizeMode="cover" />
+                  {imageState === 'missing' ? (
+                    <FileImage size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+                  ) : (
+                    <Image source={{ uri: s.imageUri }} style={styles.sheetThumb} resizeMode="cover" />
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={styles.sheetTagRow}>
@@ -323,6 +427,31 @@ export default function PlansScreen() {
                   <Text style={[styles.sheetName, s.superseded && styles.sheetNameSuperseded]} numberOfLines={2}>{s.name}</Text>
                   {s.superseded ? (
                     <Text style={styles.supersededNote}>Replaced by a newer revision — do not build from it.</Text>
+                  ) : null}
+                  {imageState !== 'durable' ? (
+                    <View style={styles.imageIssueRow}>
+                      <Text style={styles.imageIssueText} numberOfLines={2}>
+                        {imageState === 'missing'
+                          ? 'No image saved \u2014 this plan is blank on every device.'
+                          : 'Image is on this phone only \u2014 blank everywhere else.'}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={(e) => { e.stopPropagation(); void handleRepairImage(s); }}
+                        style={styles.ghostBtn}
+                        disabled={repairing || !!repairingId}
+                        accessibilityRole="button"
+                        accessibilityLabel={imageState === 'missing' ? `Add the image for ${s.name}` : `Upload the image for ${s.name}`}
+                        accessibilityState={{ disabled: repairing || !!repairingId, busy: repairing }}
+                        testID={`sheet-repair-image-${s.id}`}
+                      >
+                        {repairing
+                          ? <ActivityIndicator size="small" color={themeColors.text} />
+                          : <Upload size={14} color={themeColors.text} strokeWidth={1.75} />}
+                        <Text style={styles.ghostBtnText}>
+                          {repairing ? 'Saving' : imageState === 'missing' ? 'Add image' : 'Upload'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   ) : null}
                   <View style={styles.sheetMetaRow}>
                     <View style={styles.metaPill}>
@@ -403,8 +532,8 @@ export default function PlansScreen() {
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            {newSheet?.uri ? (
-              <Image source={{ uri: newSheet.uri }} style={styles.previewImg} resizeMode="contain" />
+            {newSheet?.image.uri ? (
+              <Image source={{ uri: newSheet.image.uri }} style={styles.previewImg} resizeMode="contain" />
             ) : null}
             <Text style={styles.label}>Sheet number</Text>
             <TextInput
@@ -421,10 +550,20 @@ export default function PlansScreen() {
               placeholder="Floor Plan — Level 1"
               style={styles.input}
             />
-            <TouchableOpacity style={styles.primaryBtn} onPress={confirmImport}>
-              <Check size={16} color="#FFFFFF" strokeWidth={1.75} />
-              <Text style={styles.primaryBtnText}>Save & open</Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, savingSheet && { opacity: 0.6 }]}
+              onPress={() => { void confirmImport(); }}
+              disabled={savingSheet}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: savingSheet, busy: savingSheet }}
+              testID="plans-new-sheet-save"
+            >
+              {savingSheet ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Check size={16} color="#FFFFFF" strokeWidth={1.75} />}
+              <Text style={styles.primaryBtnText}>{savingSheet ? 'Uploading plan' : 'Save & open'}</Text>
             </TouchableOpacity>
+            {savingSheet ? (
+              <Text style={styles.helperText}>The plan uploads once so every phone and the office can see it.</Text>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -607,6 +746,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   metaPillText: { color: t.text, fontSize: Type.caption2.fontSize, fontWeight: '600' },
   sheetDate: { color: t.textMuted, fontSize: Type.caption2.fontSize },
+  imageIssueRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  imageIssueText: { flex: 1, color: t.warningLabel, fontSize: Type.caption2.fontSize, fontWeight: '600' },
   iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
 
   emptyCard: {

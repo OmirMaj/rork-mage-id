@@ -272,3 +272,103 @@ export function summarizeLookahead(l: DeliveryLookahead, days: number): string {
   const n = l.counts.upcoming;
   return `${n} ${n === 1 ? 'delivery' : 'deliveries'} in the next ${days} days`;
 }
+
+// ── Receipts → the daily report (audit round 2, field-ops #11) ───────────────
+//
+// A load received on the Deliveries screen — damage noted at the tailgate, who
+// signed — never reached that day's daily report. The report's "Materials
+// delivered" was a list the super retyped, and the PDF the owner, supplier and
+// insurer accept as the dated record printed nothing unless he did. Cracked
+// trusses that aren't on the daily log are much harder to back-charge.
+//
+// Matched on `receipt.date`, which commitReceipt writes as the LOCAL calendar
+// day it landed — against the REPORT's calendar day, not the day the report is
+// filed, so a Friday report filled in on Monday picks up Friday's loads. The
+// caller converts the report's instant to its local day first (a raw prefix
+// match on an ISO string names tomorrow after ~5–8 pm in the US).
+
+export interface ReceiptReportLines {
+  /** One line per receipt, for DailyFieldReport.materialsDelivered. */
+  materials: string[];
+  /** One line per DAMAGED receipt, for issuesAndDelays — a damaged load shows
+   *  up nowhere else on the report and gets no attention in a materials list. */
+  damage: string[];
+}
+
+/** The line a receipt prints as on the daily report. */
+export function receiptMaterialLine(r: DeliveryReceipt, delivery: Delivery | undefined): string {
+  const supplier = (r.supplier ?? '').trim();
+  const what = (delivery?.description ?? '').trim();
+  const po = (r.poNumber ?? '').trim();
+  // A receipt with no delivery (material nobody scheduled) names the supplier
+  // as the load — the receipt still witnesses that it arrived.
+  let line = what ? `${what} — ${supplier || 'supplier not recorded'}` : (supplier || 'Delivery (supplier not recorded)');
+  if (po) line += ` (PO ${po})`;
+  const by = (r.receivedBy ?? '').trim();
+  if (by) line += `, received by ${by}`;
+  if (r.hasDamage) line += ` — DAMAGED: ${(r.damageNotes ?? '').trim() || 'damage noted at receiving, no detail recorded'}`;
+  return line;
+}
+
+/**
+ * The project's receipts for one calendar day (YYYY-MM-DD), as report lines,
+ * in the order they were received.
+ */
+export function receiptLinesForDay(
+  receipts: readonly DeliveryReceipt[] | null | undefined,
+  deliveries: readonly Delivery[] | null | undefined,
+  projectId: string,
+  day: string | null | undefined,
+): ReceiptReportLines {
+  const out: ReceiptReportLines = { materials: [], damage: [] };
+  if (!projectId || !day) return out;
+  const byId = new Map((deliveries ?? []).map(d => [d.id, d] as const));
+  const todays = (receipts ?? [])
+    .filter(r => r && r.projectId === projectId && (r.date ?? '').slice(0, 10) === day)
+    .sort((a, b) => (a.receivedAt ?? '').localeCompare(b.receivedAt ?? ''));
+  for (const r of todays) {
+    const delivery = r.deliveryId ? byId.get(r.deliveryId) : undefined;
+    out.materials.push(receiptMaterialLine(r, delivery));
+    if (r.hasDamage) {
+      const what = (delivery?.description ?? '').trim() || 'Load';
+      const notes = (r.damageNotes ?? '').trim() || 'damage noted at receiving, no detail recorded';
+      out.damage.push(`Damaged delivery: ${what} from ${(r.supplier ?? '').trim() || 'supplier not recorded'} — ${notes}${r.receivedBy ? ` (received by ${r.receivedBy.trim()})` : ''}.`);
+    }
+  }
+  return out;
+}
+
+/**
+ * Merge a day's receipt lines into a materials list without duplicating a line
+ * already there, and — when `dropLines` is given — without keeping lines that
+ * came from ANOTHER day's receipts. "Copy from yesterday" uses that: yesterday's
+ * loads must not stand in for today's.
+ */
+export function mergeReceiptLines(
+  current: readonly string[],
+  receiptLines: readonly string[],
+  dropLines: readonly string[] = [],
+): string[] {
+  const drop = new Set(dropLines);
+  const kept = current.filter(l => !drop.has(l));
+  const have = new Set(kept);
+  return [...kept, ...receiptLines.filter(l => !have.has(l))];
+}
+
+/**
+ * The Issues & Delays text "copy from yesterday" carries forward. The issues
+ * themselves carry (a delay rarely ends at midnight), but the "Damaged
+ * delivery: …" lines yesterday's RECEIPTS wrote are dropped — that load was
+ * damaged yesterday, and on today's dated record it would read as a second
+ * damaged load. Today's receipt damage is then appended once.
+ */
+export function carryIssuesText(
+  carried: string,
+  todayDamage: readonly string[],
+  dropDamage: readonly string[] = [],
+): string {
+  const drop = new Set(dropDamage.map(l => l.trim()));
+  const kept = (carried ?? '').split('\n').filter(l => !drop.has(l.trim())).join('\n').trim();
+  const missing = todayDamage.filter(l => !kept.includes(l));
+  return [kept, ...missing].filter(Boolean).join('\n');
+}

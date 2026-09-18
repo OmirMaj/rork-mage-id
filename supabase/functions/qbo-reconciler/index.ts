@@ -3,9 +3,15 @@
 //
 // Each invocation, per connected qbo_connections row:
 //   1) Re-pushes invoices stuck in 'pending'/'error' (max 5 retries, 50/run).
+//   1b) Pushes every payment MAGE holds that QuickBooks does not (no qboId,
+//      not from QuickBooks) on invoices already in QuickBooks: pay-link
+//      payments the Stripe webhook wrote, and app-recorded payments whose push
+//      failed or raced ahead of their offline invoice write. Max 25/run/user,
+//      5 attempts per payment, each failure written onto the ledger entry.
 //   2) Pulls QBO invoices updated since last_sync_at; when Balance == 0 (paid
-//      in QBO) synthesizes a payment record marked source:'qbo' so the push
-//      path (payment.ts Task 7 guard) does not re-push it back to QBO.
+//      in QBO) books ONLY the QuickBooks Payments MAGE's ledger does not
+//      already account for, capped at the shortfall, keyed qbo-payment-<Id>
+//      and dated with the Payment's TxnDate (_shared/paymentLedger.ts).
 //   2b) Pulls QBO Purchase/Bill lines into the qbo_cost_lines STAGING table
 //       (F5, Friday Close campaign). G11: staged rows reach job costs / the
 //       cost book ONLY through explicit per-line confirmation in the app's
@@ -16,12 +22,91 @@
 //       would skip all cost history on the first run) and from each other
 //       (a shared cursor advances past the full-page entity's unpulled
 //       backlog whenever the other entity has newer rows).
-//   3) Updates qbo_connections.last_sync_at on success; last_error on failure.
+//   3) Advances qbo_connections.last_sync_at — the invoice pull's CURSOR, not
+//      "now" (see nextInvoicePullCursor) — on success; last_error on failure.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { isValidCron } from "../_shared/cronAuth.ts";
 import { qboFetch, svc, type QboConnectionRow } from "../_shared/qbo.ts";
 import { upsertInvoice } from "../_shared/qbo-mapping/invoice.ts";
+import { upsertPaymentForInvoice } from "../_shared/qbo-mapping/payment.ts";
+import { ledgerFrom, settlementStatus, type SettlementInput } from "../_shared/paymentMath.ts";
+import {
+  applyQboMatches,
+  closedFlagChange,
+  closedWithoutPaymentNote,
+  INVOICE_PULL_PAGE_SIZE,
+  isPerObjectQboError,
+  isQboOutageError,
+  keepClosedFlag,
+  knownQboPaymentIds,
+  markPushFailure,
+  matchUnpushedPayments,
+  paymentsToPushToQbo,
+  paymentSweepFloor,
+  nextInvoicePullCursor,
+  planQboPaidReconcile,
+  QBO_CLOSED_WITHOUT_PAYMENT_PREFIX,
+  sweepPushRefusal,
+  qboTaxShortfall,
+  unknownLinkedPayments,
+  withoutClosedFlag,
+  type QboLedgerEntry,
+  type QboLinkedPayment,
+} from "../_shared/paymentLedger.ts";
+
+// ── QBO Invoice / Payment shapes for the paid-invoice pull ────────────────
+interface QboLinkedTxn { TxnId?: string; TxnType?: string }
+interface QboPulledInvoice {
+  Id: string;
+  Balance: number;
+  TotalAmt: number;
+  TxnTaxDetail?: { TotalTax?: number };
+  LinkedTxn?: QboLinkedTxn[];
+  MetaData?: { LastUpdatedTime?: string };
+}
+interface QboPaymentTxn {
+  Id?: string;
+  TxnDate?: string;
+  Line?: { Amount?: number; LinkedTxn?: QboLinkedTxn[] }[];
+}
+
+/** Payment pushes per user per run. A first connection with years of history
+ *  drains over a few cycles instead of blowing the function's time budget. */
+const PAYMENT_PUSH_LIMIT = 25;
+
+/**
+ * The QuickBooks Payments linked to an invoice that `ledger` does not already
+ * name, each reduced to the dollars linked to THIS invoice (one check can pay
+ * several). Payments the ledger names are never fetched, so the common path —
+ * MAGE pushed the payment itself and holds its qboId — makes no request.
+ */
+async function fetchUnknownLinkedPayments(
+  conn: QboConnectionRow,
+  qInv: QboPulledInvoice,
+  ledger: readonly QboLedgerEntry[],
+): Promise<QboLinkedPayment[]> {
+  const known = knownQboPaymentIds(ledger);
+  const ids = [...new Set(
+    (qInv.LinkedTxn ?? [])
+      .filter((t) => t?.TxnType === "Payment" && t.TxnId)
+      .map((t) => String(t.TxnId)),
+  )].filter((id) => !known.has(id));
+  const out: QboLinkedPayment[] = [];
+  for (const pid of ids) {
+    const pr = (await qboFetch(conn, `/payment/${encodeURIComponent(pid)}`, { method: "GET" })) as {
+      Payment?: QboPaymentTxn;
+    };
+    const pay = pr?.Payment;
+    if (!pay) continue;
+    const applied = (pay.Line ?? []).reduce((sum, line) => {
+      const toThis = (line.LinkedTxn ?? []).some((t) => t.TxnType === "Invoice" && String(t.TxnId) === String(qInv.Id));
+      return toThis ? sum + (Number(line.Amount) || 0) : sum;
+    }, 0);
+    out.push({ id: pid, txnDate: pay.TxnDate ?? null, applied: Math.round(applied * 100) / 100 });
+  }
+  return out;
+}
 
 // ── QBO Purchase/Bill line shapes (the fields we read) ─────────────────────
 interface QboExpenseLineDetail {
@@ -128,7 +213,7 @@ serve(async (req) => {
     .eq("status", "connected");
   if (error) return json({ success: false, error: error.message }, 500);
 
-  let pushed = 0, pulled = 0, costStaged = 0, errors = 0;
+  let pushed = 0, paymentsPushed = 0, pulled = 0, costStaged = 0, errors = 0;
 
   for (const row of (conns ?? []) as QboConnectionRow[]) {
     try {
@@ -139,14 +224,14 @@ serve(async (req) => {
       const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
       const { data: pending } = await s
         .from("invoices")
-        .select("id,qbo_retry_count")
+        .select("id,qbo_retry_count,qbo_error")
         .eq("user_id", row.user_id)
         .or("qbo_sync_status.eq.pending,qbo_sync_status.eq.error")
         .or(`qbo_synced_at.is.null,qbo_synced_at.lt.${cutoff}`)
         .lt("qbo_retry_count", 5)
         .limit(50);
 
-      for (const p of (pending ?? []) as { id: string; qbo_retry_count: number | null }[]) {
+      for (const p of (pending ?? []) as { id: string; qbo_retry_count: number | null; qbo_error: string | null }[]) {
         try {
           await upsertInvoice(row, p.id, row.user_id);
           pushed++;
@@ -160,7 +245,8 @@ serve(async (req) => {
             .from("invoices")
             .update({
               qbo_sync_status: "error",
-              qbo_error: String((e as Error).message ?? e).slice(0, 500),
+              // Keeps step 2's closed-without-payment flag (dunning pauses on it).
+              qbo_error: keepClosedFlag(p.qbo_error, String((e as Error).message ?? e).slice(0, 500)),
               qbo_retry_count: nextRetry,
             })
             .eq("id", p.id)
@@ -169,71 +255,286 @@ serve(async (req) => {
       }
 
       // -------------------------------------------------------------------
-      // 2) Pull QBO invoice updates → synthesize payment records for paid-in-QBO.
+      // 1b) Push payments QuickBooks does not have (audit round 2, #15).
+      //
+      //     The app fires a payment push only from updateInvoice, the instant
+      //     it runs. A pay-link payment is written by stripe-webhook, server-
+      //     side, and never passed through it, so the exact money MAGE
+      //     collected stayed open A/R in QuickBooks. A push that failed (the
+      //     invoice write still in the offline queue, the invoice not yet in
+      //     QuickBooks) was swallowed and never retried. This sweep is the one
+      //     place both are closed.
+      //
+      //     Why here and not in the webhook: Intuit ROTATES the refresh token
+      //     on every refresh (saveTokens), and a webhook refreshing in parallel
+      //     with this cron can strand the connection; a QuickBooks outage must
+      //     also never make a Stripe delivery fail. One cron owner, 30 minutes.
+      //
+      //     Settled for 5 minutes (updated_at): an app-triggered push for the
+      //     same payment may still be in flight, and payment.ts's
+      //     `if (pay.qboId) return` only protects AFTER a push has saved.
+      // -------------------------------------------------------------------
+      const settledCutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+      // History before the sweep (or the connection) is never pushed blind:
+      // a bookkeeper may have keyed it as an unlinked deposit. See
+      // PAYMENT_SWEEP_FLOOR — those stay in qbo-setup's count for a person.
+      const sweepFloor = paymentSweepFloor((row as QboConnectionRow & { created_at?: string | null }).created_at);
+      const PAGE = 1000;
+      let pushBudget = PAYMENT_PUSH_LIMIT;
+      for (let from = 0; pushBudget > 0; from += PAGE) {
+        const { data: payRows, error: payErr } = await s
+          .from("invoices")
+          .select("id,number,qbo_id,payments,tax_amount")
+          .eq("user_id", row.user_id)
+          .not("qbo_id", "is", null)
+          .lt("updated_at", settledCutoff)
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (payErr) throw new Error(`invoice payments read: ${payErr.message}`);
+        const batch = (payRows ?? []) as { id: string; number: number; qbo_id: string; payments: unknown; tax_amount: unknown }[];
+
+        for (const inv of batch) {
+          const todo = paymentsToPushToQbo(inv.payments, { notBefore: sweepFloor });
+          if (todo.length === 0) continue;
+          if (pushBudget <= 0) break;
+
+          // Where each attempt's failure is recorded — a fresh read patched by
+          // entry id, so a payment written since our read is never dropped.
+          const recordFailure = async (entryId: string, e: unknown) => {
+            errors++;
+            const { data: fresh } = await s
+              .from("invoices")
+              .select("payments")
+              .eq("id", inv.id)
+              .eq("user_id", row.user_id)
+              .maybeSingle();
+            const next = markPushFailure(
+              (fresh as { payments?: unknown } | null)?.payments,
+              entryId,
+              String((e as Error)?.message ?? e),
+            );
+            if (next) {
+              await s.from("invoices").update({ payments: next }).eq("id", inv.id).eq("user_id", row.user_id);
+            }
+          };
+
+          // Refresh the QuickBooks invoice first (a no-op when its hash is
+          // unchanged) so a released retainage is on it before we read it.
+          try { await upsertInvoice(row, inv.id, row.user_id); } catch { /* payment.ts retries it */ }
+          const readInvoice = async () =>
+            ((await qboFetch(row, `/invoice/${encodeURIComponent(inv.qbo_id)}`, { method: "GET" })) as {
+              Invoice?: QboPulledInvoice;
+            })?.Invoice;
+
+          // READS are split by kind. A 400/404 on THIS invoice or one of its
+          // Payments (deleted in QuickBooks; a qbo_id from a company the GC has
+          // since left) is this invoice's problem: charge it to its payments —
+          // so the attempt cap ends the retries — and move on. Thrown, it used
+          // to stall step 2, the cost staging and the cursor for this GC every
+          // run, forever. Anything else (401 after refresh, 429, 5xx, network,
+          // token refresh) is the connection or QuickBooks: it still aborts the
+          // user's run rather than burning every payment's attempts on an outage.
+          const ledger = ledgerFrom(inv.payments) as QboLedgerEntry[];
+          let qInv: QboPulledInvoice | undefined;
+          let unknown: QboLinkedPayment[];
+          try {
+            qInv = await readInvoice();
+            if (!qInv) throw new Error(`QBO 404 /invoice/${inv.qbo_id}: QuickBooks returned no invoice`);
+            // Does QuickBooks ALREADY have any of this money? (A bookkeeper
+            // keyed it in; payment.ts posted it and failed to save the id; the
+            // app rewrote `payments` from a copy older than the id.) Match
+            // those to their QuickBooks Payment instead of pushing them again.
+            unknown = unknownLinkedPayments(ledger, await fetchUnknownLinkedPayments(row, qInv, ledger));
+          } catch (readErr) {
+            if (!isPerObjectQboError(readErr)) throw readErr;
+            for (const entry of todo) {
+              await recordFailure(
+                entry.id,
+                `QuickBooks could not find invoice #${inv.number} or a payment on it (deleted there, or MAGE is now connected to a different company), so this payment was not sent. ${String((readErr as Error)?.message ?? readErr)}`,
+              );
+            }
+            continue;
+          }
+          const { matches } = matchUnpushedPayments(ledger, unknown);
+          if (matches.length > 0) {
+            const { data: fresh } = await s
+              .from("invoices")
+              .select("payments")
+              .eq("id", inv.id)
+              .eq("user_id", row.user_id)
+              .maybeSingle();
+            const next = applyQboMatches((fresh as { payments?: unknown } | null)?.payments, matches);
+            if (next) {
+              await s.from("invoices").update({ payments: next }).eq("id", inv.id).eq("user_id", row.user_id);
+            }
+          }
+          const matchedIds = new Set(matches.map((x) => x.entryId));
+
+          let balance = Number(qInv.Balance ?? NaN);
+          // QuickBooks' own sales tax may be lower than MAGE's (invoice.ts
+          // syncs that invoice with a tax note), so the client's last payment
+          // of MAGE's figure lands over its balance by the tax gap. Allowed —
+          // but only when every payment QuickBooks has on the invoice is one
+          // the ledger knows; unknown money there means a short balance may be
+          // a hand-entered duplicate, and then nothing is allowed.
+          const taxShortfall = unknown.length === matches.length
+            ? qboTaxShortfall(inv.tax_amount, qInv.TxnTaxDetail?.TotalTax)
+            : 0;
+          for (const entry of todo) {
+            if (matchedIds.has(entry.id)) continue;
+            if (pushBudget <= 0) break;
+            pushBudget--;
+            // QuickBooks is open for LESS than this payment with the money
+            // unmatched: closed some other way (Balance 0), or the bookkeeper
+            // already keyed it in net of fees. payment.ts would park the gap
+            // as unapplied customer credit — income twice. Never do that blind.
+            const refusal = sweepPushRefusal(Number(entry.amount), balance, inv.number, taxShortfall);
+            if (refusal) {
+              await recordFailure(entry.id, refusal);
+              continue;
+            }
+            try {
+              await upsertPaymentForInvoice(row, `${inv.id}::${entry.id}`, row.user_id);
+              paymentsPushed++;
+              balance = Number((await readInvoice())?.Balance ?? NaN);
+            } catch (e) {
+              // Same split as the reads above: QuickBooks or the connection
+              // being down is not this payment's fault. Rethrow — the user's
+              // run aborts and retries next cycle WITHOUT spending the entry's
+              // MAX_PAYMENT_PUSH_ATTEMPTS. (A POST that timed out after
+              // QuickBooks took it is matched by amount next run, not re-sent.)
+              if (isQboOutageError(e)) throw e;
+              await recordFailure(entry.id, e);
+            }
+          }
+          if (pushBudget <= 0) break;
+        }
+        if (batch.length < PAGE) break;
+      }
+
+      // -------------------------------------------------------------------
+      // 2) Pull QBO invoice updates → book QuickBooks-side payments MAGE lacks.
+      //
+      //    This used to append a full-TotalAmt payment whenever no entry was
+      //    tagged source:'qbo'. MAGE's own pushed payments are tagged 'mage'
+      //    and pay-link payments carry no source, so every invoice paid in full
+      //    in MAGE was counted TWICE one cycle later: payment.ts's push drops
+      //    the QuickBooks Balance to 0, which bumps LastUpdatedTime, which is
+      //    this query's window. The decision is now made on the money
+      //    (planQboPaidReconcile); see _shared/paymentLedger.ts.
       // -------------------------------------------------------------------
       const sinceIso = row.last_sync_at ?? "1970-01-01T00:00:00Z";
       // QBO CWQL expects 'YYYY-MM-DD HH:MM:SS' (no T, no timezone suffix).
       const since = sinceIso.replace("T", " ").replace(/\..*$/, "").slice(0, 19);
+      // Taken BEFORE the query: anything QuickBooks records after this moment
+      // is re-read next run (nextInvoicePullCursor), never skipped.
+      const invoicePullStartMs = Date.now();
 
+      // `select *` — LinkedTxn (the Payments applied to the invoice) is not
+      // returned by a narrowed select list.
       const q = (await qboFetch(
         row,
         "/query?query=" +
           encodeURIComponent(
-            `select Id, Balance, TotalAmt, MetaData from Invoice where MetaData.LastUpdatedTime > '${since}' MAXRESULTS 200`,
+            `select * from Invoice where MetaData.LastUpdatedTime >= '${since}' orderby MetaData.LastUpdatedTime MAXRESULTS ${INVOICE_PULL_PAGE_SIZE}`,
           ),
         { method: "GET" },
-      )) as {
-        QueryResponse?: {
-          Invoice?: { Id: string; Balance: number; TotalAmt: number }[];
-        };
-      };
+      )) as { QueryResponse?: { Invoice?: QboPulledInvoice[] } };
 
       const updated = q?.QueryResponse?.Invoice ?? [];
       for (const qInv of updated) {
-        if (qInv.Balance > 0 || qInv.TotalAmt === 0) continue; // not fully paid yet (or voided)
+        if (qInv.Balance > 0 || qInv.TotalAmt === 0) {
+          // Not fully paid yet (or voided). If this run once flagged it closed
+          // without a payment and the bookkeeper has since reopened it, lift
+          // the flag so reminders resume. Matches no row in the normal case.
+          // Only the flag lifts: a push error appended after it stays.
+          if (qInv.Balance > 0) {
+            const { data: flagged } = await s
+              .from("invoices")
+              .select("id,qbo_error")
+              .eq("qbo_id", qInv.Id)
+              .eq("user_id", row.user_id)
+              .like("qbo_error", `${QBO_CLOSED_WITHOUT_PAYMENT_PREFIX}%`);
+            for (const f of (flagged ?? []) as { id: string; qbo_error: string | null }[]) {
+              await s
+                .from("invoices")
+                .update({ qbo_error: withoutClosedFlag(f.qbo_error) })
+                .eq("id", f.id)
+                .eq("user_id", row.user_id)
+                .like("qbo_error", `${QBO_CLOSED_WITHOUT_PAYMENT_PREFIX}%`);
+            }
+          }
+          continue;
+        }
 
         // Find the matching local invoice by qbo_id.
         const { data: m } = await s
           .from("invoices")
-          .select("id,payments")
+          .select("id,payments,status,total_due,subtotal,retention_percent,retention_amount,retention_released,updated_at,qbo_error,qbo_sync_status")
           .eq("qbo_id", qInv.Id)
           .eq("user_id", row.user_id)
           .maybeSingle();
         if (!m) continue;
+        const localInv = m as SettlementInput & {
+          id: string; payments?: unknown; status?: string | null; updated_at?: string | null; qbo_error?: string | null; qbo_sync_status?: string | null;
+        };
 
-        const localInv = m as { id: string; payments?: { id: string; source?: string }[] };
-        const payments = localInv?.payments ?? [];
+        const linkedPayments = await fetchUnknownLinkedPayments(
+          row, qInv, ledgerFrom(localInv.payments) as QboLedgerEntry[],
+        );
 
-        // Skip if we already have a QBO-sourced payment (prevents re-processing
-        // the same paid invoice every 30 min after the initial synthesize).
-        const hasQboPayment = payments.some((p) => p.source === "qbo");
-        if (hasQboPayment) continue;
+        const lastUpdated = qInv.MetaData?.LastUpdatedTime;
+        const plan = planQboPaidReconcile({
+          payments: localInv.payments,
+          totalAmt: qInv.TotalAmt,
+          linkedPayments,
+          // QuickBooks' own local timestamp; its first 10 chars are the
+          // company's calendar day, not a UTC re-projection.
+          fallbackDate: typeof lastUpdated === "string" && /^\d{4}-\d{2}-\d{2}/.test(lastUpdated)
+            ? lastUpdated.slice(0, 10)
+            : undefined,
+        });
+        // QuickBooks closed the invoice with something that is not cash (a
+        // credit memo, a journal entry, a write-off). Never booked as cash —
+        // but no longer silent either: the flag is what qbo-setup counts and
+        // what pauses invoice-dunning's cron, so the client is not chased for
+        // an invoice the bookkeeper closed. A later run that finds the gap
+        // explained (the payment recorded after all) lifts it.
+        const flag = plan.unexplained > 0 ? closedWithoutPaymentNote(plan.unexplained) : null;
+        // A tax note or a push error already on the row (status 'error')
+        // stays after the flag (keepClosedFlag) — an errored push used to skip
+        // the flag, and the dunning cron kept chasing a closed invoice.
+        // Lifting the flag leaves whatever followed it.
+        const flagChange = closedFlagChange(localInv.qbo_error, flag);
+        if (!plan.changed) {
+          if ("qbo_error" in flagChange) {
+            await s.from("invoices").update(flagChange).eq("id", localInv.id).eq("user_id", row.user_id);
+          }
+          continue;
+        }
 
-        // Synthesize a payment marked source:'qbo'. The push path (Task 7's
-        // feedback-loop guard in payment.ts) checks for this marker and skips
-        // pushing such payments back to QBO, preventing an infinite loop.
-        const next = [
-          ...payments,
-          {
-            id: `qbo-${qInv.Id}-${Date.now()}`,
-            date: new Date().toISOString().slice(0, 10),
-            amount: qInv.TotalAmt,
-            method: "qbo",
-            source: "qbo" as const,
-          },
-        ];
-
-        await s
+        // Optimistic: a webhook or app write to this row since our read would
+        // be clobbered by writing our copy of the ledger. On a miss, throw —
+        // the cursor is not stamped and the next run re-reads.
+        let upd = s
           .from("invoices")
           .update({
-            payments: next,
-            amount_paid: qInv.TotalAmt,
-            status: "paid",
+            payments: plan.ledger,
+            amount_paid: plan.amountPaid,
+            status: settlementStatus(localInv.status, plan.amountPaid, localInv),
+            ...flagChange,
+            updated_at: new Date().toISOString(),
           })
           .eq("id", localInv.id)
           .eq("user_id", row.user_id);
+        if (localInv.updated_at) upd = upd.eq("updated_at", localInv.updated_at);
+        const { data: wrote, error: wErr } = await upd.select("id");
+        if (wErr) throw new Error(`invoice reconcile write: ${wErr.message}`);
+        if (!wrote || (wrote as unknown[]).length === 0) {
+          throw new Error(`invoice ${localInv.id} changed during reconcile; retrying next run`);
+        }
 
-        pulled++;
+        if (plan.appended.length > 0) pulled++;
       }
 
       // -------------------------------------------------------------------
@@ -415,11 +716,16 @@ serve(async (req) => {
         .eq("user_id", row.user_id);
 
       // -------------------------------------------------------------------
-      // 3) Stamp this connection's last successful sync time.
+      // 3) Advance the invoice pull's cursor. NOT "now at the end of the run":
+      //    that skipped every payment the bookkeeper recorded while this run
+      //    worked, and everything past a full first page. qbo-setup shows it
+      //    as "Last reconcile", so it now reads up to 5 minutes early.
       // -------------------------------------------------------------------
       await s
         .from("qbo_connections")
-        .update({ last_sync_at: new Date().toISOString() })
+        .update({
+          last_sync_at: nextInvoicePullCursor({ sinceIso: row.last_sync_at, queryStartMs: invoicePullStartMs, rows: updated }),
+        })
         .eq("user_id", row.user_id);
     } catch (e) {
       errors++;
@@ -430,5 +736,5 @@ serve(async (req) => {
     }
   }
 
-  return json({ success: true, pushed, pulled, costStaged, errors });
+  return json({ success: true, pushed, paymentsPushed, pulled, costStaged, errors });
 });

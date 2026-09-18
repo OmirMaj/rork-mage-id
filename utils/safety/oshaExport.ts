@@ -6,11 +6,14 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { SafetyIncident } from '@/types';
-import { buildOsha300Log, buildOsha300Html, osha300ToCsv, type OshaEstablishment } from '@/utils/safety/oshaLog';
+import { buildOsha300Log, buildOsha300Html, osha300ToCsv, type OshaEstablishment, type Osha300ASummaryInput } from '@/utils/safety/oshaLog';
 
-export async function exportOsha300Pdf(incidents: SafetyIncident[], est: OshaEstablishment): Promise<void> {
+/** `summary` is the 300A page — passed only once the user has confirmed the
+ *  hours and headcount on screen; without it the PDF carries the 300 and its
+ *  column totals and nothing that depends on an unconfirmed denominator. */
+export async function exportOsha300Pdf(incidents: SafetyIncident[], est: OshaEstablishment, summary?: Osha300ASummaryInput): Promise<void> {
   const rows = buildOsha300Log(incidents, est.year);
-  const html = buildOsha300Html(rows, est);
+  const html = buildOsha300Html(rows, est, summary);
   if (Platform.OS === 'web') {
     if (typeof window === 'undefined') return;
 // NO 'noopener' in the feature string. Per the HTML spec, window.open()

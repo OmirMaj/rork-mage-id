@@ -13,9 +13,14 @@
 // fontSize).
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Project } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { useTheme } from '@/contexts/ThemeContext';
 import LockedAccessCard from '@/components/LockedAccessCard';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -41,7 +46,29 @@ const HEALTH_LABEL: Record<MarginHealth, string> = { healthy: 'HEALTHY', watch: 
 export default function ProjectHero({ project }: { project: Project }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { getInvoicesForProject, getChangeOrdersForProject, getCommitmentsForProject, getRFIsForProject, getPunchItemsForProject } = useProjects();
+  const {
+    getInvoicesForProject, getChangeOrdersForProject, getCommitmentsForProject, getRFIsForProject, getPunchItemsForProject,
+    equipment, permits, subcontractors,
+  } = useProjects();
+  // The cost streams Job Costing prices (audit round 2, #16). This hero is the
+  // first margin a GC sees on a job; without receipts and priced crew hours it
+  // counted a self-perform overrun up to the bid margin and labelled it
+  // HEALTHY while Job Costing, one tap away, showed the job over.
+  const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+  // Those stores default to [] / {} while AsyncStorage is read. For that beat
+  // a self-perform job priced at its bid margin and the hero COUNTED UP to it
+  // under a HEALTHY bracket, then snapped to the real number — a guess animated
+  // as a reading. Hold the number until they have loaded. The mirror hook has
+  // no loading flag, so read its cache entry; this component re-renders when
+  // it resolves because useTimeEntriesMirror subscribes.
+  const queryClient = useQueryClient();
+  const mirrorLoaded = queryClient.getQueryState(TIME_ENTRIES_MIRROR_QUERY_KEY)?.data !== undefined;
+  const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;
   const { role, isError: roleError } = useProjectRoleState(project.id);
 
   const invoices = getInvoicesForProject(project.id);
@@ -51,9 +78,9 @@ export default function ProjectHero({ project }: { project: Project }) {
   const punch = getPunchItemsForProject(project.id);
 
   const { living, risk } = useMemo(() => ({
-    living: computeLivingEstimate({ project, changeOrders, commitments, invoices }),
-    risk: computeMarginRisk({ project, changeOrders, commitments, invoices }),
-  }), [project, changeOrders, commitments, invoices]);
+    living: computeLivingEstimate({ project, changeOrders, commitments, invoices, costSources }),
+    risk: computeMarginRisk({ project, changeOrders, commitments, invoices, costSources }),
+  }), [project, changeOrders, commitments, invoices, costSources]);
 
   const marginPct = living.projected.marginPct * 100;
   const erosion = living.marginErosionPoints; // pts, negative = eroded from bid
@@ -70,20 +97,23 @@ export default function ProjectHero({ project }: { project: Project }) {
   const anim = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(0);
   useEffect(() => {
+    // Not until the cost streams are in — see costSourcesReady above.
+    if (!costSourcesReady) return;
     const id = anim.addListener(({ value }) => setShown(value));
     anim.setValue(0);
     Animated.timing(anim, { toValue: marginPct, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
     return () => anim.removeListener(id);
-  }, [anim, marginPct]);
+  }, [anim, marginPct, costSourcesReady]);
 
   // ── dimension bracket draws out ──
   const bracket = useRef(new Animated.Value(0)).current;
   // ── spirit-level bubble settles toward its risk position ──
   const bubble = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (!costSourcesReady) return;
     Animated.timing(bracket, { toValue: 1, duration: 900, delay: 250, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
     Animated.spring(bubble, { toValue: Math.max(0, Math.min(1, risk.score / 100)), friction: 5, tension: 40, delay: 350, useNativeDriver: true }).start();
-  }, [bracket, bubble, risk.score]);
+  }, [bracket, bubble, risk.score, costSourcesReady]);
 
   // Field-role collaborators never see the money hero. canViewFinancials fails
   // CLOSED (null role while loading → hidden) so a margin never flashes before
@@ -109,6 +139,22 @@ export default function ProjectHero({ project }: { project: Project }) {
     );
   }
   if (!risk.hasBasis) return null;
+  if (!costSourcesReady) {
+    return (
+      <View
+        style={styles.card}
+        testID="project-hero-loading"
+        accessibilityRole="progressbar"
+        accessibilityLabel="Loading crew hours and receipts"
+      >
+        <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={t.accent} />
+          <Text style={styles.loadingText}>Loading crew hours and receipts…</Text>
+        </View>
+      </View>
+    );
+  }
 
   const healthColor = health === 'healthy' ? t.success : health === 'watch' ? t.accent : t.danger;
   // The risk readout gets its OWN colour. Until 2026-09-07 both the band label
@@ -214,6 +260,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   erosion: { fontSize: Type.footnote.fontSize, fontWeight: '600', marginTop: 12 },
   unavailable: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 19 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  loadingText: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
 
   levelWrap: { marginTop: 18 },
   levelHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },

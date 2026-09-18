@@ -107,9 +107,31 @@ export async function upsertPaymentForInvoice(conn: QboConnectionRow, encodedId:
   const qboPaymentId = r?.Payment?.Id;
   if (!qboPaymentId) throw new Error('QBO did not return a Payment.Id');
 
-  const nextPayments = inv.payments.map(p => p.id === paymentId
-    ? { ...p, qboId: qboPaymentId, source: 'mage' as const, qboApplied: applied }
-    : p);
+  // RE-READ, THEN PATCH BY ID. `inv.payments` was read several QuickBooks round
+  // trips ago (invoice refresh, customer, balance, POST). Writing that copy back
+  // dropped any payment stripe-webhook or the app added to this invoice in the
+  // meantime — out of the ledger, while amount_paid kept it. Same shape as
+  // paymentLedger.markPushFailure / applyQboMatches (inlined, not imported:
+  // validate-money-definitions runs this file in a sandbox with only its own
+  // siblings). The read→write window left is milliseconds, not seconds.
+  const { data: fresh, error: freshErr } = await s.from('invoices').select('payments').eq('id', invoiceId).eq('user_id', userId).maybeSingle();
+  if (freshErr) throw new Error(`invoice re-read: ${freshErr.message}`);
+  const freshPayments = (fresh as { payments?: unknown } | null)?.payments;
+  const ledger = Array.isArray(freshPayments) ? freshPayments as InvoicePaymentBlob[] : [];
+  const target = ledger.find(p => p && p.id === paymentId);
+  if (!target || target.qboId) {
+    // Deleted in MAGE, or stamped by a parallel push, while this one was in
+    // flight. QuickBooks now holds Payment <qboPaymentId>; the reconciler's
+    // exact-amount matching (or a person) reconciles it. Never re-add it here.
+    console.warn(`[qbo payment] ${paymentId} on invoice #${inv.number} ${target ? `already carries QuickBooks payment ${target.qboId}` : 'was removed'} while QuickBooks payment ${qboPaymentId} was being posted`);
+    return;
+  }
+  const nextPayments = ledger.map(p => {
+    if (p !== target) return p;
+    const { qboError: _drop, ...rest } = p as InvoicePaymentBlob & { qboError?: string };
+    void _drop;
+    return { ...rest, qboId: qboPaymentId, source: 'mage' as const, qboApplied: applied };
+  });
   const { error: updateErr } = await s.from('invoices').update({ payments: nextPayments }).eq('id', invoiceId).eq('user_id', userId);
   if (updateErr) throw new Error(`invoice update: ${updateErr.message}`);
 }

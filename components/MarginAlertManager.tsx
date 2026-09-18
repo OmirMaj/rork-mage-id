@@ -3,7 +3,8 @@
 // app/margin-alerts is the inbox you open. This is the part that taps you on the
 // shoulder when you DON'T. Mounted once at the root (under NotificationProvider,
 // inside ProjectProvider so it can read the portfolio), it re-runs the margin
-// engines whenever project/CO/commitment/invoice data changes and fires a local
+// engines whenever project/CO/commitment/invoice data — or a receipt, a logged
+// shift, a labor rate — changes and fires a local
 // notification for any job that has freshly crossed into high or critical margin
 // risk since the user last acknowledged.
 //
@@ -16,12 +17,17 @@
 // Risk engines over active jobs only, synchronously, the same work the Margin
 // Board already does in a memo. For real portfolios that's negligible.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { sendLocalNotification } from '@/utils/notifications';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import {
@@ -33,14 +39,41 @@ import {
 export default function MarginAlertManager() {
   const { isAuthenticated } = useAuth();
   const { canAccess } = useTierAccess();
-  const { projects, changeOrders, commitments, invoices } = useProjects();
+  const {
+    projects, changeOrders, commitments, invoices, equipment, permits, subcontractors,
+  } = useProjects();
   const running = useRef(false);
+
+  // The same cost streams app/job-costing.tsx prices (audit round 2, #16).
+  // Without them every self-perform job read 'healthy' here and this push —
+  // the one that exists to warn about margin fade — never fired on crew
+  // overtime or material overruns. They are all react-query reads under the
+  // root QueryClientProvider, so a root-mounted component reaches them fine.
+  const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+  // Hold evaluation until those local stores have loaded. Evaluating on the
+  // empty defaults would read the job subs-only for one pass, and that pass is
+  // not harmless: it prunes a still-standing alert out of the notified set, so
+  // the next (full) pass pushes the same crossing a second time — and the
+  // `running` guard below can drop that full pass entirely if it lands while
+  // the partial one is in flight. The mirror hook exposes no loading flag, so
+  // read its cache entry — by the EXPORTED key, not a copied literal, so a
+  // rename in hooks/useTimeEntries.ts cannot leave this gate reading an entry
+  // that never fills (which would hold the push forever); this component
+  // re-renders when the mirror resolves because it subscribes.
+  const queryClient = useQueryClient();
+  const mirrorLoaded = queryClient.getQueryState(TIME_ENTRIES_MIRROR_QUERY_KEY)?.data !== undefined;
+  const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;
 
   // Web has no OS notifications; free tier can't open the inbox anyway.
   const enabled = isAuthenticated && Platform.OS !== 'web' && canAccess('job_costing');
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !costSourcesReady) return;
     if (running.current) return;
     running.current = true;
 
@@ -54,7 +87,7 @@ export default function MarginAlertManager() {
         const notified: string[] = notifiedRaw ? JSON.parse(notifiedRaw) : [];
 
         const { baselines, names } = computeCurrentBaselines({
-          projects, changeOrders, commitments, invoices,
+          projects, changeOrders, commitments, invoices, costSources,
         });
         const alerts = computeAlerts(baselines, names, acknowledged);
         const notifiable = selectNotifiable(alerts);
@@ -114,7 +147,7 @@ export default function MarginAlertManager() {
         running.current = false;
       }
     })();
-  }, [enabled, projects, changeOrders, commitments, invoices]);
+  }, [enabled, costSourcesReady, projects, changeOrders, commitments, invoices, costSources]);
 
   return null;
 }

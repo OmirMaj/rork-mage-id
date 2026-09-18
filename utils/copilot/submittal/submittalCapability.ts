@@ -4,6 +4,7 @@
 import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
 import { submittalGaps, type SubmittalDraft } from './submittalGaps';
 import { buildSubmittalGrounding } from './submittalGrounding';
+import { todayCalendarDay, toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
 
 export interface SubmittalApplied { route: '/submittal'; projectId: string; params: { projectId: string } }
 
@@ -63,8 +64,12 @@ export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApp
     if (!ctx.project) throw new Error('No project for this submittal.');
     const title = (draft.title ?? '').trim();
     if (!title) throw new Error('Tell me what’s being submitted first.');
-    const today = new Date().toISOString().slice(0, 10);
-    const requiredDate = new Date(Date.now() + (draft.urgent ? 7 : 14) * 86400000).toISOString().slice(0, 10);
+    // The LOCAL calendar day, not the UTC one. `new Date().toISOString().slice(0, 10)`
+    // is tomorrow's date from about 5-8 pm anywhere west of Greenwich, so a
+    // voice-logged record filed after the crew knocked off carried the NEXT
+    // day and its due date was a day out (audit round 2, #2 appendix).
+    const today = todayCalendarDay();
+    const requiredDate = toCalendarDayString(addCalendarDays(new Date(), draft.urgent ? 7 : 14));
 
     ctx.ctx?.addSubmittal?.({
       projectId: ctx.projectId,

@@ -14,8 +14,10 @@
 // Also exports useLaborCostSamples(): the read-side bridge that grounding
 // screens (estimate wizard, quick estimate, judges, cost database) mount to
 // fold self-perform labor into buildCostDatabase's 4th param. It reads the
-// time-entry local mirror directly (no notification side effects — mounting
-// hooks/useTimeEntries.ts elsewhere would re-schedule shift alerts).
+// time-entry costing mirror from storage through hooks/useTimeEntries'
+// loadTimeEntriesMirror — the user's own shifts plus the crew hours others
+// logged on the jobs he OWNS (#28) — and never the store's context, so it has
+// no notification side effects and works on any screen.
 
 import { useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -26,7 +28,7 @@ import {
   buildLaborSamples, normalizeOvertimeMultiplier, DEFAULT_OVERTIME_MULTIPLIER,
   type LaborRateMap,
 } from '@/utils/laborSamples';
-import { TIME_ENTRIES_STORAGE_KEY } from '@/hooks/useTimeEntries';
+import { loadTimeEntriesMirror } from '@/hooks/useTimeEntries';
 
 const RATES_KEY = 'mageid_labor_rates';
 const RATES_QUERY = ['labor-rates'] as const;
@@ -145,28 +147,23 @@ export function useLaborRates() {
   return { rates, isLoading, setRate, setRates, overtimeMultiplier, setOvertimeMultiplier };
 }
 
-async function loadEntriesMirror(): Promise<TimeEntry[]> {
-  try {
-    const raw = await AsyncStorage.getItem(TIME_ENTRIES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as TimeEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
- * Read-only view of the time-entry local mirror (kept fresh by the Time
- * Tracking screen / offline sync); re-read on each mounting screen. On a
- * brand-new device the mirror is empty until Time Tracking first syncs —
- * grounding just has no labor facts yet, which is honest. Deliberately NOT
- * useTimeEntries: mounting that hook re-schedules shift-alert notifications.
+ * Read-only view of the time-entry local mirror: the user's own shifts plus
+ * the team's shifts on projects he owns (hooks/useTimeEntries
+ * loadTimeEntriesMirror). Re-read on each mounting screen, and invalidated by
+ * the time-entry store after every write (TIME_ENTRIES_MIRROR_QUERY_KEY). On a
+ * brand-new device the mirror is empty until the store first syncs —
+ * grounding just has no labor facts yet, which is honest. It reads storage
+ * rather than the store's context so it stays a plain read wherever it is
+ * called; it never touches shift alerts or the timesheet.
  */
 export function useTimeEntriesMirror(): TimeEntry[] {
   const { data: entries = [] } = useQuery({
     queryKey: ENTRIES_MIRROR_QUERY,
-    queryFn: loadEntriesMirror,
+    // Own shifts + the crew hours others logged on the jobs this user OWNS
+    // (#28). Reading only the own-shift key showed $0 self-perform labour on
+    // every job a foreman clocked the crew in on.
+    queryFn: loadTimeEntriesMirror,
     refetchOnMount: 'always',
   });
   return entries;

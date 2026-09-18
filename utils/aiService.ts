@@ -11,6 +11,7 @@ import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } f
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 import { resolveScheduleAnchor, scheduleDayNumberFor } from '@/utils/scheduleOps';
+import { dayOrInstantDate } from '@/utils/calendarDate';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -327,7 +328,7 @@ export async function generateHomeownerSummary(
     ? `${dfr.weather.conditions ?? ''} ${dfr.weather.temperature ?? ''}`.trim()
     : '';
   const dateLabel = (() => {
-    try { return new Date(dfr.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
+    try { return dayOrInstantDate(dfr.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
     catch { return dfr.date; }
   })();
 

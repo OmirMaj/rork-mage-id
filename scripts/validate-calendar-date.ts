@@ -36,9 +36,11 @@ import { join } from 'path';
 import { spawnSync } from 'child_process';
 import {
   formatCalendarDay, parseCalendarDay, toCalendarDayString, todayCalendarDay, daysUntilCalendarDay,
-  addCalendarMonths, addCalendarDays, calendarDayOf, calendarDayStart,
+  addCalendarMonths, addCalendarDays, calendarDayOf, calendarDayStart, dayOrInstantDate,
 } from '../utils/calendarDate';
 import { addWorkingDays } from '../utils/scheduleEngine';
+import { buildPortalSnapshot } from '../utils/portalSnapshot';
+import type { ClientPortalSettings, DailyFieldReport, Project } from '../types';
 
 const ROOT = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -342,6 +344,43 @@ function runtimeChecks() {
     eq('parse rejects month 13', parseCalendarDay('2026-13-01'), null);
     eq('parse rejects day 45', parseCalendarDay('2026-01-45'), null);
   }
+
+  // DailyFieldReport.date holds an instant from every writer but a bare local
+  // day from the voice report for a while (rows on devices and in a text
+  // column). Its readers go through dayOrInstantDate; `new Date('2026-09-17')`
+  // is UTC midnight and printed "Wednesday, September 16" in Denver.
+  {
+    const bare = dayOrInstantDate('2026-09-17');
+    eq("dayOrInstantDate: a bare '2026-09-17' is the 17th here", bare.getDate(), 17);
+    eq('…and a Thursday here', bare.toLocaleDateString('en-US', { weekday: 'long' }), 'Thursday');
+    eq('…and its ISO form still names the 17th (noon survives re-serialising)', bare.toISOString().slice(0, 10), '2026-09-17');
+    const inst = '2026-09-17T15:04:05.000Z';
+    eq('…an instant passes through untouched', dayOrInstantDate(inst).getTime(), new Date(inst).getTime());
+    ok('…garbage stays an Invalid Date, as new Date() gave', Number.isNaN(dayOrInstantDate('nope').getTime()));
+    ok('…and so does a missing value', Number.isNaN(dayOrInstantDate(undefined).getTime()));
+  }
+
+  // The homeowner portal's Daily Reports card formats `date` with
+  // `new Date(iso).toLocaleDateString()`. A bare day an older voice build
+  // saved went out as-is and printed the day before west of Greenwich; the
+  // snapshot now sends that day's local-noon instant, and sorts the same way.
+  {
+    const project = { id: 'p1', name: 'Maple St', status: 'in_progress' } as unknown as Project;
+    const portal = { portalId: 'x', enabled: true, showDailyReports: true } as unknown as ClientPortalSettings;
+    const eveningBefore = new Date(2026, 8, 14, 20).toISOString(); // Sep 14, 8 pm local
+    const snap = buildPortalSnapshot({
+      project, portal,
+      dailyReports: [
+        { id: 'inst', projectId: 'p1', date: eveningBefore, manpower: [], workPerformed: 'a' },
+        { id: 'bare', projectId: 'p1', date: '2026-09-15', manpower: [], workPerformed: 'b' },
+      ] as unknown as DailyFieldReport[],
+    });
+    const rows = (snap.sections.dailyReports ?? []) as { id: string; date: string }[];
+    const bare = rows.find(r => r.id === 'bare');
+    eq("portal DFR card: a bare '2026-09-15' report prints the 15th here", bare ? new Date(bare.date).getDate() : null, 15);
+    eq('…an instant report keeps its instant', rows.find(r => r.id === 'inst')?.date, eveningBefore);
+    eq('…and the 15th sorts ahead of the evening of the 14th', rows.map(r => r.id).join(','), 'bare,inst');
+  }
 }
 
 if (process.env[TZ_CHILD_FLAG]) {
@@ -379,10 +418,14 @@ for (const tz of TIMEZONES) {
 interface Allowed { file: string; line: string; reason: string; added: string }
 const ALLOWED: Allowed[] = [
   // ── Full ISO instants (written with toISOString()), never a bare day ──
+  { file: 'components/punch/PunchExportSheet.tsx', line: 'new Date(model.generatedAtIso)', added: '2026-09-17',
+    reason: 'utils/punchExportCore.ts sets generatedAtIso = now.toISOString() — the INSTANT the export was built, never a bare day. It is turned back into a Date only to stamp the file name through exportFileName, which formats the LOCAL day itself; the two call sites are the native PDF and the web print.' },
   { file: 'app/wip-report.tsx', line: "Date.parse(raw.updated_at ?? '')", added: '2026-09-08',
     reason: 'wip_cost_overrides.updated_at is a timestamptz — an INSTANT, not a calendar day. It is parsed to milliseconds only to decide which of two devices wrote last (string compare over mixed offsets would let the laptop\'s newer figure lose to the phone\'s older one, which is the failure the override sync exists to fix). No day is ever named from it.' },
-  { file: 'app/daily-report.tsx', line: 'new Date(reportDate)', added: '2026-09-04',
-    reason: 'reportDate is an instant — useState(new Date().toISOString()) / DatePickerModal.onChange(picked.toISOString()); daily_reports.date is a text column that round-trips it unchanged' },
+  // `new Date(reportDate)` (daily-report), `new Date(dr.date)` (report-inbox,
+  // project-detail) and project-detail's DFR sort keys used to sit here as
+  // "an instant". They were not always: the voice report stored a bare day for
+  // a while. All now read through dayOrInstantDate (pinned by name above).
   // `new Date(lastReport.date)` used to sit here. It is gone: DFR-CARRY-LABEL
   // replaced both readers with carrySourceDayLabel / carrySourceDayAbsolute,
   // which resolve the day through calendarDayOf and are executed for real in
@@ -391,8 +434,6 @@ const ALLOWED: Allowed[] = [
     reason: 'sort key over DailyFieldReport.date instants; ordering is unaffected by the UTC/local question' },
   { file: 'app/daily-report.tsx', line: 'Date.parse(a.date)', added: '2026-09-04',
     reason: 'sort key over DailyFieldReport.date instants (the other half of the same comparator)' },
-  { file: 'app/report-inbox.tsx', line: 'new Date(dr.date)', added: '2026-09-04',
-    reason: 'DailyFieldReport.date is a full ISO instant (see app/daily-report.tsx), so an instant parse names the local day correctly' },
   // RFI.dateRequired is NOT an instant: app/photo-triage.tsx and the voice
   // parsers write a bare 'YYYY-MM-DD', DatePickerModal writes noon UTC, and
   // app/rfi.tsx's two-week default is a bare local day. Every screen reader
@@ -441,9 +482,6 @@ const ALLOWED: Allowed[] = [
   { file: 'app/shared-photos.tsx', line: 'new Date(dates[0])', added: '2026-09-04', reason: 'photo capture timestamps (payload.photos[].ts), instants' },
   { file: 'app/shared-photos.tsx', line: 'new Date(dates[dates.length - 1])', added: '2026-09-04', reason: 'photo capture timestamps, instants' },
   { file: 'app/project-detail.tsx', line: 'new Date(inv.dueDate)', added: '2026-09-04', reason: 'Invoice.dueDate instant' },
-  { file: 'app/project-detail.tsx', line: 'new Date(dr.date)', added: '2026-09-04', reason: 'DailyFieldReport.date instant (see app/daily-report.tsx)' },
-  { file: 'app/project-detail.tsx', line: 'new Date(b.date)', added: '2026-09-04', reason: 'DFR sort key over instants' },
-  { file: 'app/project-detail.tsx', line: 'new Date(a.date)', added: '2026-09-04', reason: 'DFR sort key, other operand' },
   // Two sibling entries (new Date(inv.dueDate), new Date(lastPayment.date)) were
   // removed 2026-09-07: the per-client prediction rewrite deleted both call
   // sites, and an ALLOWED entry with no live site is a blind entry — it would
@@ -472,8 +510,11 @@ const ALLOWED: Allowed[] = [
  */
 interface Unresolved extends Allowed { status: 'defect' | 'unverified' }
 const UNRESOLVED: Unresolved[] = [
-  { file: 'app/time-tracking.tsx', line: 'new Date(entry.date)', status: 'defect', added: '2026-09-04',
-    reason: 'hooks/useTimeEntries.ts:307 writes the UTC day (toISOString().split(\'T\')[0]) and this parses it as UTC — history weekday is a day early and the writer flips at 5–6 pm local (audit appendix)' },
+  // app/time-tracking.tsx 'new Date(entry.date)' — FIXED and removed
+  // 2026-09-17 (audit round 2, #8/#9). The writer now stamps the LOCAL day
+  // (timeEntryDay in hooks/useTimeEntries.ts) and the history reads it through
+  // the calendarDate helpers, so the site no longer exists; a listed entry with
+  // no live site fails this run, which is how we found out it was done.
   { file: 'app/oac-meeting.tsx', line: 'new Date(a.dueBy)', status: 'defect', added: '2026-09-04',
     reason: 'AI-extracted "ISO date" (bare) parsed as UTC in the minutes and the exported HTML — two sites, one snippet (audit appendix)' },
   { file: 'app/(tabs)/mage-id-bids/index.tsx', line: 'new Date(r.deadline)', status: 'defect', added: '2026-09-04',
@@ -651,6 +692,9 @@ console.log('\nevery date-ish parse in app/ and components/ is resolved or allow
 // would only produce a failing gate nobody can act on. Widen it as they are
 // audited; do not widen it by deleting the ones that fail. If the count above
 // no longer matches, re-run the grep rather than adjusting the prose to taste.
+// (2026-09-17: app/field-ticket.tsx and app/job-costing.tsx have since been
+// audited and are pinned in their own section below; the grep then reported
+// 12 hits in 11 files before their fixes.)
 // ═══════════════════════════════════════════════════════════════════════════
 
 console.log('\nthe warranty form prefills the LOCAL calendar day:');
@@ -670,6 +714,147 @@ console.log('\nthe warranty form prefills the LOCAL calendar day:');
     'resetForm must call setStartDate(todayCalendarDay()) — it is the path openNew() takes');
   ok('the stored expiry is still derived from the prefilled start day',
     /const endDay = addMonths\(startDay, months\)/.test(warr));
+}
+
+// ── Field-ticket work date + job-costing (integration round 3) ──────────
+// Two more screens from the scope list above, audited and pinned. The field
+// ticket's work date is SEALED by the owner's rep's signature and printed on
+// the CO and the PDF as "extra work performed <day>" — prefilled from the UTC
+// day, an evening ticket carried tomorrow. Job costing prefilled a
+// commitment's signed date the same way, and its labor drill-down printed the
+// stored TimeEntry.date, which shifts saved before the #9 fix hold as the UTC
+// day; the clock-in instant (timeEntryDay) names the day actually worked.
+
+console.log('\nthe field ticket and job costing name the LOCAL calendar day:');
+{
+  const utcDayWrite = /new Date\(\)\s*\.toISOString\(\)\s*\.(?:slice|split|substring)\(/;
+  for (const rel of ['app/field-ticket.tsx', 'app/job-costing.tsx']) {
+    const offenders = read(rel).split('\n')
+      .map((line, i) => ({ text: line.trim(), no: i + 1 }))
+      .filter(x => !x.text.startsWith('//') && !x.text.startsWith('*') && !x.text.startsWith('/*'))
+      .filter(x => utcDayWrite.test(x.text));
+    ok(`${rel} never stamps a date from the UTC day`, offenders.length === 0,
+      offenders.map(o => `${rel}:${o.no}: ${o.text}`).join('\n       '));
+  }
+  const ft = read('app/field-ticket.tsx');
+  ok('the field-ticket composer prefills AND resets the work date with todayCalendarDay()',
+    /useState\(\(\) => todayCalendarDay\(\)\)/.test(ft) && /setWorkDate\(todayCalendarDay\(\)\)/.test(ft));
+  const jc = read('app/job-costing.tsx');
+  ok('the commitment form prefills AND resets the signed date with todayCalendarDay()',
+    /useState<string>\(\(\) => todayCalendarDay\(\)\)/.test(jc) && /setSignedDate\(todayCalendarDay\(\)\)/.test(jc));
+  ok("the labor drill-down prints the shift's day from its clock-in (timeEntryDay), not the stored date",
+    /shortDate\(timeEntryDay\(e\)\)/.test(jc) && !/shortDate\(e\.date\)/.test(jc));
+}
+
+// ── The voice capabilities stamp the LOCAL day ────────────────────────────
+// MAGE Copilot's apply() handlers are the one place a record is created with
+// NO form in front of it: the GC speaks, the record is filed. Five of them
+// stamped `new Date().toISOString().slice(0, 10)`, which is TOMORROW from about
+// 5-8 pm anywhere west of Greenwich — so an RFI dictated after the crew knocked
+// off was dated the next day and its "date required" was a day out with it. The
+// screen scan above covers app/ and components/ only, so these five are pinned
+// by name here (audit round 2, #2 appendix).
+
+console.log('\nthe voice capabilities stamp the LOCAL calendar day:');
+{
+  const CAPABILITIES = [
+    'utils/copilot/rfi/rfiCapability.ts',
+    'utils/copilot/permit/permitCapability.ts',
+    'utils/copilot/submittal/submittalCapability.ts',
+    'utils/copilot/punch/punchCapability.ts',
+    'utils/copilot/warranty/warrantyCapability.ts',
+  ];
+  // A bare-day stamp taken off an INSTANT. Matched on the TAIL — an
+  // `.toISOString()` immediately sliced or split — rather than on the receiver:
+  // the first version of this check keyed on `new Date(<no parens>)` and missed
+  // `new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)`, which is
+  // exactly the form the due dates used. The tail is the bug regardless of what
+  // produced the instant.
+  const utcDayStamp = /\.toISOString\(\)\s*\.(?:slice|split|substring)\(/;
+  for (const rel of CAPABILITIES) {
+    const src = read(rel);
+    const offenders = src.split('\n')
+      .map((line, i) => ({ text: line.trim(), no: i + 1 }))
+      // Prose about the bug is not the bug — the fixes explain themselves.
+      .filter(x => !x.text.startsWith('//') && !x.text.startsWith('*') && !x.text.startsWith('/*'))
+      .filter(x => utcDayStamp.test(x.text));
+    ok(`${rel} never stamps a calendar day from the UTC day`, offenders.length === 0,
+      offenders.map(o => `${rel}:${o.no}: ${o.text}`).join('\n       '));
+  }
+  // …and each one actually reaches for the helper, so "no offenders" cannot be
+  // satisfied by deleting the date instead of fixing it.
+  for (const [rel, needle] of [
+    ['utils/copilot/rfi/rfiCapability.ts', 'todayCalendarDay()'],
+    ['utils/copilot/permit/permitCapability.ts', 'todayCalendarDay()'],
+    ['utils/copilot/submittal/submittalCapability.ts', 'todayCalendarDay()'],
+    ['utils/copilot/punch/punchCapability.ts', 'toCalendarDayString(addCalendarDays('],
+    ['utils/copilot/warranty/warrantyCapability.ts', 'todayCalendarDay()'],
+  ] as const) {
+    ok(`${rel} takes its day from utils/calendarDate`, read(rel).includes(needle));
+  }
+}
+
+// The voice DAILY REPORT is the exception to "stamp the local day": its date
+// field is an instant for every other writer and every reader treats it as
+// one. A bare day there printed the previous weekday on the header, the email
+// subject and the owner's PDF across the Americas (integration round 2).
+console.log('\nthe voice daily report stamps an instant, and DFR readers tolerate a bare day:');
+{
+  const cap = read('utils/copilot/dailyReport/dfrCapability.ts');
+  ok('dfrCapability writes `date: now` (the ISO instant)', /^\s*date: now,/m.test(cap) && /const now = new Date\(\)\.toISOString\(\);/.test(cap));
+  // Every reader that turned DailyFieldReport.date into a Date with `new Date`.
+  const READERS: [string, RegExp][] = [
+    ['utils/pdfGenerator.ts', /new Date\(dfr\.date\)/],
+    ['utils/aiService.ts', /new Date\(dfr\.date\)/],
+    ['app/report-inbox.tsx', /new Date\(dr\.date\)/],
+    ['app/project-detail.tsx', /new Date\((?:dr|a|b)\.date\)/],
+    ['contexts/ProjectContext.tsx', /new Date\((?:report|a|b)\.date\)/],
+    ['app/daily-report.tsx', /new Date\((?:reportDate|ref)\)/],
+    // The homeowner's "latest update" date on the portal, and the OAC
+    // agenda's incident dates.
+    ['utils/portalSnapshot.ts', /new Date\(top\.date\)/],
+    ['utils/oacEngine.ts', /new Date\(i\.date\)/],
+  ];
+  for (const [rel, bad] of READERS) {
+    const code = read(rel).split('\n').filter(l => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+    ok(`${rel} reads the report date through dayOrInstantDate`, !bad.test(code) && /dayOrInstantDate\(/.test(code),
+      (code.match(bad) ?? []).join(', '));
+  }
+}
+
+// …and EVERY capability, not a hand list. The list above missed two (the JHA
+// and the voice daily report still wrote `now.slice(0, 10)` where
+// `now = new Date().toISOString()`), because a named list only covers the
+// files someone remembered. This walks utils/copilot/**/*Capability.ts and
+// flags both forms: an `.toISOString()` sliced in place, and a variable
+// holding an ISO instant that is later sliced to a day.
+console.log('\nno voice capability anywhere stamps the UTC day:');
+{
+  const capFiles: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/Capability\.ts$/.test(name)) capFiles.push(full.slice(ROOT.length + 1));
+    }
+  };
+  walk(join(ROOT, 'utils', 'copilot'));
+  ok('found the voice capabilities', capFiles.length >= 12, `only ${capFiles.length}`);
+  const inlineSlice = /\.toISOString\(\)\s*\.(?:slice|split|substring)\(/;
+  for (const rel of capFiles) {
+    const code = read(rel).split('\n')
+      .map((line, i) => ({ text: line.trim(), no: i + 1 }))
+      .filter(x => !x.text.startsWith('//') && !x.text.startsWith('*') && !x.text.startsWith('/*'));
+    const isoVars = new Set<string>();
+    for (const x of code) {
+      const m = x.text.match(/\b(?:const|let|var)\s+(\w+)\s*=\s*new Date\([^;]*\)\.toISOString\(\)\s*;?$/);
+      if (m) isoVars.add(m[1]);
+    }
+    const offenders = code.filter(x => inlineSlice.test(x.text)
+      || [...isoVars].some(v => new RegExp(`\\b${v}\\.(?:slice\\(0,\\s*10\\)|split\\('T'\\)|substring\\(0,\\s*10\\))`).test(x.text)));
+    ok(`${rel} never slices an ISO instant down to a calendar day`, offenders.length === 0,
+      offenders.map(o => `${rel}:${o.no}: ${o.text}`).join('\n       '));
+  }
 }
 
 // ── The DFR carry-forward label is the one this file executes ─────────────

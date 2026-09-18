@@ -96,7 +96,15 @@ export const dailyReportCapability: CopilotCapability<DFRDraft, DFRApplied> = {
     const report: DailyFieldReport = {
       id: reportId,
       projectId: ctx.projectId,
-      date: now.slice(0, 10),
+      // An INSTANT, the same shape as every other DailyFieldReport writer (the
+      // screen, the mic, photo triage) — every reader formats or schedules off
+      // it as a moment. `now.slice(0, 10)` was the UTC day (tomorrow after
+      // ~5 pm west of Greenwich); a bare local day was no better, because
+      // `new Date('YYYY-MM-DD')` is UTC midnight and printed the PREVIOUS day
+      // on the header, the PDF and the email all over the Americas. Readers
+      // take bare days already saved through utils/calendarDate
+      // dayOrInstantDate.
+      date: now,
       weather: parsed.weather ?? { temperature: '', conditions: '', wind: '', isManual: false },
       manpower: parsed.manpower ?? [],
       workPerformed: parsed.workPerformed ?? transcript,

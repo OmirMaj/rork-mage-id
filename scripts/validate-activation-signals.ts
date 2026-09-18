@@ -15,10 +15,15 @@
 //            passed 'MAGE ID' as its own default — so a contractor's first bid
 //            went to a homeowner under the software vendor's name with no
 //            licence number. CA/FL/AZ fine you for the second half of that.
+//            2026-09-17: the share asks through the one "ask when it matters"
+//            sheet (identity, then payment terms) instead of its own modal.
 //   ITEM 20  Nothing outside a Settings toggle ever raised the push permission
 //            dialog, so notify / notification_outbox / morning-digest /
 //            invoice-dunning had no device token to reach. The ask is now
 //            contextual, once, and never inside onboarding.
+//   ITEM 22  The quick-estimate PDF and wizard preview printed 25 / 65 / 10
+//            nobody chose. Every schedule now comes from utils/paymentTerms
+//            with the GC's own answer, changed under Company Profile/Settings.
 //
 // FIRST-PRINCIPLE FOR ANYONE EDITING THIS FILE, inherited from
 // scripts/validate-location-consent.ts: a check a bug can walk around is worse
@@ -368,34 +373,43 @@ ok('the latch is released exactly once',
 // ═════════════════════════════════════════════════════════════════════════════
 console.log('\nITEM 19 — the share is what asks, and it asks once:');
 // ═════════════════════════════════════════════════════════════════════════════
+// 2026-09-17 (Direction B, "ask when it matters"): the wizard's own identity
+// modal is gone. The share now goes through the ONE ask sheet
+// (hooks/useClientDocumentGate + components/ClientDocumentAskSheet), which asks
+// for the company identity only when bidIdentityGap blocks and for the GC's
+// payment terms only when his profile has none. What the sheet asks and whether
+// each ask is satisfiable is held by scripts/validate-payment-terms.ts (j);
+// this block holds the WIZARD to using it — one send, reached only through it.
 const wizard = read('app/estimate-wizard.tsx');
+const wizardCode = stripComments(wizard);
 
 ok('the wizard no longer carries the vendor name as a branding default',
-  !stripComments(wizard).includes(`'${PDF_VENDOR_PLACEHOLDER}'`),
+  !wizardCode.includes(`'${PDF_VENDOR_PLACEHOLDER}'`),
   `a literal '${PDF_VENDOR_PLACEHOLDER}' in this file is the defect: it is what printed on the homeowner's copy`);
 ok('the PDF leaves from exactly one place',
-  (wizard.match(/shareQuickEstimatePDF\(/g) ?? []).length === 1,
-  'a second send path is a second way past the identity gate');
+  (wizardCode.match(/shareQuickEstimatePDF\(/g) ?? []).length === 1,
+  'a second send path is a second way past the ask');
 
 const genBody = callbackBody(wizard, 'generateAndSharePdf');
-// It takes the PRICED estimate as an argument for the same reason it takes the
-// branding: the markup gate can hand this callback a freshly-priced breakdown
-// one tick before React has re-rendered `result`. Reading `result` from the
-// closure here prints the contractor's COST on the homeowner's PDF, which is
-// the defect the whole markup change exists to remove — so the guard asserts
-// the priced argument, not just the branding one.
-ok('the send path takes its branding as an argument',
-  genBody.includes('shareQuickEstimatePDF(priced, answers, branding)'),
-  'reading settings here would re-read the blank profile the user was just asked to fill in');
-ok('…and the PRICED estimate, never the closure `result`',
+// It takes the PRICED estimate, the branding and the split as arguments: the
+// markup gate hands it a freshly-priced breakdown one tick before React has
+// re-rendered `result`, and the ask sheet hands it a branding and a split typed
+// one tick before savePaymentTerms / updateSettings have re-rendered settings.
+// Reading any of the three from the closure prints the contractor's cost, the
+// blank profile, or no payment schedule on the homeowner's PDF.
+ok('the send takes its priced estimate, branding and payment split as arguments',
+  genBody.includes('shareQuickEstimatePDF(priced, answers, branding, split)'),
+  genBody.slice(0, 240));
+ok('…and its signature requires the split',
+  /const generateAndSharePdf = useCallback\(async \(branding: CompanyBranding, priced: EstimateResult, split: PaymentSplit\)/.test(wizard),
+  'an optional split is how "not set" reaches the PDF');
+ok('…and never the closure `result`',
   !/shareQuickEstimatePDF\(\s*result\b/.test(genBody),
   'the closure `result` is still the at-cost breakdown one tick after the markup is recorded');
 
-// Two buttons reach this one send — the share button and the identity ask's
-// "Save and send" — and `sharingPdf` only disables them on the render AFTER
-// the first tap. The re-entry latch has to be a ref, and it has to sit on the
-// send, or a fast double tap files two PDFs and two ESTIMATE_SHARED events
-// against the activation funnel the top of this file exists to keep honest.
+// Two presses reach this one send — the share button and the ask sheet's last
+// press — and `sharingPdf` only disables them on the render AFTER the first
+// tap. The re-entry latch has to be a ref, and it has to sit on the send.
 const sendLatchRead = genBody.indexOf('if (sharingRef.current) return;');
 const sendLatchSet = genBody.indexOf('sharingRef.current = true;');
 const sendFirstAwait = genBody.indexOf('await ');
@@ -406,40 +420,58 @@ ok('the send latch is released in finally, so a failed share can be retried',
   balancedFrom(genBody, genBody.indexOf('} finally')).includes('sharingRef.current = false;'),
   'releasing anywhere but finally leaves the share button dead after one failure');
 
-const shareBody = callbackBody(wizard, 'share');
-const gapIdx = shareBody.indexOf('bidIdentityGap(');
-const blockIdx = shareBody.indexOf('if (gap.blocking)');
-const sendIdx = shareBody.indexOf('generateAndSharePdf(');
-ok('share checks the identity gap before it sends',
-  gapIdx >= 0 && blockIdx >= 0 && sendIdx >= 0 && gapIdx < blockIdx && blockIdx < sendIdx,
-  `gap@${gapIdx} block@${blockIdx} send@${sendIdx}`);
-const blockingBranch = balancedFrom(shareBody, blockIdx);
-ok('the blocking branch opens the ask and returns',
-  blockingBranch.includes('setShowIdentityModal(true)') && blockingBranch.includes('return;'),
-  'without the return the PDF still goes out under the vendor name');
+const shareBody = stripComments(callbackBody(wizard, 'share'));
+const goBody = callbackBody(shareBody, 'go');
+const runIdx = goBody.indexOf('gate.run(');
+const runNeeds = runIdx >= 0 ? balancedFrom(goBody, runIdx) : '';
+ok('share asks through the one gate — identity and payment terms, as a proposal PDF, on this job’s total',
+  runIdx >= 0 && /identity: true/.test(runNeeds) && /terms: true/.test(runNeeds)
+  && /purpose: 'proposal_pdf'/.test(runNeeds) && /total: priced\.total/.test(runNeeds),
+  runNeeds.slice(0, 240));
+const reqIdx = shareBody.indexOf('if (!requireMarkup(go)) return;');
+const goCallIdx = shareBody.indexOf('go(markupPct as number);');
+ok('share takes the markup answer first, and only then runs the gate',
+  reqIdx >= 0 && goCallIdx > reqIdx && runIdx >= 0,
+  `requireMarkup@${reqIdx} go@${goCallIdx} gate@${runIdx}`);
+// The continuation, both halves. `then` keeps the press (web: window.open);
+// the native print → share sheet waits for the ask sheet to finish sliding out
+// (iOS refuses a share sheet over a dismissing modal). Both send the ANSWERS.
+{
+  const thenStart = goBody.indexOf('(a) => {', runIdx);
+  const thenArm = thenStart >= 0 ? balancedFrom(goBody, thenStart) : '';
+  ok('on web the send runs inside the last press, with the answers',
+    /if \(Platform\.OS === 'web'\) void generateAndSharePdf\(a\.branding, priced, a\.split\);/.test(thenArm),
+    thenArm.slice(0, 240));
+  ok('…elsewhere the answers are held for afterDismiss, not sent under a closing modal',
+    /else answered = \{ branding: a\.branding, split: a\.split \};/.test(thenArm), thenArm.slice(0, 240));
+  const afterIdx = goBody.indexOf('afterDismiss:', runIdx);
+  const afterArm = afterIdx >= 0 ? balancedFrom(goBody, goBody.indexOf('=>', afterIdx)) : '';
+  ok('afterDismiss sends exactly what the sheet answered',
+    /if \(answered\) void generateAndSharePdf\(answered\.branding, priced, answered\.split\);/.test(afterArm),
+    afterArm.slice(0, 240));
+  ok('share has exactly those two sends, and nothing waits before either',
+    (shareBody.match(/generateAndSharePdf\(/g) ?? []).length === 2
+    && !/\bawait\b|setTimeout|InteractionManager/.test(shareBody),
+    'an await or timer before the send loses the web gesture — the popup is blocked and nothing goes out');
+}
 
-const saveBody = callbackBody(wizard, 'saveIdentityAndShare');
-ok('the ask re-checks the gap before accepting what was typed',
-  saveBody.includes('bidIdentityGap(') && saveBody.includes('setIdentityHint(gap.reason)'),
-  'a half-filled ask must say what is still missing, not save and send anyway');
-ok('the ask saves to the profile so the second bid is not gated',
-  saveBody.includes('updateSettings({ branding: merged })'));
-ok('the ask sends the MERGED branding, not context state',
-  /generateAndSharePdf\(merged\b/.test(saveBody) && !saveBody.includes('generateAndSharePdf(savedBranding())'),
-  'updateSettings writes through the offline queue — re-reading settings here sends the blank profile');
-ok('the ask renders the reason, not a bare required-field message',
-  wizard.includes('testID="wizard-identity-reason"') && wizard.includes('{savedGap.reason}'),
-  'blocked buttons say why');
+ok('the wizard’s own identity modal is gone',
+  !wizardCode.includes('showIdentityModal') && !wizardCode.includes('saveIdentityAndShare')
+  && !wizardCode.includes('identityDraft') && !wizardCode.includes('wizard-identity-'),
+  'a second ask beside the gate is a second set of rules for the same homeowner document');
+ok('the ask sheet is rendered exactly once, from the gate',
+  (wizardCode.match(/<ClientDocumentAskSheet\b/g) ?? []).length === 1
+  && wizardCode.includes('<ClientDocumentAskSheet {...gate.sheet} />')
+  && /const gate = useClientDocumentGate\(\);/.test(wizardCode));
+ok('the wizard calls bidIdentityGap nowhere directly',
+  !/bidIdentityGap\(/.test(wizardCode),
+  'the gate owns the identity check (with the market); a direct call is a second, drifting copy');
 
 // ── THE ASK HAS TO BE SATISFIABLE ────────────────────────────────────────────
-// This is the one that would cost every new account. The share is the arc's
-// last step and it is now GATED; a gate whose ask has no field for the thing
-// that is blocking is not friction, it is a wall with nothing on the other
-// side. Nothing checked this: deleting the company-name TextInput — which
-// blocks literally every brand-new profile — left all 96 checks green.
-//
-// Two halves. First: blocking can only ever be caused by the two fields the
-// ask collects, so "has a field for each" is the whole of it.
+// This is the one that would cost every new account: a gate whose ask has no
+// field for the thing that is blocking is a wall. Blocking can only ever be
+// caused by the two fields the ask collects; that the sheet renders those two
+// fields is held by validate-payment-terms (j).
 {
   const sweep: Parameters<typeof bidIdentityGap>[0][] = [
     {}, { companyName: '' }, { companyName: 'Ortiz Builders' },
@@ -457,31 +489,33 @@ ok('the ask renders the reason, not a bare required-field message',
     'a third blocking reason would be a wall with no field behind it');
 }
 
-// Second: the ask actually renders those fields, and a way back out.
-const identityModalStart = wizard.indexOf('<Modal visible={showIdentityModal}');
-const identityModal = identityModalStart >= 0
-  ? wizard.slice(identityModalStart, wizard.indexOf('</Modal>', identityModalStart))
-  : '';
-ok('the identity ask is a modal that can be found', identityModal.length > 0);
-ok('the ask offers a company-name field — the one every new profile needs',
-  identityModal.includes('testID="wizard-identity-company"')
-  && identityModal.includes('value={identityDraft.companyName}'),
-  'without it a brand-new account is told its name is blank and given no way to say what it is');
+// ── iOS: ONE MODAL AT A TIME ─────────────────────────────────────────────────
+// The markup sheet's continuation opens the ask sheet (or the share sheet). On
+// iOS a Modal presented while another is still sliding out is refused, and the
+// tap he made is honoured by nothing. So on iOS the continuation waits for the
+// markup Modal's onDismiss; web and Android run it in the press (web needs the
+// gesture for window.open).
 {
-  // The licence field has to sit INSIDE the rule gate, and it has to exist
-  // whenever the gate can block: needsLicence is only ever true when
-  // `rule` is non-null, so the gate and the field must be the same branch.
-  const gateIdx = identityModal.indexOf('{savedGap.rule && (');
-  const gateEnd = gateIdx >= 0 ? identityModal.indexOf('</>', gateIdx) : -1;
-  const licIdx = identityModal.indexOf('testID="wizard-identity-licence"');
-  ok('the ask offers the licence field inside the same branch that can block on it',
-    gateIdx >= 0 && gateEnd > gateIdx && licIdx > gateIdx && licIdx < gateEnd
-    && identityModal.includes('value={identityDraft.licenseNumber}'),
-    `gate@${gateIdx} field@${licIdx} end@${gateEnd} — a CA/FL/AZ contractor blocked on the number with no field for it can never send the bid`);
+  const apply = stripComments(callbackBody(wizard, 'applyMarkupChoice'));
+  const iosIdx = apply.indexOf("if (Platform.OS === 'ios') {");
+  const iosArm = iosIdx >= 0 ? balancedFrom(apply, iosIdx) : '';
+  const elseIdx = iosIdx >= 0 ? apply.indexOf('} else {', iosIdx) : -1;
+  const elseArm = elseIdx >= 0 ? balancedFrom(apply, elseIdx) : '';
+  ok('on iOS applyMarkupChoice parks its continuation for the Modal’s onDismiss',
+    /afterMarkupDismissRef\.current = \(\) => then\(pct\);/.test(iosArm),
+    iosArm.slice(0, 200));
+  ok('…and runs it in the press everywhere else',
+    /then\(pct\);/.test(elseArm), elseArm.slice(0, 200));
+  ok('…and nowhere outside those two arms',
+    (apply.match(/then\??\.?\(pct\)/g) ?? []).length === 2,
+    'a stray then(pct) outside the platform branch presents the ask sheet under the closing markup sheet on iOS');
+  ok('the markup Modal drains the parked continuation on dismiss',
+    /<Modal visible=\{showMarkupSheet\}[^>]*onDismiss=\{onMarkupSheetDismissed\}/.test(wizardCode)
+    && /afterMarkupDismissRef\.current = null;\s*next\?\.\(\);/.test(stripComments(callbackBody(wizard, 'onMarkupSheetDismissed'))));
+  ok('closing the markup sheet drops a parked continuation too',
+    stripComments(callbackBody(wizard, 'dismissMarkupSheet')).includes('afterMarkupDismissRef.current = null;'),
+    'a parked send surviving a close would fire the next time the sheet is dismissed for any reason');
 }
-ok('the ask can be dismissed',
-  identityModal.includes('onPress={() => setShowIdentityModal(false)}'),
-  'the gate is on the activation arc; a modal with no way out strands every user whose answer is "not now"');
 
 // ═════════════════════════════════════════════════════════════════════════════
 console.log('\nITEM 20 — one permission path, contextual, never in onboarding:');
@@ -665,13 +699,19 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
       `${literals.length} literal(s); missing in: ${literals.filter(l => !l.includes('licenseState:') || !l.includes('licenseExpiry:')).map(l => l.slice(0, 60)).join(' | ')}`);
   }
 
-  // (a) structural — every gate call in the wizard carries the market. A call
-  // without it re-opens the hole for exactly the accounts the fix is for.
-  const gapCalls = [...stripComments(wizard).matchAll(/bidIdentityGap\(([^;]*?)\)\s*;/g)].map(m => m[1]);
-  ok('the wizard calls the gate at all four sites', gapCalls.length === 4, `found ${gapCalls.length}`);
-  ok('every wizard gate call passes settings?.location',
-    gapCalls.length > 0 && gapCalls.every(args => /,\s*settings\?\.location\s*$/.test(args)),
-    gapCalls.filter(a => !/,\s*settings\?\.location\s*$/.test(a)).join(' | '));
+  // (a) structural — the identity gate carries the market. The wizard no
+  // longer calls bidIdentityGap itself (ITEM 19); the one ask sheet does, so
+  // it is the sheet's calls that must pass the location, or the hole re-opens
+  // for exactly the accounts the fix is for.
+  {
+    const hook = stripComments(read('hooks/useClientDocumentGate.ts'));
+    const askFlow = stripComments(read('utils/clientDocumentAsk.ts'));
+    const hookCalls = [...hook.matchAll(/bidIdentityGap\(([^)]*)\)/g)].map(m => m[1]);
+    ok('every gate call in the ask sheet passes the saved location',
+      hookCalls.length > 0 && hookCalls.every(args => /,\s*settings\.location\s*$/.test(args))
+      && /bidIdentityGap\(profile\.branding, profile\.location\)\.blocking/.test(askFlow),
+      hookCalls.join(' | '));
+  }
 
   const profile = stripComments(read('app/company-profile.tsx'));
   const addrIdx = profile.indexOf('testID="branding-address"');
@@ -775,6 +815,116 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
     pick.slice(0, 200));
   ok('no picker chip bypasses pickMarket', !/setOverride\(\{ regionId: (region\.id|null), city/.test(materials.replace(pick, '')),
     'a chip that only sets the override is a pick that is forgotten on the next visit');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he changes them (Direction B):');
+// ═════════════════════════════════════════════════════════════════════════════
+// The quick-estimate PDF and the wizard preview printed 25 / 65 / 10 that
+// nobody chose, while the portal proposal printed a 10% deposit and a new
+// contract seeded 25/25/25/25 — three deposits for one job. Every printed
+// schedule now comes from utils/paymentTerms.ts with the GC's own answer
+// (asked at the share), and "not set" is a state the preview names, never a
+// number. Guard for the resolver itself: scripts/validate-payment-terms.ts.
+{
+  const pdf = read('utils/pdfGenerator.ts');
+  const pdfCode = stripComments(pdf);
+
+  // No literal terms left in either file, in any spelling the old code used.
+  for (const [file, code] of [['app/estimate-wizard.tsx', wizardCode], ['utils/pdfGenerator.ts', pdfCode]] as const) {
+    ok(`${file}: no 0.25 / 0.65 / 0.10 payment multipliers`,
+      !/\*\s*0?\.(25|65|10?)\b/.test(code) && !/\b(25|65|10)\s*\/\s*100\b/.test(code),
+      (code.match(/.*\*\s*0?\.(25|65|10?)\b.*|.*\b(25|65|10)\s*\/\s*100\b.*/) ?? [''])[0].trim().slice(0, 160));
+    ok(`${file}: no 'Deposit (25%)' / 'Progress (65%)' / 'Final (10%)' copy`,
+      !/(Deposit|Progress|Final) \((25|65|10)%\)/.test(code));
+    ok(`${file}: no depositPct / completionPct literal left`,
+      !/\b(depositPct|completionPct)\s*=\s*\d/.test(code) && !/\bconst depositPct\b/.test(code));
+    ok(`${file}: the old acceptance sentence is not hard-coded`,
+      !code.includes('Final pricing is locked once the contract is signed and the deposit received.'),
+      'it promised a deposit whether or not he takes one — acceptanceSentence decides');
+  }
+
+  // The PDF generator.
+  const quickHtml = balancedFrom(pdf, pdf.indexOf('function buildQuickEstimateHtml('));
+  ok('buildQuickEstimateHtml takes a required PaymentSplit',
+    /function buildQuickEstimateHtml\(\s*result: QuickEstimateResultForPdf,\s*answers: QuickEstimateAnswersForPdf,\s*branding: CompanyBranding,\s*split: PaymentSplit,\s*\): string \{/.test(pdf));
+  const quickHtmlCode = stripComments(quickHtml);
+  ok('…its rows come from paymentStageRows on the estimate total',
+    /paymentStageRows\(result\.total, split\)/.test(quickHtmlCode)
+    && /stageRows\.map\(/.test(quickHtmlCode) && /\$\{fmtMoney\(r\.amount\)\}/.test(quickHtmlCode),
+    'a second amount function on the PDF is how the printed deposit and the billed deposit drift apart');
+  ok('…and its closing sentence from acceptanceSentence(split)',
+    /acceptanceSentence\(split\)/.test(quickHtmlCode));
+  ok('shareQuickEstimatePDF requires the split and passes it through',
+    /export async function shareQuickEstimatePDF\(\s*result: QuickEstimateResultForPdf,\s*answers: QuickEstimateAnswersForPdf,\s*branding: CompanyBranding,\s*split: PaymentSplit,\s*\): Promise<void>/.test(pdf)
+    && /buildQuickEstimateHtml\(result, answers, branding, split\)/.test(pdfCode),
+    'an optional split is how "not set" reaches a homeowner');
+  ok('generateQuickEstimatePDFUri is gone (no callers; an unasked second way out)',
+    !pdfCode.includes('generateQuickEstimatePDFUri'));
+  ok('buildQuickEstimateHtml is called from exactly one place',
+    (pdfCode.match(/buildQuickEstimateHtml\(/g) ?? []).length === 2,
+    'one declaration + the one send');
+  const contractHtml = stripComments(balancedFrom(pdf, pdf.indexOf('function buildContractHtml(')));
+  ok('the sealed contract’s Due cell prints milestoneDueText when there is no date',
+    /m\.triggerDate \? fmtDate\(m\.triggerDate\) : milestoneDueText\(m\)/.test(contractHtml),
+    'a blank "Due" on the deposit, progress and final rows of the PDF the homeowner signs');
+
+  // The wizard preview.
+  ok('the preview reads his split through resolvePaymentSplit and prints paymentStageRows',
+    /const previewSplit = resolvePaymentSplit\(\{ settings \}\)\.split;/.test(wizardCode)
+    && /previewSplit \? paymentStageRows\(result\.total, previewSplit\) : \[\]/.test(wizardCode));
+  const cardStart = wizardCode.indexOf('testID="wizard-payment-terms"');
+  const cardEnd = wizardCode.indexOf('testID="wizard-payment-terms-set"', cardStart);
+  const card = cardStart >= 0 && cardEnd > cardStart ? wizardCode.slice(cardStart, cardEnd + 200) : '';
+  ok('…with a not-set branch that says so and offers "Set now" through the gate',
+    card.includes('{previewSplit ? (') && card.includes('testID="wizard-payment-terms-not-set"')
+    && card.includes("You'll be asked before this goes to your client.")
+    && /gate\.run\(\{ terms: true, purpose: 'proposal_pdf', total: result\.total/.test(card),
+    card.slice(0, 200));
+  ok('…and the acceptance sentence comes from acceptanceSentence',
+    wizardCode.includes('{acceptanceSentence(previewSplit)}'));
+
+  // Company Profile — where he changes it.
+  const profileSrc = stripComments(read('app/company-profile.tsx'));
+  ok('Company Profile resolves both rows through the resolvers',
+    /const savedSplit = resolvePaymentSplit\(\{ settings \}\)\.split;/.test(profileSrc)
+    && /const savedWarrantyMonths = resolveWarrantyMonths\(settings\);/.test(profileSrc));
+  const openTag = (src: string, testID: string) => {
+    const at = src.indexOf(`testID="${testID}"`);
+    return at >= 0 ? src.slice(src.lastIndexOf('<TouchableOpacity', at), at) : '';
+  };
+  ok('the Payment terms row opens the ask sheet for terms',
+    openTag(profileSrc, 'company-payment-terms').includes("onPress={() => gate.edit('terms')}"));
+  ok('the Workmanship warranty row opens it for the warranty',
+    openTag(profileSrc, 'company-warranty').includes("onPress={() => gate.edit('warranty')}"));
+  const howIdx = profileSrc.indexOf('>HOW YOU GET PAID<');
+  ok('HOW YOU GET PAID sits after COMPANY BRANDING and before COMPANY LOGO',
+    howIdx > profileSrc.indexOf('>COMPANY BRANDING<') && howIdx < profileSrc.indexOf('>COMPANY LOGO<')
+    && profileSrc.indexOf('testID="company-warranty"') < profileSrc.indexOf('>COMPANY LOGO<'));
+  ok('Company Profile renders the sheet once',
+    (profileSrc.match(/<ClientDocumentAskSheet \{\.\.\.gate\.sheet\} \/>/g) ?? []).length === 1);
+  ok('the branding Save and the logo/signature autoSave never carry the terms',
+    ['handleSave', 'autoSave'].every(n => !/paymentSplit|warrantyMonths|savePaymentTerms/.test(callbackBody(profileSrc, n))),
+    'a whole-branding save that also wrote the terms would race the terms write and undo it');
+
+  // Settings shortcut.
+  const settingsCode = stripComments(read('app/(tabs)/settings/index.tsx'));
+  ok('Settings has the How you get paid row, opening the same sheet',
+    openTag(settingsCode, 'settings-how-you-get-paid').includes('onPress={() => gate.edit(howYouGetPaidStep)}')
+    && (settingsCode.match(/<ClientDocumentAskSheet \{\.\.\.gate\.sheet\} \/>/g) ?? []).length === 1);
+  // …at the step its label says is missing: split set + warranty not set opens
+  // the warranty, never the terms question he already answered.
+  ok('…opening the warranty step when only the warranty is missing',
+    /const howYouGetPaidStep = useMemo<'terms' \| 'warranty'>\(\s*\(\) => \(resolvePaymentSplit\(\{ settings \}\)\.split && resolveWarrantyMonths\(settings\) == null \? 'warranty' : 'terms'\)/.test(settingsCode));
+  const howRowIdx = settingsCode.indexOf('testID="settings-how-you-get-paid"');
+  const saveDefIdx = settingsCode.indexOf('testID="save-estimate-defaults"');
+  const nextHdr = settingsCode.indexOf('<Text style={styles.sectionHeader}>', saveDefIdx);
+  ok('…directly under the Save estimate defaults button',
+    saveDefIdx >= 0 && howRowIdx > saveDefIdx && (nextHdr < 0 || howRowIdx < nextHdr),
+    `save@${saveDefIdx} row@${howRowIdx} nextSection@${nextHdr}`);
+  ok('…and its label comes from the resolvers, with a not-set wording',
+    /resolvePaymentSplit\(\{ settings \}\)\.split/.test(settingsCode) && /resolveWarrantyMonths\(settings\)/.test(settingsCode)
+    && settingsCode.includes('asked the first time a document prints it'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -43,19 +43,34 @@ const DAY_MS = 86400000;
 
 /** Normalize any date-ish string ('2026-06-07', '2026-06-07T18:22:00Z') to a
  *  YYYY-MM-DD calendar date. Returns null for junk — callers treat null as
- *  "unknown", never as "today". */
+ *  "unknown", never as "today".
+ *
+ *  A bare day is that day. A full INSTANT is the local day it fell on on the
+ *  device building the snapshot — the GC's, on the job's clock — not its UTC
+ *  date prefix (integration round 1). Every DFR date in the snapshot is an
+ *  instant now, and the prefix counted a report filed at 7 pm Pacific on the
+ *  NEXT day in the owner's pay-period narrative (report count, workdays, the
+ *  in-window test) — and supers file at the end of the day. Same rule as
+ *  utils/calendarDate.calendarDayOf. */
 export function toCalendarDate(value?: string | null): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const direct = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
-  if (direct) {
-    const ms = Date.parse(`${direct[1]}-${direct[2]}-${direct[3]}T00:00:00Z`);
-    return Number.isFinite(ms) ? `${direct[1]}-${direct[2]}-${direct[3]}` : null;
+  const bare = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (bare) {
+    const ms = Date.parse(`${bare[1]}-${bare[2]}-${bare[3]}T00:00:00Z`);
+    return Number.isFinite(ms) ? `${bare[1]}-${bare[2]}-${bare[3]}` : null;
   }
   const ms = Date.parse(trimmed);
-  if (!Number.isFinite(ms)) return null;
-  return new Date(ms).toISOString().slice(0, 10);
+  if (!Number.isFinite(ms)) {
+    // Not a parseable instant but it leads with a day ('2026-06-07 junk'):
+    // keep the day it names, as before.
+    const lead = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+    if (!lead || !Number.isFinite(Date.parse(`${lead[1]}-${lead[2]}-${lead[3]}T00:00:00Z`))) return null;
+    return `${lead[1]}-${lead[2]}-${lead[3]}`;
+  }
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function dayMs(calendarDate: string): number {

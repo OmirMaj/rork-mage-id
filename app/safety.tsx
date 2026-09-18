@@ -14,6 +14,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { isRecordableCase } from '@/utils/safety/oshaLog';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export default function SafetyScreen() {
   const router = useRouter();
@@ -75,8 +77,13 @@ function SafetyHubInner() {
   // which passes no projectId). OSHA takes an OPTIONAL projectId; org-wide when
   // none is set.
   const companyTiles = useMemo<Tile[]>(() => {
-    const now = new Date().toISOString();
-    const oshaCount = (pid ? getIncidentsForProject(pid) : incidents).filter((i) => i.oshaRecordable).length;
+    // The certificate screen's calendar day, not an instant: certExpiryStatus
+    // compares day strings, and a UTC instant flips a card to "Expired" during
+    // the evening of its last valid day west of Greenwich.
+    const now = todayCalendarDay();
+    // Same membership rule the 300 log itself uses, so the tile count and the
+    // log it opens can never disagree.
+    const oshaCount = (pid ? getIncidentsForProject(pid) : incidents).filter(isRecordableCase).length;
     return [
       { key: 'certifications', label: 'Certifications', icon: BadgeCheck, count: expiringCertifications(now).length,
         onPress: () => router.push('/safety-certifications' as never) },

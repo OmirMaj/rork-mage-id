@@ -25,10 +25,10 @@ import CashFlowSetup from '@/components/CashFlowSetup';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import ConcretePour from '@/components/animations/ConcretePour';
 import {
-  generateForecast, calculateSummary, formatCurrency, formatCurrencyShort,
-  pendingRetention, buildCommittedOutflows, forecastHasCashMovement,
+  calculateSummary, formatCurrency, formatCurrencyShort,
+  pendingRetention, forecastHasCashMovement,
   diagnoseEmptyForecast, parseMoneyInput,
-  getEffectiveStartingBalance,
+  buildForecastInputs, forecastFromInputs,
 } from '@/utils/cashFlowEngine';
 import type { CashFlowExpense, ExpectedPayment, CashFlowWeek, CashFlowSummary, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
 import {
@@ -285,30 +285,28 @@ function CashFlowScreenInner() {
     void init();
   }, [projectId, user?.id]);
 
-  const effectiveStartingBalance = useMemo<number>(() => {
-    if (!cashFlowData) return 0;
-    return getEffectiveStartingBalance(
-      cashFlowData.startingBalance,
-      cashFlowData.balanceAsOf,
-      relevantInvoices,
-    );
-  }, [cashFlowData, relevantInvoices]);
-
   const relevantCommitments = useMemo(() => {
     if (projectId) return getCommitmentsForProject(projectId);
     return allCommitments;
   }, [projectId, allCommitments, getCommitmentsForProject]);
 
-  // Signed subcontracts and POs, turned into the outflow rows this forecast was
-  // missing. Without them the income side was automatic and the expense side
-  // was whatever the GC had typed in, which tilts every week toward solvency —
-  // see the long note on buildCommittedOutflows for how a hand-typed duplicate
-  // is prevented and why undated money is reported instead of guessed at.
-  const committed = useMemo(() => buildCommittedOutflows({
+  // Everything the forecast is made of, assembled in ONE place the home tab's
+  // CASH · 4WK tile also uses (audit round 2, #17): the stored balance plus the
+  // payments recorded since it was set, the typed expenses plus the rows
+  // derived from signed subcontracts and POs, the invoices and the COs. Without
+  // the commitments the income side was automatic and the expense side was
+  // whatever the GC had typed in, which tilts every week toward solvency — see
+  // the long note on buildCommittedOutflows for how a hand-typed duplicate is
+  // prevented and why undated money is reported instead of guessed at.
+  const forecastInputs = useMemo(() => buildForecastInputs({
+    cashData: cashFlowData,
+    invoices: relevantInvoices,
     commitments: relevantCommitments,
     projects,
-    expenses: cashFlowData?.expenses ?? [],
-  }), [relevantCommitments, projects, cashFlowData?.expenses]);
+    changeOrders: relevantChangeOrders,
+  }), [cashFlowData, relevantInvoices, relevantCommitments, projects, relevantChangeOrders]);
+  const effectiveStartingBalance = forecastInputs.startingBalance;
+  const committed = forecastInputs.committed;
 
   // A Set, because the expense list looks every row up as it renders it.
   const ambiguousIds = useMemo(() => new Set(committed.ambiguousManualIds), [committed.ambiguousManualIds]);
@@ -321,20 +319,8 @@ function CashFlowScreenInner() {
 
   const forecast = useMemo<CashFlowWeek[]>(() => {
     if (!cashFlowData) return [];
-    return generateForecast(
-      effectiveStartingBalance,
-      // Derived rows are concatenated here and NOWHERE else — they are never
-      // handed to saveCashFlowData, so nothing generated from a commitment can
-      // be frozen into `mage_cashflow_data` and then counted a second time
-      // against the live commitment on the next load.
-      [...cashFlowData.expenses, ...committed.scheduled],
-      relevantInvoices,
-      cashFlowData.expectedPayments,
-      forecastWeeks,
-      cashFlowData.defaultPaymentTerms,
-      relevantChangeOrders,
-    );
-  }, [cashFlowData, committed.scheduled, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
+    return forecastFromInputs(forecastInputs, forecastWeeks);
+  }, [cashFlowData, forecastInputs, forecastWeeks]);
 
   const summary = useMemo<CashFlowSummary>(() => calculateSummary(forecast), [forecast]);
 

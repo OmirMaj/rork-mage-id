@@ -32,7 +32,9 @@ import type {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
-import { isOshaRecordable, describeRecordability } from '@/utils/safety/osha';
+import { isOshaRecordable, describeRecordability, hasRestriction } from '@/utils/safety/osha';
+import { isRecordableCase } from '@/utils/safety/oshaLog';
+import { todayCalendarDay } from '@/utils/calendarDate';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from '@/lib/supabase';
 import { PhotoThumbGrid, burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
 import { queuePhotoUpload, cancelPhotoUpload } from '@/utils/photoUploadQueue';
@@ -48,8 +50,11 @@ import { showAlert } from '@/utils/alert';
  *  photo album, not a record an OSHA inspector will read. */
 const MAX_INCIDENT_PHOTOS = 8;
 
+// 'Injury or illness', matching the daily report's DFR_INCIDENT_TYPE_LABEL. The
+// bare 'Injury' label sent a respiratory or chemical-exposure case to
+// 'Environ.', which the classifier then read as "no injury" (audit round 2, #1).
 const TYPE_OPTIONS: { value: SafetyIncidentType; label: string }[] = [
-  { value: 'injury', label: 'Injury' },
+  { value: 'injury', label: 'Injury or illness' },
   { value: 'near_miss', label: 'Near miss' },
   { value: 'property', label: 'Property' },
   { value: 'environmental', label: 'Environ.' },
@@ -148,7 +153,9 @@ function SafetyIncidentsInner() {
   const [editingIncident, setEditingIncident] = useState<SafetyIncident | null>(null);
   const [type, setType] = useState<SafetyIncidentType>('injury');
   const [severity, setSeverity] = useState<SafetyIncidentSeverity>('low');
-  const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 10));
+  // The LOCAL calendar day. toISOString() is the UTC day, so an injury logged at
+  // 5:30pm Pacific on Dec 31 was dated Jan 1 and filed on next year's 300.
+  const [occurredAt, setOccurredAt] = useState(() => todayCalendarDay());
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [treatment, setTreatment] = useState<SafetyTreatment>('none');
@@ -164,7 +171,9 @@ function SafetyIncidentsInner() {
   // useState, a `photo_urls` column, a field on SafetyIncident and a sync path
   // in SafetyContext — and NO WRITER anywhere in the app. The one record OSHA
   // reads back to you was the only safety surface with no way to attach an
-  // image, while app/safety-hazards.tsx has had one since it shipped.
+  // image. (This comment used to say app/safety-hazards.tsx had one since it
+  // shipped. It did not: that screen captured a photo to scan and then saved
+  // every hazard with photoUrl: undefined — fixed in audit round 2, #3.)
   //
   // What goes IN this array is the DURABLE value — the `project-photos` bucket
   // path once the bytes are staged for upload, and only a device-local URI
@@ -200,7 +209,7 @@ function SafetyIncidentsInner() {
   const resetForm = useCallback(() => {
     setEditingIncident(null);
     setType('injury'); setSeverity('low');
-    setOccurredAt(new Date().toISOString().slice(0, 10));
+    setOccurredAt(todayCalendarDay());
     setDescription(''); setLocation('');
     setTreatment('none'); setDaysAway(''); setDaysRestricted(''); setOshaIllnessType('injury');
     setRestrictedDuty(false); setLostConsciousness(false); setFatality(false);
@@ -432,30 +441,51 @@ function SafetyIncidentsInner() {
     }
   }, [draftNotes, tier]);
 
+  // One fact, two inputs: the day count and the toggle. A counted day of
+  // restriction turns the toggle on — shown, classified and stored — so the
+  // verdict can never read "no restriction" under a field showing 5.
+  const daysRestrictedNum = Math.max(0, Number(daysRestricted) || 0);
+  const effectiveRestricted = hasRestriction({ restrictedDuty, daysRestricted: daysRestrictedNum });
+
+  /** Everything the classifier reads, built once so the live verdict and the
+   *  stored flag come from the same object. */
+  const classInput = useMemo(() => ({
+    type, treatment,
+    daysAway: Number(daysAway) || 0,
+    daysRestricted: daysRestrictedNum,
+    restrictedDuty: effectiveRestricted,
+    lostConsciousness, fatality, oshaIllnessType,
+  }), [type, treatment, daysAway, daysRestrictedNum, effectiveRestricted, lostConsciousness, fatality, oshaIllnessType]);
+
   /** Live 1904 answer for whatever is in the form right now. Shown under the
    *  toggles so the classification is visible while it is being decided, not
    *  only after the case is saved. */
-  const liveVerdict = useMemo(() => describeRecordability({
-    type, treatment,
-    daysAway: Number(daysAway) || 0,
-    restrictedDuty, lostConsciousness, fatality,
-  }), [type, treatment, daysAway, restrictedDuty, lostConsciousness, fatality]);
+  const liveVerdict = useMemo(() => describeRecordability(classInput), [classInput]);
+
+  const toggleRestrictedDuty = useCallback(() => {
+    // Blocked, and says why: unticking while days are counted would store a
+    // restricted case whose restriction flag is off.
+    if (daysRestrictedNum > 0) {
+      showAlert(
+        'Restricted days are counted',
+        `${daysRestrictedNum} day${daysRestrictedNum === 1 ? '' : 's'} of restriction are entered above, which makes this a restricted-work case. Clear the day count to untick it.`,
+      );
+      return;
+    }
+    setRestrictedDuty(v => !v);
+  }, [daysRestrictedNum]);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
     if (!desc) { showAlert('Missing description', 'Describe what happened.'); return; }
     const now = new Date().toISOString();
-    const recordable = isOshaRecordable({
-      type, treatment,
-      daysAway: Number(daysAway) || 0,
-      restrictedDuty, lostConsciousness, fatality,
-    });
+    const recordable = isOshaRecordable(classInput);
     if (editingIncident) {
       updateIncident(editingIncident.id, {
         type, severity, occurredAt, description: desc, location: location.trim(),
         peopleInvolved, photoUrls, correctiveActions, treatment,
-        daysAway: Number(daysAway) || 0, daysRestricted: Number(daysRestricted) || 0,
-        restrictedDuty, lostConsciousness, fatality, oshaIllnessType,
+        daysAway: Number(daysAway) || 0, daysRestricted: daysRestrictedNum,
+        restrictedDuty: effectiveRestricted, lostConsciousness, fatality, oshaIllnessType,
         oshaRecordable: recordable, status,
       });
     } else {
@@ -463,15 +493,15 @@ function SafetyIncidentsInner() {
         id: generateUUID(), projectId: projectId ?? '', type, severity, occurredAt,
         description: desc, location: location.trim(), peopleInvolved, photoUrls,
         correctiveActions, treatment, daysAway: Number(daysAway) || 0,
-        daysRestricted: Number(daysRestricted) || 0, oshaIllnessType,
-        restrictedDuty, lostConsciousness, fatality, oshaRecordable: recordable,
+        daysRestricted: daysRestrictedNum, oshaIllnessType,
+        restrictedDuty: effectiveRestricted, lostConsciousness, fatality, oshaRecordable: recordable,
         status: 'open', reportedBy: author, createdBy: author, createdAt: now, updatedAt: now,
       };
       addIncident(incident);
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, daysRestricted, oshaIllnessType, restrictedDuty, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author]);
+  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, daysRestrictedNum, oshaIllnessType, effectiveRestricted, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author, classInput]);
 
   const handleAdvanceStatus = useCallback((inc: SafetyIncident) => {
     updateIncident(inc.id, { status: nextStatus(inc.status) });
@@ -526,7 +556,9 @@ function SafetyIncidentsInner() {
               </Text>
 
               <View style={styles.badgeRow}>
-                {item.oshaRecordable ? (
+                {/* The same test the OSHA 300 and the Safety hub use, so a legacy
+                    case the log counts is never unbadged here. */}
+                {isRecordableCase(item) ? (
                   <View style={styles.oshaBadge}>
                     <AlertTriangle size={11} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.oshaBadgeText}>OSHA Recordable</Text>
@@ -744,10 +776,12 @@ function SafetyIncidentsInner() {
                   ))}
                 </View>
 
-                <TouchableOpacity style={styles.toggleRow} onPress={() => setRestrictedDuty(v => !v)} activeOpacity={0.7}>
-                  <Text style={styles.toggleLabel}>Restricted duty / job transfer</Text>
-                  <View style={[styles.toggleBox, restrictedDuty ? styles.toggleBoxOn : null]}>
-                    {restrictedDuty ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
+                <TouchableOpacity style={styles.toggleRow} onPress={toggleRestrictedDuty} activeOpacity={0.7} testID="incident-restricted-toggle">
+                  <Text style={styles.toggleLabel}>
+                    Restricted duty / job transfer{daysRestrictedNum > 0 ? ` (${daysRestrictedNum} day${daysRestrictedNum === 1 ? '' : 's'} entered)` : ''}
+                  </Text>
+                  <View style={[styles.toggleBox, effectiveRestricted ? styles.toggleBoxOn : null]}>
+                    {effectiveRestricted ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setLostConsciousness(v => !v)} activeOpacity={0.7}>

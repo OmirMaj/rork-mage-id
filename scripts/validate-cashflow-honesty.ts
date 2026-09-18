@@ -665,9 +665,17 @@ console.log('\n  8. the surfaces are wired to it');
   // Anchored INSIDE the generateForecast call, not just anywhere in the file:
   // the same concat also builds the section's monthly total, so an unanchored
   // match stayed green while the forecast itself had been reverted.
+  // Since audit round 2 (#17) the concat lives in ONE place,
+  // buildForecastInputs, shared with the home tab's CASH · 4WK tile. Pin both
+  // ends: the engine concatenates and forecastFromInputs forecasts THAT list,
+  // and the screen's forecast memo runs on those inputs with the commitments
+  // handed in. (validate-cashflow-home-tile.ts executes the path end to end.)
+  const engineSrc = read('utils/cashFlowEngine.ts');
   check('the Cash Flow screen forecasts the committed rows alongside the typed ones',
-    /buildCommittedOutflows\(\{/.test(screen) &&
-    /generateForecast\([\s\S]{0,900}\[\.\.\.cashFlowData\.expenses, \.\.\.committed\.scheduled\]/.test(screen),
+    /expenses: \[\.\.\.typed, \.\.\.committed\.scheduled\]/.test(engineSrc) &&
+    /export function forecastFromInputs[\s\S]{0,300}inputs\.expenses,/.test(engineSrc) &&
+    /buildForecastInputs\(\{[\s\S]{0,200}commitments: relevantCommitments,/.test(screen) &&
+    /const forecast = useMemo<CashFlowWeek\[\]>\(\(\) => \{[\s\S]{0,120}return forecastFromInputs\(forecastInputs, forecastWeeks\)/.test(screen),
     'Without the concat the derived rows are computed and thrown away.');
   // Likewise anchored on the rendered figure — `committed.undated > 0` on its
   // own also appears in the AI prompt string, where it proves nothing about
@@ -693,8 +701,9 @@ console.log('\n  8. the surfaces are wired to it');
   // bias propagated off this screen in the first place.
   const facts = read('utils/oneMind/factBlocks.ts');
   check('the AI cash block forecasts the committed rows too',
-    /engine\.buildCommittedOutflows\(\{/.test(facts) &&
-    /\[\.\.\.data\.expenses, \.\.\.committed\.scheduled\]/.test(facts),
+    // Now via the shared assembly, which concatenates committed.scheduled.
+    /engine\.buildForecastInputs\(\{[\s\S]{0,200}commitments: bundle\.commitments,/.test(facts) &&
+    /engine\.forecastFromInputs\(inputs, 12\)/.test(facts),
     'utils/oneMind/factBlocks.ts must not build a forecast the screen would ' +
     'not recognise — that is how "you are fine this week" got said.');
   check('...and states the undated committed balance as a fact',

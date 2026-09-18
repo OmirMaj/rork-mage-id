@@ -22,7 +22,7 @@ import type {
 import { computeRFILatency } from '@/utils/rfiLatency';
 
 import { generateUUID } from '@/utils/generateId';
-import { calendarDayStart, calendarDayOf, daysUntilCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
+import { calendarDayStart, calendarDayOf, daysUntilCalendarDay, formatCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
 
 const ONE_DAY_MS = 86_400_000;
 
@@ -311,14 +311,14 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
   // ── 1. Safety — recent DFR safety notes / incidents ─────────
   const recentDfrs = (dailyReports ?? [])
     .filter(d => daysBetween(d.date) <= 7)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => dayOrInstantDate(b.date).getTime() - dayOrInstantDate(a.date).getTime());
   const incidents = recentDfrs.filter(d => d.incident?.hasIncident);
   if (incidents.length > 0) {
     items.push({
       id: createId('agenda'),
       section: 'safety',
       title: `${incidents.length} safety incident${incidents.length === 1 ? '' : 's'} this week`,
-      detail: incidents.map(i => `${new Date(i.date).toLocaleDateString()} — ${i.incident?.description?.slice(0, 80) ?? 'incident logged'}`).join('; '),
+      detail: incidents.map(i => `${dayOrInstantDate(i.date).toLocaleDateString()} — ${i.incident?.description?.slice(0, 80) ?? 'incident logged'}`).join('; '),
       status: 'urgent',
     });
   } else {

@@ -20,6 +20,10 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { sendEmailNative, sendEmail, buildPortalInviteEmailHtml } from '@/utils/emailService';
@@ -37,7 +41,7 @@ import type { BakedHomePassport } from '@/utils/passport/types';
 import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
 import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
@@ -55,6 +59,16 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { Button } from '@/components/ui';
+import { nailIt } from '@/components/animations/NailItToast';
+import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
+import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import { toClientEstimateView } from '@/utils/clientEstimateView';
+import { fetchProposalAcceptanceState } from '@/utils/proposalAcceptances';
+import {
+  acceptanceStateFromRead, isValidStamp, nextProposalStamp, proposalTermsState, splitLabel,
+  type AcceptanceState,
+} from '@/utils/paymentTerms';
 
 const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
 // The GC's last link-duration pick, remembered across PROJECTS. A GC who
@@ -273,7 +287,26 @@ function ClientPortalSetupScreenInner() {
     getPhotosForProject, getRFIsForProject,
     getAIAPayAppsForProject,
     getCommitmentsForProject, getWarrantiesForProject, getPermitsForProject,
+    equipment, permits, subcontractors,
   } = useProjects();
+  // The actual-cost streams the open-book / GMP block discloses. Without them
+  // an open-book client is shown a cost-to-date built from subcontracts alone
+  // (audit round 2, #16).
+  const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+  // Those stores read [] / {} until AsyncStorage answers. The snapshot below
+  // auto-publishes to portal_snapshots, and for a GMP / open-book job it
+  // discloses cost-to-date — so a push in that beat would hand the homeowner
+  // a subcontract-only number, and project-detail's lite writer would carry
+  // that block forward after the GC left. Same readiness rule ProjectHero and
+  // margin-alerts use; the mirror hook has no loading flag, so read its cache.
+  const queryClient = useQueryClient();
+  const mirrorLoaded = queryClient.getQueryState(TIME_ENTRIES_MIRROR_QUERY_KEY)?.data !== undefined;
+  const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -324,9 +357,12 @@ function ClientPortalSetupScreenInner() {
   // Signed proposal decisions the homeowner made from the portal. The
   // acceptance RPC (supabase/migrations/held/…_portal_proposal_acceptance.sql)
   // is the only writer; RLS scopes the read to the project's owner. The table
-  // does not exist until that migration is applied, so a failed read resolves
-  // to an empty list rather than throwing — the section simply shows nothing
-  // yet, which is the truth.
+  // does not exist until that migration is applied, so a MISSING TABLE
+  // resolves to an empty list — the section simply shows nothing yet, which is
+  // the truth. Any OTHER error throws: this list also decides whether the
+  // proposal's payment terms may still be replaced, and "the read failed"
+  // turned into "nobody accepted" is how signed text would get rewritten
+  // (utils/paymentTerms.acceptanceStateFromRead).
   const acceptancesQ = useQuery({
     queryKey: ['portal-proposal-approvals', id],
     enabled: !!id && isSupabaseConfigured,
@@ -337,11 +373,19 @@ function ClientPortalSetupScreenInner() {
         .eq('project_id', id)
         .order('created_at', { ascending: false })
         .limit(10);
-      if (error) return [];
+      if (error) {
+        if (acceptanceStateFromRead({ data, error }) === 'none') return [];
+        throw error;
+      }
       return (data ?? []) as ProposalApprovalRow[];
     },
   });
   const acceptances = acceptancesQ.data ?? [];
+  // For the terms row only. A failed read is 'unknown', which blocks replacing
+  // the stamp; the replace handler still re-reads fresh before it writes.
+  const acceptanceForTerms: AcceptanceState = acceptancesQ.isError
+    ? 'unknown'
+    : acceptances.some(a => a.decision === 'accepted') ? 'accepted' : 'none';
 
   // The proposal toggle needs something to propose — and the switch and the
   // builder have to agree on what "something" means. They ask the SAME
@@ -372,6 +416,108 @@ function ClientPortalSetupScreenInner() {
       portalId: `portal-${(id ?? '').slice(0, 8)}-${Date.now().toString(36)}`,
     };
   });
+
+  // ─── The proposal's payment terms (Direction B, "ask when it matters") ────
+  //
+  // The portal proposal prints ONLY this portal's stamp
+  // (portal.proposalPaymentTerms, see utils/portalSnapshot.buildPortalProposal),
+  // a copy of the GC's saved terms taken when he switches the proposal on,
+  // confirms it, or uses his current terms. Two rules make that a freeze and
+  // not a race:
+  //   · EVERY handler that sets the flag or the stamp also SAVES it, merging
+  //     only those two keys onto the saved portal. The lite snapshot push
+  //     app/project-detail.tsx runs on every project open rebuilds the
+  //     proposal from the SAVED project — a stamp that lived only in this
+  //     screen's state would publish once here and vanish on the next open.
+  //   · Replacing a stamp awaits a FRESH acceptance read in the handler. The
+  //     cached list above can be stale by the time he taps.
+  const gate = useClientDocumentGate();
+  const proposalTotal = useMemo(() => {
+    const est = project?.linkedEstimate;
+    return est ? toClientEstimateView(est).projectTotal : null;
+  }, [project?.linkedEstimate]);
+
+  /** Save the proposal keys onto the SAVED portal, in the same press. A portal
+   *  that was never saved has no access token yet (the DB trigger mints it on
+   *  save), so no homeowner can open it; its Save persists the local state. */
+  const persistProposalKeys = useCallback((keys: Partial<Pick<ClientPortalSettings, 'proposalApprovalEnabled' | 'proposalPaymentTerms'>>) => {
+    if (!id || !project?.clientPortal?.enabled) return;
+    updateProject(id, { clientPortal: { ...project.clientPortal, ...keys } });
+  }, [id, project?.clientPortal, updateProject]);
+
+  // A stamp written elsewhere (the first "Use on every job" confirms every
+  // portal waiting on terms; the project-detail row) lands on the saved
+  // project while this screen holds its own copy. Adopt it, or the next Save
+  // here would write the portal back without it.
+  const savedStamp = project?.clientPortal?.proposalPaymentTerms;
+  useEffect(() => {
+    if (!isValidStamp(savedStamp)) return;
+    setPortal(p => (isValidStamp(p.proposalPaymentTerms) ? p : { ...p, proposalPaymentTerms: savedStamp }));
+  }, [savedStamp]);
+
+  const handleProposalSwitch = useCallback((val: boolean) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    if (!val) {
+      // Off keeps the stamp: switching back on must print what the client
+      // was already shown, not whatever the terms are by then.
+      setPortal(p => ({ ...p, proposalApprovalEnabled: false }));
+      persistProposalKeys({ proposalApprovalEnabled: false });
+      return;
+    }
+    const existing = portal.proposalPaymentTerms;
+    // A stamp answers the question; otherwise his saved terms do; otherwise
+    // the sheet asks. Dismissing it leaves the switch off.
+    gate.run(
+      { terms: true, record: isValidStamp(existing) ? existing : null, purpose: 'portal_proposal', total: proposalTotal, projectType: project?.type ?? null },
+      (a) => {
+        // A stamp exists → kept (same split). No stamp → a FIRST stamp, which
+        // needs no acceptance read: a proposal without terms can't be accepted.
+        const next = nextProposalStamp({ existing, split: a.split, acceptance: 'none', nowIso: new Date().toISOString() });
+        if ('refused' in next) { showAlert('Payment terms', next.refused); return; }
+        setPortal(p => ({ ...p, proposalApprovalEnabled: true, proposalPaymentTerms: next.stamp }));
+        persistProposalKeys({ proposalApprovalEnabled: true, proposalPaymentTerms: next.stamp });
+      },
+    );
+  }, [portal.proposalPaymentTerms, gate, proposalTotal, project?.type, persistProposalKeys]);
+
+  const [replacingTerms, setReplacingTerms] = useState(false);
+  /** "Use 30 / 60 / 10 on this proposal" — replace the stamp with his current
+   *  terms, only after a fresh read proves the client has not accepted. */
+  const handleUseCurrentTerms = useCallback(async () => {
+    const split = settings.paymentSplit;
+    if (!id || !split) return;
+    setReplacingTerms(true);
+    try {
+      const acceptance = await fetchProposalAcceptanceState(id);
+      const next = nextProposalStamp({ existing: portal.proposalPaymentTerms, split, acceptance, nowIso: new Date().toISOString() });
+      if ('refused' in next) {
+        showAlert('Terms not changed', next.refused);
+        void acceptancesQ.refetch();
+        return;
+      }
+      setPortal(p => ({ ...p, proposalPaymentTerms: next.stamp }));
+      persistProposalKeys({ proposalPaymentTerms: next.stamp });
+      nailIt(`This proposal now prints ${splitLabel(next.stamp)} — your client must reload to accept`);
+    } finally {
+      setReplacingTerms(false);
+    }
+  }, [id, settings.paymentSplit, portal.proposalPaymentTerms, acceptancesQ, persistProposalKeys]);
+
+  /** A proposal published without terms (before Direction B, or switched on
+   *  elsewhere): one tap when his terms are saved, the deposit step when not. */
+  const confirmTerms = useCallback(() => {
+    gate.run(
+      { terms: true, purpose: 'portal_proposal', total: proposalTotal, projectType: project?.type ?? null },
+      (a) => {
+        const next = nextProposalStamp({ existing: portal.proposalPaymentTerms, split: a.split, acceptance: 'none', nowIso: new Date().toISOString() });
+        if ('refused' in next) { showAlert('Payment terms', next.refused); return; }
+        setPortal(p => ({ ...p, proposalPaymentTerms: next.stamp }));
+        persistProposalKeys({ proposalPaymentTerms: next.stamp });
+      },
+    );
+  }, [gate, proposalTotal, project?.type, portal.proposalPaymentTerms, persistProposalKeys]);
+
+  const termsState = proposalTermsState({ portal, profileSplit: settings.paymentSplit, acceptance: acceptanceForTerms });
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
@@ -530,6 +676,7 @@ function ClientPortalSetupScreenInner() {
       // literal empty array, so the switch below made nothing appear at all.
       permits: getPermitsForProject(project.id),
       homePassport,
+      costSources,
     });
   }, [
     project, portal, settings,
@@ -539,7 +686,7 @@ function ClientPortalSetupScreenInner() {
     getAIAPayAppsForProject, threadQ.messages,
     contractQ.data, selectionsQ.data, closeoutQ.data,
     getCommitmentsForProject, getWarrantiesForProject, getPermitsForProject,
-    homePassport,
+    homePassport, costSources,
   ]);
 
   // Short, share-friendly URL — `mageid.app/portal/<id>`. The static
@@ -752,6 +899,10 @@ function ClientPortalSetupScreenInner() {
   useEffect(() => {
     if (!snapshot || !project?.id || !portal.portalId) return;
     if (!isSupabaseConfigured) return;
+    // An open-book / GMP snapshot waits for the cost streams (see
+    // costSourcesReady). Other modes disclose no cost-to-date, so they go now.
+    const disclosesCost = project.contractMode === 'gmp' || project.contractMode === 'open_book';
+    if (disclosesCost && !costSourcesReady) return;
     // Fire IMMEDIATELY on the first ready snapshot — old behavior was a
     // 1.5s debounce that meant a GC tapping in and out fast left the
     // table empty. Subsequent updates still debounce.
@@ -786,11 +937,17 @@ function ClientPortalSetupScreenInner() {
         });
     }, initialDelay);
     return () => clearTimeout(t);
-  }, [snapshot, project?.id, project?.status, project?.closedAt, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
+  }, [snapshot, project?.id, project?.status, project?.closedAt, project?.contractMode, costSourcesReady, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
 
+  // The hash link carries the snapshot itself and has no ?t= token, so the
+  // page never refreshes it from the server. On a GMP / open-book job, one
+  // copied before the cost streams load would freeze a subcontract-only
+  // cost-to-date into the homeowner's link — so until they load, hand out the
+  // short link, which reads the published (readiness-gated) snapshot instead.
+  const snapshotHeldForCosts = (project?.contractMode === 'gmp' || project?.contractMode === 'open_book') && !costSourcesReady;
   const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
     // Same rule as portalLinkWithHash: the fallback keeps the access token.
-    if (!snapshot) return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id, portal.accessToken);
+    if (!snapshot || snapshotHeldForCosts) return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id, portal.accessToken);
     // Include invite.id so the portal page can greet the client by name + mark viewed
     const inviteSnapshot = invite
       ? { ...snapshot, clientName: invite.name }
@@ -801,7 +958,7 @@ function ClientPortalSetupScreenInner() {
       inviteSnapshot,
       invite?.id,
     );
-  }, [snapshot, portal.portalId, portal.accessToken]);
+  }, [snapshot, snapshotHeldForCosts, portal.portalId, portal.accessToken]);
 
   // Short, shareable URL — `mageid.app/portal/<id>?inviteId=...` with no
   // base64 hash. Use this for SMS, email body, and anywhere the long
@@ -1650,22 +1807,76 @@ function ClientPortalSetupScreenInner() {
               <Switch
                 value={!!portal.proposalApprovalEnabled && canProposeToClient}
                 disabled={!canProposeToClient}
-                onValueChange={val => handleToggle('proposalApprovalEnabled', val)}
+                onValueChange={handleProposalSwitch}
+                testID="proposal-approval-switch"
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
-            {/* What the switch does NOT do on its own. The proposal only
-                reaches the homeowner on the next snapshot push, and a portal
-                page opened before this feature shipped has no accept button —
-                it tells them to message you instead. Saying so here is the
-                difference between a switch and a promise. */}
+            {/* The payment terms this proposal prints — the portal's own
+                stamp, never the live settings. One row per state; every action
+                opens the sheet or writes the stamp directly, never names a
+                screen to go find. */}
+            {canProposeToClient && termsState.state !== 'off' && (
+              <View style={[styles.proposalTermsRow, styles.toggleRowBorder]} testID="proposal-terms-row">
+                {termsState.state === 'current' && (
+                  <>
+                    <Text style={styles.toggleDesc}>Prints your terms: {splitLabel(termsState.stamp)}.</Text>
+                    <Button label="Change" variant="ghost" size="sm" onPress={() => gate.edit('terms')} testID="proposal-terms-change" />
+                  </>
+                )}
+                {termsState.state === 'differs' && (
+                  <>
+                    <Text style={styles.toggleDesc}>
+                      Prints {splitLabel(termsState.stamp)} — the terms your client was shown. Your terms are now {splitLabel(termsState.profileSplit)}.
+                    </Text>
+                    {termsState.action === 'use-current' ? (
+                      <>
+                        <Button
+                          label={`Use ${splitLabel(termsState.profileSplit)} on this proposal`}
+                          variant="secondary" size="sm"
+                          onPress={handleUseCurrentTerms}
+                          loading={replacingTerms}
+                          testID="proposal-terms-use-current"
+                        />
+                        <Text style={styles.toggleDesc}>Your client will need to reload the page before accepting.</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.toggleDesc}>{termsState.reason}</Text>
+                        <Button label="Try again" variant="ghost" size="sm" onPress={() => { void acceptancesQ.refetch(); }} testID="proposal-terms-retry" />
+                      </>
+                    )}
+                  </>
+                )}
+                {termsState.state === 'unconfirmed' && (
+                  <>
+                    <Text style={styles.toggleDesc}>
+                      Your client sees this proposal without payment terms and can&apos;t accept it yet.
+                    </Text>
+                    <Button
+                      label={termsState.action === 'use-profile' ? `Use ${splitLabel(termsState.profileSplit)}` : 'Set your payment terms'}
+                      variant="secondary" size="sm"
+                      onPress={confirmTerms}
+                      testID="proposal-terms-confirm"
+                    />
+                  </>
+                )}
+                {termsState.state === 'locked' && (
+                  <Text style={styles.toggleDesc}>Accepted on {splitLabel(termsState.stamp)} — these can&apos;t change.</Text>
+                )}
+              </View>
+            )}
+            {/* What the switch does NOT do on its own. The switch saves the
+                proposal to the project straight away, so it publishes within
+                seconds — but a page the client already had open is a snapshot
+                of before. Saying so here is the difference between a switch
+                and a promise. */}
             {!!portal.proposalApprovalEnabled && canProposeToClient && (
               <View style={[styles.toggleRow, styles.toggleRowBorder]}>
                 <Text style={styles.toggleDesc} testID="proposal-rollout-note">
-                  Your client sees this the next time this project publishes its portal — Save here, or open the
-                  project. If their page was loaded before the update, it tells them to message you rather than
-                  taking a signature it cannot record.
+                  Your client sees this proposal within seconds of switching it on. If their page was already open,
+                  it asks them to refresh before accepting.
                 </Text>
               </View>
             )}
@@ -2002,6 +2213,7 @@ function ClientPortalSetupScreenInner() {
         emailHtml={shareEmailHtml}
         link={portalLink}
       />
+      <ClientDocumentAskSheet {...gate.sheet} />
     </>
   );
 }
@@ -2107,6 +2319,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   toggleLabels: { flex: 1 },
   toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
   toggleDesc: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
+  proposalTermsRow: { paddingHorizontal: 14, paddingVertical: 12, gap: 8, alignItems: 'flex-start' },
 
   budgetStatus: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,

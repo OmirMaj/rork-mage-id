@@ -36,6 +36,32 @@ export function defaultDurationForCategory(category: WarrantyCategory | null | u
   }
 }
 
+/**
+ * The term the interview recommends and apply() falls back to. For general
+ * workmanship it is HIS saved warranty (Settings → warrantyMonths, the number
+ * the warranties screen and his proposals already print) when he has one —
+ * a GC who promises 24 months must not get a 12-month workmanship record in
+ * the closeout binder just because he logged it by voice. Every other
+ * category keeps its manufacturer-typical term. `savedMonths` is read from
+ * Grounding.data.savedWarrantyMonths (see warrantyGrounding).
+ */
+export function groundedWarrantyTerm(
+  category: WarrantyCategory | null | undefined,
+  savedMonths: number | null | undefined,
+): { months: number; basis: string } {
+  const workmanship = category == null || category === 'general';
+  if (workmanship && typeof savedMonths === 'number' && savedMonths > 0) {
+    return { months: savedMonths, basis: 'your saved workmanship warranty' };
+  }
+  return { months: defaultDurationForCategory(category), basis: `typical ${category ?? 'workmanship'} term` };
+}
+
+/** The saved workmanship term grounding carries, or null. */
+export function savedWarrantyMonthsFrom(grounding: Grounding | null | undefined): number | null {
+  const v = grounding?.data?.savedWarrantyMonths;
+  return typeof v === 'number' && v > 0 ? v : null;
+}
+
 const CATEGORY_CHOICES: { label: string; value: WarrantyCategory }[] = [
   { label: 'Roofing', value: 'roofing' },
   { label: 'HVAC', value: 'hvac' },
@@ -50,8 +76,7 @@ const CATEGORY_CHOICES: { label: string; value: WarrantyCategory }[] = [
 
 const MONTHS_IN_YEAR = 12;
 
-function durationChoices(category: WarrantyCategory | null | undefined): Gap['choices'] {
-  const rec = defaultDurationForCategory(category);
+function durationChoices(category: WarrantyCategory | null | undefined, rec: number): Gap['choices'] {
   const terms = [12, 24, 60, 120, 300];
   // Make sure the category's grounded default is offered even if it's off-ladder.
   if (!terms.includes(rec)) terms.push(rec);
@@ -67,19 +92,16 @@ function durationChoices(category: WarrantyCategory | null | undefined): Gap['ch
     });
 }
 
-export function warrantyGaps(draft: WarrantyDraft, _grounding: Grounding): Gap[] {
+export function warrantyGaps(draft: WarrantyDraft, grounding: Grounding): Gap[] {
   const gaps: Gap[] = [];
-  const catDefault = defaultDurationForCategory(draft.category);
+  const term = groundedWarrantyTerm(draft.category, savedWarrantyMonthsFrom(grounding));
 
   if (draft.durationMonths == null) {
     gaps.push({
       field: 'durationMonths', impact: 0.62, kind: 'choice',
       question: 'How long is it covered?',
-      groundedDefault: {
-        value: catDefault,
-        basis: `typical ${draft.category ?? 'workmanship'} term`,
-      },
-      choices: durationChoices(draft.category),
+      groundedDefault: { value: term.months, basis: term.basis },
+      choices: durationChoices(draft.category, term.months),
     });
   }
 

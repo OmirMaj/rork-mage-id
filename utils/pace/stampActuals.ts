@@ -95,8 +95,15 @@ export function stampActuals(
       // Mirror the Gantt's logFinishToday: back-fill the start from the PLAN,
       // not from today — finishing day is rarely the starting day. Capped at
       // today so a task finished AHEAD of its planned start can never stamp
-      // an inverted pair (actualStartDay > actualEndDay).
-      if (todayDayNumber != null) patch.actualStartDay = Math.min(task.startDay, todayDayNumber);
+      // an inverted pair (actualStartDay > actualEndDay). Floored at day 1:
+      // day numbers are 1-indexed (todayScheduleDay), but tasks older mobile
+      // builds created are 0-indexed, and a retro start of 0 is a day that does
+      // not exist — the field RPC refuses it (actualStartDay ≥ 1) and fails
+      // the foreman's whole save with a message he cannot act on.
+      // A task with no usable planned start falls back to today (NaN would
+      // otherwise pass straight through both Math calls).
+      const planned = Number.isFinite(task.startDay) ? task.startDay : todayDayNumber ?? 1;
+      if (todayDayNumber != null) patch.actualStartDay = Math.max(1, Math.min(planned, todayDayNumber));
       patch.actualStartDate = nowISO;
     }
     return patch;

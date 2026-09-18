@@ -17,13 +17,16 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { TimeEntry } from '@/types';
-import { useTimeEntries, buildTimeEntriesCSV, computeShiftHours } from '@/hooks/useTimeEntries';
+import { useTimeEntries, buildTimeEntriesCSV, computeShiftHours, timeEntryDay } from '@/hooks/useTimeEntries';
 import { useLaborRates } from '@/hooks/useLaborRates';
 import { shareText } from '@/utils/shareText';
 import { computeLaborStats, normalizeTradeKey } from '@/utils/laborSamples';
 import { looksLikeBareWage, burdenPercentLabel } from '@/utils/laborBurdenModel';
 import { parseLenientNumber } from '@/utils/formatters';
-import { formatCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { useSafety } from '@/contexts/SafetyContext';
+import { certFlagsForWorker, lapsedCertConfirmText, type CertFlag } from '@/utils/safety/crewCerts';
+import { StatusPill } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCrew } from '@/contexts/CrewContext';
 import { Type } from '@/constants/typography';
@@ -218,8 +221,13 @@ function TimeTrackingScreenInner() {
     entries, liveEntries, historyEntries,
     clockIn: doClockIn, startBreak, resumeFromBreak, clockOut: doClockOut,
     updateEntry, deleteEntry,
-    shiftAlertHours, setShiftAlertHours,
+    shiftAlertHours, setShiftAlertHours, refresh: refreshEntries,
   } = useTimeEntries();
+  // The entries live in one app-wide store now (contexts/TimeEntriesContext),
+  // which pulls from Supabase once per sign-in. Opening this screen asks for a
+  // fresh pull, as mounting the old per-screen hook did, so a shift clocked
+  // out on another device shows here.
+  useEffect(() => { refreshEntries(); }, [refreshEntries]);
   const [showAlertPicker, setShowAlertPicker] = useState(false);
   // Labor rates — the GC's loaded $/hr per trade (wages + burden). The one
   // input that turns clocked hours into cost-book samples (flywheel#56):
@@ -285,14 +293,31 @@ function TimeTrackingScreenInner() {
     }));
   }, [selectedProject, getCrewForProject, crewMembers]);
 
+  // Certification flags per roster member (audit round 2, safety #2). The
+  // join is exact — the roster id IS the CrewMember.id a Certification's
+  // workerId points at — so an "Expired: SST (Sep 12)" chip here is a fact,
+  // not a name match. `today` is the LOCAL calendar day: a UTC day would call
+  // a card expired on the evening of its last valid day.
+  const { certifications } = useSafety();
+  const certFlagsByMember = useMemo(() => {
+    const today = todayCalendarDay();
+    const out: Record<string, CertFlag[]> = {};
+    for (const m of roster) out[m.id] = certFlagsForWorker(certifications, m.id, today);
+    return out;
+  }, [roster, certifications]);
+
   const availableRoster = useMemo(
     () => roster.filter(m => !liveEntries.some(e => e.workerId === m.id)),
     [roster, liveEntries],
   );
 
   const todayStats = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const todayEntries = entries.filter(e => e.date === today);
+    // Local day on both sides (field-ops #9). The UTC today rolled over at
+    // ~5 pm Pacific and every shift finished earlier that day dropped out of
+    // Hours Today and the OT tile; timeEntryDay reads the clock-in instant, so
+    // rows saved with the old UTC `date` land on the right day too.
+    const today = todayCalendarDay();
+    const todayEntries = entries.filter(e => timeEntryDay(e) === today);
     const totalWorkers = new Set(todayEntries.map(e => e.workerId)).size;
     const totalHours = todayEntries.reduce((s, e) => s + e.totalHours, 0);
     const totalOT = todayEntries.reduce((s, e) => s + e.overtimeHours, 0);
@@ -448,7 +473,7 @@ function TimeTrackingScreenInner() {
     const entry = correcting;
     showAlert(
       'Delete this entry?',
-      `${entry.workerName} · ${entry.totalHours.toFixed(1)}h on ${new Date(entry.date).toLocaleDateString()}. It comes out of the payroll export and out of the labor samples feeding your cost book. This cannot be undone.`,
+      `${entry.workerName} · ${entry.totalHours.toFixed(1)}h on ${formatCalendarDay(timeEntryDay(entry))}. It comes out of the payroll export and out of the labor samples feeding your cost book. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -467,20 +492,36 @@ function TimeTrackingScreenInner() {
     const member = roster.find(m => m.id === memberId);
     if (!member) return;
 
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const commit = () => {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Use the user-chosen project (defaults to projects[0] in the picker
-    // effect above). Falls back to 'unassigned' only when no projects exist.
-    doClockIn({
-      projectId: selectedProject?.id ?? 'unassigned',
-      projectName: selectedProject?.name ?? 'Unassigned',
-      workerId: member.id,
-      workerName: member.name,
-      trade: member.trade,
-    });
+      // Use the user-chosen project (defaults to projects[0] in the picker
+      // effect above). Falls back to 'unassigned' only when no projects exist.
+      doClockIn({
+        projectId: selectedProject?.id ?? 'unassigned',
+        projectName: selectedProject?.name ?? 'Unassigned',
+        workerId: member.id,
+        workerName: member.name,
+        trade: member.trade,
+      });
 
-    setShowClockInModal(false);
-  }, [doClockIn, selectedProject, roster]);
+      setShowClockInModal(false);
+    };
+
+    // A lapsed card is a confirm, not a silent block and not a silent pass
+    // (safety #2). Clock-in is the moment a person is put on the job; the
+    // super may have a renewed card in hand that nobody has entered yet, so
+    // he decides — but he decides having been told which card and when.
+    const warn = lapsedCertConfirmText(member.name, certFlagsByMember[member.id] ?? [], 'Clock them in');
+    if (warn) {
+      showAlert('Certification lapsed', warn, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clock in anyway', style: 'destructive', onPress: commit },
+      ]);
+      return;
+    }
+    commit();
+  }, [doClockIn, selectedProject, roster, certFlagsByMember]);
 
   // Payroll CSV export. Drops everything in `entries` into the standard
   // QuickBooks/Sage-friendly column shape and shares via native Share
@@ -674,7 +715,7 @@ function TimeTrackingScreenInner() {
                 onPress={() => openCorrection(entry)}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel={`${entry.workerName}, ${entry.totalHours.toFixed(1)} hours on ${new Date(entry.date).toLocaleDateString()}. Tap to correct or delete.`}
+                accessibilityLabel={`${entry.workerName}, ${entry.totalHours.toFixed(1)} hours on ${formatCalendarDay(timeEntryDay(entry))}. Tap to correct or delete.`}
                 testID={`time-entry-${entry.id}`}
               >
                 <View style={styles.historyHeader}>
@@ -688,7 +729,10 @@ function TimeTrackingScreenInner() {
                 </View>
                 <View style={styles.historyFooter}>
                   <Text style={styles.historyDate}>
-                    {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {/* The local day the shift was worked, from its clock-in
+                        instant (field-ops #9): parsing the bare day with new Date read the
+                        bare day as UTC midnight and named the day before. */}
+                    {formatCalendarDay(timeEntryDay(entry), { weekday: 'short', month: 'short', day: 'numeric' })}
                   </Text>
                   {entry.overtimeHours > 0 && (
                     <View style={styles.otBadge}>
@@ -789,6 +833,19 @@ function TimeTrackingScreenInner() {
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>{member.name}</Text>
                     <Text style={styles.memberTrade}>{member.trade}</Text>
+                    {(certFlagsByMember[member.id] ?? []).length > 0 ? (
+                      <View style={styles.memberCertFlags}>
+                        {(certFlagsByMember[member.id] ?? []).map(f => (
+                          <StatusPill
+                            key={f.certId}
+                            label={f.label}
+                            tone={f.status === 'expired' ? 'error' : 'warning'}
+                            size="compact"
+                            testID={`clock-in-cert-${member.id}-${f.certId}`}
+                          />
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
                   <Play size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -932,13 +989,13 @@ function TimeTrackingScreenInner() {
             {correcting ? (
               <>
                 <Text style={styles.modalSubtitle}>
-                  {/* formatCalendarDay, not new Date(): TimeEntry.date is a bare
-                      'YYYY-MM-DD', and new Date() reads that as UTC midnight —
-                      west of Greenwich the sheet would name the day before the
-                      one being corrected. The history rows above still carry
-                      that defect; it is on file in scripts/validate-calendar-date
-                      UNRESOLVED and belongs to the hook that writes the day. */}
-                  {correcting.workerName} · {correcting.trade || 'Crew'} · {formatCalendarDay(correcting.date, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {/* formatCalendarDay, not new Date(): a bare 'YYYY-MM-DD'
+                      read by new Date() is UTC midnight — west of Greenwich
+                      the day before. timeEntryDay, not correcting.date: rows
+                      written before field-ops #9 carry the UTC day, so an
+                      evening shift would name tomorrow. Same day the history
+                      row shows. */}
+                  {correcting.workerName} · {correcting.trade || 'Crew'} · {formatCalendarDay(timeEntryDay(correcting), { weekday: 'short', month: 'short', day: 'numeric' })}
                 </Text>
 
                 <View style={styles.rateRow}>
@@ -1295,6 +1352,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   memberInfo: { flex: 1, gap: 2 },
   memberName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
   memberTrade: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  memberCertFlags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   allClockedIn: { textAlign: 'center' as const, color: t.textMuted, paddingVertical: 20, fontSize: Type.bodyCompact.fontSize },
   rosterEmpty: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: 16, gap: 8 },
   rosterEmptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },

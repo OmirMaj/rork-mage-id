@@ -13,6 +13,7 @@ import type {
   SavedAIAPayApp, PortalState, ProjectSchedule, Permit, Warranty,
 } from '@/types';
 import { punchListTypeOf } from '@/types';
+import { dayOrInstantDate } from '@/utils/calendarDate';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { roundCents } from '@/utils/aiaBilling';
@@ -21,7 +22,8 @@ import {
   getRetentionHeld, getPaidToDate,
 } from '@/utils/projectFinancials';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
+import { toClientEstimateView } from '@/utils/clientEstimateView';
+import { isValidStamp, proposalPaymentLines } from '@/utils/paymentTerms';
 import { computeProjectProgress } from '@/utils/projectProgress';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import {
@@ -210,7 +212,10 @@ export interface PortalSnapshot {
   // signature capture the change-order flow uses. Present only when the GC
   // turned `proposalApprovalEnabled` on AND there is a priced estimate AND no
   // construction agreement has been sent yet (see buildPortalProposal). Its
-  // `documentText` is what an acceptance signature actually binds to.
+  // `documentText` is what an acceptance signature actually binds to. Its
+  // payment lines come ONLY from the portal's own stamp
+  // (portal.proposalPaymentTerms) — never from settings — and without a stamp
+  // it ships read-only with `paymentTermsPending`, which nobody can accept.
   proposal?: PortalProposal;
   // Whether the client can 1-tap approve/decline change orders from the
   // portal. When false the CO list is read-only.
@@ -629,8 +634,17 @@ export interface PortalSnapshot {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Bumped whenever the canonical record format changes. Stored on the
- *  acceptance row so an old seal stays interpretable. */
-export const PROPOSAL_ESIGN_VERSION = 'proposal-esign-1';
+ *  acceptance row so an old seal stays interpretable.
+ *
+ *  esign-2 (2026-09-17): the payment lines stopped being MAGE's invented 10%
+ *  deposit (clientEstimateView.defaultPaymentSchedule) and became the GC's own
+ *  terms, frozen per portal as `proposalPaymentTerms`. The bump is what makes
+ *  the old text unsignable: an old build keeps pushing esign-1 with the 10%
+ *  deposit, and the portal page and the held acceptance RPC both refuse
+ *  anything that is not esign-2 with confirmed terms — so whichever of the web
+ *  deploy or the OTA lands first, and however long old devices stay in use,
+ *  no homeowner can sign a deposit his contractor never chose. */
+export const PROPOSAL_ESIGN_VERSION = 'proposal-esign-2';
 
 /** What the signer affirms. Deliberately describes the ACT and the rights the
  *  homeowner keeps, and cites no statute and claims no legal effect — MAGE
@@ -677,6 +691,11 @@ export interface PortalProposal {
   preparedAt?: string;
   /** The canonical text the signature binds to. See the block comment above. */
   documentText: string;
+  /** Present (true) when the portal has no confirmed payment terms yet — a
+   *  proposal published before Direction B, or switched on before he answered.
+   *  `payment` is then empty, the document says `payment_terms: not_confirmed`,
+   *  and the page and the acceptance RPC refuse to let it be accepted. */
+  paymentTermsPending?: true;
 }
 
 /** Collapse whitespace and hard-cap free text, so the same estimate always
@@ -701,6 +720,8 @@ export interface ProposalDocumentInput {
   payment: PortalProposalMilestone[];
   lineCount: number;
   preparedAt?: string;
+  /** No confirmed terms: print `payment_terms: not_confirmed`, never lines. */
+  paymentTermsPending?: boolean;
 }
 
 /**
@@ -722,7 +743,11 @@ export function buildProposalDocumentText(input: ProposalDocumentInput): string 
   lines.push(`project_total_usd: ${usd(input.total)}`);
   for (const g of input.scope) lines.push(`scope: ${proposalTidy(g.label, 200)} — ${usd(g.total)}`);
   for (const a of input.allowances) lines.push(`allowance: ${proposalTidy(a.name, 200)} — ${usd(a.amount)}`);
-  for (const m of input.payment) {
+  // A pending proposal prints the fact that its terms are not confirmed in
+  // place of any payment line — so its text can never be mistaken for (or
+  // hash the same as) one that states a schedule.
+  if (input.paymentTermsPending) lines.push('payment_terms: not_confirmed');
+  else for (const m of input.payment) {
     lines.push(typeof m.amount === 'number'
       ? `payment: ${proposalTidy(m.label, 120)} — ${proposalTidy(m.detail, 200)} — ${usd(m.amount)}`
       : `payment: ${proposalTidy(m.label, 120)} — ${proposalTidy(m.detail, 200)}`);
@@ -920,11 +945,22 @@ export function buildPortalProposal(opts: {
   const allowances: PortalProposalAllowance[] = view.allowances.map(a => ({
     name: a.name, amount: a.amount,
   }));
-  const payment: PortalProposalMilestone[] = defaultPaymentSchedule(view.projectTotal).map(m => ({
-    label: m.label,
-    detail: m.detail,
-    ...(m.amount !== undefined ? { amount: m.amount } : {}),
-  }));
+  // THE PAYMENT SCHEDULE IS THE PORTAL'S STAMP, AND NOTHING ELSE. Not the
+  // GC's current settings: both snapshot writers (the rich push from portal
+  // setup and the lite push on every project open) must publish the same
+  // bytes, and a change under Company Profile must never rewrite text a
+  // homeowner may be about to sign. The stamp only ever copies his saved terms
+  // at the moment he switches the proposal on or confirms it
+  // (app/client-portal-setup.tsx). No stamp → no lines, and pending.
+  const stamp = portal.proposalPaymentTerms;
+  const paymentTermsPending = !isValidStamp(stamp);
+  const payment: PortalProposalMilestone[] = paymentTermsPending
+    ? []
+    : proposalPaymentLines(view.projectTotal, stamp).map(m => ({
+      label: m.label,
+      detail: m.detail,
+      ...(m.amount !== undefined ? { amount: m.amount } : {}),
+    }));
 
   const documentText = buildProposalDocumentText({
     proposalId: est.id,
@@ -936,6 +972,7 @@ export function buildPortalProposal(opts: {
     payment,
     lineCount: view.itemCount,
     preparedAt: est.createdAt,
+    paymentTermsPending,
   });
 
   return {
@@ -949,6 +986,7 @@ export function buildPortalProposal(opts: {
     lineCount: view.itemCount,
     preparedAt: est.createdAt,
     documentText,
+    ...(paymentTermsPending ? { paymentTermsPending: true as const } : {}),
   };
 }
 
@@ -1008,6 +1046,18 @@ interface BuildOpts {
   // Baked Home Passport (pre-answered FAQ + summary counts), loaded from
   // utils/passport/passportStore. Omitted when the GC never generated one.
   homePassport?: import('./passport/types').BakedHomePassport | null;
+  // The seven actual-cost streams Job Costing prices (receipts, priced crew
+  // hours + rates + OT multiplier, equipment, permits, the sub roster). The
+  // open-book / GMP block used to call computeJobCost without them, so an
+  // open-book client was shown a cost-to-date built from SUBCONTRACTS ALONE:
+  // a self-perform GC's own crew hours and material receipts were missing from
+  // the very number the mode exists to disclose (audit round 2, #16).
+  // Absent, the block is still built — the engine's own subcontract-only
+  // behaviour — because an open-book client seeing nothing is worse than one
+  // seeing the committed picture. client-portal-setup (the rich writer) passes
+  // it; project-detail's lite writer passes no commitments, so it never builds
+  // this block and carries the last rich one forward instead.
+  costSources?: import('./jobCostEngine').JobCostActualSources;
 }
 
 /**
@@ -1594,11 +1644,13 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   if (portal.showDailyReports) {
     const visibleDFRs = dailyReports.filter(d => isShared(d.portalState));
     if (visibleDFRs.length) {
-      const sorted = [...visibleDFRs].sort((a, b) => {
-        const ta = a.date ? new Date(a.date).getTime() : 0;
-        const tb = b.date ? new Date(b.date).getTime() : 0;
-        return tb - ta;
-      });
+      // dayOrInstantDate: older voice builds saved a bare YYYY-MM-DD, which
+      // new Date() reads as UTC midnight — the day before, west of Greenwich.
+      const dfrTime = (v: string | undefined) => {
+        const t = v ? dayOrInstantDate(v).getTime() : 0;
+        return Number.isFinite(t) ? t : 0;
+      };
+      const sorted = [...visibleDFRs].sort((a, b) => dfrTime(b.date) - dfrTime(a.date));
       sections.dailyReports = sorted.slice(0, maxDailyReports).map(d => renderSerialized(d, (dfr) => {
         const totalManHours = (dfr.manpower ?? []).reduce(
           (s, m) => s + ((m.hoursWorked ?? 0) * (m.headcount ?? 1)),
@@ -1611,9 +1663,12 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         const weather = dfr.weather
           ? `${dfr.weather.conditions ?? ''} ${dfr.weather.temperature ?? ''}`.trim() || undefined
           : undefined;
+        // The portal formats this with new Date(iso), so a bare day is sent as
+        // that day's local noon instant; a stored instant passes through.
+        const day = dfr.date ? dayOrInstantDate(dfr.date) : null;
         return {
           id: dfr.id,
-          date: dfr.date,
+          date: day && Number.isFinite(day.getTime()) ? day.toISOString() : dfr.date,
           weather,
           totalManpower,
           totalManHours,
@@ -1758,15 +1813,19 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   const openBook: PortalSnapshot['openBook'] = (() => {
     const mode = project.contractMode;
     if (mode !== 'gmp' && mode !== 'open_book') return undefined;
-    const commitments = opts.commitments;
-    // An EMPTY log is the same as none: client-portal-setup always passes an
-    // array, so `!commitments` alone let a job with nothing logged show the
-    // client a breakdown of $0 committed and $0 spent against the budget.
-    if (!commitments || commitments.length === 0) return undefined;
+    const commitments = opts.commitments ?? [];
+    // Nothing to build from: no commitments and no priced actual streams.
+    if (commitments.length === 0 && !opts.costSources) return undefined;
     try {
       // Lazy import — pure function, no side effects.
       const { computeJobCost } = require('./jobCostEngine') as typeof import('./jobCostEngine');
-      const job = computeJobCost({ project, commitments, invoices, changeOrders });
+      const job = computeJobCost({ project, commitments, invoices, changeOrders, ...opts.costSources });
+      // An EMPTY picture is the same as none: a job with nothing logged must
+      // not show the client $0 committed and $0 spent against the budget. It
+      // used to require commitments, which hid cost-to-date from the owner of
+      // a cost-plus job whose costs are all self-performed (crew hours,
+      // receipts) — now any committed OR priced actual cost builds it.
+      if (!(job.committed > 0) && !(job.actual > 0)) return undefined;
       const approvedCOs = changeOrders
         .filter(co => co.projectId === project.id && co.status === 'approved')
         .reduce((s, co) => s + co.changeAmount, 0);
@@ -1971,15 +2030,18 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     submitBudget: clientCanSetBudget ? apiConfig : undefined,
     portalApi: apiConfig,
     coApprovalEnabled: !!portal.coApprovalEnabled,
-    // Derived from `project` + `portal` + `contract` only, so EVERY caller
-    // that pushes a snapshot produces the same block. That matters more than
-    // it looks: app/project-detail.tsx pushes a "lite" snapshot on every
-    // project open and merges only `sections` forward from the stored row, so
-    // a top-level key sourced from a caller-specific option would appear and
-    // disappear from the row the acceptance RPC reads.
     // Derived from `project` + `portal` only, for the same reason `proposal`
     // is: both snapshot writers must produce it identically.
     feedbackAsk: buildFeedbackAsk(project, portal),
+    // Derived from `project` + `portal` + `contract` (+ the company name) only,
+    // so EVERY caller that pushes a snapshot produces the same block. That
+    // matters more than it looks: app/project-detail.tsx pushes a "lite"
+    // snapshot on every project open and merges only `sections` forward from
+    // the stored row, so a top-level key sourced from a caller-specific option
+    // would appear and disappear from the row the acceptance RPC reads. The
+    // payment schedule in particular is read from `portal.proposalPaymentTerms`
+    // (the stamp), never from `settings` — which is why the stamp is saved to
+    // the project in the same handler that sets it.
     proposal: buildPortalProposal({
       project,
       portal,
@@ -1993,11 +2055,13 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     latestUpdate: (() => {
       const published = (dailyReports ?? [])
         .filter(d => d.homeownerSummaryPublished && d.homeownerSummary && d.homeownerSummary.trim())
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        .sort((a, b) => dayOrInstantDate(b.date).getTime() - dayOrInstantDate(a.date).getTime());
       const top = published[0];
       if (!top) return undefined;
+      // dayOrInstantDate: an older voice report stored a bare day, which
+      // `new Date` reads as UTC midnight — the homeowner saw the day before.
       const dateLabel = (() => {
-        try { return new Date(top.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
+        try { return dayOrInstantDate(top.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
         catch { return top.date; }
       })();
       return {

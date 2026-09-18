@@ -2,114 +2,253 @@
 // plan sheets into project-memory (via plan-extract vision -> project-memory-embed),
 // and answer a question (project-memory-search -> mageAI grounded answer). Cloud is
 // the source of truth (per project); this only wires cloud calls.
-import * as FileSystem from 'expo-file-system/legacy';
+//
+// AUDIT ROUND 2 (#19). On the web app this indexed NOTHING and said so in green:
+// the local image→base64 copy here had dropped planCodeReviewer's web branch, so
+// FileSystem.downloadAsync (a shim on web) threw for every signed-URL sheet, each
+// sheet was skipped into console.warn, the run returned 0, and the panel showed
+// "Indexing complete" in success colour. Tier-cap and hourly-limit refusals went
+// the same way. Now:
+//   • a sheet with a storage path is read by plan-extract ITSELF with the service
+//     role (no bytes through the client, same as compare-drawings / spec book);
+//     anything else goes through planCodeReviewer.imageUriToBase64, the one copy
+//     that has the web branch;
+//   • the run returns what happened per sheet (PlanIndexResult) and the panel
+//     words it with summarizePlanIndex — never green at 0;
+//   • it is incremental: a sheet already indexed with the same drawing and number
+//     is not re-extracted (plan_extract is 100/month on Business), superseded and
+//     deleted sheets are left out and removed from the index;
+//   • the question searches plan sheets only, inside the top-K.
 import { supabase } from '@/lib/supabase';
 import { mageAI } from '@/utils/mageAI';
-import { edgeFunctionErrorMessage } from '@/utils/planCodeReviewer';
-import { sheetToDocs, PLAN_SOURCE, type ExtractedSheet } from './planChunk';
+import { imageUriToBase64 } from '@/utils/planCodeReviewer';
+import { sheetToDocs, PLAN_SOURCE } from './planChunk';
 import { buildAskPrompt, citedSheetRefs, type PlanMatch } from './planAnswer';
+import {
+  batchGroups, confidentMatches, planSheetFingerprint, PLAN_DOC_PREFIX, PLAN_EXTRACT_STOP_CODES,
+  type PlanIndexResult,
+} from './memoryIndexCore';
 import type { PlanSheet } from '@/types';
 
-// Reuse the app's existing image→base64 pattern from utils/planCodeReviewer.ts
-// (imageUriToBase64, lines 36-56). Handles data:, file://, /, and https:// URIs.
-// Returns base64 without a data: prefix + the resolved mime type.
-function mimeFromExt(uri: string): string {
-  const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
-  if (ext === 'png') return 'image/png';
-  if (ext === 'webp') return 'image/webp';
-  if (ext === 'heic') return 'image/heic';
-  return 'image/jpeg';
+export type { PlanIndexResult, PlanIndexSkip } from './memoryIndexCore';
+
+/**
+ * The function's own `{ error, code }` from a supabase-js FunctionsHttpError.
+ * Same idea as planCodeReviewer.edgeFunctionErrorMessage, but this caller also
+ * needs the CODE — a monthly cap stops the run, a single unreadable sheet does
+ * not. The body can be read once, so read it here and nowhere else.
+ */
+async function readEdgeError(error: unknown, fallback: string): Promise<{ message: string; code: string }> {
+  const err = error as { message?: unknown; context?: { status?: unknown; json?: () => Promise<unknown> } } | null;
+  const ctx = err?.context;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = await ctx.json() as { error?: unknown; code?: unknown } | null;
+      const code = typeof body?.code === 'string' ? body.code : '';
+      const message = typeof body?.error === 'string' && body.error.trim() ? body.error.trim() : '';
+      if (message || code) return { message: message || code, code };
+    } catch {
+      // Not JSON — fall through to the status.
+    }
+    if (typeof ctx.status === 'number' && ctx.status > 0) return { message: `${fallback} (HTTP ${ctx.status})`, code: `http_${ctx.status}` };
+  }
+  return { message: typeof err?.message === 'string' && err.message.trim() ? err.message : fallback, code: '' };
 }
 
-async function imageToBase64(uri: string): Promise<{ b64: string; mime: string }> {
-  if (!uri) return { b64: '', mime: 'image/jpeg' };
+const sheetLabel = (s: PlanSheet) => s.sheetNumber || s.name || 'Sheet';
 
-  // data: URI — strip the header, return the payload
-  if (uri.startsWith('data:')) {
-    const comma = uri.indexOf(',');
-    if (comma < 0) return { b64: '', mime: 'image/jpeg' };
-    const meta = uri.slice(5, comma); // e.g. "image/png;base64"
-    const mime = meta.split(';')[0] || 'image/png';
-    return { b64: uri.slice(comma + 1), mime };
+type ExtractOutcome = { ok: true; text: string } | { ok: false; code: string; reason: string };
+
+async function extractSheet(s: PlanSheet): Promise<ExtractOutcome> {
+  // Storage-backed sheet: let the function download it (DB-F11 pattern). The
+  // client never touches the bytes, so web and native take the same path.
+  if (s.storagePath) {
+    const { data, error } = await supabase.functions.invoke('plan-extract', {
+      body: { storagePath: s.storagePath, sheetNumber: s.sheetNumber },
+    });
+    if (!error) {
+      if (data?.success && typeof data.text === 'string') return { ok: true, text: data.text };
+      return { ok: false, code: 'empty', reason: data?.error ?? 'The AI read nothing legible on this sheet.' };
+    }
+    const e = await readEdgeError(error, 'Plan extract failed');
+    // One-release fallback: a plan-extract deployed before it accepted
+    // storagePath answers 400 "Missing imageBase64". Send the bytes instead.
+    if (!/missing imagebase64/i.test(e.message)) return { ok: false, code: e.code, reason: e.message };
   }
 
-  // file:// or absolute path — read directly via FileSystem
-  if (uri.startsWith('file:') || uri.startsWith('/')) {
-    const b64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-    return { b64, mime: mimeFromExt(uri) };
-  }
-
-  // Anything else must be a fetchable remote URL. A bare storage PATH is NOT
-  // (DB-F11: `plan_sheets.image_uri` holds a path now, and a sheet that could
-  // not be signed — offline, or a legacy `tmp/` key — reaches here as
-  // `<uuid>/sheet-page-1.png`). FileSystem.downloadAsync on that throws, which
-  // used to abort the whole indexing run on the first unsignable sheet.
-  if (!/^https?:\/\//i.test(uri)) return { b64: '', mime: 'image/jpeg' };
-
-  // Remote https:// — download to cache, read, clean up
-  const target = `${FileSystem.cacheDirectory}plan-extract-${Date.now()}`;
-  const dl = await FileSystem.downloadAsync(uri, target);
+  let b64 = '';
+  let mime = 'image/jpeg';
   try {
-    const b64 = await FileSystem.readAsStringAsync(dl.uri, { encoding: 'base64' });
-    return { b64, mime: mimeFromExt(uri) };
-  } finally {
-    void FileSystem.deleteAsync(dl.uri, { idempotent: true });
+    ({ base64: b64, mimeType: mime } = await imageUriToBase64(s.imageUri));
+  } catch (err) {
+    return { ok: false, code: 'unreadable', reason: String((err as Error)?.message ?? 'The sheet image could not be read.') };
   }
+  if (!b64) return { ok: false, code: 'unreadable', reason: 'The sheet image could not be read.' };
+  const { data, error } = await supabase.functions.invoke('plan-extract', {
+    body: { imageBase64: b64, mimeType: mime, sheetNumber: s.sheetNumber },
+  });
+  if (error) {
+    const e = await readEdgeError(error, 'Plan extract failed');
+    return { ok: false, code: e.code, reason: e.message };
+  }
+  if (!data?.success || typeof data.text !== 'string') {
+    return { ok: false, code: 'empty', reason: data?.error ?? 'The AI read nothing legible on this sheet.' };
+  }
+  return { ok: true, text: data.text };
 }
 
 /** Index (or re-index) a project's plan sheets. Extract text per sheet (vision),
- *  then embed as project-memory docs (source 'Plan Sheet'). Returns count embedded. */
-export async function indexPlanSheets(projectId: string, sheets: PlanSheet[]): Promise<number> {
-  const extracted: ExtractedSheet[] = [];
-  for (const s of sheets) {
-    // Per-sheet best-effort, as the comment below already promised: one sheet
-    // whose bytes cannot be read must skip, never abort the run.
-    let b64 = '', mime = 'image/jpeg';
-    try {
-      ({ b64, mime } = await imageToBase64(s.imageUri));
-    } catch (e) {
-      console.warn(`[askYourPlans] could not read sheet ${s.sheetNumber || s.name || s.id}:`, e);
-      continue;
-    }
-    if (!b64) continue;
-    const { data, error } = await supabase.functions.invoke('plan-extract', {
-      body: { imageBase64: b64, mimeType: mime, sheetNumber: s.sheetNumber },
-    });
-    if (error) {
-      // Still skip the sheet (indexing is best-effort per sheet), but say WHY
-      // with the function's own error code — tier gate, monthly cap, hourly
-      // limit — instead of supabase-js's generic "non-2xx status code".
-      console.warn(`[askYourPlans] plan-extract skipped sheet ${s.sheetNumber || s.name || s.id}: ${await edgeFunctionErrorMessage(error, 'request failed')}`);
-      continue;
-    }
-    if (!data?.success || !data.text) continue;
-    extracted.push({ sheetId: s.id, sheetNumber: s.sheetNumber || s.name || 'Sheet', text: data.text });
-  }
-  const docs = extracted.flatMap(sheetToDocs);
-  if (!docs.length) return 0;
-  const { data } = await supabase.functions.invoke('project-memory-embed', {
-    body: { projectId, docs },
+ *  then embed as project-memory docs (source 'Plan Sheet'). Returns what happened
+ *  to every current sheet — never a bare count the UI can mistake for success. */
+export async function indexPlanSheets(
+  projectId: string,
+  sheets: PlanSheet[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<PlanIndexResult> {
+  const current = sheets.filter(s => !s.superseded);
+  const result: PlanIndexResult = {
+    total: current.length,
+    alreadyIndexed: 0,
+    newlyIndexed: 0,
+    skipped: [],
+    supersededExcluded: sheets.length - current.length,
+  };
+  if (current.length === 0) return result;
+
+  // 1. Which sheets does the index already hold with this drawing + number?
+  //    The manifest also names the whole plan scope, so rows for deleted and
+  //    superseded sheets are pruned server-side — a citation chip can no longer
+  //    open a sheet that is gone. If the manifest call fails (function not yet
+  //    redeployed, offline), treat every sheet as stale and prune nothing.
+  const hashById = new Map(current.map(s => [s.id, planSheetFingerprint(s)]));
+  let staleIds = new Set(current.map(s => s.id));
+  const { data: man, error: manErr } = await supabase.functions.invoke('project-memory-embed', {
+    body: {
+      projectId,
+      action: 'manifest',
+      manifest: current.map(s => ({ doc_id: `${PLAN_DOC_PREFIX}${s.id}`, hash: hashById.get(s.id) })),
+      scopePrefixes: [PLAN_DOC_PREFIX],
+      prune: true,
+    },
   });
-  return data?.embedded ?? 0;
+  if (!manErr && man?.success && Array.isArray(man.stale)) {
+    staleIds = new Set((man.stale as string[]).map(id => id.slice(PLAN_DOC_PREFIX.length)));
+    result.alreadyIndexed = current.length - current.filter(s => staleIds.has(s.id)).length;
+  }
+
+  // 2. Extract the stale sheets, one at a time (plan-extract is metered per call
+  //    and hourly-limited — parallel calls would just race into the limit).
+  const stale = current.filter(s => staleIds.has(s.id));
+  const extracted: { sheet: PlanSheet; text: string }[] = [];
+  onProgress?.(0, stale.length);
+  for (let i = 0; i < stale.length; i++) {
+    const s = stale[i];
+    const out = await extractSheet(s);
+    onProgress?.(i + 1, stale.length);
+    if (out.ok && out.text.trim()) { extracted.push({ sheet: s, text: out.text }); continue; }
+    if (out.ok) {
+      result.skipped.push({ sheetId: s.id, label: sheetLabel(s), code: 'empty', reason: 'The AI read nothing legible on this sheet.' });
+      continue;
+    }
+    result.skipped.push({ sheetId: s.id, label: sheetLabel(s), code: out.code, reason: out.reason });
+    if (PLAN_EXTRACT_STOP_CODES.has(out.code)) {
+      // Every remaining sheet would get the same refusal — say so for each of
+      // them instead of spending the hourly bucket to hear it again.
+      for (const rest of stale.slice(i + 1)) {
+        result.skipped.push({ sheetId: rest.id, label: sheetLabel(rest), code: out.code, reason: out.reason });
+      }
+      onProgress?.(stale.length, stale.length);
+      break;
+    }
+  }
+
+  // 3. Embed, a whole sheet per batch, carrying the fingerprint so the next run
+  //    can skip it. A failed batch marks its sheets skipped with the reason.
+  const groups = extracted.map(({ sheet, text }) =>
+    sheetToDocs({ sheetId: sheet.id, sheetNumber: sheetLabel(sheet), text })
+      .map(d => ({ ...d, content_hash: hashById.get(sheet.id) })));
+  for (const batch of batchGroups(groups)) {
+    const sheetIds = [...new Set(batch.map(d => d.doc_id.slice(PLAN_DOC_PREFIX.length).split('#')[0]))];
+    const { data, error } = await supabase.functions.invoke('project-memory-embed', { body: { projectId, docs: batch } });
+    if (!error && data?.success) { result.newlyIndexed += sheetIds.length; continue; }
+    const e = error ? await readEdgeError(error, 'Indexing failed') : { message: data?.error ?? 'Indexing failed', code: '' };
+    for (const id of sheetIds) {
+      const s = current.find(x => x.id === id);
+      result.skipped.push({ sheetId: id, label: s ? sheetLabel(s) : 'Sheet', code: e.code, reason: e.message });
+    }
+  }
+  return result;
 }
 
 export interface PlanAnswer {
   answer: string;
   citations: { ref: string; sheetId: string }[];
   noneFound: boolean;
+  /** The answer was grounded in sheets that all scored below
+   *  MIN_MEMORY_SIMILARITY — the panel says so instead of presenting it flat. */
+  weakGrounding: boolean;
+  /** The SEARCH itself failed or was refused (tier, monthly cap, hourly limit,
+   *  embedding upstream, offline) — in the function's own words, no trailing
+   *  full stop. Not the same thing as "your plans don't say": the panel must
+   *  never turn a server error into #19's headline sentence. */
+  searchFailed: string | null;
 }
+
+/** How many below-floor neighbours are worth showing the model when nothing
+ *  clears the floor. Three: enough for the right sheet to be among them,
+ *  few enough that the prompt is not padded with noise. */
+const WEAK_FALLBACK_MATCHES = 3;
 
 /** Answer a question about the project's plans. */
 export async function askPlans(projectId: string, question: string): Promise<PlanAnswer> {
-  const { data: sr } = await supabase.functions.invoke('project-memory-search', {
-    body: { projectId, query: question, matchCount: 8 },
+  // `sources` scopes the vector search to plan sheets INSIDE the top-K. Without
+  // it the 8 nearest were usually daily reports, which the filter below then
+  // discarded, and the prompt got "(no matching plan sheets found)".
+  const { data: sr, error: searchErr } = await supabase.functions.invoke('project-memory-search', {
+    body: { projectId, query: question, matchCount: 8, sources: [PLAN_SOURCE] },
   });
-  const matches: PlanMatch[] = (sr?.matches ?? []).filter((m: PlanMatch) => m.source === PLAN_SOURCE);
+  // B5 review: this `error` used to be discarded. supabase-js sets data = null
+  // on ANY non-2xx, so a 402/403 tier refusal, a 429 cap or hourly limit, a 503
+  // limiter outage or a 502 from the embedding upstream all arrived here as
+  // "zero matches" — and the panel printed finding #19's exact sentence, "I
+  // couldn't find that in the indexed plans", over a plan set that holds the
+  // answer. Worse, the model was paid to write it: the prompt was still built
+  // with "(no matching plan sheets found)". A failed search is not an answer,
+  // so say what happened and spend nothing.
+  if (searchErr || sr?.success !== true) {
+    const e = searchErr
+      ? await readEdgeError(searchErr, 'the plan search could not be reached')
+      : { message: typeof sr?.error === 'string' && sr.error.trim() ? sr.error.trim() : 'the plan search could not be reached', code: '' };
+    return {
+      answer: '',
+      citations: [],
+      noneFound: false,
+      weakGrounding: false,
+      // Trailing full stop stripped: the panel sets this reason inside its own
+      // sentence, and "…upgrade.. Your plans may still hold it" reads broken.
+      searchFailed: e.message.replace(/\s*[.!]+\s*$/, ''),
+    };
+  }
+  // Keep the source filter: a function not yet redeployed ignores `sources`.
+  const planMatches: PlanMatch[] = ((sr?.matches ?? []) as PlanMatch[])
+    .filter(m => m.source === PLAN_SOURCE);
+  // The floor DEGRADES, it never empties the prompt. Project Memory can drop
+  // weak matches because it falls through to TF-IDF keyword search; askPlans
+  // has no such path, so dropping everything here would reproduce the exact
+  // symptom of #19 — "I couldn't find that in your plans" over a plan set that
+  // does contain the answer — on a threshold that is a heuristic, not a
+  // measured one (MIN_MEMORY_SIMILARITY's own docstring says so), against
+  // dense OCR transcriptions of drawings, the worst case for query-document
+  // cosine. So: prefer the confident neighbours; if none clear the floor, show
+  // the model the nearest few anyway and TELL the reader the match was weak.
+  const confident = confidentMatches(planMatches);
+  const weakGrounding = confident.length === 0 && planMatches.length > 0;
+  const matches: PlanMatch[] = weakGrounding ? planMatches.slice(0, WEAK_FALLBACK_MATCHES) : confident;
   const res = await mageAI({ prompt: buildAskPrompt(question, matches), tier: 'smart', maxTokens: 400, feature: 'planAsk' });
   // For non-schema mageAI calls the ai relay returns { data: rawText, raw: rawText }.
   // res.data holds the text string directly (not res.data?.text).
   const answer = (res.success ? (typeof res.data === 'string' ? res.data : res.raw ?? '') : '').trim()
     || "I couldn't reach the plan brain just now — try again.";
   const citations = citedSheetRefs(answer, matches);
-  return { answer, citations, noneFound: matches.length === 0 };
+  return { answer, citations, noneFound: matches.length === 0, weakGrounding, searchFailed: null };
 }

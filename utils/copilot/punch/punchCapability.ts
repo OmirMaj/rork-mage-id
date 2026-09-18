@@ -5,6 +5,7 @@ import { punchGaps, type PunchDraft } from './punchGaps';
 import { buildPunchGrounding } from './punchGrounding';
 import { createId } from '@/utils/scheduleEngine';
 import type { PunchItemPriority } from '@/types';
+import { toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
 
 export interface PunchApplied { route: '/punch-list'; projectId: string; params: { projectId: string } }
 
@@ -67,7 +68,11 @@ export const punchCapability: CopilotCapability<PunchDraft, PunchApplied> = {
     if (!ctx.project) throw new Error('No project for this punch item.');
     const description = (draft.description ?? '').trim();
     if (!description) throw new Error('Tell me what needs fixing first.');
-    const dueDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    // The LOCAL calendar day, not the UTC one. `new Date().toISOString().slice(0, 10)`
+    // is tomorrow's date from about 5-8 pm anywhere west of Greenwich, so a
+    // voice-logged record filed after the crew knocked off carried the NEXT
+    // day and its due date was a day out (audit round 2, #2 appendix).
+    const dueDate = toCalendarDayString(addCalendarDays(new Date(), 7));
 
     ctx.ctx?.addPunchItem?.({
       id: createId('punch'),

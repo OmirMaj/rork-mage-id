@@ -13,6 +13,7 @@
 import { mageAI } from '@/utils/mageAI';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { calendarDayStart, todayCalendarDay } from '@/utils/calendarDate';
+import { statedBudgetOf } from '@/utils/widgetLeadCore';
 import type {
   Project, Invoice, Lead, ChangeOrder, RFI, ProjectSchedule,
 } from '@/types';
@@ -130,7 +131,10 @@ export function buildBusinessContext(data: MageAgentData, today: Date = new Date
 
   // ── Pipeline ─────────────────────────────────────────────────────────
   const openLeads = leads.filter(l => l.stage !== 'won' && l.stage !== 'lost');
-  const pipelineValue = openLeads.reduce((s, l) => s + (l.budgetMax ?? l.budgetMin ?? 0), 0);
+  // Stated budgets only — a legacy widget lead's ballpark is MAGE's guess,
+  // not the homeowner's number (statedBudgetOf strips it).
+  const statedAmount = (l: Lead) => { const b = statedBudgetOf(l); return b.max ?? b.min ?? 0; };
+  const pipelineValue = openLeads.reduce((s, l) => s + statedAmount(l), 0);
   if (leads.length > 0) {
     const byStage = leads.reduce<Record<string, number>>((m, l) => {
       m[l.stage] = (m[l.stage] ?? 0) + 1; return m;
@@ -140,7 +144,7 @@ export function buildBusinessContext(data: MageAgentData, today: Date = new Date
       Object.entries(byStage).map(([s, n]) => `${n} ${s}`).join(', ') + '.',
     );
     for (const l of openLeads.slice(0, 15)) {
-      out.push(`- ${l.name} | ${l.stage}${l.projectType ? ` | ${l.projectType}` : ''} | ${money(l.budgetMax ?? l.budgetMin ?? 0)}`);
+      out.push(`- ${l.name} | ${l.stage}${l.projectType ? ` | ${l.projectType}` : ''} | ${statedAmount(l) > 0 ? money(statedAmount(l)) : 'no budget stated'}`);
     }
   }
 

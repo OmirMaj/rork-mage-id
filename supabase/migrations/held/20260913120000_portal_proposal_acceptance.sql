@@ -44,7 +44,15 @@
 --   6. the consent record is re-hashed server-side and refused on mismatch
 --      (the seal-document guarantee, same as the CO path);
 --   7. the dollar figure stored on the acceptance is taken from the SNAPSHOT,
---      never from the request.
+--      never from the request;
+--   8. (2026-09-17) the published proposal must be record version
+--      `proposal-esign-2` with confirmed payment terms. An esign-1 proposal
+--      carries MAGE's placeholder 10% deposit, and a pending one carries no
+--      schedule at all; neither is something a homeowner may sign;
+--   9. (2026-09-17) the accepted proposal object is stored on the row
+--      (`proposal_snapshot`) and a trigger on `portal_snapshots` pins it, so
+--      no later push — a stale device, an old build, a changed setting — can
+--      replace the text an accepted signature's hash was computed over.
 --
 -- Step 3 is the one the 2026-09 audit found missing on the change-order path:
 -- portal_submit_co_approval / _signed insert an approval row for ANY
@@ -86,6 +94,45 @@
 --      production: if any existing change_order_approvals row references a
 --      change order that does not belong to its project_id, that is either the
 --      bug firing or a data-repair job, and it wants looking at first.
+--   4. (2026-09-17, Direction B) The esign-2 portal page is deployed to
+--      mageid.app: `var PROPOSAL_ESIGN_VERSION = 'proposal-esign-2'` in
+--      marketing/portal/index.html. An esign-1 page would build consent records
+--      this RPC refuses (step 8), and it still draws Accept on esign-1
+--      proposals.
+--   5. (2026-09-17) proposal-esign-1 rows in portal_snapshots are at or near
+--      zero — i.e. the OTA stamping esign-2 has reached the devices that
+--      publish proposals and they have re-pushed. Until then those portals are
+--      read-only (correct, but dark). Check with:
+--
+--        select count(*) filter (where snapshot->'proposal'->>'version' = 'proposal-esign-1') as esign_1,
+--               count(*) filter (where snapshot->'proposal'->>'version' = 'proposal-esign-2') as esign_2,
+--               count(*) filter (where (snapshot->'proposal'->>'paymentTermsPending') = 'true') as pending
+--          from public.portal_snapshots
+--         where snapshot ? 'proposal';
+--
+--   6. (2026-09-17) This file carries the Direction B edits: the
+--      `proposal_snapshot` column and its freeze pin, `for update` on the
+--      snapshot read, the esign-2 / pending refusal, and the
+--      `portal_snapshots_pin_accepted_proposal` trigger (section 2b). A copy of
+--      this file without them must not be applied — an acceptance could then
+--      be rewritten by the next snapshot push.
+--   7. (2026-09-17, integration round 2) The ACCEPTED STAMP on the projects row
+--      is protected too, not only the snapshot. hooks/useClientDocumentGate's
+--      first-answer auto-stamp calls nextProposalStamp with acceptance 'none'
+--      and reads `existing` from the DEVICE's project cache, so a stale device
+--      can overwrite projects.client_portal->'proposalPaymentTerms' on a
+--      proposal that was already accepted: section 2b's pin guards
+--      portal_snapshots only, and projects_keep_proposal_payment_terms restores
+--      the key only when it is ABSENT, not when it changes. contract.tsx seeds
+--      from that stamp and client-portal-setup prints it in the locked row.
+--      Before applying, ship ONE of:
+--        (a) a projects BEFORE UPDATE trigger that keeps the old
+--            client_portal->'proposalPaymentTerms' whenever an accepted
+--            proposal_approvals row exists for the project, or
+--        (b) an auto-stamp that skips a project whose SERVER row already
+--            carries a stamp (read it, don't trust the cache).
+--      Without it an accepted proposal's signed terms and the contract seeded
+--      from them can silently diverge.
 --
 -- NO DATA PRECONDITION for sections 1-2: `proposal_approvals` is a new table,
 -- so the one-acceptance-per-PORTAL unique index cannot fail on existing rows,
@@ -130,11 +177,21 @@ create table if not exists public.proposal_approvals (
   sealed_at              timestamptz,
   created_at             timestamptz not null default now(),
   -- The one column an authenticated GC may write (see the freeze trigger).
-  acknowledged_at        timestamptz
+  acknowledged_at        timestamptz,
+  -- The exact published proposal object this acceptance read (documentText
+  -- included). portal_snapshots_pin_accepted_proposal re-publishes it on every
+  -- later push, so proposal_document_hash can always be reproduced from the
+  -- live row — whichever build, device or stale state wrote last.
+  proposal_snapshot      jsonb
 );
+-- An earlier copy of this file never reached production, but a dev database
+-- may hold one: `create table if not exists` would not add the column there.
+alter table public.proposal_approvals add column if not exists proposal_snapshot jsonb;
 
 comment on column public.proposal_approvals.proposal_total is
   'The accepted price, read from portal_snapshots.snapshot->''proposal''->>''total'' at insert. Never taken from the request body: the caller is anyone holding the share link.';
+comment on column public.proposal_approvals.proposal_snapshot is
+  'The published proposal object (snapshot->''proposal'') the acceptance was checked against, stored at insert. Pinned by the freeze trigger, and re-imposed on portal_snapshots by portal_snapshots_pin_accepted_proposal.';
 comment on column public.proposal_approvals.proposal_document_hash is
   'SHA-256 of the published proposal.documentText, computed server-side. The consent record must carry this digest on its own line, so the retained record is bound to the exact document the contractor published.';
 
@@ -212,6 +269,7 @@ begin
     new.consent_accepted       := old.consent_accepted;
     new.sealed_at              := old.sealed_at;
     new.created_at             := old.created_at;
+    new.proposal_snapshot      := old.proposal_snapshot;
     -- acknowledged_at is deliberately NOT pinned. It is the whole point.
   end if;
   return new;
@@ -275,11 +333,16 @@ begin
   -- table for historical rows, so a null is tolerated but a MISMATCH is not:
   -- a snapshot row that belongs to another project must never be read here
   -- even if a portal_id somehow collided.
+  --
+  -- FOR UPDATE: the snapshot row stays locked until this transaction ends, so
+  -- a contractor's push cannot land between the hash check below and the
+  -- insert — the text checked is the text stored in proposal_snapshot.
   select ps.project_id, ps.snapshot->'proposal'
     into v_snap_pid, v_proposal
     from public.portal_snapshots ps
    where ps.portal_id = p_portal_id
-   limit 1;
+   limit 1
+   for update;
 
   if v_snap_pid is not null and v_snap_pid <> v_pid then raise exception 'portal_denied'; end if;
   if v_proposal is null or jsonb_typeof(v_proposal) <> 'object' then raise exception 'portal_denied'; end if;
@@ -292,6 +355,18 @@ begin
 
   v_doc := v_proposal->>'documentText';
   if v_doc is null or length(btrim(v_doc)) = 0 then raise exception 'portal_denied'; end if;
+
+  -- (8) ONLY A PROPOSAL WITH THE CONTRACTOR'S OWN CONFIRMED TERMS. Line 2 of
+  -- the canonical text is the record version (utils/portalSnapshot
+  -- buildProposalDocumentText). proposal-esign-1 printed MAGE's placeholder
+  -- 10% deposit, which an old app build may still be pushing; a pending
+  -- proposal has no payment schedule at all. Both are refused with the same
+  -- "reload" code a re-priced proposal gets — the page draws no Accept on
+  -- either, so only a stale page or a hand-rolled call lands here.
+  if split_part(v_doc, E'\n', 2) is distinct from 'version: proposal-esign-2'
+     or coalesce(v_proposal->>'paymentTermsPending', '') = 'true' then
+    raise exception 'proposal_superseded';
+  end if;
 
   -- The money is the SERVER'S, read out of the published snapshot. Nothing in
   -- the request body is allowed to set it — this is the figure that is stored
@@ -392,7 +467,8 @@ begin
     insert into public.proposal_approvals(
         portal_id, project_id, proposal_id, decision, signer_name, note, user_agent,
         signature_data, signature_hash, consent_record, document_hash,
-        proposal_document_hash, proposal_total, consent_version, consent_accepted, sealed_at)
+        proposal_document_hash, proposal_total, consent_version, consent_accepted, sealed_at,
+        proposal_snapshot)
       values (
         p_portal_id, v_pid, btrim(p_proposal_id), p_decision,
         left(coalesce(nullif(btrim(p_signer_name), ''), 'Client'), 200),
@@ -406,7 +482,8 @@ begin
         v_total,
         left(coalesce(p_consent_version, ''), 40),
         coalesce(p_consent_accepted, false),
-        v_now)
+        v_now,
+        v_proposal)
       returning id into v_id;
   exception when unique_violation then
     -- Lost the race against a concurrent acceptance. Same answer as above —
@@ -468,6 +545,53 @@ revoke all on function public.portal_submit_proposal_approval_signed(
 grant execute on function public.portal_submit_proposal_approval_signed(
   text, text, text, text, text, text, text, text, text, text, text, text, text, boolean)
   to anon, authenticated, service_role;
+
+-- ── 2b. An accepted proposal stays published exactly as accepted ────────────
+--
+-- The acceptance hash is over the proposal text in portal_snapshots. Two app
+-- writers push that row (the rich push from portal setup and the lite push on
+-- every project open), from any device and any build, and they rebuild the
+-- proposal from the project as it is NOW. The client refuses to re-stamp an
+-- accepted proposal's terms, but a client check is only as current as the
+-- device holding it. So the server holds the line: once an acceptance exists
+-- for a portal, any incoming snapshot that carries a proposal has it replaced
+-- with the accepted `proposal_snapshot`.
+--
+-- Removing the proposal is still allowed (a contract was sent, the job is
+-- complete, the switch was turned off): the accepted text stays in
+-- proposal_approvals, and a portal with no proposal asks nobody to sign.
+-- SECURITY DEFINER because the pushing GC's RLS reach on proposal_approvals is
+-- select-only on his own projects, and the pin must hold for any writer.
+create or replace function public.portal_snapshots_pin_accepted_proposal()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $fn$
+declare
+  v_accepted jsonb;
+begin
+  if new.snapshot is null or jsonb_typeof(new.snapshot) is distinct from 'object' then return new; end if;
+  if jsonb_typeof(new.snapshot -> 'proposal') is distinct from 'object' then return new; end if;
+  select pa.proposal_snapshot into v_accepted
+    from public.proposal_approvals pa
+   where pa.portal_id = new.portal_id
+     and pa.decision = 'accepted'
+     and pa.proposal_snapshot is not null
+   order by pa.created_at
+   limit 1;
+  if v_accepted is not null and jsonb_typeof(v_accepted) = 'object' then
+    new.snapshot := jsonb_set(new.snapshot, '{proposal}', v_accepted);
+  end if;
+  return new;
+end $fn$;
+
+revoke execute on function public.portal_snapshots_pin_accepted_proposal() from public, anon, authenticated;
+
+drop trigger if exists portal_snapshots_pin_accepted_proposal on public.portal_snapshots;
+create trigger portal_snapshots_pin_accepted_proposal
+  before insert or update on public.portal_snapshots
+  for each row execute function public.portal_snapshots_pin_accepted_proposal();
 
 -- ── 3. Close the same hole on the change-order path ─────────────────────────
 --

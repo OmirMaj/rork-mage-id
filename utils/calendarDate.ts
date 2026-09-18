@@ -132,6 +132,27 @@ export function calendarDayStart(value: string | null | undefined): Date | null 
 }
 
 /**
+ * A Date for a field that holds an INSTANT from most writers but may hold a
+ * bare 'YYYY-MM-DD' from an older one (DailyFieldReport.date: the screen,
+ * the mic and photo triage write an instant; the voice daily report wrote a
+ * bare local day for a while, and those rows are on devices and in
+ * daily_reports, a text column). An instant is returned as-is — its time of
+ * day still sorts and still names the right local day. A bare day becomes
+ * LOCAL NOON of that day: `new Date('2026-09-17')` is UTC midnight, which
+ * prints as Wednesday the 16th anywhere in the Americas, and local midnight
+ * would slide to the previous UTC day east of Greenwich if the result is
+ * ever re-serialised. Noon survives both. Invalid input gives an Invalid Date
+ * exactly as `new Date(value)` did, so existing NaN guards keep working.
+ */
+export function dayOrInstantDate(value: string | null | undefined): Date {
+  if (value && CALENDAR_DAY.test(value)) {
+    const d = parseCalendarDay(value);
+    if (d) return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+  }
+  return new Date(value ?? NaN);
+}
+
+/**
  * Whole calendar days from local "today" to the day named by `value`:
  * 0 = today, 1 = tomorrow, negative = already past. Null when `value` is not a
  * calendar day. Computed on the UTC day grid of the LOCAL components, so a DST

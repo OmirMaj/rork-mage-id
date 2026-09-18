@@ -14,6 +14,7 @@ import { jhaGaps, type JHADraft } from './jhaGaps';
 import { buildJHAGrounding } from './jhaGrounding';
 import { mageAI } from '@/utils/mageAI';
 import { createId } from '@/utils/scheduleEngine';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface JHAApplied { route: '/safety-jha'; projectId: string; params: { projectId: string } }
 
@@ -127,7 +128,9 @@ export const jhaCapability: CopilotCapability<JHADraft, JHAApplied> = {
       title: (draft.title ?? task).slice(0, 80),
       trade,
       taskDescription: task,
-      date: now.slice(0, 10),
+      // The LOCAL calendar day. `now.slice(0, 10)` is the UTC day, so a record
+      // dictated after about 5 pm west of Greenwich was dated tomorrow.
+      date: todayCalendarDay(),
       steps,
       requiredPPE,
       signOffs: [],

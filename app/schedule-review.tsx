@@ -42,6 +42,8 @@ import { useAutonomy } from '@/hooks/useAutonomy';
 import { computePreApplyPlan, type PreApplyDecision } from '@/utils/pace/preApplyPlan';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { showAlert } from '@/utils/alert';
+import { useProjectRole } from '@/hooks/useProjectRole';
+import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -74,6 +76,7 @@ export default function ScheduleReviewScreen() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { getProject, updateProject, projects, subcontractors } = useProjects();
+  const projectRole = useProjectRole(projectId);
   const { tier } = useSubscription();
   const { width } = useWindowDimensions();
   const { canAccess } = useTierAccess();
@@ -247,8 +250,27 @@ export default function ScheduleReviewScreen() {
     }
   }, [project?.id]);
 
+  // Accepting a draft WRITES THE WHOLE SCHEDULE — a new task list, new dates,
+  // rebuilt derived scalars. The field RPC merges progress only, so there is no
+  // version of this a field collaborator can save, and the projects-row PATCH
+  // RLS refuses is silent: the screen would say "Schedule saved", route to the
+  // Gantt, and the server would still hold the old plan (audit round 2, #25).
+  // Refused at the press, before anything is written or recorded, with the same
+  // wording the Schedule tab uses.
+  const scheduleWritePath = scheduleWritePathForRole(projectRole ?? project?.myRole);
+  const scheduleWriteBlockedReason = useMemo<string | null>(() => {
+    if (scheduleWritePath === 'row') return null;
+    return scheduleWritePath === 'field_rpc'
+      ? 'Field access saves task progress, status, notes and actual start/finish — from Quick Field Update on Home, or the Schedule tab on your phone. Accepting a new schedule needs editor access from the project owner.'
+      : 'You have view-only access to this project, so a new schedule is not saved. Ask the project owner for field or editor access.';
+  }, [scheduleWritePath]);
+
   const accept = useCallback(() => {
     if (!project || !draft) return;
+    if (scheduleWriteBlockedReason) {
+      showAlert('Schedule not saved', scheduleWriteBlockedReason);
+      return;
+    }
     // F4 capture timing (D4, G9): pre-applied predictions are recorded HERE,
     // not at pre-apply — only tasks STILL holding the pace value when the
     // user accepts become ledger rows. Reverted pre-applies never pollute
@@ -319,7 +341,7 @@ export default function ScheduleReviewScreen() {
         params: { projectId: project.id, focus: String(Date.now()) },
       } as any);
     }
-  }, [project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds]);
+  }, [project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds, scheduleWriteBlockedReason]);
 
   // Whole-draft regenerate — re-runs generation and replaces the ENTIRE draft.
   // A per-phase splice was broken: fresh ids dangle every retained/injected

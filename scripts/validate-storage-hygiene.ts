@@ -124,6 +124,21 @@ const NOT_STORAGE_KEYS = new Map<string, string>([
   // types and pure utils — no storage API of any kind — but the _KEY in the
   // const name is what KEY_CONST_RE looks for. Added 2026-09-11.
   ['general', 'utils/costDatabase.ts — normalizeTradeKey\'s generic TRADE bucket, never a storage key'],
+  // QBO_CLOSED_WITHOUT_PAYMENT_PREFIX. The opening words of the error SENTENCE
+  // qbo-reconciler writes into invoices.qbo_error when QuickBooks shows an
+  // invoice closed that no payment explains; app/qbo-setup.tsx reads it back
+  // with qboError.startsWith(...) to count those invoices. The file imports no
+  // storage API at all — the _PREFIX in the const name is what KEY_CONST_RE
+  // looks for. Twin of the same const in supabase/functions/_shared/
+  // paymentLedger.ts. Added 2026-09-17 (audit round 2, #17).
+  ['QuickBooks shows this invoice closed without a payment', 'app/qbo-setup.tsx — the first words of an invoice ERROR sentence, never a storage key'],
+  // PLAN_DOC_PREFIX. Namespaces a plan sheet's doc_id in the SERVER's
+  // memory_embeddings table ('plan-sheet:<sheetId>' / '…#<n>') so Ask Your
+  // Plans rows cannot collide with Project Memory's rfi-/dfr-/co- docs.
+  // utils/plans/memoryIndexCore.ts is pure and React-free and imports no
+  // storage API; the _PREFIX in the const name is what KEY_CONST_RE looks for.
+  // Added 2026-09-17 (audit round 2, #19/#23).
+  ['plan-sheet:', 'utils/plans/memoryIndexCore.ts — a memory_embeddings doc_id prefix on the server, never a storage key'],
 ]);
 
 const discovered = new Map<string, string>(); // key -> first file that writes it

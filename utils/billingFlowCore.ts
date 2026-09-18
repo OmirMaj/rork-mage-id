@@ -15,9 +15,19 @@
 //
 // NOTHING in this file may import react-native, expo-*, @/lib/supabase, or
 // anything that transitively does. Types only — plus utils/invoiceBilling.ts,
-// which is pure arithmetic with no imports of its own (MONEY-F5).
+// which is pure arithmetic with no imports of its own (MONEY-F5), and
+// utils/paymentTerms.ts, which imports only types and ./generateId. The
+// milestone's printed "when" comes from there so the invoice line, the
+// contract screen and the sealed PDF say the same words (Direction B).
 
 import { invoiceOutstanding, billedAmountForLine } from './invoiceBilling';
+import { milestoneDueText } from './paymentTerms';
+// Relative, not '@/types': the header above promises this module resolves
+// without app tooling, and an alias only the app's tsconfig knows would break
+// that the moment a Deno function or a bare `bun` run imports the file. It is
+// type-only today, so the path is erased — the point is that the file stays
+// readable as what it claims to be.
+import type { PaymentMilestone } from '../types';
 
 // ─── 1. Milestone → invoice ──────────────────────────────────────────
 
@@ -337,9 +347,48 @@ export function milestoneBlockMessage(
         return 'Billing this milestone would take the total invoiced past the contract value. Check the invoices on this project first — if the contract value has changed, update it here and the schedule will follow.';
       }
       const m = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      // NOTHING LEFT IS A DIFFERENT SENTENCE (review round 6). The remedy
+      // clause below is "bill the remainder from Bill from Estimate", which
+      // is good advice while a remainder exists — the split's progress row is
+      // drawn against there, and a lump row that no longer fits can still take
+      // what is left. At a remaining of zero (or below it: `billed` can exceed
+      // the value when the contract was revised down) that clause sends him to
+      // a screen to bill $0.00, two clauses after the same sentence printed
+      // that figure. It is also the only sentence a CLOSED progress row ever
+      // prints, since progressRowOpen keeps that row open for every ceiling
+      // refusal above zero. Say the one true remedy instead: the work that is
+      // left is not contract scope.
+      if (ceiling.remaining <= 0.005) {
+        return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving nothing to bill against it — this milestone is ${m(amount)}. Work beyond the contract belongs on a change order, which bills on its own ledger; if the contract value itself has changed, update the contract value here and the schedule will follow.`;
+      }
       return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving ${m(ceiling.remaining)} — this milestone is ${m(amount)}. Billing it would take the total past the contract. Bill the remainder from Bill from Estimate, or update the contract value here if it has changed and the schedule will follow.`;
     }
   }
+}
+
+/**
+ * Should a progress row (`trigger: 'on_invoice'`) still offer "Bill progress"?
+ *
+ * WHY THIS IS NOT PLAIN `bill.billable`. The cross-ledger ceiling refuses a
+ * milestone whose OWN amount no longer fits in what is left of the contract —
+ * the right answer for a row that composes one invoice line for that amount.
+ * A progress row composes nothing: the action opens Bill from Estimate, which
+ * nets against the same ledger and bills the lines the GC actually picks. So
+ * on a 25 / 65 / 10 split the button worked for the first draws and then
+ * vanished the moment more than 35% of the contract was invoiced — for the
+ * whole back half of the job, on the one row that exists to be drawn against
+ * repeatedly — and the sentence that replaced it ends "Bill the remainder from
+ * Bill from Estimate", which is where the button went.
+ *
+ * Every refusal that is about THIS row still hides it: skipped, already
+ * invoiced or paid, a zero amount, a contract not signed yet. Only the ceiling
+ * is reinterpreted, and only while the contract really does have room left; at
+ * a true $0 remaining there is nothing to draw and the reason is printed.
+ */
+export function progressRowOpen(bill: MilestoneBillability): boolean {
+  if (bill.billable) return true;
+  if (bill.reason !== 'contract_fully_billed') return false;
+  return (bill.ceiling?.remaining ?? 0) > 0.005;
 }
 
 export interface MilestoneInvoiceLine {
@@ -356,10 +405,16 @@ export interface MilestoneInvoiceLine {
 // ─────────────────────────────────────────────────────────────────────────────
 // MONEY-LEDGER-1 (audit 2026-09-11). ONE contract, ONE billed-to-date.
 //
-// `defaultPaymentSchedule` (utils/contractEngine.ts) seeds 25/25/25/25 on EVERY
-// contract, and app/contract.tsx puts the milestone "Create invoice" action and
-// a "Create first invoice" button that routes to /bill-from-estimate on the
-// SAME screen. A milestone invoice used to carry no billing key at all, so
+// Every contract carries a milestone schedule — since 2026-09-17 the GC's own
+// deposit / progress / final split (utils/paymentTerms.contractScheduleFromSplit;
+// before that a 25/25/25/25 seed nobody chose) — and app/contract.tsx puts the
+// milestone "Create invoice" action and a "Create first invoice" button that
+// routes to /bill-from-estimate on the SAME screen. The split's progress row is
+// never a lump invoice (see `milestoneBillEffect`'s 'progress' arm): it is
+// billed through /bill-from-estimate, which nets against this same ledger, so
+// only the deposit and the final ever arrive here as milestone invoices.
+//
+// A milestone invoice used to carry no billing key at all, so
 // app/bill-from-estimate.tsx — which attributes prior billing by
 // `sourceEstimateItemId` or an exact line-name match — could see none of it and
 // printed "Already billed $0.00" over 25/50/75/100% quick-fill buttons. A GC
@@ -391,14 +446,16 @@ export function isMilestoneBillKey(key: string | null | undefined): boolean {
 }
 
 /** Plain-English description of what triggered the milestone, for the line. */
+// Delegates to utils/paymentTerms.milestoneDueText, the wording the signed
+// schedule prints: an invoice line that said "Due on invoice" under a contract
+// that said "Billed as work is completed" is two documents disagreeing about
+// the same payment.
 export function milestoneTriggerText(m: MilestoneLike): string {
-  switch (m.trigger) {
-    case 'on_signing': return 'Due on contract signing';
-    case 'on_final':   return 'Due on final completion';
-    case 'on_invoice': return 'Due on invoice';
-    case 'on_date':    return m.triggerDate ? `Due ${m.triggerDate}` : 'Due on scheduled date';
-    default:           return m.triggerMilestone?.trim() || 'Contract payment milestone';
-  }
+  return milestoneDueText({
+    trigger: m.trigger as PaymentMilestone['trigger'],
+    triggerDate: m.triggerDate,
+    triggerMilestone: m.triggerMilestone,
+  });
 }
 
 /**
@@ -691,6 +748,15 @@ export function milestoneInvoiceNote(m: MilestoneLike, contractTitle?: string): 
  */
 export type MilestoneBillEffect =
   | {
+      /** An `on_invoice` row — "Billed as work is completed". It is NEVER a
+       *  lump invoice: the caller opens /bill-from-estimate, which bills the
+       *  work done so far and nets milestone billing. Carries no line, so a
+       *  caller cannot compose one from it. */
+      kind: 'progress';
+      title: string;
+      message: string;
+    }
+  | {
       kind: 'refuse';
       title: string;
       message: string;
@@ -713,6 +779,20 @@ export function milestoneBillEffect(
   milestone: MilestoneLike,
   contract: { contractValue: number; title?: string },
 ): MilestoneBillEffect {
+  // THE PROGRESS ROW FIRST, before the billable check (Direction B). The split
+  // a GC signs prints "Progress payments — Billed as work is completed" for,
+  // say, 65% of the contract. Composing that as one invoice would bill the
+  // homeowner 65% in a single draw the day after signing — the opposite of
+  // what he signed — and billability says nothing about it, because the row
+  // IS pending, signed and under the ceiling. So the trigger decides, and the
+  // answer carries no line to compose.
+  if (milestone.trigger === 'on_invoice') {
+    return {
+      kind: 'progress',
+      title: 'Billed as work is completed',
+      message: 'Progress payments are billed from Bill from Estimate as the work gets done, so this row never becomes one lump invoice.',
+    };
+  }
   if (!bill.billable) {
     return {
       kind: 'refuse',

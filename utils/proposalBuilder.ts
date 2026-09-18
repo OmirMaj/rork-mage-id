@@ -17,6 +17,7 @@ import type { Lead } from '@/types';
 import { computeWinOptimizer, type BidPoint } from '@/utils/winOptimizer';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
+import { workmanshipWarrantyLine } from '@/utils/paymentTerms';
 
 export type ProposalTierKey = 'essential' | 'signature' | 'premium';
 
@@ -54,6 +55,14 @@ export interface BuildProposalInput {
   clientName?: string;
   projectName?: string;
   scopeSummary?: string;
+  /**
+   * The GC's saved workmanship warranty in months (settings.warrantyMonths via
+   * utils/paymentTerms.resolveWarrantyMonths), or null/absent when he has never
+   * set one. Every tier prints this ONE period — a tier ladder must not promise
+   * a 1-, 2- or 5-year guarantee nobody chose — and with no answer the line is
+   * "Workmanship warranty" with no period at all.
+   */
+  warrantyMonths?: number | null;
 }
 
 export interface ProposalTiersResult {
@@ -162,11 +171,13 @@ export function normalizeMarkup(m: number | undefined): number | undefined {
 
 // Default inclusions per tier. Client-safe wording only — these ship in the
 // share text, so no pricing internals and none of the GC-only vocabulary.
+// The warranty line is NOT in these lists: until 2026-09-17 they promised a
+// 1-, 2- and 5-year guarantee the GC never stated. buildProposalTiers appends
+// workmanshipWarrantyLine(his saved months) to every tier instead.
 const ESSENTIAL_INCLUSIONS: string[] = [
   'Full scope of work as discussed',
   'Quality standard-grade materials',
   'Licensed and insured crew',
-  '1-year workmanship guarantee',
 ];
 
 const SIGNATURE_INCLUSIONS: string[] = [
@@ -174,7 +185,6 @@ const SIGNATURE_INCLUSIONS: string[] = [
   'Upgraded material allowances',
   'Dedicated project manager',
   'Weekly photo progress updates',
-  '2-year workmanship guarantee',
 ];
 
 const PREMIUM_INCLUSIONS: string[] = [
@@ -182,7 +192,6 @@ const PREMIUM_INCLUSIONS: string[] = [
   'Premium material and finish allowances',
   'Priority scheduling',
   'Daily site cleanup',
-  '5-year workmanship guarantee',
   'Six-month post-completion walkthrough',
 ];
 
@@ -201,6 +210,10 @@ export function buildProposalTiers(input: BuildProposalInput): ProposalTiersResu
     competitorCount: input.competitorCount,
   });
 
+  // Same warranty on every tier (founder decision 2026-09-17): his one saved
+  // period, or "Workmanship warranty" with no period until he sets one.
+  const warrantyLine = workmanshipWarrantyLine(input.warrantyMonths ?? null);
+
   const tier = (
     key: ProposalTierKey,
     label: string,
@@ -216,7 +229,7 @@ export function buildProposalTiers(input: BuildProposalInput): ProposalTiersResu
     markup: point.markup,
     winProbability: point.winProbability,
     expectedProfit: point.expectedProfit,
-    inclusions: [...inclusions],
+    inclusions: [...inclusions, warrantyLine],
     recommended,
   });
 

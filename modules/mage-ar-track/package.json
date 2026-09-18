@@ -1,0 +1,10 @@
+{
+  "name": "mage-ar-track",
+  "version": "0.1.0",
+  "description": "ARKit world-tracking poses for the MAGE ID floor-plan geolocation measurement trial. iOS only, no JS entry point.",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "MAGE ID",
+  "homepage": "https://mageid.app",
+  "platforms": ["ios"]
+}

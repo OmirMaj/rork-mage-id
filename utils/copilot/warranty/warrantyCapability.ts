@@ -8,9 +8,11 @@
 // it lapses. Mirrors the RFI/Punch adder-based shape.
 import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
 import type { WarrantyCategory } from '@/types';
-import { warrantyGaps, defaultDurationForCategory, type WarrantyDraft } from './warrantyGaps';
+import { warrantyGaps, groundedWarrantyTerm, type WarrantyDraft } from './warrantyGaps';
+import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 import { buildWarrantyGrounding } from './warrantyGrounding';
 import { addMonths } from '../dateMath';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface WarrantyApplied { route: '/warranties'; projectId: string; params: { projectId: string } }
 
@@ -87,8 +89,15 @@ export const warrantyCapability: CopilotCapability<WarrantyDraft, WarrantyApplie
     if (!project) throw new Error('No project to attach the warranty to.');
 
     const category: WarrantyCategory = draft.category ?? 'general';
-    const durationMonths = draft.durationMonths ?? defaultDurationForCategory(category);
-    const startDate = (draft.startDate ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
+    // Same grounded term the interview recommended: his saved workmanship
+    // warranty for general work, the category's typical term otherwise.
+    const durationMonths = draft.durationMonths
+      ?? groundedWarrantyTerm(category, resolveWarrantyMonths(ctx.ctx?.settings)).months;
+    // The LOCAL calendar day, not the UTC one. `new Date().toISOString().slice(0, 10)`
+    // is tomorrow's date from about 5-8 pm anywhere west of Greenwich, so a
+    // voice-logged record filed after the crew knocked off carried the NEXT
+    // day and its due date was a day out (audit round 2, #2 appendix).
+    const startDate = (draft.startDate ?? todayCalendarDay()).slice(0, 10);
     const endDate = addMonths(startDate, durationMonths);
     const title = (draft.title ?? '').trim() || 'Warranty';
 

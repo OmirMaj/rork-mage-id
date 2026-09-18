@@ -5,6 +5,7 @@ import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { computeMarginRisk } from '@/utils/marginRiskScore';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { mageAISmart } from '@/utils/mageAI';
 import { buildEstimatePrompt, estimateSchema, type WizardAnswers } from '@/utils/scopeQuestions';
 import { stableHash } from '@/utils/stableHash';
@@ -31,6 +32,11 @@ export interface JudgesContext {
    *  seeded coverage separately from measured coverage and never lets it buy
    *  the verdict confidence. */
   seeds?: SeededRate[];
+  /** The direct-cost streams Job Costing prices (receipts, time entries +
+   *  loaded rates + OT multiplier, equipment, permits, sub roster), forwarded
+   *  into the margin-risk run for a judged project. Absent, that run is
+   *  subcontracts-only — see runJudges for why it is then withheld. */
+  costSources?: JobCostActualSources;
 }
 
 export interface JudgesResult {
@@ -71,8 +77,19 @@ export async function runJudges(params: {
   let capacity; if (params.timelineWindow) { try { capacity = computeCapacityLoad(projects, params.timelineWindow.startISO, params.timelineWindow.endISO); } catch { /* additive */ } }
   let typeMargin; try { typeMargin = aggregateTypeMargin(projects, params.projectType, commitments); } catch { /* additive */ }
   let marginRisk;
-  if (params.project) {
-    try { marginRisk = computeMarginRisk({ project: params.project, changeOrders: params.ctx.changeOrders ?? [], commitments, invoices: params.ctx.invoices ?? [] }); } catch { /* additive */ }
+  // Only a whole-job risk reading may vote. computeBidVerdict weighs margin
+  // risk at 0.30 and prints "Margin-risk model scores this low" with no room
+  // for a caveat, so a subs-only score — blind to crew hours and receipts —
+  // would push a bleeding self-perform job toward TAKE as stated fact (audit
+  // round 2, #16). Without costSources the factor is left out, the same as a
+  // project with no margin basis: an absent signal, not a false one.
+  if (params.project && params.ctx.costSources) {
+    try {
+      marginRisk = computeMarginRisk({
+        project: params.project, changeOrders: params.ctx.changeOrders ?? [], commitments,
+        invoices: params.ctx.invoices ?? [], costSources: params.ctx.costSources,
+      });
+    } catch { /* additive */ }
   }
   const verdict = computeBidVerdict({ lines: params.lines, costDb, targetMargin: params.targetMargin, calibration, marginRisk, capacity, typeMargin });
   const narration = await narrateVerdict(verdict);

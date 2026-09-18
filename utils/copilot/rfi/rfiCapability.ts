@@ -3,6 +3,7 @@
 import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
 import { rfiGaps, type RFIDraft } from './rfiGaps';
 import { buildRFIGrounding } from './rfiGrounding';
+import { todayCalendarDay, toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
 
 export interface RFIApplied { route: '/rfi'; projectId: string; params: { projectId: string } }
 
@@ -62,9 +63,12 @@ export const rfiCapability: CopilotCapability<RFIDraft, RFIApplied> = {
     if (!ctx.project) throw new Error('No project for this RFI.');
     const question = (draft.question ?? '').trim();
     if (!question) throw new Error('Tell me the question first.');
-    const today = new Date().toISOString().slice(0, 10);
-    const dueMs = Date.now() + (draft.urgent ? 3 : 7) * 86400000;
-    const dateRequired = new Date(dueMs).toISOString().slice(0, 10);
+    // The LOCAL calendar day, not the UTC one. `new Date().toISOString().slice(0, 10)`
+    // is tomorrow's date from about 5-8 pm anywhere west of Greenwich, so a
+    // voice-logged record filed after the crew knocked off carried the NEXT
+    // day and its due date was a day out (audit round 2, #2 appendix).
+    const today = todayCalendarDay();
+    const dateRequired = toCalendarDayString(addCalendarDays(new Date(), draft.urgent ? 3 : 7));
 
     ctx.ctx?.addRFI?.({
       projectId: ctx.projectId,

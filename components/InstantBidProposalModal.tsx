@@ -39,6 +39,8 @@ import { useCompanies } from '@/contexts/CompaniesContext';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { shareText } from '@/utils/shareText';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
+import { resolveWarrantyMonths } from '@/utils/paymentTerms';
+import { scopeWithoutBallpark, statedBudgetOf, widgetBallparkOf } from '@/utils/widgetLeadCore';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -131,12 +133,18 @@ export default function InstantBidProposalModal({
     setGenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      // Only a budget the homeowner actually stated steers the price — never
+      // the website widget's national ballpark, which older widget leads
+      // stored in budgetMin/Max, and which the scope text also quotes
+      // (audit round 2, #24). Stripped from both, so a widget lead with no
+      // stated budget reaches the ask-the-GC ballpark question below.
+      const stated = statedBudgetOf(lead);
       const rfp = {
         title: lead.projectType || `${lead.name} project`,
         city: lead.address ?? undefined,
-        scopeDescription: lead.scope ?? undefined,
-        budgetMin: budgetHint ?? lead.budgetMin ?? undefined,
-        budgetMax: budgetHint ?? lead.budgetMax ?? undefined,
+        scopeDescription: scopeWithoutBallpark(lead.scope),
+        budgetMin: budgetHint ?? stated.min ?? undefined,
+        budgetMax: budgetHint ?? stated.max ?? undefined,
         projectType: lead.projectType ?? undefined,
       };
       // Seeds alone are enough to ground. A contractor who just pasted their
@@ -150,6 +158,9 @@ export default function InstantBidProposalModal({
       const p = await generateInstantBid(rfp, {
         companyName: company?.companyName,
         financing: settings?.financing,
+        // His one saved warranty on every tier, or no period at all until he
+        // sets one — never the old invented 1/2/5-year ladder.
+        warrantyMonths: resolveWarrantyMonths(settings),
         groundingContext,
         // aiMidpoint asks the model for a ROM COST. Without this the tier
         // amounts on a proposal a homeowner receives are the contractor's cost.
@@ -172,7 +183,8 @@ export default function InstantBidProposalModal({
     if (!lead) return;
     // If no budget hint exists, ask the contractor one inline question before
     // generating so we don't send a raw AI guess to a real homeowner.
-    const hasBudget = (lead.budgetMin != null && lead.budgetMin > 0) || (lead.budgetMax != null && lead.budgetMax > 0);
+    const stated = statedBudgetOf(lead);
+    const hasBudget = stated.min != null || stated.max != null;
     if (!hasBudget) {
       setShowBallparkPrompt(true);
       return;
@@ -217,6 +229,8 @@ export default function InstantBidProposalModal({
   }, [proposal, lead, selectedTier, addLeadTouch, updateLead]);
 
   if (!lead) return null;
+  // Shown under its own name so the GC sees it for what it is (audit #24).
+  const widgetBallpark = widgetBallparkOf(lead);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
@@ -248,15 +262,20 @@ export default function InstantBidProposalModal({
             <View style={styles.genWrap}>
               <Text style={styles.genBody}>
                 Draft a professional Good / Better / Best proposal for {lead.name} in seconds —
-                {lead.budgetMin || lead.budgetMax ? ' tuned to their budget' : ' from the scope on file'}.
+                {(() => { const b = statedBudgetOf(lead); return b.min || b.max ? ' tuned to their budget' : ' from the scope on file'; })()}.
               </Text>
+              {widgetBallpark ? (
+                <Text style={styles.ballparkHint} testID="instant-bid-widget-ballpark">
+                  Widget ballpark shown to them: {formatMoney(widgetBallpark.low)}{'\u2013'}{formatMoney(widgetBallpark.high)} {'\u2014'} a published national range, not their budget. It does not steer this proposal.
+                </Text>
+              ) : null}
               {showBallparkPrompt ? (
                 <View style={styles.ballparkWrap}>
                   <Text style={styles.ballparkQuestion}>
                     Ballpark you&apos;d bid this at?
                   </Text>
                   <Text style={styles.ballparkHint}>
-                    No budget was posted — a rough number helps anchor the estimate so the prices you send are closer to what you&apos;d actually charge.
+                    {widgetBallpark ? 'They did not state a budget' : 'No budget was posted'} — a rough number helps anchor the estimate so the prices you send are closer to what you&apos;d actually charge.
                   </Text>
                   <TextInput
                     style={styles.ballparkInput}

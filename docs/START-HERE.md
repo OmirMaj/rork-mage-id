@@ -193,6 +193,17 @@ enforced in the engine, in every AI prompt, and now visibly on the estimate row
    every route in empty + populated states). Neither replaces the other.
    `scripts/validate-workflow-pipelines.ts` has **no `test:*` entry** — a
    file-glob sweep catches it, `bun run test:*` does not.
+7. **Supabase Auth "Confirm email" must stay ON** (Dashboard → Authentication →
+   Sign In / Providers → Email). `project-invite`'s `listPending` and
+   `acceptPending` find and accept a project invite on the caller's GoTrue email
+   ALONE, with no token (`acceptPending` compares `invited_email` to
+   `caller.email`; `_shared/verifyUser.ts` never reads `email_confirmed_at`).
+   That is safe only because nobody can hold an unconfirmed address. Turn the
+   setting off and anyone who signs up as a GC's invitee's address walks onto
+   that job, editor financials included. Production had it ON on 2026-09-17
+   (7 email users, 0 unconfirmed, 0 confirmed at the moment of signup). **Check
+   it before every `project-invite` deploy.** If it ever has to go off, make
+   those two actions require `email_confirmed_at` first.
 
 ## THE LESSON THIS SESSION KEPT TEACHING
 

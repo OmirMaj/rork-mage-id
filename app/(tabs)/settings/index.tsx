@@ -44,6 +44,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import Constants from 'expo-constants';
+import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
+import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel } from '@/utils/paymentTerms';
 import { getOwnOfflineQueue } from '@/utils/offlineQueue';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 
@@ -73,6 +76,19 @@ function readBuildInfo(): { version: string; detail: string } {
 function countNoun(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
+
+// What delete-account does NOT erase, said in every place the user reads
+// about deleting (the first confirm, the Android final confirm, the success
+// alert, the row subtitle). supabase/functions/delete-account hands the
+// caller's rows in COLLABORATOR_FIELD_TABLES on a project someone ELSE owns to
+// that owner (step 2-0) and keeps his photo files under <uid>/<projectId>/
+// (step 3) — the job's paper trail is the GC's, not his (audit round 2 #26).
+// The old copy promised "every project, and all uploaded files" / "all data
+// have been removed", a false privacy statement at the moment of deletion.
+// scripts/validate-account-deletion-handover.ts section 6 fails if this list
+// and the function's table list drift apart, or if the absolute wording returns.
+const ACCOUNT_DELETE_HANDOVER_NOTE =
+  'Work you logged on other contractors\u2019 jobs is not deleted: daily reports, photos, punch items, RFIs, submittals, permits, plan sheets and markups, time entries (with their GPS location and notes), signed T&M tickets, and delivery and site-access bookings stay with those jobs, and the job\u2019s owner keeps them.';
 
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
@@ -124,6 +140,27 @@ export default function SettingsScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { settings, updateSettings, projects, deleteProject, userRole } = useCoreData();
+  // "How you get paid" shortcut. The answer lives on Company Profile and is
+  // asked the first time a document prints it; this row only exists because a
+  // GC hunting for "deposit" looks in Settings first. It opens the same ask
+  // sheet — no second form, no second storage.
+  const gate = useClientDocumentGate();
+  const howYouGetPaidLabel = useMemo(() => {
+    const split = resolvePaymentSplit({ settings }).split;
+    const months = resolveWarrantyMonths(settings);
+    if (!split && months == null) return 'How you get paid \u00b7 Not set \u2014 asked the first time a document prints it';
+    const warranty = months == null
+      ? 'warranty not set'
+      : `${months % 12 === 0 ? `${months / 12}-year` : `${months}-month`} warranty`;
+    return `How you get paid \u00b7 ${split ? splitLabel(split) : 'terms not set'} \u00b7 ${warranty} \u203a`;
+  }, [settings]);
+  // Open the step the label says is missing: with the split answered and the
+  // warranty not, "terms" would show him the question he already answered and
+  // leave no way to set the warranty from here.
+  const howYouGetPaidStep = useMemo<'terms' | 'warranty'>(
+    () => (resolvePaymentSplit({ settings }).split && resolveWarrantyMonths(settings) == null ? 'warranty' : 'terms'),
+    [settings],
+  );
   const { user, logout, deleteAccount, isAuthenticated, signingOut } = useAuth();
   const queryClient = useQueryClient();
   const { tier } = useTierAccess();
@@ -574,7 +611,7 @@ export default function SettingsScreen() {
   const handleDeleteAccount = useCallback(() => {
     showAlert(
       'Delete account',
-      'This permanently removes your MAGE ID account, every project, and all uploaded files. This cannot be undone.\n\nIf you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions on iOS or Google Play → Subscriptions on Android. Deleting your account does NOT cancel your subscription.',
+      `This permanently removes your MAGE ID account, every project you own, and the files you uploaded. This cannot be undone.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}\n\nIf you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions on iOS or Google Play → Subscriptions on Android. Deleting your account does NOT cancel your subscription.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -608,7 +645,7 @@ export default function SettingsScreen() {
             } else {
               showAlert(
                 'Final confirmation',
-                'Are you ABSOLUTELY sure? This deletes everything and cannot be undone.',
+                `Are you ABSOLUTELY sure? This deletes your account and every project you own, and cannot be undone.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}`,
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
@@ -629,7 +666,7 @@ export default function SettingsScreen() {
     try {
       await deleteAccount();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      showAlert('Account deleted', 'Your MAGE ID account and all data have been removed.', [
+      showAlert('Account deleted', `Your MAGE ID account, the projects you owned and the files you uploaded have been removed.\n\n${ACCOUNT_DELETE_HANDOVER_NOTE}`, [
         { text: 'OK', onPress: () => router.replace('/login' as never) },
       ]);
     } catch (err) {
@@ -1002,6 +1039,16 @@ export default function SettingsScreen() {
           <Text style={[styles.saveButtonText, !estimateDefaultsDirty && styles.saveButtonTextIdle]}>
             {estimateDefaultsDirty ? 'Save estimate defaults' : 'Estimate defaults saved'}
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.howYouGetPaidRow}
+          onPress={() => gate.edit(howYouGetPaidStep)}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={`${howYouGetPaidLabel}. Opens your ${howYouGetPaidStep === 'warranty' ? 'warranty' : 'payment terms'}.`}
+          testID="settings-how-you-get-paid"
+        >
+          <Text style={styles.howYouGetPaidText}>{howYouGetPaidLabel}</Text>
         </TouchableOpacity>
 
         {/* COMPANY BRANDING / LOGO / SIGNATURE moved to /company-profile.
@@ -1960,13 +2007,13 @@ export default function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Delete Account</Text>
               <Text style={[styles.aboutDesc, { color: themeColors.textMuted }]}>
-                Permanently remove your account, projects, and all data. This can&apos;t be undone.
+                Permanently remove your account and the projects you own. Work you logged on other contractors&apos; jobs stays with those jobs. This can&apos;t be undone.
               </Text>
             </View>
           </TouchableOpacity>
         </View>
         <Text style={styles.dangerNote}>
-          Permanently deletes all projects and cannot be undone.
+          Both actions are permanent and cannot be undone.
         </Text>
       </ScrollView>
 
@@ -2216,6 +2263,8 @@ export default function SettingsScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      <ClientDocumentAskSheet {...gate.sheet} />
     </KeyboardAvoidingView>
   );
 }
@@ -2588,6 +2637,20 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   saveButtonTextIdle: {
     color: themeColors.textMuted,
+  },
+  // Sits in the save button's bottom margin, so it reads as part of the
+  // estimate-defaults block rather than a section of its own.
+  howYouGetPaidRow: {
+    marginHorizontal: 20,
+    marginTop: -16,
+    marginBottom: 20,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  howYouGetPaidText: {
+    fontSize: Type.footnote.fontSize,
+    color: themeColors.accentLabel,
+    lineHeight: 18,
   },
   marketNote: {
     fontSize: Type.caption1.fontSize,

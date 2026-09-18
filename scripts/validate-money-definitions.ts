@@ -64,12 +64,16 @@ import {
   billedAgainstMilestones, spreadMilestoneBilling, deriveMilestoneInvoiceLine, isMilestoneBillKey,
   applyMilestoneBilling, contractBilledToDate, attributableContractBilling,
   milestoneBillability, milestoneBlockMessage, milestoneBillEffect,
-  sovFootingShortfall,
+  sovFootingShortfall, milestoneBillableAmount,
 } from '../utils/billingFlowCore';
 import { getPaidToDate, resolveContractSum } from '../utils/projectFinancials';
+import {
+  contractScheduleFromSplit, retieContractSchedule, splitLabel, resolveWarrantyMonths,
+  contractWarrantyText, warrantyPeriodPhrase, LEGACY_WARRANTY_TEXT,
+} from '../utils/paymentTerms';
 import type {
   Project, Invoice, Commitment, LinkedEstimate, MaterialReceipt, TimeEntry,
-  LeadTouch, ProposalTier, TieredProposal,
+  LeadTouch, ProposalTier, TieredProposal, PaymentMilestone, PaymentSplit,
 } from '../types';
 // fileURLToPath + join because the repo path contains a space.
 import { readFileSync, mkdtempSync, mkdirSync, copyFileSync, writeFileSync } from 'node:fs';
@@ -784,7 +788,31 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
       && /already been invoiced against contract scope/.test(copy)
       && !/already been invoiced for the whole contract/.test(copy),
       copy);
-    ok('…and names both ways out', /Bill from Estimate/.test(copy) && /update the contract value/.test(copy));
+    // A REMEDY THAT EXISTS (review round 6). `blocked` above is billed to the
+    // full contract value, so the remainder is $0.00 — and the round-3 copy
+    // then said "Bill the remainder from Bill from Estimate" two clauses after
+    // printing that figure, sending him to a screen to bill nothing. This is
+    // also the ONLY sentence a closed progress row ever prints, because
+    // progressRowOpen keeps that row open for every ceiling refusal above
+    // zero. Both halves are pinned: nothing left points at a change order,
+    // something left still points at both ways out.
+    ok('…and at a $0.00 remainder it does NOT send him somewhere to bill nothing',
+      /leaving nothing to bill against it/.test(copy)
+      && /change order/.test(copy) && /update the contract value/.test(copy)
+      && !/Bill from Estimate/.test(copy),
+      copy);
+    const partial = milestoneBillability({
+      milestone: ms(1) as never, contractValue: CONTRACT, contractStatus: 'signed',
+      contractBilledToDate: CONTRACT - 1_000,
+    });
+    const partialCopy = (partial.reason
+      ? milestoneBlockMessage(partial.reason, partial.ceiling, partial.amount)
+      : '') ?? '';
+    ok('…while a refusal with a real remainder still names both ways out',
+      partial.reason === 'contract_fully_billed'
+      && /leaving \$1,000\.00/.test(partialCopy)
+      && /Bill from Estimate/.test(partialCopy) && /update the contract value/.test(partialCopy),
+      partialCopy);
   }
 
   // ── THE CEILING MAY NOT REFUSE ON DOLLARS IT CANNOT ATTRIBUTE ──────────
@@ -1038,9 +1066,12 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
       'the navigation payload must come off the narrowed compose arm — that is what makes tsc the second guard');
   }
 
+  // Re-pointed 2026-09-17 (Direction B). Every contract still carries a
+  // milestone schedule this ledger must see — no longer a 25/25/25/25 seed but
+  // the GC's own split, through the one resolver. Both constructors.
   const engine = read('utils/contractEngine.ts');
-  ok('…and the 25/25/25/25 schedule this protects against is still seeded on every contract',
-    /paymentSchedule: defaultPaymentSchedule\(value\)/.test(engine));
+  ok('…and every new contract is still seeded with a milestone schedule — his split, through utils/paymentTerms',
+    (engine.match(/paymentSchedule: split \? contractScheduleFromSplit\(value, split\) : \[\],/g) ?? []).length === 2);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2432,6 +2463,328 @@ console.log('\nEVM measures cost, and says so when it cannot (MONEY-EVM-1):');
     !/actualCumulative/.test(dash) && />Collected</.test(stripComments(dash)));
   ok('…and the AI prompt is told outright when there is no cost data',
     /Actual Cost: NOT AVAILABLE/.test(dash) && /Never treat client payments as a cost/.test(dash));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRACT-TERMS (Direction B, 2026-09-17) — a contract prints the GC's own
+// payment split and warranty period, or asks; it never prints a guess.
+//
+// Until this change utils/contractEngine.ts seeded every new contract with
+// 25 / 25 / 25 / 25 and a one-year workmanship warranty while the proposal PDF
+// printed 25 / 65 / 10 and the portal a 10% deposit — three deposits for one
+// job, and the made-up one was the one a homeowner signed. The split now comes
+// from utils/paymentTerms (stamp → profile → not set), the screen asks only
+// from a press, and Sign & send cannot send a contract with no schedule or no
+// warranty period.
+//
+// app/contract.tsx cannot be imported by bun, so the screen's wiring is pinned
+// by shape; every piece of ARITHMETIC it relies on is executed below.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\na contract prints his terms or asks — never a guess (CONTRACT-TERMS):');
+{
+  const engine = read('utils/contractEngine.ts');
+  const engineCode = stripComments(engine);
+  ok('contractEngine keeps no 25-percent seed',
+    !/percent:\s*25\b/.test(engineCode) && !/\b0\.25\b/.test(engineCode),
+    'a literal split here is a schedule nobody chose');
+  ok('…no "one (1) year" warranty literal',
+    !/one \(1\) year/.test(engine));
+  ok('…and no defaultPaymentSchedule / DEFAULT_WARRANTY at all',
+    !/defaultPaymentSchedule/.test(engineCode) && !/DEFAULT_WARRANTY\b/.test(engineCode));
+  ok('buildDraftContract REQUIRES terms and builds from them',
+    /export interface DraftContractInput \{[\s\S]*?\n  terms: ContractTerms;\n\}/.test(engine)
+    && /const \{ split, warrantyMonths \} = input\.terms;/.test(engine));
+  ok('buildProposalFromRevision takes terms as a required argument',
+    /export function buildProposalFromRevision\(\s*project: Project,\s*revision: EstimateRevision,\s*terms: ContractTerms,\s*\)/.test(engine)
+    && /const \{ split, warrantyMonths \} = terms;/.test(engine));
+  ok('…and both print the warranty through contractWarrantyText (a visible placeholder when not set)',
+    (engine.match(/warrantyText: contractWarrantyText\(warrantyMonths\),/g) ?? []).length === 2);
+
+  const screen = read('app/contract.tsx');
+  const code = stripComments(screen);
+
+  // ── The load effect never asks, and is keyed on ids. ──
+  const loadStart = code.indexOf('useEffect(() => {', code.indexOf('const contractRef = useRef(contract);'));
+  const loadEnd = code.indexOf('}, [project?.id, user?.id]);', loadStart);
+  const loadBody = loadStart > 0 && loadEnd > loadStart ? code.slice(loadStart, loadEnd) : '';
+  ok('the contract load effect is keyed on project?.id and user?.id',
+    loadBody.length > 0 && /fetchActiveContract\(p\.id\)/.test(loadBody),
+    'keyed on the project OBJECT it re-seeded the draft on every project save and wiped his edits');
+  ok('…and contains no gate call — opening the contract never asks',
+    loadBody.length > 0 && !/\bgate(Run)?\s*[.(]/.test(loadBody) && !/askContractTerms\(/.test(loadBody));
+  ok('…and keeps an unsaved draft for this project instead of re-seeding it',
+    /if \(held && !held\.id && held\.projectId === p\.id\) \{ setLoading\(false\); return; \}/.test(loadBody));
+  ok('…and seeds from the stamp, then his profile, through the resolver',
+    /resolvePaymentSplit\(\{ record: p\.clientPortal\?\.proposalPaymentTerms, settings: s \}\)/.test(loadBody)
+    && /warrantyMonths: resolveWarrantyMonths\(s\)/.test(loadBody)
+    && /buildProposalFromRevision\(p, rev, terms\)/.test(loadBody)
+    && /buildDraftContract\(\{ project: p, terms \}\)/.test(loadBody)
+    && /setTermsSource\(resolved\.source\)/.test(loadBody));
+
+  // ── Sign & send. ──
+  ok('the Sign & send disabled rule is exactly: a non-empty schedule that does not foot, or saving',
+    /label="Sign & send"\s*onPress=\{handleSignPress\}\s*disabled=\{\(contract\.paymentSchedule\.length > 0 && !scheduleMatchesValue\) \|\| saving\}/.test(code),
+    'an empty schedule must stay pressable — the press is where he is asked');
+  const signStart = code.indexOf('const handleSignPress = useCallback(');
+  const signEnd = code.indexOf('}, [askContractTerms]);', signStart);
+  const signBody = signStart > 0 && signEnd > signStart ? code.slice(signStart, signEnd) : '';
+  const emptyIdx = signBody.indexOf('c.paymentSchedule.length === 0');
+  const placeholderIdx = signBody.indexOf('hasWarrantyPlaceholder(c.warrantyText)');
+  const askIdx = signBody.indexOf("askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');");
+  const modalIdx = signBody.indexOf('setSignatureModal(true)');
+  const askReturnIdx = askIdx > 0 ? signBody.indexOf('return;', askIdx) : -1;
+  ok('handleSignPress checks the empty schedule and the warranty placeholder BEFORE opening the signature pad',
+    emptyIdx > 0 && placeholderIdx > 0 && askIdx > placeholderIdx && modalIdx > askIdx
+    && askReturnIdx > askIdx && askReturnIdx < modalIdx,
+    `empty@${emptyIdx} placeholder@${placeholderIdx} ask@${askIdx} return@${askReturnIdx} modal@${modalIdx}`);
+  // THE LOCK IS THE FIRST QUESTION (review round 6). The action row renders on
+  // status 'draft', but contractTermsLocked is wider than that — a draft
+  // already carrying his signature is locked, and askContractTerms
+  // early-returns on it, so the press did nothing and said nothing.
+  //
+  // Asked only INSIDE the missing-terms branch (round 5's shape) the alert had
+  // a hole the size of the bug it was written for: a signed draft whose
+  // schedule and warranty are both complete skipped the branch entirely and
+  // fell through to setSignatureModal(true) — a second signature captured over
+  // the first. So the order asserted here is `locked` BEFORE the two
+  // missing-terms reads, not merely before the ask.
+  const lockedIdx = signBody.indexOf('contractTermsLocked(c)');
+  ok('…and a draft that already carries his signature says why, before anything else in the press',
+    lockedIdx > 0 && emptyIdx > lockedIdx && placeholderIdx > lockedIdx && askIdx > lockedIdx
+    && /showAlert\(\s*'This contract is already signed',/.test(signBody)
+    && signBody.indexOf('return;', lockedIdx) < emptyIdx,
+    `locked@${lockedIdx} empty@${emptyIdx} placeholder@${placeholderIdx} ask@${askIdx}`);
+  ok('…and handleSignAndSend refuses those states itself, as the last check',
+    /const handleSignAndSend = useCallback\(async[\s\S]{0,200}if \(contract\.paymentSchedule\.length === 0 \|\| hasWarrantyPlaceholder\(contract\.warrantyText\)\) \{[\s\S]{0,500}return;\s*\}/.test(code));
+  // …AND IT DOES NOT TEAR THE PAD DOWN UNDER ITS OWN ALERT (review round 6).
+  // On iOS an Alert presented from a view controller that is being dismissed
+  // goes away with it: `setSignatureModal(false)` in the same tick gives the
+  // GC a signature pad that closes and explains nothing, which is the exact
+  // outcome this refusal exists to prevent. The sibling refusal two branches
+  // below ("Name required") leaves the modal up; so must this one.
+  {
+    const sendStart = code.indexOf('const handleSignAndSend = useCallback(async');
+    const refusalIdx = sendStart > 0 ? code.indexOf("'Set your terms first'", sendStart) : -1;
+    const body = sendStart > 0 && refusalIdx > sendStart ? code.slice(sendStart, refusalIdx) : '';
+    ok('…without dismissing the signature Modal in the same tick as the alert',
+      sendStart > 0 && refusalIdx > sendStart && !/setSignatureModal\(false\)/.test(body)
+      && /Close the signature pad, set your payment terms/.test(code)
+      && /Close the signature pad, set your warranty/.test(code),
+      'match the "Name required" shape: speak, and let him close the pad');
+  }
+
+  // ── The ask and its two scopes. ──
+  const askStart = code.indexOf('const askContractTerms = useCallback(');
+  const askEnd = code.indexOf('}, [gateRun, saveDraftFrom]);', askStart);
+  const askBody = askStart > 0 && askEnd > askStart ? code.slice(askStart, askEnd) : '';
+  ok('the ask goes through the one gate with the contract purpose and a per-job option',
+    /gateRun\(\{/.test(askBody) && /purpose: 'contract'/.test(askBody) && /justThisJob: true/.test(askBody)
+    && /documentNoun: c\.kind === 'proposal' \? 'proposal' : 'contract'/.test(askBody));
+  ok('…refuses to touch a locked contract, before asking and again when the answer lands',
+    (askBody.match(/contractTermsLocked\(/g) ?? []).length >= 2);
+  // EVERY ANSWER THAT LANDS ON A SAVED ROW IS SAVED (review round 6). There is
+  // no auto-save on this screen, so the `this_job`-only condition meant that
+  // answering "Use on every job" — or the gate running synchronously because
+  // his profile already answers — rewrote the schedule and the warranty
+  // paragraph of a draft that is already in the database in React state alone.
+  // Both legacy notices are gated on `!!contract.id`, so THEIR buttons only
+  // ever run this path on a saved row: the notice vanished, the toast said the
+  // warranty was on the contract, and the stored row still carried MAGE's
+  // paragraph — while the other button in the same card (applyOwnSplit) saved.
+  ok('every answer that lands on a SAVED draft is written back, not just "Just this contract"',
+    /if \(filled\.id \|\| a\.termsScope === 'this_job' \|\| a\.warrantyScope === 'this_job'\) \{\s*void saveDraftFrom\(filled\);/.test(askBody),
+    'an answer that only reached state is gone the moment he leaves the screen');
+  ok('…and saveDraftFrom takes the contract as an argument, not the render closure',
+    /const saveDraftFrom = useCallback\(async \(c: ProjectContract\) => \{[\s\S]{0,200}saveContract\(\{ \.\.\.c, id: c\.id \|\| undefined \}\)/.test(code));
+
+  // ── ONE TOAST PER PRESS (review round 5). ──
+  //
+  // The gate fires its own "Saved as your terms …" confirmation and then calls
+  // `then` on the SAME call stack. The toast host holds exactly one message:
+  // showToast does setActive(event) and then opacity.setValue(0), which stops
+  // the in-flight animation, and the sequence's completion callback is
+  // `() => setActive(null)` with no `finished` check — so a second nailIt in
+  // that press resolves the first to null and NEITHER sentence is seen. The
+  // screen's "review it, then sign" line is therefore a notice on the page.
+  // Both halves of the trap are asserted, so the day the host learns to queue
+  // (or the gate stops confirming) this fails loudly instead of pinning air.
+  const gateSrc = read('hooks/useClientDocumentGate.ts');
+  ok('the gate confirms the answer itself, in the same press, before it runs the caller',
+    /nailIt\(confirmationForSheet\(facts, noun\)\);\s*\n\s*if \(then\) then\(/.test(gateSrc),
+    'if the gate stopped confirming, the contract screen would owe that sentence');
+  const host = read('components/animations/NailItToast.tsx');
+  ok('…and the toast host shows ONE message at a time — the trap this pins',
+    /setActive\(event\);\s*\n\s*opacity\.setValue\(0\);/.test(host)
+    && /\]\)\.start\(\(\) => setActive\(null\)\)/.test(host),
+    'a host that queued messages would make a second nailIt safe — revisit the notice below');
+  const nailCalls = (askBody.match(/nailIt\(/g) ?? []).length;
+  const reviewArm = askBody.indexOf("if (after === 'review') {");
+  const quietArm = askBody.indexOf("} else if (a.termsScope == null && a.warrantyScope == null) {");
+  ok('askContractTerms fires at most one toast, and only when the sheet did NOT ask',
+    nailCalls === 1 && reviewArm > 0 && quietArm > reviewArm && askBody.indexOf('nailIt(') > quietArm,
+    `nailIt×${nailCalls} review@${reviewArm} quiet@${quietArm}`);
+  ok('…and the Sign & send arm sets the page notice instead of a second toast',
+    reviewArm > 0 && quietArm > reviewArm
+    && /setReviewBeforeSigning\(true\);/.test(askBody.slice(reviewArm, quietArm))
+    && !/nailIt\(/.test(askBody.slice(reviewArm, quietArm)));
+  ok('…which the screen actually RENDERS — an unread state is a press that did nothing',
+    /\{reviewBeforeSigning && contract\.status === 'draft' && \(/.test(code)
+    && /testID="contract-review-before-signing"/.test(code)
+    && /Review it — the payment schedule and warranty above — then tap Sign &amp; send\./.test(code),
+    'the notice is the only thing that tells him why the signature pad did not open');
+  ok('…and the next press clears it before the pad opens',
+    /setReviewBeforeSigning\(false\);\s*\n\s*setSignatureModal\(true\);/.test(code));
+
+  // ── Reset, and the controls only a draft shows. ──
+  ok('the mismatch Reset label comes from splitLabel, and the 25/25/25/25 reset is gone',
+    /Reset to your terms \(\{splitLabel\(profileSplit\)\}\)/.test(code) && !/Reset to 25\/25\/25\/25/.test(code));
+  // Every one of these renders only on a draft that is already in the database
+  // (the notices are gated on contract.id), so a rewrite that lived in state
+  // alone was thrown away the moment he left the screen — the ask sheet's
+  // "Just this contract" path saves for exactly the same reason.
+  ok('the one-tap terms actions SAVE the draft they just rewrote',
+    /const applyOwnSplit = useCallback\(\(split: PaymentSplit, source: ResolvedSplit\['source'\]\) => \{[\s\S]{0,500}if \(next\.id\) void saveDraftFrom\(next\);/.test(code)
+    && (code.match(/onPress=\{\(\) => applyOwnSplit\(profileSplit, 'profile'\)\}/g) ?? []).length === 3
+    && !/onPress=\{\(\) => updateContract\('paymentSchedule', contractScheduleFromSplit/.test(code),
+    'Use 30/60/10, the legacy reset and the mismatch reset must all go through applyOwnSplit');
+
+  // ── Three notices that must not state a guess as a fact (review round 4). ──
+  //
+  // (a) THE LEGACY-WARRANTY TRAP, EXECUTED. contractWarrantyText(12) is
+  // LEGACY_WARRANTY_TEXT byte for byte — the text IS that paragraph with the
+  // period substituted, and warrantyPeriodPhrase(12) is 'one (1) year'. A
+  // screen that tests `warrantyText === LEGACY_WARRANTY_TEXT` therefore
+  // accuses the GC's OWN twelve-month answer (the likeliest answer there is,
+  // and warranties.tsx's own fallback) of being MAGE's placeholder, and the
+  // notice's only button opens no sheet, rewrites the identical string and
+  // leaves the notice up: a permanent false accusation with a dead remedy.
+  ok('contractWarrantyText(12) IS the legacy paragraph — the trap this pins',
+    contractWarrantyText(12).trim() === LEGACY_WARRANTY_TEXT
+    && warrantyPeriodPhrase(12) === 'one (1) year',
+    'if this ever goes false the check below is pinning nothing');
+  ok('…and no other period collides with it',
+    [6, 18, 24, 60].every(m => contractWarrantyText(m).trim() !== LEGACY_WARRANTY_TEXT)
+    && contractWarrantyText(null).trim() !== LEGACY_WARRANTY_TEXT);
+  ok('the legacy-warranty notice asks "is this what HIS answer would print?", not "is this the old default?"',
+    /const ownWarrantyMonths = resolveWarrantyMonths\(settings\);/.test(code)
+    && /const ownWarrantyText = contractWarrantyText\(ownWarrantyMonths\);/.test(code)
+    && /const legacyWarranty = !!contract\.id\s*&& contract\.warrantyText\.trim\(\) === LEGACY_WARRANTY_TEXT\s*&& ownWarrantyText\.trim\(\) !== LEGACY_WARRANTY_TEXT;/.test(code),
+    'a bare equality against LEGACY_WARRANTY_TEXT accuses his own 12-month answer');
+  ok('…and it only claims MAGE filled the paragraph in when he has never answered',
+    /ownWarrantyMonths == null\s*\?\s*"MAGE's old placeholder, not your terms"/.test(code)
+    && /Use your \$\{warrantyShortLabel\(ownWarrantyMonths\)\}/.test(code),
+    'with a saved warranty of another length, who chose the paragraph is unknowable — say what differs instead');
+
+  // (b) The provenance line names the stamp, which is read LIVE while the
+  // schedule is a seed frozen at load. Replace the stamp from the portal
+  // screen and return: the load effect keeps the held draft, so the line would
+  // name a split the rows below do not carry.
+  //
+  // AND IT SURVIVES A RELOAD (review round 6). `termsSource === 'record'` is
+  // session state — the load effect sets it to null for every contract read
+  // back from the database — so the line, and its one-tap "Use <your split>",
+  // existed only in the session that seeded the draft. Reopen the saved draft
+  // and the rows still carried the stamp while the screen stopped naming the
+  // proposal his client was shown. The rows answer that on their own;
+  // termsSource is kept only to rule out the one case they cannot see, a
+  // just-pressed "Use <his own terms>" that happens to equal the stamp.
+  ok('the provenance line is tested against the rows below it, not against session state',
+    /termsSource !== 'profile' && stampSplit\s*&& scheduleCarriesSplit\(contract\.paymentSchedule, contract\.contractValue, stampSplit\)/.test(code)
+    && !/termsSource === 'record'/.test(code)
+    && /function scheduleCarriesSplit\(/.test(code),
+    'a reopened draft must still name the proposal its client was shown');
+
+  // (c) The mismatch banner renders on sent and signed contracts too, where
+  // the whole draft action row — and therefore Sign & send — is not rendered.
+  ok('the mismatch banner only promises Sign & send while that button exists',
+    /\{contract\.status === 'draft' \? ' — Sign & send stays off until it does\.' : '\.'\}/.test(code),
+    "on a sent contract the clause described a control that is not on the screen");
+
+  // (d) A void contract loads (fetchActiveContract filters only on
+  // superseded_by) and every terms handler early-returns on contractTermsLocked
+  // — so the render gate must be that same predicate, or the notices render
+  // buttons that neither work nor say why.
+  ok('the render lock is the handlers\' own predicate, not a status list',
+    /const isLocked = contractTermsLocked\(contract\);/.test(code)
+    && !/const isLocked = contract\.status === 'sent' \|\| contract\.status === 'signed';/.test(code));
+  // Every terms control sits inside a `{!isLocked && …}` expression. Brace
+  // depth from each opener gives the expression's span.
+  const lockedSpans: [number, number][] = [];
+  for (let i = code.indexOf('{!isLocked && '); i >= 0; i = code.indexOf('{!isLocked && ', i + 1)) {
+    let depth = 0;
+    for (let j = i; j < code.length; j++) {
+      if (code[j] === '{') depth++;
+      else if (code[j] === '}') { depth--; if (depth === 0) { lockedSpans.push([i, j]); break; } }
+    }
+  }
+  const termsControls = ['contract-set-payment-terms', 'contract-use-current-terms', 'contract-legacy-reset-terms',
+    'contract-legacy-set-terms', 'contract-reset-terms', 'contract-mismatch-set-terms', 'contract-set-warranty',
+    'contract-legacy-set-warranty'];
+  const outside = termsControls.filter(id => {
+    const at = code.indexOf(`testID="${id}"`);
+    return at < 0 || !lockedSpans.some(([a, b]) => at > a && at < b);
+  });
+  ok('every terms control renders only inside !isLocked', outside.length === 0,
+    `missing or outside a {!isLocked && …} block: ${outside.join(', ')}`);
+
+  // ── Money plumbing on the screen. ──
+  ok('a typed milestone amount clears the percent, so billing bills what he typed',
+    /onChange\(\{ amount: Number\(v\.replace\(\/\[\^0-9\.\]\/g, ''\)\) \|\| 0, percent: undefined \}\)/.test(code));
+  ok('a contract value change re-ties the schedule through retieContractSchedule',
+    /paymentSchedule: retieContractSchedule\(newValue, prev\.paymentSchedule\)/.test(code)
+    && !/Math\.round\(newValue \* \(m\.percent \/ 100\)\)/.test(code));
+
+  const warr = read('app/warranties.tsx');
+  ok('the warranty form seeds its duration from his saved warranty — initializer AND resetForm',
+    /useState\(\(\) => String\(resolveWarrantyMonths\(settings\) \?\? 12\)\)/.test(warr)
+    && /setDurationMonths\(String\(resolveWarrantyMonths\(settings\) \?\? 12\)\)/.test(warr)
+    && !/setDurationMonths\('12'\)/.test(warr) && !/useState\('12'\)/.test(warr));
+  ok('…which is his months when set and 12 only when he never answered',
+    String(resolveWarrantyMonths({ warrantyMonths: 24 }) ?? 12) === '24' && String(resolveWarrantyMonths({}) ?? 12) === '12');
+
+  // ── EXECUTED: a percent milestone with its percent cleared bills the typed amount.
+  {
+    const VALUE = 131_502.37;
+    const row: PaymentMilestone = { id: 'dep', label: 'Deposit', trigger: 'on_signing', percent: 25, amount: 32_875.59, status: 'pending' };
+    close('a percent row bills cents(value × pct), ignoring its stored amount', milestoneBillableAmount(row, VALUE), 32_875.59);
+    // Exactly what updateMilestone does with MilestoneRow's patch.
+    const patch: Partial<PaymentMilestone> = { amount: Number('5000.25'.replace(/[^0-9.]/g, '')) || 0, percent: undefined };
+    const typed = { ...row, ...patch };
+    close('…and after he types $5,000.25 the row bills $5,000.25, not 25% of the contract',
+      milestoneBillableAmount(typed, VALUE), 5_000.25);
+    const withoutClear = { ...row, amount: 5_000.25 };
+    ok('…which is only true because the percent is cleared (the mutation this pins)',
+      Math.abs(milestoneBillableAmount(withoutClear, VALUE) - 5_000.25) > 1);
+  }
+
+  // ── EXECUTED: retieContractSchedule adds up exactly after a value change.
+  {
+    const S = (d: number, p: number, f: number): PaymentSplit => ({ depositPct: d, progressPct: p, finalPct: f });
+    const cents = (n: number) => Math.round(n * 100);
+    const values = [0.99, 100.01, 9_999.99, 12_345.67, 130_052, 131_502.37, 999_999.99];
+    const splits = [S(25, 65, 10), S(33, 34, 33), S(50, 0, 50), S(0, 0, 100), S(10, 80, 10), S(1, 98, 1)];
+    const retieBad: string[] = [];
+    const seedBad: string[] = [];
+    let id = 0;
+    for (const from of values) for (const to of values) for (const sp of splits) {
+      const sched = contractScheduleFromSplit(from, sp, () => `r${++id}`);
+      const retied = retieContractSchedule(to, sched);
+      const sum = retied.reduce((t, m) => t + cents(m.amount ?? 0), 0);
+      if (sum !== cents(to)) retieBad.push(`${splitLabel(sp)} ${from}→${to}: ${sum}¢ ≠ ${cents(to)}¢`);
+    }
+    // MONEY-CONTRACT-1: a draft seeded from his split matches the contract
+    // value within the screen's own tolerance (scheduleMatchesValue, < $1) —
+    // in fact to the cent — so Sign & send is never disabled on a fresh draft.
+    for (const v of values) for (const sp of splits) {
+      const sched = contractScheduleFromSplit(v, sp, () => `s${++id}`);
+      const total = sched.reduce((t, m) => t + (m.amount ?? 0), 0);
+      if (!(Math.abs(total - v) < 1) || cents(total) !== cents(v)) seedBad.push(`${splitLabel(sp)} @ ${v}: ${total}`);
+    }
+    ok('retieContractSchedule foots to the new contract value to the cent (value × value × split sweep)',
+      retieBad.length === 0, retieBad.slice(0, 5).join('\n      '));
+    ok('MONEY-CONTRACT-1: a draft seeded from his split matches the contract value (sweep)',
+      seedBad.length === 0, seedBad.slice(0, 5).join('\n      '));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

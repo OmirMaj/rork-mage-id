@@ -40,5 +40,24 @@ export async function buildToolboxGrounding(c: CopilotContext): Promise<Groundin
     });
   }
 
-  return { facts, data: { suggestedTopics: suggested } };
+  // Say what the suggestions were built from (audit round 2 #5). The picker
+  // offered "Fall protection" with the same confidence whether it had read two
+  // incidents or nothing at all. The count is what was READ, so an empty job
+  // honestly says it had nothing to go on — and it does not claim this week's
+  // schedule, which this grounding does not read yet.
+  const groundedOn = toolboxGroundedOnLine(Math.min(incidents.length, 2), open.length);
+  facts.push(groundedOn);
+
+  return { facts, data: { suggestedTopics: suggested, groundedOn } };
+}
+
+/** "Grounded on: 2 recent incidents, 1 open hazard on this job." */
+export function toolboxGroundedOnLine(incidentsRead: number, openHazards: number): string {
+  if (incidentsRead <= 0 && openHazards <= 0) {
+    return 'Grounded on: nothing logged on this job yet — no incidents or open hazards to learn from.';
+  }
+  const parts: string[] = [];
+  if (incidentsRead > 0) parts.push(`${incidentsRead} recent incident${incidentsRead === 1 ? '' : 's'}`);
+  if (openHazards > 0) parts.push(`${openHazards} open hazard${openHazards === 1 ? '' : 's'}`);
+  return `Grounded on: ${parts.join(', ')} on this job.`;
 }

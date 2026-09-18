@@ -12,10 +12,19 @@
 // once the model answered (AI-F8), and generic error bodies: the upstream
 // status text and any raw model output stay in the server log (AI-F16).
 //
+// Audit round 2 (#19): accepts `storagePath` instead of `imageBase64`. The
+// function downloads the sheet with the service role after the same project
+// access check compare-drawings and analyze-spec-book use (DB-F11,
+// _shared/planSheetBytes.ts). The client-side download it replaces had no web
+// branch, so on app.mageid.app every sheet failed to read and Ask Your Plans
+// indexed nothing. `imageBase64` stays for device-only sheets (a photo that was
+// never uploaded) and for one release of older clients.
+//
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { loadPlanSheetImageParts, planSheetProjectId, PlanSheetAccessError } from "../_shared/planSheetBytes.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MAX_PAGE_BYTES = 8 * 1024 * 1024;
@@ -72,6 +81,8 @@ interface PlanExtractRequest {
   imageBase64: string;
   mimeType: string;
   sheetNumber?: string;
+  /** Bucket-relative plan-sheets path; when present the function reads the bytes. */
+  storagePath?: string;
 }
 
 function buildPrompt(req: PlanExtractRequest): string {
@@ -87,10 +98,35 @@ function buildPrompt(req: PlanExtractRequest): string {
     "- Every symbol legend entry and drawing title",
     "- Any stamps, revision block entries, or title block fields (project name, address, architect, date, scale)",
     "Transcribe faithfully — do not interpret, infer, or add commentary. If a region is illegible, skip it silently.",
+    // TITLE BLOCK as its own fields (audit round 2, #21). The transcription
+    // already contains the sheet number, but only as prose inside one blob, so
+    // a PDF import could not read it back — every page came in as
+    // "<file> — Page 7" with no sheetNumber, and addPlanSheet's whole revision
+    // chain (supersede + Rev N+1) never fired for a re-issued set. Pulling the
+    // three fields out here is what lets the importer name the sheet.
+    "Separately from the transcription, report the title block EXACTLY as printed:",
+    "- sheetNumber: the drawing number, e.g. \"A-201\", \"S1.02\", \"M-101\". Not the page number, not the project number.",
+    "- sheetTitle: the drawing title, e.g. \"SECOND FLOOR PLAN\".",
+    "- revisionMark: the LATEST revision entry, e.g. \"3\", \"ASI-3\", \"Bulletin 2\".",
+    'Any field you cannot read in the title block must be "" — never guess one from the file name, the page order, or another sheet.',
     "Return STRICT JSON of this exact shape and nothing else:",
-    '{"text":"<full dense transcription>"}',
-    'If nothing is legible, return {"text":""}.',
+    '{"text":"<full dense transcription>","sheetNumber":"","sheetTitle":"","revisionMark":""}',
+    'If nothing is legible, return {"text":"","sheetNumber":"","sheetTitle":"","revisionMark":""}.',
   ].join("\n");
+}
+
+/** What the model read off the title block. Every field is optional: a sheet
+ *  with no legible number must come back WITHOUT one, so the importer names it
+ *  by file and page rather than inventing a number that a punch pin or an Ask
+ *  Your Plans citation would then point at. */
+export interface PlanTitleBlock { sheetNumber?: string; sheetTitle?: string; revisionMark?: string }
+
+/** One title-block field: trimmed, length-capped, newlines collapsed. Empty →
+ *  undefined, so `""` never reaches the client as a sheet number. */
+function titleField(v: unknown, max: number): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const clean = v.replace(/\s+/g, " ").trim().slice(0, max);
+  return clean ? clean : undefined;
 }
 
 function approxBase64Bytes(b64: string): number {
@@ -101,7 +137,7 @@ function approxBase64Bytes(b64: string): number {
 
 // Input is validated by the handler before this runs; everything thrown here
 // is an UpstreamError so the handler can charge / report it uniformly.
-async function callGemini(req: PlanExtractRequest): Promise<string> {
+async function callGemini(req: PlanExtractRequest): Promise<{ text: string; titleBlock: PlanTitleBlock }> {
   const mimeType = req.mimeType && req.mimeType.startsWith("image/")
     ? req.mimeType.split(";")[0]
     : "image/png";
@@ -131,7 +167,7 @@ async function callGemini(req: PlanExtractRequest): Promise<string> {
   }
   const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   if (!raw) throw new UpstreamError("Gemini returned no text", true, 502);
-  let parsed: { text?: string };
+  let parsed: { text?: string; sheetNumber?: unknown; sheetTitle?: unknown; revisionMark?: unknown };
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
@@ -140,7 +176,16 @@ async function callGemini(req: PlanExtractRequest): Promise<string> {
     throw new UpstreamError(`Could not parse AI response as JSON: ${(e as Error).message} (len=${raw.length})`, true, 502);
   }
   if (typeof parsed.text !== "string") throw new UpstreamError("AI response missing 'text' field", true, 502);
-  return parsed.text;
+  // The title block is best-effort: a model that answers the old one-field
+  // shape (or leaves a field out) still returns a usable transcription.
+  return {
+    text: parsed.text,
+    titleBlock: {
+      sheetNumber: titleField(parsed.sheetNumber, 40),
+      sheetTitle: titleField(parsed.sheetTitle, 120),
+      revisionMark: titleField(parsed.revisionMark, 24),
+    },
+  };
 }
 
 serve(async (req) => {
@@ -152,10 +197,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json() as PlanExtractRequest;
-    if (!body || typeof body.imageBase64 !== "string" || !body.imageBase64) {
+    // Shape only here — the ACCESS check runs in loadPlanSheetImageParts, after
+    // the limits, so a refused request never costs a storage download.
+    const byPath = !!body && typeof body.storagePath === "string" && planSheetProjectId(body.storagePath) !== "";
+    if (!body || (!byPath && (typeof body.imageBase64 !== "string" || !body.imageBase64))) {
       return jsonResponse({ success: false, error: "Missing imageBase64" }, 400);
     }
-    if (approxBase64Bytes(body.imageBase64) > MAX_PAGE_BYTES) {
+    if (!byPath && approxBase64Bytes(body.imageBase64) > MAX_PAGE_BYTES) {
       return jsonResponse({ success: false, error: "Image too large (max 8MB). Try a lower-resolution export." }, 413);
     }
     if (!GEMINI_API_KEY) {
@@ -189,10 +237,23 @@ serve(async (req) => {
       }, 429);
     }
 
-    const text = await callGemini(body);
+    if (byPath) {
+      const [part] = await loadPlanSheetImageParts([body.storagePath as string], auth.userId, MAX_PAGE_BYTES);
+      body.imageBase64 = part.inlineData.data;
+      body.mimeType = part.inlineData.mimeType;
+    }
+
+    const { text, titleBlock } = await callGemini(body);
     const newUsed = await aiUsageIncrement(auth.userId, "plan_extract");
-    return jsonResponse({ success: true, text, usage: { used: newUsed, cap } });
+    // `text` keeps its old position and meaning — Ask Your Plans embeds it
+    // unchanged. `titleBlock` is additive, for the PDF importer.
+    return jsonResponse({ success: true, text, titleBlock, usage: { used: newUsed, cap } });
   } catch (e) {
+    if (e instanceof PlanSheetAccessError) {
+      // Generic 403 — never say whether the path was malformed or someone
+      // else's project (DB-F11). Nothing was spent, nothing is charged.
+      return jsonResponse({ success: false, error: "This plan sheet is not available on this account.", code: "sheet_unavailable" }, 403);
+    }
     if (e instanceof UpstreamError) {
       // Charge only when the model actually answered (the spend is real even
       // if the answer was unusable); an upstream 5xx / timeout is free.

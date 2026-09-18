@@ -68,6 +68,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
 import BrainWatchCard from '@/components/home/BrainWatchCard';
+import PendingInvitesCard from '@/components/collaborators/PendingInvitesCard';
 import ReadyToBillCard from '@/components/home/ReadyToBillCard';
 import RecoveredCard from '@/components/home/RecoveredCard';
 import MorningBriefCard from '@/components/home/MorningBriefCard';
@@ -782,6 +783,13 @@ export default function HomeScreen() {
             {/* 11-month warranty walk reminders — only renders when
                 there are upcoming/overdue walks. Tap → opens project. */}
             <WarrantyWalkBanner alerts={warrantyWalkAlerts} />
+
+            {/* Collaboration invites waiting for this user's email — shown
+                even with zero projects, because that is exactly the state a
+                first-time foreman lands in when the emailed link was lost
+                between Safari and the app (audit round 2 #29). Renders
+                nothing when none are waiting. */}
+            <PendingInvitesCard />
 
             {/* Morning Brief — pinned entry card until opened or dismissed
                 today (BRIEF_LAST_SEEN_KEY). Business+; renders nothing below

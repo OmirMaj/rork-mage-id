@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -17,7 +17,12 @@ import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { buildOsha300Log, OSHA_CLASS_LABEL } from '@/utils/safety/oshaLog';
+import {
+  buildOsha300Log, OSHA_CLASS_LABEL, isRecordableCase, buildOsha300ATotals, prefillHoursFromTimeEntries,
+  osha300ARates, type Osha300ASummaryInput,
+} from '@/utils/safety/oshaLog';
+import { useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { Card, Button, StatusPill } from '@/components/ui';
 import { exportOsha300Pdf, shareOsha300Csv } from '@/utils/safety/oshaExport';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
@@ -62,7 +67,7 @@ function SafetyOshaInner() {
   const availableYears = useMemo(() => {
     const years = new Set<string>([currentYear]);
     for (const inc of scopedIncidents) {
-      if (!inc.oshaRecordable) continue;
+      if (!isRecordableCase(inc)) continue;
       const y = (inc.occurredAt ?? '').slice(0, 4);
       if (y.length === 4) years.add(y);
     }
@@ -87,14 +92,49 @@ function SafetyOshaInner() {
   }, [companies, projectId, year]);
   const rows = useMemo(() => buildOsha300Log(scopedIncidents, est.year), [scopedIncidents, est.year]);
 
+  // ── 300A summary (audit round 2 #4) ──────────────────────────────────────
+  // Column totals need nothing new — they are sums over `rows`.
+  const totals = useMemo(() => buildOsha300ATotals(rows), [rows]);
+  // Hours are READ-ONLY from the time-tracking mirror, and only ever a pre-fill.
+  // Scoped to the same project filter as the case list: dividing one job's
+  // cases by the whole company's hours would print a rate that is simply wrong.
+  const timeEntries = useTimeEntriesMirror();
+  const prefill = useMemo(
+    () => prefillHoursFromTimeEntries(timeEntries, est.year, projectId || undefined),
+    [timeEntries, est.year, projectId],
+  );
+  // Edited values keyed by year+scope, so switching the year never carries last
+  // year's confirmed hours onto this year's rate.
+  const scopeKey = `${est.year}:${projectId ?? 'all'}`;
+  const [hoursEdit, setHoursEdit] = useState<Record<string, string>>({});
+  const [employeesEdit, setEmployeesEdit] = useState<Record<string, string>>({});
+  const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
+  const hoursText = hoursEdit[scopeKey] ?? (prefill.totalHours > 0 ? String(prefill.totalHours) : '');
+  const employeesText = employeesEdit[scopeKey] ?? (prefill.averageEmployees > 0 ? String(prefill.averageEmployees) : '');
+  const hoursNum = Number(hoursText.replace(/,/g, '')) || 0;
+  const employeesNum = Number(employeesText.replace(/,/g, '')) || 0;
+  const confirmed = confirmedKey === scopeKey && hoursNum > 0;
+  const hoursEdited = hoursEdit[scopeKey] !== undefined;
+  // Rates exist only over a CONFIRMED denominator. Before that there is no rate
+  // on screen at all — an auto-filled hours total from app clock-ins alone runs
+  // low, and a low denominator inflates TRIR.
+  const rates = useMemo(() => (confirmed ? osha300ARates(totals, hoursNum) : null), [confirmed, totals, hoursNum]);
+  const projectScoped = !!projectId;
+  const summaryInput = useMemo<Osha300ASummaryInput | undefined>(() => (confirmed ? {
+    hoursWorked: hoursNum,
+    averageEmployees: employeesNum,
+    hoursSource: hoursEdited ? 'Hours entered by hand.' : prefill.sourceLabel,
+    projectScoped,
+  } : undefined), [confirmed, hoursNum, employeesNum, hoursEdited, prefill.sourceLabel, projectScoped]);
+
   const handleExportPdf = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     try {
-      await exportOsha300Pdf(scopedIncidents, est);
+      await exportOsha300Pdf(scopedIncidents, est, summaryInput);
     } catch {
       showAlert('Export failed', 'Could not generate the OSHA 300 PDF. Please try again.');
     }
-  }, [scopedIncidents, est]);
+  }, [scopedIncidents, est, summaryInput]);
 
   const handleExportCsv = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -153,19 +193,25 @@ function SafetyOshaInner() {
           </View>
         ) : null}
 
+        {/* Export PDF shows with ZERO cases too: a zero-case establishment still
+            posts a 300A, and the PDF prints the "No recordable cases" 300 page
+            plus the 300A once hours are confirmed. CSV is the case rows only,
+            so it waits for a case. */}
+        <View style={styles.exportRow}>
+          <TouchableOpacity style={styles.exportPrimary} onPress={handleExportPdf} activeOpacity={0.85} testID="osha-export-pdf">
+            <FileText size={16} color="#FFFFFF" strokeWidth={1.75} />
+            <Text style={styles.exportPrimaryText}>Export PDF</Text>
+          </TouchableOpacity>
+          {rows.length > 0 ? (
+            <TouchableOpacity style={styles.exportSecondary} onPress={handleExportCsv} activeOpacity={0.85} testID="osha-export-csv">
+              <Download size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.exportSecondaryText}>Export CSV</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
         {rows.length > 0 ? (
           <>
-            <View style={styles.exportRow}>
-              <TouchableOpacity style={styles.exportPrimary} onPress={handleExportPdf} activeOpacity={0.85} testID="osha-export-pdf">
-                <FileText size={16} color="#FFFFFF" strokeWidth={1.75} />
-                <Text style={styles.exportPrimaryText}>Export PDF</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.exportSecondary} onPress={handleExportCsv} activeOpacity={0.85} testID="osha-export-csv">
-                <Download size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.exportSecondaryText}>Export CSV</Text>
-              </TouchableOpacity>
-            </View>
-
             {rows.map((r) => (
               <View key={r.caseNo} style={styles.row}>
                 <View style={styles.caseChip}>
@@ -206,6 +252,95 @@ function SafetyOshaInner() {
             />
           </View>
         )}
+
+        {/* 300A summary. Always rendered: an establishment with zero cases still
+            completes, certifies and posts a 300A. */}
+        <Card style={styles.summary300A} testID="osha-300a">
+          <Text style={styles.summaryEyebrow}>{projectScoped ? 'Project summary' : 'OSHA Form 300A'}</Text>
+          <Text style={styles.summary300ATitle}>
+            {projectScoped ? `Project totals ${est.year}` : `Annual summary ${est.year}`}
+          </Text>
+          {projectScoped ? (
+            <Text style={styles.derivedNote}>
+              Opened for one project, so this is a project rate, not the establishment 300A. Open the OSHA log from the Safety hub with no project selected for the certifiable summary.
+            </Text>
+          ) : null}
+
+          <View style={styles.totalsGrid}>
+            {[
+              ['G · Deaths', totals.deaths],
+              ['H · Days-away cases', totals.daysAwayCases],
+              ['I · Restriction cases', totals.restrictedCases],
+              ['J · Other cases', totals.otherCases],
+              ['K · Days away', totals.totalDaysAway],
+              ['L · Days restricted', totals.totalDaysRestricted],
+              ['M1 · Injuries', totals.byType.injury],
+              ['M2 · Skin', totals.byType.skin],
+              ['M3 · Respiratory', totals.byType.respiratory],
+              ['M4 · Poisoning', totals.byType.poisoning],
+              ['M5 · Hearing loss', totals.byType.hearing],
+              ['M6 · Other illness', totals.byType.other_illness],
+            ].map(([label, value]) => (
+              <View key={String(label)} style={styles.totalCell}>
+                <Text style={styles.totalValue}>{value}</Text>
+                <Text style={styles.totalLabel}>{label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>Total hours worked</Text>
+              <TextInput
+                style={styles.input}
+                value={hoursText}
+                onChangeText={(v) => { setHoursEdit((m) => ({ ...m, [scopeKey]: v })); setConfirmedKey(null); }}
+                placeholder="From payroll"
+                placeholderTextColor={themeColors.textMuted}
+                keyboardType="number-pad"
+                testID="osha-300a-hours"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>Average employees</Text>
+              <TextInput
+                style={styles.input}
+                value={employeesText}
+                onChangeText={(v) => { setEmployeesEdit((m) => ({ ...m, [scopeKey]: v })); setConfirmedKey(null); }}
+                placeholder="Annual average"
+                placeholderTextColor={themeColors.textMuted}
+                keyboardType="number-pad"
+                testID="osha-300a-employees"
+              />
+            </View>
+          </View>
+          <Text style={styles.derivedNote}>{hoursEdited ? 'Hours entered by hand.' : prefill.sourceLabel}</Text>
+
+          {confirmed && rates ? (
+            <View style={styles.ratesRow}>
+              <StatusPill label={`TRIR ${rates.trir?.toFixed(2) ?? '—'}`} tone="neutral" />
+              <StatusPill label={`DART ${rates.dart?.toFixed(2) ?? '—'}`} tone="neutral" />
+            </View>
+          ) : (
+            <>
+              <Button
+                label="Confirm hours to show TRIR and DART"
+                variant="secondary"
+                onPress={() => {
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  setConfirmedKey(scopeKey);
+                }}
+                disabled={hoursNum <= 0}
+                testID="osha-300a-confirm"
+              />
+              <Text style={styles.derivedNote}>
+                {hoursNum <= 0
+                  ? 'Enter total hours worked first — a rate needs a denominator.'
+                  : 'Rates stay hidden until you confirm these match payroll: app clock-ins alone usually run low, and low hours make the rate look worse than it is.'}
+              </Text>
+            </>
+          )}
+        </Card>
       </ScrollView>
     </View>
   );
@@ -241,6 +376,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   countBadgeNum: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   countBadgeLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.accent, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   derivedNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17 },
+  summary300A: { marginHorizontal: 20, marginTop: 8, marginBottom: 16, gap: 10 },
+  summary300ATitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  totalsGrid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  totalCell: { width: '31%' as const, minWidth: 92, paddingVertical: 6 },
+  totalValue: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: themeColors.text, fontVariant: ['tabular-nums'] },
+  totalLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 4 },
+  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
+  ratesRow: { flexDirection: 'row' as const, gap: 8, flexWrap: 'wrap' as const },
   yearSection: { marginBottom: 16 },
   yearLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted,

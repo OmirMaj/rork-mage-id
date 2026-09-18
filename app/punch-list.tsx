@@ -27,8 +27,12 @@ import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
+import { PunchExportHeaderButton, PunchExportSheet } from '@/components/punch/PunchExportSheet';
 import type { PunchItem, PunchItemStatus, PunchItemPriority, PunchListType, SubTrade } from '@/types';
 import { punchListTypeOf } from '@/types';
+import {
+  PhotoMarkupOverlay, ContainedPhotoMarkupOverlay, markupForSource, sourcePhotoIdOf,
+} from '@/components/PhotoMarkupOverlay';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
@@ -637,7 +641,7 @@ function PunchListScreenInner() {
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
   }>();
-  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors } = useProjects();
+  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -701,6 +705,12 @@ function PunchListScreenInner() {
   // the photo annotator's "Add to Punch List" flow. Surfaces in the
   // form as a thumbnail badge so the GC sees what they're attaching.
   const [attachedPhotoUri, setAttachedPhotoUri] = useState<string | undefined>(undefined);
+  // The gallery photo that URI was copied from. The URI alone only finds the
+  // markup on the device that took the photo: once the item syncs, its photo
+  // comes back to every other device as a signed URL for the `punch-<id>`
+  // upload, which never matches the source photo. The id is what lets the
+  // office, web and the sub still see the circle (audit #12, review 2).
+  const [attachedSourcePhotoId, setAttachedSourcePhotoId] = useState<string | undefined>(undefined);
 
   // Photo walk — the burst-capture path. `walkShots` is a staging area, not the
   // punch list: nothing here exists as an item until it has a description.
@@ -712,10 +722,41 @@ function PunchListScreenInner() {
   useEffect(() => {
     if (prefillPhotoUri || prefillPhotoId) {
       setAttachedPhotoUri(prefillPhotoUri);
+      setAttachedSourcePhotoId(prefillPhotoId || undefined);
       setShowForm(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The photo row the prefill points at. `prefillPhotoId` used to be a truthy
+  // check and nothing else, so everything the photo already knew was thrown
+  // away here: the room it was taken in, the task it belongs to, and the markup
+  // the GC drew on it. A sub then got a location-less item with an unmarked
+  // photo and could not tell which scratch he was being back-charged for
+  // (audit 2026-09-17 #12).
+  const prefillPhoto = useMemo(
+    () => (prefillPhotoId ? (projectPhotos ?? []).find(p => p.id === prefillPhotoId) : undefined),
+    [prefillPhotoId, projectPhotos],
+  );
+  // Applied when the photo RESOLVES, not on mount: the photo cache can hydrate
+  // a beat after this screen opens, and a once-on-mount read would silently
+  // find nothing. Latched so it fills the form exactly once and can never
+  // overwrite something he has since typed.
+  //
+  // `editingItem` is part of that guard, not decoration: the photo can resolve
+  // in the window where he has already opened an EXISTING item to edit, and an
+  // existing item with no room and no linked task leaves both fields '' —
+  // falsy — so an unrelated photo's room would be written into that item and
+  // saved with it.
+  const prefillPulled = useRef(false);
+  useEffect(() => {
+    if (!prefillPhoto || editingItem || prefillPulled.current) return;
+    prefillPulled.current = true;
+    setAttachedPhotoUri(prev => prev ?? prefillPhoto.uri);
+    setAttachedSourcePhotoId(prev => prev ?? prefillPhoto.id);
+    setLocation(prev => (prev.trim() ? prev : prefillPhoto.location ?? ''));
+    setLinkedTaskId(prev => prev || (prefillPhoto.linkedTaskId ?? ''));
+  }, [prefillPhoto, editingItem]);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
 
   // ── Trade-specific templates ─────────────────────────────────
@@ -813,6 +854,7 @@ function PunchListScreenInner() {
     // Clear any attached photo so a cancelled form doesn't silently carry
     // it into the next new item.
     setAttachedPhotoUri(undefined);
+    setAttachedSourcePhotoId(undefined);
   }, [activeList]);
 
   // The only path that puts a REAL item in `editingItem`. Before this every
@@ -838,6 +880,7 @@ function PunchListScreenInner() {
     // touch photoUri. Clearing avoids showing a previous prefill's photo (with
     // a remove button that would do nothing) on top of someone else's item.
     setAttachedPhotoUri(undefined);
+    setAttachedSourcePhotoId(undefined);
     setShowForm(true);
   }, []);
 
@@ -1133,6 +1176,10 @@ function PunchListScreenInner() {
           linkedTaskId: linkedTaskId || undefined,
           linkedTaskName: linkedTaskName || undefined,
           photoUri: attachedPhotoUri,
+          // PunchItem.sourcePhotoId (punch_items.source_photo_id) is how every
+          // other device finds the markup. Only kept while the photo it points
+          // at is still the one attached.
+          ...(attachedPhotoUri && attachedSourcePhotoId ? { sourcePhotoId: attachedSourcePhotoId } : {}),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -1140,6 +1187,7 @@ function PunchListScreenInner() {
       }
       setShowForm(false);
       setAttachedPhotoUri(undefined);
+      setAttachedSourcePhotoId(undefined);
       resetForm();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // A new item filed onto the OTHER list vanishes from the screen he is
@@ -1162,7 +1210,7 @@ function PunchListScreenInner() {
       return;
     }
     commit();
-  }, [description, location, assignedSub, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri]);
+  }, [description, location, assignedSub, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -1228,12 +1276,20 @@ function PunchListScreenInner() {
     if (describedWalkShots.length === 0) return;
     if (filingWalkRef.current) return;
     filingWalkRef.current = true;
-    const now = new Date().toISOString();
+    const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
     // addPunchItems, not a loop of addPunchItem: the batch path prepends all N
     // rows in ONE setState and ONE AsyncStorage write. Looping the single-add
     // serialises the entire punch list once per photo — forty writes of a
     // growing array on the phone that just finished a forty-frame walk.
-    addPunchItems(describedWalkShots.map(shot => ({
+    //
+    // createdAt is staggered 1 ms per shot IN CAPTURE ORDER (walkShots is
+    // appended as he shoots and the filter keeps that order). One shared stamp
+    // for the whole batch left the punch-list export — which numbers items by
+    // createdAt — ordering a walk by random UUID instead of by the route he
+    // walked. Forty shots span 40 ms, so nothing else can read it as a
+    // different moment.
+    addPunchItems(describedWalkShots.map((shot, i) => ({
       id: createId('punch'),
       projectId: projectId ?? '',
       description: shot.description.trim(),
@@ -1245,7 +1301,7 @@ function PunchListScreenInner() {
       // The walk files onto the list that is showing, like every other add.
       listType: activeList,
       photoUri: shot.uri,
-      createdAt: now,
+      createdAt: new Date(nowMs + i).toISOString(),
       updatedAt: now,
     })));
     const filed = describedWalkShots.length;
@@ -1569,10 +1625,31 @@ function PunchListScreenInner() {
   const fabLift = selectMode ? bulkBarHeight : 0;
   useBrainFabLift(fabLift);
 
+  // ── Export (PDF / spreadsheet) ─────────────────────────────────────────
+  // In the header so it is reachable from either list, even an empty one.
+  // headerRight and the options object are memoised: an inline
+  // `options={{ headerRight: () => … }}` resets the options every render — the
+  // "Maximum update depth exceeded" loop project-detail hit (Sentry RN-1).
+  const [showExport, setShowExport] = useState(false);
+  const openExport = useCallback(() => setShowExport(true), []);
+  const closeExport = useCallback(() => setShowExport(false), []);
+  const exportHeaderRight = useCallback(
+    () => <PunchExportHeaderButton onPress={openExport} />,
+    [openExport],
+  );
+  const exportProjectName = project?.name;
+  const stackOptions = useMemo(
+    () => ({
+      title: exportProjectName !== undefined ? `Punch List — ${exportProjectName}` : 'Punch List',
+      headerRight: exportProjectName !== undefined ? exportHeaderRight : undefined,
+    }),
+    [exportProjectName, exportHeaderRight],
+  );
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Punch List' }} />
+        <Stack.Screen options={stackOptions} />
         <ToolProjectPicker
           toolName="Punch List"
           message="Punch lists are tied to a project so each item links to its trade and location."
@@ -1953,7 +2030,7 @@ function PunchListScreenInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: `Punch List — ${project.name}` }} />
+      <Stack.Screen options={stackOptions} />
       <FlatList
         {...fabScroll}
         data={rows}
@@ -1978,6 +2055,21 @@ function PunchListScreenInner() {
         removeClippedSubviews={Platform.OS !== 'web'}
         keyboardShouldPersistTaps="handled"
         testID="punch-list"
+      />
+
+      <PunchExportSheet
+        visible={showExport}
+        onClose={closeExport}
+        projectId={projectId}
+        allItems={allItems}
+        filteredItems={filteredItems}
+        selectedIds={selectMode ? selectedIdList : []}
+        activeList={activeList}
+        filterStatus={filterStatus}
+        filterSub={filterSub}
+        filterPriority={filterPriority}
+        filterLocationKey={filterLocationKey}
+        filterLocationLabel={filterLocationLabel}
       />
 
       {/* ── Bulk action bar ──────────────────────────────────────────────
@@ -2206,11 +2298,19 @@ function PunchListScreenInner() {
                       startedAt={editingItem.createdAt}
                       dueAt={editingItem.dueDate || undefined}
                       onAdvance={(next) => {
-                        updatePunchItem(editingItem.id, {
+                        const nowIso = new Date().toISOString();
+                        // Stamp closedAt exactly as handleStatusChange does. This
+                        // path used to close an item with no close date, so the
+                        // export's Closed / Days Open columns and the closeout
+                        // packet had nothing to print for it.
+                        const closing = next === 'closed';
+                        const patch: Partial<PunchItem> = {
                           status: next as PunchItem['status'],
-                          updatedAt: new Date().toISOString(),
-                        });
-                        setEditingItem({ ...editingItem, status: next as PunchItem['status'] });
+                          updatedAt: nowIso,
+                          ...(closing ? { closedAt: nowIso } : {}),
+                        };
+                        updatePunchItem(editingItem.id, patch);
+                        setEditingItem({ ...editingItem, ...patch });
                       }}
                     />
                   </View>
@@ -2218,10 +2318,17 @@ function PunchListScreenInner() {
 
                 {attachedPhotoUri ? (
                   <View style={styles.photoPreview}>
-                    <Image source={{ uri: attachedPhotoUri }} style={styles.photoImg} />
+                    <View style={styles.photoImgWrap}>
+                      <Image source={{ uri: attachedPhotoUri }} style={styles.photoImg} resizeMode="cover" />
+                      {/* The circle he drew round the defect, drawn over the
+                          photo on THIS screen. It is stored beside the photo,
+                          not burned into it — the sub portal carries only the
+                          photo — so the note below says so. */}
+                      <PhotoMarkupOverlay markup={markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri)} />
+                    </View>
                     <TouchableOpacity
                       style={styles.photoRemove}
-                      onPress={() => setAttachedPhotoUri(undefined)}
+                      onPress={() => { setAttachedPhotoUri(undefined); setAttachedSourcePhotoId(undefined); }}
                       accessibilityRole="button"
                       accessibilityLabel="Remove attached photo"
                       testID="punch-remove-photo"
@@ -2232,6 +2339,13 @@ function PunchListScreenInner() {
                       <Text style={styles.photoBadgeText}>Photo attached</Text>
                     </View>
                   </View>
+                ) : null}
+                {attachedPhotoUri && markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri).length > 0 ? (
+                  // Same boundary the RFI screen states: the sub's portal shows
+                  // the plain photo, so he must not assume the sub sees the mark.
+                  <Text style={styles.formListNote}>
+                    Your markup shows here. The sub sees the plain photo — describe the mark in the description too.
+                  </Text>
                 ) : null}
 
                 {/* Which list — chosen explicitly, seeded from the list showing.
@@ -2423,15 +2537,33 @@ function PunchListScreenInner() {
             </Text>
           </View>
           {viewerPhotoUri ? (
-            <Image
-              source={{ uri: viewerPhotoUri }}
-              style={styles.viewerImage}
-              resizeMode="contain"
-              // A URL that only fails at full size (expired between the
-              // thumbnail load and the tap) closes rather than holding the
-              // user on a black rectangle; the row drops its thumbnail too.
-              onError={() => { markPhotoFailed(viewerPhotoUri); setViewerItem(null); }}
-            />
+            // The overlay has to share this box exactly, so the image and the
+            // marks are siblings in one relative wrapper rather than the
+            // overlay sitting over the whole backdrop (which includes the
+            // header, and would shift every mark up by the caption's height).
+            <View style={styles.viewerImageWrap}>
+              <Image
+                source={{ uri: viewerPhotoUri }}
+                style={styles.viewerImage}
+                resizeMode="contain"
+                // A URL that only fails at full size (expired between the
+                // thumbnail load and the tap) closes rather than holding the
+                // user on a black rectangle; the row drops its thumbnail too.
+                onError={() => { markPhotoFailed(viewerPhotoUri); setViewerItem(null); }}
+              />
+              {/* This is the view the sub argues over, so it is the one the
+                  markup matters most on. It needs the CONTAINED variant: the
+                  annotator normalized its marks against a square cover crop,
+                  and this viewer letterboxes the whole photo, so a plain
+                  overlay would put the circle beside the defect. */}
+              <ContainedPhotoMarkupOverlay
+                // By the source photo's id first: on any device but the one
+                // that shot it, viewerPhotoUri is a signed `punch-<id>` URL
+                // that matches no gallery photo.
+                markup={markupForSource(projectPhotos, sourcePhotoIdOf(viewerItem), viewerPhotoUri)}
+                uri={viewerPhotoUri}
+              />
+            </View>
           ) : null}
         </View>
       </Modal>
@@ -3037,7 +3169,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   photoPreview: { position: 'relative' as const, alignSelf: 'flex-start' as const, marginBottom: 4, borderRadius: Tokens.radius.md, overflow: 'hidden' as const },
-  photoImg: { width: 120, height: 90, borderRadius: Tokens.radius.md },
+  // SQUARE, and the image inside it covers. That is the exact frame
+  // photo-annotator draws on (styles.canvas, aspectRatio 1 + contentFit cover),
+  // and the markup's 0..1 coordinates only mean anything against it — a 4:3
+  // preview would put the circle beside the defect.
+  photoImgWrap: { width: 112, height: 112, borderRadius: Tokens.radius.md, overflow: 'hidden' as const },
+  photoImg: { width: 112, height: 112, borderRadius: Tokens.radius.md },
   photoRemove: { position: 'absolute' as const, top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.7)", alignItems: 'center' as const, justifyContent: 'center' as const },
   photoBadge: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 6, paddingVertical: 3 },
   photoBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: '#fff' },
@@ -3083,6 +3220,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)" },
   viewerHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 16, paddingBottom: 12 },
   viewerCaption: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: '#fff' },
+  // The image and its markup overlay share this box, so the overlay can work
+  // out where the letterboxed photo actually landed inside it.
+  viewerImageWrap: { flex: 1, width: '100%', position: 'relative' as const },
   viewerImage: { flex: 1, width: '100%' },
   rejectOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'center', padding: 20 },
   rejectCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },

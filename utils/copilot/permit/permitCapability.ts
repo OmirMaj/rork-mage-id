@@ -10,6 +10,7 @@ import type { PermitType, PermitStatus } from '@/types';
 import { permitGaps, type PermitDraft } from './permitGaps';
 import { buildPermitGrounding } from './permitGrounding';
 import { addMonths } from '../dateMath';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface PermitApplied { route: '/permits'; projectId: string; params: { projectId: string } }
 
@@ -88,7 +89,11 @@ export const permitCapability: CopilotCapability<PermitDraft, PermitApplied> = {
     const project = ctx.project;
     if (!project) throw new Error('No project for this permit.');
 
-    const today = new Date().toISOString().slice(0, 10);
+    // The LOCAL calendar day, not the UTC one. `new Date().toISOString().slice(0, 10)`
+    // is tomorrow's date from about 5-8 pm anywhere west of Greenwich, so a
+    // voice-logged record filed after the crew knocked off carried the NEXT
+    // day and its due date was a day out (audit round 2, #2 appendix).
+    const today = todayCalendarDay();
     const type: PermitType = asType(draft.type) ?? 'building';
     const status: PermitStatus = asStatus(draft.status) ?? 'approved';
     const expiresDate = draft.expiresDate

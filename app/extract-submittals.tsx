@@ -38,7 +38,11 @@ import {
   type AiSubmittalCandidate,
   type AiSubmittalsResult,
 } from '@/utils/specMatcher';
-import { uploadAndRenderPdf } from '@/utils/pdfRenderClient';
+import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
+import { confirmQuotaFits } from '@/utils/quotaPrecheck';
+import {
+  SPEC_PAGES_PER_PASS, specCoverage, specUnreadWarning, type SpecCoverage,
+} from '@/utils/plans/specBookRange';
 import { generateUUID } from '@/utils/generateId';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
@@ -79,6 +83,9 @@ export default function ExtractSubmittalsScreen() {
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<AiSubmittalsResult | null>(null);
+  // What this pass actually read. The review hero says it — a 38-item list off
+  // the first 24 pages of a 400-page book is not "the submittal log".
+  const [coverage, setCoverage] = useState<SpecCoverage | null>(null);
   const [items, setItems] = useState<PickItem[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -102,6 +109,26 @@ export default function ExtractSubmittalsScreen() {
       });
       if (picked.canceled || !picked.assets?.[0]) return;
       const asset = picked.assets[0];
+
+      // Quota precheck — but only where it can tell the truth. confirmQuotaFits
+      // words its refusal as "That PDF is N pages … trim it to R pages or
+      // fewer", so N has to BE the document's page count.
+      //   • Count unknown (pdf-lib could not parse it): no precheck at all,
+      //     matching plans.tsx and takeoff.tsx. Guessing 24 hard-blocked an
+      //     8-page scope letter with 10 pages of quota left, on a job the
+      //     server would have rendered and charged 8 for.
+      //   • Count > one pass: no precheck either. The pass renders 24 of, say,
+      //     212, so a client dialog would have to say "That PDF is 24 pages"
+      //     about a 212-page book. The server now meters and refuses on the
+      //     pages it will actually render, and its 429 names both numbers.
+      //   • Count ≤ one pass: the pass IS the document, so the sentence is
+      //     accurate and the user is spared the upload-then-429 round trip.
+      const pageCount = await countPdfPages(asset.uri);
+      if (pageCount !== null && pageCount <= SPEC_PAGES_PER_PASS) {
+        const fits = await confirmQuotaFits(pageCount, asset.name ?? 'Spec book PDF', router);
+        if (!fits) return;
+      }
+
       setStep('uploading');
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -113,8 +140,10 @@ export default function ExtractSubmittalsScreen() {
         projectId: project.id,
         fileName: asset.name,
         dpi: 130,
-        maxPages: 24,
+        maxPages: SPEC_PAGES_PER_PASS,
       });
+      const read = specCoverage(pageCount, 1, rendered.length);
+      setCoverage(read);
 
       setStep('analyzing');
       const { result } = await extractSubmittalsFromSpecBook({
@@ -259,7 +288,7 @@ export default function ExtractSubmittalsScreen() {
             <View style={styles.helperBox}>
               <Text style={styles.helperTitle}>What works</Text>
               <Text style={styles.helperBody}>
-                • Up to ~24 pages per pass — for full books, split into divisions and run them separately.{'\n'}
+                • {SPEC_PAGES_PER_PASS} pages per pass — the review screen says which pages were read, and a longer book needs one pass per section.{'\n'}
                 • Default lead time is 14 days; AI bumps to 30 for long-lead items (mock-ups, custom fabrication).{'\n'}
                 • Architect-grade spec books work best (Division 02-33 with explicit &quot;Submittals&quot; sections). Quick scope letters give thinner results.
               </Text>
@@ -271,11 +300,24 @@ export default function ExtractSubmittalsScreen() {
         {step === 'review' && aiResult && (
           <>
             <View style={styles.hero}>
-              <Text style={styles.heroTitle}>{items.length} submittal{items.length === 1 ? '' : 's'} found</Text>
+              <Text style={styles.heroTitle}>
+                {items.length} submittal{items.length === 1 ? '' : 's'} found{coverage ? ` in ${coverage.label.replace(/^Read /, '')}` : ''}
+              </Text>
               <Text style={styles.heroBody}>
                 {aiResult.confidenceExplanation || 'Review each entry. Toggle off the ones you don\'t need, then save.'}
               </Text>
             </View>
+
+            {/* What was NOT read. Naming the unread pages is the difference
+                between a partial log the PM can finish and a log he trusts. */}
+            {coverage && !coverage.complete ? (
+              <View style={styles.partialBanner}>
+                <AlertCircle size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+                <Text style={styles.partialText}>
+                  {specUnreadWarning(coverage)} Run the remaining pages as their own upload (split the PDF from page {coverage.nextPage}).
+                </Text>
+              </View>
+            ) : null}
 
             {items.map(row => (
               <View
@@ -381,6 +423,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
+
+  partialBanner: {
+    marginHorizontal: 16, marginBottom: 12,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.md,
+    backgroundColor: t.warningSoft, borderWidth: 1, borderColor: t.warningLabel + '33',
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+  },
+  partialText: { fontSize: Type.caption1.fontSize, color: t.text, flex: 1, lineHeight: 17 },
 
   errorBanner: {
     marginHorizontal: 16, marginTop: 12,

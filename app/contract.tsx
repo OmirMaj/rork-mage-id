@@ -11,7 +11,7 @@
 //   4. Once both signatures are on, status is 'signed' and the contract
 //      is the binding document. Subsequent invoices reference it.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Modal,
 } from 'react-native';
@@ -36,13 +36,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   fetchActiveContract, saveContract, setContractStatus,
-  buildDraftContract, buildProposalFromRevision, defaultPaymentSchedule,
+  buildDraftContract, buildProposalFromRevision,
   contractTimeline, contractTimelineSentence, suggestContractTimeline,
 } from '@/utils/contractEngine';
+import {
+  resolvePaymentSplit, resolveWarrantyMonths, contractScheduleFromSplit, contractWarrantyText,
+  retieContractSchedule, splitLabel, sameSplit, isLegacySeedSchedule, LEGACY_WARRANTY_TEXT,
+  hasWarrantyPlaceholder, milestoneDueText, warrantyPeriodPhrase, warrantyShortLabel,
+  WARRANTY_PERIOD_PLACEHOLDER,
+  type ResolvedSplit,
+} from '@/utils/paymentTerms';
+import { useClientDocumentGate, type GateAnswers } from '@/hooks/useClientDocumentGate';
+import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import DatePickerModal from '@/components/DatePickerModal';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
-  milestoneBillability, milestoneBillEffect,
+  milestoneBillability, milestoneBillEffect, milestoneBlockMessage, progressRowOpen,
   contractBilledToDate, attributableContractBilling,
   type MilestoneBillability,
 } from '@/utils/billingFlowCore';
@@ -59,7 +68,7 @@ import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError }
 import { nailIt } from '@/components/animations/NailItToast';
 import { fireConfetti } from '@/components/animations/Confetti';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
-import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus } from '@/types';
+import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus, PaymentSplit } from '@/types';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
@@ -77,6 +86,72 @@ const CONTRACT_PIPELINE_STAGES: PipelineStage<ContractStatus>[] = [
   { key: 'sent', label: 'Sent' },
   { key: 'signed', label: 'Signed', terminal: true },
 ];
+
+// ─── The GC's own terms on a draft (Direction B, "ask when it matters") ────
+//
+// A contract prints his deposit / progress / final split and his warranty
+// period, never a default. Opening this screen never asks; the ask runs only
+// from a press ("Set your payment terms", "Set your warranty", Sign & send),
+// through hooks/useClientDocumentGate. These two helpers are the only things
+// that write an answer onto a draft.
+
+/** Terms may be written only while nobody has signed: a sent or signed row is
+ *  the document the homeowner holds. Checked in every handler, not just by
+ *  hiding the buttons, because a press can land after the status flips. */
+function contractTermsLocked(c: Pick<ProjectContract, 'status' | 'gcSignature'>): boolean {
+  return c.status !== 'draft' || !!c.gcSignature;
+}
+
+/**
+ * Is the schedule on screen still the one this split produces? Triggers and
+ * cent amounts, ids and labels ignored.
+ *
+ * The provenance line ("From the proposal your client was shown: 25 / 65 / 10")
+ * reads the portal stamp LIVE, while the schedule below it is a seed frozen at
+ * load. Replace the stamp from the portal screen and come back — the load
+ * effect is keyed on ids and keeps the held draft, so the line would name a
+ * split the rows below do not carry. A line about the rows must be tested
+ * against the rows.
+ */
+function scheduleCarriesSplit(
+  schedule: readonly PaymentMilestone[],
+  value: number,
+  split: PaymentSplit,
+): boolean {
+  const want = contractScheduleFromSplit(value, split, () => '');
+  if (want.length !== schedule.length) return false;
+  return want.every((w, i) =>
+    schedule[i].trigger === w.trigger
+    && Math.round((schedule[i].amount ?? 0) * 100) === Math.round((w.amount ?? 0) * 100));
+}
+
+/**
+ * The draft with the sheet's answers on it. The schedule is REPLACED — the
+ * terms step is only offered on an empty schedule, a schedule that does not
+ * foot, or MAGE's old 25/25/25/25 placeholder. The warranty keeps every word he
+ * wrote and fills only the period: the placeholder is swapped for his period,
+ * and a paragraph with no placeholder (MAGE's old one-year text, the only other
+ * way the warranty step opens) is rewritten from contractWarrantyText.
+ */
+function fillContractTerms(
+  c: ProjectContract,
+  asked: { terms: boolean; warranty: boolean },
+  a: Pick<GateAnswers, 'split' | 'warrantyMonths'>,
+): ProjectContract {
+  let next = c;
+  if (asked.terms && a.split) {
+    next = { ...next, paymentSchedule: contractScheduleFromSplit(next.contractValue, a.split) };
+  }
+  if (asked.warranty && a.warrantyMonths != null) {
+    next = {
+      ...next,
+      warrantyText: hasWarrantyPlaceholder(next.warrantyText)
+        ? next.warrantyText.split(WARRANTY_PERIOD_PLACEHOLDER).join(warrantyPeriodPhrase(a.warrantyMonths))
+        : contractWarrantyText(a.warrantyMonths),
+    };
+  }
+  return next;
+}
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -140,26 +215,65 @@ function ContractScreenInner() {
   const [signing, setSigning] = useState(false);
   const [signatureModal, setSignatureModal] = useState(false);
   const [startDatePicker, setStartDatePicker] = useState(false);
+  // Where a freshly seeded draft's split came from: this job's portal stamp
+  // (the proposal the client was shown), his profile, or nowhere. null for a
+  // contract loaded from the database — its schedule is a stored value.
+  const [termsSource, setTermsSource] = useState<ResolvedSplit['source'] | null>(null);
+  // Sign & send was pressed, the missing terms were just filled in, and the
+  // signature pad deliberately did NOT open — he has not read the schedule he
+  // is about to sign. This is a notice on the page rather than a toast because
+  // the gate already fires its own "Saved as your terms …" toast in the same
+  // press, and the host shows one toast at a time: a second nailIt in that
+  // press cancels the first and neither is seen. A notice also survives the
+  // scroll back up through the schedule, which a 2-second toast does not.
+  const [reviewBeforeSigning, setReviewBeforeSigning] = useState(false);
+  const gate = useClientDocumentGate();
+  const gateRun = gate.run;
+
+  // The load effect reads these through refs so it can be keyed on IDS alone.
+  // Keyed on the `project` object it re-ran on every project save (a portal
+  // push, a status flip) and re-seeded the draft, wiping the schedule he had
+  // just typed — or the terms he had just answered.
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const contractRef = useRef(contract);
+  contractRef.current = contract;
 
   // Load (or seed a draft for) this project's contract.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!project) { setLoading(false); return; }
-      const existing = await fetchActiveContract(project.id);
+      const p = projectRef.current;
+      if (!p) { setLoading(false); return; }
+      // An unsaved draft for this project is already on screen (a user id
+      // arriving late re-runs this effect): keep it — it may hold his edits.
+      const held = contractRef.current;
+      if (held && !held.id && held.projectId === p.id) { setLoading(false); return; }
+      const existing = await fetchActiveContract(p.id);
       if (cancelled) return;
       if (existing) {
         setContract(existing);
+        setTermsSource(null);
       } else {
         // Seed a draft from the project — caller can edit before saving.
         // If a fromRevision param was passed and the revision exists, seed a
         // proposal from that revision instead of the generic draft.
+        //
+        // Terms: the proposal this client was shown (the portal stamp) wins,
+        // then his saved terms. Neither → an empty schedule and a warranty
+        // placeholder, and NO ask here: a sheet on mount is a setup form.
+        const s = settingsRef.current;
+        const resolved = resolvePaymentSplit({ record: p.clientPortal?.proposalPaymentTerms, settings: s });
+        const terms = { split: resolved.split, warrantyMonths: resolveWarrantyMonths(s) };
         const rev = fromRevision
-          ? (project.estimateVersions ?? []).find(v => v.id === fromRevision)
+          ? (p.estimateVersions ?? []).find(v => v.id === fromRevision)
           : undefined;
         const draft = rev
-          ? buildProposalFromRevision(project, rev)
-          : buildDraftContract({ project });
+          ? buildProposalFromRevision(p, rev, terms)
+          : buildDraftContract({ project: p, terms });
+        setTermsSource(resolved.source);
         setContract({
           ...draft,
           id: '',
@@ -171,7 +285,9 @@ function ContractScreenInner() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [project, user]);
+    // fromRevision is read once with the ids; the refs carry the rest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, user?.id]);
 
   // Re-read the contract when this screen regains focus, so a milestone the
   // invoice editor just flipped to 'invoiced' shows as billed the moment the
@@ -216,9 +332,11 @@ function ContractScreenInner() {
   // (MONEY-LEDGER-1, audit 2026-09-11). /bill-from-estimate was taught to see
   // milestone billing; without this, THIS screen still could not see
   // schedule-of-values billing, so a GC who billed the whole SOV there and
-  // then tapped "Create invoice" on the four milestones every contract is
-  // seeded with invoiced 200% of the contract. Pre-tax and excluding change
-  // orders — see `contractBilledToDate`.
+  // then tapped "Create invoice" on the four milestones every contract was
+  // then seeded with invoiced 200% of the contract. Pre-tax and excluding change
+  // orders — see `contractBilledToDate`. (The schedule is now his own deposit /
+  // progress / final; the progress row bills through /bill-from-estimate, but
+  // the deposit and the final still draw on this ledger.)
   const billedOnContract = useMemo(
     () => contractBilledToDate(projectInvoices),
     [projectInvoices],
@@ -265,6 +383,12 @@ function ContractScreenInner() {
     // not exist on the `refuse` arm, so removing the `return` below is a
     // compile error rather than a homeowner billed 125% of the contract.
     const effect = milestoneBillEffect(billabilityFor(m), m, contract);
+    // "Billed as work is completed" — never one lump invoice. Bill from
+    // Estimate bills the work done so far and nets milestone billing.
+    if (effect.kind === 'progress') {
+      router.push({ pathname: '/bill-from-estimate', params: { projectId } } as never);
+      return;
+    }
     if (effect.kind === 'refuse') {
       showAlert(
         effect.title,
@@ -299,19 +423,15 @@ function ContractScreenInner() {
     setContract(prev => prev ? { ...prev, [key]: value } : prev);
   }, []);
 
-  // Re-balance the payment schedule when contract value changes — only
-  // for milestones that were % based; fixed-dollar entries stay put.
+  // Re-balance the payment schedule when contract value changes — % rows are
+  // re-tied to the cent, fixed-dollar entries stay put. retieContractSchedule
+  // (utils/paymentTerms) puts the rounding cent where billing will never refuse
+  // it; the old whole-dollar Math.round here printed amounts that billing, which
+  // bills cents(value × pct), then disagreed with.
   const handleValueChange = useCallback((newValue: number) => {
     setContract(prev => {
       if (!prev) return prev;
-      const next = { ...prev, contractValue: newValue };
-      next.paymentSchedule = prev.paymentSchedule.map(m => {
-        if (m.percent != null) {
-          return { ...m, amount: Math.round(newValue * (m.percent / 100)) };
-        }
-        return m;
-      });
-      return next;
+      return { ...prev, contractValue: newValue, paymentSchedule: retieContractSchedule(newValue, prev.paymentSchedule) };
     });
   }, []);
 
@@ -377,13 +497,14 @@ function ContractScreenInner() {
     } : prev);
   }, []);
 
-  // Save the draft (no status change). Used as a debounced auto-save
-  // OR explicit "Save draft" button.
-  const handleSaveDraft = useCallback(async () => {
-    if (!contract) return;
+  // Save a draft (no status change). Takes the contract as an ARGUMENT rather
+  // than reading the render's closure: "Just this contract" fills the draft
+  // and saves it in the same press, before React has re-rendered, and a
+  // closure save would write the draft from before the answer.
+  const saveDraftFrom = useCallback(async (c: ProjectContract) => {
     setSaving(true);
     try {
-      const saved = await saveContract({ ...contract, id: contract.id || undefined });
+      const saved = await saveContract({ ...c, id: c.id || undefined });
       if (saved) {
         setContract(saved);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -393,11 +514,152 @@ function ContractScreenInner() {
     } finally {
       setSaving(false);
     }
-  }, [contract]);
+  }, []);
+
+  // The explicit "Save draft" button.
+  const handleSaveDraft = useCallback(async () => {
+    if (!contract) return;
+    await saveDraftFrom(contract);
+  }, [contract, saveDraftFrom]);
+
+  // The one-tap terms actions ("Use 30 / 60 / 10", "Reset to your terms")
+  // write his split onto the rows. They must SAVE it too: every one of them
+  // renders only on a draft that is already in the database (the legacy
+  // notices are gated on contract.id), and a schedule that only ever lived in
+  // state was thrown away the moment he left the screen — the ask sheet's
+  // "Just this contract" path saves for exactly the same reason.
+  // contractRef is advanced by hand because setContract has not re-rendered
+  // yet when saveDraftFrom reads the row to write.
+  const applyOwnSplit = useCallback((split: PaymentSplit, source: ResolvedSplit['source']) => {
+    const c = contractRef.current;
+    if (!c || contractTermsLocked(c)) return;
+    const next = { ...c, paymentSchedule: contractScheduleFromSplit(c.contractValue, split) };
+    contractRef.current = next;
+    setContract(next);
+    setTermsSource(source);
+    if (next.id) void saveDraftFrom(next);
+  }, [saveDraftFrom]);
+
+  // Ask for whatever this draft is missing — the split, the warranty period,
+  // or both — through the one "ask when it matters" sheet. When his profile
+  // (or this job's portal stamp) already answers, nothing is asked and the
+  // draft is filled in this press.
+  //   · "Use on every job" saves the answer to his profile (the gate does
+  //     that) and fills this draft.
+  //   · "Just this contract" fills this draft and SAVES it, so the answer
+  //     lives on this job's row and survives leaving the screen.
+  // Never called from an effect: every open is a press.
+  const askContractTerms = useCallback((
+    asked: { terms: boolean; warranty: boolean },
+    after?: 'review',
+  ) => {
+    const c = contractRef.current;
+    if (!c || contractTermsLocked(c)) return;
+    const p = projectRef.current;
+    const stamp = resolvePaymentSplit({ record: p?.clientPortal?.proposalPaymentTerms });
+    gateRun({
+      terms: asked.terms,
+      warranty: asked.warranty,
+      record: stamp.split,
+      justThisJob: true,
+      purpose: 'contract',
+      documentNoun: c.kind === 'proposal' ? 'proposal' : 'contract',
+      total: c.contractValue,
+      projectType: p?.type ?? null,
+    }, (a) => {
+      // The contract may have been sent from another press while the sheet
+      // was open — read the latest, and never write terms onto a locked row.
+      const latest = contractRef.current;
+      if (!latest || contractTermsLocked(latest)) return;
+      const filled = fillContractTerms(latest, asked, a);
+      contractRef.current = filled;
+      setContract(filled);
+      if (asked.terms && a.split) {
+        setTermsSource(stamp.split && sameSplit(stamp.split, a.split) ? 'record' : 'profile');
+      }
+      // SAVE WHENEVER THE ROW ALREADY EXISTS, not only on the per-job scope
+      // (review round 6). There is no auto-save on this screen — saveDraftFrom
+      // is reached from "Save draft", from applyOwnSplit and from here — so an
+      // answer that only reached React state is thrown away the moment he
+      // leaves. "Use on every job", and the gate running SYNCHRONOUSLY because
+      // his profile already answers, both rewrite the schedule and the
+      // warranty paragraph of a draft that is already in the database: the
+      // legacy notices that open this ask render only on a saved draft
+      // (`!!contract.id`), and their sibling button, applyOwnSplit, has saved
+      // since round 5 for exactly this reason. Without this the notice
+      // vanished, the toast said "Your warranty is on this contract", and the
+      // stored row still carried MAGE's paragraph.
+      // An UNSAVED draft is still not written behind his back: only the
+      // per-job scope, which is an explicit "put this on this job", creates a
+      // row he never asked to save.
+      if (filled.id || a.termsScope === 'this_job' || a.warrantyScope === 'this_job') {
+        void saveDraftFrom(filled);
+      }
+      if (after === 'review') {
+        // The signature pad does NOT open by itself: he has not read the
+        // schedule he is about to sign. Said on the page, not in a toast —
+        // see reviewBeforeSigning.
+        setReviewBeforeSigning(true);
+      } else if (a.termsScope == null && a.warrantyScope == null) {
+        // Nothing was asked (his profile already answered), so no sheet
+        // toast confirmed it — say what just landed on the page.
+        nailIt(asked.terms && a.split
+          ? `Your terms are on this contract — ${splitLabel(a.split)}`
+          : 'Your warranty is on this contract');
+      }
+    });
+  }, [gateRun, saveDraftFrom]);
+
+  // Sign & send. An empty schedule or a warranty with no period cannot be
+  // signed, and the press is where he finds that out — the button stays
+  // enabled for exactly these two states so it can open the ask.
+  const handleSignPress = useCallback(() => {
+    const c = contractRef.current;
+    if (!c) return;
+    // THE LOCK IS THE FIRST QUESTION, not a footnote inside the missing-terms
+    // branch (review round 6). The action row renders on status 'draft', but a
+    // draft that already carries his signature is locked like a sent one —
+    // every input around it is disabled by that same predicate. Asked only
+    // when something was missing, a signed draft with a COMPLETE schedule and
+    // warranty fell straight through to the signature pad and captured a
+    // second signature over the first.
+    if (contractTermsLocked(c)) {
+      showAlert(
+        'This contract is already signed',
+        'Your signature is on it, so its payment terms and warranty can no longer be changed here.',
+      );
+      return;
+    }
+    const needsTerms = c.paymentSchedule.length === 0;
+    const needsWarranty = hasWarrantyPlaceholder(c.warrantyText);
+    if (needsTerms || needsWarranty) {
+      askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');
+      return;
+    }
+    setReviewBeforeSigning(false);
+    setSignatureModal(true);
+  }, [askContractTerms]);
 
   // Sign + send — captures the GC's signature, status='sent'.
   const handleSignAndSend = useCallback(async (signaturePaths: string[], typedName: string) => {
     if (!contract) return;
+    // Last check, behind handleSignPress: a contract with no payment schedule
+    // or no warranty period is not sent, however the modal was reached.
+    // THE PAD STAYS UP WHILE THIS SPEAKS, like the "Name required" refusal
+    // three lines below (review round 6). Dismissing the Modal and presenting
+    // an Alert in the same tick is the iOS trap: an alert presented from a
+    // view controller that is already being dismissed is torn down with it, so
+    // the pad closed and said nothing — the exact outcome this refusal exists
+    // to prevent. The copy tells him to close it himself.
+    if (contract.paymentSchedule.length === 0 || hasWarrantyPlaceholder(contract.warrantyText)) {
+      showAlert(
+        'Set your terms first',
+        contract.paymentSchedule.length === 0
+          ? 'This contract has no payment schedule yet. Close the signature pad, set your payment terms, review them, then sign.'
+          : 'The warranty section has no period yet. Close the signature pad, set your warranty, review it, then sign.',
+      );
+      return;
+    }
     if (!typedName.trim()) {
       showAlert('Name required', 'Type your full legal name to sign the contract.');
       return;
@@ -639,7 +901,13 @@ function ContractScreenInner() {
     );
   }
 
-  const isLocked = contract.status === 'sent' || contract.status === 'signed';
+  // THE SAME PREDICATE THE HANDLERS USE. It was `status === 'sent' || 'signed'`,
+  // which left a VOID contract — status is 'draft' | 'sent' | 'signed' | 'void',
+  // and fetchActiveContract filters only on superseded_by — rendering every
+  // terms notice with buttons whose handlers all early-return on
+  // contractTermsLocked: presses that neither work nor say why. It also treats
+  // a draft that already carries the GC's signature as the document it is.
+  const isLocked = contractTermsLocked(contract);
   const totalScheduled = contract.paymentSchedule.reduce((s, m) => s + (m.amount ?? 0), 0);
   // MEASURED AGAINST THE ORIGINAL CONTRACT SUM, DELIBERATELY (MONEY-CONTRACT-1,
   // audit 2026-09-11).
@@ -660,6 +928,29 @@ function ContractScreenInner() {
   // reconcile it with the $151,502 his reports showed. The revised-contract
   // card below states it, names each CO, and says where they bill.
   const scheduleMatchesValue = Math.abs(totalScheduled - contract.contractValue) < 1;
+
+  // His saved split, and this job's stamp, for the terms rows below. Neither is
+  // applied by rendering — only by a press.
+  const profileSplit: PaymentSplit | null = resolvePaymentSplit({ settings }).split;
+  const stampSplit: PaymentSplit | null = resolvePaymentSplit({ record: project.clientPortal?.proposalPaymentTerms }).split;
+  const scheduleEmpty = contract.paymentSchedule.length === 0;
+  const warrantyNotSet = hasWarrantyPlaceholder(contract.warrantyText);
+  // A SAVED draft still holding what MAGE used to fill in. Flagged, never
+  // rewritten: it is a stored value, and he may have meant it.
+  const legacySchedule = !!contract.id && isLegacySeedSchedule(contract.paymentSchedule);
+  // NOT A BARE EQUALITY AGAINST THE OLD PARAGRAPH. contractWarrantyText(12) IS
+  // LEGACY_WARRANTY_TEXT byte for byte — the text is that paragraph with the
+  // period substituted, and warrantyPeriodPhrase(12) is 'one (1) year'. So
+  // `text === LEGACY_WARRANTY_TEXT` is true of HIS OWN 12-month answer, the
+  // most likely answer there is, and the notice would accuse him of MAGE's
+  // placeholder while its only button rewrote the identical string and left
+  // the notice up. The question is "is this what his own answer would print?",
+  // which is what ownWarrantyText answers.
+  const ownWarrantyMonths = resolveWarrantyMonths(settings);
+  const ownWarrantyText = contractWarrantyText(ownWarrantyMonths);
+  const legacyWarranty = !!contract.id
+    && contract.warrantyText.trim() === LEGACY_WARRANTY_TEXT
+    && ownWarrantyText.trim() !== LEGACY_WARRANTY_TEXT;
 
   const approvedCoTotal = approvedChangeOrders.reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
   const revisedContractSum = contract.contractValue + approvedCoTotal;
@@ -896,6 +1187,82 @@ function ContractScreenInner() {
             )}
           </View>
 
+          {!isLocked && scheduleEmpty && (
+            <View style={styles.termsNotice} testID="contract-terms-not-set">
+              <Text style={styles.termsNoticeTitle}>Payment schedule — not set yet</Text>
+              <Text style={styles.termsNoticeBody}>
+                This contract can't be signed without one. Your deposit, progress and final split fills it in.
+              </Text>
+              <TouchableOpacity
+                style={styles.termsNoticeBtn}
+                onPress={() => askContractTerms({ terms: true, warranty: false })}
+                accessibilityRole="button"
+                testID="contract-set-payment-terms"
+              >
+                <Text style={styles.termsNoticeBtnText}>Set your payment terms</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* THE ROWS DECIDE, NOT THE SESSION (review round 6). Only while the
+              rows below still ARE that stamp — see scheduleCarriesSplit — but
+              that is now the whole test. Gated on `termsSource === 'record'`
+              this line, and its one-tap "Use <your split>", existed only in
+              the session that seeded the draft: a saved draft sets termsSource
+              to null on load, so reopening the contract dropped the sentence
+              naming the proposal his client was actually shown, on rows that
+              still carried it. The rows answer that question by themselves.
+              termsSource is still consulted for the one thing the rows cannot
+              say: when he has just pressed "Use <his own terms>" and those
+              happen to equal the stamp, the rows came from that press, and
+              crediting them to the proposal would name the wrong one. */}
+          {!isLocked && !scheduleEmpty && termsSource !== 'profile' && stampSplit
+            && scheduleCarriesSplit(contract.paymentSchedule, contract.contractValue, stampSplit) && (
+            <View style={styles.termsProvenance} testID="contract-terms-provenance">
+              <Text style={styles.termsProvenanceText}>
+                From the proposal your client was shown: {splitLabel(stampSplit)}
+              </Text>
+              {profileSplit && !sameSplit(profileSplit, stampSplit) ? (
+                <TouchableOpacity
+                  onPress={() => applyOwnSplit(profileSplit, 'profile')}
+                  accessibilityRole="button"
+                  hitSlop={6}
+                  testID="contract-use-current-terms"
+                >
+                  <Text style={styles.termsLink}>Use {splitLabel(profileSplit)}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
+
+          {!isLocked && legacySchedule && (
+            <View style={styles.termsNotice} testID="contract-legacy-schedule">
+              <Text style={styles.termsNoticeTitle}>MAGE's old placeholder, not your terms</Text>
+              <Text style={styles.termsNoticeBody}>
+                This draft still has the 25 / 25 / 25 / 25 schedule MAGE filled in. Nobody chose it — check it before you sign.
+              </Text>
+              {profileSplit ? (
+                <TouchableOpacity
+                  style={styles.termsNoticeBtn}
+                  onPress={() => applyOwnSplit(profileSplit, 'profile')}
+                  accessibilityRole="button"
+                  testID="contract-legacy-reset-terms"
+                >
+                  <Text style={styles.termsNoticeBtnText}>Reset to your terms ({splitLabel(profileSplit)})</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.termsNoticeBtn}
+                  onPress={() => askContractTerms({ terms: true, warranty: false })}
+                  accessibilityRole="button"
+                  testID="contract-legacy-set-terms"
+                >
+                  <Text style={styles.termsNoticeBtnText}>Set your payment terms</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {contract.paymentSchedule.map((m) => {
             const bill = billabilityFor(m);
             return (
@@ -907,6 +1274,7 @@ function ContractScreenInner() {
                 onRemove={() => removeMilestone(m.id)}
                 billability={contract.status === 'signed' ? bill : null}
                 onCreateInvoice={() => handleCreateInvoiceFromMilestone(m)}
+                onBillProgress={() => router.push({ pathname: '/bill-from-estimate', params: { projectId } } as never)}
                 onOpenInvoice={bill.existingInvoiceId
                   ? () => router.push({ pathname: '/invoice', params: { projectId: projectId!, invoiceId: bill.existingInvoiceId! } } as never)
                   : undefined}
@@ -943,19 +1311,35 @@ function ContractScreenInner() {
           {/* Mismatch banner — moved out of the inline total so the
               warning gets its own row instead of crashing into the dollar
               amount. Reads more like a real "this is wrong" alert. */}
-          {!scheduleMatchesValue && (
+          {!scheduleMatchesValue && !(scheduleEmpty && !isLocked) && (
             <View style={styles.scheduleMismatchBanner}>
+              {/* The Sign & send clause only where that button exists: the
+                  whole action row is gated on status === 'draft', so on a sent
+                  or signed contract it promised something about a control that
+                  is not on the screen. */}
               <Text style={styles.scheduleMismatchText}>
                 Total doesn't match contract value of {formatMoney(contract.contractValue)}
+                {contract.status === 'draft' ? ' — Sign & send stays off until it does.' : '.'}
               </Text>
-              {!isLocked && (
+              {!isLocked && (profileSplit ? (
                 <TouchableOpacity
                   style={styles.rebalanceBtn}
-                  onPress={() => updateContract('paymentSchedule', defaultPaymentSchedule(contract.contractValue))}
+                  onPress={() => applyOwnSplit(profileSplit, 'profile')}
+                  accessibilityRole="button"
+                  testID="contract-reset-terms"
                 >
-                  <Text style={styles.rebalanceText}>Reset to 25/25/25/25</Text>
+                  <Text style={styles.rebalanceText}>Reset to your terms ({splitLabel(profileSplit)})</Text>
                 </TouchableOpacity>
-              )}
+              ) : (
+                <TouchableOpacity
+                  style={styles.rebalanceBtn}
+                  onPress={() => askContractTerms({ terms: true, warranty: false })}
+                  accessibilityRole="button"
+                  testID="contract-mismatch-set-terms"
+                >
+                  <Text style={styles.rebalanceText}>Set your payment terms</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           )}
         </View>
@@ -1030,6 +1414,50 @@ function ContractScreenInner() {
         {/* Warranty */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Warranty</Text>
+          {!isLocked && warrantyNotSet && (
+            <View style={styles.termsNotice} testID="contract-warranty-not-set">
+              <Text style={styles.termsNoticeTitle}>Warranty period — not set yet</Text>
+              <Text style={styles.termsNoticeBody}>
+                The paragraph below says how long you warrant your work once you set it. This contract can't be signed until then.
+              </Text>
+              <TouchableOpacity
+                style={styles.termsNoticeBtn}
+                onPress={() => askContractTerms({ terms: false, warranty: true })}
+                accessibilityRole="button"
+                testID="contract-set-warranty"
+              >
+                <Text style={styles.termsNoticeBtnText}>Set your warranty</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {/* Two true sentences, not one guess. With no saved warranty nobody
+              HAS chosen this paragraph and the button opens the ask; with a
+              saved warranty of some other length this paragraph simply is not
+              it, and the button writes his — so the label says which. */}
+          {!isLocked && legacyWarranty && (
+            <View style={styles.termsNotice} testID="contract-legacy-warranty">
+              <Text style={styles.termsNoticeTitle}>
+                {ownWarrantyMonths == null
+                  ? "MAGE's old placeholder, not your terms"
+                  : 'This paragraph is not your warranty'}
+              </Text>
+              <Text style={styles.termsNoticeBody}>
+                {ownWarrantyMonths == null
+                  ? 'This paragraph still promises the one-year warranty MAGE filled in. Nobody chose it — check it before you sign.'
+                  : `This paragraph promises one (1) year. Your saved warranty is ${warrantyShortLabel(ownWarrantyMonths)} — check which one this job should carry.`}
+              </Text>
+              <TouchableOpacity
+                style={styles.termsNoticeBtn}
+                onPress={() => askContractTerms({ terms: false, warranty: true })}
+                accessibilityRole="button"
+                testID="contract-legacy-set-warranty"
+              >
+                <Text style={styles.termsNoticeBtnText}>
+                  {ownWarrantyMonths == null ? 'Set your warranty' : `Use your ${warrantyShortLabel(ownWarrantyMonths)}`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <TextInput
             style={[styles.input, styles.inputMultiline, isLocked && styles.inputDisabled]}
             value={contract.warrantyText}
@@ -1054,6 +1482,19 @@ function ContractScreenInner() {
           </View>
         )}
 
+        {/* Sign & send was pressed, the missing terms were just filled in, and
+            the signature pad did NOT open. Without this the press looks like
+            it did nothing: see reviewBeforeSigning for why this is a notice on
+            the page and not a second toast. */}
+        {reviewBeforeSigning && contract.status === 'draft' && (
+          <View style={styles.termsNotice} testID="contract-review-before-signing">
+            <Text style={styles.termsNoticeTitle}>Your terms are on this contract</Text>
+            <Text style={styles.termsNoticeBody}>
+              Review it — the payment schedule and warranty above — then tap Sign &amp; send.
+            </Text>
+          </View>
+        )}
+
         {/* Action bar */}
         {contract.status === 'draft' && (
           <View style={styles.actionRow}>
@@ -1067,8 +1508,8 @@ function ContractScreenInner() {
             />
             <Button
               label="Sign & send"
-              onPress={() => setSignatureModal(true)}
-              disabled={!scheduleMatchesValue || saving}
+              onPress={handleSignPress}
+              disabled={(contract.paymentSchedule.length > 0 && !scheduleMatchesValue) || saving}
               iconLeft={<FileSignature size={16} color="#FFF" strokeWidth={1.75} />}
               style={{ flex: 1 }}
             />
@@ -1135,6 +1576,9 @@ function ContractScreenInner() {
         )}
       </ScrollView>
 
+      {/* "Ask when it matters" — rendered once. Opened only by a press. */}
+      <ClientDocumentAskSheet {...gate.sheet} />
+
       {/* Signature modal */}
       <SignatureModal
         visible={signatureModal}
@@ -1187,7 +1631,7 @@ function StatusPill({ status }: { status: ProjectContract['status'] }) {
   );
 }
 
-function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCreateInvoice, onOpenInvoice }: {
+function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCreateInvoice, onBillProgress, onOpenInvoice }: {
   milestone: PaymentMilestone;
   locked: boolean;
   onChange: (patch: Partial<PaymentMilestone>) => void;
@@ -1195,19 +1639,35 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
   /** null while the contract isn't signed — the billing action stays hidden. */
   billability?: MilestoneBillability | null;
   onCreateInvoice?: () => void;
+  /** An `on_invoice` row opens Bill from Estimate instead of a lump invoice. */
+  onBillProgress?: () => void;
   onOpenInvoice?: () => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
+  const isProgressRow = milestone.trigger === 'on_invoice';
+  // WHY A PROGRESS ROW HAS NO "PENDING". The progress stage is drawn against
+  // from Bill from Estimate, which writes its own lines and stamps no
+  // sourceMilestoneId — so nothing ever flips this row and its status stays
+  // 'pending' however much of the 65% has already been invoiced. PENDING on a
+  // row that is half drawn states a fact that stopped being true. The row has
+  // no single billing state to report, and the contract-wide figure below
+  // ("Already invoiced on this contract") would be a guess about THIS row, so
+  // the pill says the only thing that stays true: this is the row the work is
+  // billed against as it gets done. A hand-set paid / invoiced / skipped still
+  // wins — that is a state somebody chose.
   const cfg =
     milestone.status === 'paid'     ? { bg: themeColors.success + '15', color: themeColors.success, label: 'PAID' } :
     milestone.status === 'invoiced' ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'INVOICED' } :
     milestone.status === 'skipped'  ? { bg: themeColors.surfaceAlt,  color: themeColors.textMuted, label: 'SKIPPED' } :
+    isProgressRow                   ? { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'AS WORK IS DONE' } :
                                        { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'PENDING' };
+  // Signing, progress and final read exactly as the sealed PDF and the invoice
+  // line print them (utils/paymentTerms.milestoneDueText) — "Billed as work is
+  // completed", not "On invoice", which read as "one invoice".
   const triggerLabel =
-    milestone.trigger === 'on_signing'   ? 'On signing'
-    : milestone.trigger === 'on_final'   ? 'On final completion'
-    : milestone.trigger === 'on_invoice' ? 'On invoice'
+    milestone.trigger === 'on_signing' || milestone.trigger === 'on_final' || milestone.trigger === 'on_invoice'
+      ? milestoneDueText(milestone)
     : milestone.trigger === 'on_date'    ? `On ${milestone.triggerDate ?? 'date'}`
     : (milestone.triggerMilestone || 'On milestone');
 
@@ -1250,7 +1710,10 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
             <TextInput
               style={[styles.milestoneAmountInput, locked && styles.inputDisabled]}
               value={String(milestone.amount ?? '')}
-              onChangeText={v => onChange({ amount: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
+              // A typed amount clears the percent: billing bills a percent row
+              // as cents(value × pct) and ignores `amount`, so leaving it set
+              // would invoice a number other than the one he just typed.
+              onChangeText={v => onChange({ amount: Number(v.replace(/[^0-9.]/g, '')) || 0, percent: undefined })}
               keyboardType="numeric"
               editable={!locked}
               placeholder="0"
@@ -1287,7 +1750,36 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
           invoice will actually carry — for a % milestone that's derived live
           from the contract value, not the cached `amount`, so the GC never
           taps through to a different number than the one they read. */}
-      {billability?.billable && (
+      {/* THE SAME BILLABILITY THE LUMP BUTTON USES, read for what a PROGRESS
+          row can do with it (progressRowOpen). Offered on `billability` alone,
+          this action outlived every reason there was nothing left to bill — a
+          skipped row, a paid one, a contract at its ceiling. Gated on
+          `billable` outright, it instead died at the ceiling on a row that
+          never bills its own amount: see progressRowOpen for why the ceiling
+          is the one refusal that does not apply here. A progress row never
+          gets an existingInvoiceId (bill-from-estimate writes its own lines
+          and stamps no sourceMilestoneId), so the "Billed" row below can never
+          speak for it: when it really is closed, the reason is printed here
+          instead of the action silently vanishing. */}
+      {billability && isProgressRow && !billability.existingInvoiceId && progressRowOpen(billability) && (
+        <TouchableOpacity
+          style={styles.milestoneBillBtn}
+          onPress={onBillProgress}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Bill progress for ${milestone.label} in Bill from Estimate`}
+          testID={`milestone-bill-progress-${milestone.id}`}
+        >
+          <Receipt size={14} color="#FFF" strokeWidth={1.75} />
+          <Text style={styles.milestoneBillBtnText}>Bill progress</Text>
+        </TouchableOpacity>
+      )}
+      {billability && isProgressRow && !progressRowOpen(billability) && !billability.existingInvoiceId && billability.reason && (
+        <Text style={styles.milestoneBlockNote} testID={`milestone-progress-blocked-${milestone.id}`}>
+          {milestoneBlockMessage(billability.reason, billability.ceiling, billability.amount)}
+        </Text>
+      )}
+      {billability?.billable && milestone.trigger !== 'on_invoice' && (
         <TouchableOpacity
           style={styles.milestoneBillBtn}
           onPress={onCreateInvoice}
@@ -1581,6 +2073,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   milestoneBilledText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.textMuted },
   milestoneBilledLink: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: themeColors.accent },
+  // Why a progress row is offering nothing, in the row's own words. A
+  // sentence, deliberately not another card — it sits inside milestoneCard and
+  // a second surface inside a surface reads as a nested box, not an answer.
+  milestoneBlockNote: {
+    marginTop: 12, fontSize: Type.caption1.fontSize, lineHeight: 17, color: themeColors.textMuted,
+  },
 
   scheduleTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -1639,6 +2137,29 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 6,
   },
   rebalanceText: { fontSize: Type.caption2.fontSize, color: '#FFF', fontWeight: '800', letterSpacing: 0.3 },
+
+  // Direction B terms rows — "not set yet", provenance, MAGE's old placeholder.
+  // accentSoft fill with accentLabel/text ink: small type on raw accent misses AA.
+  termsNotice: {
+    backgroundColor: themeColors.accentSoft,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
+    padding: 12, marginBottom: 10, gap: 6,
+  },
+  termsNoticeTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
+  termsNoticeBody: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  termsNoticeBtn: {
+    alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center',
+    backgroundColor: themeColors.accentFill, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 12, paddingVertical: 8, marginTop: 2,
+  },
+  termsNoticeBtnText: { fontSize: Type.caption1.fontSize, color: Colors.textOnAccent, fontWeight: '700' },
+  termsProvenance: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap',
+    gap: 8, marginBottom: 10,
+  },
+  termsProvenanceText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  termsLink: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.accentLabel },
 
   allowanceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

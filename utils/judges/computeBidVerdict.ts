@@ -90,7 +90,11 @@ export function computeBidVerdict(input: BidVerdictInput): BidVerdict {
       const avg = input.typeMargin.avgMarginPct;
       parts.push({
         key: 'track_record', weight, score: clamp01(avg / 0.2),
-        detail: `Your ${input.typeMargin.jobCount} past job${input.typeMargin.jobCount === 1 ? '' : 's'} of this type average ${Math.round(avg * 100)}% realized margin.`,
+        // realizedMarginPct measures cost from estimate actuals and signed
+        // subcontracts/POs only — crew labor, receipts and equipment are not
+        // in it, so a self-perform GC's closed jobs read fatter than they
+        // were. Say so rather than state the figure as his realized margin.
+        detail: `Your ${input.typeMargin.jobCount} past job${input.typeMargin.jobCount === 1 ? '' : 's'} of this type average ${Math.round(avg * 100)}% margin on subcontract and PO cost (crew labor and receipts not counted).`,
       });
     }
   }

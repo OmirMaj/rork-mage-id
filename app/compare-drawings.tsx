@@ -8,6 +8,14 @@
 // it in under a minute per sheet pair.
 //
 // Pairs with supabase/functions/compare-drawings.
+//
+// Audit round 2 (#20): the review step used to end at "Done", which threw the
+// whole comparison away — the revision was never added to the plan set (so the
+// superseded sheet stayed "current" in the field), the drafted RFIs vanished,
+// and every flagged change had to be retyped into the CO screen from memory.
+// The review now files the revision (addPlanSheet chains it and marks the old
+// copy superseded), creates each RFI against the sheet, and starts a change
+// order prefilled with the change and the drawing it came from.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -22,7 +30,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
   FileText, AlertCircle, Plus, Minus, Pencil, Info,
-  ArrowUpRight, ArrowDown,
+  ArrowUpRight, ArrowDown, Layers, Check, FilePlus2, MessageSquarePlus,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -33,12 +41,16 @@ import { useProjects } from '@/contexts/ProjectContext';
 import {
   compareDrawings, type CompareDrawingsResult, type ChangeType, type ChangeImpact,
 } from '@/utils/compareDrawings';
-import { uploadAndRenderPdf } from '@/utils/pdfRenderClient';
+import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
+import {
+  currentSheetsForCompare, revisionFiling, changeOrderPrefill, rfiFromCandidate, sheetCitation,
+} from '@/utils/plans/revisionActions';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
 import type { PlanSheet } from '@/types';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
@@ -54,7 +66,7 @@ export default function CompareDrawingsScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
-  const { projects, getProject, getPlanSheetsForProject } = useProjects();
+  const { projects, getProject, getPlanSheetsForProject, addPlanSheet, addRFI, getChangeOrdersForProject } = useProjects();
   const { tier } = useSubscription();
 
   // Opened without params (Tools hub, search): land on a project picker
@@ -62,7 +74,10 @@ export default function CompareDrawingsScreen() {
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? null;
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
-  const planSheets = useMemo(() => projectId ? getPlanSheetsForProject(projectId) : [], [projectId, getPlanSheetsForProject]);
+  const allSheets = useMemo(() => projectId ? getPlanSheetsForProject(projectId) : [], [projectId, getPlanSheetsForProject]);
+  // A superseded revision is not "the sheet currently in the field" — offering
+  // it as the comparison base is how a diff gets run against a dead drawing.
+  const planSheets = useMemo(() => currentSheetsForCompare(allSheets), [allSheets]);
 
   const [step, setStep] = useState<Step>('pickOld');
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +86,12 @@ export default function CompareDrawingsScreen() {
   const [newPageLabel, setNewPageLabel] = useState<string | null>(null);
   const [result, setResult] = useState<CompareDrawingsResult | null>(null);
   const [modelUsed, setModelUsed] = useState<string | null>(null);
+  const [newPagePath, setNewPagePath] = useState('');
+  const [newPageSize, setNewPageSize] = useState<{ width: number; height: number } | null>(null);
+  // What this comparison has already committed — so a second tap can't file the
+  // same revision twice or raise the same RFI twice, and the button can say so.
+  const [filed, setFiled] = useState<{ sheetId: string; revision: number } | null>(null);
+  const [rfiByIndex, setRfiByIndex] = useState<Record<number, number>>({});
 
   // ── Pick the OLD sheet — from the project's existing plan sheets ──
   const handlePickOld = useCallback((sheet: PlanSheet) => {
@@ -83,6 +104,10 @@ export default function CompareDrawingsScreen() {
   const handlePickNew = useCallback(async () => {
     if (!project || !oldSheet) return;
     setError(null);
+    setNewPagePath('');
+    setNewPageSize(null);
+    setFiled(null);
+    setRfiByIndex({});
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/png', 'image/jpeg'],
@@ -103,6 +128,24 @@ export default function CompareDrawingsScreen() {
       let url: string;
       let newPath = '';
       if ((asset.mimeType ?? '').includes('pdf')) {
+        // Only page 1 is rendered and compared. A re-issued SET would silently
+        // have its cover sheet diffed against A-101, and the result would read
+        // like a total redesign. Say so before spending the render + the AI call.
+        const pages = await countPdfPages(asset.uri);
+        if (pages !== null && pages > 1) {
+          const proceed = await new Promise<boolean>((resolve) => {
+            showAlert(
+              `${asset.name} has ${pages} pages`,
+              `Only page 1 is compared against ${oldSheet.sheetNumber || oldSheet.name}. If this is a whole re-issued set, split out the single sheet first — otherwise the cover page gets compared to your drawing.`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Compare page 1', onPress: () => resolve(true) },
+              ],
+              { cancelable: true, onDismiss: () => resolve(false) },
+            );
+          });
+          if (!proceed) return;
+        }
         setStep('analyzing');
         const rendered = await uploadAndRenderPdf({
           fileUri: asset.uri,
@@ -114,6 +157,8 @@ export default function CompareDrawingsScreen() {
         if (!rendered[0]) throw new Error('Could not render the PDF page.');
         url = rendered[0].viewUrl;
         newPath = rendered[0].storagePath;
+        setNewPagePath(newPath);
+        setNewPageSize({ width: rendered[0].width, height: rendered[0].height });
       } else {
         // For now, image picks need to already be on a public URL. The
         // current Plans pipeline already pushes to storage on upload, so
@@ -163,6 +208,96 @@ export default function CompareDrawingsScreen() {
       setStep('pickNew');
     }
   }, [project, oldSheet, tier]);
+
+  // ── Turn the comparison into records ────────────────────────────────
+  // Filing is the one that cannot be recovered later: until the revision is in
+  // the plan set, the old sheet is still what the crew opens in the field.
+  const filing = oldSheet
+    ? revisionFiling({ oldSheet, allSheets, newPath: newPagePath, filedRevision: filed?.revision ?? null })
+    : null;
+
+  const handleFileRevision = useCallback(() => {
+    if (!project || !oldSheet || !newPagePath || filed) return;
+    const fresh = addPlanSheet({
+      projectId: project.id,
+      // Same name and number as the sheet it replaces: the number is what
+      // addPlanSheet chains on (it marks the old copy superseded and sets
+      // revision N+1 + previousSheetId).
+      name: oldSheet.name,
+      sheetNumber: oldSheet.sheetNumber,
+      imageUri: newPageUrl ?? '',
+      storagePath: newPagePath,
+      pageNumber: 1,
+      width: newPageSize?.width,
+      height: newPageSize?.height,
+    });
+    setFiled({ sheetId: fresh.id, revision: fresh.revision ?? 1 });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [project, oldSheet, newPagePath, newPageUrl, newPageSize, filed, addPlanSheet]);
+
+  const handleCreateRfi = useCallback((index: number) => {
+    if (!oldSheet || !result || rfiByIndex[index]) return;
+    const candidate = result.rfiCandidates[index];
+    if (!candidate) return;
+    const rfi = addRFI(rfiFromCandidate(candidate, oldSheet, newPageLabel, new Date()));
+    setRfiByIndex(prev => ({ ...prev, [index]: rfi.number }));
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [oldSheet, result, rfiByIndex, newPageLabel, addRFI]);
+
+  // Which changes have a change order in the project that CARRIES this change's
+  // text. This used to be a flag set the moment the user tapped through to the
+  // CO screen — so backing out of that screen without saving still counted as
+  // "saved", and Done then waved through the exact loss the guard exists to
+  // prevent. Matching on the real record is the only claim we can make
+  // honestly; a `.includes` (not equality) survives the user editing the
+  // description in the CO form, which he usually does.
+  const projectChangeOrders = useMemo(
+    () => (project ? getChangeOrdersForProject(project.id) : []),
+    [project, getChangeOrdersForProject],
+  );
+  const coSaved = useMemo(() => {
+    const out: Record<number, { id: string; number: number }> = {};
+    if (!result) return out;
+    result.changes.forEach((c, i) => {
+      const needle = c.description.trim();
+      if (!needle) return;
+      const hit = projectChangeOrders.find(co => co.description.includes(needle));
+      if (hit) out[i] = { id: hit.id, number: hit.number };
+    });
+    return out;
+  }, [result, projectChangeOrders]);
+
+  const handleStartChangeOrder = useCallback((index: number) => {
+    if (!project || !oldSheet || !result) return;
+    const change = result.changes[index];
+    if (!change) return;
+    const existing = coSaved[index];
+    router.push({
+      pathname: '/change-order' as never,
+      // An already-saved change reopens ITS change order rather than prefilling
+      // a second one with the same scope.
+      params: (existing
+        ? { projectId: project.id, coId: existing.id }
+        : { projectId: project.id, ...changeOrderPrefill(change, oldSheet, newPageLabel) }) as never,
+    });
+  }, [project, oldSheet, result, newPageLabel, router, coSaved]);
+
+  // Nothing here is saved until one of the buttons above is used, so Done asks
+  // once rather than discarding a revision drop silently.
+  const handleDone = useCallback(() => {
+    const savedSomething = !!filed || Object.keys(rfiByIndex).length > 0 || Object.keys(coSaved).length > 0;
+    const foundSomething = (result?.changes.length ?? 0) > 0 || (result?.rfiCandidates.length ?? 0) > 0;
+    if (savedSomething || !foundSomething) { router.back(); return; }
+    showAlert(
+      'Nothing from this comparison is saved',
+      'File the revision, create an RFI, or start a change order first — leaving now discards what the comparison found.',
+      [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Leave anyway', style: 'destructive', onPress: () => router.back() },
+      ],
+      { cancelable: true },
+    );
+  }, [filed, rfiByIndex, coSaved, result, router]);
 
   if (!project) {
     return (
@@ -302,6 +437,45 @@ export default function CompareDrawingsScreen() {
               )}
             </View>
 
+            {/* File the revision. Until this happens the plan set still shows
+                the OLD sheet as current, and the super opens it in the field. */}
+            {filing ? (
+              <View style={styles.fileCard}>
+                <View style={styles.fileCardHead}>
+                  <Layers size={15} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.fileCardTitle}>Put this revision in the plan set</Text>
+                </View>
+                {filing.kind === 'ready' ? (
+                  <>
+                    <Text style={styles.fileCardBody}>
+                      {sheetCitation(oldSheet)} stays in the field until the new copy is filed. Filing marks it superseded and the viewer warns anyone who opens it.
+                    </Text>
+                    <TouchableOpacity onPress={handleFileRevision} style={styles.fileBtn} activeOpacity={0.85} testID="compare-file-revision">
+                      <FilePlus2 size={15} color={Colors.textOnAccent} strokeWidth={1.75} />
+                      <Text style={styles.fileBtnText}>{filing.label}</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : filing.kind === 'filed' ? (
+                  <>
+                    <View style={styles.doneRow}>
+                      <Check size={14} color={themeColors.successLabel} strokeWidth={2} />
+                      <Text style={styles.doneText}>{filing.label}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: filed?.sheetId ?? '' } as never })}
+                      style={styles.linkBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.linkBtnText}>Open the filed sheet</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  /* Disabled controls say why (house rule) — and what to do. */
+                  <Text style={styles.fileCardBlocked}>{filing.reason}</Text>
+                )}
+              </View>
+            ) : null}
+
             {result.changes.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyText}>No changes detected.</Text>
@@ -325,6 +499,17 @@ export default function CompareDrawingsScreen() {
                       {c.suggestedAction ? (
                         <Text style={styles.suggestedAction}>→ {c.suggestedAction}</Text>
                       ) : null}
+                      {/* The change, the place, and the drawing it came from,
+                          carried into the CO — no retyping from memory. */}
+                      <TouchableOpacity
+                        onPress={() => handleStartChangeOrder(i)}
+                        style={styles.rowBtn}
+                        activeOpacity={0.8}
+                        testID={`compare-start-co-${i}`}
+                      >
+                        <FilePlus2 size={13} color={themeColors.accent} strokeWidth={1.75} />
+                        <Text style={styles.rowBtnText}>{coSaved[i] ? `Open CO #${coSaved[i].number}` : 'Start change order'}</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </View>
@@ -340,13 +525,29 @@ export default function CompareDrawingsScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rfiSubject}>{r.subject}</Text>
                       <Text style={styles.rfiQuestion}>{r.question}</Text>
+                      {rfiByIndex[i] ? (
+                        <View style={styles.doneRow}>
+                          <Check size={13} color={themeColors.successLabel} strokeWidth={2} />
+                          <Text style={styles.doneText}>Created as RFI #{rfiByIndex[i]}, linked to {oldSheet.sheetNumber || oldSheet.name}</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={() => handleCreateRfi(i)}
+                          style={styles.rowBtn}
+                          activeOpacity={0.8}
+                          testID={`compare-create-rfi-${i}`}
+                        >
+                          <MessageSquarePlus size={13} color={themeColors.accent} strokeWidth={1.75} />
+                          <Text style={styles.rowBtnText}>Create RFI</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 ))}
               </>
             )}
 
-            <TouchableOpacity onPress={() => router.back()} style={styles.primaryBtn} activeOpacity={0.85}>
+            <TouchableOpacity onPress={handleDone} style={styles.primaryBtn} activeOpacity={0.85} testID="compare-done">
               <Text style={styles.primaryBtnText}>Done</Text>
             </TouchableOpacity>
           </>
@@ -488,6 +689,34 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   impactChip: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, marginTop: 6 },
   impactText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, color: t.text },
   suggestedAction: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 6, fontStyle: 'italic' },
+
+  fileCard: {
+    // The four properties that must agree app-wide come from cardSurface; only
+    // the accent hairline (this card is the one that WRITES to the plan set)
+    // and the layout are overlaid.
+    ...cardSurface(t, { radius: 'card', pad: 14, bordered: true }),
+    borderColor: t.accent + '33',
+    marginHorizontal: 16, marginBottom: 12, gap: 8,
+  },
+  fileCardHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  fileCardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  fileCardBody: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
+  fileCardBlocked: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
+  fileBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill,
+  },
+  fileBtnText: { color: Colors.textOnAccent, fontSize: Type.subhead.fontSize, fontWeight: '700' },
+  linkBtn: { alignSelf: 'flex-start' },
+  linkBtnText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' },
+  doneRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  doneText: { fontSize: Type.caption1.fontSize, color: t.successLabel, flex: 1, lineHeight: 17 },
+  rowBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: 8, paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.accent + '44',
+  },
+  rowBtnText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' },
 
   rfiCard: {
     marginHorizontal: 16, marginBottom: 8, padding: 12,

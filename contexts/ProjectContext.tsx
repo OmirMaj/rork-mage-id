@@ -3,8 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { punchListTypeOf, contractTermsAfterLoad, contractTermsSyncColumns } from '@/types';
 import { isFinancialsBlinded } from '@/utils/roleBlinding';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus, PunchListType } from '@/types';
+import type { Project, ProjectType, AppSettings, PaymentSplit, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, DFRPhoto, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState, FieldTicket, FieldTicketPhoto, DelayEvent, DelayEvidenceRef, DelayNotice, TaskStatus, PunchListType, ScheduleTask } from '@/types';
 import { sealedFieldTicketViolations } from '@/utils/fieldTicketCore';
+import { foldPlanSheets } from '@/utils/planSheetBatchCore';
+import { dayOrInstantDate } from '@/utils/calendarDate';
+import { projectTypeForLead, targetBudgetSeedForLead } from '@/utils/widgetLeadCore';
+import { withSourcePhotoUris } from '@/utils/punchSourcePhoto';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
 import { useFieldDayPackWarmer } from '@/hooks/useFieldDayPack';
@@ -12,6 +16,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite, getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { licenceExpiryColumnValue, licenceStateColumnValue } from '@/utils/bidDocumentIdentity';
+import { paymentTermsAfterLoad, pendingWithInFlight, termsColumnsForWrite, termsWritesPending } from '@/utils/paymentTerms';
 import {
   acceptedRolesByProject, aiaRowToSaved, claimProjectForUser, classifyProjectForSync, coerceRate, financialPickAfterLoad,
   financialsLoadedFor, legacyMoneyPresent, mergeLocalOnly, myRoleAfterLoad, pendingIdsByTable, pendingIdsForTable,
@@ -38,6 +43,13 @@ import {
   isCoScheduleReflowApplied,
 } from '@/utils/coScheduleReflowCore';
 import { appendAuditToAsyncStorage } from '@/utils/scheduleAudit';
+import {
+  absorbServerScheduleTasks, applyFieldTaskPatches, fieldTaskDiff, projectSyncSendsSchedule, scheduleWritePathForRole,
+  sendFieldTaskPatches, stampFieldEdits,
+} from '@/utils/fieldScheduleUpdate';
+import { keepProjectsWrittenSince, newProjectWriteLog, noteProjectWrite } from '@/utils/projectsLoadGuard';
+import { useProjectsFocusRefetch } from '@/hooks/useProjectsFocusRefetch';
+import { showAlert } from '@/utils/alert';
 import {
   buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, looksLikeStoragePath, photoExtFromUri,
 } from '@/utils/photoUploadCore';
@@ -179,6 +191,10 @@ function punchItemToUpdateRow(pi: PunchItem, now: string) {
     photo_accuracy_meters: pi.photoLocationAccuracyMeters,
     photo_location_label: pi.photoLocationLabel,
     list_type: punchListTypeOf(pi),
+    // Only when set: the column is new (20260917180000) and a missing column
+    // stalls the write in the queue, so records with no source photo — nearly
+    // all of them — never name it. The id is set once at creation.
+    ...(pi.sourcePhotoId ? { source_photo_id: pi.sourcePhotoId } : {}),
     rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
   };
 }
@@ -340,6 +356,10 @@ type CoreDataValue = {
   /** True once projects have hydrated from storage/network. Distinguishes
    *  "still loading" from "not found" for deep-linked detail screens. */
   projectsLoaded: boolean;
+  /** True once THIS account's settings are in state (device copy or the
+   *  profiles read). Before that `settings` is DEFAULT_SETTINGS: never ask a
+   *  question it seems to leave open, and never write a merge onto it. */
+  settingsLoaded: boolean;
   /** RT-R1: MAGE could not be reached as this user on the last probe. Every
    *  loader in this file swallows a failed read and serves the local cache
    *  (30 `if (!error && data && data.length > 0)` fallthroughs), which is
@@ -357,6 +377,15 @@ type CoreDataValue = {
   deleteProject: (id: string) => void;
   getProject: (id: string) => Project | null;
   updateSettings: (updates: Partial<AppSettings>) => void;
+  /**
+   * Save the GC's payment split and/or warranty months — the ONLY writer of
+   * profiles.deposit_pct / progress_pct / final_pct / warranty_months. Each
+   * group goes in its own profiles update carrying `id` plus those columns, so
+   * a device holding an older settings object can never overwrite the answer
+   * through the whole-row settings save (which never sends them). Returns
+   * false, and writes nothing, when the input would fail the database CHECK.
+   */
+  savePaymentTerms: (input: { split?: PaymentSplit; warrantyMonths?: number }) => boolean;
   addCollaborator: (projectId: string, collab: ProjectCollaborator) => void;
   removeCollaborator: (projectId: string, collabId: string) => void;
   priceAlerts: PriceAlert[];
@@ -459,6 +488,16 @@ type FieldDataValue = {
   getEquipmentCostForProject: (projectId: string) => number;
   planSheets: PlanSheet[];
   addPlanSheet: (sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) => PlanSheet;
+  /**
+   * Add many sheets in ONE persist (a PDF import). Returns exactly the sheets
+   * created — count those, never the input. `matchUnnumberedByPage` makes a
+   * re-import of the same file supersede its earlier pages instead of doubling
+   * them (utils/planSheetBatchCore.ts).
+   */
+  addPlanSheets: (
+    sheets: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>[],
+    opts?: { matchUnnumberedByPage?: boolean },
+  ) => { created: PlanSheet[]; superseded: PlanSheet[] };
   updatePlanSheet: (id: string, updates: Partial<PlanSheet>) => void;
   deletePlanSheet: (id: string) => void;
   getPlanSheetsForProject: (projectId: string) => PlanSheet[];
@@ -586,6 +625,12 @@ type StableActionsValue = {
    *  inactive, `pagehide` on web) so a kill inside the 800 ms window cannot
    *  lose the edit. Resolves once the writes have been sent or queued. */
   flushPendingProjectSyncs: () => Promise<void>;
+  /** Fold a schedule the server sent by realtime into the local project copy
+   *  — no sync, no updatedAt (it IS the server's). Schedule Pro calls it for
+   *  every peer write it absorbs, so the copy every owner write is stamped
+   *  against is never older than the screen's (utils/fieldScheduleUpdate.ts
+   *  absorbServerScheduleTasks has the why). */
+  absorbServerSchedule: (projectId: string, tasks: ScheduleTask[]) => void;
 };
 
 /** Extra intent a caller can attach to a change-order update that approves it.
@@ -646,6 +691,24 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const reachability = useMageReachability();
 
   const [projects, setProjects] = useState<Project[]>([]);
+  // Latest list for updateProject, which may be called several times in one
+  // press (the payment-terms auto-stamp loops over every old portal). Built
+  // from the render-time `projects`, each call started from the same list and
+  // the last setProjects won: N-1 projects lost their change on the device
+  // while the server kept it. Same pattern as punchItemsRef below.
+  const projectsRef = useRef<Project[]>([]);
+  useEffect(() => { projectsRef.current = projects; }, [projects]);
+  // A load must not undo a write made while it was out (utils/projectsLoadGuard
+  // has the bug). Every local project write takes a sequence number here — in
+  // syncProjectToSupabase, which every synced write goes through, and in
+  // absorbServerSchedule — and the loader keeps the device copy of any project
+  // written after the number it started at. `projectsLoadSinceRef` is that
+  // start number for the load whose result `projects` holds.
+  const projectWriteLogRef = useRef(newProjectWriteLog());
+  const projectsLoadSinceRef = useRef(0);
+  // Per project, the schedule tasks the server last sent (a load or a
+  // realtime event) — the 3-way base absorbServerSchedule merges against.
+  const serverScheduleTasksRef = useRef<Map<string, ScheduleTask[]>>(new Map());
   // True once the projects query has settled AND local state has been hydrated
   // from it. Screens use this to tell "still loading" apart from "genuinely not
   // found" — getProject(id) returns null in BOTH cases, so a cold deep-link
@@ -662,6 +725,45 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // false-prune-all path simply cannot originate here.
   const [projectDeletion, setProjectDeletion] = useState<{ deletedProjectId: string | null; tick: number }>({ deletedProjectId: null, tick: 0 });
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // The settings as of the LAST write, readable synchronously. updateSettings
+  // used to spread its render closure's `settings`, so two writers in the same
+  // tick (the ask sheet saving a company name, then the terms, in one press)
+  // left the second one merging onto the pre-press object and undoing the
+  // first. Every settings state write goes through commitSettingsState, and
+  // every merge reads this ref.
+  const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
+  // Terms writes the offline queue cannot see yet. supabaseWrite tries the
+  // network FIRST and only queues after a failure, so while that attempt is
+  // out termsWritesPending reads an empty queue — and a settings refetch
+  // started before the write landed returns a row without the answer. The
+  // loader treats the device answer as pending when a write was in flight as
+  // its read began or as it returned, or one started in between (the epoch
+  // moved) — any of those can mean the row predates the answer.
+  const termsWritesInFlightRef = useRef(0);
+  const termsWriteEpochRef = useRef(0);
+  const commitSettingsState = useCallback((next: AppSettings) => {
+    settingsRef.current = next;
+    setSettings(next);
+  }, []);
+  // Which account's settings are REALLY in state. Until one of the two loads
+  // below lands, `settings` is DEFAULT_SETTINGS — and the profiles read waits
+  // on the network (no timeout) while the splash hands off after ~1 s. Anything
+  // that merges onto settingsRef in that window writes DEFAULT branding: the
+  // ask gate would re-ask a GC who already answered, savePaymentTerms would
+  // clobber the device cache, and updateSettings would send DEFAULT contact,
+  // address and licence over his profiles row. Keyed by account so a sign-in
+  // as someone else starts unloaded again.
+  const settingsOwnerKey = userId ?? 'signed-out';
+  const [settingsLoadedFor, setSettingsLoadedFor] = useState<string | null>(null);
+  const settingsLoadedForRef = useRef<string | null>(null);
+  const markSettingsLoaded = useCallback((key: string) => {
+    settingsLoadedForRef.current = key;
+    setSettingsLoadedFor(key);
+  }, []);
+  const settingsLoaded = settingsLoadedFor === settingsOwnerKey;
+  // updateSettings calls made before the load: kept here and written, merged
+  // onto the loaded row, the moment it lands (effect after saveSettingsMutation).
+  const pendingSettingsUpdatesRef = useRef<Partial<AppSettings> | null>(null);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [userRole, setUserRoleState] = useState<UserRole | null>(null);
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
@@ -686,6 +788,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const punchItemsRef = useRef<PunchItem[]>([]);
   useEffect(() => { punchItemsRef.current = punchItems; }, [punchItems]);
   const [projectPhotos, setProjectPhotos] = useState<ProjectPhoto[]>([]);
+  // Latest gallery for stagePunchPhoto, whose callers can hold an older render.
+  const projectPhotosRef = useRef<ProjectPhoto[]>([]);
+  useEffect(() => { projectPhotosRef.current = projectPhotos; }, [projectPhotos]);
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [commEvents, setCommEvents] = useState<CommunicationEvent[]>([]);
@@ -719,8 +824,18 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // re-issue it; `timer` is null once the debounce has fired. `inFlight` is
   // set the moment `run` starts (A-8): the flush skips those — their write is
   // already on the wire or queued, and re-issuing it sent the row twice.
-  type PendingProjectSync = { timer: ReturnType<typeof setTimeout> | null; inFlight: boolean; run: () => Promise<void> };
+  // `sendsSchedule` (#25, second writer): whether this sync carries the
+  // schedule. A sync that replaces a still-waiting one inherits it — see
+  // projectSyncSendsSchedule.
+  type PendingProjectSync = { timer: ReturnType<typeof setTimeout> | null; sendsSchedule: boolean; inFlight: boolean; run: () => Promise<void> };
   const syncDebounceMap = useRef<Map<string, PendingProjectSync>>(new Map());
+  // Project ids the last successful server load returned, plus any whose
+  // schedule-carrying upsert has since landed. An owner upsert may leave the
+  // schedule out ONLY for these: for a project the server may not hold yet (a
+  // local-only or offline-created one) the upsert is the INSERT, and a row
+  // created without its schedule would replace the device copy's schedule
+  // with nothing on the next server-first load.
+  const serverProjectIdsRef = useRef<Set<string>>(new Set());
 
   const canSync = !!userId && isSupabaseConfigured;
 
@@ -729,6 +844,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     queryFn: async () => {
       console.log('[ProjectContext] Loading projects');
       if (canSync) {
+        // Taken BEFORE the first read: a write from here on may be missing
+        // from what comes back.
+        const writeSeqAtStart = projectWriteLogRef.current.seq;
         try {
           const { data, error } = await supabase
             .from('projects')
@@ -897,7 +1015,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // drop them (that's what made the demo seeder's project — and any
             // offline-created project — vanish on the next reload).
             const remoteIds = new Set(mapped.map((p) => p.id));
-            const merged = [...mapped, ...localForMerge.filter((p) => !remoteIds.has(p.id))];
+            serverProjectIdsRef.current = new Set(remoteIds);
+            for (const p of mapped) serverScheduleTasksRef.current.set(p.id, p.schedule?.tasks ?? []);
+            // A project written while these reads were out keeps the device
+            // copy (utils/projectsLoadGuard) — here, so the cache is not
+            // overwritten with the pre-edit row either, and again where
+            // `projects` takes the result, for a write in between.
+            const merged = keepProjectsWrittenSince(
+              [...mapped, ...localForMerge.filter((p) => !remoteIds.has(p.id))],
+              projectsRef.current, projectWriteLogRef.current, writeSeqAtStart,
+            );
+            projectsLoadSinceRef.current = writeSeqAtStart;
             await saveLocal(PROJECTS_KEY, merged);
             return merged;
           }
@@ -915,8 +1043,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       console.log('[ProjectContext] Loading settings');
       if (canSync) {
         try {
+          const termsEpochAtRead = termsWriteEpochRef.current;
+          const termsInFlightAtRead = termsWritesInFlightRef.current;
           const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
           if (!error && data) {
+            // Payment terms: the server's answer wins only where it can vouch
+            // for one — the columns exist (20260917150000 applied) and no terms
+            // write is still queued. Otherwise the device's answer is kept;
+            // dropping it would ask the GC a question he already answered.
+            const cachedSettings = await loadLocal<AppSettings | null>(SETTINGS_KEY, null);
+            const termsInFlight = termsInFlightAtRead > 0
+              || termsWritesInFlightRef.current > 0
+              || termsWriteEpochRef.current !== termsEpochAtRead;
+            const termsPending = pendingWithInFlight(termsWritesPending(await getOfflineQueue(), userId), termsInFlight);
             const s: AppSettings = {
               location: (data.location as string) ?? 'United States',
               units: ((data.units as string) ?? 'imperial') as 'imperial' | 'metric',
@@ -949,6 +1088,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
                 channels: ((data.digest_channels as { email?: boolean; in_app?: boolean } | null) ?? { email: true, in_app: true }) as { email: boolean; in_app: boolean },
               },
               financing: data.financing as AppSettings['financing'],
+              ...paymentTermsAfterLoad({ row: data as Record<string, unknown>, cached: cachedSettings, pending: termsPending }),
             };
             await saveLocal(SETTINGS_KEY, s);
             return s;
@@ -1656,6 +1796,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // corridor" to the client's portal. Resolved through the one
               // default, so a pre-migration NULL reads as 'punch'.
               listType: punchListTypeOf({ listType: r.list_type as PunchListType | null }),
+              // Read back, or saveLocal below overwrites the device copy with a
+              // row that forgot which photo it came from — and the markup
+              // vanishes even on the device that drew it.
+              sourcePhotoId: (r.source_photo_id as string | null) ?? undefined,
               rejectionNote: r.rejection_note as string | undefined,
               closedAt: r.closed_at as string | undefined, createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               };
@@ -1810,6 +1954,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               status: (r.status as RFI['status']) ?? 'open', priority: (r.priority as RFI['priority']) ?? 'normal',
               linkedDrawing: r.linked_drawing as string | undefined, linkedTaskId: r.linked_task_id as string | undefined,
               attachments: (r.attachments as string[]) ?? [], shareToken: r.share_token as string | undefined,
+              // Same reason as the punch mapper: without it a refetch drops the
+              // link to the annotated photo and the markup disappears.
+              sourcePhotoId: (r.source_photo_id as string | null) ?? undefined,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               // portal_state MUST be read back. It is written on insert and on every
               // send/recall, but was hydrated ONLY by the invoices mapper — so a refetch
@@ -2025,14 +2172,39 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }
   }, [queryClient, userId, canSync]);
 
-  useEffect(() => { if (projectsQuery.data) setProjects(projectsQuery.data); }, [projectsQuery.data]);
+  // Guarded like the loader: a write since the load began keeps its local copy
+  // (a no-op for the cache writes saveProjectsMutation mirrors in, which ARE
+  // the local copy).
+  useEffect(() => {
+    if (projectsQuery.data) {
+      setProjects(keepProjectsWrittenSince(projectsQuery.data, projectsRef.current, projectWriteLogRef.current, projectsLoadSinceRef.current));
+    }
+  }, [projectsQuery.data]);
   // Mark hydration complete once the query settles (success OR error). We flip
   // it here — not off `projectsQuery.data` — so an empty/failed load still
   // clears the loading state instead of hanging on a spinner forever.
   useEffect(() => {
     if (!projectsQuery.isLoading) setProjectsLoaded(true);
   }, [projectsQuery.isLoading]);
-  useEffect(() => { if (settingsQuery.data) setSettings(settingsQuery.data); }, [settingsQuery.data]);
+  useEffect(() => {
+    if (!settingsQuery.data) return;
+    commitSettingsState(settingsQuery.data);
+    markSettingsLoaded(settingsOwnerKey);
+  }, [settingsQuery.data, commitSettingsState, markSettingsLoaded, settingsOwnerKey]);
+  // Cache first: a returning GC on job-site LTE has his profile from the device
+  // copy at once instead of DEFAULT until the network answers. Skipped when the
+  // network load already landed for this account (it is fresher). A fresh
+  // device with no copy waits for the network — settingsLoaded stays false.
+  useEffect(() => {
+    let cancelled = false;
+    const key = settingsOwnerKey;
+    void loadLocal<AppSettings | null>(SETTINGS_KEY, null).then((cached) => {
+      if (cancelled || !cached || settingsLoadedForRef.current === key) return;
+      commitSettingsState({ ...DEFAULT_SETTINGS, ...cached });
+      markSettingsLoaded(key);
+    });
+    return () => { cancelled = true; };
+  }, [settingsOwnerKey, commitSettingsState, markSettingsLoaded]);
   useEffect(() => { if (changeOrdersQuery.data) setChangeOrders(changeOrdersQuery.data); }, [changeOrdersQuery.data]);
   useEffect(() => { if (invoicesQuery.data) setInvoices(invoicesQuery.data); }, [invoicesQuery.data]);
   useEffect(() => { if (commitmentsQuery.data) setCommitments(commitmentsQuery.data); }, [commitmentsQuery.data]);
@@ -2213,11 +2385,25 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     onSuccess: (data) => { queryClient.setQueryData(['subPortalLinks', userId], data); },
   });
 
-  const syncProjectToSupabase = useCallback((project: Project, action: 'upsert' | 'delete', opts?: { immediate?: boolean }) => {
+  // `changedKeys` — the Project keys this write changed (updateProject passes
+  // its update's keys). #25, the second writer: EVERY project write used to
+  // carry `schedule` from this device's local copy, whatever the edit was — a
+  // status change, a portal toggle, a geocode — and on iOS that copy is often
+  // hours old, so a foreman's progress saved through the field RPC at 10:00
+  // was put back to 0% by the GC's 15:00 status change. Now the schedule rides
+  // only on a write that touched it (a caller that passes no keys keeps the old
+  // send-everything behaviour). A write that DOES carry a stale schedule is
+  // still answered by the server: migration 20260917160000's trigger keeps
+  // field values newer than the incoming copy's stamps.
+  const syncProjectToSupabase = useCallback((project: Project, action: 'upsert' | 'delete', opts?: { immediate?: boolean; changedKeys?: readonly string[] }) => {
+    noteProjectWrite(projectWriteLogRef.current, project.id);
     if (!canSync) return;
     const existing = syncDebounceMap.current.get(project.id);
     if (existing?.timer) clearTimeout(existing.timer);
-    const entry: PendingProjectSync = { timer: null, inFlight: false, run: async () => undefined };
+    // A still-waiting sync being replaced here never sends; if it carried the
+    // schedule, this one must.
+    const sendsSchedule = projectSyncSendsSchedule(opts?.changedKeys, !!existing && !existing.inFlight && existing.sendsSchedule);
+    const entry: PendingProjectSync = { timer: null, inFlight: false, sendsSchedule, run: async () => undefined };
     const run = async () => {
       // SYNC-F7: the slot is released only AFTER the write has reported —
       // deleting it up front meant a flush arriving mid-write found nothing to
@@ -2237,6 +2423,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           // edits went out owner-style with the credential-stripped
           // client_portal blob and wiped the owner's passcode.
           const { shared, sendMoney, financialsUserId } = classifyProjectForSync(project, userId, userEmail);
+          // The shared PATCH only updates an existing row, so an untouched
+          // schedule simply stays out. The owner upsert also CREATES the row
+          // when the server lacks it — see serverProjectIdsRef.
+          const includeSchedule = sendsSchedule || (!shared && !serverProjectIdsRef.current.has(project.id));
           const base = {
             id: project.id, name: project.name, type: project.type,
             location: project.location, square_footage: project.squareFootage, quality: project.quality,
@@ -2245,7 +2435,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             location_geocoded_at: project.locationGeocodedAt ?? null,
             description: project.description,
             scope: (project.scope ?? null) as unknown,
-            schedule: project.schedule as unknown, status: project.status,
+            ...(includeSchedule ? { schedule: project.schedule as unknown } : {}),
+            status: project.status,
             collaborators: project.collaborators as unknown,
             primary_contact: project.primaryContact ?? null,
             lead_source: project.leadSource ?? null,
@@ -2302,6 +2493,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
                 estimate_versions: project.estimateVersions as unknown,
                 target_budget: project.targetBudget as unknown,
               });
+          if (landed && !shared && includeSchedule) serverProjectIdsRef.current.add(project.id);
           // Money also goes to project_financials, which field collaborators
           // cannot read. DUAL-WRITE on purpose: the legacy columns above stay
           // until the phase-2 drop migration, so an older build still loads.
@@ -2375,6 +2567,27 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       console.log('[ProjectContext] Flushing a pending project sync failed:', err);
     })));
   }, []);
+
+  // #25, part 3: re-read the projects when the app returns to the foreground,
+  // so field progress saved while the phone was in a pocket is on screen
+  // BEFORE the GC edits (hooks/useProjectsFocusRefetch has the why). Pending
+  // debounced syncs go out first, and a projects write still queued skips the
+  // refetch — the server-first loader would show the older server row over an
+  // offline edit that has not landed; the post-flush listener re-pulls then.
+  // The flush fires only entries still waiting on their timer; one whose write
+  // is ALREADY on the wire stays in the map (A-8) and is not awaited, and
+  // supabaseWrite queues only after a failure — so it is in neither place the
+  // queue check looks. Refetching then would put the pre-write server row on
+  // screen, and the next edit, built from it, would send the older status /
+  // name / collaborators back. Skip while any sync is still in the map; the
+  // next foreground (or the queue's post-flush re-pull) catches up.
+  const refetchProjectsOnForeground = useCallback(async (): Promise<void> => {
+    await flushPendingProjectSyncs();
+    if (syncDebounceMap.current.size > 0) return;
+    if ((await queuedIdsFor('projects')).size > 0) return;
+    await queryClient.invalidateQueries({ queryKey: ['projects', userId] });
+  }, [flushPendingProjectSyncs, queryClient, userId]);
+  useProjectsFocusRefetch(canSync, refetchProjectsOnForeground);
 
   // SYNC-F3: after the offline queue drains, re-pull the collections it wrote
   // so an offline-created record is replaced by its server copy and anything
@@ -2458,6 +2671,27 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     mutationFn: async (updatedProjects: Project[]) => { await saveLocal(PROJECTS_KEY, updatedProjects); return updatedProjects; },
     onSuccess: (data) => { queryClient.setQueryData(['projects', userId], data); },
   });
+  const absorbServerSchedule = useCallback((projectId: string, tasks: ScheduleTask[]) => {
+    const base = projectsRef.current;
+    const p = base.find(x => x.id === projectId);
+    const prevServer = serverScheduleTasksRef.current.get(projectId);
+    serverScheduleTasksRef.current.set(projectId, tasks);
+    if (!p?.schedule) return;
+    const localTasks = p.schedule.tasks ?? [];
+    const next = absorbServerScheduleTasks(prevServer, tasks, localTasks);
+    if (JSON.stringify(next) === JSON.stringify(localTasks)) return;
+    // A local write for the loader's purposes: a load already out read the
+    // row before this event and must not take the value back.
+    noteProjectWrite(projectWriteLogRef.current, projectId);
+    const updated = base.map(x => x.id === projectId && x.schedule ? { ...x, schedule: { ...x.schedule, tasks: next } } : x);
+    projectsRef.current = updated;
+    setProjects(updated);
+    saveProjectsMutation.mutate(updated);
+  // Kept stable for StableActionsContext: the mutation's `mutate` is stable,
+  // and everything else is read through refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const saveChangeOrdersMutation = useMutation({
     mutationFn: async (updated: ChangeOrder[]) => { await saveLocal(CHANGE_ORDERS_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['changeOrders', userId], data); },
@@ -2544,8 +2778,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   });
   const saveSettingsMutation = useMutation({
     mutationFn: async (updatedSettings: AppSettings) => {
-      await saveLocal(SETTINGS_KEY, updatedSettings);
+      // The device copy is the LATEST settings, not this mutation's argument:
+      // a save that resolves after savePaymentTerms must not write the older
+      // object (without the new terms) back to disk.
+      await saveLocal(SETTINGS_KEY, settingsRef.current);
       if (canSync && userId) {
+        // This payload NEVER carries deposit_pct / progress_pct / final_pct /
+        // warranty_months: it is built from whatever settings object the
+        // caller held, and a stale one would erase an answer given on another
+        // screen or device. Those columns have their own write (savePaymentTerms).
         // Through the offline queue — the previous direct .update() swallowed
         // offline failures, so branding/digest/settings edits made offline
         // silently never reached the server (and reverted on next launch).
@@ -2575,7 +2816,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       }
       return updatedSettings;
     },
-    onSuccess: (data) => { queryClient.setQueryData(['settings', userId], data); },
+    // settingsRef.current, not the mutation's argument: the cache must never
+    // step back to an older settings object than the one on screen.
+    onSuccess: () => { queryClient.setQueryData(['settings', userId], settingsRef.current); },
   });
 
   // Geocode a project's location string into lat/lng for hyperlocal weather
@@ -2599,7 +2842,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         // Persist + sync
         saveProjectsMutation.mutate(next);
         const updated = next.find(p => p.id === project.id);
-        if (updated) syncProjectToSupabase(updated, 'upsert');
+        // Coordinates only — never a schedule this device may hold stale (#25).
+        if (updated) syncProjectToSupabase(updated, 'upsert', { changedKeys: ['locationLatitude', 'locationLongitude', 'locationGeocodedAt'] });
         return next;
       });
     }).catch(() => { /* silent — falls back to no-coords path */ });
@@ -2649,9 +2893,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }
   }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded, canSync, userId]);
 
-  const updateProject = useCallback((id: string, updates: Partial<Project>) => {
-    const prior = projects.find(p => p.id === id);
-    const updated = projects.map(p => p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p);
+  const updateProject = useCallback((id: string, rawUpdates: Partial<Project>) => {
+    const base = projectsRef.current;
+    const prior = base.find(p => p.id === id);
+    const nowISO = new Date().toISOString();
+    // #25, second writer: a schedule edit is often built from a screen's
+    // working copy loaded long before the foreman's field update the refetch
+    // brought into projectsRef. stampFieldEdits keeps his newer progress /
+    // status / notes / actuals where this edit did not really change them and
+    // stamps the ones it did, so the server trigger (20260917160000) lets a
+    // real owner change through and this screen shows what the server keeps.
+    const updates: Partial<Project> = rawUpdates.schedule?.tasks
+      ? { ...rawUpdates, schedule: { ...rawUpdates.schedule, tasks: stampFieldEdits(prior?.schedule?.tasks, rawUpdates.schedule.tasks, nowISO) } }
+      : rawUpdates;
+    const updated = base.map(p => p.id === id ? { ...p, ...updates, updatedAt: nowISO } : p);
+    projectsRef.current = updated;
     setProjects(updated);
     saveProjectsMutation.mutate(updated);
     const proj = updated.find(p => p.id === id);
@@ -2673,7 +2929,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       });
     }
     if (proj) {
-      syncProjectToSupabase(proj, 'upsert');
+      // The update's own keys: only a write that touched the schedule sends it.
+      syncProjectToSupabase(proj, 'upsert', { changedKeys: Object.keys(rawUpdates) });
       // Re-geocode only if the location string actually changed — avoids
       // hitting Nominatim's rate limit on every routine save (e.g.
       // schedule debounce flush).
@@ -2681,7 +2938,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         geocodeIfNeeded(proj);
       }
     }
-  }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
+  }, [commitments, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
 
   // deleteProject is defined further down (just before the bucket memos) so it
   // can reference every project-scoped collection's persist fn / mutation for a
@@ -2693,10 +2950,59 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const getProject = useCallback((id: string) => projects.find(p => p.id === id) ?? null, [projects]);
 
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
-    const updated = { ...settings, ...updates };
-    setSettings(updated);
+    const updated = { ...settingsRef.current, ...updates };
+    commitSettingsState(updated);
+    // Not loaded yet: `updated` is DEFAULT plus this change, and the save
+    // writes the WHOLE profiles row. Hold the change; it is written merged
+    // onto the real row when that lands (see the effect below).
+    if (settingsLoadedForRef.current !== settingsOwnerKey) {
+      pendingSettingsUpdatesRef.current = { ...pendingSettingsUpdatesRef.current, ...updates };
+      return;
+    }
     saveSettingsMutation.mutate(updated);
-  }, [settings, saveSettingsMutation]);
+  }, [commitSettingsState, saveSettingsMutation, settingsOwnerKey]);
+  useEffect(() => {
+    const pending = pendingSettingsUpdatesRef.current;
+    if (!settingsLoaded || !pending) return;
+    pendingSettingsUpdatesRef.current = null;
+    const merged = { ...settingsRef.current, ...pending };
+    commitSettingsState(merged);
+    saveSettingsMutation.mutate(merged);
+  }, [settingsLoaded, commitSettingsState, saveSettingsMutation]);
+
+  const savePaymentTerms = useCallback((input: { split?: PaymentSplit; warrantyMonths?: number }): boolean => {
+    // Validated against the CHECK before anything moves: a violation is
+    // terminal in the offline queue, and an answer shown as saved that the
+    // server then drops is worse than a refusal the sheet can explain.
+    const cols = termsColumnsForWrite(input);
+    if ('refused' in cols || (!cols.split && !cols.warranty)) return false;
+    // Before the load, settingsRef is DEFAULT: saving `next` to the device
+    // cache would overwrite his branding there. The gate refuses to open in
+    // that window, so this is the belt.
+    if (settingsLoadedForRef.current !== settingsOwnerKey) return false;
+    const next: AppSettings = { ...settingsRef.current };
+    if (cols.split) {
+      next.paymentSplit = { depositPct: cols.split.deposit_pct, progressPct: cols.split.progress_pct, finalPct: cols.split.final_pct };
+    }
+    if (cols.warranty) next.warrantyMonths = cols.warranty.warranty_months;
+    commitSettingsState(next);
+    void saveLocal(SETTINGS_KEY, next);
+    queryClient.setQueryData(['settings', userId], next);
+    if (canSync && userId) {
+      const track = (write: Promise<boolean>) => {
+        termsWriteEpochRef.current += 1;
+        termsWritesInFlightRef.current += 1;
+        void write.finally(() => { termsWritesInFlightRef.current -= 1; });
+      };
+      if (cols.split) {
+        track(supabaseWrite('profiles', 'update', { id: userId, deposit_pct: cols.split.deposit_pct, progress_pct: cols.split.progress_pct, final_pct: cols.split.final_pct }));
+      }
+      if (cols.warranty) {
+        track(supabaseWrite('profiles', 'update', { id: userId, warranty_months: cols.warranty.warranty_months }));
+      }
+    }
+    return true;
+  }, [commitSettingsState, queryClient, userId, canSync, settingsOwnerKey]);
 
   const addCollaborator = useCallback((projectId: string, collab: ProjectCollaborator) => {
     const project = projects.find(p => p.id === projectId);
@@ -2867,8 +3173,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       });
 
       if (result.plan.status === 'ready' && result.nextSchedule && result.coPatch && project) {
+        // Built from the render's `projects`; stampFieldEdits against the live
+        // ref keeps field progress that landed since (#25, second writer).
+        const liveTasks = projectsRef.current.find(p => p.id === project.id)?.schedule?.tasks;
+        const nextSchedule = { ...result.nextSchedule, tasks: stampFieldEdits(liveTasks, result.nextSchedule.tasks, now) };
         const nextProjects = projects.map(p => p.id === project.id
-          ? { ...p, schedule: result.nextSchedule!, updatedAt: now }
+          ? { ...p, schedule: nextSchedule, updatedAt: now }
           : p);
         setProjects(nextProjects);
         saveProjectsMutation.mutate(nextProjects);
@@ -2995,6 +3305,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     saveInvoicesMutation.mutate(updated);
     if (canSync) {
       const inv = updated.find(i => i.id === id);
+      // Resolved false when there is no row write to wait on, so a payment push
+      // that depends on one never fires into an invoice the server has not seen.
+      let invoiceWrite: Promise<boolean> = Promise.resolve(false);
       if (inv) {
         // Scope the write to the columns this edit actually touched. amount_paid,
         // payments, and status are ALSO written by the Stripe webhook when a
@@ -3010,6 +3323,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         if ('taxRate' in updates) payload.tax_rate = inv.taxRate;
         if ('taxAmount' in updates) payload.tax_amount = inv.taxAmount;
         if ('totalDue' in updates) payload.total_due = inv.totalDue;
+        // The due date MOVES after the invoice exists — app/invoice.tsx
+        // recomputes it from today and the terms when a saved draft is finally
+        // sent, and utils/retainage.buildRetainageReleasePatch stamps a fresh
+        // one when a release re-opens a paid invoice. Only addInvoice used to
+        // write these three, so the server kept the draft's date: a draft saved
+        // Sep 1 net-15 and sent Oct 20 drew "FINAL NOTICE — 34 days overdue" as
+        // its FIRST reminder, because invoice-dunning counts days overdue from
+        // the SERVER's invoices.due_date (audit round 2, #13).
+        // due_date is text NOT NULL on the server and Invoice.dueDate is a
+        // required string, so it is written as-is — a `?? null` here would be a
+        // terminal write that drops the whole edit. The other two are nullable,
+        // and a cleared value must reach the DB as null or the omitted key
+        // leaves the old one in place on the next refetch.
+        if ('dueDate' in updates && inv.dueDate) payload.due_date = inv.dueDate;
+        if ('paymentTerms' in updates) payload.payment_terms = inv.paymentTerms ?? null;
+        if ('progressPercent' in updates) payload.progress_percent = inv.progressPercent ?? null;
         // Only write the webhook-owned reconciliation columns when this edit
         // changed a payment field (or explicitly set status).
         if ('amountPaid' in updates || 'payments' in updates) {
@@ -3041,9 +3370,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           payload.dunning_stage = inv.dunningStage ?? null;
           payload.dunning_last_sent_at = inv.dunningLastSentAt ?? null;
         }
-        void supabaseWrite('invoices', 'update', payload);
+        invoiceWrite = supabaseWrite('invoices', 'update', payload);
       }
-      void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', id));
+      // WAIT FOR THE ROW here too. qbo-sync reads the invoice off the server;
+      // fired in the same tick it could read the PRE-edit row and stamp it
+      // 'synced' after this write landed, so the new due date / progress
+      // percent never reached QuickBooks and the reconciler (which only
+      // retries rows that are not 'synced') never looked again. A write that
+      // only QUEUED pushes nothing now: the row lands with qbo_sync_status
+      // 'pending', which the reconciler's sweep picks up.
+      void invoiceWrite.then(synced => {
+        if (!synced) return;
+        void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', id));
+      });
       // Detect newly-added MAGE-sourced payments and fire a payment sync for each.
       if (prev && updates.payments) {
         const prevIds = new Set(prev.payments.map(p => p.id));
@@ -3052,7 +3391,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         );
         for (const np of newMagePayments) {
           const paymentId = np.id;
-          void import('@/utils/qboSync').then(m => m.triggerQboSync('payment', 'upsert', `${id}::${paymentId}`));
+          // WAIT FOR THE INVOICE ROW. qbo-sync's payment path reads the payment
+          // off the SERVER's invoices row; firing it in the same tick as the
+          // write meant it usually arrived first and threw 'payment not found'
+          // (audit round 2, #15). supabaseWrite resolves false when the write
+          // was QUEUED (offline) rather than sent — then we push nothing, and
+          // qbo-reconciler's sweep picks the payment up once the queued write
+          // lands and the invoice has been quiet for five minutes.
+          void invoiceWrite.then(synced => {
+            if (!synced) return;
+            void import('@/utils/qboSync').then(m => m.triggerQboSync('payment', 'upsert', `${id}::${paymentId}`));
+          });
         }
       }
     }
@@ -3186,8 +3535,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // report).
   const propagateProgressFromDFR = useCallback((report: DailyFieldReport) => {
     if (!report.workProgress || report.workProgress.length === 0) return;
-    const proj = projects.find(p => p.id === report.projectId);
+    // projectsRef, not the render-time `projects`: the mic writes the schedule
+    // and then files the report in the same tick, so the closure still holds
+    // the pre-write schedule — and rebuilding from it put back any task the
+    // same update had just LOWERED (the ratchet keeps the stale value).
+    const proj = projectsRef.current.find(p => p.id === report.projectId);
     if (!proj?.schedule?.tasks) return;
+    // Bound to a const so the narrowing survives into the async field branch
+    // below (a property read does not).
+    const schedule = proj.schedule;
     let touched = false;
 
     // AS-BUILT CAPTURE. Before this, progress moved but no actuals were ever
@@ -3201,8 +3557,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // Friday's work must stamp Friday, or every back-filled report would
     // silently shift the as-built record forward and the learned durations
     // with it.
-    const reportDay = todayScheduleDay(proj.schedule.startDate, new Date(report.date));
-    const reportISO = new Date(report.date).toISOString();
+    // dayOrInstantDate, not `new Date`: an older voice report stored a bare
+    // local day, which `new Date` reads as UTC midnight and stamps the
+    // as-built a day early anywhere in the Americas.
+    const reportDay = todayScheduleDay(proj.schedule.startDate, dayOrInstantDate(report.date));
+    const reportISO = dayOrInstantDate(report.date).toISOString();
 
     const nextTasks = proj.schedule.tasks.map(t => {
       const chip = report.workProgress!.find(p => p.taskId === t.id);
@@ -3225,10 +3584,52 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       return { ...t, ...stamp, progress: incoming, status: nextStatus };
     });
     if (!touched) return;
+
+    // WHO IS ALLOWED TO WRITE THIS (audit round 2, #25).
+    //
+    // The ripple is a schedule write, and updateProject sends it as a PATCH of
+    // the projects row — which projects_update admits only for the owner or an
+    // editor. For the superintendent on FIELD access (the person who files
+    // most daily reports) PostgREST refused it with 200 + zero rows and the
+    // offline queue does not count rows: his chips moved the Gantt on screen,
+    // nothing reached the server, and the next reload put the old percentages
+    // back with nothing said.
+    //
+    // Everything this function writes — progress, status and the stamped
+    // actuals — is exactly what public.field_update_schedule_tasks accepts, so
+    // the field path goes through that door and the local copy is only updated
+    // once the server has taken it. A view-only collaborator writes nothing.
+    const writePath = scheduleWritePathForRole(proj.myRole);
+    if (writePath === 'none') return;
+    if (writePath === 'field_rpc') {
+      const { patches } = fieldTaskDiff(schedule.tasks, nextTasks);
+      if (patches.length === 0) return;
+      void sendFieldTaskPatches(supabase, proj.id, patches).then((sent) => {
+        if (!sent.ok) {
+          // Never silently: the report saved, the schedule did not, and only
+          // he can decide what to do about it.
+          showAlert('Schedule not updated', `${sent.message} The daily report itself saved — its progress did not reach the schedule.`);
+          return;
+        }
+        // A task the server no longer has takes none of its patch, so neither
+        // does the local copy — and he is told, rather than left with a bar
+        // that only exists on this phone.
+        const accepted = patches.filter((p) => !sent.missing.includes(p.id));
+        if (sent.missing.length > 0) {
+          showAlert('Some progress did not save', `${sent.missing.length} task${sent.missing.length === 1 ? '' : 's'} this report reported on ${sent.missing.length === 1 ? 'is' : 'are'} no longer on the schedule. The rest of the progress saved.`);
+        }
+        // Patch the schedule as it is NOW, not as it was before the round trip.
+        const live = projectsRef.current.find(p => p.id === proj.id)?.schedule ?? schedule;
+        updateProject(proj.id, {
+          schedule: { ...live, tasks: applyFieldTaskPatches(live.tasks, accepted), updatedAt: new Date().toISOString() },
+        });
+      });
+      return;
+    }
     updateProject(proj.id, {
-      schedule: { ...proj.schedule, tasks: nextTasks, updatedAt: new Date().toISOString() },
+      schedule: { ...schedule, tasks: nextTasks, updatedAt: new Date().toISOString() },
     });
-  }, [projects, updateProject]);
+  }, [updateProject]);
 
   // A DFR carries its own copy of the photos it was filed with, and those are
   // mirrored into the gallery under the SAME ids — so both paths resolve to the
@@ -3296,7 +3697,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }
   }, [dailyReports, saveDailyReportsMutation, canSync, propagateProgressFromDFR, stageDfrPhotos]);
 
-  const getDailyReportsForProject = useCallback((projectId: string) => dailyReports.filter(dr => dr.projectId === projectId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [dailyReports]);
+  const getDailyReportsForProject = useCallback((projectId: string) => dailyReports.filter(dr => dr.projectId === projectId).sort((a, b) => dayOrInstantDate(b.date).getTime() - dayOrInstantDate(a.date).getTime()), [dailyReports]);
 
   // ─────────────────────────────────────────────
   // T&M / extra-work field tickets
@@ -3731,7 +4132,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       // A-1: created by this account — see claimProjectForUser / addProject.
       ownerUserId: userId ?? undefined,
       name: lead.name + (lead.projectType ? ` — ${lead.projectType}` : ''),
-      type: (lead.projectTypeMapped ?? 'renovation') as ProjectType,
+      // A widget lead now arrives with project_type_mapped; older ones map
+      // back from the widget's scope label (utils/widgetLeadCore).
+      type: (projectTypeForLead(lead) ?? 'renovation') as ProjectType,
       location: lead.address ?? 'United States',
       squareFootage: 0,
       quality: 'standard',
@@ -3739,17 +4142,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       status: 'estimated',
       estimate: null,
       schedule: null,
-      targetBudget: lead.budgetMax && lead.budgetMax > 0
-        ? { amount: lead.budgetMax, setAt: now, setBy: 'gc' }
-        : (lead.budgetMin && lead.budgetMin > 0
-            ? { amount: lead.budgetMin, setAt: now, setBy: 'gc' }
-            : undefined),
+      // His own latest quote first, then a budget the homeowner stated —
+      // NEVER the website widget's national ballpark (audit round 2, #24).
+      // That range used to land here as 'Target budget set by you', and the
+      // portal and WIP read targetBudget as the contract value until an
+      // estimate exists.
+      targetBudget: targetBudgetSeedForLead(lead, now),
       primaryContact,
       leadSource: lead.source || undefined,
       targetTimelineNotes: lead.timeline || undefined,
       createdAt: now,
       updatedAt: now,
     };
+    // Written straight to Supabase below, not through syncProjectToSupabase —
+    // so it records its own write for the load guard.
+    noteProjectWrite(projectWriteLogRef.current, newProject.id);
     setProjects(prev => [newProject, ...prev]);
     saveProjectsMutation.mutate([newProject, ...projects]);
     if (canSync) {
@@ -4410,7 +4817,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // durable path onto the row, local URI kept for rendering. Keyed
   // `punch-<id>` so it can't collide with the gallery photo of the same id.
   const stagePunchPhoto = useCallback((item: PunchItem): PunchItem => {
-    if (!item.photoUri || !isDeviceLocalUri(item.photoUri)) return item;
+    if (!item.photoUri) return item;
+    if (!isDeviceLocalUri(item.photoUri)) {
+      // #12, punch side. An item raised from a gallery photo that is NOT on
+      // this device (the office marking up a field photo) arrives with that
+      // photo's SIGNED URL, which expires in 24 h (utils/storage
+      // PHOTO_URL_TTL_SECONDS) — after that the punch photo and the sub's
+      // copy stopped loading. The gallery photo's storage path is durable:
+      // put it on the item, so punchItemToRow writes the path and every load
+      // signs a fresh URL. Read through the ref — the photo list this
+      // callback closed over can be a render old.
+      if (!item.photoStoragePath && item.sourcePhotoId) {
+        const source = projectPhotosRef.current.find(p => p.id === item.sourcePhotoId);
+        if (source?.storagePath) return { ...item, photoStoragePath: source.storagePath };
+      }
+      return item;
+    }
     // Already staged THIS exact file — every unrelated edit (status change,
     // reassignment, closing the item) runs through here, and re-staging would
     // re-copy the image to disk each time. A genuinely replaced photo has a
@@ -4443,6 +4865,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // Always an explicit value, resolved through the one default — an absent
     // listType is a formal punch item (migration 20260916120000_punch_list_type.sql).
     list_type: punchListTypeOf(item),
+    // The photo the item was raised from — how another device finds its markup.
+    // Only when set, like punchItemToUpdateRow.
+    ...(item.sourcePhotoId ? { source_photo_id: item.sourcePhotoId } : {}),
     rejection_note: item.rejectionNote, closed_at: item.closedAt,
     created_at: item.createdAt, updated_at: item.updatedAt,
   }), [userId]);
@@ -4510,7 +4935,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     deletePunchItems([id]);
   }, [deletePunchItems]);
 
-  const getPunchItemsForProject = useCallback((projectId: string) => punchItems.filter(pi => pi.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [punchItems]);
+  // What consumers see: a legacy item saved with a (now expired) signed URL
+  // renders from its source gallery photo instead (utils/punchSourcePhoto).
+  // Raw `punchItems` stays the write-side state; stagePunchPhoto heals the row
+  // itself on the item's next edit.
+  const punchItemsView = useMemo(() => withSourcePhotoUris(punchItems, projectPhotos), [punchItems, projectPhotos]);
+  const getPunchItemsForProject = useCallback((projectId: string) => punchItemsView.filter(pi => pi.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [punchItemsView]);
 
   const addProjectPhoto = useCallback((photo: ProjectPhoto) => {
     // Queue the bytes and reserve the durable path BEFORE anything is written.
@@ -4720,6 +5150,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     status: r.status, priority: r.priority,
     linked_drawing: r.linkedDrawing ?? null, linked_task_id: r.linkedTaskId ?? null,
     attachments: r.attachments, updated_at: r.updatedAt,
+    // Only when set (see punchItemToUpdateRow): the column is new, and naming
+    // it on every RFI write would stall them all until 20260917180000 lands.
+    ...(r.sourcePhotoId ? { source_photo_id: r.sourcePhotoId } : {}),
   }), []);
 
   // Insert payload — the mutable columns plus the insert-only ones. Shared by
@@ -5544,6 +5977,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // Plan sheets, drawing pins, markups, and calibrations — local-only
   // storage for now. Matches the portal-messages pattern above.
   const [planSheets, setPlanSheets] = useState<PlanSheet[]>([]);
+  // Latest sheet list, readable synchronously (audit round 2, #18). addPlanSheet
+  // built from its render closure, so N adds in one tick each wrote
+  // `[fresh_i, ...original]` and only the last survived. Same pattern as
+  // submittalsRef; persistPlanSheets writes it, the effect follows hydration.
+  const planSheetsRef = useRef<PlanSheet[]>([]);
+  useEffect(() => { planSheetsRef.current = planSheets; }, [planSheets]);
   const [drawingPins, setDrawingPins] = useState<DrawingPin[]>([]);
   const [planZones, setPlanZones] = useState<PlanZone[]>([]);
   const [planReviews, setPlanReviews] = useState<PlanReview[]>([]);
@@ -5701,6 +6140,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, []);
 
   const persistPlanSheets = useCallback((list: PlanSheet[]) => {
+    planSheetsRef.current = list;
     setPlanSheets(list);
     // In MEMORY the sheets carry the renderable (signed) url; on DISK they carry
     // the durable path — a cached signature would expire and come back as a dead
@@ -5739,78 +6179,78 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     void saveLocal(PLAN_ROADMAPS_KEY, list);
   }, []);
 
-  const addPlanSheet = useCallback((sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) => {
+  // Auto-detect a revision: if the project already has a non-superseded sheet
+  // with the same sheetNumber, the new upload becomes Rev N+1 and the prior
+  // sheet gets marked superseded. Pre-fix every upload landed as a brand-new
+  // row, so two copies of "A-101" lived side by side with no relationship.
+  // Now revisions stack and the list view shows only the latest of each.
+  //
+  // ONE path for one sheet and for many (audit round 2, #18): both fold into
+  // planSheetsRef.current — never the render's `planSheets` — persist ONCE and
+  // queue one insert per created sheet. Looping addPlanSheet over a PDF's pages
+  // used to keep only the last page; a single add right after another (the
+  // image import after a PDF) could drop a sheet the same way.
+  const commitPlanSheets = useCallback((
+    sheets: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>[],
+    matchUnnumberedByPage: boolean,
+  ) => {
     const now = new Date().toISOString();
-    // Auto-detect a revision: if the project already has a non-superseded
-    // sheet with the same sheetNumber, the new upload becomes Rev N+1
-    // and the prior sheet gets marked superseded. Pre-fix every upload
-    // landed as a brand-new row, so two copies of "A-101" lived side by
-    // side with no relationship — the GC had to remember which was
-    // current. Now: revisions stack and the list view defaults to
-    // showing only the latest of each sheetNumber.
-    const incomingNumber = (sheet.sheetNumber ?? '').trim();
-    let revision = 1;
-    let previousSheetId: string | undefined;
-    let updatedList = planSheets;
-    if (incomingNumber) {
-      const sameNumber = planSheets.filter(
-        s => s.projectId === sheet.projectId
-          && (s.sheetNumber ?? '').trim() === incomingNumber
-          && !s.superseded,
-      );
-      if (sameNumber.length > 0) {
-        // Pick the highest existing revision so we don't collide if the
-        // user re-uploads multiple times (revision bumps monotonically).
-        const latest = sameNumber.reduce((a, b) =>
-          (a.revision ?? 1) > (b.revision ?? 1) ? a : b,
-        );
-        revision = (latest.revision ?? 1) + 1;
-        previousSheetId = latest.id;
-        // Mark the prior latest as superseded — both locally and via
-        // Supabase write so other devices see the same chain.
-        updatedList = planSheets.map(s =>
-          s.id === latest.id ? { ...s, superseded: true, updatedAt: now } : s,
-        );
-        if (canSync) {
-          void supabaseWrite('plan_sheets', 'update', {
-            id: latest.id, superseded: true, updated_at: now,
-          });
-        }
-      }
-    }
-
-    const fresh: PlanSheet = {
-      ...sheet,
+    const fold = foldPlanSheets(planSheetsRef.current, sheets, {
+      now,
       // UUID (not a prefixed timestamp) so the Supabase write path can
       // round-trip the id into a Postgres UUID column without rejection.
-      id: generateUUID(),
-      revision,
-      previousSheetId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    persistPlanSheets([fresh, ...updatedList]);
+      newId: generateUUID,
+      matchUnnumberedByPage,
+    });
+    if (fold.created.length === 0) return fold;
+    persistPlanSheets(fold.list);
     if (canSync) {
-      void supabaseWrite('plan_sheets', 'insert', {
-        id: fresh.id, user_id: userId, project_id: fresh.projectId,
-        name: fresh.name, sheet_number: fresh.sheetNumber ?? null,
-        // The PATH, never the signed url and never the old permanent public one.
-        // This column is what DB-F11 was about.
-        image_uri: durablePlanSheetValue(fresh.storagePath, fresh.imageUri),
-        page_number: fresh.pageNumber ?? null,
-        width: fresh.width ?? null, height: fresh.height ?? null,
-        revision: fresh.revision ?? null,
-        previous_sheet_id: fresh.previousSheetId ?? null,
-        superseded: fresh.superseded ?? null,
-        created_at: fresh.createdAt, updated_at: fresh.updatedAt,
-      });
+      // Inserts first: a superseded flag for a row this batch created is
+      // already on its insert (planSheetBatchCore), so every update below
+      // targets a row the server has.
+      for (const fresh of fold.created) {
+        void supabaseWrite('plan_sheets', 'insert', {
+          id: fresh.id, user_id: userId, project_id: fresh.projectId,
+          name: fresh.name, sheet_number: fresh.sheetNumber ?? null,
+          // The PATH, never the signed url and never the old permanent public one.
+          // This column is what DB-F11 was about.
+          image_uri: durablePlanSheetValue(fresh.storagePath, fresh.imageUri),
+          page_number: fresh.pageNumber ?? null,
+          width: fresh.width ?? null, height: fresh.height ?? null,
+          revision: fresh.revision ?? null,
+          previous_sheet_id: fresh.previousSheetId ?? null,
+          superseded: fresh.superseded ?? null,
+          created_at: fresh.createdAt, updated_at: fresh.updatedAt,
+        });
+      }
+      // Mark the prior latest superseded on the server too, so other devices
+      // see the same chain.
+      for (const old of fold.superseded) {
+        void supabaseWrite('plan_sheets', 'update', {
+          id: old.id, superseded: true, updated_at: now,
+        });
+      }
     }
-    return fresh;
-  }, [planSheets, persistPlanSheets, canSync, userId]);
+    return fold;
+  }, [persistPlanSheets, canSync, userId]);
+
+  const addPlanSheet = useCallback((sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) =>
+    commitPlanSheets([sheet], false).created[0], [commitPlanSheets]);
+
+  const addPlanSheets = useCallback((
+    sheets: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>[],
+    opts?: { matchUnnumberedByPage?: boolean },
+  ) => {
+    const fold = commitPlanSheets(sheets, !!opts?.matchUnnumberedByPage);
+    return { created: fold.created, superseded: fold.superseded };
+  }, [commitPlanSheets]);
 
   const updatePlanSheet = useCallback((id: string, updates: Partial<PlanSheet>) => {
     const now = new Date().toISOString();
-    persistPlanSheets(planSheets.map(s => s.id === id ? { ...s, ...updates, updatedAt: now } : s));
+    // Read the ref, not the render's `planSheets` (same rule as commitPlanSheets):
+    // an update in the same tick as an add would otherwise drop the new sheet.
+    const list = planSheetsRef.current;
+    persistPlanSheets(list.map(s => s.id === id ? { ...s, ...updates, updatedAt: now } : s));
     if (canSync) {
       // Only forward persisted columns — `projectId` is immutable after
       // creation, so we never write it on update.
@@ -5818,7 +6258,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (updates.name !== undefined) patch.name = updates.name;
       if (updates.sheetNumber !== undefined) patch.sheet_number = updates.sheetNumber;
       if (updates.imageUri !== undefined || updates.storagePath !== undefined) {
-        const current = planSheets.find(s => s.id === id);
+        const current = list.find(s => s.id === id);
         patch.image_uri = durablePlanSheetValue(
           updates.storagePath ?? current?.storagePath,
           updates.imageUri ?? current?.imageUri,
@@ -5829,10 +6269,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (updates.height !== undefined) patch.height = updates.height;
       void supabaseWrite('plan_sheets', 'update', { id, ...patch });
     }
-  }, [planSheets, persistPlanSheets, canSync]);
+  }, [persistPlanSheets, canSync]);
 
   const deletePlanSheet = useCallback((id: string) => {
-    persistPlanSheets(planSheets.filter(s => s.id !== id));
+    persistPlanSheets(planSheetsRef.current.filter(s => s.id !== id));
     // cascade: pins, markups, calibrations on that sheet.
     // Server side relies on ON DELETE CASCADE from plan_sheets — we only
     // need to issue the parent delete. Local state still needs the manual
@@ -5841,7 +6281,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     persistPlanMarkups(planMarkups.filter(m => m.planSheetId !== id));
     persistPlanCalibrations(planCalibrations.filter(c => c.planSheetId !== id));
     if (canSync) void supabaseWrite('plan_sheets', 'delete', { id });
-  }, [planSheets, drawingPins, planMarkups, planCalibrations, persistPlanSheets, persistDrawingPins, persistPlanMarkups, persistPlanCalibrations, canSync]);
+  }, [drawingPins, planMarkups, planCalibrations, persistPlanSheets, persistDrawingPins, persistPlanMarkups, persistPlanCalibrations, canSync]);
 
   const getPlanSheetsForProject = useCallback((projectId: string) =>
     planSheets.filter(s => s.projectId === projectId).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
@@ -6218,14 +6658,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     projects: sortedProjects, settings, hasSeenOnboarding, userRole,
     isLoading: projectsQuery.isLoading || settingsQuery.isLoading || onboardingQuery.isLoading || userRoleQuery.isLoading,
     projectsLoaded,
+    settingsLoaded,
     sourceFailed: reachability.failed,
     retryRemoteReads,
-    addProject, updateProject, deleteProject, getProject, updateSettings,
+    addProject, updateProject, deleteProject, getProject, updateSettings, savePaymentTerms,
     addCollaborator, removeCollaborator,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, reachability.failed, retryRemoteReads, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
+  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, reachability.failed, retryRemoteReads, settingsLoaded, addProject, updateProject, deleteProject, getProject, updateSettings, savePaymentTerms, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
     changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject,
@@ -6243,17 +6684,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, getDailyReportsForProject,
     fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject,
-    punchItems, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject,
+    punchItems: punchItemsView, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject,
     projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
-    planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
+    planSheets, addPlanSheet, addPlanSheets, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject,
     planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
     permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap,
-  }), [dailyReports, getDailyReportsForProject, fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject, punchItems, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
+  }), [dailyReports, getDailyReportsForProject, fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject, punchItemsView, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, addPlanSheets, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
 
   const preconData = useMemo<PreconDataValue>(() => ({
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
@@ -6278,7 +6719,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     completeOnboarding,
     setUserRole,
     flushPendingProjectSyncs,
-  }), [completeOnboarding, setUserRole, flushPendingProjectSyncs]);
+    absorbServerSchedule,
+  }), [completeOnboarding, setUserRole, flushPendingProjectSyncs, absorbServerSchedule]);
 
   // Non-destructive import (app/data-import.tsx). Merges records from a MAGE
   // export BY ID — never overwrites or deletes existing rows, so re-importing

@@ -45,12 +45,19 @@ export function toolboxGaps(draft: ToolboxDraft, grounding: Grounding): Gap[] {
   }
 
   const top = merged[0];
+  // The grounding line rides on the default's basis, so the interview says what
+  // the recommendation was built from — including "nothing logged yet" when an
+  // evergreen topic leads only because this job has no history (audit round 2 #5).
+  const groundedOn = typeof (grounding.data as { groundedOn?: unknown })?.groundedOn === 'string'
+    ? (grounding.data as { groundedOn: string }).groundedOn
+    : '';
+  const baseBasis = top?.basis ?? 'the #1 OSHA citation';
   return [{
     field: 'topic', impact: 0.7, kind: 'choice',
     question: 'What’s today’s topic?',
     groundedDefault: {
       value: top?.value ?? 'Fall protection',
-      basis: top?.basis ?? 'the #1 OSHA citation',
+      basis: groundedOn ? `${baseBasis} · ${groundedOn}` : baseBasis,
     },
     choices: merged.map((s, i) => ({ label: s.label, value: s.value, basis: s.basis, recommended: i === 0 })),
   }];

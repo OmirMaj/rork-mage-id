@@ -7,8 +7,11 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Megaphone, Plus, X, Trash2, PenLine, CheckCircle, Users, ChevronLeft, Lock, Mic,
+  Megaphone, Plus, X, Trash2, PenLine, CheckCircle, Users, ChevronLeft, Lock, Mic, AlertTriangle, UserPlus,
 } from 'lucide-react-native';
+import { useCrew } from '@/contexts/CrewContext';
+import { prefillAttendeesFromCrew } from '@/utils/safety/toolboxRoster';
+import { certFlagsForWorker, lapsedCertConfirmText } from '@/utils/safety/crewCerts';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -24,6 +27,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+// Local calendar day for date defaults — toISOString() is the UTC day and
+// stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export default function SafetyToolboxScreen() {
   const router = useRouter();
@@ -54,7 +60,12 @@ function SafetyToolboxInner() {
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
-  const { getToolboxTalksForProject, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk } = useSafety();
+  const { getToolboxTalksForProject, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk, certifications } = useSafety();
+  // Read-only: who is assigned to this job (CrewMember.projectIds, written by
+  // app/crew.tsx). Pre-fills the sign-in sheet — audit round 2 #5b.
+  const { getCrewForProject } = useCrew();
+  const assignedCrew = useMemo(() => getCrewForProject(projectId ?? ''), [getCrewForProject, projectId]);
+  const today = useMemo(() => todayCalendarDay(), []);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const items = useMemo(() => getToolboxTalksForProject(projectId ?? ''), [projectId, getToolboxTalksForProject]);
@@ -62,7 +73,7 @@ function SafetyToolboxInner() {
   const [showForm, setShowForm] = useState(false);
   const [editingTalk, setEditingTalk] = useState<ToolboxTalk | null>(null);
   const [topic, setTopic] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => todayCalendarDay());
   const [presenter, setPresenter] = useState('');
   const [notes, setNotes] = useState('');
   const [attendees, setAttendees] = useState<SafetyAttendee[]>([]);
@@ -81,9 +92,28 @@ function SafetyToolboxInner() {
   const resetForm = useCallback(() => {
     setEditingTalk(null);
     setTopic(''); setPresenter(''); setNotes('');
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayCalendarDay());
     setAttendees([]); setAttendeeName('');
   }, []);
+
+  /** Open a NEW talk with the assigned crew already listed, unsigned. He
+   *  removes whoever is absent; nobody is signed for him. */
+  const openNew = useCallback(() => {
+    resetForm();
+    setAttendees(prefillAttendeesFromCrew([], assignedCrew));
+    setShowForm(true);
+  }, [resetForm, assignedCrew]);
+
+  // Crew assigned after the talk was opened (or never pre-filled because the
+  // talk predates this) — one tap instead of retyping. Still unsigned rows, so
+  // this is allowed on a locked (signed) sheet: sign-ins are append-only.
+  const missingCrewCount = useMemo(
+    () => prefillAttendeesFromCrew(attendees, assignedCrew).length - attendees.length,
+    [attendees, assignedCrew],
+  );
+  const addAssignedCrew = useCallback(() => {
+    setAttendees(prev => prefillAttendeesFromCrew(prev, assignedCrew));
+  }, [assignedCrew]);
 
   // ── Attendee editor ──────────────────────────────────────────────────
   const addAttendee = useCallback(() => {
@@ -105,7 +135,7 @@ function SafetyToolboxInner() {
     });
   }, []);
 
-  const toggleAttendeeSigned = useCallback((idx: number) => {
+  const signAttendee = useCallback((idx: number) => {
     setAttendees(prev => prev.map((a, i) => {
       if (i !== idx) return a;
       // Signing is append-only: once signed, it stays signed. Only an unsigned
@@ -117,6 +147,24 @@ function SafetyToolboxInner() {
       return { ...a, signedAt: new Date().toISOString() };
     }));
   }, []);
+
+  // Signing someone whose card has lapsed asks first and names the card and its
+  // date (audit round 2 #2). A confirmation, not a block: the super may know the
+  // renewal is in hand — but he decides with the fact in front of him.
+  const toggleAttendeeSigned = useCallback((idx: number) => {
+    const a = attendees[idx];
+    if (a && !a.signedAt && a.subId) {
+      const warn = lapsedCertConfirmText(a.name, certFlagsForWorker(certifications, a.subId, today));
+      if (warn) {
+        showAlert('Certification lapsed', warn, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign in anyway', style: 'destructive', onPress: () => signAttendee(idx) },
+        ]);
+        return;
+      }
+    }
+    signAttendee(idx);
+  }, [attendees, certifications, today, signAttendee]);
 
   const openEdit = useCallback((talk: ToolboxTalk) => {
     setEditingTalk(talk);
@@ -201,7 +249,10 @@ function SafetyToolboxInner() {
               <View style={styles.attendeeSummary}>
                 <Users size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
                 <Text style={styles.cardSummary}>
-                  {item.attendees.length} attendee{item.attendees.length === 1 ? '' : 's'} ({signed} signed)
+                  {/* "listed", not "attendees": the roster pre-fill adds the
+                      crew before anyone signs, so the count is who is on the
+                      sheet, and only the signed number is who attended. */}
+                  {item.attendees.length} listed · {signed} signed
                 </Text>
                 {signed > 0 ? (
                   <View style={styles.lockedChip}>
@@ -221,7 +272,7 @@ function SafetyToolboxInner() {
               title="No toolbox talks yet"
               message="Log the pre-shift safety huddle: the topic, who presented, and who signed in. Keep a paper trail crews and inspectors can trust."
               actionLabel="Add first talk"
-              onAction={() => { resetForm(); setShowForm(true); }}
+              onAction={openNew}
             />
           </View>
         )}
@@ -236,7 +287,7 @@ function SafetyToolboxInner() {
           <Text style={styles.addItemBtnText}>Write one by voice</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-toolbox">
+        <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-toolbox">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.addItemBtnText}>Add Toolbox Talk</Text>
         </TouchableOpacity>
@@ -294,7 +345,18 @@ function SafetyToolboxInner() {
 
                 <View style={styles.stepsHeader}>
                   <Text style={styles.fieldLabel}>Attendees</Text>
+                  {missingCrewCount > 0 ? (
+                    <TouchableOpacity style={styles.crewAddBtn} onPress={addAssignedCrew} accessibilityRole="button" testID="toolbox-add-crew">
+                      <UserPlus size={14} color={themeColors.accent} strokeWidth={1.75} />
+                      <Text style={styles.crewAddText}>Add assigned crew ({missingCrewCount})</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
+                {!editingTalk && assignedCrew.length > 0 ? (
+                  <Text style={styles.hintText}>
+                    Listed from the crew assigned to this project. Remove anyone who isn&apos;t here, then have each person sign.
+                  </Text>
+                ) : null}
                 <View style={styles.attendeeAddRow}>
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
@@ -310,9 +372,20 @@ function SafetyToolboxInner() {
                   </TouchableOpacity>
                 </View>
 
-                {attendees.map((a, idx) => (
+                {attendees.map((a, idx) => {
+                  // Only a roster-linked row gets a chip — see utils/safety/crewCerts.
+                  const flags = a.subId ? certFlagsForWorker(certifications, a.subId, today) : [];
+                  return (
                   <View key={`${a.name}-${idx}`} style={styles.attendeeRow}>
-                    <Text style={styles.attendeeName} numberOfLines={1}>{a.name}</Text>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={styles.attendeeName} numberOfLines={1}>{a.name}</Text>
+                      {flags.map(f => (
+                        <View key={f.certId} style={[styles.certChip, f.status === 'expired' ? styles.certChipExpired : null]} testID="toolbox-cert-chip">
+                          <AlertTriangle size={11} color={f.status === 'expired' ? themeColors.danger : themeColors.accentLabel} strokeWidth={2} />
+                          <Text style={[styles.certChipText, { color: f.status === 'expired' ? themeColors.danger : themeColors.accentLabel }]}>{f.label}</Text>
+                        </View>
+                      ))}
+                    </View>
                     <TouchableOpacity
                       style={[styles.signToggle, a.signedAt ? { backgroundColor: themeColors.successSoft } : null]}
                       onPress={() => toggleAttendeeSigned(idx)}
@@ -330,7 +403,8 @@ function SafetyToolboxInner() {
                       <X size={16} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
-                ))}
+                  );
+                })}
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
@@ -378,6 +452,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   attendeeAddRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   attendeeAddBtn: { width: 44, height: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '12', alignItems: 'center', justifyContent: 'center' },
   attendeeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, marginTop: 8, borderWidth: 0.5, borderColor: themeColors.line },
+  crewAddBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '12' },
+  crewAddText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  hintText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
+  certChip: { flexDirection: 'row' as const, alignItems: 'center' as const, alignSelf: 'flex-start' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accentSoft },
+  certChipExpired: { backgroundColor: themeColors.dangerSoft },
+  certChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   attendeeName: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text, fontWeight: '600' as const },
   signToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
   signToggleText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },

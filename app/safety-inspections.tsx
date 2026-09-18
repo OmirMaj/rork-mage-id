@@ -22,6 +22,9 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { scoreInspection, inspectionItemsFromTemplate, hazardFromFailedItem } from '@/utils/safety/inspectionScore';
 import type { SafetyInspection, InspectionItem, SafetyFormTemplate } from '@/types';
 import { showAlert } from '@/utils/alert';
+// Local calendar day for date defaults — toISOString() is the UTC day and
+// stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 const RESULTS: InspectionItem['result'][] = ['pass', 'fail', 'na'];
 const RESULT_LABEL: Record<InspectionItem['result'], string> = { pass: 'Pass', fail: 'Fail', na: 'N/A' };
@@ -71,7 +74,7 @@ function SafetyInspectionsInner() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<SafetyInspection | null>(null);
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => todayCalendarDay());
   const [inspector, setInspector] = useState('');
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<InspectionItem[]>([]);
@@ -91,7 +94,7 @@ function SafetyInspectionsInner() {
   const resetForm = useCallback(() => {
     setEditing(null);
     setTitle('');
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayCalendarDay());
     setInspector('');
     setTemplateId(undefined);
     setItems([]);

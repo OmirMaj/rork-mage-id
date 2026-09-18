@@ -78,5 +78,15 @@ const other = aggregateTypeMargin([p], 'roofing', [c]);
 expect('filters by type → none', other.jobCount, 0);
 expect('null avg when no history', other.avgMarginPct, null);
 
+// JUDGES' track-record sentence must not state a committed-cost-only margin as
+// his realized margin (integration round 1, money-accounts; sibling of #16).
+{
+  const { readFileSync } = await import('node:fs');
+  const verdictSrc = readFileSync(new URL('../utils/judges/computeBidVerdict.ts', import.meta.url), 'utf8');
+  expect('track-record line names its cost basis, not "realized margin"',
+    /% margin on subcontract and PO cost \(crew labor and receipts not counted\)\./.test(verdictSrc)
+      && !/% realized margin\./.test(verdictSrc), true);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

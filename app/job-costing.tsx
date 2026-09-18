@@ -51,7 +51,8 @@ import type {
   Commitment, CommitmentType, ChangeOrder, MaterialReceipt, TimeEntry,
   Equipment, Permit, Subcontractor,
 } from '@/types';
-import { calendarDayStart } from '@/utils/calendarDate';
+import { calendarDayStart, todayCalendarDay } from '@/utils/calendarDate';
+import { timeEntryDay } from '@/hooks/useTimeEntries';
 import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { sharePurchaseOrderPDF } from '@/utils/purchaseOrderPdf';
@@ -787,7 +788,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
   const [description, setDescription] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [phase, setPhase] = useState<string>('');
-  const [signedDate, setSignedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [signedDate, setSignedDate] = useState<string>(() => todayCalendarDay());
   const [subId, setSubId] = useState<string>('');
   const [vendorName, setVendorName] = useState<string>('');
 
@@ -807,7 +808,8 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
       setDescription('');
       setAmount('');
       setPhase('');
-      setSignedDate(new Date().toISOString().slice(0, 10));
+      // The LOCAL day: the UTC day is tomorrow from about 5 pm Pacific.
+      setSignedDate(todayCalendarDay());
       setSubId('');
       setVendorName('');
     }
@@ -1142,7 +1144,10 @@ function buildPhaseDrill(
     crewRows.push({
       id,
       title: `${e.workerName || 'Crew'} · ${e.trade || 'crew'}`,
-      detail: `${shortDate(e.date)} · ${e.totalHours}h${e.overtimeHours > 0 ? ` (${e.overtimeHours}h OT)` : ''}`,
+      // timeEntryDay: shifts saved before the #9 fix hold the UTC day in
+      // `date`, so an evening shift read it as tomorrow; the clock-in instant
+      // names the day it was worked, as History does.
+      detail: `${shortDate(timeEntryDay(e))} · ${e.totalHours}h${e.overtimeHours > 0 ? ` (${e.overtimeHours}h OT)` : ''}`,
       onPress: open.crew,
     });
   }

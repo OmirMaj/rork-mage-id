@@ -39,7 +39,7 @@ import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, LeakScanRecord, ScheduleTask } from '@/types';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
-import { parseCalendarDay, calendarDayOf, daysUntilCalendarDay, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, calendarDayOf, daysUntilCalendarDay, formatCalendarDay, todayCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
 import type { DailyReportGenResult } from '@/utils/aiService';
@@ -72,11 +72,17 @@ import { recordDidForYou } from '@/utils/brain/didForYou';
 import { showAlert } from '@/utils/alert';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTimeEntries } from '@/contexts/TimeEntriesContext';
+import { mergeTimeEntriesMirror } from '@/hooks/useTimeEntries';
+import { addClockRowsToRoster, carryForwardManpower, clockCrewForDay, clockCrewSourceLine, clockRosterGapLine, clockRowsMissingFromRoster, liveClockHoursWarning, seedRowIds } from '@/utils/dfrClockCrew';
+import { receiptLinesForDay, mergeReceiptLines, carryIssuesText } from '@/utils/deliverySchedule';
+import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
 import {
-  buildSafetyIncidentFromDfr, describeRecordability, safetyIncidentIdForReport,
+  buildSafetyIncidentFromDfr, describeRecordability, hasRestriction, safetyIncidentIdForReport,
   DFR_INCIDENT_TYPE_LABEL, DFR_TREATMENT_LABEL,
   type IncidentClassInput, type IncidentType, type Treatment,
 } from '@/utils/safety/osha';
+import { isRecordableCase } from '@/utils/safety/oshaLog';
 import {
   backfilledWeatherNotice, canReadLiveWeatherFor, weatherProvenanceLine,
 } from '@/utils/weatherService';
@@ -494,7 +500,17 @@ export default function DailyReportScreen() {
     // project's own prior reports (see tradeSuggestions below), NOT from
     // Subcontractor.trade, which is a four-value coarse enum.
     subcontractors,
+    // Receiving log (field-ops #11): a load signed for on the Deliveries screen
+    // is filled into this report's materials, and a damaged one into issues.
+    deliveries, deliveryReceipts,
   } = useProjects();
+  // The time clock's shifts (field-ops #10) — the crew roster's first source.
+  // Own shifts PLUS the crew's (#28): on a job a foreman runs, the GC's own
+  // `entries` hold nobody, so the roster fell back to the schedule plan and
+  // guessed 8-hour days for a crew the clock had measured. Read-only merge
+  // (mergeTimeEntriesMirror) — this screen never writes a time entry.
+  const { entries: ownTimeEntries, teamEntries, refresh: refreshTimeEntries } = useTimeEntries();
+  const timeEntries = useMemo(() => mergeTimeEntriesMirror(ownTimeEntries, teamEntries), [ownTimeEntries, teamEntries]);
   // DFR-OSHA-BRIDGE — an injury written on the daily report has to land on the
   // safety register, or it never reaches the OSHA 300 that gets pulled months
   // later for an insurance renewal or a prequal.
@@ -557,7 +573,7 @@ export default function DailyReportScreen() {
   const todaysProjectPhotos = useMemo(() => {
     const all = getPhotosForProject(projectId ?? '');
     const ref = existingReports.find(r => r.id === reportId)?.date ?? new Date().toISOString();
-    const refDay = new Date(ref).toDateString();
+    const refDay = dayOrInstantDate(ref).toDateString();
     return all.filter(p => p.timestamp && new Date(p.timestamp).toDateString() === refDay);
   }, [projectId, reportId, existingReports, getPhotosForProject]);
   const existingReport = useMemo(() => reportId ? existingReports.find(r => r.id === reportId) : null, [reportId, existingReports]);
@@ -569,6 +585,11 @@ export default function DailyReportScreen() {
   // Signature of the roster the schedule prefill last wrote, so a date change
   // can tell an untouched auto-seed from crews the GC typed (see the prefill effect).
   const autoSeedRef = useRef<string | null>(null);
+  // Same idea for the receiving-log fill (field-ops #11): the materials list and
+  // the issues text the Deliveries receipts last wrote, so a date change swaps
+  // an untouched fill but never overwrites lines the super typed.
+  const materialsSeedRef = useRef<string | null>(null);
+  const issuesSeedRef = useRef<string | null>(null);
   /**
    * What the SCREEN filled in by itself, as opposed to what the super typed.
    *
@@ -587,7 +608,9 @@ export default function DailyReportScreen() {
    * So the baseline is "saved report, or failing that whatever the app filled
    * in on its own". Only what a human changed after that reads as unsaved work.
    */
-  const [autoFilled, setAutoFilled] = useState<{ weather?: DFRWeather; manpower?: ManpowerEntry[] }>({});
+  const [autoFilled, setAutoFilled] = useState<{
+    weather?: DFRWeather; manpower?: ManpowerEntry[]; materialsDelivered?: string[]; issuesAndDelays?: string;
+  }>({});
   const [workPerformed, setWorkPerformed] = useState(existingReport?.workPerformed ?? '');
   // Structured per-task progress chips. Each entry pins a task from the
   // project schedule + a percent-complete the GC observed today.
@@ -674,6 +697,54 @@ export default function DailyReportScreen() {
     if (existingReport?.date) setReportDate(existingReport.date);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingReport?.id]);
+  // The report's LOCAL calendar day. reportDate starts life as an ISO instant,
+  // and a raw prefix match on it names tomorrow after ~5–8 pm in the US — the
+  // receipts and clocked shifts below are joined on this instead.
+  const reportCalendarDay = useMemo(() => calendarDayOf(reportDate), [reportDate]);
+  // This day's receipts from the Deliveries screen, as report lines
+  // (field-ops #11). Matched on the REPORT's day, so a Friday report filled in
+  // on Monday picks up Friday's loads.
+  const receiptLines = useMemo(
+    () => receiptLinesForDay(deliveryReceipts, deliveries, projectId ?? '', reportCalendarDay),
+    [deliveryReceipts, deliveries, projectId, reportCalendarDay],
+  );
+  const receiptLinesSig = useMemo(() => JSON.stringify(receiptLines), [receiptLines]);
+  // Fill a NEW report's materials (and a damaged load into issues) from the
+  // day's receipts. Re-runs when the date or the receipts change, and only
+  // replaces a field that is empty or still exactly what this fill wrote.
+  useEffect(() => {
+    if (existingReport) return;
+    const matsUntouched = materialsDelivered.length === 0 || JSON.stringify(materialsDelivered) === materialsSeedRef.current;
+    if (matsUntouched) {
+      const next = receiptLines.materials;
+      materialsSeedRef.current = next.length > 0 ? JSON.stringify(next) : null;
+      setMaterialsDelivered(next);
+      setAutoFilled(p => ({ ...p, materialsDelivered: next }));
+    }
+    const issuesUntouched = !issuesAndDelays.trim() || issuesAndDelays === issuesSeedRef.current;
+    if (issuesUntouched) {
+      const next = receiptLines.damage.join('\n');
+      issuesSeedRef.current = next || null;
+      setIssuesAndDelays(next);
+      setAutoFilled(p => ({ ...p, issuesAndDelays: next }));
+    }
+    // A fill the app wrote is not the super's work — see DFR-DIRTY-AUTOFILL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receiptLinesSig]);
+  /** Receipt lines this report does not carry yet — a saved report, a list
+   *  the super edited, or a load received after the report was started. */
+  const missingReceiptLines = useMemo(
+    () => receiptLines.materials.filter(l => !materialsDelivered.includes(l)),
+    [receiptLines, materialsDelivered],
+  );
+  const handleAddReceiptLines = useCallback(() => {
+    setMaterialsDelivered(prev => mergeReceiptLines(prev, receiptLines.materials));
+    setIssuesAndDelays(prev => {
+      const missing = receiptLines.damage.filter(l => !prev.includes(l));
+      return missing.length === 0 ? prev : [prev.trim(), ...missing].filter(Boolean).join('\n');
+    });
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+  }, [receiptLines]);
   // Stable report id — used both for saving the DFR record and for
   // naming the PDF in the `project-documents` bucket. We derive it
   // once per existingReport identity so the same report always lands
@@ -734,6 +805,10 @@ export default function DailyReportScreen() {
     type: incidentClass.type,
     treatment: incidentClass.treatment,
     daysAway: Math.max(0, parseInt(incidentClass.daysAway, 10) || 0),
+    // The live verdict has to read the day count too (safety-compliance #1):
+    // "5 days restricted" with the toggle off is a restricted-work case, and
+    // leaving this out showed "Not recordable" directly under the 5.
+    daysRestricted: Math.max(0, parseInt(incidentClass.daysRestricted, 10) || 0),
     restrictedDuty: incidentClass.restrictedDuty,
     lostConsciousness: incidentClass.lostConsciousness,
     fatality: incidentClass.fatality,
@@ -742,6 +817,23 @@ export default function DailyReportScreen() {
    *  self-ticked "OSHA recordable" checkbox — the app shows its work instead
    *  of asking him to certify a determination he has no reference for. */
   const recordability = useMemo(() => describeRecordability(incidentClassInput), [incidentClassInput]);
+  /** The restricted box as the case will be filed — on whenever days are
+   *  counted, same as the incident screen (buildSafetyIncidentFromDfr folds
+   *  the day count in on save). */
+  const restrictedShownOn = hasRestriction(incidentClassInput);
+  const toggleRestrictedDuty = useCallback(() => {
+    // Blocked, and says why: unticking while days are counted would show a box
+    // that is off for a case that is filed as restricted anyway.
+    const days = incidentClassInput.daysRestricted ?? 0;
+    if (days > 0) {
+      showAlert(
+        'Restricted days are counted',
+        `${days} day${days === 1 ? '' : 's'} of restriction are entered, which makes this a restricted-work case. Clear the day count to untick it.`,
+      );
+      return;
+    }
+    setIncidentClass(p => ({ ...p, restrictedDuty: !p.restrictedDuty }));
+  }, [incidentClassInput.daysRestricted]);
 
   // "Save copy to project files" toggle in the Send modal — when on,
   // the rendered HTML report is uploaded as a PDF to the project's
@@ -756,7 +848,7 @@ export default function DailyReportScreen() {
   // two different dates on the same screen. Bound to `reportDate` now so
   // both stay in sync.
   const reportDateStr = useMemo(() => {
-    return new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return dayOrInstantDate(reportDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }, [reportDate]);
 
   // "Day 35 of 103" — the project's calendar day relative to the schedule's
@@ -775,7 +867,7 @@ export default function DailyReportScreen() {
     // on the report's own date so a backfilled Friday report says Friday's day.
     const startDay = parseCalendarDay(start);
     if (!startDay) return null;
-    const reportDay = new Date(reportDate); // reportDate is an instant, not a calendar day
+    const reportDay = dayOrInstantDate(reportDate); // an instant, or a bare day from an older voice report
     if (!Number.isFinite(reportDay.getTime())) return null;
     const day = Math.max(1, Math.min(total,
       scheduleDayNumberFor(startDay, reportDay, sched.workingDaysPerWeek, sched.nonWorkingDates)));
@@ -816,14 +908,34 @@ export default function DailyReportScreen() {
     // the ripple is blocked with the day it was applied on named — with Re-arm
     // beside it for the genuinely recurring delay ("rain again"). See the
     // DFR-DELAY-RECARRY note at the top of this file.
-    setManpower(lastReport.manpower ?? []);
+    // Today's time-clock rows stay; yesterday's sub/plan rows carry
+    // (utils/dfrClockCrew.carryForwardManpower) — a plain copy put yesterday's
+    // crew and hours on today's signed report.
+    setManpower(prev => carryForwardManpower(lastReport.manpower ?? [], prev));
     if (lastReport.workPerformed) setWorkPerformed(lastReport.workPerformed);
-    setMaterialsDelivered(lastReport.materialsDelivered ?? []);
-    if (lastReport.issuesAndDelays) setIssuesAndDelays(lastReport.issuesAndDelays);
+    // Yesterday's materials minus the lines yesterday's RECEIPTS wrote, plus
+    // this day's receipts: yesterday's loads must not stand in for today's on
+    // a record that gets pulled in a late-material claim (field-ops #11).
+    const lastDayReceipts = receiptLinesForDay(deliveryReceipts, deliveries, projectId ?? '', calendarDayOf(lastReport.date));
+    const carriedMaterials = mergeReceiptLines(lastReport.materialsDelivered ?? [], receiptLines.materials, lastDayReceipts.materials);
+    setMaterialsDelivered(carriedMaterials);
+    materialsSeedRef.current = null; // the copy is his choice now, not an untouched fill
+    if (lastReport.issuesAndDelays) {
+      // The delay note itself carries forward — that is the point of the
+      // button, and validate-delay-rfi pins this line (the double-ripple fix
+      // was the applied-marker guard, not dropping the field).
+      setIssuesAndDelays(lastReport.issuesAndDelays);
+      // Then, in the same batch: drop the "Damaged delivery: …" lines that
+      // YESTERDAY's receipts wrote (that load was damaged yesterday, and on
+      // today's dated record it reads as a second damaged load) and add
+      // today's. Materials get the same treatment above.
+      setIssuesAndDelays(prev => carryIssuesText(prev, receiptLines.damage, lastDayReceipts.damage));
+      issuesSeedRef.current = null;
+    }
     setCarryFormFromId(lastReport.id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     nailIt(`Copied from ${carrySourceDayAbsolute(lastReport.date)}. Edit anything that's different.`);
-  }, [lastReport]);
+  }, [lastReport, deliveryReceipts, deliveries, projectId, receiptLines]);
 
   // "earlier today" / "yesterday" are relative to a `now` that has to be read
   // again when it changes, or the button keeps naming the day it was mounted
@@ -1014,81 +1126,145 @@ export default function DailyReportScreen() {
       : undefined,
   }), [weather, reportIsToday, project?.location, weatherReadAt]);
 
-  // Pre-fill manpower from today's scheduled tasks. The schedule already
-  // tracks who's assigned (`assignedSubName` or free-text `crew`) per task
-  // and roughly how many people (`crewSize`). Pre-fix this opened blank,
-  // so the GC retyped the same crew that was already on screen in the
-  // schedule view five minutes earlier. Idempotent — seeds a fresh DFR's
-  // empty roster, and re-seeds when the report DATE changes as long as the
-  // roster is still the untouched auto-seed (B4 review A7: a Friday report
-  // backfilled on Monday used to keep Monday's crews).
+  // Pre-fill manpower for the report's day. Two sources, in order of truth:
+  //
+  //   1. THE TIME CLOCK (field-ops #10). Who actually clocked in on this job
+  //      that calendar day, and for how long — see utils/dfrClockCrew for which
+  //      shifts count and why the day comes from clockIn, not TimeEntry.date.
+  //      A report that says "Framing × 4, 8 hrs" while payroll says 3 framers +
+  //      1 laborer × 9 h is two contradicting records from one app.
+  //   2. THE SCHEDULE PLAN. Who is assigned (`assignedSubName` / `crew`) and
+  //      roughly how many (`crewSize`) on today's live tasks. Used for every
+  //      row when nobody clocked in, and for SUB crews (a task with an assigned
+  //      company) either way, because a sub's crew never clocks into this app.
+  //
+  // Idempotent — seeds a fresh DFR's empty roster, and re-seeds when the report
+  // DATE or the clocked shifts change as long as the roster is still the
+  // untouched auto-seed (B4 review A7: a Friday report backfilled on Monday
+  // used to keep Monday's crews). Rows the GC typed are never overwritten.
+  // An open shift's hours are "so far", read at `liveNowMs`. That instant is
+  // re-read each minute while anyone is still on the clock, so an untouched
+  // roster keeps counting instead of freezing at the hours from when the
+  // screen opened (the seed below re-runs on the changed signature).
+  // Pull the crew's clock-ins when the report opens (and on a project
+  // switch). The team rows otherwise refresh only at launch, on Time Tracking
+  // and on a foreground 5+ minutes after the last — so a foreman's 7:00
+  // clock-in on his own phone could be missing from the roster the super
+  // signs at 16:00.
+  useEffect(() => { refreshTimeEntries(); }, [projectId, refreshTimeEntries]);
+  const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  const clockCrew = useMemo(
+    () => (project && reportCalendarDay
+      ? clockCrewForDay(timeEntries, project.id, reportCalendarDay, settings?.branding?.companyName, liveNowMs)
+      : null),
+    [timeEntries, project, reportCalendarDay, settings?.branding?.companyName, liveNowMs],
+  );
+  const hasLiveShifts = (clockCrew?.liveCount ?? 0) > 0;
+  useEffect(() => {
+    if (!hasLiveShifts) return;
+    const id = setInterval(() => setLiveNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [hasLiveShifts]);
+  // A string, so the effect below re-runs when the clocked crew actually
+  // changes (someone clocks out) and not on every store re-render.
+  const clockCrewSig = useMemo(
+    () => (clockCrew ? JSON.stringify(clockCrew.rows.map(r => [r.trade, r.company, r.headcount, r.hoursWorked, r.liveCount])) : ''),
+    [clockCrew],
+  );
+  const [crewSource, setCrewSource] = useState<{ kind: 'clock' | 'schedule'; line: string } | null>(null);
   useEffect(() => {
     if (existingReport) return;
-    if (!project?.schedule || !project.schedule.tasks?.length) return;
     if (manpower.length > 0 && JSON.stringify(manpower) !== autoSeedRef.current) return;
 
-    const baseIso = project.schedule.startDate || project.createdAt;
-    // UX-F1: same 1-indexed working-day anchor as the hero above and the
-    // Home/Summary "today on site" strips (day 1 = the start calendar day).
-    // The old 0-indexed raw-elapsed count never matched a startDay-1 task on
-    // day 1 and drifted a day for every weekend crossed.
-    const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
-    if (!Number.isFinite(base.getTime())) return;
-    // B4 review A7: anchored on the report's own date like the hero above —
-    // a Friday report backfilled on Monday prefilled Monday's crews.
-    const reportDay = new Date(reportDate); // reportDate is an instant, not a calendar day
-    if (!Number.isFinite(reportDay.getTime())) return;
-    const todayDay = scheduleDayNumberFor(base, reportDay, project.schedule.workingDaysPerWeek, project.schedule.nonWorkingDates);
-
-    // Gather today's live tasks — started but not finished, not done.
-    const liveTasks = project.schedule.tasks.filter(t => {
-      if (t.status === 'done') return false;
-      if (t.isMilestone) return false; // milestones aren't crew assignments
-      if (t.isLevelOfEffort || t.isSummary) return false;
-      const start = Math.max(1, t.startDay ?? 1);
-      const dur = Math.max(0, t.durationDays ?? 0);
-      // Inclusive last active day = start + dur - 1 (matches getTaskDateRange).
-      return todayDay >= start && todayDay <= start + dur - 1;
-    });
-    if (liveTasks.length === 0) return;
-
-    // Group by trade/crew label. Headcount = sum of task.crewSize (or 1
-    // when missing). The GC can edit / add / remove from the manpower
-    // modal — this is a starting point, not a contract.
-    const groups = new Map<string, { trade: string; company: string; headcount: number }>();
-    for (const t of liveTasks) {
-      // The phase is the third fallback, ahead of the literal 'Crew'. Every
-      // saved report in production landed on 'Crew' with an empty company,
-      // because a generated schedule fills `phase` and leaves `crew` blank —
-      // and normalizeTradeKey (utils/brain/laborSamples.ts) only lowercases, so
-      // every trade on the job folded into one anonymous bucket and
-      // crewPresence's "this trade went quiet" chase had nothing to chase.
-      // 'Framing' is a trade the super recognises and can keep; 'Crew' is not.
-      const trade = (t.crew || t.assignedSubName || t.phase || 'Crew').trim() || 'Crew';
-      const company = (t.assignedSubName || '').trim();
-      const key = `${trade.toLowerCase()}|${company.toLowerCase()}`;
-      const headcount = Math.max(1, t.crewSize ?? 1);
-      const prev = groups.get(key);
-      if (prev) prev.headcount += headcount;
-      else groups.set(key, { trade, company, headcount });
+    // Schedule-plan rows for the report's day (may be empty).
+    const planned: { trade: string; company: string; headcount: number }[] = [];
+    if (project?.schedule && project.schedule.tasks?.length) {
+      const baseIso = project.schedule.startDate || project.createdAt;
+      // UX-F1: same 1-indexed working-day anchor as the hero above and the
+      // Home/Summary "today on site" strips (day 1 = the start calendar day).
+      const base = parseCalendarDay(baseIso) ?? new Date(baseIso);
+      // B4 review A7: anchored on the report's own date like the hero above.
+      const reportDay = dayOrInstantDate(reportDate); // an instant, or a bare day from an older voice report
+      if (Number.isFinite(base.getTime()) && Number.isFinite(reportDay.getTime())) {
+        const todayDay = scheduleDayNumberFor(base, reportDay, project.schedule.workingDaysPerWeek, project.schedule.nonWorkingDates);
+        // Today's live tasks — started but not finished, not done.
+        const liveTasks = project.schedule.tasks.filter(t => {
+          if (t.status === 'done') return false;
+          if (t.isMilestone) return false; // milestones aren't crew assignments
+          if (t.isLevelOfEffort || t.isSummary) return false;
+          const start = Math.max(1, t.startDay ?? 1);
+          const dur = Math.max(0, t.durationDays ?? 0);
+          // Inclusive last active day = start + dur - 1 (matches getTaskDateRange).
+          return todayDay >= start && todayDay <= start + dur - 1;
+        });
+        const groups = new Map<string, { trade: string; company: string; headcount: number }>();
+        for (const t of liveTasks) {
+          // The phase is the third fallback, ahead of the literal 'Crew'. A
+          // generated schedule fills `phase` and leaves `crew` blank, and
+          // normalizeTradeKey only lowercases, so every trade folded into one
+          // anonymous 'Crew' bucket and crewPresence had nothing to chase.
+          const trade = (t.crew || t.assignedSubName || t.phase || 'Crew').trim() || 'Crew';
+          const company = (t.assignedSubName || '').trim();
+          const key = `${trade.toLowerCase()}|${company.toLowerCase()}`;
+          const headcount = Math.max(1, t.crewSize ?? 1);
+          const prev = groups.get(key);
+          if (prev) prev.headcount += headcount;
+          else groups.set(key, { trade, company, headcount });
+        }
+        planned.push(...groups.values());
+      }
     }
 
-    if (groups.size === 0) return;
-    const seeded: ManpowerEntry[] = Array.from(groups.values()).map((g, i) => ({
-      id: `seed-${Date.now()}-${i}`,
-      trade: g.trade,
-      company: g.company,
-      headcount: g.headcount,
-      hoursWorked: 8,
-    }));
-    autoSeedRef.current = JSON.stringify(seeded);
+    // Ids come from each row's own key (utils/dfrClockCrew.seedRowIds), never
+    // Date.now(): this effect re-runs every minute while someone is on the
+    // clock, and a fresh id orphaned the row the super was correcting.
+    let seeded: ManpowerEntry[];
+    let source: { kind: 'clock' | 'schedule'; line: string } | null;
+    if (clockCrew) {
+      // The clock is the self-perform crew. Keep only the plan's SUB rows (a
+      // task with an assigned company other than the GC's own) — a plan row
+      // with no company was the planner's guess at this same self-perform crew,
+      // and keeping it would count the trade twice.
+      const own = (settings?.branding?.companyName ?? '').trim().toLowerCase();
+      const subRows = planned.filter(g => g.company && g.company.toLowerCase() !== own);
+      const clockIds = seedRowIds('clock', clockCrew.rows);
+      const subIds = seedRowIds('sub', subRows);
+      seeded = [
+        ...clockCrew.rows.map((r, i) => ({
+          id: clockIds[i], trade: r.trade, company: r.company, headcount: r.headcount, hoursWorked: r.hoursWorked,
+        })),
+        ...subRows.map((g, i) => ({
+          id: subIds[i], trade: g.trade, company: g.company, headcount: g.headcount, hoursWorked: 8,
+        })),
+      ];
+      source = { kind: 'clock', line: clockCrewSourceLine(clockCrew, subRows.length) };
+    } else if (planned.length > 0) {
+      const planIds = seedRowIds('plan', planned);
+      seeded = planned.map((g, i) => ({
+        id: planIds[i], trade: g.trade, company: g.company, headcount: g.headcount, hoursWorked: 8,
+      }));
+      source = {
+        kind: 'schedule',
+        // What this phone knows, not a fact about the site: it holds its own
+        // clock-ins and the crew's rows it has pulled, and a pull can be
+        // minutes old (integration round 1).
+        line: 'From the schedule plan: no clock-ins for this job and day have reached this phone. Counts came from today\u2019s schedule and assume an 8-hour day — tap a row to correct it.',
+      };
+    } else {
+      seeded = [];
+      source = null;
+    }
+
+    // Nothing for this day: clear an untouched seed from the previous date
+    // rather than leave another day's crew standing on this report.
+    if (seeded.length === 0 && manpower.length === 0) return;
+    autoSeedRef.current = seeded.length > 0 ? JSON.stringify(seeded) : null;
     setManpower(seeded);
     setAutoFilled(p => ({ ...p, manpower: seeded }));
-    // Same reason as the weather fetch: a roster the schedule wrote is not the
-    // super's work, and counting it as unsaved changes makes an untouched
-    // screen prompt on the way out.
+    setCrewSource(source);
+    // A roster the app wrote is not the super's work — see DFR-DIRTY-AUTOFILL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportDate]);
+  }, [reportDate, clockCrewSig]);
 
   /** Open the crew modal — blank to add, or loaded with a row to correct it. */
   const openManpowerEditor = useCallback((entry?: ManpowerEntry) => {
@@ -1218,6 +1394,20 @@ export default function DailyReportScreen() {
     () => manpower.length > 0 && autoSeedRef.current != null && JSON.stringify(manpower) === autoSeedRef.current,
     [manpower],
   );
+  // Shown whether or not he has touched the roster, and repeated at save and
+  // send: the "hours so far" caveat must not live only in the source chip,
+  // which disappears on the first edit and never reaches the PDF or portal.
+  const liveHoursWarning = useMemo(() => liveClockHoursWarning(clockCrew, manpower), [clockCrew, manpower]);
+  // The clock's crew the roster does not carry. After a morning "Copy from
+  // yesterday" (or any edit, or on reopen) the seed above stands down for
+  // good, so people who clocked in later never reached the roster and the
+  // signed report could contradict payroll silently. Said here, with a
+  // one-tap add; never added over his count by itself.
+  const clockGapLine = useMemo(() => clockRosterGapLine(clockRowsMissingFromRoster(clockCrew, manpower)), [clockCrew, manpower]);
+  const addMissingClockRows = useCallback(() => {
+    if (!clockCrew) return;
+    setManpower(prev => addClockRowsToRoster(prev, clockCrew, settings?.branding?.companyName, r => r));
+  }, [clockCrew, settings?.branding?.companyName]);
 
   const handleAddMaterial = useCallback(() => {
     const mat = newMaterial.trim();
@@ -1457,7 +1647,7 @@ export default function DailyReportScreen() {
     const unpricedItems = leakScan.items.filter(it => it.estimatedPrice === null || it.estimatedPrice === undefined);
     const totalPriced = pricedItems.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
 
-    const when = new Date(reportDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const when = dayOrInstantDate(reportDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const pricedLines = pricedItems.map(it =>
       `${it.description} (~$${(it.estimatedPrice ?? 0).toLocaleString('en-US')}${it.reportQuote ? ` — "${it.reportQuote}"` : ''})`
     );
@@ -1640,17 +1830,43 @@ export default function DailyReportScreen() {
     [delayRows],
   );
 
+  /**
+   * Why this user cannot move the schedule from here, or null when they can.
+   *
+   * A ripple moves task DATES, and it goes out as a PATCH of the projects row,
+   * which projects_update admits only for the owner or an editor. For a field
+   * or viewer collaborator PostgREST refused it with 200 + 0 rows: the preview
+   * said "applied", the finish date never moved, and a delay claim had no
+   * schedule record behind it (#25). Field access writes progress through its
+   * own server function, and that function deliberately refuses dates — so the
+   * ripple is blocked for those roles, and the button says why.
+   */
+  const delayRippleBlockedReason = useMemo(() => {
+    const path = scheduleWritePathForRole(project?.myRole);
+    if (path === 'row') return null;
+    return path === 'field_rpc'
+      ? 'Field access can\u2019t move schedule dates. The delay stays on this report — ask the project owner or an editor to apply the ripple.'
+      : 'View-only access can\u2019t move schedule dates. Ask the project owner to apply the ripple.';
+  }, [project?.myRole]);
+
   const handlePreviewRipple = useCallback(() => {
     // Guarded in the handler too (not just the disabled prop): stale rows
     // describe text that changed since the scan, and an already-applied scan
     // must be explicitly re-armed before it can move the schedule again.
-    if (confirmableRows.length === 0 || delayRowsStale || delayAlreadyApplied) return;
+    if (confirmableRows.length === 0 || delayRowsStale || delayAlreadyApplied || delayRippleBlockedReason) return;
     setDelayPreviewOps(confirmableRows.map(r => ({ op: 'move' as const, task: r.taskId, deltaDays: r.deltaDays })));
-  }, [confirmableRows, delayRowsStale, delayAlreadyApplied]);
+  }, [confirmableRows, delayRowsStale, delayAlreadyApplied, delayRippleBlockedReason]);
 
   const handleApplyRipple = useCallback(() => {
     const schedule = project?.schedule;
     if (!project || !schedule || !delayPreviewOps) return;
+    // Same gate as the preview button: never report a ripple the database
+    // will refuse for this role.
+    if (delayRippleBlockedReason) {
+      showAlert('Schedule not changed', delayRippleBlockedReason);
+      setDelayPreviewOps(null);
+      return;
+    }
     // Recompute exactly what ScheduleDiffView previewed (it computes internally
     // from ops + ctx; onApply hands us nothing).
     const { nextTasks } = interpretScheduleOps(delayPreviewOps, schedule.tasks);
@@ -1758,7 +1974,7 @@ export default function DailyReportScreen() {
         project.id,
       );
     } catch { /* G4 */ }
-  }, [project, delayPreviewOps, delayCpmOptions, updateProject, delayScannedHash, issuesAndDelays, stableReportId, reportDate]);
+  }, [project, delayPreviewOps, delayCpmOptions, updateProject, delayScannedHash, issuesAndDelays, stableReportId, reportDate, delayRippleBlockedReason]);
 
   const totalManpower = useMemo(() => {
     return manpower.reduce((sum, m) => sum + m.headcount, 0);
@@ -1967,6 +2183,7 @@ export default function DailyReportScreen() {
         nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
       }
     }
+    if (!silent && liveHoursWarning) showAlert('Saved with hours so far', liveHoursWarning);
     // The record is on disk, so the unsaved-work draft has nothing left to
     // protect. Cleared here rather than left to the debounced effect below,
     // whose timer is cancelled by the navigation on the next line.
@@ -1974,7 +2191,7 @@ export default function DailyReportScreen() {
     if (!silent) router.back();
   }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, draftKey,
       incidentClassInput, incidentClass.daysRestricted, recordability.recordable, linkedIncident,
-      addIncident, updateIncident, incidentAuthor, project?.location]);
+      addIncident, updateIncident, incidentAuthor, project?.location, liveHoursWarning]);
 
   /**
    * "Log this as a delay event" — hand the register what this screen already
@@ -2151,8 +2368,17 @@ export default function DailyReportScreen() {
     && !incident.hasIncident;
 
   const handleSendPress = useCallback(() => {
+    // Sending puts the hours in front of the owner as the day's record — ask
+    // first while shifts it counted are still open.
+    if (liveHoursWarning) {
+      showAlert('Crew still on the clock', liveHoursWarning, [
+        { text: 'Wait', style: 'cancel' },
+        { text: 'Send anyway', onPress: () => setShowSendRecipient(true) },
+      ]);
+      return;
+    }
     setShowSendRecipient(true);
-  }, []);
+  }, [liveHoursWarning]);
 
   const handleConfirmSend = useCallback(async () => {
     // Pre-fix the only "send" target was email and a blank email
@@ -2202,7 +2428,7 @@ export default function DailyReportScreen() {
 
       const result = await sendEmail({
         to: sendRecipientEmail.trim(),
-        subject: `Daily report · ${new Date(reportDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${project?.name ?? 'Project'}`,
+        subject: `Daily report · ${dayOrInstantDate(reportDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${project?.name ?? 'Project'}`,
         html,
         replyTo: branding.email || undefined,
         fromCompanyName: branding.companyName || undefined,
@@ -2267,7 +2493,7 @@ export default function DailyReportScreen() {
           contactName: branding.contactName,
           contactEmail: branding.email,
         });
-        const dateLabel = new Date(reportDate).toISOString().slice(0, 10);
+        const dateLabel = calendarDayOf(reportDate) ?? todayCalendarDay(); // the LOCAL day, not the UTC one
         await saveDailyReportToProjectFiles({
           projectId,
           reportId: stableReportId,
@@ -2337,8 +2563,8 @@ export default function DailyReportScreen() {
     manpower: existingReport?.manpower ?? autoFilled.manpower ?? [],
     workPerformed: existingReport?.workPerformed ?? '',
     workProgress: existingReport?.workProgress ?? [],
-    materialsDelivered: existingReport?.materialsDelivered ?? [],
-    issuesAndDelays: existingReport?.issuesAndDelays ?? '',
+    materialsDelivered: existingReport?.materialsDelivered ?? autoFilled.materialsDelivered ?? [],
+    issuesAndDelays: existingReport?.issuesAndDelays ?? autoFilled.issuesAndDelays ?? '',
     photos: existingReport?.photos ?? [],
     incident: existingReport?.incident ?? EMPTY_DFR_INCIDENT,
     // The determination inputs live on the register case, not on the report, so
@@ -2549,7 +2775,7 @@ export default function DailyReportScreen() {
             <Text style={styles.topBarTitle}>Daily Report</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.topBarDate}>
-                {new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {dayOrInstantDate(reportDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </Text>
               {!isLocked && <CalendarDays size={11} color={themeColors.textMuted} strokeWidth={1.75} />}
             </View>
@@ -3038,15 +3264,33 @@ export default function DailyReportScreen() {
             {manpower.length === 0 && (
               <Text style={styles.emptyText}>No manpower entries yet — tap + to add a crew.</Text>
             )}
-            {/* The roster came from the schedule, not from the gate. Say so
-                while it is still untouched: crewSize is what was PLANNED and
-                the 8-hour day is a flat assumption, and both get read later as
-                man-hours on the owner's portal. The honesty chip goes away the
-                moment he corrects a number, because then it is his count. */}
+            {/* Say where an untouched roster came from — the time clock (what
+                was witnessed) or the schedule plan (crewSize is what was
+                PLANNED and the 8-hour day is a flat assumption) — because both
+                get read later as man-hours on the owner's portal and he is the
+                one signing it. The chip goes away the moment he corrects a
+                number, because then it is his count. */}
             {manpowerIsUntouchedSeed && !isLocked && (
-              <Text style={styles.mpSeedNote}>
-                Counts came from today&apos;s schedule and assume an 8-hour day — tap a row to correct it.
+              <Text style={styles.mpSeedNote} testID="dfr-crew-source">
+                {crewSource?.line ?? 'Counts came from today\u2019s schedule and assume an 8-hour day — tap a row to correct it.'}
               </Text>
+            )}
+            {liveHoursWarning && !isLocked && (
+              <Text style={styles.mpSeedNote} testID="dfr-live-hours-warning">{liveHoursWarning}</Text>
+            )}
+            {clockGapLine && !isLocked && !manpowerIsUntouchedSeed && (
+              <View style={styles.mpClockGap} testID="dfr-clock-gap">
+                <Text style={styles.mpClockGapText}>{clockGapLine}</Text>
+                <TouchableOpacity
+                  onPress={addMissingClockRows}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add the clocked crew to this roster"
+                  hitSlop={8}
+                  testID="dfr-clock-gap-add"
+                >
+                  <Text style={styles.mpClockGapAdd}>Add them</Text>
+                </TouchableOpacity>
+              </View>
             )}
             {manpower.map((entry) => (
               <View key={entry.id} style={styles.mpRow}>
@@ -3145,6 +3389,25 @@ export default function DailyReportScreen() {
             )}
             {materialsDelivered.length === 0 && (
               <Text style={styles.emptyText}>No materials delivered today.</Text>
+            )}
+            {/* Loads signed for on the Deliveries screen for this report's day
+                that this report does not list yet. One tap adds them, and a
+                damaged one also goes into Issues & Delays. */}
+            {!isLocked && missingReceiptLines.length > 0 && (
+              <Button
+                label={`Add ${missingReceiptLines.length} ${missingReceiptLines.length === 1 ? 'load' : 'loads'} received on Deliveries`}
+                onPress={handleAddReceiptLines}
+                variant="secondary"
+                size="sm"
+                style={{ marginTop: 8, alignSelf: 'flex-start' as const }}
+                testID="dfr-add-receipt-lines"
+              />
+            )}
+            {!isLocked && materialsDelivered.length > 0 && materialsSeedRef.current != null
+              && JSON.stringify(materialsDelivered) === materialsSeedRef.current && (
+              <Text style={styles.mpSeedNote} testID="dfr-materials-source">
+                From receipts on the Deliveries screen for this day — who signed and any damage noted at the tailgate.
+              </Text>
             )}
             {materialsDelivered.map((mat, idx) => (
               <View key={idx} style={styles.materialRow}>
@@ -3470,18 +3733,23 @@ export default function DailyReportScreen() {
                       {delayRowsStale && (
                         <Text style={dcStyles.staleNoticeText}>Report text changed — re-check schedule impact.</Text>
                       )}
+                      {delayRippleBlockedReason && (
+                        <Text style={dcStyles.staleNoticeText} testID="delay-ripple-blocked">{delayRippleBlockedReason}</Text>
+                      )}
                       <TouchableOpacity
-                        style={[dcStyles.previewBtn, (confirmableRows.length === 0 || delayRowsStale) && dcStyles.previewBtnOff]}
+                        style={[dcStyles.previewBtn, (confirmableRows.length === 0 || delayRowsStale || !!delayRippleBlockedReason) && dcStyles.previewBtnOff]}
                         onPress={handlePreviewRipple}
-                        disabled={confirmableRows.length === 0 || delayRowsStale}
+                        disabled={confirmableRows.length === 0 || delayRowsStale || !!delayRippleBlockedReason}
                         activeOpacity={0.85}
                         testID="delay-preview"
                         accessibilityRole="button"
                         accessibilityLabel="Preview the ripple"
-                        accessibilityState={{ disabled: confirmableRows.length === 0 || delayRowsStale }}
+                        accessibilityState={{ disabled: confirmableRows.length === 0 || delayRowsStale || !!delayRippleBlockedReason }}
                       >
                         <Text style={dcStyles.previewBtnText}>
-                          {delayRowsStale
+                          {delayRippleBlockedReason
+                            ? 'Ripple needs editor access'
+                            : delayRowsStale
                             ? 'Re-check schedule impact first'
                             : confirmableRows.length === 0
                               ? 'Pick a task to preview the ripple'
@@ -3776,13 +4044,15 @@ export default function DailyReportScreen() {
                         <View style={styles.checkboxRow}>
                           <TouchableOpacity
                             style={styles.checkboxItem}
-                            onPress={() => setIncidentClass(p => ({ ...p, restrictedDuty: !p.restrictedDuty }))}
+                            onPress={toggleRestrictedDuty}
                             testID="dfr-incident-restricted"
                             accessibilityRole="checkbox"
-                            accessibilityState={{ checked: incidentClass.restrictedDuty }}
+                            accessibilityState={{ checked: restrictedShownOn }}
                           >
-                            <View style={[styles.checkbox, incidentClass.restrictedDuty && styles.checkboxActive]} />
-                            <Text style={styles.checkboxLabel}>Restricted work / transfer</Text>
+                            <View style={[styles.checkbox, restrictedShownOn && styles.checkboxActive]} />
+                            <Text style={styles.checkboxLabel}>
+                              Restricted work / transfer{incidentClassInput.daysRestricted ? ` (${incidentClassInput.daysRestricted} day${incidentClassInput.daysRestricted === 1 ? '' : 's'} entered)` : ''}
+                            </Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={styles.checkboxItem}
@@ -3864,7 +4134,7 @@ export default function DailyReportScreen() {
                       >
                         <ShieldAlert size={14} color={themeColors.accent} strokeWidth={1.75} />
                         <Text style={styles.incidentRegisterChipText}>
-                          On the safety record{linkedIncident.oshaRecordable ? ' · counted on the OSHA 300' : ''}
+                          On the safety record{isRecordableCase(linkedIncident) ? ' · counted on the OSHA 300' : ''}
                         </Text>
                         <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                       </TouchableOpacity>
@@ -3874,7 +4144,7 @@ export default function DailyReportScreen() {
                       // months later — so say that plainly and name what the tier
                       // actually buys, rather than a blocked door with no reason.
                       <Text style={styles.incidentRegisterNote} testID="dfr-incident-case-locked">
-                        Filed on your safety record{linkedIncident.oshaRecordable ? ' as an OSHA-recordable case' : ''}.
+                        Filed on your safety record{isRecordableCase(linkedIncident) ? ' as an OSHA-recordable case' : ''}.
                         The Incidents log and the OSHA 300 export open on Business — the record is kept either way.
                       </Text>
                     ) : (
@@ -4051,7 +4321,7 @@ export default function DailyReportScreen() {
                   <Text style={styles.toggleTitle}>Save copy to project files</Text>
                   <Text style={styles.toggleSub}>
                     Drops a PDF into {project?.name ?? 'this project'}&apos;s shared drive at
-                    {' '}<Text style={{ fontWeight: '600' as const }}>Daily Reports / {new Date(reportDate).toISOString().slice(0, 10)}.pdf</Text>
+                    {' '}<Text style={{ fontWeight: '600' as const }}>Daily Reports / {(calendarDayOf(reportDate) ?? todayCalendarDay())}.pdf</Text>
                   </Text>
                 </View>
                 <View style={[styles.toggleSwitch, saveToProjectFiles && styles.toggleSwitchOn]}>
@@ -4676,6 +4946,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   mpTrade: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   mpMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
   mpSeedNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, marginTop: 8, lineHeight: 17 },
+  mpClockGap: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, marginTop: 8 },
+  mpClockGapText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.warningLabel, lineHeight: 17 },
+  mpClockGapAdd: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   mpStepperRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
   // 30pt touch targets with hitSlop — the same size the delay steppers use,
   // sized for a gloved thumb rather than a cursor.

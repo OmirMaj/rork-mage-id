@@ -13,7 +13,7 @@ import {
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { HardHat, Mail, Lock, Eye, EyeOff, User, ArrowRight, ChevronLeft } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -25,12 +25,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { INVITE_PARAM, postSignInHref } from '@/utils/deepLinksInvite';
 
 export default function SignupScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // An invite opened before the account existed (utils/deepLinksInvite): an
+  // OAuth sign-up with a live session goes straight back to it — accept-invite
+  // is exempt from the persona / onboarding gates, which run after. Email
+  // sign-up has no session until the confirmation link; Home's pending-invite
+  // card picks the invite up then.
+  const inviteParams = useLocalSearchParams<{ [INVITE_PARAM]?: string }>();
+  const inviteToken = inviteParams[INVITE_PARAM];
   const { signup, signInWithGoogle, signInWithApple } = useAuth();
 
   const [name, setName] = useState('');
@@ -67,13 +75,13 @@ export default function SignupScreen() {
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      router.replace('/onboarding');
+      router.replace(postSignInHref(inviteToken, '/onboarding') as never);
     } catch (err) {
       console.log('[Signup] Google signup failed:', err);
     } finally {
       setIsGoogleLoading(false);
     }
-  }, [signInWithGoogle, router]);
+  }, [signInWithGoogle, router, inviteToken]);
 
   const handleAppleSignup = useCallback(async () => {
     setIsAppleLoading(true);
@@ -83,13 +91,13 @@ export default function SignupScreen() {
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      router.replace('/onboarding');
+      router.replace(postSignInHref(inviteToken, '/onboarding') as never);
     } catch (err) {
       console.log('[Signup] Apple signup failed:', err);
     } finally {
       setIsAppleLoading(false);
     }
-  }, [signInWithApple, router]);
+  }, [signInWithApple, router, inviteToken]);
 
   const handleSignup = useCallback(async () => {
     setErrorMessage('');

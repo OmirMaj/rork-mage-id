@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Pressable,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -29,6 +30,8 @@ import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
 import type { RFIStatus, RFIPriority, RFIBallInCourt, RFIHandoff } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { cardSurface } from '@/components/ui';
+import { PhotoMarkupOverlay, markupForSource, sourcePhotoIdOf } from '@/components/PhotoMarkupOverlay';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { extractMemoryDocs, answerFromMemorySemantic } from '@/utils/projectMemory';
@@ -134,9 +137,9 @@ function RFIScreenInner() {
   const {
     projects, getProject, getRFIsForProject, addRFI, updateRFI, settings, subcontractors,
     getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject,
+    projectPhotos,
   } = ctx;
   const { tier } = useSubscription();
-  const projectPhotos = (ctx as any).projectPhotos as { id: string; uri: string }[] | undefined;
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -151,13 +154,16 @@ function RFIScreenInner() {
   const existingRFIs = useMemo(() => getRFIsForProject(projectId ?? ''), [projectId, getRFIsForProject]);
   const existingRFI = useMemo(() => rfiId ? existingRFIs.find(r => r.id === rfiId) : null, [rfiId, existingRFIs]);
 
-  // When arriving from photo-annotator with `prefillPhotoId`, look up
-  // the photo and pre-attach its URI to the new RFI's attachments.
-  const prefillPhotoUri = useMemo(() => {
-    if (!prefillPhotoId) return null;
-    const photo = (projectPhotos ?? []).find(p => p.id === prefillPhotoId);
-    return photo?.uri ?? null;
-  }, [prefillPhotoId, projectPhotos]);
+  // When arriving from photo-annotator with `prefillPhotoId`, look up the whole
+  // photo — not just its URI. The photo already knows which schedule task it
+  // belongs to and carries the markup the GC drew on it; both were being thrown
+  // away here, so the architect received an unmarked photo and the RFI arrived
+  // unlinked to the task it was blocking (audit 2026-09-17 #12).
+  const prefillPhoto = useMemo(
+    () => (prefillPhotoId ? (projectPhotos ?? []).find(p => p.id === prefillPhotoId) : undefined),
+    [prefillPhotoId, projectPhotos],
+  );
+  const prefillPhotoUri = prefillPhoto?.uri ?? null;
 
   const [subject, setSubject] = useState(existingRFI?.subject ?? '');
   const [question, setQuestion] = useState(existingRFI?.question ?? '');
@@ -171,12 +177,51 @@ function RFIScreenInner() {
   const [status, setStatus] = useState<RFIStatus>(existingRFI?.status ?? 'open');
   const [linkedDrawing, setLinkedDrawing] = useState(existingRFI?.linkedDrawing ?? '');
   const [response, setResponse] = useState(existingRFI?.response ?? '');
-  const [linkedTaskId, setLinkedTaskId] = useState(existingRFI?.linkedTaskId ?? '');
+  // The photo knows what it was a photo OF. Seeding the link from it is what
+  // makes the RFI show up on the task it is holding up — and what feeds
+  // rfiBlockStatus below, which is otherwise silent on an unlinked RFI.
+  const [linkedTaskId, setLinkedTaskId] = useState(
+    existingRFI?.linkedTaskId ?? prefillPhoto?.linkedTaskId ?? '',
+  );
   // Local attachments — start with existing RFI attachments OR a fresh
   // array seeded with the prefill photo URI.
   const [attachments, setAttachments] = useState<string[]>(
     existingRFI?.attachments ?? (prefillPhotoUri ? [prefillPhotoUri] : []),
   );
+  // The state initializers above run on the FIRST render only, and the photo
+  // cache can hydrate a beat after this screen opens — so a prefill that
+  // arrives late would be dropped on the floor. Latched so it fills each field
+  // exactly once and never overwrites something he has since typed.
+  const prefillPulled = useRef(false);
+  useEffect(() => {
+    if (!prefillPhoto || existingRFI || prefillPulled.current) return;
+    prefillPulled.current = true;
+    setAttachments(prev => (prev.length ? prev : [prefillPhoto.uri]));
+    setLinkedTaskId(prev => prev || (prefillPhoto.linkedTaskId ?? ''));
+  }, [prefillPhoto, existingRFI]);
+
+  // The gallery photo the first attachment was raised from. Kept as an ID, not
+  // just the copied URI: that URI is a device-local `file://` path or a signed
+  // URL re-minted every session, so on the office device, on web, or next
+  // launch it matches no photo — the markup lookup came back empty and the
+  // copied link itself could stop opening (audit #12, review 2). Only the
+  // photo-annotator prefill puts an attachment here, and always at index 0.
+  const sourcePhotoId = existingRFI ? sourcePhotoIdOf(existingRFI) : (prefillPhotoId || undefined);
+  const sourcePhoto = useMemo(
+    () => (sourcePhotoId ? (projectPhotos ?? []).find(p => p.id === sourcePhotoId) : undefined),
+    [sourcePhotoId, projectPhotos],
+  );
+  /** What attachment `index` should render as, and with which markup. The
+   *  source photo's CURRENT uri beats the stored copy, which may have expired
+   *  or belong to another device. */
+  const attachmentView = useCallback((uri: string, index: number) => {
+    const fromSource = index === 0 ? sourcePhoto : undefined;
+    return {
+      uri: fromSource?.uri || uri,
+      markup: markupForSource(projectPhotos, fromSource?.id, uri),
+    };
+  }, [sourcePhoto, projectPhotos]);
+
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -326,12 +371,17 @@ function RFIScreenInner() {
         linkedDrawing: linkedDrawing.trim() || undefined,
         linkedTaskId: linkedTaskId || undefined,
         attachments,
+        // RFI.sourcePhotoId (rfis.source_photo_id) is how every other device
+        // finds the markup. Spread so it is written only while the prefilled
+        // photo is still the first attachment, and never as an explicit
+        // undefined over a value the record already has.
+        ...(sourcePhotoId && attachments.length > 0 ? { sourcePhotoId } : {}),
       });
     }
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
-  }, [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, response, linkedTaskId, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
+  }, [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, response, linkedTaskId, existingRFI, projectId, addRFI, updateRFI, router, attachments, sourcePhotoId]);
 
   const priorityColor = priority === 'urgent' ? themeColors.danger : priority === 'normal' ? themeColors.accent : themeColors.textSecondary;
 
@@ -387,7 +437,11 @@ function RFIScreenInner() {
         subject,
         html,
         replyTo: settings?.branding?.email,
-        attachments: existingRFI.attachments?.length ? existingRFI.attachments : undefined,
+        // The source photo's current uri where there is one — the stored copy
+        // may be another device's file:// or an expired signed URL.
+        attachments: existingRFI.attachments?.length
+          ? existingRFI.attachments.map((stored, index) => attachmentView(stored, index).uri)
+          : undefined,
       });
       if (!result.success) {
         showAlert('Send failed', result.error || 'Could not send the RFI. Try again.');
@@ -425,7 +479,7 @@ function RFIScreenInner() {
     } finally {
       setSending(false);
     }
-  }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings, updateRFI]);
+  }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings, updateRFI, attachmentView]);
 
   // ─── MAGE suggests an answer ───
   // Same machinery as app/project-memory.tsx: extract this project's records,
@@ -898,6 +952,38 @@ function RFIScreenInner() {
           placeholderTextColor={themeColors.textMuted}
         />
 
+        {/* Attached photos. Until now the screen accepted an attachment and
+            never drew it, so the GC could not see what he was about to send —
+            and the markup he drew on it (the circle around the clash, the
+            "conflict here" label) was invisible everywhere outside the
+            project-detail lightbox. The markup IS the question. */}
+        {attachments.length > 0 && (
+          <>
+            <Text style={styles.fieldLabel}>Photos</Text>
+            <View style={styles.attachmentStrip}>
+              {attachments.map((stored, index) => {
+                const { uri, markup } = attachmentView(stored, index);
+                return (
+                  <View key={stored} style={styles.attachmentThumbWrap}>
+                    <Image source={{ uri }} style={styles.attachmentThumb} contentFit="cover" />
+                    {markup.length > 0 && <PhotoMarkupOverlay markup={markup} />}
+                  </View>
+                );
+              })}
+            </View>
+            {attachments.some((stored, index) => attachmentView(stored, index).markup.length > 0) && (
+              // Honest about the boundary: the markup is stored alongside the
+              // photo, not burned into the image file, so an emailed copy is
+              // the plain shot. Say so rather than let him assume the
+              // architect sees the circle.
+              <Text style={styles.attachmentNote}>
+                Your markup shows here. An emailed copy of the photo is the plain shot — describe
+                the mark in the question too.
+              </Text>
+            )}
+          </>
+        )}
+
         {existingRFI && responseShown && (
           <>
             <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Response</Text>
@@ -1119,6 +1205,18 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textSecondary,
     marginBottom: 6,
     marginTop: 12,
+  },
+  attachmentStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // The thumbnail is the frame the normalized markup scales itself to, so the
+  // overlay sits inside this wrapper rather than over the whole strip.
+  attachmentThumbWrap: {
+    ...cardSurface(themeColors, { radius: 'md', pad: 'none' }),
+    width: 104, height: 104, overflow: 'hidden',
+  },
+  attachmentThumb: { width: '100%', height: '100%' },
+  attachmentNote: {
+    fontSize: Type.caption1.fontSize, color: themeColors.textMuted,
+    lineHeight: 17, marginTop: 8,
   },
   // Sub attribution chips — see the "Which sub?" block.
   subChipHint: {

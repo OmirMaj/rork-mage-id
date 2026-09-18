@@ -6,7 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Plus, X, Award, Trash2, FileText, User, AlertTriangle } from 'lucide-react-native';
+import { Plus, X, Award, Trash2, FileText, User, AlertTriangle, ScanLine, ImagePlus } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { scanCertification } from '@/utils/crewScan';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -24,6 +27,9 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { certStatus } from '@/utils/safety/certStatus';
 import type { Certification, CertificationStatus, CrewMember } from '@/types';
 import { showAlert } from '@/utils/alert';
+// Local calendar day for date defaults — toISOString() is the UTC day and
+// stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
+import { todayCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
 
 // Quick-pick common certification types. Free text is still allowed.
 const TYPE_QUICKPICKS = ['OSHA 10', 'OSHA 30', 'SST', 'CPR', 'First Aid'];
@@ -128,7 +134,7 @@ function SafetyCertificationsInner() {
   const subById = useMemo(() => new Map(subcontractors.map((s) => [s.id, s])), [subcontractors]);
   const activeMembers = useMemo(() => crewMembers.filter((m) => m.status === 'active'), [crewMembers]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayCalendarDay(), []);
   const withStatus = useMemo(() => certificationsWithStatus(today), [certificationsWithStatus, today]);
 
   const STATUS = useMemo(() => STATUS_STYLE(themeColors), [themeColors]);
@@ -167,6 +173,13 @@ function SafetyCertificationsInner() {
   const [issuedDate, setIssuedDate] = useState('');
   const [expiresDate, setExpiresDate] = useState('');
   const [documentUrl, setDocumentUrl] = useState('');
+  // Card scan (audit round 2 #2). supabase/functions/scan-credential has handled
+  // kind 'certification' and utils/crewScan exported scanCertification with no
+  // caller, while this form asked the super to type both dates off a card
+  // nobody photographed. `scanNote` says the fields were read by AI.
+  const { tier } = useTierAccess();
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
 
   const resetForm = useCallback(() => {
     setEditing(null);
@@ -177,6 +190,7 @@ function SafetyCertificationsInner() {
     setIssuedDate('');
     setExpiresDate('');
     setDocumentUrl('');
+    setScanNote(null); setScanning(false);
   }, []);
 
   const openNew = useCallback(() => {
@@ -195,6 +209,51 @@ function SafetyCertificationsInner() {
     setDocumentUrl(cert.documentUrl ?? '');
     setShowForm(true);
   }, []);
+
+  const handleScanCard = useCallback(async (source: 'camera' | 'library') => {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showAlert(source === 'camera' ? 'Camera access needed' : 'Photo access needed',
+        `Grant ${source === 'camera' ? 'camera' : 'photo'} access in Settings to scan a card.`);
+      return;
+    }
+    // Same metering key as the crew ID scan: both call scan-credential, and the
+    // server's monthly cap is the authoritative one.
+    const limit = await checkAILimit(tier, 'smart', 'scanCredential');
+    if (!limit.allowed) { showAlert('Scan limit reached', limit.message ?? 'Upgrade to keep scanning.'); return; }
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
+    if (result.canceled || !result.assets?.[0]?.base64) return;
+    setScanning(true);
+    setScanNote(null);
+    try {
+      const fields = await scanCertification(result.assets[0].base64);
+      await recordAIUsage('smart', 'scanCredential');
+      // Only a real calendar day is written into a date field; anything else the
+      // model returned is left blank for him to type rather than stored as a
+      // date certStatus would then flag 'expired'.
+      const day = (v: string | undefined) => {
+        const t = (v ?? '').trim().slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(t) && parseCalendarDay(t) ? t : '';
+      };
+      if (fields.certType?.trim()) setType(fields.certType.trim());
+      const iss = day(fields.issuedDate);
+      const exp = day(fields.expiresDate);
+      if (iss) setIssuedDate(iss);
+      if (exp) setExpiresDate(exp);
+      setScanNote(
+        `Read from the card by AI${fields.issuer ? ` (issuer: ${fields.issuer})` : ''}${fields.certNumber ? `, card no. ${fields.certNumber}` : ''}. `
+        + (exp ? 'Check the dates against the card before saving.' : 'No expiry date could be read — type it from the card.'),
+      );
+    } catch (e) {
+      setScanNote(e instanceof Error ? `Scan failed: ${e.message}` : 'Scan failed — try a clearer, well-lit photo.');
+    } finally {
+      setScanning(false);
+    }
+  }, [tier]);
 
   const pickMember = useCallback((member: CrewMember) => {
     setWorkerId(member.id);
@@ -398,6 +457,18 @@ function SafetyCertificationsInner() {
                     editable={!workerId}
                   />
 
+                  <View style={styles.scanRow}>
+                    <TouchableOpacity style={styles.scanBtn} onPress={() => void handleScanCard('camera')} disabled={scanning} accessibilityRole="button" testID="cert-scan-camera">
+                      <ScanLine size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
+                      <Text style={styles.scanBtnText}>{scanning ? 'Reading card…' : 'Scan card'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.scanBtn} onPress={() => void handleScanCard('library')} disabled={scanning} accessibilityRole="button" testID="cert-scan-library">
+                      <ImagePlus size={15} color={themeColors.accentLabel} strokeWidth={1.75} />
+                      <Text style={styles.scanBtnText}>From photos</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {scanNote ? <Text style={styles.hintText} testID="cert-scan-note">{scanNote}</Text> : null}
+
                   <Text style={styles.fieldLabel}>Certification type *</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
                     {TYPE_QUICKPICKS.map((qp) => (
@@ -503,6 +574,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   formHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, marginBottom: 8 },
   formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 8 },
+  scanRow: { flexDirection: 'row' as const, gap: 8, marginTop: 12 },
+  scanBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accentSoft },
+  scanBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
   hintText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 4 },
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text, marginTop: 4 },
   memberChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },

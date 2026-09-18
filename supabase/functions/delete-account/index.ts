@@ -66,6 +66,21 @@
 //     audit AUTH-F3 caught it.
 //   - crew_members rows the caller merely CLAIMED. Those belong to the
 //     GC who created them, so we release the claim instead (step 2d).
+//   - Field work the caller logged on SOMEONE ELSE'S job as a collaborator —
+//     daily reports, photos, punch, RFIs, submittals, permits, plan sheets /
+//     pins / markups / calibrations, time entries and signed T&M tickets.
+//     Those rows are stamped with the caller's uid (the field-table INSERT
+//     policies require auth.uid() = user_id), but they are the GC's job
+//     record: his delay-claim evidence, his "the owner's rep signed for it"
+//     proof. Deleting them destroyed a job's paper trail every time a foreman
+//     left and closed his account (audit round 2 #26). They are HANDED OVER
+//     to the project owner (step 2-0) — same "release, do not delete" rule as
+//     the crew claim — and the photo bytes under <uid>/<thatProjectId>/ are
+//     left where they are: project_photos_select admits any member of
+//     folder[2] and project_photos_delete admits the project owner, so the
+//     owner keeps reading and can still remove them. storage.objects has no
+//     FK to auth.users (verified in production 2026-09-17: its only FK is
+//     bucket_id), so a kept object does not block step 4.
 //
 // Security: the function calls requireTier with ['free',...] so any
 // signed-in user can delete THEIR OWN account (not anyone else's).
@@ -159,6 +174,24 @@ const USER_SCOPED_TABLES = [
 // scripts/validate-account-deletion.ts checks that every entry in
 // USER_SCOPED_TABLES actually has a user_id column, and that every table in
 // schema.sql has SOME deletion path.
+
+// The field tables a COLLABORATOR can write on a project he does not own:
+// the twelve in 20260826130000_field_role.sql's field_tables array, plus the
+// three logistics tables that later migrations gave a `_collab_insert` policy
+// (deliveries, building_access_rules, access_reservations — all user_id …
+// ON DELETE CASCADE, so they would die in step 4 too). On those projects the
+// caller's rows are handed to the project owner in step 2-0 instead of being
+// deleted in step 2c. That has to happen BEFORE step 2c AND before step 4:
+// daily_reports, field_tickets and time_entries have user_id … ON DELETE
+// CASCADE to auth.users, so leaving them out of the 2c loop alone would still
+// lose them when the login is deleted. scripts/validate-account-deletion-
+// handover.ts fails if a table with a `_collab_insert` policy is missing here.
+const COLLABORATOR_FIELD_TABLES = [
+  'daily_reports', 'photos', 'punch_items', 'rfis', 'submittals',
+  'permits', 'plan_sheets', 'time_entries',
+  'drawing_pins', 'plan_markups', 'plan_calibrations', 'field_tickets',
+  'deliveries', 'building_access_rules', 'access_reservations',
+];
 
 // Tables that hold the caller's tenant data but carry no user_id: they are
 // keyed by the ids of things the caller owns. The ids are resolved in step 1
@@ -349,6 +382,13 @@ interface Collected {
   /** Ids that failed SAFE_DELETE_KEY and were dropped before becoming a key — dropped, counted. */
   malformedIds: number;
   explicitObjects: Array<{ bucket: string; path: string }>;
+  /**
+   * Projects the caller was invited onto (a project_collaborators row with
+   * his uid) that someone ELSE owns, with that owner. His field rows on these
+   * are handed to the owner in step 2-0; his photos under <uid>/<projectId>/
+   * are kept in step 3.
+   */
+  handedOver: Array<{ projectId: string; ownerId: string }>;
 }
 
 serve(async (req) => {
@@ -618,7 +658,34 @@ serve(async (req) => {
           }
         }
       }
-      return { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects };
+      // Projects the caller worked on as a collaborator. project_collaborators
+      // is cleared in step 2e, so this is read now. ANY status counts, not
+      // only 'accepted': the usual order is "the GC revokes the foreman, then
+      // the foreman deletes his account", and his reports are no less the
+      // GC's job record for the revoke. A pending row has user_id NULL and is
+      // never selected here. The row is what proves the owner invited him —
+      // a row he wrote onto a stranger's project id without an invite is not
+      // handed to that stranger; it is deleted with the rest of his data.
+      const memberProjectIds = gate('collaborator project', [...new Set(
+        (await selectAllByUser('project_collaborators', 'project_id'))
+          .map(r => String(r.project_id ?? '')).filter(Boolean),
+      )]);
+      const ownProjects = new Set(projectIds);
+      const handedOver: Array<{ projectId: string; ownerId: string }> = [];
+      const foreign = memberProjectIds.filter(id => !ownProjects.has(id));
+      for (let i = 0; i < foreign.length; i += IN_CHUNK) {
+        // projects.id is a uuid column and every id passed the gate, so this
+        // `.in()` has nothing to splice (see SAFE_DELETE_KEY).
+        const { data, error } = await sb
+          .from('projects').select('id, user_id').in('id', foreign.slice(i, i + IN_CHUNK));
+        if (error) throw new Error(`collaborator project owners read failed: ${error.message}`);
+        for (const row of (data ?? []) as Array<{ id?: unknown; user_id?: unknown }>) {
+          const projectId = String(row.id ?? '');
+          const ownerId = String(row.user_id ?? '');
+          if (projectId && ownerId && ownerId !== userId) handedOver.push({ projectId, ownerId });
+        }
+      }
+      return { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects, handedOver };
     };
 
     let collected: Collected | null = null;
@@ -636,7 +703,58 @@ serve(async (req) => {
         error: `Could not read your data (${reason}). Nothing was deleted — please try again in a moment.`,
       }, 500);
     }
-    const { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects } = collected;
+    const { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects, handedOver } = collected;
+
+    // ── 2-0. Hand the caller's field work on OTHER owners' jobs to those
+    //    owners, before a single row is deleted (audit round 2 #26).
+    //
+    //    One UPDATE per (table, project): `user_id = owner` where the row is
+    //    the caller's AND on that project. Rows on the caller's own projects
+    //    are untouched here and deleted in 2c as before. This is the same
+    //    "release, do not delete" rule step 2d applies to claimed crew rows.
+    //
+    //    It must run FIRST. 2c deletes every table in USER_SCOPED_TABLES by
+    //    user_id, and step 4's auth delete cascades daily_reports,
+    //    field_tickets and time_entries through their auth.users FKs — so a
+    //    row still carrying the caller's uid when either runs is gone.
+    //
+    //    A failure ABORTS with nothing deleted. Carrying on would hand the
+    //    rows that failed to move straight to 2c's delete — the exact loss
+    //    this step exists to prevent. The update is idempotent (a moved row no
+    //    longer matches user_id = caller), so the user simply retries.
+    //
+    //    What is lost: authorship. user_id was the only record of who logged
+    //    the row; none of these tables has a free-text author column, and the
+    //    owner's rows are indistinguishable from what he logged himself.
+    //    field_tickets' `authorization` names the OWNER'S REP who signed, not
+    //    the author, so it is left exactly as signed.
+    const handoverErrors: string[] = [];
+    let rowsHandedOver = 0;
+    for (const { projectId, ownerId } of handedOver) {
+      for (const table of COLLABORATOR_FIELD_TABLES) {
+        const { data, error } = await sb
+          .from(table)
+          .update({ user_id: ownerId })
+          .eq('user_id', userId)
+          .eq('project_id', projectId)
+          .select('id');
+        if (error) {
+          if (!/relation .* does not exist/i.test(error.message)) handoverErrors.push(`${table}: ${error.message}`);
+          continue;
+        }
+        rowsHandedOver += Array.isArray(data) ? data.length : 0;
+      }
+    }
+    if (handoverErrors.length > 0) {
+      console.error('[delete-account] could not hand field work to the project owners; nothing was deleted:', handoverErrors);
+      return json({
+        success: false,
+        error: `The reports and photos you logged on other contractors' jobs could not be handed to those jobs (${handoverErrors.map(e => e.split(':')[0]).join(', ')}). Nothing was deleted — please try again in a moment.`,
+      }, 500);
+    }
+    // Every photo object under <uid>/<projectId>/ for a handed-over project
+    // stays (see the header) — step 3's uid-prefix sweep skips them.
+    const keptPhotoPrefixes = handedOver.map(h => `${userId}/${h.projectId}/`);
 
     // ── 2. Row deletes. One statement at a time, so a single failure does
     //    not abort the rest; every failure is RECORDED, and 2f refuses to go
@@ -893,7 +1011,12 @@ serve(async (req) => {
 
     const removePrefix = async (bucket: string, prefix: string) => {
       try {
-        await removePaths(bucket, await listPathsRecursive(bucket, prefix));
+        let paths = await listPathsRecursive(bucket, prefix);
+        // The photos of the jobs handed over in 2-0 belong to those jobs now.
+        if (bucket === 'project-photos' && keptPhotoPrefixes.length > 0) {
+          paths = paths.filter(p => !keptPhotoPrefixes.some(k => p.startsWith(k)));
+        }
+        await removePaths(bucket, paths);
       } catch (err) {
         // Best-effort per prefix: one unreachable bucket must not stop the
         // other ten, and must not stop step 4 (see FAILURE CONTRACT).
@@ -939,6 +1062,10 @@ serve(async (req) => {
     return json({
       success: true,
       tablesCleared: USER_SCOPED_TABLES.length + TENANT_SCOPED_DELETES.length,
+      // Field rows on other owners' jobs that now belong to those owners
+      // (step 2-0), and how many such jobs there were. Counts only.
+      rowsHandedOver,
+      projectsHandedOver: handedOver.length,
       storageObjectsRemoved,
       // Prefixes whose list() failed (their objects may remain; support can
       // re-sweep by uid). Counts only — no path, no id, ever.

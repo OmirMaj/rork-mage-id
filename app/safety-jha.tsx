@@ -7,8 +7,10 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  HardHat, Plus, X, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive, Mic,
+  HardHat, Plus, X, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive, Mic, AlertTriangle,
 } from 'lucide-react-native';
+import { useCrew } from '@/contexts/CrewContext';
+import { certFlagsForWorker, lapsedCertConfirmText } from '@/utils/safety/crewCerts';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -26,6 +28,9 @@ import { generateUUID } from '@/utils/generateId';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
+// Local calendar day for date defaults — toISOString() is the UTC day and
+// stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 function getStatusConfig(t: ThemeColors, status: JHAStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -64,7 +69,13 @@ function SafetyJhaInner() {
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
-  const { getJhasForProject, addJha, updateJha, deleteJha } = useSafety();
+  const { getJhasForProject, addJha, updateJha, deleteJha, certifications } = useSafety();
+  const { getCrewForProject } = useCrew();
+  const assignedCrew = useMemo(
+    () => getCrewForProject(projectId ?? '').filter(m => m.status === 'active'),
+    [getCrewForProject, projectId],
+  );
+  const today = useMemo(() => todayCalendarDay(), []);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const items = useMemo(() => getJhasForProject(projectId ?? ''), [projectId, getJhasForProject]);
@@ -74,7 +85,7 @@ function SafetyJhaInner() {
   const [title, setTitle] = useState('');
   const [trade, setTrade] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => todayCalendarDay());
   const [steps, setSteps] = useState<JHAStep[]>([]);
   const [requiredPPE, setRequiredPPE] = useState<string[]>([]);
   const [ppeText, setPpeText] = useState('');
@@ -94,11 +105,19 @@ function SafetyJhaInner() {
   const [signOffFor, setSignOffFor] = useState<string | null>(null);
   const [sigName, setSigName] = useState('');
   const [sigRole, setSigRole] = useState('');
+  // The crew member picked from the roster for this sign-off, if any. Only a
+  // PICK sets it — typing a name clears it — so the certification chip is an
+  // exact CrewMember.id join, never a name guess (audit round 2 #2).
+  const [sigWorkerId, setSigWorkerId] = useState<string | null>(null);
+  const sigFlags = useMemo(
+    () => certFlagsForWorker(certifications, sigWorkerId, today),
+    [certifications, sigWorkerId, today],
+  );
 
   const resetForm = useCallback(() => {
     setEditingJha(null);
     setTitle(''); setTrade(''); setTaskDescription('');
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayCalendarDay());
     setSteps([]); setRequiredPPE([]); setPpeText('');
     setAiGenerated(false); setGenerating(false);
   }, []);
@@ -224,16 +243,32 @@ function SafetyJhaInner() {
     ]);
   }, [deleteJha, items]);
 
-  const handleAddSignOff = useCallback(() => {
+  const commitSignOff = useCallback(() => {
     const jha = items.find(x => x.id === signOffFor);
     if (!jha) { setSignOffFor(null); return; }
     const name = sigName.trim();
-    if (!name) { showAlert('Missing name', 'Enter who is signing off.'); return; }
     const sig: SafetySignoff = { name, role: sigRole.trim(), signedAt: new Date().toISOString() };
     updateJha(jha.id, { signOffs: [...jha.signOffs, sig] });
-    setSignOffFor(null); setSigName(''); setSigRole('');
+    setSignOffFor(null); setSigName(''); setSigRole(''); setSigWorkerId(null);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [items, signOffFor, sigName, sigRole, updateJha]);
+
+  const handleAddSignOff = useCallback(() => {
+    const name = sigName.trim();
+    if (!name) { showAlert('Missing name', 'Enter who is signing off.'); return; }
+    // A lapsed card asks first and names the card + date. Not a block.
+    // 'Sign them off': the JHA's verb, matching the button below. The default
+    // ('Sign them in') belongs to the toolbox sign-in sheet.
+    const warn = lapsedCertConfirmText(name, sigFlags, 'Sign them off');
+    if (warn) {
+      showAlert('Certification lapsed', warn, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign off anyway', style: 'destructive', onPress: commitSignOff },
+      ]);
+      return;
+    }
+    commitSignOff();
+  }, [sigName, sigFlags, commitSignOff]);
 
   if (!project) {
     return (
@@ -302,7 +337,7 @@ function SafetyJhaInner() {
                     <Text style={[styles.cardActionText, { color: themeColors.success }]}>Activate</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.cardActionBtn} onPress={() => { setSignOffFor(item.id); setSigName(''); setSigRole(''); }}>
+                <TouchableOpacity style={styles.cardActionBtn} onPress={() => { setSignOffFor(item.id); setSigName(''); setSigRole(''); setSigWorkerId(null); }}>
                   <PenLine size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.cardActionText, { color: themeColors.accent }]}>Add sign-off</Text>
                 </TouchableOpacity>
@@ -489,8 +524,34 @@ function SafetyJhaInner() {
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
+            {assignedCrew.length > 0 ? (
+              <>
+                <Text style={styles.fieldLabel}>Crew on this project</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+                  {assignedCrew.map(m => {
+                    const active = sigWorkerId === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[styles.crewPick, active ? styles.crewPickActive : null]}
+                        onPress={() => { setSigWorkerId(m.id); setSigName(m.fullName); if (!sigRole.trim() && m.trades?.[0]) setSigRole(m.trades[0]); }}
+                        testID="jha-signoff-crew"
+                      >
+                        <Text style={[styles.crewPickText, active ? styles.crewPickTextActive : null]}>{m.fullName}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            ) : null}
             <Text style={styles.fieldLabel}>Name *</Text>
-            <TextInput style={styles.input} value={sigName} onChangeText={setSigName} placeholder="Who is signing off" placeholderTextColor={themeColors.textMuted} />
+            <TextInput style={styles.input} value={sigName} onChangeText={(v) => { setSigName(v); setSigWorkerId(null); }} placeholder="Who is signing off" placeholderTextColor={themeColors.textMuted} />
+            {sigFlags.map(f => (
+              <View key={f.certId} style={[styles.certChip, f.status === 'expired' ? styles.certChipExpired : null]} testID="jha-cert-chip">
+                <AlertTriangle size={11} color={f.status === 'expired' ? themeColors.danger : themeColors.accentLabel} strokeWidth={2} />
+                <Text style={[styles.certChipText, { color: f.status === 'expired' ? themeColors.danger : themeColors.accentLabel }]}>{f.label}</Text>
+              </View>
+            ))}
             <Text style={styles.fieldLabel}>Role</Text>
             <TextInput style={styles.input} value={sigRole} onChangeText={setSigRole} placeholder="e.g. Foreman" placeholderTextColor={themeColors.textMuted} />
             <View style={styles.formActions}>
@@ -552,5 +613,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   signOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'center', padding: 20 },
   signCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 8, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  crewPick: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },
+  crewPickActive: { backgroundColor: themeColors.accentFill },
+  crewPickText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  crewPickTextActive: { color: '#fff' },
+  certChip: { flexDirection: 'row' as const, alignItems: 'center' as const, alignSelf: 'flex-start' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accentSoft },
+  certChipExpired: { backgroundColor: themeColors.dangerSoft },
+  certChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   signTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
 });

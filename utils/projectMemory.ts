@@ -20,6 +20,9 @@
 import { mageAI } from '@/utils/mageAI';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { isExcludedMemoryRecord, type MemoryAskOptions } from '@/utils/projectMemoryCore';
+import {
+  batchGroups, confidentMatches, memoryDocHash, MEMORY_DOC_PREFIXES, MEMORY_RECORD_SOURCES,
+} from '@/utils/plans/memoryIndexCore';
 import type { RFI, DailyFieldReport, ChangeOrder, Submittal, PunchItem } from '@/types';
 
 export { isExcludedMemoryRecord, type MemoryAskOptions };
@@ -162,6 +165,10 @@ export interface MemoryAnswer {
   matched: boolean;
   /** True when the answer used server-side semantic (pgvector) retrieval. */
   semantic?: boolean;
+  /** Semantic answers only: how many of the `searched` records the vector
+   *  index holds with their current text, when the last sync could tell. The
+   *  screen shows "N of M indexed" instead of implying all M were searched. */
+  indexed?: number;
   errorKind?: string;
   fromCache?: boolean;
 }
@@ -239,16 +246,111 @@ async function authedPost(url: string, body: unknown): Promise<unknown | null> {
   }
 }
 
-/**
- * Best-effort: push a project's records to the embeddings index so semantic
- * search has fresh vectors. Idempotent server-side (upsert). Fire-and-forget;
- * failures are silent (the screen still works on TF-IDF).
- */
-export async function syncMemoryEmbeddings(projectId: string, docs: MemoryDoc[]): Promise<void> {
-  if (!projectId || docs.length === 0) return;
-  const payload = docs.slice(0, 250).map(d => ({ doc_id: d.id, source: d.source, ref: d.ref, content: d.text }));
-  await authedPost(MEMORY_EMBED_URL, { projectId, docs: payload });
+export interface MemorySyncStatus {
+  /** Records in the current doc list. */
+  total: number;
+  /** Of those, how many the index holds with their CURRENT text after this sync. */
+  indexed: number;
+  /** False when the sync could not reach the server or was refused. `reason` says why. */
+  ok: boolean;
+  reason?: string;
 }
+
+const lastSyncByProject = new Map<string, MemorySyncStatus>();
+const inFlight = new Map<string, Promise<MemorySyncStatus>>();
+const queued = new Map<string, { docs: MemoryDoc[]; opts: { scopePrefixes?: readonly string[]; prune?: boolean } }>();
+
+/** The last sync result for a project this session, if any. */
+export function memorySyncStatus(projectId: string): MemorySyncStatus | undefined {
+  return lastSyncByProject.get(projectId);
+}
+
+/**
+ * Keep the semantic index in step with the project's records. Incremental
+ * (audit round 2, #23): ask the server which docs are missing or changed
+ * (content hash), send ONLY those, in batches the server accepts, until every
+ * record is covered — and, when `prune` is on, delete index rows for records
+ * that no longer exist.
+ *
+ * Before: the first 250 docs in a fixed order (every RFI, then every daily
+ * report newest-first, then COs, submittals, punch) were re-sent on every open.
+ * Past 250 records, new submittals and punch items were never embedded, an
+ * early submittal kept the text it had when first embedded — the "Revise and
+ * resubmit", not the later "Approved as noted" — and a deleted RFI stayed
+ * citable. That is how the RFI "suggest answer" could draft an old rejection.
+ *
+ * `prune` must only be set by a caller whose `docs` is the COMPLETE set for
+ * `scopePrefixes` (Project Memory's five record types). The closeout binder's
+ * Home Passport sync passes neither and is diff-only — it can never delete.
+ *
+ * Never throws. Concurrent calls for one project share the running sync.
+ */
+export async function syncMemoryEmbeddings(
+  projectId: string,
+  docs: MemoryDoc[],
+  opts: { scopePrefixes?: readonly string[]; prune?: boolean } = {},
+): Promise<MemorySyncStatus> {
+  const total = docs.length;
+  if (!projectId || total === 0) return { total, indexed: 0, ok: true };
+  const running = inFlight.get(projectId);
+  if (running) {
+    // A newer doc list arrived mid-sync (records still hydrating, or an edit):
+    // run once more with the LATEST list when this one ends. Only the newest
+    // waiting call survives, so a burst of edits costs one extra manifest.
+    queued.set(projectId, { docs, opts });
+    return running.then(() => {
+      const next = queued.get(projectId);
+      if (!next || next.docs !== docs) return lastSyncByProject.get(projectId) ?? { total, indexed: 0, ok: false };
+      queued.delete(projectId);
+      return syncMemoryEmbeddings(projectId, next.docs, next.opts);
+    });
+  }
+
+  const run = (async (): Promise<MemorySyncStatus> => {
+    const hashes = new Map(docs.map(d => [d.id, memoryDocHash(d)]));
+    const manifest = (await authedPost(MEMORY_EMBED_URL, {
+      projectId,
+      action: 'manifest',
+      manifest: docs.map(d => ({ doc_id: d.id, hash: hashes.get(d.id) })),
+      scopePrefixes: opts.scopePrefixes ?? [],
+      prune: opts.prune === true,
+    })) as { success?: boolean; stale?: string[] } | null;
+
+    // Manifest unavailable (function not redeployed, offline, rate-limited):
+    // fall back to sending everything in batches. Costlier, never less
+    // complete — and `indexed` is then only what those batches confirm.
+    const staleSet = manifest?.success && Array.isArray(manifest.stale) ? new Set(manifest.stale) : null;
+    let indexed = staleSet ? docs.filter(d => !staleSet.has(d.id)).length : 0;
+    const stale = staleSet ? docs.filter(d => staleSet.has(d.id)) : docs;
+
+    let reason: string | undefined;
+    for (const batch of batchGroups(stale.map(d => [d]))) {
+      const res = (await authedPost(MEMORY_EMBED_URL, {
+        projectId,
+        docs: batch.map(d => ({ doc_id: d.id, source: d.source, ref: d.ref, content: d.text, content_hash: hashes.get(d.id) })),
+      })) as { success?: boolean; embedded?: number } | null;
+      if (!res?.success) {
+        // Stop at the first refusal: the usual cause is the monthly memory cap
+        // or the hourly bucket, and every later batch would hit it too.
+        reason = 'The search index could not be updated just now.';
+        break;
+      }
+      indexed += batch.length;
+    }
+    const status: MemorySyncStatus = { total, indexed, ok: !reason && (staleSet !== null || indexed === total), reason };
+    lastSyncByProject.set(projectId, status);
+    return status;
+  })();
+  inFlight.set(projectId, run);
+  try {
+    return await run;
+  } finally {
+    inFlight.delete(projectId);
+  }
+}
+
+/** Project Memory's own scope, for the one caller whose doc list is complete. */
+export const PROJECT_MEMORY_SYNC_SCOPE = { scopePrefixes: MEMORY_DOC_PREFIXES, prune: true } as const;
 
 /**
  * Answer using semantic (pgvector) retrieval when available, falling back to the
@@ -264,10 +366,19 @@ export async function answerFromMemorySemantic(
   const q = question.trim();
   if (!projectId || docs.length === 0) return answerFromMemory(q, docs, opts);
 
-  const res = (await authedPost(MEMORY_SEARCH_URL, { projectId, query: q, matchCount: 8 })) as
+  // `sources`: search only the record types this screen counts and cites —
+  // plan-sheet transcriptions and Home Passport docs share the pool and used to
+  // take slots in the top 8. The client filter below keeps an un-redeployed
+  // function honest too.
+  const res = (await authedPost(MEMORY_SEARCH_URL, { projectId, query: q, matchCount: 8, sources: MEMORY_RECORD_SOURCES })) as
     | { success?: boolean; matches?: MemoryMatch[] }
     | null;
-  const rawMatches = res && res.success && Array.isArray(res.matches) ? res.matches : null;
+  // confidentMatches: the RPC always returns K rows, so without a floor the
+  // semantic path always "matched" and the keyword fallback never ran — an
+  // unanswerable question was answered from the least-unrelated records.
+  const rawMatches = res && res.success && Array.isArray(res.matches)
+    ? confidentMatches(res.matches.filter(m => (MEMORY_RECORD_SOURCES as readonly string[]).includes(m.source)))
+    : null;
   // The pgvector index holds EVERY record ever synced — including the record
   // being edited right now (an RFI's own question is its own nearest neighbor).
   // Filter exclusions out BEFORE building context/citations, then re-check
@@ -289,6 +400,7 @@ export async function answerFromMemorySemantic(
           searched: docs.length,
           matched: true,
           semantic: true,
+          indexed: memorySyncStatus(projectId)?.indexed,
           errorKind: ai.errorKind,
           fromCache: ai.fromCache,
         };
@@ -324,10 +436,14 @@ export async function retrieveRelevantSemantic(
   if (!projectId || docs.length === 0) return fallback();
   try {
     const res = (await Promise.race([
-      authedPost(MEMORY_SEARCH_URL, { projectId, query: q, matchCount: topK }),
+      authedPost(MEMORY_SEARCH_URL, { projectId, query: q, matchCount: topK, sources: MEMORY_RECORD_SOURCES }),
       new Promise<null>(resolve => setTimeout(() => resolve(null), timeoutMs)),
     ])) as { success?: boolean; matches?: MemoryMatch[] } | null;
-    const matches = res && res.success && Array.isArray(res.matches) ? res.matches : null;
+    // Same source scope + similarity floor as answerFromMemorySemantic, so an
+    // all-weak result falls back to keywords instead of feeding One Mind noise.
+    const matches = res && res.success && Array.isArray(res.matches)
+      ? confidentMatches(res.matches.filter(m => (MEMORY_RECORD_SOURCES as readonly string[]).includes(m.source)))
+      : null;
     if (matches && matches.length > 0) {
       const byId = new Map(docs.map(d => [d.id, d]));
       return matches.map(m => {

@@ -26,6 +26,7 @@ import { parseLenientNumber } from '@/utils/formatters';
 import { warrantyStatus } from '@/utils/workflowPipelines';
 import type { DerivedStatus } from '@/utils/workflowPipelines';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 
 const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'general', label: 'General' },
@@ -146,7 +147,7 @@ export default function WarrantiesScreen() {
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const {
     projects, getProject, warranties, addWarranty, updateWarranty, deleteWarranty,
-    getWarrantiesForProject, addWarrantyClaim,
+    getWarrantiesForProject, addWarrantyClaim, settings,
   } = useProjects();
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
@@ -186,7 +187,12 @@ export default function WarrantiesScreen() {
   const [provider, setProvider] = useState('');
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState(() => todayCalendarDay()); // UX-F4: local day
-  const [durationMonths, setDurationMonths] = useState('12');
+  // The form's starting duration is the workmanship warranty the GC saved
+  // (utils/paymentTerms — asked the first time a contract prints it), so the
+  // warranty he logs here and the one his contract states start from the same
+  // number. 12 only until he has answered; it is a visible, editable field, and
+  // the binder and portal print whatever he saves.
+  const [durationMonths, setDurationMonths] = useState(() => String(resolveWarrantyMonths(settings) ?? 12));
   const [coverage, setCoverage] = useState('');
 
   const resetForm = useCallback(() => {
@@ -204,9 +210,9 @@ export default function WarrantiesScreen() {
     // handleSave derives endDate = addCalendarMonths(startDay, months) from
     // it, so the whole coverage window was stored a day late.
     setStartDate(todayCalendarDay());
-    setDurationMonths('12');
+    setDurationMonths(String(resolveWarrantyMonths(settings) ?? 12));
     setCoverage('');
-  }, [project, projects]);
+  }, [project, projects, settings]);
 
   const openNew = useCallback(() => {
     resetForm();

@@ -114,6 +114,24 @@ const WIDEN_SIZE_CLAMPED = 0.12;
 const WIDEN_NO_QUALITY = 0.1;
 const WIDEN_NO_REGION = 0.08;
 
+// Widget scope id -> the app's ProjectType, written to leads.project_type_mapped
+// so Convert-to-project carries the job type the homeowner already picked.
+// KEEP IN SYNC with utils/widgetLeadCore.ts (validate-widget-lead-budget diffs
+// them). A scope with no honest match is left out: the lead stays unmapped
+// rather than being guessed.
+const WIDGET_TYPE_TO_PROJECT_TYPE: Record<string, string> = {
+  kitchen_remodel: "remodel",
+  bathroom_remodel: "remodel",
+  whole_home_remodel: "renovation",
+  home_addition: "addition",
+  new_construction: "new_build",
+  adu: "new_build",
+  basement_finish: "renovation",
+  roof_replacement: "roofing",
+  flooring: "flooring",
+  commercial_ti: "commercial",
+};
+
 const WIDGET_RATE_BASIS =
   "Typical published U.S. cost ranges for this scope, adjusted for size, finish level and region. Not a quote.";
 
@@ -578,9 +596,17 @@ serve(async (req: Request) => {
           phone,
           address: zip,
           project_type: estimate.projectLabel ?? clip(body.projectType, 80),
+          project_type_mapped: estimate.projectTypeId
+            ? WIDGET_TYPE_TO_PROJECT_TYPE[estimate.projectTypeId] ?? null
+            : null,
           scope,
-          budget_min: estimate.range ? Math.round(estimate.range.low) : null,
-          budget_max: estimate.range ? Math.round(estimate.range.high) : null,
+          // budget_min / budget_max stay EMPTY (audit round 2, #24). The range
+          // above is a published national ballpark from WIDGET_RATE_BASIS, not
+          // the homeowner's budget and not the contractor's price. Stored in
+          // those columns it read as "Budget (theirs)", steered Instant Bid
+          // past its ask-the-GC ballpark question, and became the converted
+          // project's target budget (the portal/WIP contract value). It lives
+          // only in `scope`, labelled "Instant Estimate shown".
           timeline: null,
           source: "website",
           stage: "new",

@@ -89,6 +89,7 @@ import {
 import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
+import { qboClosedFlagOf } from '@/utils/qboClosedFlag';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 function createId(_prefix: string): string {
@@ -1410,6 +1411,11 @@ function InvoiceInner() {
     };
   }, [existingInvoice]);
 
+  // QuickBooks closed this invoice with something other than a payment (a
+  // credit memo, journal entry, write-off). The dunning cron is paused on it;
+  // a manual reminder is not, so the GC sees the flag and confirms first.
+  const qboClosedFlag = qboClosedFlagOf(existingInvoice?.qboError);
+
   const handleSendReminder = useCallback(async () => {
     if (!existingInvoice || sendingReminder) return;
     setSendingReminder(true);
@@ -1713,6 +1719,20 @@ function InvoiceInner() {
                   // effective status) still sees as open — so route it
                   // through Record Payment, prefilled with the balance.
                   if (next === 'paid') { openRecordPayment(); return; }
+                  // "Mark sent" on a draft (he printed or texted it himself)
+                  // starts the payment clock exactly as Send does: due date =
+                  // today + the stored terms. Flipping only the status left
+                  // the server's due_date at whatever day the draft was last
+                  // saved, and invoice-dunning counts from that — a draft
+                  // saved in September and marked sent in October drew a
+                  // "34 days overdue / FINAL NOTICE" as its first reminder.
+                  if (next === 'sent' && existingInvoice.status === 'draft') {
+                    updateInvoice(existingInvoice.id, {
+                      status: 'sent',
+                      dueDate: getDueDate(new Date().toISOString(), existingInvoice.paymentTerms),
+                    });
+                    return;
+                  }
                   updateInvoice(existingInvoice.id, { status: next });
                 }}
                 advanceLabel={
@@ -2084,6 +2104,11 @@ function InvoiceInner() {
                   </Text>
                 </View>
               </View>
+              {qboClosedFlag ? (
+                <Text style={[styles.reminderHint, { color: themeColors.warningLabel }]} testID="reminder-qbo-closed-flag">
+                  {qboClosedFlag}
+                </Text>
+              ) : null}
               {!reminderState.eligibility.eligible && reminderState.eligibility.reason && (
                 <Text style={styles.reminderHint}>
                   {reminderBlockMessage(reminderState.eligibility.reason, reminderState.lastMs, reminderState.nowMs)}
@@ -2091,7 +2116,17 @@ function InvoiceInner() {
               )}
               <TouchableOpacity
                 style={[styles.reminderBtn, (!reminderState.eligibility.eligible || sendingReminder) && styles.reminderBtnDisabled]}
-                onPress={() => { void handleSendReminder(); }}
+                onPress={() => {
+                  if (!qboClosedFlag) { void handleSendReminder(); return; }
+                  showAlert(
+                    'QuickBooks shows this invoice closed',
+                    'It was cleared there by something other than a payment, so automatic reminders are paused. Send a reminder to the client anyway?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Send anyway', onPress: () => { void handleSendReminder(); } },
+                    ],
+                  );
+                }}
                 disabled={!reminderState.eligibility.eligible || sendingReminder}
                 activeOpacity={0.85}
                 accessibilityRole="button"

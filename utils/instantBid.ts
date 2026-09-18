@@ -15,6 +15,7 @@ import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { CONTRACTED_NOTE } from '@/utils/groundingChip';
+import { workmanshipWarrantyLine } from '@/utils/paymentTerms';
 import type {
   FinancingConfig,
   ProposalTier,
@@ -50,6 +51,13 @@ export interface InstantBidOptions {
   financing?: FinancingConfig;
   /** Free-text the contractor typed before generating, woven into the pitch. */
   contractorNote?: string;
+  /**
+   * The GC's saved workmanship warranty in months
+   * (utils/paymentTerms.resolveWarrantyMonths(settings)), or null/absent when
+   * he never set one. Every tier prints this ONE period; with no answer the
+   * line is "Workmanship warranty" with no period — never an invented one.
+   */
+  warrantyMonths?: number | null;
   /**
    * The contractor's markup as a PERCENT OF COST (utils/estimateMarkup's
    * convention — 20 means price = cost × 1.20), applied to the AI's ROM before
@@ -95,13 +103,19 @@ const TIER_META: Record<ProposalTierKey, { label: string; tagline: string; mult:
   // the spread reads like a real Good/Better/Best ladder (~-18% / base / +22%).
   good: { label: 'Essential', tagline: 'Covers the core scope, value-engineered.', mult: 0.82 },
   better: { label: 'Recommended', tagline: 'The balanced option most homeowners pick.', mult: 1.0 },
-  best: { label: 'Premium', tagline: 'Upgraded materials, finishes, and warranty.', mult: 1.22 },
+  // No "and warranty": every tier carries the same warranty (the GC's one
+  // saved period), so the Premium tier must not imply a longer one.
+  best: { label: 'Premium', tagline: 'Upgraded materials and finishes.', mult: 1.22 },
 };
 
+// No warranty periods here. Until 2026-09-17 these promised a 1-, 2- and
+// 5-year warranty the GC never stated, on a proposal a homeowner receives.
+// buildTier appends workmanshipWarrantyLine(his saved months) instead — the
+// same line on every tier.
 const TIER_EXTRAS: Record<ProposalTierKey, string[]> = {
-  good: ['Standard-grade materials', 'Workmanship warranty (1 yr)'],
-  better: ['Mid-grade materials & fixtures', 'Workmanship warranty (2 yr)', 'Dedicated project updates'],
-  best: ['Premium materials & finishes', 'Extended warranty (5 yr)', 'Priority scheduling', 'Final walkthrough + punch list'],
+  good: ['Standard-grade materials'],
+  better: ['Mid-grade materials & fixtures', 'Dedicated project updates'],
+  best: ['Premium materials & finishes', 'Priority scheduling', 'Final walkthrough + punch list'],
 };
 
 /** Round to a clean, quote-friendly number (nearest $100, or $500 above 50k). */
@@ -115,6 +129,7 @@ function buildTier(
   key: ProposalTierKey,
   baseMid: number,
   scopeBullets: string[],
+  warrantyMonths: number | null,
   financing?: FinancingConfig,
 ): ProposalTier {
   const meta = TIER_META[key];
@@ -124,7 +139,7 @@ function buildTier(
     label: meta.label,
     tagline: meta.tagline,
     amount,
-    inclusions: [...scopeBullets, ...TIER_EXTRAS[key]],
+    inclusions: [...scopeBullets, ...TIER_EXTRAS[key], workmanshipWarrantyLine(warrantyMonths)],
     financingLine: tierFinancingLine(amount, financing),
   };
 }
@@ -147,7 +162,9 @@ function heuristicMessage(rfp: InstantBidRfp, opts: InstantBidOptions): string {
     `Hi — thanks for posting "${rfp.title}".`,
     `${who} works in ${loc || 'your area'} and we'd love to take this on.`,
     opts.contractorNote?.trim() ? opts.contractorNote.trim() : '',
-    `I've put together three options below so you can pick the scope and budget that fits. Happy to walk the site and refine any of them — we can typically start within 2–3 weeks.`,
+    // No start window: the GC never gave one, and the AI prompt is forbidden
+    // from inventing terms — the fallback must not print one either.
+    `I've put together three options below so you can pick the scope and budget that fits. Happy to walk the site and refine any of them.`,
   ].filter(Boolean).join(' ');
 }
 
@@ -297,7 +314,10 @@ async function aiMessage(rfp: InstantBidRfp, opts: InstantBidOptions): Promise<s
   const prompt =
     'You are a friendly, concise residential general contractor writing a short, warm ' +
     'proposal cover message to a homeowner. 3-4 sentences. No markdown, no salutation like ' +
-    '"Dear". Sound human and confident, not salesy.\n\n' +
+    '"Dear". Sound human and confident, not salesy. ' +
+    // The tiers carry the GC's own warranty line; a model left to its own
+    // devices "helpfully" promises a period or a deposit he never stated.
+    'Do not state any warranty period, deposit, or payment terms.\n\n' +
     `Project: "${rfp.title}". ` +
     `Location: ${[rfp.city, rfp.state].filter(Boolean).join(', ') || 'unspecified'}. ` +
     `Scope: ${rfp.scopeDescription || 'see request'}. ` +
@@ -380,7 +400,7 @@ export async function generateInstantBid(
 
   const scopeBullets = scopeToBullets(rfp.scopeDescription);
   const tiers: ProposalTier[] = (['good', 'better', 'best'] as ProposalTierKey[]).map(k =>
-    buildTier(k, midUsd, scopeBullets, opts.financing),
+    buildTier(k, midUsd, scopeBullets, opts.warrantyMonths ?? null, opts.financing),
   );
 
   const drafted = await aiMessage(rfp, opts);

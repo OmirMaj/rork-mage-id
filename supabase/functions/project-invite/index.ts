@@ -8,6 +8,8 @@
 // Actions (POST JSON { action, ... }), all require a valid caller session JWT:
 //   invite     { projectId, email, role }  — caller must OWN the project
 //   accept     { token }                    — caller's email must match the invite
+//   listPending   {}                        — invites waiting for the caller's email
+//   acceptPending { collaboratorId }        — accept one of those, same email check
 //   revoke     { collaboratorId }           — caller must OWN the parent project
 //   changeRole { collaboratorId, role }     — caller must OWN the parent project
 //
@@ -72,6 +74,23 @@ async function ownsCollaboratorsProject(collaboratorId: string, uid: string): Pr
   if (!rows.length) return { ok: false };
   const pid = rows[0].project_id;
   return { ok: await callerOwnsProject(pid, uid), projectId: pid };
+}
+
+/** Accept a pending row for `uid`. The status filter makes a double-accept
+ *  (two devices, or the link and the Home card) a no-op, not a re-stamp. */
+async function markAccepted(collaboratorId: string, uid: string): Promise<Response> {
+  return rest(`project_collaborators?id=eq.${encodeURIComponent(collaboratorId)}&status=eq.pending`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ user_id: uid, status: "accepted", accepted_at: new Date().toISOString(), invite_token: null }),
+  });
+}
+
+/** s•••@example.com — enough for the owner of the address to recognise it. */
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return "•••";
+  return `${local.slice(0, 1)}•••@${domain}`;
 }
 
 function newToken(): string {
@@ -212,6 +231,33 @@ serve(async (req) => {
     if (!(await callerOwnsProject(projectId, caller.sub))) {
       return json({ error: "Only the project owner can invite collaborators" }, 403);
     }
+    // AN ACTIVE MEMBER IS NEVER RE-INVITED (audit round 2 #27). The upsert
+    // below writes status 'pending' and a fresh token, and every RLS gate
+    // (can_access_project) requires status = 'accepted' — so re-sending to
+    // someone already on the job, whether to "fix" his role or because "I
+    // can't find the link", locked a working super out of the schedule, daily
+    // reports and photos until he found the new email and accepted again. A
+    // role change on an active member is changeRole's job (it keeps him
+    // accepted and runs the same seat check). Answered with 200 + `error`, not
+    // a 4xx: supabase.functions.invoke drops the body of a non-2xx response,
+    // and this message is the only thing that tells the owner what to do.
+    // Pending and revoked rows fall through and are (re)issued as before.
+    {
+      const ex = await rest(
+        `project_collaborators?project_id=eq.${encodeURIComponent(projectId)}&invited_email=eq.${encodeURIComponent(email)}&select=id,role,status&limit=1`,
+      );
+      if (!ex.ok) return json({ error: `Could not check the roster (${ex.status})` }, 502);
+      const existing = ((await ex.json()) as { id: string; role: string; status: string }[])[0];
+      if (existing?.status === "accepted") {
+        return json({
+          success: false,
+          code: "already_member",
+          collaboratorId: existing.id,
+          role: existing.role,
+          error: `${email} is already on this job. To change what they can see, use the role buttons on their row — re-sending an invite would lock them out until they accept again.`,
+        });
+      }
+    }
     // SEAT LIMIT — server-side. The client previews the cost and confirms, but
     // that check runs on the caller's device and is trivially bypassed by
     // calling this function directly. Billing has to be enforced where the row
@@ -229,7 +275,8 @@ serve(async (req) => {
       }
     }
     const token = newToken();
-    // Upsert on (project_id, invited_email): re-inviting refreshes the token/role.
+    // Upsert on (project_id, invited_email): re-inviting a PENDING or REVOKED
+    // row refreshes the token/role (an accepted row returned above).
     const ins = await rest(`project_collaborators?on_conflict=project_id,invited_email`, {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=representation" },
@@ -252,23 +299,102 @@ serve(async (req) => {
   }
 
   // ── accept ───────────────────────────────────────────────────────────────────
+  // The two answers the INVITEE must be able to act on (a used link, a
+  // different address) come back as 200 + { success:false, code, error }:
+  // supabase.functions.invoke drops the body of a non-2xx response, so the
+  // old 404/403 reached the screen as "Edge Function returned a non-2xx
+  // status code" — and the email-mismatch case (Sign in with Apple's hidden
+  // relay; a personal address when the GC typed the work one) was a dead end
+  // neither side could diagnose (audit round 2 #29).
   if (action === "accept") {
     const token = String(body.token || "");
     if (!token) return json({ error: "Missing token" }, 400);
     const look = await rest(`project_collaborators?invite_token=eq.${encodeURIComponent(token)}&status=eq.pending&select=id,project_id,invited_email&limit=1`);
     if (!look.ok) return json({ error: "Lookup failed" }, 502);
     const rows = (await look.json()) as { id: string; project_id: string; invited_email: string }[];
-    if (!rows.length) return json({ error: "This invite is invalid or already used." }, 404);
+    if (!rows.length) {
+      return json({ success: false, code: "invalid_or_used", error: "This invite is invalid or already used. If you already accepted it, the project is in your list; otherwise ask the owner to send it again." });
+    }
     const row = rows[0];
     if (row.invited_email.toLowerCase() !== caller.email) {
-      return json({ error: "This invite was sent to a different email address." }, 403);
+      return json({
+        success: false,
+        code: "email_mismatch",
+        // Masked: the token can be forwarded, and the full address is the
+        // invitee's, not the forwardee's. The invitee recognises his own.
+        invitedEmail: maskEmail(row.invited_email),
+        signedInAs: caller.email,
+        error: caller.email
+          ? `This invite was sent to ${maskEmail(row.invited_email)}, but you're signed in as ${caller.email}. Sign in with the invited address, or ask the owner to re-invite ${caller.email}.`
+          : `This invite was sent to ${maskEmail(row.invited_email)}, and your account has no email address. Sign in with the invited address to accept.`,
+      });
     }
-    const upd = await rest(`project_collaborators?id=eq.${row.id}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ user_id: caller.sub, status: "accepted", accepted_at: new Date().toISOString(), invite_token: null }),
-    });
-    if (!upd.ok) return json({ error: `Could not accept (${upd.status})` }, 502);
+    const accepted = await markAccepted(row.id, caller.sub);
+    if (!accepted.ok) return json({ error: `Could not accept (${accepted.status})` }, 502);
+    return json({ success: true, projectId: row.project_id });
+  }
+
+  // ── listPending ─────────────────────────────────────────────────────────────
+  // The invites waiting for the CALLER, matched on his GoTrue-verified email.
+  // This is the recovery path that does not depend on the emailed link
+  // surviving a sign-in: on iPhone the https link opens Safari (no
+  // associatedDomains), a brand-new account's pre-session wipe clears the
+  // stashed token, and nothing replayed it — so a first-time foreman finished
+  // onboarding into an empty app and the GC's roster said "Invited" forever.
+  // Home lists these and accepts by id (acceptPending). Service role, because
+  // the invitee cannot read the project row or the inviter's profile until he
+  // has accepted; the email match is the whole authorisation.
+  if (action === "listPending") {
+    if (!caller.email) return json({ success: true, invites: [] });
+    const r = await rest(
+      `project_collaborators?invited_email=eq.${encodeURIComponent(caller.email)}&status=eq.pending&select=id,project_id,role,invited_by,invited_at&order=invited_at.desc&limit=20`,
+    );
+    if (!r.ok) return json({ error: `Could not load invites (${r.status})` }, 502);
+    const rows = (await r.json()) as { id: string; project_id: string; role: string; invited_by: string; invited_at: string }[];
+    const invites: { collaboratorId: string; projectId: string; projectName: string; role: string; invitedBy: string; invitedAt: string }[] = [];
+    for (const row of rows) {
+      let projectName = "";
+      let ownerId = "";
+      try {
+        const pr = await rest(`projects?id=eq.${encodeURIComponent(row.project_id)}&select=name,user_id&limit=1`);
+        if (pr.ok) {
+          const p = ((await pr.json()) as { name?: string; user_id?: string }[])[0];
+          projectName = p?.name ?? "";
+          ownerId = p?.user_id ?? "";
+        }
+      } catch { /* name is decoration; the id still accepts */ }
+      // An invite to a project the caller now owns (or that was deleted) is
+      // not something he can act on.
+      if (!ownerId || ownerId === caller.sub) continue;
+      let invitedBy = "";
+      try {
+        const prof = await rest(`profiles?id=eq.${encodeURIComponent(row.invited_by)}&select=name,company_name&limit=1`);
+        if (prof.ok) {
+          const p = ((await prof.json()) as { name?: string; company_name?: string }[])[0];
+          invitedBy = (p?.company_name || p?.name || "").trim();
+        }
+      } catch { /* optional */ }
+      invites.push({ collaboratorId: row.id, projectId: row.project_id, projectName, role: row.role, invitedBy, invitedAt: row.invited_at });
+    }
+    return json({ success: true, invites });
+  }
+
+  // ── acceptPending ───────────────────────────────────────────────────────────
+  // Accept one of listPending's rows by id — the same email check `accept`
+  // makes on a token, without needing the token.
+  if (action === "acceptPending") {
+    const collaboratorId = String(body.collaboratorId || "");
+    if (!collaboratorId) return json({ error: "Missing collaboratorId" }, 400);
+    const look = await rest(`project_collaborators?id=eq.${encodeURIComponent(collaboratorId)}&status=eq.pending&select=id,project_id,invited_email&limit=1`);
+    if (!look.ok) return json({ error: "Lookup failed" }, 502);
+    const row = ((await look.json()) as { id: string; project_id: string; invited_email: string }[])[0];
+    // Same answer for "no such row" and "not yours": an id is not a secret,
+    // but which ids exist for which addresses is nobody else's business.
+    if (!row || !caller.email || row.invited_email.toLowerCase() !== caller.email) {
+      return json({ success: false, code: "invalid_or_used", error: "This invite is no longer waiting for you. Pull down to refresh." });
+    }
+    const accepted = await markAccepted(row.id, caller.sub);
+    if (!accepted.ok) return json({ error: `Could not accept (${accepted.status})` }, 502);
     return json({ success: true, projectId: row.project_id });
   }
 

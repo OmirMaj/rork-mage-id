@@ -42,6 +42,10 @@ const BANNED: { pattern: RegExp; why: string }[] = [
   { pattern: /30%\s*faster/i, why: 'no source' },
   { pattern: /\$30K\s*[–-]\s*\$?80K/i, why: 'unsourced per-job savings promise' },
   { pattern: /roughly\s*[35]%\s*of the/i, why: 'two pages quoted different, non-reconciling percentages' },
+  // Since 2026-09-17 a contract carries the GC's own deposit / progress / final
+  // split (utils/paymentTerms.contractScheduleFromSplit), or an empty schedule
+  // until he answers — never a five-stage template.
+  { pattern: /foundation,\s*framing,\s*dry-in/i, why: 'the product seeds the GC\'s own 3-part split, not pre-templated construction-stage milestones' },
 ];
 for (const { pattern, why } of BANNED) {
   const hits = pages.filter(p => pattern.test(readFileSync(p, 'utf8')));

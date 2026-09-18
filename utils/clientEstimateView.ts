@@ -28,24 +28,16 @@ export interface ClientAllowance {
   amount: number;
 }
 
+// The shape of one printed payment line. There is deliberately NO schedule
+// builder here any more: until 2026-09-17 this module exported one that
+// invented a 10% deposit nobody chose, and every proposal printed it. A
+// payment line now comes only from utils/paymentTerms.proposalPaymentLines,
+// fed by the GC's own saved (or portal-stamped) split.
 export interface PaymentMilestone {
   label: string;
   detail: string;
   /** Dollar amount; omitted for schedule-only milestones (e.g. monthly progress). */
   amount?: number;
-}
-
-/**
- * A sensible default proposal payment schedule: 10% deposit on signing, monthly
- * progress billing, remainder on completion. Contractors can override later.
- */
-export function defaultPaymentSchedule(total: number): PaymentMilestone[] {
-  const deposit = Math.round(total * 0.1);
-  return [
-    { label: 'Deposit', detail: 'Due on signing · 10%', amount: deposit },
-    { label: 'Progress billing', detail: 'Monthly, on work completed' },
-    { label: 'Final payment', detail: 'On substantial completion', amount: total - deposit },
-  ];
 }
 
 export interface ClientEstimateView {

@@ -103,6 +103,9 @@ interface RequestBody {
   projectId: string;
   dpi?: number;
   maxPages?: number;
+  /** 1-indexed first page to render. Lets a caller walk a long document in
+   *  passes (extract-submittals reads 24 pages at a time). Default 1. */
+  startPage?: number;
 }
 
 interface PageOutput {
@@ -190,6 +193,7 @@ serve(async (req) => {
     }
 
     const { pdfStoragePath, projectId } = body;
+    const startPage = Math.max(1, Math.floor(body.startPage ?? 1));
     const dpi = clamp(body.dpi ?? 144, 72, 300);
     // Tier-aware page cap. Pro: 50/run (typical residential set is 8–30
     // sheets). Business and Enterprise: 200/run for hospital / commercial
@@ -202,7 +206,7 @@ serve(async (req) => {
     if (!pdfStoragePath || !projectId) {
       return json({ success: false, error: 'pdfStoragePath and projectId are required' }, 400);
     }
-    log('body_parsed', { pdfStoragePath, projectId, dpi, maxPages });
+    log('body_parsed', { pdfStoragePath, projectId, dpi, maxPages, startPage });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -279,30 +283,44 @@ serve(async (req) => {
     const cap = MONTHLY_CAPS[auth.tier].takeoff_pages ?? 0;
     const used = await aiUsageGet(auth.userId, 'takeoff_pages');
     const remaining = Math.max(0, cap - used);
-    log('quota_check', { used, cap, remaining, pdfPageCount });
+
+    if (startPage > pdfPageCount) {
+      return json({
+        success: false,
+        error: `That PDF has ${pdfPageCount} pages — there is no page ${startPage}.`,
+        code: 'start_page_past_end',
+        pageCount: pdfPageCount, startPage,
+      }, 400);
+    }
+
+    // The maxPages ceiling applies first (Cloudconvert wall-clock budget), and
+    // the quota check has to see the SAME number. AUDIT ROUND 2 (#22): this
+    // compared the whole PDF's page count against the remaining quota while
+    // metering only the pages it rendered, so a Pro user with 30 pages left was
+    // refused a 212-page spec book that would have rendered and charged 24 —
+    // and extract-submittals showed it as "Edge Function returned a non-2xx
+    // status code". Split books were refused the same way at 40 pages.
+    const renderPageCount = Math.min(pdfPageCount - startPage + 1, maxPages);
+    log('quota_check', { used, cap, remaining, pdfPageCount, startPage, renderPageCount });
 
     if (cap === 0) {
       return json({
         success: false,
         error: `Takeoffs aren't included on the ${auth.tier} plan. Upgrade to Pro to start using AI Takeoff.`,
         code: 'tier_required',
-        used, cap, remaining, pageCount: pdfPageCount,
+        used, cap, remaining, pageCount: pdfPageCount, renderPageCount,
       }, 402);
     }
-    if (pdfPageCount > remaining) {
+    if (renderPageCount > remaining) {
       return json({
         success: false,
-        error: `That PDF is ${pdfPageCount} pages but you only have ${remaining} of ${cap} pages remaining this month.`,
+        error: renderPageCount === pdfPageCount
+          ? `That PDF is ${pdfPageCount} pages but you only have ${remaining} of ${cap} pages remaining this month.`
+          : `This pass would render ${renderPageCount} pages (of ${pdfPageCount}) but you only have ${remaining} of ${cap} pages remaining this month.`,
         code: 'monthly_cap_reached',
-        used, cap, remaining, pageCount: pdfPageCount,
+        used, cap, remaining, pageCount: pdfPageCount, renderPageCount,
       }, 429);
     }
-
-    // The maxPages limit at the body-level still applies as a defense-
-    // in-depth ceiling so a user on Enterprise can't ask for 500 pages
-    // in one job (Cloudconvert wall-clock budget). At this point we've
-    // already validated `pageCount <= remaining`.
-    const renderPageCount = Math.min(pdfPageCount, maxPages);
 
     // 1c. Mint a signed URL for CloudConvert to fetch the PDF. 10-min
     //     TTL is plenty — CloudConvert pulls the file inside its first
@@ -343,8 +361,9 @@ serve(async (req) => {
           // Cap pages CloudConvert will render. We use the actual PDF
           // page count (capped at maxPages and pre-validated against the
           // user's remaining quota) so we don't pay CC for pages we
-          // wouldn't return anyway.
-          pages: `1-${renderPageCount}`,
+          // wouldn't return anyway. A startPage > 1 renders the NEXT pass of
+          // a long document instead of the first pages again.
+          pages: `${startPage}-${startPage + renderPageCount - 1}`,
         },
         'export-pngs': {
           operation: 'export/url',
@@ -433,7 +452,11 @@ serve(async (req) => {
 
     for (let i = 0; i < sorted.length; i++) {
       const f = sorted[i];
-      const pageNumber = extractPageNumber(f.filename) || (i + 1);
+      // Position in the ORIGINAL document. CloudConvert numbers its output
+      // files from 1 within the requested range, so the offset has to come
+      // from startPage — otherwise a second pass would claim to be pages 1-24
+      // again and overwrite nothing but the truth.
+      const pageNumber = startPage + i;
 
       const dl = await fetch(f.url);
       if (!dl.ok) {
@@ -494,6 +517,12 @@ serve(async (req) => {
     return json({
       success: true,
       pages: outputs,
+      // What the caller needs to tell the user what was read and what was not:
+      // "Read pages 1-24 of 212". Without this the screen could only show the
+      // pages it got back, which reads as the whole document.
+      pageCount: pdfPageCount,
+      startPage,
+      renderedPageCount: outputs.length,
       usage: { used: newUsed, cap, remaining: Math.max(0, cap - newUsed) },
     }, 200);
   } catch (err) {

@@ -1460,6 +1460,37 @@ export interface AppSettings {
   };
   /** Client-financing referral config. Absent ⇒ feature off. */
   financing?: FinancingConfig;
+  /**
+   * The GC's own payment split — what his proposals, client portal and
+   * contracts print. ABSENT = NEVER ASKED, and nothing may fill it in on his
+   * behalf: it is asked the first time a client-facing document is about to
+   * print it (hooks/useClientDocumentGate.ts) and saved once. Columns
+   * profiles.deposit_pct / progress_pct / final_pct, written ONLY by
+   * ProjectContext.savePaymentTerms (never the whole-row settings save) and
+   * read only through utils/paymentTerms.ts. Deliberately not in
+   * DEFAULT_SETTINGS.
+   */
+  paymentSplit?: PaymentSplit;
+  /**
+   * Workmanship warranty in months, 1..120. ABSENT = NEVER ASKED; a contract
+   * prints a visible placeholder until he answers. profiles.warranty_months,
+   * same write path as `paymentSplit`.
+   */
+  warrantyMonths?: number;
+}
+
+/**
+ * A payment split in WHOLE percents that sum to exactly 100 — deposit due on
+ * signing, progress billed as work is completed, final due at substantial
+ * completion. The bounds mirror profiles_payment_split_check; validate with
+ * utils/paymentTerms.validatePaymentSplit before it goes anywhere.
+ */
+export interface PaymentSplit { depositPct: number; progressPct: number; finalPct: number }
+
+/** A portal proposal's frozen copy of the GC's split, and when he confirmed it. */
+export interface ProposalPaymentTerms extends PaymentSplit {
+  /** ISO instant the stamp was taken. Kept when an identical split is re-stamped. */
+  confirmedAt: string;
 }
 
 /** Cost X-Ray — normalized bounding box on a source photo (0..1 of width/height). */
@@ -2943,6 +2974,11 @@ export interface PunchItem {
   status: PunchItemStatus;
   /** Best URL to render RIGHT NOW — see ProjectPhoto.uri. */
   photoUri?: string;
+  /** The gallery photo (photos.id) this item was raised from in the photo
+   *  annotator. The photo URI only matches that photo on the capturing device,
+   *  so this id is how every other device finds the markup drawn on it.
+   *  Column punch_items.source_photo_id (migration 20260917180000). */
+  sourcePhotoId?: string;
   /** Durable location in the `project-photos` bucket (`<uid>/<projectId>/punch-<id>.jpg`).
    *  This is what `punch_items.photo_uri` stores; a `file://` there is
    *  unreachable from every other device. */
@@ -3526,6 +3562,22 @@ export interface ClientPortalSettings {
    */
   proposalApprovalEnabled?: boolean;
   /**
+   * What THIS portal's proposal prints as its payment schedule: a snapshot of
+   * the GC's saved terms (AppSettings.paymentSplit) taken when he publishes the
+   * proposal, confirms it, or answers "Use on every job" for the first time.
+   * Never a per-job override and never edited on its own — it only ever copies
+   * his saved terms, so a change in Company Profile / Settings cannot rewrite a
+   * proposal a homeowner has already been shown. buildPortalProposal reads ONLY
+   * this (never settings); absent = the proposal is published read-only as
+   * "confirming the payment schedule" and cannot be accepted.
+   *
+   * The server keeps it when a stale client_portal blob omits the key
+   * (projects_keep_proposal_payment_terms, 20260917150000) — an omitted key is
+   * restored from the stored row. Nothing in the app clears a stamp.
+   * Replace only through utils/paymentTerms.nextProposalStamp.
+   */
+  proposalPaymentTerms?: ProposalPaymentTerms;
+  /**
    * Language code the homeowner reads in. Drives:
    *  - AI homeowner-summary generation (the prompt instructs the model
    *    to write in this language)
@@ -3801,6 +3853,11 @@ export interface RFIHandoff {
 export interface RFI {
   id: string;
   projectId: string;
+  /** The gallery photo (photos.id) the first attachment was raised from in
+   *  the photo annotator — how any device finds the markup drawn on it (the
+   *  attachment URI only matches on the capturing device). Column
+   *  rfis.source_photo_id (migration 20260917180000). */
+  sourcePhotoId?: string;
   number: number;
   subject: string;
   question: string;

@@ -17,8 +17,8 @@
 // Inactive factors (risk 0) stay in the denominator so a clean job scores low.
 
 import type { Project, ChangeOrder, Commitment, Invoice } from '@/types';
-import { computeLivingEstimate } from '@/utils/livingEstimate';
-import { computeJobCost } from '@/utils/jobCostEngine';
+import { computeLivingEstimate, type MarginCostBasis } from '@/utils/livingEstimate';
+import { computeJobCost, type JobCostActualSources } from '@/utils/jobCostEngine';
 import { getContractValue } from '@/utils/projectFinancials';
 
 export type RiskBand = 'low' | 'moderate' | 'elevated' | 'high';
@@ -46,6 +46,11 @@ export interface MarginRiskScore {
   topFactors: RiskFactor[];
   /** False when the estimate has no margin basis to score against. */
   hasBasis: boolean;
+  /** Which cost streams fed the score (utils/livingEstimate MarginCostBasis).
+   *  A 'subs_only' score has not seen crew labor or material spend, so its
+   *  erosion and cost-overrun factors can read 0 on a job that is bleeding.
+   *  Optional for hand-built fixtures only; absent reads as 'subs_only'. */
+  costBasis?: MarginCostBasis;
 }
 
 const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
@@ -72,6 +77,10 @@ export interface MarginRiskInput {
   changeOrders: ChangeOrder[];
   commitments: Commitment[];
   invoices: Invoice[];
+  /** Forwarded into BOTH engine calls below — the Living Estimate this score
+   *  reads erosion from, and the job-cost run it reads the overrun trend from.
+   *  Omit it and the score is subcontracts-only (costBasis 'subs_only'). */
+  costSources?: JobCostActualSources;
 }
 
 export function computeMarginRisk({
@@ -79,14 +88,16 @@ export function computeMarginRisk({
   changeOrders,
   commitments,
   invoices,
+  costSources,
 }: MarginRiskInput): MarginRiskScore {
-  const le = computeLivingEstimate({ project, changeOrders, commitments, invoices });
+  const le = computeLivingEstimate({ project, changeOrders, commitments, invoices, costSources });
+  const costBasis = le.costBasis;
 
   if (!le.hasMarginBasis) {
-    return { score: 0, band: 'low', factors: [], topFactors: [], hasBasis: false };
+    return { score: 0, band: 'low', factors: [], topFactors: [], hasBasis: false, costBasis };
   }
 
-  const jc = computeJobCost({ project, commitments, invoices, changeOrders });
+  const jc = computeJobCost({ project, commitments, invoices, changeOrders, ...costSources });
   const estimate = project.linkedEstimate!;
   const grandTotal = estimate.grandTotal || 1;
   const contract = getContractValue(project, changeOrders) || 1;
@@ -159,7 +170,13 @@ export function computeMarginRisk({
     risk: clamp01(overrun / 0.05),
     weight: 1.2,
     contribution: 0,
-    detail: overrun > 0.002 ? `Projecting ${pct(overrun)} over cost budget` : 'Costs within budget',
+    // On a subs-only basis "Costs within budget" is a claim about money the
+    // engine never saw (crew hours, receipts) — say what was actually checked.
+    detail: overrun > 0.002
+      ? `Projecting ${pct(overrun)} over cost budget`
+      : costBasis === 'all_sources'
+        ? 'Costs within budget'
+        : 'Subcontracts and POs within budget (crew labor and receipts not counted)',
     recommendation: 'Address the largest phase variance before it compounds.',
   };
 
@@ -213,6 +230,7 @@ export function computeMarginRisk({
     factors,
     topFactors: factors.filter(f => f.risk >= 0.15),
     hasBasis: true,
+    costBasis,
   };
 }
 

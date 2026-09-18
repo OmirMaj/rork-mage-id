@@ -15,11 +15,12 @@
 // No new math, no network.
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { Stack, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronRight, BellRing, BellOff,
   TrendingDown, TrendingUp, CheckCheck,
@@ -29,6 +30,10 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import {
@@ -84,7 +89,26 @@ function MarginAlertsInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projects, changeOrders, commitments, invoices } = useProjects();
+  const {
+    projects, changeOrders, commitments, invoices, equipment, permits, subcontractors,
+  } = useProjects();
+  // The cost streams Job Costing prices (audit round 2, #16) — without them a
+  // self-perform job's labor and material overruns never reached this inbox.
+  const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+  // "Mark all read" stamps the CURRENT reading as the acknowledged baseline,
+  // so it must never stamp a subs-only reading taken before the local stores
+  // loaded — that would bury a real overrun as already-seen. No alerts (and so
+  // no mark-read control) until they have. The mirror hook has no loading
+  // flag; read its cache entry by the key the store exports, so a rename
+  // cannot leave this screen waiting on a query that no longer exists.
+  const queryClient = useQueryClient();
+  const mirrorLoaded = queryClient.getQueryState(TIME_ENTRIES_MIRROR_QUERY_KEY)?.data !== undefined;
+  const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;
 
   const [acknowledged, setAcknowledged] = useState<BaselineMap>({});
   const [loaded, setLoaded] = useState(false);
@@ -105,26 +129,27 @@ function MarginAlertsInner() {
   }, []);
 
   const { baselines, names } = useMemo(
-    () => computeCurrentBaselines({ projects, changeOrders, commitments, invoices }),
-    [projects, changeOrders, commitments, invoices],
+    () => computeCurrentBaselines({ projects, changeOrders, commitments, invoices, costSources }),
+    [projects, changeOrders, commitments, invoices, costSources],
   );
 
   const alerts = useMemo(
-    () => (loaded ? computeAlerts(baselines, names, acknowledged) : []),
-    [loaded, baselines, names, acknowledged],
+    () => (loaded && costSourcesReady ? computeAlerts(baselines, names, acknowledged) : []),
+    [loaded, costSourcesReady, baselines, names, acknowledged],
   );
 
   const actionable = countActionable(alerts);
   const trackedCount = Object.keys(baselines).length;
 
   const markAllRead = useCallback(async () => {
+    if (!costSourcesReady) return;
     setAcknowledged(baselines);
     try {
       await AsyncStorage.setItem(MARGIN_ALERTS_BASELINE_KEY, JSON.stringify(baselines));
     } catch {
       // Non-fatal; the in-memory ack still clears the list this session.
     }
-  }, [baselines]);
+  }, [baselines, costSourcesReady]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -147,7 +172,16 @@ function MarginAlertsInner() {
         )}
       </View>
 
-      {alerts.length === 0 ? (
+      {!loaded || !costSourcesReady ? (
+        // alerts is [] until the acknowledged baseline AND the cost stores
+        // have loaded, so without this branch the screen flashed "No new
+        // margin alerts" for a beat before a real alert appeared — a false
+        // all-clear on a money screen. Say what it is waiting on instead.
+        <View style={styles.loading} testID="margin-alerts-loading" accessibilityRole="progressbar" accessibilityLabel="Loading crew hours and receipts">
+          <ActivityIndicator size="small" color={t.accent} />
+          <Text style={styles.loadingText}>Loading crew hours and receipts before reading margins…</Text>
+        </View>
+      ) : alerts.length === 0 ? (
         <EmptyState
           icon={<BellOff size={36} color={t.success} strokeWidth={1.6} />}
           title={trackedCount > 0 ? 'No new margin alerts' : 'Nothing to watch yet'}
@@ -243,6 +277,8 @@ function MarginAlertsInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  loading: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 10, padding: 24 },
+  loadingText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center' as const },
   header: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,

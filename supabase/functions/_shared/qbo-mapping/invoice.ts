@@ -60,7 +60,27 @@ interface MageInvoiceRow {
   type: string | null; progress_percent: number | string | null;
   retention_percent: number | string | null; retention_amount: number | string | null; retention_released: number | string | null;
   qbo_id: string | null; qbo_hash: string | null;
+  qbo_error?: string | null;
 }
+
+// --- BEGIN keepClosedFlag (twin of _shared/paymentLedger.ts) ---
+// qbo_error also carries qbo-reconciler's "closed in QuickBooks without a
+// payment" flag, which invoice-dunning's cron pauses on. This push used to
+// overwrite it on every success and every failure — and a send or a retainage
+// release moves due_date, so the next push lifted the pause and the client got
+// chased for an invoice the bookkeeper had closed. The flag stays at the front
+// (dunning tests startsWith) and this push's own message follows it.
+// Inlined, not imported: validate-money-definitions runs this file in a sandbox
+// holding only its own siblings. validate-qbo-payment-ledger executes this copy
+// against paymentLedger's on the same cases.
+const QBO_CLOSED_FLAG_PREFIX = 'QuickBooks shows this invoice closed without a payment';
+const QBO_ERROR_SEP = '\n\nAlso: ';
+function keepClosedFlag(existing: unknown, next: string | null): string | null {
+  if (typeof existing !== 'string' || !existing.startsWith(QBO_CLOSED_FLAG_PREFIX)) return next;
+  const flag = existing.split(QBO_ERROR_SEP)[0];
+  return next ? `${flag}${QBO_ERROR_SEP}${next}` : flag;
+}
+// --- END keepClosedFlag ---
 
 /** PostgREST NUMERIC → number, with a non-numeric degrading to 0 rather than
  *  propagating NaN into a ledger. Same helper `paymentMath.num` is. */
@@ -445,12 +465,12 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
     qbo_hash: totalsAgree ? hash : null,
     qbo_synced_at: new Date().toISOString(),
     qbo_sync_status: totalsAgree ? 'synced' : 'error',
-    qbo_error: totalsAgree ? taxNote : (
+    qbo_error: keepClosedFlag(inv.qbo_error, totalsAgree ? taxNote : (
       `QuickBooks posted $${Number(postedTotal ?? 0).toFixed(2)} for invoice #${inv.number} but MAGE billed ` +
       `$${expectedTotal.toFixed(2)} (${workDetail} + $${taxAmount.toFixed(2)} tax). ` +
       `The pre-tax work total does not match either, so this is not QuickBooks recomputing sales tax. ` +
       `Review the invoice in QuickBooks before your books are filed from it, then re-sync.`
-    ).slice(0, 500),
+    ).slice(0, 500)),
     qbo_retry_count: 0,
   }).eq('id', invoiceId).eq('user_id', userId);
   if (updateErr) throw new Error(`invoice update: ${updateErr.message}`);

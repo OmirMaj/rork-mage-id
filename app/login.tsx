@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Animated, ActivityIndicator, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome, CheckCircle2 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -17,6 +17,7 @@ import { Type } from '@/constants/typography';
 import { neutralInk } from '@/components/ui';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { INVITE_PARAM, postSignInHref, signupHrefForInvite } from '@/utils/deepLinksInvite';
 
 let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 
@@ -31,6 +32,14 @@ export default function LoginScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // A collaboration invite the user opened before signing in rides this param
+  // (utils/deepLinksInvite). A successful sign-in goes back to the invite
+  // instead of Summary — the stored token never survived the round trip.
+  const inviteParams = useLocalSearchParams<{ [INVITE_PARAM]?: string }>();
+  const inviteToken = inviteParams[INVITE_PARAM];
+  const goAfterSignIn = useCallback(() => {
+    router.replace(postSignInHref(inviteToken, '/(tabs)/summary') as never);
+  }, [router, inviteToken]);
   const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink, sessionExpiredReason } = useAuth();
 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -107,7 +116,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'biometric' });
-      router.replace('/(tabs)/summary' as any);
+      goAfterSignIn();
     } catch (err) {
       console.log('[Login] Biometric auth failed:', err);
       const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
@@ -115,7 +124,7 @@ export default function LoginScreen() {
     } finally {
       setIsBiometricLoading(false);
     }
-  }, [hasStoredCredentials, loginWithBiometrics, router]);
+  }, [hasStoredCredentials, loginWithBiometrics, goAfterSignIn]);
 
   const handleLogin = useCallback(async () => {
     setErrorMessage('');
@@ -142,7 +151,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'email' });
-      router.replace('/(tabs)/summary' as any);
+      goAfterSignIn();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       setErrorMessage(message);
@@ -153,7 +162,7 @@ export default function LoginScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [email, password, rememberMe, login, router, buttonScale, shake]);
+  }, [email, password, rememberMe, login, goAfterSignIn, buttonScale, shake]);
 
   // Distinguish a normal user-cancel (closed the account chooser / dismissed
   // the Face ID sheet) from a real failure. Cancels are silent; real failures
@@ -183,7 +192,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'google' });
-      router.replace('/(tabs)/summary' as any);
+      goAfterSignIn();
     } catch (err) {
       console.log('[Login] Google login failed:', err);
       if (isUserCancel(err)) return;
@@ -195,7 +204,7 @@ export default function LoginScreen() {
     } finally {
       setIsGoogleLoading(false);
     }
-  }, [signInWithGoogle, router, isUserCancel, shake]);
+  }, [signInWithGoogle, goAfterSignIn, isUserCancel, shake]);
 
   const handleAppleLogin = useCallback(async () => {
     setIsAppleLoading(true);
@@ -206,7 +215,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'apple' });
-      router.replace('/(tabs)/summary' as any);
+      goAfterSignIn();
     } catch (err) {
       console.log('[Login] Apple login failed:', err);
       if (isUserCancel(err)) return;
@@ -218,7 +227,7 @@ export default function LoginScreen() {
     } finally {
       setIsAppleLoading(false);
     }
-  }, [signInWithApple, router, isUserCancel, shake]);
+  }, [signInWithApple, goAfterSignIn, isUserCancel, shake]);
 
   // Magic link handler — sends a one-tap login link to the user's
   // email. They tap the link from their inbox, the app's deep-link
@@ -523,7 +532,7 @@ export default function LoginScreen() {
           <View style={styles.signupRow}>
             <Text style={styles.signupPrompt}>Don't have an account?</Text>
             <TouchableOpacity
-              onPress={() => router.push('/signup' as never)}
+              onPress={() => router.push(signupHrefForInvite(inviteToken) as never)}
               testID="login-go-signup"
             >
               <Text style={styles.signupLink}>Create Account</Text>

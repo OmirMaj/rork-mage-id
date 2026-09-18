@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image, ActivityIndicator,
 } from 'react-native';
@@ -14,7 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 // platform, iOS included, so this was not a web issue. 14 other files in this
 // repo were already migrated; these five were missed.
 import { readAsBase64 } from '@/utils/platformFile';
-import { TriangleAlert, Plus, X, Trash2, ChevronLeft, Camera, ImagePlus, AlertCircle, Mic } from 'lucide-react-native';
+import { TriangleAlert, Plus, X, Trash2, ChevronLeft, Camera, ImagePlus, AlertCircle, Mic, Check } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -31,7 +31,13 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { computeRiskScore, riskBand, type RiskBand } from '@/utils/safety/risk';
-import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from '@/lib/supabase';
+import { queuePhotoUpload } from '@/utils/photoUploadQueue';
+import {
+  buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, looksLikeStoragePath, photoExtFromUri,
+} from '@/utils/photoUploadCore';
+import { resolvePhotoUrls } from '@/utils/storage';
+import { hazardPhotoForSave, stagedPathFor } from '@/utils/safety/hazardPhoto';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
@@ -122,12 +128,27 @@ function SafetyHazardsInner() {
   const [scanNote, setScanNote] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
+  // Photo on the FORM (audit round 2 #3). `attachPhoto` says whether the scanned
+  // / pasted photo goes on the record being saved; `fromSuggestion` says the
+  // description and scores came from the AI reading that photo, so the form can
+  // say so instead of presenting a model's severity as the super's own call.
+  const [attachPhoto, setAttachPhoto] = useState(false);
+  const [fromSuggestion, setFromSuggestion] = useState(false);
+  // localUri → durable value. One capture is uploaded once, however many
+  // hazards are saved from its suggestion list (see utils/safety/hazardPhoto).
+  const stagedByUriRef = useRef<Map<string, string>>(new Map());
+  // Storage path → signed URL for card thumbnails. `project-photos` is private.
+  const [signedThumbs, setSignedThumbs] = useState<Record<string, string>>({});
+
   const resetForm = useCallback(() => {
     setEditingHazard(null);
     setDescription(''); setLocation('');
     setSeverity(3); setLikelihood(3);
     setAssignedTo(''); setDueDate(''); setCorrectiveAction('');
     setStatus('open');
+    // The scanned photo and its suggestion list deliberately survive a reset:
+    // the next suggestion from the same photo is the next thing he logs.
+    setAttachPhoto(false); setFromSuggestion(false);
   }, []);
 
   const openEdit = useCallback((hz: Hazard) => {
@@ -136,16 +157,49 @@ function SafetyHazardsInner() {
     setSeverity(hz.severity); setLikelihood(hz.likelihood);
     setAssignedTo(hz.assignedTo ?? ''); setDueDate(hz.dueDate ?? '');
     setCorrectiveAction(hz.correctiveAction ?? ''); setStatus(hz.status);
+    // Editing never swaps the saved photo unless he explicitly attaches the
+    // one currently scanned.
+    setAttachPhoto(false); setFromSuggestion(false);
     setShowForm(true);
   }, []);
+
+  /**
+   * Hand the captured photo to the upload queue and return the value the record
+   * holds — the `project-photos` path, same pipeline as the incident screen.
+   * Falls back to the local URI only when there is nothing to stage INTO (no
+   * session / Supabase unconfigured), which is also when SafetyContext writes
+   * nothing to the server.
+   */
+  const stageHazardPhoto = useCallback((localUri: string): string => {
+    const userId = user?.id;
+    if (!userId || !projectId || !isSupabaseConfigured || !isDeviceLocalUri(localUri)) return localUri;
+    const recordId = `hazard-${generateUUID()}`;
+    const ext = photoExtFromUri(localUri);
+    const storagePath = buildPhotoStoragePath(userId, projectId, recordId, ext);
+    void queuePhotoUpload({
+      photoId: recordId, userId, projectId, localUri, storagePath,
+      contentType: contentTypeForExt(ext),
+    });
+    return storagePath;
+  }, [user?.id, projectId]);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
     if (!desc) { showAlert('Missing description', 'Describe the hazard.'); return; }
     const now = new Date().toISOString();
     const score = computeRiskScore(severity, likelihood);
+    // Stage only when the photo is actually going on this record — an
+    // un-attached capture must not leave an orphan object in the bucket.
+    const stagedPhoto = attachPhoto && pickedUri
+      ? stagedPathFor(stagedByUriRef.current, pickedUri, stageHazardPhoto)
+      : null;
+    const photoForRecord = hazardPhotoForSave({
+      attach: attachPhoto, stagedPhoto, pastedUrl: photoUrl,
+      existing: editingHazard?.photoUrl, isEdit: !!editingHazard,
+    });
     if (editingHazard) {
       updateHazard(editingHazard.id, {
+        photoUrl: photoForRecord,
         description: desc, location: location.trim(), severity, likelihood, riskScore: score,
         assignedTo: assignedTo.trim() || undefined, dueDate: dueDate.trim() || undefined,
         correctiveAction: correctiveAction.trim() || undefined, status,
@@ -153,7 +207,7 @@ function SafetyHazardsInner() {
     } else {
       const hazard: Hazard = {
         id: generateUUID(), projectId: projectId ?? '', description: desc, location: location.trim(),
-        photoUrl: undefined, severity, likelihood, riskScore: score,
+        photoUrl: photoForRecord, severity, likelihood, riskScore: score,
         assignedTo: assignedTo.trim() || undefined, dueDate: dueDate.trim() || undefined,
         correctiveAction: correctiveAction.trim() || undefined, status: 'open',
         createdBy: author, createdAt: now, updatedAt: now,
@@ -162,7 +216,7 @@ function SafetyHazardsInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [description, location, severity, likelihood, assignedTo, dueDate, correctiveAction, status, editingHazard, projectId, addHazard, updateHazard, resetForm, author]);
+  }, [description, location, severity, likelihood, assignedTo, dueDate, correctiveAction, status, editingHazard, projectId, addHazard, updateHazard, resetForm, author, attachPhoto, pickedUri, photoUrl, stageHazardPhoto]);
 
   // Capture or pick a site photo to scan. Clears any pasted URL — a local
   // capture takes precedence and gets encoded inline (the server can't fetch
@@ -185,6 +239,9 @@ function SafetyHazardsInner() {
     setPickedUri(result.assets[0].uri);
     setPhotoUrl('');
     setScanNote(null);
+    // Suggestions describe the PREVIOUS photo. Leaving them up would let one be
+    // applied — and this new photo attached as its evidence.
+    setSuggestions([]);
   }, []);
 
   const handleDetect = useCallback(async () => {
@@ -239,8 +296,49 @@ function SafetyHazardsInner() {
     setDescription(s.description);
     setSeverity(Math.max(1, Math.min(5, s.severity)) as HazardScale);
     setLikelihood(Math.max(1, Math.min(5, s.likelihood)) as HazardScale);
+    // The photo the AI read goes on the record by default — it is what the
+    // severity score was based on. He can take it off in the form.
+    setAttachPhoto(true);
+    setFromSuggestion(true);
     setShowForm(true);
   }, []);
+
+  // What the scanned photo renders as in the form: the capture, else the URL.
+  const scanPreview = pickedUri || (photoUrl.trim() || null);
+
+  // Sign the stored paths the cards show. A path that cannot be signed (offline)
+  // stays out of the map and the card simply shows no thumbnail.
+  useEffect(() => {
+    const unresolved = items
+      .map(h => h.photoUrl ?? '')
+      .filter(v => looksLikeStoragePath(v) && !signedThumbs[v]);
+    if (unresolved.length === 0) return;
+    let cancelled = false;
+    void resolvePhotoUrls(unresolved).then(map => {
+      if (cancelled || map.size === 0) return;
+      setSignedThumbs(prev => {
+        const next = { ...prev };
+        for (const [path, url] of map) next[path] = url;
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [items, signedThumbs]);
+
+  // A path staged on THIS device this session falls back to the capture it
+  // was staged from. The sign effect above runs before the queued upload
+  // lands, gets nothing back for an object that does not exist yet, and does
+  // not retry — so without this the super's photo vanished from the card he
+  // had just saved. The local file is the same picture.
+  const thumbFor = useCallback((value?: string): string | null => {
+    if (!value) return null;
+    if (looksLikeStoragePath(value)) {
+      if (signedThumbs[value]) return signedThumbs[value];
+      for (const [localUri, path] of stagedByUriRef.current) if (path === value) return localUri;
+      return null;
+    }
+    return value;
+  }, [signedThumbs]);
 
   const handleAdvanceStatus = useCallback((hz: Hazard) => {
     updateHazard(hz.id, { status: nextStatus(hz.status) });
@@ -308,6 +406,9 @@ function SafetyHazardsInner() {
           return (
             <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.85} onPress={() => openEdit(item)}>
               <View style={styles.cardTop}>
+                {thumbFor(item.photoUrl) ? (
+                  <Image source={{ uri: thumbFor(item.photoUrl)! }} style={styles.cardThumb} accessibilityLabel="Hazard photo" />
+                ) : null}
                 <Text style={styles.cardTitle} numberOfLines={2}>{item.description}</Text>
                 <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel="Delete">
                   <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
@@ -412,7 +513,7 @@ function SafetyHazardsInner() {
           <TextInput
             style={styles.photoInput}
             value={photoUrl}
-            onChangeText={t => { setPhotoUrl(t); if (t.trim()) setPickedUri(null); }}
+            onChangeText={t => { setPhotoUrl(t); if (t.trim()) setPickedUri(null); setSuggestions([]); }}
             placeholder="Or paste a site photo URL to scan…"
             placeholderTextColor={themeColors.textMuted}
             autoCapitalize="none"
@@ -448,6 +549,43 @@ function SafetyHazardsInner() {
                   multiline
                   testID="hazard-description-input"
                 />
+
+                {fromSuggestion ? (
+                  <View style={styles.aiSourceRow} testID="hazard-ai-source">
+                    <MageAIMark size={13} color={themeColors.textSecondary} accentColor={themeColors.accent} />
+                    <Text style={styles.aiSourceText}>
+                      Suggested by AI from this photo — description, severity and likelihood are the model&apos;s reading. Check them before logging.
+                    </Text>
+                  </View>
+                ) : null}
+
+                {scanPreview ? (
+                  <TouchableOpacity
+                    style={styles.photoAttachRow}
+                    onPress={() => setAttachPhoto(v => !v)}
+                    activeOpacity={0.8}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: attachPhoto }}
+                    testID="hazard-attach-photo"
+                  >
+                    <Image source={{ uri: scanPreview }} style={styles.photoAttachThumb} />
+                    <Text style={styles.photoAttachText}>
+                      {attachPhoto
+                        ? (editingHazard ? 'Replace this hazard’s photo with the scanned one' : 'Photo attached to this hazard')
+                        : (editingHazard ? 'Tap to replace this hazard’s photo with the scanned one' : 'Tap to attach the scanned photo')}
+                    </Text>
+                    <View style={[styles.photoAttachBox, attachPhoto ? styles.photoAttachBoxOn : null]}>
+                      {attachPhoto ? <Check size={13} color="#FFFFFF" strokeWidth={3} /> : null}
+                    </View>
+                  </TouchableOpacity>
+                ) : editingHazard?.photoUrl ? (
+                  <View style={styles.photoAttachRow}>
+                    {thumbFor(editingHazard.photoUrl) ? (
+                      <Image source={{ uri: thumbFor(editingHazard.photoUrl)! }} style={styles.photoAttachThumb} />
+                    ) : null}
+                    <Text style={styles.photoAttachText}>Photo on file — kept when you update.</Text>
+                  </View>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Location</Text>
                 <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. 3rd floor east" placeholderTextColor={themeColors.textMuted} />
@@ -546,6 +684,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
   card: { marginHorizontal: 20, marginTop: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  cardThumb: { width: 44, height: 44, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt },
+  aiSourceRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 6, marginTop: 6 },
+  aiSourceText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16 },
+  photoAttachRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginTop: 8, padding: 8, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt },
+  photoAttachThumb: { width: 48, height: 48, borderRadius: Tokens.radius.sm },
+  photoAttachText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
+  photoAttachBox: { width: 22, height: 22, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: themeColors.line, alignItems: 'center' as const, justifyContent: 'center' as const },
+  photoAttachBoxOn: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
   cardTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },
   cardMeta: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
   cardSummary: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },

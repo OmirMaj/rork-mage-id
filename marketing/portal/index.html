@@ -6008,7 +6008,12 @@
   // scripts/validate-portal-owner.ts lifts this copy out of the page and runs
   // the two head-to-head.
   // PROPOSAL-ESIGN-BLOCK-START
-  var PROPOSAL_ESIGN_VERSION = 'proposal-esign-1';
+  // esign-2: the payment lines are the contractor's own confirmed terms. An
+  // esign-1 proposal (an app build that still printed MAGE's placeholder 10%
+  // deposit) or one whose terms are not confirmed yet is shown read-only —
+  // renderProposal draws no buttons and no payment amounts for it, and the
+  // acceptance RPC refuses it on the same rule.
+  var PROPOSAL_ESIGN_VERSION = 'proposal-esign-2';
   var PROPOSAL_DISCLOSURE_TEXT =
     'By typing your legal name, drawing your signature, and selecting "I agree", you consent to accept this proposal electronically. ' +
     'You are accepting the scope and the fixed price shown above as the basis of the work your contractor will do. ' +
@@ -6071,7 +6076,14 @@
     var decided = loadProposalDecision(p.id);
     var scope = p.scope || [];
     var allowances = p.allowances || [];
-    var payment = p.payment || [];
+    // Only a proposal on the current record version, with payment terms its
+    // contractor confirmed, can be accepted — or show a payment schedule. An
+    // older version's lines are MAGE's placeholder deposit, not his terms.
+    var current = p.version === PROPOSAL_ESIGN_VERSION;
+    var pending = !!p.paymentTermsPending;
+    var decidable = current && !pending;
+    var payment = decidable ? (p.payment || []) : [];
+    canDecide = !!canDecide && decidable;
 
     var pill = decided
       ? (decided.decision === 'accepted'
@@ -6126,6 +6138,11 @@
                 '<strong>' + amt + '</strong></div>';
       }
       html += '</div>';
+    }
+    if (!current) {
+      html += '<div class="prop-note" data-proposal-outdated="1">Your contractor is updating this proposal. You can accept it here once they have.</div>';
+    } else if (pending) {
+      html += '<div class="prop-note" data-proposal-terms-pending="1">Your contractor is confirming the payment schedule. You can accept here once it is set.</div>';
     }
 
     html += '<div class="prop-note">' + esc(PROPOSAL_NOT_A_CONTRACT_NOTE) + '</div>';
@@ -6908,7 +6925,12 @@
     // buttons need portalApi: without it there is nothing to submit to, and a
     // button that cannot record a signature must not be drawn.
     if (data.proposal) {
-      var proposalCanDecide = !!data.portalApi;
+      // Same rule renderProposal draws the buttons on: the current record
+      // version with confirmed terms. Otherwise the subtitle must not say
+      // "accept to get started" above a proposal nobody can accept.
+      var proposalCanDecide = !!data.portalApi
+        && data.proposal.version === PROPOSAL_ESIGN_VERSION
+        && !data.proposal.paymentTermsPending;
       addSection('proposal', 'fileText', 'Your proposal',
         proposalCanDecide
           ? 'Review the scope and the price, then accept to get started.'

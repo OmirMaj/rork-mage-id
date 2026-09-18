@@ -92,9 +92,14 @@ export default function WidgetSetupScreen() {
           <Text style={styles.eyebrow}>On your own website</Text>
           <Text style={styles.heroTitle}>Let visitors price their job</Text>
           <Text style={styles.heroSub}>
-            Paste one line into your site and homeowners get an instant ballpark — priced from your
-            numbers. Every one that fills it in arrives here as a lead.
+            Paste one line into your site and homeowners get an instant ballpark — a published
+            national range for the scope, not your prices. Every one that fills it in arrives here as
+            a lead, with the range they were shown kept apart from any budget they give you.
           </Text>
+          {/* The widget (supabase/functions/widget-estimate) reads none of his
+              data: its range comes from a fixed table of published U.S. costs.
+              This line used to say "priced from your numbers" (audit round 2,
+              #24). Say it again only once the widget reads his own rates. */}
         </View>
 
         {!ready && (

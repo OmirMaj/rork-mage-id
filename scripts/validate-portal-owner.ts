@@ -27,11 +27,16 @@
 // that has quietly stopped scanning cannot pass.
 //
 // Run: bun run scripts/validate-portal-owner.ts
+// Pinned to a US zone BEFORE any Date is built: an instant now reads as the
+// LOCAL day it fell on (toCalendarDate, integration round 1), so the evening-
+// report case below only means something west of Greenwich, and the fixtures'
+// instants are placed for it.
+process.env.TZ = 'America/Los_Angeles';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  derivePayAppPeriods, buildPeriodNarrative, buildOwnerDecisions,
+  derivePayAppPeriods, buildPeriodNarrative, buildOwnerDecisions, toCalendarDate,
   buildCOConsentRecord, summarizeOwnerDecisions,
   ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION, DUE_SOON_DAYS,
   type OwnerDecision,
@@ -156,6 +161,7 @@ const MILESTONES = [
 const JUNE = { periodFrom: '2026-06-01', periodTo: '2026-06-30' };
 const n = buildPeriodNarrative({ ...JUNE, reports: REPORTS, photos: PHOTOS, milestones: MILESTONES });
 
+expect('toCalendarDate: a bare day is that day; an instant is its local day', [toCalendarDate('2026-09-15'), toCalendarDate('2026-09-16T02:00:00.000Z'), toCalendarDate('junk')], ['2026-09-15', '2026-09-15', null]);
 expect('counts ONLY in-window daily reports', n.reportCount, 3);
 expect('counts distinct on-site days, not report rows', n.workdayCount, 2);
 expect('counts ONLY in-window photos with a real url', n.photoCount, 3);
@@ -170,6 +176,18 @@ ok('headline names the milestones and cites the photos',
   `got: ${n.headline}`);
 ok('no out-of-window work text leaks into the narrative',
   !JSON.stringify(n).includes('BEFORE WINDOW') && !JSON.stringify(n).includes('AFTER WINDOW'));
+
+// A report filed at 7 pm Pacific on the last day of the period is stored as
+// an instant (the snapshot sends dayOrInstantDate(...).toISOString(), and the
+// voice DFR stores `now`) whose UTC date is the NEXT day. It belongs to the
+// day it was filed.
+{
+  const evening = buildPeriodNarrative({
+    periodFrom: '2026-09-01', periodTo: '2026-09-15',
+    reports: [{ id: 'eve', date: '2026-09-16T02:00:00.000Z' }, { id: 'noon', date: '2026-09-15T19:00:00.000Z' }],
+  });
+  expect('an evening report counts on the day it was filed, not the UTC day after', [evening.reportCount, evening.workdayCount], [2, 1]);
+}
 
 // Boundary dates are INCLUSIVE — a report filed on the last day of the period
 // belongs to that period, not the next one.
@@ -490,6 +508,30 @@ expect('a fixed-price project gets NO openBook block', snapshot.openBook, undefi
   });
   expect('gmp without commitments still gets no openBook block', gmp.openBook, undefined);
 }
+{
+  // Cost-plus with every cost self-performed (no commitments): the owner is
+  // owed cost-to-date. It used to be hidden because the block required
+  // commitments (integration round 1, money-accounts).
+  const receipt = {
+    id: 'r1', projectId: project.id, vendor: 'Supply Co',
+    lines: [{ id: 'rl1', description: 'Lumber', category: 'Materials', quantity: 1, unit: 'ls', unitPrice: 4200, lineTotal: 4200 }],
+    subtotal: 4200, total: 4200, status: 'reviewed',
+  };
+  const selfPerform = buildPortalSnapshot({
+    project: { ...project, contractMode: 'open_book' } as unknown as Project,
+    portal: portalSettings,
+    commitments: [],
+    costSources: { receipts: [receipt] } as never,
+  });
+  expect('open-book with only self-performed costs gets the block', selfPerform.openBook?.actual, 4200);
+  const empty = buildPortalSnapshot({
+    project: { ...project, contractMode: 'open_book' } as unknown as Project,
+    portal: portalSettings,
+    commitments: [],
+    costSources: { receipts: [] } as never,
+  });
+  expect('…but nothing logged anywhere is still no block ($0/$0 is not a picture)', empty.openBook, undefined);
+}
 
 // ── NEGATIVE TEST ────────────────────────────────────────────────────────────
 // A scanner that has quietly stopped scanning passes every positive assertion
@@ -782,8 +824,12 @@ const proposalProject = {
   linkedEstimate: PROPOSAL_EST,
 } as unknown as Project;
 
+// Direction B (2026-09-17): the proposal prints ONLY the portal's own stamp
+// of the GC's terms. The shared fixture is stamped 25 / 65 / 10, so every check
+// below runs against a proposal a homeowner can actually accept.
+const PROPOSAL_STAMP = { depositPct: 25, progressPct: 65, finalPct: 10, confirmedAt: '2026-09-17T12:00:00.000Z' };
 const proposalPortal = {
-  ...portalSettings, proposalApprovalEnabled: true,
+  ...portalSettings, proposalApprovalEnabled: true, proposalPaymentTerms: PROPOSAL_STAMP,
 } as unknown as ClientPortalSettings;
 
 const buildProposalSnapshot = (
@@ -971,6 +1017,89 @@ for (const status of ['sent', 'signed'] as const) {
   ok('a payment schedule ships', p.payment.length >= 2, JSON.stringify(p.payment));
 }
 
+// ── DIRECTION B: THE PAYMENT SCHEDULE IS THE GC'S, FROZEN PER PORTAL ────────
+//
+// Until 2026-09-17 every proposal printed clientEstimateView.defaultPaymentSchedule
+// — a 10% deposit nobody chose — while the PDF said 25 / 65 / 10 and the
+// contract said 25 / 25 / 25 / 25. Now the proposal reads ONLY
+// portal.proposalPaymentTerms (the stamp the setup screen writes, a copy of his
+// saved terms), never settings: two snapshot writers push this row and a change
+// under Company Profile must not rewrite text a homeowner may be signing.
+{
+  expect('the record version is proposal-esign-2 (the bump that makes old text unsignable)',
+    PROPOSAL_ESIGN_VERSION, 'proposal-esign-2');
+  const p = buildProposalSnapshot().proposal!;
+  const lines = p.documentText.split('\n');
+  expect('a stamped proposal\'s documentText line 2 is the esign-2 version', lines[1], 'version: proposal-esign-2');
+  expect('…it prints exactly three payment lines (deposit / progress / final)', p.payment.length, 3);
+  expect('…the three amounts add up to the price being accepted, to the cent',
+    Math.round(p.payment.reduce((s, m) => s + (m.amount ?? 0), 0) * 100), Math.round(p.total * 100));
+  expect('…from the stamp, not an invented default: 25% / 65% / 10% of $400,000',
+    p.payment.map(m => m.amount), [100000, 260000, 40000]);
+  ok('…the deposit line names its 25%', /25%/.test(p.payment[0]?.detail ?? ''), JSON.stringify(p.payment[0]));
+  expect('…and the document carries the same three lines', lines.filter(l => l.startsWith('payment: ')).length, 3);
+  ok('…the pending flag is absent on a stamped proposal', p.paymentTermsPending === undefined);
+  ok('NEGATIVE: no trace of the retired 10% deposit',
+    !p.payment.some(m => /10%/.test(m.detail) && /deposit/i.test(m.label)), JSON.stringify(p.payment));
+
+  // Switched on with no stamp (a portal from before Direction B): the proposal
+  // still ships so the homeowner is not left with a vanished section, but it
+  // carries no schedule and cannot be accepted.
+  const unstamped = buildProposalSnapshot(proposalProject,
+    { ...portalSettings, proposalApprovalEnabled: true } as unknown as ClientPortalSettings).proposal;
+  ok('switched on with NO stamp, a proposal IS still shipped', !!unstamped);
+  expect('…marked paymentTermsPending', unstamped?.paymentTermsPending, true);
+  expect('…with no payment lines', unstamped?.payment, []);
+  ok('…its document says payment_terms: not_confirmed', /\npayment_terms: not_confirmed\n/.test(unstamped?.documentText ?? ''),
+    unstamped?.documentText);
+  ok('…and carries no payment: line at all', !/\npayment: /.test(unstamped?.documentText ?? ''));
+  expect('…and is still esign-2 (the pending flag is what blocks it)', unstamped?.documentText.split('\n')[1], 'version: proposal-esign-2');
+
+  // A malformed stamp (sums to 90) is not trusted.
+  const bad = buildProposalSnapshot(proposalProject, {
+    ...portalSettings, proposalApprovalEnabled: true,
+    proposalPaymentTerms: { depositPct: 25, progressPct: 55, finalPct: 10, confirmedAt: '2026-09-17T12:00:00.000Z' },
+  } as unknown as ClientPortalSettings).proposal;
+  expect('a stamp that does not total 100% is treated as not confirmed', bad?.paymentTermsPending, true);
+
+  // THE FREEZE. His saved terms, his location and his tax rate all changing
+  // must leave the published text byte-identical.
+  const withSettings = (settings: Record<string, unknown>) => buildPortalSnapshot({
+    project: proposalProject, portal: proposalPortal,
+    settings: { branding: { companyName: 'Ridgeline Builders' }, ...settings } as never,
+    supabaseUrl: 'https://example.supabase.co', supabaseAnonKey: 'anon',
+  }).proposal!.documentText;
+  const base = withSettings({});
+  expect('saved terms 30 / 60 / 10 in settings do NOT change the published documentText',
+    withSettings({ paymentSplit: { depositPct: 30, progressPct: 60, finalPct: 10 } }), base);
+  expect('…nor a different location and tax rate',
+    withSettings({ paymentSplit: { depositPct: 5, progressPct: 90, finalPct: 5 }, location: 'Sacramento, CA', taxRate: 9.25 }), base);
+  ok('NEGATIVE: the freeze check can see a stamp change',
+    buildPortalSnapshot({
+      project: proposalProject,
+      portal: { ...proposalPortal, proposalPaymentTerms: { ...PROPOSAL_STAMP, depositPct: 30, progressPct: 60 } } as unknown as ClientPortalSettings,
+      settings: { branding: { companyName: 'Ridgeline Builders' } } as never,
+      supabaseUrl: 'https://example.supabase.co', supabaseAnonKey: 'anon',
+    }).proposal!.documentText !== base);
+
+  // Nothing passes settings into the proposal builder, anywhere.
+  const callers = ['utils/portalSnapshot.ts', 'app/client-view.tsx', 'app/project-detail.tsx', 'app/client-portal-setup.tsx']
+    .map(f => ({ f, src: read(f) }));
+  for (const { f, src } of callers) {
+    const calls = src.match(/buildPortalProposal\(\{[\s\S]*?\}\)/g) ?? [];
+    ok(`${f}: no buildPortalProposal call passes settings`, calls.every(c => !/\bsettings\b\s*[:,}]/.test(c.replace(/settings\?\.branding/g, ''))),
+      calls.join('\n'));
+  }
+  const ps = read('utils/portalSnapshot.ts');
+  const builder = ps.slice(ps.indexOf('export function buildPortalProposal('), ps.indexOf('interface BuildOpts'));
+  ok('buildPortalProposal reads the stamp through isValidStamp and prints proposalPaymentLines',
+    /isValidStamp\(stamp\)/.test(builder) && /proposalPaymentLines\(view\.projectTotal, stamp\)/.test(builder), builder.slice(0, 300));
+  ok('…and no longer imports the invented defaultPaymentSchedule',
+    !/import[^;]*defaultPaymentSchedule/.test(ps) && !/defaultPaymentSchedule\(/.test(ps));
+  ok('…and its signature takes no settings',
+    !/settings/.test(builder.slice(0, builder.indexOf('}): PortalProposal'))));
+}
+
 // ── Stability: the hash the server checks cannot move on its own ────────────
 {
   const snapA = buildProposalSnapshot();
@@ -1150,6 +1279,8 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     && portalHtml.includes("addSection('proposal'"));
   ok('the accept + decline buttons exist',
     portalHtml.includes('data-proposal-accept=') && portalHtml.includes('data-proposal-decline='));
+  ok('the section subtitle promises "accept to get started" only under the same rule the buttons use',
+    /var proposalCanDecide = !!data\.portalApi\s*\n\s*&& data\.proposal\.version === PROPOSAL_ESIGN_VERSION\s*\n\s*&& !data\.proposal\.paymentTermsPending;/.test(portalHtml));
   ok('the proposal signs through the SAME modal as a change order',
     /function showProposalSignModal\(/.test(portalHtml)
     && /return showDocSignModal\(\{[\s\S]{0,900}consentText: PROPOSAL_DISCLOSURE_TEXT/.test(portalHtml));
@@ -1363,6 +1494,50 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   ok('…while acknowledged_at stays writable, which is the whole point',
     !/new\.acknowledged_at\s+:= old\.acknowledged_at;/.test(mig)
     && /acknowledged_at is deliberately NOT pinned/.test(mig));
+  // ── Direction B (2026-09-17), edited in BEFORE the file is ever applied ────
+  ok('proposal_approvals.proposal_snapshot exists (create table + idempotent add)',
+    /proposal_snapshot\s+jsonb\n\);/.test(mig)
+    && /alter table public\.proposal_approvals add column if not exists proposal_snapshot jsonb;/.test(mig));
+  ok('…and the freeze pins it', /new\.proposal_snapshot\s+:= old\.proposal_snapshot;/.test(mig));
+  ok('the snapshot read takes a row lock (for update), so a push cannot slip between check and insert',
+    /from public\.portal_snapshots ps\s*\n\s*where ps\.portal_id = p_portal_id\s*\n\s*limit 1\s*\n\s*for update;/.test(mig));
+  {
+    const m = /split_part\(v_doc, E'\\n', 2\) is distinct from 'version: ([a-z0-9-]+)'/.exec(mig);
+    expect('the RPC\'s version literal equals PROPOSAL_ESIGN_VERSION', m?.[1], PROPOSAL_ESIGN_VERSION);
+    ok('…and a pending proposal is refused as superseded',
+      /or coalesce\(v_proposal->>'paymentTermsPending', ''\) = 'true' then\s*\n\s*raise exception 'proposal_superseded';/.test(mig));
+    ok('…and the version gate runs right after documentText is read, before any hash or insert',
+      mig.indexOf("split_part(v_doc") > mig.indexOf("v_doc := v_proposal->>'documentText'")
+      && mig.indexOf("split_part(v_doc") < mig.indexOf('v_doc_hash := encode('));
+  }
+  ok('the insert stores proposal_snapshot = v_proposal',
+    /consent_accepted, sealed_at,\s*\n\s*proposal_snapshot\)/.test(mig) && /v_now,\s*\n\s*v_proposal\)\s*\n\s*returning id into v_id;/.test(mig));
+  ok('pin trigger: BEFORE INSERT OR UPDATE on public.portal_snapshots',
+    /create trigger portal_snapshots_pin_accepted_proposal\s*\n\s*before insert or update on public\.portal_snapshots\s*\n\s*for each row execute function public\.portal_snapshots_pin_accepted_proposal\(\);/.test(mig));
+  {
+    const fnSrc = mig.slice(mig.indexOf('create or replace function public.portal_snapshots_pin_accepted_proposal()'),
+      mig.indexOf('drop trigger if exists portal_snapshots_pin_accepted_proposal'));
+    ok('…security definer with a pinned search_path',
+      /security definer\s*\n\s*set search_path to 'pg_catalog', 'public'/.test(fnSrc), fnSrc.slice(0, 200));
+    ok('…replaces an incoming proposal with the accepted proposal_snapshot',
+      /decision = 'accepted'/.test(fnSrc) && /jsonb_set\(new\.snapshot, '\{proposal\}', v_accepted\)/.test(fnSrc));
+    ok('…and only when the incoming snapshot carries a proposal (removing it stays allowed)',
+      /if jsonb_typeof\(new\.snapshot -> 'proposal'\) is distinct from 'object' then return new; end if;/.test(fnSrc));
+    ok('…execute revoked from public, anon, authenticated',
+      /revoke execute on function public\.portal_snapshots_pin_accepted_proposal\(\) from public, anon, authenticated;/.test(mig));
+  }
+  ok('the header names the Direction B preconditions (esign-2 page, esign-1 rows near zero, these edits)',
+    /PROPOSAL_ESIGN_VERSION = 'proposal-esign-2'/.test(mig)
+    && /proposal-esign-1 rows in portal_snapshots are at or near\s*\n--\s+zero/.test(mig)
+    && /snapshot->'proposal'->>'version' = 'proposal-esign-1'/.test(mig)
+    && /This file carries the Direction B edits/.test(mig));
+  // The auto-stamp reads the device cache and can overwrite an ACCEPTED
+  // proposal's terms on the projects row; the snapshot pin does not cover it.
+  ok('the header names precondition 7 (protect the accepted stamp on the projects row)',
+    /7\. \(2026-09-17, integration round 2\) The ACCEPTED STAMP on the projects row/.test(mig)
+    && /projects_keep_proposal_payment_terms restores[\s\S]{0,80}ABSENT/.test(mig));
+  ok('held/README.md states the Direction B edits and the esign-2 apply condition',
+    /proposal-esign-2/.test(read('supabase/migrations/held/README.md')));
   ok('anon may execute it (the homeowner has no MAGE account)',
     /grant execute on function public\.portal_submit_proposal_approval_signed\([\s\S]{0,200}to anon, authenticated/.test(mig));
   ok('the table is not readable by anon', /revoke all on public\.proposal_approvals from anon/.test(mig));
@@ -1422,7 +1597,9 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
       function icn(){ return '<svg></svg>'; }
       var ICONS = { check: '', alert: '' };
     `;
-    const src = `${prelude}\n${portalHtml.slice(noteStart, noteStop)}\n${portalHtml.slice(start, stop)}\nreturn renderProposal;`;
+    const verStart = portalHtml.indexOf('var PROPOSAL_ESIGN_VERSION =');
+    const verStop = portalHtml.indexOf(';', verStart) + 1;
+    const src = `${prelude}\n${portalHtml.slice(verStart, verStop)}\n${portalHtml.slice(noteStart, noteStop)}\n${portalHtml.slice(start, stop)}\nreturn renderProposal;`;
     const make = (decided: unknown) =>
       // eslint-disable-next-line no-new-func
       new Function('loadProposalDecision', src)(() => decided) as (p: unknown, can: boolean) => string;
@@ -1502,6 +1679,28 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     ok('a decision stored before the field existed still reads as sealed',
       !legacy.includes('Already accepted') && legacy.includes('Record SHA-256'),
       legacy.slice(-400));
+
+    // ── DIRECTION B: only esign-2 with confirmed terms can be accepted ────────
+    // The page and the held RPC apply the same rule, so an old app build still
+    // pushing esign-1 (MAGE's 10% deposit) or a proposal whose terms are not
+    // confirmed can never be signed, whichever of web or OTA ships first.
+    ok('esign-2 stamped: payment rows are drawn',
+      html.includes('How payment works') && html.includes('Deposit — Due on signing · 25%') && html.includes('$260,000'),
+      html.slice(html.indexOf('prop-group-head'), html.indexOf('prop-group-head') + 900));
+    const v1 = make(null)({ ...snapProposal, version: 'proposal-esign-1' }, true);
+    ok('esign-1: NO accept or decline button', !v1.includes('data-proposal-accept') && !v1.includes('data-proposal-decline'), v1.slice(-400));
+    ok('esign-1: NO payment amounts — its lines are MAGE\'s placeholder, not his terms',
+      !v1.includes('How payment works') && !v1.includes('Due on signing') && !v1.includes('$260,000'), v1);
+    ok('esign-1: the outdated note', v1.includes('Your contractor is updating this proposal. You can accept it here once they have.'));
+    ok('esign-1: no "Waiting on you" pill', !v1.includes('Waiting on you'));
+    const pendingProposal = buildProposalSnapshot(proposalProject,
+      { ...portalSettings, proposalApprovalEnabled: true } as unknown as ClientPortalSettings).proposal!;
+    const pend = make(null)(pendingProposal, true);
+    ok('pending: NO accept or decline button', !pend.includes('data-proposal-accept') && !pend.includes('data-proposal-decline'), pend.slice(-400));
+    ok('pending: the confirming note', pend.includes('Your contractor is confirming the payment schedule. You can accept here once it is set.'));
+    ok('pending: still shows the price and scope', pend.includes('$400,000'));
+    ok('NEGATIVE: a stamped esign-2 proposal has neither note',
+      !html.includes('is updating this proposal') && !html.includes('is confirming the payment schedule'));
   }
 }
 
@@ -1553,11 +1752,26 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     /open the portal link your contractor sent/.test(cv) && /This view is read-only/.test(cv));
   ok('…and repeats that accepting is not signing the agreement',
     /PROPOSAL_NOT_A_CONTRACT_NOTE/.test(cv));
+  ok('a pending proposal preview says the terms are not confirmed instead of drawing rows',
+    /proposalBlock\.paymentTermsPending \? \(/.test(cv)
+    && /testID="proposal-terms-pending"/.test(cv)
+    && /Payment terms not confirmed — your client can\\u2019t accept until you confirm them in Client Portal\./.test(cv));
+  // In SNAPSHOT mode the reader is the homeowner: the two notes must speak the
+  // portal page's sentences, never the GC's instructions, and the "To accept,
+  // open the portal link" line must not sit under a proposal that cannot be
+  // accepted yet (integration round 3).
+  const flat = cv.replace(/\s+/g, ' ');
+  ok('client-view: in snapshot mode the pending note is the homeowner sentence',
+    /\{isSnapshotMode \? 'Your contractor is confirming the payment schedule\. You can accept once it is set\.' : 'Payment terms not confirmed/.test(flat));
+  ok('client-view: in snapshot mode the outdated note is the homeowner sentence',
+    /\{isSnapshotMode \? 'Your contractor is updating this proposal\. You can accept it once they have\.' : 'This proposal was published by an older version/.test(flat));
+  ok('client-view: "To accept, open the portal link" renders only when the proposal is decidable',
+    /\{!proposalBlock\.paymentTermsPending && proposalBlock\.version === PROPOSAL_ESIGN_VERSION && \( <Text style=\{styles\.budgetCaption\} testID="proposal-accept-location">/.test(flat));
 }
 {
   const setup = read('app/client-portal-setup.tsx');
   ok('the GC gets an explicit opt-in switch',
-    /onValueChange=\{val => handleToggle\('proposalApprovalEnabled', val\)\}/.test(setup));
+    /onValueChange=\{handleProposalSwitch\}/.test(setup));
   ok('…which is OFF by default',
     /proposalApprovalEnabled: false,/.test(setup));
   // A switch that cannot do anything is worse than no switch — and the switch
@@ -1578,7 +1792,8 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   // loaded before the feature shipped has no accept button at all.
   ok('…and the GC is told what the switch does NOT do on its own',
     /testID="proposal-rollout-note"/.test(setup)
-    && /next time this project publishes its portal/.test(setup));
+    && /within seconds of switching it on/.test(setup)
+    && /asks them to refresh before accepting/.test(setup));
   ok('the section subtitle no longer promises the accept path unconditionally',
     !/Let the client accept the proposal,/.test(setup)
     && /accept the proposal once it is switched on below/.test(setup));
@@ -1586,8 +1801,69 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     /\.from\('proposal_approvals'\)/.test(setup) && /acceptances\.map\(/.test(setup));
   ok('…including the record hash, which is what makes it evidence',
     /Record SHA-256 \{a\.document_hash\.slice\(0, 24\)\}/.test(setup));
-  ok('…and a missing table (migration not applied yet) shows nothing rather than throwing',
-    /if \(error\) return \[\];/.test(setup));
+  ok('…and a missing table (migration not applied yet) shows nothing, but any OTHER error throws',
+    !/if \(error\) return \[\];/.test(setup)
+    && /if \(acceptanceStateFromRead\(\{ data, error \}\) === 'none'\) return \[\];\s*\n\s*throw error;/.test(setup));
+  ok('…and a failed acceptance read counts as unknown for the terms row',
+    /acceptancesQ\.isError\s*\n?\s*\? 'unknown'/.test(setup));
+
+  // ── Direction B: every writer of the flag or the stamp saves it ─────────────
+  // The lite push in project-detail rebuilds the proposal from the SAVED
+  // project on every open, so a stamp that lived only in this screen's state
+  // would publish once and vanish.
+  const cb = (name: string) => {
+    const a = setup.indexOf(`const ${name} = useCallback(`);
+    const b = setup.indexOf('\n  }, [', a);
+    return a >= 0 && b > a ? setup.slice(a, b) : '';
+  };
+  const persist = cb('persistProposalKeys');
+  ok('persistProposalKeys merges ONLY the proposal keys onto the saved portal via updateProject',
+    /updateProject\(id, \{ clientPortal: \{ \.\.\.project\.clientPortal, \.\.\.keys \} \}\)/.test(persist)
+    && /Pick<ClientPortalSettings, 'proposalApprovalEnabled' \| 'proposalPaymentTerms'>/.test(persist), persist);
+  for (const name of ['handleProposalSwitch', 'handleUseCurrentTerms', 'confirmTerms']) {
+    const body = cb(name);
+    ok(`${name} exists and reaches persistProposalKeys`, body.length > 0 && /persistProposalKeys\(\{/.test(body), body.slice(0, 200));
+  }
+  {
+    const sw = cb('handleProposalSwitch');
+    ok('switching ON goes through the ask gate with the portal copy',
+      /gate\.run\(/.test(sw) && /purpose: 'portal_proposal'/.test(sw) && /terms: true/.test(sw));
+    ok('…and writes the flag AND the stamp together',
+      /persistProposalKeys\(\{ proposalApprovalEnabled: true, proposalPaymentTerms: next\.stamp \}\)/.test(sw));
+    ok('switching OFF saves the flag and keeps the stamp',
+      /persistProposalKeys\(\{ proposalApprovalEnabled: false \}\)/.test(sw));
+    const use = cb('handleUseCurrentTerms');
+    const iRead = use.indexOf('await fetchProposalAcceptanceState(id)');
+    const iStamp = use.indexOf('nextProposalStamp(');
+    ok('"Use my current terms" awaits a FRESH acceptance read before nextProposalStamp',
+      iRead >= 0 && iStamp > iRead && /acceptance, nowIso/.test(use), use.slice(0, 400));
+    ok('…and refuses with the reason when accepted or unknown', /'refused' in next/.test(use) && /showAlert\(/.test(use));
+  }
+  ok('the terms row renders the proposalTermsState copy with its testIDs',
+    /proposalTermsState\(\{ portal, profileSplit: settings\.paymentSplit, acceptance: acceptanceForTerms \}\)/.test(setup)
+    && /testID="proposal-terms-row"/.test(setup) && /testID="proposal-terms-use-current"/.test(setup)
+    && /testID="proposal-terms-confirm"/.test(setup));
+  ok('…with the locked, differs and unconfirmed sentences',
+    /these can&apos;t change/.test(setup) && /the terms your client was shown/.test(setup)
+    && /without payment terms and can&apos;t accept it yet/.test(setup)
+    && /Your client will need to reload the page before accepting/.test(setup));
+  ok('a stamp written elsewhere is adopted into local state',
+    /isValidStamp\(p\.proposalPaymentTerms\) \? p : \{ \.\.\.p, proposalPaymentTerms: savedStamp \}/.test(setup));
+  ok('the ask sheet is rendered once', (setup.match(/<ClientDocumentAskSheet \{\.\.\.gate\.sheet\} \/>/g) ?? []).length === 1);
+}
+{
+  const pd = read('app/project-detail.tsx');
+  ok('project-detail: "Terms needed" badge from proposalTermsState, only when the proposal is not blocked',
+    /proposalTermsState\(\{ portal: project\?\.clientPortal/.test(pd)
+    && /portalTerms\.state === 'unconfirmed'\s*\n\s*&& !proposalBlockReason\(project, portalBadgeContract \?\? undefined\)/.test(pd)
+    && /clientPortal: \{ label: 'Terms needed', tone: 'pending' \}/.test(pd));
+  const a = pd.indexOf('const confirmPortalProposalTerms = useCallback(');
+  const body = a >= 0 ? pd.slice(a, pd.indexOf('\n  }, [', a)) : '';
+  ok('project-detail: the unconfirmed row stamps via updateProject with the two keys merged onto the saved portal',
+    /clientPortal: \{ \.\.\.cp, proposalApprovalEnabled: cp\.proposalApprovalEnabled, proposalPaymentTerms: next\.stamp \}/.test(body)
+    && /const cp = project\?\.clientPortal;/.test(body) && /termsGate\.run\(/.test(body), body.slice(0, 300));
+  ok('project-detail: the row and its button are rendered', /testID="portal-terms-needed"/.test(pd) && /testID="portal-terms-confirm"/.test(pd));
+  ok('project-detail: the ask sheet renders inside the tile sheet', /<ClientDocumentAskSheet \{\.\.\.termsGate\.sheet\} \/>\s*\n\s*<\/Modal>/.test(pd));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2605,6 +2881,49 @@ console.log('\nportal owner — a chat reply is not a signed change order:');
   ok('Preview opens client-view in previewMode',
     /pathname: '\/client-view'[^)]*previewMode: '1'/.test(setupSrc.replace(/\s+/g, ' ')),
     'app/client-portal-setup.tsx Preview button');
+}
+
+// project-detail's LITE snapshot writer carries the last rich openBook block
+// forward (it never builds one — it passes no commitments). It must stop the
+// moment the project leaves open-book / GMP: the portal renders any openBook
+// it finds, so an unconditional carry kept publishing the GC's cost
+// breakdown on a job he had moved to fixed price.
+// It also re-stamps the contract terms (mode, GMP cap, fee) from the project
+// as it is NOW: the portal titles the block from `mode`, so a carried GMP block
+// told the homeowner "GMP" after the GC switched the job to open book.
+// carriedOpenBook is lifted out of the screen and RUN, not pattern-matched.
+{
+  const pdRaw = read('app/project-detail.tsx');
+  const pd = pdRaw.replace(/\s+/g, ' ');
+  ok('the lite writer carries the block through carriedOpenBook(prev.openBook, project)',
+    /openBook: snap\.openBook \?\? carriedOpenBook\(prev\.openBook, project\)/.test(pd)
+      && !/openBook: snap\.openBook \?\? prev\.openBook/.test(pd),
+    'app/project-detail.tsx lite portal writer');
+  const fnStart = pdRaw.indexOf('function carriedOpenBook(');
+  const fnEnd = pdRaw.indexOf('\n}\n', fnStart) + 3;
+  type OB = { mode: string; gmpCap?: number; feePercent?: number; feeAmount?: number; actual: number; budget: number };
+  let carry: ((prev: OB | undefined, project: Record<string, unknown>) => OB | undefined) | null = null;
+  try {
+    // Bun's global is not in the app's tsconfig types; reach it untyped.
+    const BunRt = (globalThis as unknown as { Bun: { Transpiler: new (o: { loader: string }) => { transformSync(src: string): string } } }).Bun;
+    const js = new BunRt.Transpiler({ loader: 'ts' }).transformSync(
+      `type PortalOpenBook = any; type Project = any;\n${pdRaw.slice(fnStart, fnEnd)}\nexport { carriedOpenBook };`);
+    carry = new Function(`${js.replace(/export \{[^}]*\};?/, '')}\nreturn carriedOpenBook;`)();
+  } catch (err) {
+    ok('carriedOpenBook could be lifted out of project-detail', false, String(err));
+  }
+  if (carry) {
+    const prevGmp: OB = { mode: 'gmp', gmpCap: 480_000, feePercent: 10, feeAmount: undefined, actual: 212_000, budget: 450_000 };
+    const switched = carry(prevGmp, { contractMode: 'open_book', gmpCap: undefined, contractorFeePercent: 12 });
+    expect('GMP → open_book: the carried block now says open_book', switched?.mode, 'open_book');
+    expect('…and drops the old GMP cap', switched?.gmpCap, undefined);
+    expect('…and prints the fee as it is now', switched?.feePercent, 12);
+    expect('…while the published cost figures ride along unchanged', [switched?.actual, switched?.budget], [212_000, 450_000]);
+    expect('a cap edit on a GMP job shows the new cap',
+      carry(prevGmp, { contractMode: 'gmp', gmpCap: 495_000, contractorFeePercent: 10 })?.gmpCap, 495_000);
+    expect('a job moved to fixed price carries nothing', carry(prevGmp, { contractMode: 'fixed_price', gmpCap: 480_000 }), undefined);
+    expect('no rich block published yet → nothing to carry', carry(undefined, { contractMode: 'gmp', gmpCap: 480_000 }), undefined);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -31,6 +31,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
+import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -208,6 +209,9 @@ export default function SubmitBidResponseScreen() {
         {
           companyName: company?.companyName,
           financing: settings?.financing,
+          // His one saved warranty on every tier, or no period at all until
+          // he sets one — never the old invented 1/2/5-year ladder.
+          warrantyMonths: resolveWarrantyMonths(settings),
           contractorNote: message.trim() || undefined,
           // aiMidpoint asks the model for a ROM COST. Without this the tier
           // amounts on a bid a homeowner receives are the contractor's cost.

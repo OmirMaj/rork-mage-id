@@ -24,7 +24,10 @@ import type {
   Permit, Certification, Submittal, PunchItem, HomeownerBidResponse,
   MaterialReceipt, SavedAIAPayApp,
 } from '@/types';
-import { computeLivingEstimate, type LivingEstimateSnapshot } from '@/utils/livingEstimate';
+import {
+  computeLivingEstimate, hasFullCostBasis, SUBS_ONLY_COST_CAVEAT, type LivingEstimateSnapshot,
+} from '@/utils/livingEstimate';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
 import { computeMarginRisk, type MarginRiskScore } from '@/utils/marginRiskScore';
 import { computePillStatus, pillLabel } from '@/utils/scheduleHealth';
 import { buildPaceBook, lookupPace, type PaceBook } from '@/utils/pace/paceBook';
@@ -92,6 +95,16 @@ export interface OneMindBundle {
   aiaPayApps?: SavedAIAPayApp[];
   /** Judges-assembly parity; reserved for cost-book fact blocks (v1.1). */
   receipts?: MaterialReceipt[];
+  /**
+   * The direct-cost streams Job Costing prices (receipts, time entries + loaded
+   * rates + OT multiplier, equipment, permits, sub roster), forwarded whole into
+   * the MARGIN and RISK engines. ABSENT, those blocks are built on subcontracts
+   * alone and SAY so in every line that states a margin, health or risk band —
+   * the AI must never be handed 'healthy' as fact on a job whose crew labor and
+   * material spend it never saw (audit round 2, #16). Note `receipts` above is
+   * NOT read for this: receipts without priced hours is still a partial basis.
+   */
+  costSources?: JobCostActualSources;
   laborSamples?: CostSample[];
   /** Per-project Last Planner constraints, for the readiness lookahead block.
    *  Read via hooks/useLastPlanner's shared loader (device store merged with
@@ -151,8 +164,12 @@ export function buildMarginBlock(
       `No margin basis: ${projectName}'s estimate is not linked or carries no cost/markup split, so live margin can't be computed. Link an estimate with markup to enable it.`,
     );
   } else {
+    // Subs-only basis: every line that states where the margin is heading
+    // carries the caveat inline, so a model quoting ONE line cannot strip it.
+    const subsOnly = !hasFullCostBasis(le);
+    const basisTag = subsOnly ? ` (subs only: ${SUBS_ONLY_COST_CAVEAT})` : '';
     facts.push(`Bid margin ${fmtPct1(le.original.marginPct)} (${fmtMoney(le.original.margin)} on ${fmtMoney(le.original.revenue)}).`);
-    facts.push(`Projected margin at completion ${fmtPct1(le.projected.marginPct)} (${fmtMoney(le.projected.margin)} on ${fmtMoney(le.projected.revenue)}).`);
+    facts.push(`Projected margin at completion ${fmtPct1(le.projected.marginPct)} (${fmtMoney(le.projected.margin)} on ${fmtMoney(le.projected.revenue)})${basisTag}.`);
     if (Math.abs(le.marginErosionPoints) >= 0.1) {
       facts.push(
         le.marginErosionPoints < 0
@@ -166,7 +183,11 @@ export function buildMarginBlock(
     if (le.pendingChangeOrders > 0) {
       facts.push(`${fmtMoney(le.pendingChangeOrders)} in pending change orders (not booked into projected).`);
     }
-    facts.push(`Margin health: ${le.health}.`);
+    facts.push(
+      subsOnly
+        ? `Margin health on subcontracts only: ${le.health} — NOT a whole-job health reading; open Job Costing for crew labor and material spend.`
+        : `Margin health: ${le.health}.`,
+    );
   }
   return {
     domain: 'LIVE MARGIN',
@@ -181,7 +202,9 @@ export function buildMarginBlock(
 export function buildRiskBlock(projectId: string, risk: MarginRiskScore): FactBlock | null {
   if (!risk.hasBasis) return null; // MARGIN block already carries the honesty line
   const facts: string[] = [
-    `Margin risk score ${risk.score}/100 (${risk.band}).`,
+    risk.costBasis === 'all_sources'
+      ? `Margin risk score ${risk.score}/100 (${risk.band}).`
+      : `Margin risk score ${risk.score}/100 (${risk.band}) (subs only: ${SUBS_ONLY_COST_CAVEAT}).`,
   ];
   for (const f of risk.topFactors.slice(0, 3)) {
     facts.push(`${f.label}: ${f.detail}. ${f.recommendation}`);
@@ -547,10 +570,12 @@ export async function assembleFactBlocks(
       // MARGIN — livingEstimate, with the explicit no-basis honesty line.
       () => buildMarginBlock(project.id, project.name, computeLivingEstimate({
         project, changeOrders: projectCOs, commitments: bundle.commitments, invoices: projectInvoices,
+        costSources: bundle.costSources,
       })),
       // RISK
       () => buildRiskBlock(project.id, computeMarginRisk({
         project, changeOrders: projectCOs, commitments: bundle.commitments, invoices: projectInvoices,
+        costSources: bundle.costSources,
       })),
       // SCHEDULE
       () => buildScheduleBlock(project, now),
@@ -616,6 +641,7 @@ export async function assembleFactBlocks(
       crossProjectSources.push(() =>
         buildMarginBlock(pid, p.name, computeLivingEstimate({
           project: p, changeOrders: pCOs, commitments: bundle.commitments, invoices: pInvoices,
+          costSources: bundle.costSources,
         })),
       );
       // Inline SCHEDULE mini-block.
@@ -629,30 +655,32 @@ export async function assembleFactBlocks(
     () => buildBrainWatchBlock(collectAttentionItems(bundle, undefined, now)),
     // CASH — AsyncStorage inputs + pure forecast engine (lazy).
     async () => {
-      const [{ loadCashFlowData, isSetupComplete }, engine] = await Promise.all([
+      const [{ loadCashFlowSettings }, engine, { supabase }] = await Promise.all([
         import('@/utils/cashFlowStorage'),
         import('@/utils/cashFlowEngine'),
+        import('@/lib/supabase'),
       ]);
-      const setupDone = await isSetupComplete();
-      if (!setupDone) return buildCashBlock(null, false, 12);
-      const data = await loadCashFlowData();
-      const balance = engine.getEffectiveStartingBalance(data.startingBalance, data.balanceAsOf, bundle.invoices);
-      // Signed subcontracts and POs, on the same terms the Cash Flow screen
-      // uses. Without them the AI read a forecast whose income was automatic
-      // and whose outflow was only what the GC had typed in, and answered
-      // "you're fine this week" off it (audit do-next #12b).
-      const committed = engine.buildCommittedOutflows({
+      // The SERVER cash-flow row when signed in: the device cache alone read
+      // "cash flow not set up" on the web and on a second phone. A failed
+      // session read falls back to the cache inside loadCashFlowSettings.
+      let userId: string | null = null;
+      try { userId = (await supabase.auth.getSession()).data.session?.user.id ?? null; } catch { /* cache */ }
+      const settings = await loadCashFlowSettings(userId);
+      if (!settings.setupComplete) return buildCashBlock(null, false, 12);
+      // One assembly with the Summary tile, /cash-flow and the Morning Brief
+      // (buildForecastInputs): signed subcontracts and POs included, so the AI
+      // is not reading a forecast whose outflow is only what the GC typed in
+      // (audit do-next #12b).
+      const inputs = engine.buildForecastInputs({
+        cashData: settings.data,
+        invoices: bundle.invoices,
         commitments: bundle.commitments,
         projects: bundle.projects,
-        expenses: data.expenses,
+        changeOrders: bundle.changeOrders,
       });
-      const forecast = engine.generateForecast(
-        balance, [...data.expenses, ...committed.scheduled], bundle.invoices, data.expectedPayments,
-        12, data.defaultPaymentTerms, bundle.changeOrders,
-      );
       return buildCashBlock(
-        engine.calculateSummary(forecast), true, 12,
-        engine.pendingRetention(bundle.invoices), committed.undated,
+        engine.calculateSummary(engine.forecastFromInputs(inputs, 12)), true, 12,
+        engine.pendingRetention(bundle.invoices), inputs.committed.undated,
       );
     },
     // RECORDS — buildBusinessContext wrapped whole (the regression floor).

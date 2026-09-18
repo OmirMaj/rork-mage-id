@@ -6,7 +6,11 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { generateUUID } from './generateId';
+// DIRECTION B ("ask when it matters"): the payment schedule and the warranty
+// period a new contract prints are the GC's own answers, resolved by
+// utils/paymentTerms.ts — the one place a split becomes milestones and a month
+// count becomes a warranty sentence. This file keeps no literal of either.
+import { contractScheduleFromSplit, contractWarrantyText } from '@/utils/paymentTerms';
 // CONTRACT-TIME-1: the timeline arithmetic lives in a react-native-free module
 // so a guard can EXECUTE it (this file imports @/lib/supabase). See the
 // re-export block below.
@@ -14,7 +18,7 @@ import { suggestContractTimeline } from '@/utils/contractTimelineCore';
 import type {
   ProjectContract, PaymentMilestone, ContractAllowance,
   ContractSignature, ContractStatus,
-  Project, EstimateRevision,
+  Project, EstimateRevision, PaymentSplit,
 } from '@/types';
 
 // Row shape from the DB — snake_case mirrors columns.
@@ -106,25 +110,25 @@ const DEFAULT_TERMS = `
 10. ENTIRE AGREEMENT. This Agreement constitutes the entire agreement between the parties and supersedes all prior discussions.
 `.trim();
 
-const DEFAULT_WARRANTY = `
-The Contractor warrants the workmanship of the project for one (1) year from the date of substantial completion. Defects in workmanship reported in writing during the warranty period will be corrected at no additional cost.
-
-Materials and appliances are covered by their respective manufacturer warranties, which pass through to the Owner. The Contractor will provide warranty documentation in the closeout binder.
-
-This warranty does not cover damage from normal wear and tear, neglect, abuse, modifications by others, or acts of God.
-`.trim();
-
-// Default payment schedule the GC can edit. Sane construction defaults:
-// 25% deposit, 25% at substantial framing/rough-in, 25% at finishes,
-// 25% at substantial completion (with retainage held).
-export function defaultPaymentSchedule(contractValue: number): PaymentMilestone[] {
-  const v = (pct: number) => Math.round(contractValue * pct);
-  return [
-    { id: generateUUID(), label: 'Deposit (signing)',          trigger: 'on_signing',  amount: v(0.25), percent: 25, status: 'pending' },
-    { id: generateUUID(), label: 'Rough-in / framing complete', trigger: 'on_milestone', triggerMilestone: 'Rough-in / framing complete', amount: v(0.25), percent: 25, status: 'pending' },
-    { id: generateUUID(), label: 'Finishes complete',           trigger: 'on_milestone', triggerMilestone: 'Finishes complete',           amount: v(0.25), percent: 25, status: 'pending' },
-    { id: generateUUID(), label: 'Substantial completion',      trigger: 'on_final',                                                         amount: v(0.25), percent: 25, status: 'pending' },
-  ];
+// THE PAYMENT SCHEDULE AND THE WARRANTY ARE NOT SEEDED FROM A DEFAULT.
+//
+// Until 2026-09-17 this file seeded every new contract with 25 / 25 / 25 / 25
+// (deposit, rough-in, finishes, completion) and a one-year workmanship
+// warranty. Nobody chose either: the quick-estimate PDF printed 25 / 65 / 10
+// and the portal proposal a 10% deposit for the same job, so a homeowner could
+// hold three different deposits — and sign the one this file made up.
+//
+// A draft now carries the GC's own terms (`ContractTerms`, resolved by the
+// caller from the job's portal stamp, then his profile). When he has never
+// answered, the schedule is EMPTY and the warranty paragraph carries a visible
+// placeholder; app/contract.tsx asks before Sign & send instead of printing a
+// guess. scripts/validate-money-definitions.ts (CONTRACT-TERMS) pins that no
+// seed percent or one-year warranty literal comes back here.
+export interface ContractTerms {
+  /** Deposit / progress / final, or null when he has not answered. */
+  split: PaymentSplit | null;
+  /** Workmanship warranty in months, or null when he has not answered. */
+  warrantyMonths: number | null;
 }
 
 // ─── Contract timeline (start date + duration) ──────────────────────
@@ -153,9 +157,12 @@ export interface DraftContractInput {
   scopeText?: string;
   sourceBidId?: string;
   sourceResponseId?: string;
+  /** Required, so no caller can fall back to a schedule nobody chose. */
+  terms: ContractTerms;
 }
 export function buildDraftContract(input: DraftContractInput): Omit<ProjectContract, 'id' | 'createdAt' | 'updatedAt' | 'userId'> {
   const value = input.contractValue ?? effectiveEstimateTotal(input.project);
+  const { split, warrantyMonths } = input.terms;
   return {
     projectId: input.project.id,
     sourceBidId: input.sourceBidId,
@@ -170,8 +177,8 @@ export function buildDraftContract(input: DraftContractInput): Omit<ProjectContr
     ...timelineSeed(input.project),
     scopeText: input.scopeText ?? input.project.description ?? '',
     termsText: DEFAULT_TERMS,
-    warrantyText: DEFAULT_WARRANTY,
-    paymentSchedule: defaultPaymentSchedule(value),
+    warrantyText: contractWarrantyText(warrantyMonths),
+    paymentSchedule: split ? contractScheduleFromSplit(value, split) : [],
     allowances: [],
     status: 'draft',
   };
@@ -184,8 +191,10 @@ export function buildDraftContract(input: DraftContractInput): Omit<ProjectContr
 export function buildProposalFromRevision(
   project: Project,
   revision: EstimateRevision,
+  terms: ContractTerms,
 ): Omit<ProjectContract, 'id' | 'createdAt' | 'updatedAt' | 'userId'> {
   const value = revision.grandTotal ?? 0;
+  const { split, warrantyMonths } = terms;
 
   // Build readable scope body from the revision's frozen line items.
   const items = revision.snapshot.items ?? [];
@@ -243,8 +252,8 @@ export function buildProposalFromRevision(
     ...timelineSeed(project),
     scopeText,
     termsText: DEFAULT_TERMS,
-    warrantyText: DEFAULT_WARRANTY,
-    paymentSchedule: defaultPaymentSchedule(value),
+    warrantyText: contractWarrantyText(warrantyMonths),
+    paymentSchedule: split ? contractScheduleFromSplit(value, split) : [],
     allowances: [],
     status: 'draft',
     proposalRevisionId: revision.id,

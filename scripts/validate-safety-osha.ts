@@ -12,7 +12,10 @@ import {
 import {
   canReadLiveWeatherFor, backfilledWeatherNotice, weatherProvenanceLine,
 } from '../utils/weatherService';
-import { buildOsha300Log, oshaRowFromIncident, osha300ToCsv, csvCell } from '../utils/safety/oshaLog';
+import {
+  buildOsha300Log, oshaRowFromIncident, osha300ToCsv, csvCell, isRecordableCase, buildOsha300Html,
+  buildOsha300ATotals, prefillHoursFromTimeEntries, incidentRatePer200k, osha300ARates,
+} from '../utils/safety/oshaLog';
 import type { SafetyIncident } from '../types';
 import { readFileSync } from 'node:fs';
 
@@ -63,6 +66,26 @@ expect('fatality → recordable', isOshaRecordable(base({ fatality: true, treatm
 // A fatality on a non-injury-typed record is still recordable (death is death)
 expect('fatality on environmental → recordable', isOshaRecordable(base({ type: 'environmental', fatality: true, treatment: 'none' })), true);
 
+// ── Audit round 2 #1: the day count and the illness column decide too ───────
+// Repro 1 (from the incident form): Injury, first aid, 0 days away, FIVE days
+// restricted, toggle left off. Used to say "Not recordable — first aid only, no
+// days away, no restriction." directly under the field showing 5.
+const repro1 = base({ treatment: 'first_aid', daysRestricted: 5, restrictedDuty: false });
+expect('5 days restricted, toggle off → recordable', isOshaRecordable(repro1), true);
+expect('5 days restricted names restriction, not "no restriction"',
+  describeRecordability(repro1).reason, 'Recordable — restricted work or job transfer.');
+expect('0 days restricted, toggle off → still first-aid only', isOshaRecordable(base({ daysRestricted: 0 })), false);
+// Repro 2: a respiratory illness logged as an 'environmental' event. The type
+// gate rejected every non-'injury' type before the illness column was read.
+const repro2 = base({ type: 'environmental', treatment: 'none', oshaIllnessType: 'respiratory', daysRestricted: 5 });
+expect('respiratory illness on an environmental event → recordable', isOshaRecordable(repro2), true);
+expect('an illness with medical treatment on a property event → recordable',
+  isOshaRecordable(base({ type: 'property', treatment: 'medical_beyond_first_aid', oshaIllnessType: 'skin' })), true);
+// ...but col M left at its default 'injury' on a non-injury event is NOT a claim
+// that anyone was hurt, and must not make a near miss recordable.
+expect("near miss with illness type left at 'injury' → not recordable",
+  isOshaRecordable(base({ type: 'near_miss', treatment: 'medical_beyond_first_aid', oshaIllnessType: 'injury' })), false);
+
 // ── Wave B: OSHA-300 log row assembly (utils/safety/oshaLog.ts) ──────────────
 console.log('\nsafety OSHA-300 validation:');
 
@@ -78,11 +101,34 @@ const incidents: SafetyIncident[] = [
   inc({ id: 'i2', oshaRecordable: false, occurredAt: '2026-03-05', severity: 'low',      type: 'near_miss',     location: 'Yard',    description: 'Dropped tool',    peopleInvolved: [] }),
   // fatality whose severity is only 'high' — must still classify as death.
   inc({ id: 'i3', oshaRecordable: true,  occurredAt: '2026-01-15', severity: 'high',     type: 'injury',        location: 'Roof',    description: 'Fatal fall',      daysAway: 0, fatality: true, peopleInvolved: [{ name: 'Sam T', role: 'Roofer' }] }),
-  // restricted-duty chemical case with an explicit respiratory illness classification.
-  inc({ id: 'i4', oshaRecordable: true,  occurredAt: '2026-04-01', severity: 'critical', type: 'environmental', location: 'Basement',description: 'Chemical exposure',daysAway: 0, restrictedDuty: true, daysRestricted: 5, fatality: false, oshaIllnessType: 'respiratory', peopleInvolved: [] }),
+  // restricted chemical case with an explicit respiratory illness classification.
+  // Its flag is COMPUTED, not typed in (audit round 2 #1): this fixture used to
+  // hard-code oshaRecordable:true for inputs the classifier called false, so the
+  // log tests passed on a row no screen could ever save. restrictedDuty is left
+  // OFF on purpose — the 5 counted days alone must make it a restricted case.
+  inc({ id: 'i4', oshaRecordable: isOshaRecordable({ type: 'environmental', treatment: 'none', daysAway: 0, daysRestricted: 5, restrictedDuty: false, lostConsciousness: false, fatality: false, oshaIllnessType: 'respiratory' }), occurredAt: '2026-04-01', severity: 'critical', type: 'environmental', treatment: 'none', location: 'Basement',description: 'Chemical exposure',daysAway: 0, restrictedDuty: false, lostConsciousness: false, daysRestricted: 5, fatality: false, oshaIllnessType: 'respiratory', peopleInvolved: [] }),
   // prior-year recordable — must be excluded from a 2026 log.
   inc({ id: 'i5', oshaRecordable: true,  occurredAt: '2025-11-01', severity: 'high',     type: 'injury',        location: 'Level 1', description: 'Prior-year injury', daysAway: 2, fatality: false, peopleInvolved: [] }),
 ];
+
+// Every recordable fixture's stored flag must be what the classifier says about
+// its own inputs. Without this the suite can never catch a stored flag that
+// disagrees with the classifier — which is exactly how i4 hid the bug.
+for (const f of incidents) {
+  if (!f.oshaRecordable) continue;
+  const recomputed = isOshaRecordable({
+    type: f.type, treatment: f.treatment ?? (f.fatality ? 'none' : 'medical_beyond_first_aid'),
+    daysAway: f.daysAway ?? 0, daysRestricted: f.daysRestricted ?? 0, restrictedDuty: !!f.restrictedDuty,
+    lostConsciousness: !!f.lostConsciousness, fatality: !!f.fatality, oshaIllnessType: f.oshaIllnessType,
+  });
+  expect(`fixture ${f.id} stored flag matches the classifier`, recomputed, true);
+}
+// A case saved under the old classifier (flag false, evidence recordable) still
+// reaches the log: the log re-classifies instead of trusting a stale snapshot.
+const staleFlag = inc({ id: 'stale', oshaRecordable: false, occurredAt: '2026-05-01', type: 'injury', treatment: 'first_aid', daysAway: 0, daysRestricted: 4, restrictedDuty: false, lostConsciousness: false, fatality: false, peopleInvolved: [] });
+expect('a stale false flag with 4 restricted days is a recordable case', isRecordableCase(staleFlag), true);
+expect('…and it lands on the 300 as a restricted case', buildOsha300Log([staleFlag], '2026')[0]?.classification, 'restricted');
+expect('a genuine first-aid case with a false flag stays off', buildOsha300Log([inc({ ...staleFlag, daysRestricted: 0 })], '2026').length, 0);
 
 const logAll = buildOsha300Log(incidents);
 const log = buildOsha300Log(incidents, '2026');
@@ -96,7 +142,7 @@ expect('sorted (Apr last)',               log[2].dateOfIncident, '2026-04-01');
 expect('case numbers sequential',         [log[0].caseNo, log[1].caseNo, log[2].caseNo], ['1','2','3']);
 expect('fatality → death (ignores sev)',  log[0].classification, 'death');
 expect('daysAway>0 → days_away (ign sev)',log[1].classification, 'days_away');
-expect('restrictedDuty → restricted',     log[2].classification, 'restricted');
+expect('restricted days (toggle off) → restricted', log[2].classification, 'restricted');
 expect('employee name from person',       log[1].employeeName, 'Jose R');
 expect('job title from role',             log[1].jobTitle, 'Laborer');
 expect('desc prefers injuryDescription',  log[1].description, 'Sprained ankle');
@@ -119,6 +165,127 @@ expect('csv establishment escaped',       csv.includes('"Acme, Inc"'), true);
 expect('csvCell escapes comma',           csvCell('Acme, Inc'), '"Acme, Inc"');
 expect('csvCell escapes quote',           csvCell('a"b'), '"a""b"');
 expect('csvCell plain passthrough',       csvCell('plain'), 'plain');
+
+// ── Audit round 2 #4: the 300A — column totals, hours pre-fill, rates ────────
+console.log('\nOSHA 300A summary:');
+{
+  const rowsA = buildOsha300Log(incidents, '2026'); // death, days-away(3), restricted(5, respiratory)
+  const t = buildOsha300ATotals(rowsA);
+  expect('G deaths', t.deaths, 1);
+  expect('H days-away cases', t.daysAwayCases, 1);
+  expect('I restricted cases', t.restrictedCases, 1);
+  expect('J other cases', t.otherCases, 0);
+  expect('K days away summed', t.totalDaysAway, 3);
+  expect('L days restricted summed', t.totalDaysRestricted, 5);
+  expect('M1 injuries', t.byType.injury, 2);
+  expect('M3 respiratory', t.byType.respiratory, 1);
+  expect('total cases', t.totalCases, 3);
+  expect('G+H+I+J = total', t.deaths + t.daysAwayCases + t.restrictedCases + t.otherCases, t.totalCases);
+  // The CSV carries the totals so February is not a spreadsheet job.
+  const csvA = osha300ToCsv(rowsA, { name: 'Acme', year: '2026' });
+  expect('csv carries the 300A totals block', csvA.includes('Totals (Form 300A columns G–M)'), true);
+  expect('csv totals row G..L', csvA.includes('\n1,1,1,0,3,5\n'), true);
+  // The PDF prints totals always, and the 300A page only with confirmed numbers.
+  const htmlNoSummary = buildOsha300Html(rowsA, { name: 'Acme', year: '2026' });
+  expect('html prints a totals footer', htmlNoSummary.includes('<tfoot>'), true);
+  expect('no 300A page without confirmed hours', htmlNoSummary.includes('page-300a"'), false);
+  const htmlEst = buildOsha300Html(rowsA, { name: 'Acme', year: '2026' },
+    { hoursWorked: 100000, averageEmployees: 50, hoursSource: 'Entered by hand.', projectScoped: false });
+  expect('300A page present with confirmed hours', htmlEst.includes('OSHA Form 300A'), true);
+  expect('300A page prints TRIR over the confirmed hours', htmlEst.includes('>6.00<'), true);
+  const htmlProj = buildOsha300Html(rowsA, { name: 'Acme', year: '2026' },
+    { hoursWorked: 100000, averageEmployees: 50, hoursSource: 'x', projectScoped: true });
+  expect('a project-scoped page is titled a project rate, not the 300A', htmlProj.includes('not the establishment 300A') && !htmlProj.includes('OSHA Form 300A —'), true);
+
+  // Rates: cases × 200,000 / hours; never a number over an unknown denominator.
+  expect('TRIR 3 cases / 100k h = 6', incidentRatePer200k(3, 100000), 6);
+  expect('rate over 0 hours is null, not 0 or Infinity', incidentRatePer200k(3, 0), null);
+  expect('rate over NaN hours is null', incidentRatePer200k(3, Number.NaN), null);
+  const r = osha300ARates(t, 200000);
+  expect('TRIR counts every case', r.trir, 3);
+  expect('DART counts days-away + restricted only', r.dart, 2);
+
+  // Hours pre-fill: TimeEntry only, year- and project-scoped, labelled.
+  const te = [
+    { workerId: 'w1', projectId: 'p1', date: '2026-03-02', totalHours: 8 },   // Mon
+    { workerId: 'w2', projectId: 'p1', date: '2026-03-04', totalHours: 8 },   // same week
+    { workerId: 'w1', projectId: 'p2', date: '2026-03-10', totalHours: 10 },  // next week, other project
+    { workerId: 'w1', projectId: 'p1', date: '2025-12-31', totalHours: 9 },   // prior year
+    { workerId: 'w3', projectId: 'p1', date: '2026-03-05', totalHours: 0 },   // open shift, no hours
+  ];
+  const all = prefillHoursFromTimeEntries(te, '2026');
+  expect('hours summed for the year only', all.totalHours, 26);
+  expect('entries counted', all.entryCount, 3);
+  expect('two distinct weeks', all.weekCount, 2);
+  expect('average employees = mean distinct workers per week (2,1 → 2)', all.averageEmployees, 2);
+  expect('label names the source and says it runs low', all.sourceLabel.includes('MAGE time tracking') && all.sourceLabel.includes('payroll'), true);
+  const p1 = prefillHoursFromTimeEntries(te, '2026', 'p1');
+  expect('project scope filters hours to that project', p1.totalHours, 16);
+  expect('no entries → says so and asks for payroll hours',
+    prefillHoursFromTimeEntries([], '2026').sourceLabel.startsWith('No MAGE time-tracking entries'), true);
+  // A Sunday and the following Monday are different weeks (Monday-anchored).
+  const sunMon = prefillHoursFromTimeEntries([
+    { workerId: 'a', projectId: 'p', date: '2026-03-08', totalHours: 1 },
+    { workerId: 'a', projectId: 'p', date: '2026-03-09', totalHours: 1 },
+  ], '2026');
+  expect('Sunday and Monday fall in different weeks', sunMon.weekCount, 2);
+  // A pre-fix entry whose `date` is the UTC day: bucket by the LOCAL day of
+  // clockIn. Pinned to a zone west of Greenwich (CI runs in UTC, where the
+  // two days coincide and the check would be vacuous), then restored.
+  const prevTZ = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  const localEve = new Date(2025, 11, 31, 20, 0, 0); // 8 pm Dec 31, local
+  const utcDayOfIt = localEve.toISOString().slice(0, 10);
+  const eve = prefillHoursFromTimeEntries([
+    { workerId: 'a', projectId: 'p', date: utcDayOfIt, clockIn: localEve.toISOString(), totalHours: 4 },
+  ], '2025');
+  expect('an evening Dec 31 shift counts in the year it was worked, whatever its stored UTC date', eve.totalHours, 4);
+  expect('…(the fixture really does carry next year\'s UTC date)', utcDayOfIt, '2026-01-01');
+  if (prevTZ === undefined) delete process.env.TZ; else process.env.TZ = prevTZ;
+}
+
+// The screen wiring for the 300A: rates only after confirmation, hours scoped.
+{
+  const oshaSrc = readFileSync(new URL('../app/safety-osha.tsx', import.meta.url), 'utf8');
+  ok('300A rates are gated on a confirmed denominator',
+    /confirmed \? osha300ARates\(totals, hoursNum\) : null/.test(oshaSrc),
+    'TRIR/DART must not render from an unconfirmed time-tracking pre-fill — it runs low and inflates the rate.');
+  ok('the hours pre-fill follows the screen\'s project filter',
+    oshaSrc.includes('prefillHoursFromTimeEntries(timeEntries, est.year, projectId || undefined)'),
+    'dividing one project\'s cases by company-wide hours prints a wrong rate.');
+  ok('the PDF only gets a 300A page from confirmed numbers',
+    oshaSrc.includes('exportOsha300Pdf(scopedIncidents, est, summaryInput)') && /summaryInput = useMemo<Osha300ASummaryInput \| undefined>\(\(\) => \(confirmed \?/.test(oshaSrc),
+    'the export must not print a rate the user never confirmed.');
+  // A zero-case establishment still posts a 300A; the export lived inside
+  // the `rows.length > 0` branch, so a clean year had no way to print it.
+  {
+    const exportAt = oshaSrc.indexOf('testID="osha-export-pdf"');
+    const casesBranch = oshaSrc.indexOf('{rows.length > 0 ? (\n          <>');
+    ok('Export PDF renders with zero recordable cases (outside the cases branch)',
+      exportAt > 0 && casesBranch > 0 && exportAt < casesBranch,
+      'a zero-case year must still export its 300 / 300A.');
+    const zero = buildOsha300Html([], { name: 'Acme', year: '2026' });
+    ok('…and the zero-case PDF says so rather than printing an empty table',
+      /No recordable cases for 2026\./.test(zero));
+  }
+  ok('the year list uses the same membership rule as the log',
+    oshaSrc.includes('if (!isRecordableCase(inc)) continue;'),
+    'a re-classified case would be on the log but its year missing from the picker.');
+}
+
+// The incident screen feeds the classifier the day count and the illness type.
+{
+  const incSrc = readFileSync(new URL('../app/safety-incidents.tsx', import.meta.url), 'utf8');
+  ok('incident form passes daysRestricted + oshaIllnessType into the classifier',
+    /const classInput = useMemo\(\(\) => \(\{\s*type, treatment,\s*daysAway: Number\(daysAway\) \|\| 0,\s*daysRestricted: daysRestrictedNum,\s*restrictedDuty: effectiveRestricted,\s*lostConsciousness, fatality, oshaIllnessType,/.test(incSrc),
+    'the live verdict and stored flag ignore the day count again — "5 days restricted" reads "no restriction".');
+  ok('the stored flag and the live verdict read the same input',
+    incSrc.includes('isOshaRecordable(classInput)') && incSrc.includes('describeRecordability(classInput)'),
+    'two derivations of one determination drift.');
+  ok('incident type is labelled Injury or illness',
+    incSrc.includes("{ value: 'injury', label: 'Injury or illness' }"),
+    'a bare "Injury" label sends illnesses to Environ.');
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // DFR-OSHA-BRIDGE — the daily report's Safety block feeding the register.
@@ -160,22 +327,28 @@ for (const type of TYPES) {
   for (const treatment of TREATMENTS) {
     for (const daysAway of [0, 4]) {
       for (const restrictedDuty of [false, true]) {
+       for (const daysRestricted of [0, 5]) {
+        for (const oshaIllnessType of [undefined, 'injury', 'respiratory'] as const) {
         for (const lostConsciousness of [false, true]) {
           for (const fatality of [false, true]) {
-            const input: IncidentClassInput = { type, treatment, daysAway, restrictedDuty, lostConsciousness, fatality };
+            const input: IncidentClassInput = { type, treatment, daysAway, restrictedDuty, daysRestricted, oshaIllnessType, lostConsciousness, fatality };
             const v = describeRecordability(input);
             if (v.recordable !== isOshaRecordable(input)) matrixMismatch++;
             if (!v.reason.trim()) emptyReason++;
             // The sentence has to agree with the verdict, or the chip says
             // "Not recordable" over a case the 300 will list.
             if (v.recordable !== v.reason.startsWith('Recordable')) matrixMismatch++;
+            // "no restriction" may never be printed over a counted day.
+            if (daysRestricted > 0 && v.reason.includes('no restriction')) matrixMismatch++;
           }
         }
+        }
+       }
       }
     }
   }
 }
-expect('verdict matches isOshaRecordable across all 288 inputs', matrixMismatch, 0);
+expect('verdict matches isOshaRecordable across all 1728 inputs', matrixMismatch, 0);
 expect('every input gets a reason', emptyReason, 0);
 
 // The reason names the criterion that actually fired, in 1904 order.
@@ -281,6 +454,16 @@ expect('re-save preserves an advanced status', resaved.status, 'investigating');
 expect('re-save bumps updatedAt', resaved.updatedAt, '2026-09-16T00:00:00.000Z');
 expect('daysRestricted (300 col L) is carried', resaved.daysRestricted, 3);
 expect('restricted duty makes it recordable', resaved.oshaRecordable, true);
+// Audit round 2 #1 on the DFR path: the report's classification object carries
+// no day count, so the builder must fold daysRestricted in itself.
+const lightDuty = buildSafetyIncidentFromDfr({
+  reportId: '11111111-2222-4333-8444-555555555555', projectId: 'p', occurredOn: '2026-09-15', severity: 'minor',
+  description: 'Strained back, light duty', peopleInvolved: 'Sam', correctiveAction: '', reportedBy: 'Mike',
+  location: '', photoUrls: [], daysRestricted: 4, author: 'Mike', now: '2026-09-15T20:00:00.000Z',
+  classification: { type: 'injury', treatment: 'first_aid', daysAway: 0, restrictedDuty: false, lostConsciousness: false, fatality: false },
+});
+expect('DFR: 4 restricted days with the toggle off → recordable', lightDuty.oshaRecordable, true);
+expect('DFR: …stored with restrictedDuty agreeing with the day count', lightDuty.restrictedDuty, true);
 
 // End to end: a DFR-built case must survive buildOsha300Log, which is the whole
 // point — it is the 300 that comes up short when this join is missing.

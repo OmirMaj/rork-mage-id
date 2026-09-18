@@ -23,6 +23,15 @@ import { dirname, join } from 'node:path';
 import {
   authorizerRoleLabel,
   buildChangeOrderFromTicket,
+  buildPricingAuditEntries,
+  fieldTicketPriceChanges,
+  FIELD_TICKET_PRICED_ACTION,
+  isPricingOnlyRowChange,
+  lastPricedAt,
+  pricingProvenanceNote,
+  suggestEquipmentRate,
+  suggestLaborRate,
+  unpricedConversionWarning,
   checkFieldTicketConversion,
   checkFieldTicketReadiness,
   computeFieldTicketTotals,
@@ -41,6 +50,9 @@ import {
   sealedFieldTicketViolations,
   ticketConversionPatch,
   emptyFieldTicket,
+  fieldTicketPricingBlockReason,
+  pricingRoleFor,
+  pricingActorName,
 } from '../utils/fieldTicketCore';
 import type { ChangeOrder, FieldTicket } from '../types';
 
@@ -348,6 +360,223 @@ ok('a $0 ticket cannot become a change order', !zeroDollar.canConvert);
 ok('  …and asks for rates rather than blaming the signature',
   (zeroDollar.reason ?? '').toLowerCase().includes('rate'), zeroDollar.reason);
 
+// ── 6b. Pricing a SIGNED ticket ─────────────────────────────────────────────
+// The bug this section exists to stop coming back (audit 2026-09-17 #7): the
+// data model says the super signs for HOURS and the office attaches money
+// later, but the seal froze the rate fields too. A ticket signed the designed
+// way was therefore signed evidence that could NEVER become a change order —
+// "Bill it" greyed out forever with no control anywhere that could price it.
+//
+// The relaxation is narrow on purpose. Allowing the whole `labor` key would let
+// hours, trades and worker names be rewritten under the signature, which is
+// worse than the bug. Only the rate/unitCost field on an otherwise-identical
+// row may move, and every move is recorded.
+console.log('\n  pricing a signed ticket');
+
+const unpricedSigned = signedTicket({
+  labor: [
+    { id: 'l1', workerName: 'R. Alvarez', trade: 'Carpenter', hours: 6 },
+    { id: 'l2', workerName: 'D. Chen', trade: 'Carpenter', hours: 6 },
+    { id: 'l3', workerName: 'M. Okafor', trade: 'Carpenter', hours: 6 },
+  ],
+  materials: [{ id: 'm1', description: 'Blocking', quantity: 1, unit: 'ls', unitCost: 400 }],
+  equipment: [],
+  markupPercent: 0,
+});
+
+// THE REPRO, end to end. Labor with no rate + a priced material: converting
+// today bills $400 and drops 18 signed carpentry hours without a word.
+const halfGate = checkFieldTicketConversion(unpricedSigned, []);
+ok('a half-priced ticket still converts (partial billing is legitimate)', halfGate.canConvert);
+ok('…but the gate reports the unpriced lines', halfGate.unpricedRowCount === 3, String(halfGate.unpricedRowCount));
+ok('…and hands the caller a warning to show before it drops them', !!halfGate.warning, halfGate.warning);
+ok('…that names the hours that will NOT be billed',
+  (halfGate.warning ?? '').includes('18 labor hr'), halfGate.warning);
+eq('unpriced labor hours are counted', computeFieldTicketTotals(unpricedSigned).unpricedLaborHours, 18);
+eq('a fully priced ticket carries no warning',
+  unpricedConversionWarning(computeFieldTicketTotals(signedTicket())), undefined);
+eq('a fully priced ticket has no unpriced labor hours',
+  computeFieldTicketTotals(signedTicket()).unpricedLaborHours, 0);
+ok('the conversion gate on a fully priced ticket sets no warning',
+  !checkFieldTicketConversion(signedTicket(), []).warning);
+
+// The seal, row by row.
+const priced = (rate: number) => unpricedSigned.labor.map(r => ({ ...r, rate }));
+eq('a sealed ticket ACCEPTS a rate filled in by the office',
+  sealedFieldTicketViolations(unpricedSigned, { labor: priced(95) }), []);
+eq('…and a material unit cost',
+  sealedFieldTicketViolations(unpricedSigned, {
+    materials: [{ id: 'm1', description: 'Blocking', quantity: 1, unit: 'ls', unitCost: 525 }],
+  }), []);
+eq('…and an equipment rate',
+  sealedFieldTicketViolations(signedTicket(), {
+    equipment: [{ id: 'e1', description: 'Mini excavator', hours: 4, rate: 110 }],
+  }), []);
+eq('a sealed ticket REFUSES an hours change hidden in the same array',
+  sealedFieldTicketViolations(unpricedSigned, {
+    labor: unpricedSigned.labor.map((r, i) => i === 0 ? { ...r, hours: 12, rate: 95 } : { ...r, rate: 95 }),
+  }), ['labor']);
+eq('…a renamed trade',
+  sealedFieldTicketViolations(unpricedSigned, {
+    labor: unpricedSigned.labor.map((r, i) => i === 0 ? { ...r, trade: 'Foreman', rate: 95 } : { ...r, rate: 95 }),
+  }), ['labor']);
+eq('…a row added under the signature',
+  sealedFieldTicketViolations(unpricedSigned, {
+    labor: [...priced(95), { id: 'l4', workerName: 'New', trade: 'Carpenter', hours: 8, rate: 95 }],
+  }), ['labor']);
+eq('…a row removed under the signature',
+  sealedFieldTicketViolations(unpricedSigned, { labor: priced(95).slice(1) }), ['labor']);
+eq('…rows reordered (the printed document would no longer match)',
+  sealedFieldTicketViolations(unpricedSigned, { labor: [...priced(95)].reverse() }), ['labor']);
+eq('…a quantity change on a material',
+  sealedFieldTicketViolations(unpricedSigned, {
+    materials: [{ id: 'm1', description: 'Blocking', quantity: 9, unit: 'ls', unitCost: 400 }],
+  }), ['materials']);
+eq('…and an edit whose prior rows are unknown (unprovable ⇒ refused)',
+  sealedFieldTicketViolations({ status: 'signed' }, { labor: [] }), ['labor']);
+eq('a rate change bundled with a description rewrite is refused WHOLE',
+  sealedFieldTicketViolations(unpricedSigned, {
+    labor: priced(95),
+    workDescription: 'something else',
+  }), ['workDescription']);
+ok('an explicitly-undefined rate reads the same as an absent one',
+  isPricingOnlyRowChange(
+    [{ id: 'a', hours: 4 }],
+    [{ id: 'a', hours: 4, rate: undefined }],
+    'rate',
+  ));
+ok('a null row in the update is refused rather than crashing',
+  !isPricingOnlyRowChange([{ id: 'a', hours: 4 }], [null as unknown as Record<string, unknown>], 'rate'));
+
+// Pricing must not change whether the ticket was signable / authorized —
+// isFieldTicketAuthorized re-runs the readiness check on every read.
+const pricedTicket: FieldTicket = { ...unpricedSigned, labor: priced(95) };
+ok('a ticket priced after signing is still authorized', isFieldTicketAuthorized(pricedTicket));
+
+// The record of who priced it.
+const changes = fieldTicketPriceChanges(unpricedSigned, { labor: priced(95) });
+eq('every rate the office moved is listed', changes.length, 3);
+eq('a change carries the old and new rate', { from: changes[0].from, to: changes[0].to },
+  { from: undefined, to: 95 });
+ok('a change names the row in the ticket\'s own words',
+  changes[0].label.includes('Carpenter') && changes[0].label.includes('R. Alvarez'), changes[0].label);
+eq('an unchanged rate is not reported as a change',
+  fieldTicketPriceChanges(pricedTicket, { labor: priced(95) }).length, 0);
+eq('clearing a rate is reported too',
+  fieldTicketPriceChanges(pricedTicket, {
+    labor: pricedTicket.labor.map(r => ({ ...r, rate: undefined })),
+  }).length, 3);
+
+let seq = 0;
+const entries = buildPricingAuditEntries(changes, 'Dana (office)', NOW, () => `aud-${++seq}`);
+eq('one audit entry per rate applied', entries.length, 3);
+eq('the audit action marks it as priced AFTER the signature',
+  entries[0].action, FIELD_TICKET_PRICED_ACTION);
+eq('the audit entry names who applied it', entries[0].actor, 'Dana (office)');
+ok('the audit detail states the rate that was applied',
+  (entries[0].detail ?? '').includes('$95.00/hr'), entries[0].detail);
+ok('a material audit detail is per unit, not per hour',
+  (buildPricingAuditEntries(
+    fieldTicketPriceChanges(unpricedSigned, {
+      materials: [{ id: 'm1', description: 'Blocking', quantity: 1, unit: 'ls', unitCost: 525 }],
+    }), 'Dana', NOW, () => 'x')[0].detail ?? '').includes('/unit'));
+eq('an unpriced ticket has never been priced', lastPricedAt(unpricedSigned), undefined);
+eq('lastPricedAt returns the LATEST pricing pass', lastPricedAt({
+  auditTrail: [
+    { id: 'a', action: FIELD_TICKET_PRICED_ACTION, actor: 'x', timestamp: '2026-08-04T10:00:00.000Z' },
+    { id: 'b', action: 'signed_on_site', actor: 'x', timestamp: '2026-08-09T10:00:00.000Z' },
+    { id: 'c', action: FIELD_TICKET_PRICED_ACTION, actor: 'x', timestamp: '2026-08-06T10:00:00.000Z' },
+  ],
+}), '2026-08-06T10:00:00.000Z');
+
+// The point of the record: the change order separates what the rep attested to
+// from what the office added later. Without it a priced-after-the-fact ticket
+// reads as if the owner's rep approved the dollars too.
+const pricedCO = buildChangeOrderFromTicket({
+  ticket: { ...pricedTicket, auditTrail: entries },
+  existingCOs: [], baseContractValue: 0, nowISO: NOW,
+});
+eq('a priced ticket now reaches a dollar amount and converts', pricedCO.changeAmount, 2110);
+ok('the CO says the rates were applied in the office, and when',
+  pricedCO.description.includes('applied in the office') && pricedCO.description.includes('Aug 3, 2026'),
+  pricedCO.description);
+ok('the CO still says the rep signed for the hours',
+  pricedCO.description.includes('signed on site') || pricedCO.description.includes('Signed on site'),
+  pricedCO.description);
+ok('a ticket priced in the field carries NO office-pricing sentence',
+  !buildChangeOrderFromTicket({
+    ticket: signedTicket(), existingCOs: [], baseContractValue: 0, nowISO: NOW,
+  }).description.includes('applied in the office'));
+// The PDF is the document a GC actually hands an owner who disputes a T&M
+// charge, and it prints the rates right above the signature — so it needs the
+// same separation as the CO, from the same function (review 2 on #7).
+const pricedForPdf = { ...pricedTicket, auditTrail: entries };
+const pdfNote = pricingProvenanceNote(pricedForPdf, { withSigner: true });
+ok('the PDF provenance line names the signer and the pricing date',
+  pdfNote.includes('as signed on site by ') && pdfNote.includes('applied in the office Aug 3, 2026')
+  && !!pricedForPdf.authorization && pdfNote.includes(pricedForPdf.authorization.name), pdfNote);
+eq('the CO and the PDF share one wording (the CO just omits the signer it already names)',
+  pricingProvenanceNote(pricedForPdf).length > 0
+  && pricedCO.description.includes(pricingProvenanceNote(pricedForPdf)), true);
+eq('a ticket never priced after signing prints no provenance line',
+  pricingProvenanceNote(signedTicket(), { withSigner: true }), '');
+ok('the provenance line survives a ticket with every row priced (unpricedRowCount 0)',
+  computeFieldTicketTotals(pricedForPdf).unpricedRowCount === 0 && pdfNote.length > 0);
+{
+  // Landed by the integration pass: the PDF must print the line, and print it
+  // ABOVE the signature block (where the priced total sits).
+  const pdfSrc = existsSync(join(ROOT, 'utils/pdfGenerator.ts'))
+    ? readFileSync(join(ROOT, 'utils/pdfGenerator.ts'), 'utf8') : '';
+  ok('the field-ticket PDF prints the pricing provenance line, directly above the signature',
+    /C\.pricingProvenanceNote\(ticket, \{ withSigner: true \}\)/.test(pdfSrc)
+      && /totalsHtml \+ provenanceHtml \+ authHtml/.test(pdfSrc));
+}
+ok('the previously-unbillable ticket is now billable', checkFieldTicketConversion({
+  ...pricedTicket, auditTrail: entries,
+}, []).canConvert);
+ok('and carries no unpriced warning once every line has a rate',
+  !checkFieldTicketConversion({ ...pricedTicket, auditTrail: entries }, []).warning);
+
+// Suggestions: the app already knows these numbers. It offers them with their
+// source; it never writes one silently and never invents one.
+eq('a configured trade rate is suggested',
+  suggestLaborRate('Carpenter', { carpenter: 95 })?.rate, 95);
+ok('the suggestion says where it came from',
+  (suggestLaborRate('Carpenter', { carpenter: 95 })?.source ?? '').includes('Time Tracking'));
+// useLaborRates stores the GC's PAYROLL number (wages + burden). The ticket
+// row is a BILLING rate. A chip reading "Your Carpenter rate" invites a tap
+// that bills 18 hr of carpentry at cost, which is the exact money this whole
+// finding exists to stop leaving on the table — the chip has to say so.
+ok('…and says the number is a COST, with O&P still to add',
+  /\bcost\b/i.test(suggestLaborRate('Carpenter', { carpenter: 95 })?.source ?? '')
+  && /O&P/.test(suggestLaborRate('Carpenter', { carpenter: 95 })?.source ?? ''),
+  suggestLaborRate('Carpenter', { carpenter: 95 })?.source);
+eq('a trade with NO configured rate gets no suggestion — never a market average',
+  suggestLaborRate('Plumber', { carpenter: 95 }), undefined);
+eq('a zero / nonsense rate is not suggested', suggestLaborRate('Carpenter', { carpenter: 0 }), undefined);
+eq('a blank trade falls back to the general bucket',
+  suggestLaborRate('', { general: 58 })?.rate, 58);
+eq('equipment day rate becomes an hourly figure the same way the job-cost engine does',
+  suggestEquipmentRate('Mini excavator', [
+    { name: 'Kubota KX040 mini excavator', dailyRate: 760 },
+  ])?.rate, 95);
+eq('a machine that is not on this job is not guessed at',
+  suggestEquipmentRate('Skid steer', [{ name: 'Kubota KX040 mini excavator', dailyRate: 760 }]),
+  undefined);
+eq('a machine with no day rate yields no suggestion',
+  suggestEquipmentRate('Mini excavator', [{ name: 'Mini excavator', dailyRate: 0 }]), undefined);
+// Name matching used plain substring containment in both directions, so a
+// machine's day rate landed on any line whose text happened to contain its
+// name's letters. Both of these put a real dollar amount on a client-facing
+// change order for a machine that was never on the job.
+eq('a machine name buried mid-word is not a match ("Forklift" is not "Lift")',
+  suggestEquipmentRate('Forklift', [{ name: 'Lift', dailyRate: 300 }]), undefined);
+eq('a three-letter brand fragment is not a match ("Cat" in "scaffold cat walk")',
+  suggestEquipmentRate('Scaffold cat walk', [{ name: 'Cat', dailyRate: 1200 }]), undefined);
+eq('a short machine name still matches a verbose description on a word boundary',
+  suggestEquipmentRate('Excavator for footing dig', [{ name: 'Excavator', dailyRate: 800 }])?.rate,
+  100);
+
 // ── 7. Reachability — a screen nobody can find is worth zero ────────────────
 console.log('\n  reachability');
 const read = (p: string) => existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : '';
@@ -397,6 +626,121 @@ ok('a ticket saved unsigned can still be signed later',
   screen.includes('ticket-sign-existing') && /signTargetId/.test(screen));
 ok('the signature pad is remounted per open (no carry-over between signers)',
   /\{signOpen && \(\s*<SignatureModal/.test(screen));
+
+// The other dead end: a ticket signed for HOURS with the rates left to the
+// office needs a control that can attach them, or it can never be billed.
+ok('the signed detail view can price the ticket',
+  screen.includes('ticket-price') && /<PricingModal/.test(screen));
+ok('pricing writes through updateFieldTicket (the seal is re-checked there)',
+  /handleApplyPricing[\s\S]{0,1600}updateFieldTicket\(ticket\.id/.test(screen));
+ok('every applied rate is written into the ticket auditTrail',
+  /handleApplyPricing[\s\S]{0,1600}buildPricingAuditEntries\(changes/.test(screen));
+ok('only the categories whose rates moved are sent (the seal cannot judge an absent array)',
+  /for \(const c of changes\) \{[\s\S]{0,260}patch\.labor = next\.labor;/.test(screen)
+  && /updateFieldTicket\(ticket\.id, \{\s*\.\.\.patch,/.test(screen));
+ok('a refused pricing write tells the user why instead of failing silently',
+  /if \(!ok\) \{[\s\S]{0,320}showAlert\(/.test(screen));
+ok('pricing is closed once a change order exists (it would desync the CO)',
+  /pricingOpenForTicket = openTicket\.status === 'signed' && !billedCO/.test(screen)
+  && /const canPrice = pricingOpenForTicket && /.test(screen));
+ok('…and says why rather than just hiding the control',
+  /openTicket\.convertedChangeOrderId \|\| gate\.existingChangeOrderId[\s\S]{0,900}Revise the change order/.test(screen));
+// Keyed on the TICKET's marker, not on the resolved CO. gate.existingChangeOrderId
+// is only ever set from a change order found in the same array the screen then
+// searches, so keying the explanation on it alone made this branch unreachable
+// and the assertion below vacuous — it matched a string no user could ever see.
+ok('…including when the change order it became has since been deleted',
+  /\{!!\(openTicket\.convertedChangeOrderId \|\| gate\.existingChangeOrderId\)/.test(screen)
+  && /already billed, so its rates are locked/.test(screen));
+ok('the conversion confirmation shows the unpriced-lines warning',
+  /gate\.warning,\s*\]\.filter\(Boolean\)/.test(screen));
+ok('the ticket total says what it EXCLUDES when lines have no rate',
+  /totals\.unpricedRowCount > 0[\s\S]{0,260}Excludes/.test(screen));
+ok('a suggested rate names its source and is tapped, never auto-applied',
+  /RateSuggestion/.test(screen) && /suggestion\.source/.test(screen)
+  && /onUse=\{\(\) => set/.test(screen));
+ok('suggestions come from the GC\'s own configured rates, not a market average',
+  /useLaborRates\(\)/.test(screen) && /suggestLaborRate\(row\.trade, laborRates\)/.test(screen));
+// The suggestion chips offer a COST, so the sheet has to say what stands
+// between that number and the owner's bill. A 0% ticket saying nothing reads
+// as "O&P is added somewhere else" — it is not.
+ok('the pricing sheet says what markup the rates will be billed at',
+  /preview\.markupPercent > 0[\s\S]{0,400}O&P on top of the rates you enter/.test(screen)
+  && /no O&P markup/.test(screen));
+// A controlled money field that renders String(parseFloat(keystrokes)) eats
+// the decimal point: "95." parses to 95 and re-renders as "95", so $95.50
+// cannot be typed at all. This is the only surface where T&M rates are entered
+// to the cent.
+ok('a rate can be typed to the cent (the field renders raw keystrokes)',
+  /function MoneyInput\([\s\S]{0,1400}value=\{raw\}/.test(screen)
+  && !/function MoneyInput\([\s\S]{0,1400}value=\{value == null \? '' : String\(value\)\}/.test(screen));
+
+// ── #7 provenance: who priced it, and who may ──────────────────────────────
+// The audit entry named the device's company branding (or the literal
+// 'Office'), never the person who set the rate, and any collaborator —
+// a field user included — could price a sealed ticket.
+console.log('\npricing names the signed-in user, and only the owner or an editor may price:');
+{
+  const branding = { contactName: 'Omir Majeed', companyName: 'Majeed Builders' };
+  eq('the audit actor is the signed-in user\'s name, not the branding',
+    pricingActorName({ name: 'Dana Office', email: 'dana@example.com' }, branding), 'Dana Office');
+  eq('…their email when the profile has no name',
+    pricingActorName({ name: '  ', email: 'dana@example.com' }, branding), 'dana@example.com');
+  eq('…branding only when there is no signed-in identity at all', pricingActorName(null, branding), 'Omir Majeed');
+  eq("…and 'Office' only as the last resort", pricingActorName(undefined, { contactName: '', companyName: ' ' }), 'Office');
+  const unpriced = signedTicket({ labor: [{ id: 'l1', workerName: 'Ray', trade: 'Laborer', hours: 8 }] });
+  const entries = buildPricingAuditEntries(
+    fieldTicketPriceChanges(unpriced, {
+      labor: [{ id: 'l1', workerName: 'Ray', trade: 'Laborer', hours: 8, rate: 55 }],
+      materials: unpriced.materials, equipment: unpriced.equipment,
+    }),
+    pricingActorName({ name: 'Dana Office' }, branding), NOW, () => 'id');
+  ok('the priced_after_signature entry carries that name', entries.length > 0 && entries.every(e => e.actor === 'Dana Office'),
+    JSON.stringify(entries));
+  eq('an owner may price', fieldTicketPricingBlockReason('owner'), null);
+  eq('an editor may price', fieldTicketPricingBlockReason('editor'), null);
+  ok('a viewer may not, and is told why', /view-only/.test(fieldTicketPricingBlockReason('viewer') ?? ''));
+  ok('a field user may not, and is told why', /office/.test(fieldTicketPricingBlockReason('field') ?? ''));
+  ok('a role still resolving is not a yes', !!fieldTicketPricingBlockReason(null));
+  ok('…and a failed role read says so', /Couldn’t confirm/.test(fieldTicketPricingBlockReason(null, true) ?? ''));
+  ok('the screen names the actor through pricingActorName(user, settings.branding), not the branding alone',
+    /pricingActorName\(user, settings\.branding\)/.test(screen)
+      && !/settings\.branding\?\.contactName\.trim\(\)/.test(screen) && /useAuth\(\)/.test(screen));
+  ok('the price button is gated on the role and a blocked role sees the reason',
+    /const canPrice = pricingOpenForTicket && !pricingBlockReason;/.test(screen)
+      && /pricingOpenForTicket && !!pricingBlockReason && \(/.test(screen)
+      && /fieldTicketPricingBlockReason\(pricingRole, projectRoleError\)/.test(screen));
+  // Integration round 1 (money-accounts): no signal on site → the collaborator
+  // read fails → the OWNER was locked out of pricing his own ticket.
+  eq('the owner is known from the cached project row when the role read failed', pricingRoleFor(null, 'u1', 'u1'), 'owner');
+  ok('…so his pricing is open even with the read failed', fieldTicketPricingBlockReason(pricingRoleFor(null, 'u1', 'u1'), true) === null);
+  eq('anyone else still fails closed', pricingRoleFor(null, 'u1', 'u2'), null);
+  eq('…as does a project row with no owner id', pricingRoleFor(null, undefined, 'u2'), null);
+  eq('a resolved role is never overridden (a field seat stays field)', pricingRoleFor('field', 'u1', 'u1'), 'field');
+  ok('the screen gates pricing on pricingRoleFor(projectRole, project?.ownerUserId, user?.id)',
+    /const pricingRole = pricingRoleFor\(projectRole, project\?\.ownerUserId, user\?\.id\);/.test(screen));
+  ok('applying prices re-checks the role', /if \(pricingBlockReason\) \{ showAlert\('Not saved', pricingBlockReason\); return; \}/.test(screen));
+}
+
+// Integration round 1: the field role SEES no money on a saved ticket either —
+// pricing was gated, the display was not.
+console.log('\nfield access sees hours and quantities, not the office\'s rates:');
+{
+  ok('the screen decides it from the role (isFinancialsBlinded)', /const moneyBlinded = isFinancialsBlinded\(projectRole\);/.test(screen));
+  ok('...the open ticket shows quantities in place of the total and O&P',
+    /\{moneyBlinded \? \(\s*<View style=\{styles\.amountCard\} testID="ticket-amount-blinded">/.test(screen));
+  ok('...no labour, equipment or material rate on its rows',
+    (screen.match(/\{r\.hours\} hr\{moneyBlinded \? '' : r\.rate \?/g) ?? []).length === 2
+      && /\{r\.quantity\} \{r\.unit\}\{moneyBlinded \? '' : r\.unitCost \?/.test(screen));
+  ok('...no unbilled total, no list amounts (screen or screen reader)',
+    /\{!moneyBlinded && <Text style=\{styles\.unbilledValue\}>/.test(screen)
+      && /\{!moneyBlinded && <Text style=\{styles\.ticketAmount\}>/.test(screen)
+      && /\$\{moneyBlinded \? '' : `, \$\{money\(tot\.billableTotal\)\}`\}/.test(screen));
+  ok('...no amount in the signed toast or on the re-sign button',
+    !/signed — \$\{money\(/.test(screen) && /amount=\{moneyBlinded \? null : totals\.billableTotal\}/.test(screen));
+  ok('...and every saved-ticket money display left is behind the flag',
+    !/<Text style=\{styles\.(unbilledValue|ticketAmount)\}>\{money/.test(screen.replace(/\{!moneyBlinded && <Text/g, '')));
+}
 
 // ── Report ──────────────────────────────────────────────────────────────────
 console.log(`\n${pass} passed, ${fail} failed`);

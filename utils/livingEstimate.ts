@@ -39,9 +39,37 @@
 
 import type { Project, ChangeOrder, Commitment, Invoice } from '@/types';
 import { getContractValue, getPendingChangeOrderValue } from '@/utils/projectFinancials';
-import { computeJobCost } from '@/utils/jobCostEngine';
+import { computeJobCost, type JobCostActualSources } from '@/utils/jobCostEngine';
 
 export type MarginHealth = 'healthy' | 'watch' | 'critical';
+
+/**
+ * Which cost streams the projected cost was built from.
+ *
+ *   'all_sources' — the caller forwarded `costSources` (material receipts,
+ *     priced crew hours, equipment, permits, the sub roster): the SAME inputs
+ *     app/job-costing.tsx hands computeJobCost, so this EAC is Job Costing's.
+ *   'subs_only'   — it did not. Only commitments reached the engine, so every
+ *     dollar of self-perform labor and every material receipt is missing, and
+ *     with no direct actuals each phase's EAC collapses back to its budget.
+ *
+ * WHY THIS IS ON THE SNAPSHOT (audit round 2, #16). Every margin surface used
+ * to be the second kind without saying so. A remodeler whose crew ran 420 hours
+ * against a $15,000 labor line and whose receipts ran $6,000 over materials saw
+ * Job Costing report the overrun while the Margin Board, the project hero,
+ * Margin Risk, the push alert and the AI's margin fact all read the bid margin
+ * back to him as 'healthy'. A caller that cannot reach the cost hooks must now
+ * SAY its number is subcontracts-only instead of stating health as fact.
+ */
+export type MarginCostBasis = 'all_sources' | 'subs_only';
+
+/** Plain-English caveat for a subs-only snapshot, shared by every surface that
+ *  prints one (AI fact lines, alert copy) so the wording cannot drift. */
+export const hasFullCostBasis = (s: { costBasis?: MarginCostBasis }): boolean =>
+  s.costBasis === 'all_sources';
+
+export const SUBS_ONLY_COST_CAVEAT =
+  'counts subcontracts and purchase orders only — crew labor, material receipts, equipment and permits are not in this figure';
 
 export interface MarginPoint {
   /** Total contract / sell value. */
@@ -92,8 +120,13 @@ export interface LivingEstimateSnapshot {
    *  links, so their over/under-estimate variance can't be traced into the
    *  buyout driver. Surfaced so the user knows the buyout number is partial. */
   untracedCommitments: number;
-  /** Health classification for the headline chip. */
+  /** Health classification for the headline chip. Read it together with
+   *  `costBasis`: on 'subs_only' a 'healthy' only means the subcontracts are. */
   health: MarginHealth;
+  /** See MarginCostBasis. The engine always sets it; it is optional only so
+   *  hand-built snapshots (validator fixtures) compile, and a reader must treat
+   *  ABSENT exactly like 'subs_only' — unknown provenance is not a full basis. */
+  costBasis?: MarginCostBasis;
   asOf: string;
 }
 
@@ -226,6 +259,15 @@ export interface LivingEstimateInput {
   changeOrders: ChangeOrder[];
   commitments: Commitment[];
   invoices: Invoice[];
+  /**
+   * The direct-cost streams Job Costing prices: receipts (incl. QBO bills
+   * confirmed into receipts), time entries + loaded rates + OT multiplier,
+   * equipment, permits, the sub roster. Forwarded WHOLE into computeJobCost so
+   * this EAC is the Job Costing EAC. Optional so a caller that cannot reach
+   * those hooks still compiles — its snapshot then reads costBasis 'subs_only'
+   * and must be labelled as such (validate-margin-cost-sources pins both).
+   */
+  costSources?: JobCostActualSources;
 }
 
 export function computeLivingEstimate({
@@ -233,6 +275,7 @@ export function computeLivingEstimate({
   changeOrders,
   commitments,
   invoices,
+  costSources,
 }: LivingEstimateInput): LivingEstimateSnapshot {
   const estimate = project.linkedEstimate;
   const projectCOs = changeOrders.filter(co => co.projectId === project.id);
@@ -281,7 +324,9 @@ export function computeLivingEstimate({
 
   // Cost EAC from the shared job-cost engine, adjusted so COs are costed at
   // the bid margin rather than at full sell value (see file header).
-  const jobCost = computeJobCost({ project, commitments, invoices, changeOrders: projectCOs });
+  // `...costSources` is spread whole (the utils/financialReports.ts pattern),
+  // so a field added to JobCostActualSources reaches this EAC the same day.
+  const jobCost = computeJobCost({ project, commitments, invoices, changeOrders: projectCOs, ...costSources });
   const projectedCost = Math.max(0, jobCost.projectedFinal - approvedCORevenue * marginPct0);
 
   const projectedMargin = projectedRevenue - projectedCost;
@@ -325,6 +370,7 @@ export function computeLivingEstimate({
     pendingChangeOrders: pendingCORevenue,
     untracedCommitments: untraced,
     health: hasMarginBasis ? classifyHealth(marginPct0, projectedMarginPct) : 'healthy',
+    costBasis: costSources ? 'all_sources' : 'subs_only',
     asOf: new Date().toISOString(),
   };
 }

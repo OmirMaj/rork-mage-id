@@ -199,6 +199,25 @@ const PHASE_EQUIPMENT = 'Equipment';
 const PHASE_PERMITS = 'Permits';
 
 /**
+ * Where priced crew hours land when the estimate carries NO labor line of its
+ * own — see LABOR-ROUTE-1 in computeJobCost. Reads as unbudgeted actuals,
+ * which is the honest story for labor nobody estimated as its own scope.
+ */
+const PHASE_SELF_PERFORM_LABOR = 'Self-perform labor';
+
+/**
+ * Folded phase keys that ARE the estimate's own labor budget. 'Labor' is what
+ * both production writers stamp on a labor line (app/(tabs)/estimate/full.tsx
+ * and review.tsx write `category: 'Labor'`); the assembly/fixture world writes
+ * 'labor', which folds onto the same key. 'labour' is the only other spelling
+ * a GC types. Deliberately NOT matched by trade ('Electrical', 'Framing'): a
+ * trade bucket is usually a MATERIALS line, and charging an electrician's
+ * hours against the wire budget would fabricate an overrun there while the
+ * real labor line sat untouched.
+ */
+const LABOR_PHASE_KEYS: readonly string[] = ['labor', 'labour'];
+
+/**
  * Hours per charged equipment day. components/AIEquipmentAdvice.tsx
  * `measuredUsage` already converts the same log with `daysUsed = hours / 8`,
  * and contexts/ProjectContext.getEquipmentCostForProject instead counts LOG
@@ -548,15 +567,25 @@ export interface JobCostInput {
    * and that financialReports reads no roster-sensitive field. If that second
    * assertion ever fires, wire the bundle.
    *
-   * STILL UNWIRED, and these three DO read a roster-sensitive field: utils/
-   * livingEstimate.ts and utils/marginRiskScore.ts read `projectedFinal`,
-   * utils/portalSnapshot.ts reads `projectedFinal` AND `byPhase`. None of the
-   * three even accepts a roster on its own input type, and none receives one
-   * from its own callers (THIRTEEN call sites across eight files — measured,
-   * `grep -n 'computeLivingEstimate(\|computeMarginRisk('`), so wiring them is
-   * a signature change in three public interfaces, not a property.
+   * THE THREE THAT READ A ROSTER-SENSITIVE FIELD, and where each stands
+   * (updated audit round 2, #16 — this paragraph used to call all three
+   * "STILL UNWIRED", which stopped being true): utils/livingEstimate.ts and
+   * utils/marginRiskScore.ts read `projectedFinal`, utils/portalSnapshot.ts
+   * reads `projectedFinal` AND `byPhase`. All three now accept an optional
+   * `costSources: JobCostActualSources` and spread it into their computeJobCost
+   * call, and the roster rides in that bundle. livingEstimate and
+   * marginRiskScore are fed it by the margin surfaces (Portfolio Margin,
+   * ProjectHero, Margin Risk, Living Estimate, Margin Alerts, judges, ask —
+   * scripts/validate-margin-cost-sources.ts pins the wiring). portalSnapshot
+   * is fed it by app/client-portal-setup.tsx, which builds the RICH snapshot
+   * and holds its auto-publish on a GMP / open-book job until those streams
+   * have loaded. app/project-detail.tsx's LITE writer builds no open-book block
+   * at all (it passes no commitments); it carries the last rich one forward,
+   * re-stamping only the contract terms. The block is still built only when
+   * the job has at least one commitment, so a purely self-perform cost-plus
+   * job publishes none — incomplete, not wrong (integration round 3).
    *
-   * THEY WERE WIRED THE OTHER WAY INSTEAD, at the writer (close-out pass).
+   * THE ROSTER GAP WAS ALSO CLOSED THE OTHER WAY, at the writer (close-out pass).
    * What those three actually needed was not the roster; it was for the
    * commitment to KNOW who it is with. Every production writer of a subcontract
    * commitment now records that:
@@ -584,7 +613,14 @@ export interface JobCostInput {
    * 'critical' on the resolved one. A losing job read healthy, and
    * utils/marginAlerts.ts is built on that same output — so the push alert that
    * exists to warn about margin fade was silent on exactly the job it was
-   * written for. It is not silent now, and no signature moved.
+   * written for. It is not silent now ON THAT JOB — a vendor-stamped
+   * subcontract overrun, and (once the caller forwards costSources) a material
+   * receipt overrun. It WAS still silent on a crew-labor overrun smaller than
+   * the job's untouched budget, because priced hours landed in an unbudgeted
+   * line the headline absorbed; LABOR-ROUTE-1 in computeJobCost closed that
+   * for any estimate that carries its own Labor line. An estimate with NO
+   * labor line still absorbs crew hours into remaining budget — that is the
+   * documented unbudgeted-spend trade-off, not a silent all-clear.
    *
    * The stamp CANNOT over-claim relative to the roster, which is why it is a
    * safe substitute rather than a wider net: signals 2 and 4 compare against
@@ -920,10 +956,39 @@ export function computeJobCost({
   }
 
   // Self-perform labor — finished shifts × the GC's configured loaded rates
-  // count as ACTUAL labor spend, in a dedicated phase line. Estimates rarely
-  // carry a matching phase, so it reads as unbudgeted actuals — the honest
-  // story until self-perform labor is estimated as its own scope. Same
-  // no-budget behavior as an unbudgeted commitment phase.
+  // count as ACTUAL labor spend.
+  //
+  // LABOR-ROUTE-1 (audit round 2, #16 follow-up): the hours land ON THE
+  // ESTIMATE'S LABOR LINE when it has one, not beside it. They used to go
+  // into a dedicated unbudgeted 'Self-perform labor' line unconditionally, and
+  // the project-level headline below then did exactly what its comment says it
+  // does with unbudgeted spend: absorbed it into the job's untouched budget —
+  // and the untouched budget it found first was the $15,000 Labor line the
+  // hours were spent against. Measured on the audit kitchen ($60,000 cost,
+  // 420 h × $55 = $23,100 against that Labor line, receipts on budget): EAC
+  // $60,000, variance $0, 23.1% 'healthy', no margin alert — on Job Costing
+  // AND on every margin surface that forwards costSources. A crew-labor
+  // overrun, the one an owner-operator can still fix, cost the headline $0.
+  //
+  // Routing fixes the ROW and the HEADLINE with one move, which is why it was
+  // picked over "drop labor budget from the absorption term": the Labor row
+  // now reads $15,000 budget / $23,100 actual / +$8,100, the per-phase EAC
+  // carries it, and because that phase holds no commitments the project-level
+  // `sumIdentifiedOverrun` term vouches for it — so the headline is $68,100
+  // on both readings. The alternative left the row at "$15,000, on track"
+  // beside a "Self-perform labor, unbudgeted $23,100" row: a correct headline
+  // over a drill-down that still contradicted it (absorbedVariance $15,000).
+  //
+  // Only the estimate's own LABOR category is matched (LABOR_PHASE_KEYS), and
+  // only when it still holds budget after buyout — if a labor subcontract
+  // bought that line out, the budget moved to the sub's phase and the hours
+  // are no longer spent against it. Otherwise the dedicated line stays, with
+  // its documented trade-off: unbudgeted spend is absorbed by remaining
+  // uncommitted budget until the job runs out of it (see the totals block).
+  //
+  // A job with NO priced hours never enters this branch, so it computes
+  // byte-identically to before — scripts/validate-job-cost-labor-routing.ts
+  // pins both halves.
   {
     let laborActual = 0;
     const countedIds: string[] = [];
@@ -937,7 +1002,12 @@ export function computeJobCost({
       countedIds.push(e.id);
     }
     if (laborActual > 0) {
-      const phase = 'Self-perform labor';
+      const budgetedLabor = LABOR_PHASE_KEYS
+        .map(k => phases.get(k))
+        .find(l => l !== undefined && l.budget > 0.005);
+      // `bucket` folds the key, so the estimate's line is returned as-is and
+      // keeps the label the estimator wrote ('Labor', not 'labor').
+      const phase = budgetedLabor ? budgetedLabor.phase : PHASE_SELF_PERFORM_LABOR;
       const existing = bucket(phase);
       existing.actual += laborActual;
       addDirect(phase, laborActual);

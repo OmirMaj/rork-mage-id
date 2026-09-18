@@ -10,7 +10,8 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useProjects } from '@/contexts/ProjectContext';
+import { useProjects, useFinancialsData } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import {
   composeBrief, localDateISO, type MorningBrief, type OpenLeakSummary,
@@ -44,6 +45,11 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
     buildingAccessRules, accessReservations,
   } = useProjects();
   const safety = useSafety();
+  // Signed subcontracts and POs, and the user id for the SERVER cash-flow row —
+  // see the cash forecast below.
+  const { commitments } = useFinancialsData();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   const [asyncInputs, setAsyncInputs] = useState<AsyncInputs>(EMPTY_ASYNC);
   const [loading, setLoading] = useState(true);
@@ -69,20 +75,23 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
         next.openLeakFlags = { count: rows.length, estTotal };
       } catch { /* additive */ }
 
-      // Cash forecast — only when the user finished cash-flow setup.
+      // Cash forecast — only when the user finished cash-flow setup. The SAME
+      // forecast as the Summary tile and /cash-flow (buildForecastInputs): it
+      // used to read the device cache only (no user id — so on the web or a
+      // second phone it acted as if cash flow was never set up) and leave out
+      // signed subcontracts and POs, so a subcontract draw that overdraws the
+      // account showed red on the tile and never reached "Cash dips to …".
       try {
-        const [{ loadCashFlowData, isSetupComplete }, engine] = await Promise.all([
+        const [{ loadCashFlowSettings }, engine] = await Promise.all([
           import('@/utils/cashFlowStorage'),
           import('@/utils/cashFlowEngine'),
         ]);
-        if (await isSetupComplete()) {
-          const data = await loadCashFlowData();
-          const balance = engine.getEffectiveStartingBalance(data.startingBalance, data.balanceAsOf, invoices);
-          const forecast = engine.generateForecast(
-            balance, data.expenses, invoices, data.expectedPayments,
-            12, data.defaultPaymentTerms, changeOrders,
-          );
-          next.cashSummary = engine.calculateSummary(forecast);
+        const settings = await loadCashFlowSettings(userId);
+        if (settings.setupComplete) {
+          const inputs = engine.buildForecastInputs({
+            cashData: settings.data, invoices, commitments, projects, changeOrders,
+          });
+          next.cashSummary = engine.calculateSummary(engine.forecastFromInputs(inputs, 12));
         }
       } catch { /* additive */ }
 
@@ -107,9 +116,10 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
       }
     })();
     return () => { cancelled = true; };
-    // invoices/changeOrders feed the cash forecast; refreshKey is the manual
-    // re-pull. The other sync inputs only affect the pure compose below.
-  }, [enabled, invoices, changeOrders, refreshKey]);
+    // invoices/changeOrders/commitments/projects/userId feed the cash
+    // forecast; refreshKey is the manual re-pull. The other sync inputs only
+    // affect the pure compose below.
+  }, [enabled, invoices, changeOrders, commitments, projects, userId, refreshKey]);
 
   const brief = useMemo<MorningBrief>(() => {
     // Local calendar day for the cert-expiry cutoff — toISOString() is UTC

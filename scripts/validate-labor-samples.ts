@@ -15,6 +15,9 @@
 //
 // Run via: bun run test:labor-samples
 
+// Pinned west of Greenwich BEFORE any Date is built: the evening-shift case
+// only means something where the local day and the UTC day differ.
+process.env.TZ = 'America/Los_Angeles';
 import {
   buildLaborSamples, computeLaborStats, normalizeTradeKey, laborTradeLabel,
   isEligibleLaborEntry, LABOR_UNIT,
@@ -92,9 +95,17 @@ expect('…and a non-labor label recovers nothing', laborSampleTradeKey('Framing
 expect('same project+trade aggregates hours; latest date wins',
   buildLaborSamples([
     entry({ id: 'a', totalHours: 8, date: '2026-07-20' }),
-    entry({ id: 'b', totalHours: 6.5, date: '2026-07-22' }),
+    entry({ id: 'b', totalHours: 6.5, date: '2026-07-22', clockIn: '2026-07-22T15:00:00.000Z', clockOut: '2026-07-22T21:30:00.000Z' }),
   ], RATES).map(s => ({ quantity: s.quantity, closedAt: s.closedAt })),
   [{ quantity: 14.5, closedAt: '2026-07-22' }]);
+
+// Integration round 1: an evening shift (7 pm Pacific) on an older row whose
+// `date` was written as the UTC day is dated by its LOCAL clock-in day.
+expect('an evening shift is dated by its local clock-in day, not the stored UTC day',
+  buildLaborSamples([
+    entry({ id: 'eve', totalHours: 4, clockIn: '2026-07-22T02:00:00.000Z', clockOut: '2026-07-22T06:00:00.000Z', date: '2026-07-22' }),
+  ], RATES).map(s => s.closedAt),
+  ['2026-07-21']);
 
 expect('different trades split into separate samples',
   buildLaborSamples([

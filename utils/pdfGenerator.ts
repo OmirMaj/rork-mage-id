@@ -1,11 +1,12 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { CompanyBranding, ContractSignature, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal } from '@/types';
+import type { CompanyBranding, ContractSignature, PaymentSplit, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal } from '@/types';
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
 import { netBalanceDue, effectiveRetentionHeld, pendingRetentionHeld } from './invoiceBilling';
-import { calendarDayStart } from './calendarDate';
+import { calendarDayStart, dayOrInstantDate } from './calendarDate';
 import { contractTimeline, contractTimelineSentence } from './contractTimelineCore';
+import { acceptanceSentence, milestoneDueText, paymentStageRows } from './paymentTerms';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
@@ -47,6 +48,7 @@ function buildQuickEstimateHtml(
   result: QuickEstimateResultForPdf,
   answers: QuickEstimateAnswersForPdf,
   branding: CompanyBranding,
+  split: PaymentSplit,
 ): string {
   const qualityLabel = answers.quality === 'high_end' ? 'High-End' : answers.quality === 'budget' ? 'Budget' : 'Standard';
   const sizeNum = Number(answers.sizeSqft) || 0;
@@ -244,35 +246,31 @@ function buildQuickEstimateHtml(
     </div>`;
 
   // ── PAYMENT TERMS ──
-  // Industry-standard residential remodel terms. The GC can override by
-  // editing the PDF or, eventually, by adjusting in settings. The terms
-  // shown reduce ambiguity for the homeowner ("when do I owe what?")
-  // which dramatically reduces collection issues.
-  const depositPct = 25;
-  const completionPct = 10;
-  const progressPct = 100 - depositPct - completionPct;
-  const depositAmt = result.total * depositPct / 100;
-  const progressAmt = result.total * progressPct / 100;
-  const completionAmt = result.total * completionPct / 100;
+  // The GC's own split, answered the first time a document prints it
+  // (Direction B, utils/paymentTerms.ts). This block used to hard-code
+  // 25 / 65 / 10 while the portal proposal printed a 10% deposit and the
+  // contract seeded 25/25/25/25 — three deposits for one job. `split` is a
+  // required argument, so "not set" cannot reach a homeowner's PDF: the
+  // wizard's share asks first (hooks/useClientDocumentGate). The rows and
+  // cents come from paymentStageRows, the same function every other
+  // document prints from; a 0% deposit prints "No deposit" at $0 and a 0%
+  // progress or final row is left out.
+  const stageRows = paymentStageRows(result.total, split);
   const paymentTermsBlock = `
     <div class="no-break" style="margin-top:24px">
       <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Payment Terms</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <tr style="background:${PDF_PALETTE.cream2}">
-          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-weight:600;color:${PDF_PALETTE.text}">Deposit (${depositPct}%)</td>
-          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};color:${PDF_PALETTE.text2}">Due upon signed agreement, before work begins</td>
-          <td class="num" style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(depositAmt)}</td>
-        </tr>
-        <tr>
-          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-weight:600;color:${PDF_PALETTE.text}">Progress (${progressPct}%)</td>
-          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};color:${PDF_PALETTE.text2}">Billed against documented progress per contract schedule</td>
-          <td class="num" style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(progressAmt)}</td>
-        </tr>
-        <tr style="background:${PDF_PALETTE.cream2}">
-          <td style="padding:10px 12px;font-weight:600;color:${PDF_PALETTE.text}">Final (${completionPct}%)</td>
-          <td style="padding:10px 12px;color:${PDF_PALETTE.text2}">Due at substantial completion, after walk-through and punch list</td>
-          <td class="num" style="padding:10px 12px;text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(completionAmt)}</td>
-        </tr>
+        ${stageRows.map((r, i) => {
+          const last = i === stageRows.length - 1;
+          const border = last ? '' : `border-bottom:1px solid ${PDF_PALETTE.bone};`;
+          const shade = i % 2 === 0 ? ` style="background:${PDF_PALETTE.cream2}"` : '';
+          return `
+        <tr${shade}>
+          <td style="padding:10px 12px;${border}font-weight:600;color:${PDF_PALETTE.text}">${escHtml(r.label)} (${r.pct}%)</td>
+          <td style="padding:10px 12px;${border}color:${PDF_PALETTE.text2}">${escHtml(r.detail)}</td>
+          <td class="num" style="padding:10px 12px;${border}text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(r.amount)}</td>
+        </tr>`;
+        }).join('')}
       </table>
     </div>`;
 
@@ -290,7 +288,7 @@ function buildQuickEstimateHtml(
     <div class="no-break" style="margin-top:28px;padding:20px 22px;border-radius:14px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.cream2}">
       <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.amber};margin-bottom:8px">Ready to move forward?</div>
       <div style="font-size:12.5px;line-height:1.65;color:${PDF_PALETTE.cream2};margin-bottom:12px">
-        To proceed, please reply to this estimate with your approval, and we'll prepare a formal contract reflecting the scope and terms above. Final pricing is locked once the contract is signed and the deposit received.
+        ${escHtml(acceptanceSentence(split))}
       </div>
       ${contactLine ? `<div style="font-size:11px;color:${PDF_PALETTE.bone2};border-top:1px solid #FFFFFF20;padding-top:10px;margin-top:10px">Questions? Contact ${contactLine}</div>` : ''}
     </div>`;
@@ -338,28 +336,17 @@ function buildQuickEstimateHtml(
   });
 }
 
-export async function generateQuickEstimatePDFUri(
-  result: QuickEstimateResultForPdf,
-  answers: QuickEstimateAnswersForPdf,
-  branding: CompanyBranding,
-): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
-  try {
-    const html = buildQuickEstimateHtml(result, answers, branding);
-    const { uri } = await Print.printToFileAsync({ html, base64: false });
-    return uri;
-  } catch (err) {
-    console.error('[PDF] Quick estimate PDF failed:', err);
-    return null;
-  }
-}
-
+// `split` is required: the quick-estimate PDF prints a payment schedule, and
+// the only schedule it may print is the one the GC gave (asked at the share,
+// never defaulted). generateQuickEstimatePDFUri was deleted with the literal
+// terms — it had no callers and would have been a second, unasked route out.
 export async function shareQuickEstimatePDF(
   result: QuickEstimateResultForPdf,
   answers: QuickEstimateAnswersForPdf,
   branding: CompanyBranding,
+  split: PaymentSplit,
 ): Promise<void> {
-  const html = buildQuickEstimateHtml(result, answers, branding);
+  const html = buildQuickEstimateHtml(result, answers, branding, split);
   const title = `Quick Estimate — ${answers.projectType || 'Construction'}`;
 
   if (Platform.OS === 'web') {
@@ -1019,7 +1006,9 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
 }
 
 function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: CompanyBranding): string {
-  const reportDate = new Date(dfr.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  // dayOrInstantDate: an older voice report stored a bare day, which `new Date`
+  // reads as UTC midnight — the previous weekday on every US owner's PDF.
+  const reportDate = dayOrInstantDate(dfr.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const logoBlock = branding.logoUri
     ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
   const companyBlock = branding.companyName
@@ -1354,6 +1343,10 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
   const allowances = Array.isArray(contract.allowances) ? contract.allowances : [];
   const scopeText = contract.scopeText && contract.scopeText.trim() ? contract.scopeText : (project.description ?? '');
 
+  // The Due cell printed only a triggerDate, so the sealed PDF left "when" blank
+  // for the deposit, progress and final rows — the three rows every schedule
+  // from utils/paymentTerms.contractScheduleFromSplit has. milestoneDueText is
+  // the same wording the contract screen and billing show.
   const milestonesHtml = milestones.length === 0 ? '' : `
     <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Payment milestones</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -1367,7 +1360,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
           <tr>
             <td style="padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(m.label)}</td>
             <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(fmtMoney(Number(m.amount ?? 0)))}</td>
-            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(m.triggerDate ? fmtDate(m.triggerDate) : '')}</td>
+            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(m.triggerDate ? fmtDate(m.triggerDate) : milestoneDueText(m))}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -1968,6 +1961,16 @@ function buildFieldTicketHtml(
       ? `<div style="${blockStyle}">${totals.unpricedRowCount} line item(s) are recorded without a rate and are shown as TBD. Hours and quantities above are what was signed for; pricing follows under the contract's T&M rates.</div>`
       : '');
 
+  // Rates priced in the office AFTER the rep signed print right above his
+  // signature; without this line the page reads as if he approved the dollars
+  // too — the exact T&M dispute the ticket exists to settle (audit #7). Same
+  // wording the change order carries. Empty for a ticket never priced after
+  // signing, so an unpriced ticket's TBD block stays the only note.
+  const provenanceNote = C.pricingProvenanceNote(ticket, { withSigner: true });
+  const provenanceHtml = provenanceNote
+    ? `<div style="${blockStyle}">${escHtml(provenanceNote)}</div>`
+    : '';
+
   // The signature block is the point of the whole document.
   const authHtml = auth
     ? pdfSectionHeaderLocal('Authorized on site') +
@@ -1996,7 +1999,7 @@ function buildFieldTicketHtml(
     branding,
     bodyHtml:
       headerHtml + titleHtml + statsHtml + workHtml + reasonHtml +
-      laborHtml + materialsHtml + equipmentHtml + totalsHtml + authHtml + photosHtml +
+      laborHtml + materialsHtml + equipmentHtml + totalsHtml + provenanceHtml + authHtml + photosHtml +
       pdfFooter(branding, `${label} · work performed ${worked}`, PDF_DISCLAIMERS.fieldTicket),
   });
 }

@@ -37,6 +37,9 @@ import type {
   FieldTicketMaterialRow,
 } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { normalizeTradeKey, type LaborRateMap } from '@/utils/laborSamples';
+import type { ProjectRole } from '@/utils/projectRole';
+import { EQUIPMENT_HOURS_PER_DAY } from '@/utils/jobCostEngine';
 
 // ─── Display ─────────────────────────────────────────────────────────────────
 
@@ -93,6 +96,10 @@ export interface FieldTicketTotals {
   billableTotal: number;
   /** Rows that carry work but no price — the office's to-do list. */
   unpricedRowCount: number;
+  /** Labor hours sitting on those unpriced rows. The concrete number the
+   *  conversion warning quotes: "18 hr will not be billed" lands where
+   *  "2 lines" does not. */
+  unpricedLaborHours: number;
 }
 
 export function computeFieldTicketTotals(
@@ -118,9 +125,14 @@ export function computeFieldTicketTotals(
     materials.filter(r => num(r.quantity) > 0 && num(r.unitCost) <= 0).length +
     equipment.filter(r => num(r.hours) > 0 && num(r.rate) <= 0).length;
 
+  const unpricedLaborHours = round2(
+    labor.filter(r => num(r.rate) <= 0).reduce((s, r) => s + num(r.hours), 0),
+  );
+
   return {
     laborHours, laborCost, materialCost, equipmentHours, equipmentCost,
-    subtotal, markupPercent, markupAmount, billableTotal, unpricedRowCount,
+    subtotal, markupPercent, markupAmount, billableTotal,
+    unpricedRowCount, unpricedLaborHours,
   };
 }
 
@@ -218,18 +230,362 @@ export const SEALED_FIELD_TICKET_MUTABLE_KEYS: readonly (keyof FieldTicket)[] = 
   'photos',
 ];
 
+// ─── Pricing a sealed ticket ─────────────────────────────────────────────────
+//
+// The rep signs for HOURS (see the file header and the sign-off wording in
+// app/field-ticket.tsx). The money is the office's to attach afterwards. Until
+// this existed the seal froze the rate fields too, so a ticket signed the
+// designed way — hours now, rates later — could never reach a dollar amount
+// and therefore could never become a change order. Signed evidence that can
+// never be billed is the exact failure the feature exists to prevent.
+//
+// So the seal is now per FIELD, not per key: on a sealed ticket the office may
+// move `labor[].rate`, `materials[].unitCost` and `equipment[].rate` and
+// NOTHING else. Hours, quantities, trades, descriptions, row order and the row
+// set itself stay frozen — a whole-key allow-list would have let all of those
+// be rewritten under the signature, because the check only ever looked at
+// top-level key names.
+//
+// Every rate the office moves is recorded (FIELD_TICKET_PRICED_ACTION) so the
+// ticket can always show which half the rep signed and which half the office
+// added later. That record is the point: it makes the relaxed seal *stronger*
+// evidence in a dispute, not weaker.
+
+/** The one numeric field on each row collection the office may still set. */
+export const SEALED_FIELD_TICKET_PRICE_FIELDS = {
+  labor: 'rate',
+  materials: 'unitCost',
+  equipment: 'rate',
+} as const;
+
+export type FieldTicketPricedCategory = keyof typeof SEALED_FIELD_TICKET_PRICE_FIELDS;
+
+/** Audit action stamped on the ticket for each rate applied after signing. */
+export const FIELD_TICKET_PRICED_ACTION = 'priced_after_signature';
+
+type UnknownRow = Record<string, unknown>;
+
+/** Everything about a row EXCEPT its price, in a stable, comparable form.
+ *  Absent and explicitly-undefined keys must compare equal — `{ rate: undefined }`
+ *  round-trips out of JSON as an absent key, so treating them differently would
+ *  refuse a legitimate patch after one sync. */
+function rowIdentity(row: UnknownRow, priceField: string): string {
+  const keys = Object.keys(row)
+    .filter(k => k !== priceField && row[k] !== undefined)
+    .sort();
+  return JSON.stringify(keys.map(k => [k, row[k]]));
+}
+
+function priceOf(row: UnknownRow, priceField: string): number | undefined {
+  const v = row[priceField];
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+}
+
+/**
+ * True when `after` differs from `before` ONLY in the price field: same rows,
+ * same ids, same order, same hours/quantities/labels. Anything else — a row
+ * added, removed, reordered, or re-scoped — is a rewrite of signed content.
+ */
+export function isPricingOnlyRowChange(
+  before: UnknownRow[],
+  after: UnknownRow[],
+  priceField: string,
+): boolean {
+  if (before.length !== after.length) return false;
+  return before.every((b, i) => {
+    const a = after[i];
+    if (!a || typeof a !== 'object') return false;
+    if (b.id !== a.id) return false;
+    return rowIdentity(b, priceField) === rowIdentity(a, priceField);
+  });
+}
+
 /**
  * Which keys of an update would illegally rewrite sealed content. Empty array
  * means the update is allowed. Callers reject the whole update if non-empty —
  * a partial apply would be worse than a refusal.
+ *
+ * Pass the WHOLE prior ticket, not just its status: a labor/materials/equipment
+ * update is judged row by row against what was signed, and without the prior
+ * rows there is nothing to judge it against (that case is refused, because an
+ * edit we cannot prove is price-only must not be trusted).
  */
 export function sealedFieldTicketViolations(
-  ticket: Pick<FieldTicket, 'status'>,
+  ticket: Pick<FieldTicket, 'status'> &
+    Partial<Pick<FieldTicket, 'labor' | 'materials' | 'equipment'>>,
   updates: Partial<FieldTicket>,
 ): string[] {
   if (!isFieldTicketSealed(ticket)) return [];
   const allowed = new Set<string>(SEALED_FIELD_TICKET_MUTABLE_KEYS as readonly string[]);
-  return Object.keys(updates).filter(k => !allowed.has(k));
+  const priceFields: Record<string, string | undefined> = SEALED_FIELD_TICKET_PRICE_FIELDS;
+  return Object.keys(updates).filter(k => {
+    if (allowed.has(k)) return false;
+    const priceField = priceFields[k];
+    if (!priceField) return true;
+    const before = (ticket as Record<string, unknown>)[k];
+    const after = (updates as Record<string, unknown>)[k];
+    if (!Array.isArray(before) || !Array.isArray(after)) return true;
+    return !isPricingOnlyRowChange(before as UnknownRow[], after as UnknownRow[], priceField);
+  });
+}
+
+/** One rate the office moved after the signature. */
+export interface FieldTicketPriceChange {
+  category: FieldTicketPricedCategory;
+  rowId: string;
+  /** What the row is, in the words already on the ticket. */
+  label: string;
+  /** Undefined = the row carried no price before / after. */
+  from?: number;
+  to?: number;
+}
+
+function rowLabel(category: FieldTicketPricedCategory, row: UnknownRow): string {
+  if (category === 'labor') {
+    const trade = typeof row.trade === 'string' ? row.trade.trim() : '';
+    const who = typeof row.workerName === 'string' ? row.workerName.trim() : '';
+    return [trade, who].filter(Boolean).join(' — ') || 'Labor';
+  }
+  const desc = typeof row.description === 'string' ? row.description.trim() : '';
+  return desc || (category === 'materials' ? 'Material' : 'Equipment');
+}
+
+/**
+ * The rates this update would change, in ticket order. Only meaningful for an
+ * update that already passed sealedFieldTicketViolations — a rewritten row set
+ * is refused before it gets here.
+ */
+export function fieldTicketPriceChanges(
+  ticket: Partial<Pick<FieldTicket, 'labor' | 'materials' | 'equipment'>>,
+  updates: Partial<FieldTicket>,
+): FieldTicketPriceChange[] {
+  const out: FieldTicketPriceChange[] = [];
+  for (const category of Object.keys(SEALED_FIELD_TICKET_PRICE_FIELDS) as FieldTicketPricedCategory[]) {
+    const priceField = SEALED_FIELD_TICKET_PRICE_FIELDS[category];
+    const after = (updates as Record<string, unknown>)[category];
+    const before = (ticket as Record<string, unknown>)[category];
+    if (!Array.isArray(after) || !Array.isArray(before)) continue;
+    (after as UnknownRow[]).forEach((a, i) => {
+      const b = (before as UnknownRow[])[i];
+      if (!b || b.id !== a.id) return;
+      const from = priceOf(b, priceField);
+      const to = priceOf(a, priceField);
+      if (from === to) return;
+      out.push({
+        category,
+        rowId: String(a.id ?? ''),
+        label: rowLabel(category, a),
+        ...(from === undefined ? null : { from }),
+        ...(to === undefined ? null : { to }),
+      });
+    });
+  }
+  return out;
+}
+
+/** "Carpenter — R. Alvarez: rate set to $95.00/hr" — the audit line a GC can
+ *  read back to an owner who says the rates were invented later. */
+export function priceChangeDetail(change: FieldTicketPriceChange): string {
+  const unit = change.category === 'materials' ? '/unit' : '/hr';
+  const fmt = (n: number) => `$${n.toFixed(2)}${unit}`;
+  const to = change.to === undefined ? 'cleared' : fmt(change.to);
+  const from = change.from === undefined ? 'no rate' : fmt(change.from);
+  return `${change.label}: ${from} → ${to}`;
+}
+
+/**
+ * Audit entries for a batch of office-applied rates. Appended to the ticket's
+ * own auditTrail (an already-sealed-mutable key) so the record of WHO priced it
+ * and WHEN survives a cache wipe exactly like the conversion marker does.
+ */
+export function buildPricingAuditEntries(
+  changes: FieldTicketPriceChange[],
+  actor: string,
+  nowISO: string,
+  newId: () => string = generateUUID,
+): COAuditEntry[] {
+  return changes.map(c => ({
+    id: newId(),
+    action: FIELD_TICKET_PRICED_ACTION,
+    actor,
+    timestamp: nowISO,
+    detail: priceChangeDetail(c),
+  }));
+}
+
+/**
+ * The name a 'priced_after_signature' entry records: the SIGNED-IN person who
+ * set the rate. The device's company branding named every collaborator who
+ * priced a ticket after the GC (his contactName, or his company), and a
+ * missing branding wrote the literal 'Office' — so the dispute record could
+ * not say who actually attached the dollars. Branding is only the fallback
+ * for a session with neither a name nor an email.
+ */
+export function pricingActorName(
+  user: { name?: string | null; email?: string | null } | null | undefined,
+  branding: { contactName?: string | null; companyName?: string | null } | null | undefined,
+): string {
+  return (user?.name ?? '').trim()
+    || (user?.email ?? '').trim()
+    || (branding?.contactName ?? '').trim()
+    || (branding?.companyName ?? '').trim()
+    || 'Office';
+}
+
+/**
+ * Why this person may NOT price a signed ticket, or null when they may.
+ * Pricing puts the dollars on sealed evidence, so it is the owner's or an
+ * editor's call: a viewer is read-only by definition, and a field user is
+ * blinded from money (utils/roleBlinding). A role still resolving — or a
+ * collaborator read that failed — is not a yes; the screen says which it is
+ * rather than hiding the button without a word.
+ */
+/**
+ * The role pricing is gated on. The collaborator read is a network query, so
+ * with no signal on site it fails or hangs and the role is null — and the GC
+ * opening his OWN signed ticket was told pricing stays locked. Ownership is
+ * already on the cached project row (Project.ownerUserId, the row's user_id),
+ * so the owner is recognised from that without waiting. Everyone else still
+ * fails closed on null. The database enforces the write either way.
+ */
+export function pricingRoleFor(
+  role: ProjectRole,
+  ownerUserId: string | null | undefined,
+  userId: string | null | undefined,
+): ProjectRole {
+  if (role != null) return role;
+  return ownerUserId && userId && ownerUserId === userId ? 'owner' : null;
+}
+
+export function fieldTicketPricingBlockReason(role: ProjectRole, roleError = false): string | null {
+  if (role === 'owner' || role === 'editor') return null;
+  if (role === 'viewer') return 'Pricing is locked for you: your access on this project is view-only. The owner or an editor sets the rates.';
+  if (role === 'field') return 'Pricing is done in the office. The owner or an editor sets the rates on a signed ticket.';
+  return roleError
+    ? 'Couldn’t confirm your access on this project, so pricing stays locked. Reopen the ticket to try again.'
+    : 'Checking your access on this project before pricing opens…';
+}
+
+// ─── Where the office's rates come from ──────────────────────────────────────
+// The app already knows what this GC pays. Making him retype it is how a
+// ticket stays unpriced for a month. But a suggested rate is NOT a fact about
+// this ticket, so every suggestion carries the source it came from and is
+// OFFERED, never silently written — the screen shows it as a tappable chip
+// beside an empty field.
+
+export interface FieldTicketRateSuggestion {
+  rate: number;
+  /** Where the number came from, in the GC's own terms. Shown verbatim. */
+  source: string;
+}
+
+/** The GC's own loaded $/hr for a trade, as set in Time Tracking. No rate
+ *  configured for that trade ⇒ no suggestion; a market average dressed up as
+ *  "your rate" is exactly what utils/laborSamples refuses to do.
+ *
+ *  The number is a COST, not a bill rate. hooks/useLaborRates stores what the
+ *  GC pays — wages plus burden, the payroll figure entered in Time Tracking —
+ *  while FieldTicketLaborRow.rate is what the owner is billed. Offering the
+ *  cost under a label that reads like a bill rate is how 18 carpentry hours go
+ *  out at $58 instead of $95: the tap meant to stop money falling off the
+ *  change order is the tap that leaves it off. So the chip says what the
+ *  number is and what is still missing from it. */
+export function suggestLaborRate(
+  trade: string | undefined,
+  rates: LaborRateMap | undefined,
+): FieldTicketRateSuggestion | undefined {
+  const key = normalizeTradeKey(trade);
+  const rate = rates?.[key];
+  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) return undefined;
+  const label = (trade ?? '').trim() || 'general';
+  return {
+    rate: round2(rate),
+    source: `Your loaded ${label} cost from Time Tracking — add O&P`,
+  };
+}
+
+/** Whole-word containment. Plain `includes` matched mid-word, which is how a
+ *  ticket line reading "Forklift" pulled the day rate of a machine called
+ *  "Lift". A name that only appears inside a longer word is not a name match. */
+function containsPhrase(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(haystack);
+}
+
+/** Loose name match between a ticket's free-text machine description and a
+ *  piece of tracked equipment ("Mini excavator" ↔ "Kubota KX040 mini
+ *  excavator"). Deliberately conservative: a wrong machine's day rate is a
+ *  wrong dollar amount on a client-facing change order. */
+function equipmentNameMatches(description: string, e: { name: string; make?: string; model?: string }): boolean {
+  const d = description.trim().toLowerCase();
+  if (d.length < 3) return false;
+  const haystack = [e.name, e.make, e.model].filter(Boolean).join(' ').toLowerCase();
+  if (!haystack) return false;
+  // Forward: the ticket's words appear in the machine's full name. This is the
+  // sound direction — "mini excavator" inside "Kubota KX040 mini excavator".
+  if (containsPhrase(haystack, d)) return true;
+  // Reverse: a short machine name inside a verbose description. This is the
+  // direction that goes wrong, so it carries its own floor — a machine named
+  // in three characters or fewer ("Cat", "JD") is a brand fragment, not an
+  // identification, and turns up inside unrelated free text ("scaffold cat
+  // walk") where it would put that machine's day rate on a client-facing
+  // change order.
+  const n = e.name.trim().toLowerCase();
+  return n.length >= 4 && containsPhrase(d, n);
+}
+
+/** Day rate ÷ a working day = the hourly figure a T&M line is written at —
+ *  the same conversion utils/jobCostEngine and utils/wip already use, so an
+ *  hour of excavator costs the same number everywhere in the app. */
+export function suggestEquipmentRate(
+  description: string,
+  equipment: { name: string; make?: string; model?: string; dailyRate?: number }[] | undefined,
+): FieldTicketRateSuggestion | undefined {
+  const match = (equipment ?? []).find(
+    e => equipmentNameMatches(description ?? '', e) &&
+      typeof e.dailyRate === 'number' && e.dailyRate > 0,
+  );
+  if (!match || !match.dailyRate) return undefined;
+  return {
+    rate: round2(match.dailyRate / EQUIPMENT_HOURS_PER_DAY),
+    source: `${match.name} — $${match.dailyRate}/day ÷ ${EQUIPMENT_HOURS_PER_DAY} hr`,
+  };
+}
+
+/** When the office last attached a rate to this ticket, if ever. */
+export function lastPricedAt(ticket: Pick<FieldTicket, 'auditTrail'>): string | undefined {
+  const stamps = (ticket.auditTrail ?? [])
+    .filter(e => e.action === FIELD_TICKET_PRICED_ACTION)
+    .map(e => e.timestamp)
+    .filter(Boolean)
+    .sort();
+  return stamps.length ? stamps[stamps.length - 1] : undefined;
+}
+
+/**
+ * The sentence that separates what the owner's rep signed (hours and
+ * quantities) from what the office added afterwards (the rates), or '' when
+ * the ticket was never priced after signing.
+ *
+ * ONE wording for both documents a disputed T&M charge is argued over — the
+ * change order and the field-ticket PDF. The PDF prints the full rates and
+ * total right above the signature block, so without this line a ticket priced
+ * in the office reads as if the rep approved the dollars too (audit #7,
+ * review 2). `withSigner` names who signed and when, for a document (the PDF)
+ * that does not already say it in the same breath.
+ */
+export function pricingProvenanceNote(
+  ticket: Pick<FieldTicket, 'auditTrail' | 'authorization'>,
+  opts: { withSigner?: boolean } = {},
+): string {
+  const pricedAt = lastPricedAt(ticket);
+  if (!pricedAt) return '';
+  const auth = ticket.authorization;
+  const who = opts.withSigner && auth
+    ? ` by ${auth.name} ${formatTicketDate(auth.signedAt)}`
+    : '';
+  return `Hours and quantities are as signed on site${who}; T&M rates were applied in the office ${formatTicketDate(pricedAt)}.`;
 }
 
 // ─── Ticket → ChangeOrder ────────────────────────────────────────────────────
@@ -276,6 +632,25 @@ export interface FieldTicketConversionCheck {
   reason?: string;
   /** Set when the ticket has already been billed. */
   existingChangeOrderId?: string;
+  /** Signed work carrying no rate. These rows produce NO line item (see
+   *  groupHourlyByRate), so converting drops them silently unless the caller
+   *  says so — which is what `warning` is for. */
+  unpricedRowCount?: number;
+  /** Non-blocking. Must be shown verbatim in the conversion confirmation when
+   *  present: a half-priced ticket still converts, and the hours it leaves
+   *  behind are the money this feature exists to protect. */
+  warning?: string;
+}
+
+/** The sentence a half-priced ticket has to say out loud before it converts. */
+export function unpricedConversionWarning(totals: FieldTicketTotals): string | undefined {
+  const n = totals.unpricedRowCount;
+  if (n <= 0) return undefined;
+  const hours = totals.unpricedLaborHours > 0
+    ? ` (${totals.unpricedLaborHours} labor hr)`
+    : '';
+  return `${n} signed line${n === 1 ? '' : 's'}${hours} still ha${n === 1 ? 's' : 've'} no rate. ` +
+    `${n === 1 ? 'It' : 'They'} will NOT be on this change order. Price the ticket first if you want that work paid.`;
 }
 
 /**
@@ -308,9 +683,17 @@ export function checkFieldTicketConversion(
   }
   const totals = computeFieldTicketTotals(ticket);
   if (totals.billableTotal <= 0) {
-    return { canConvert: false, reason: 'Add rates or unit costs — a change order needs a dollar amount.' };
+    return {
+      canConvert: false,
+      reason: 'Add rates or unit costs — a change order needs a dollar amount.',
+      unpricedRowCount: totals.unpricedRowCount,
+    };
   }
-  return { canConvert: true };
+  return {
+    canConvert: true,
+    unpricedRowCount: totals.unpricedRowCount,
+    warning: unpricedConversionWarning(totals),
+  };
 }
 
 /**
@@ -469,9 +852,19 @@ export function buildChangeOrderFromTicket(input: BuildCOFromTicketInput): Chang
       `${auth.title ? ` (${auth.title})` : ''}, ${authorizerRoleLabel(auth.role)}.`
     : '';
 
+  // Separate what the rep attested to from what the office added afterwards.
+  // The rep signs for hours and quantities (that is the wording on the pad and
+  // on the PDF); when the rates were attached later, the document has to say so
+  // in its own words — otherwise a priced-after-the-fact ticket reads as if the
+  // owner's rep approved the dollars too, which is exactly the claim a disputed
+  // T&M change order turns on.
+  // (The CO already names the signer in `signedBy`, so no signer here.)
+  const pricedNote = pricingProvenanceNote(ticket);
+
   const description = [
     `${fieldTicketLabel(ticket.number)} — extra work performed ${formatTicketDate(ticket.date)}: ${ticket.workDescription.trim()}`,
     signedBy,
+    pricedNote,
   ].filter(Boolean).join(' ');
 
   const audit: COAuditEntry[] = [{

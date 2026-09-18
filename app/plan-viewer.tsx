@@ -13,7 +13,7 @@
 //   • Tapping a pin opens the bottom sheet for that pin — link/rename/
 //     delete. No drag-to-move in v1; users delete and re-drop if needed.
 
-import React, { useCallback, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, TextInput, Platform, GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent,
 } from 'react-native';
@@ -42,6 +42,11 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { planRevisionStatus, staleBannerCopy } from '@/utils/planRevisionCore';
+import { planRenumber, type SheetPatch } from '@/utils/plans/revisionActions';
+import { containImageRect, imageLoadAspectRatio, planViewerImageRatio } from '@/utils/punchPlanPin';
+import { supabaseWrite } from '@/utils/offlineQueue';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
 
@@ -109,12 +114,14 @@ function PlanViewerScreenInner() {
   const punchIdParam = typeof params.punchId === 'string' ? params.punchId : undefined;
 
   const {
-    getPlanSheet, getPlanSheetsForProject, getPinsForPlan, addDrawingPin, updateDrawingPin, deleteDrawingPin,
+    getPlanSheet, getPlanSheetsForProject, updatePlanSheet, getPinsForPlan, addDrawingPin, updateDrawingPin, deleteDrawingPin,
     getMarkupsForPlan, addPlanMarkup, deletePlanMarkup,
     getPhotosForProject, getPunchItemsForProject, addProjectPhoto, addPunchItem,
     upsertPlanCalibration, getCalibrationForPlan,
     addRFI, getRFIsForProject,
   } = useProjects();
+
+  const { user: authUser } = useAuth();
 
   const sheet = sheetId ? getPlanSheet(sheetId) : null;
 
@@ -123,10 +130,14 @@ function PlanViewerScreenInner() {
   // render a dead drawing exactly like a live one — so a saved deep link, or
   // a pin someone tapped from the punch list, opened a stale sheet silently.
   // Building off it is demo + RFI + delay + change order, and the GC eats it.
+  const projectSheets = useMemo(
+    () => (sheet ? getPlanSheetsForProject(sheet.projectId) : []),
+    [sheet, getPlanSheetsForProject],
+  );
   const revision = useMemo(() => {
     if (!sheet) return null;
-    return planRevisionStatus(sheet, getPlanSheetsForProject(sheet.projectId));
-  }, [sheet, getPlanSheetsForProject]);
+    return planRevisionStatus(sheet, projectSheets);
+  }, [sheet, projectSheets]);
   const staleBanner = revision ? staleBannerCopy(revision) : null;
   // Only ever navigate on an unambiguous resolution. `ambiguous` (two live
   // copies of one number) and `not_found` still warn — they just don't offer a
@@ -141,11 +152,82 @@ function PlanViewerScreenInner() {
     router.replace({ pathname: '/plan-viewer' as never, params: { sheetId: currentSheetId } as never });
   }, [currentSheetId, router]);
 
+  // ── Sheet number (audit round 2, #21) ───────────────────────────────
+  // Revision control keys on the sheet NUMBER, but a PDF import lands every
+  // page as "<file> — Page N" with no number, and nothing in the app could add
+  // one — so an ASI drop sat beside the IFC sheet with neither marked stale.
+  // Typing the number here re-runs the same check addPlanSheet runs on upload
+  // (planRenumber), in whichever direction the dates say.
+  const [numberDraft, setNumberDraft] = useState<string | null>(null);
+  // Same gate ProjectContext uses before it writes: no signed-in user means the
+  // row is not ours to patch, and RLS would refuse it anyway.
+  const canSyncSheets = !!authUser?.id && isSupabaseConfigured;
+  // updatePlanSheet reads the sheet list from its own closure, so two calls in
+  // one render would make the second overwrite the first locally. Apply one
+  // patch per committed render: the queue drains in the effect below.
+  const patchQueue = useRef<SheetPatch[]>([]);
+  const drainPatches = useCallback(() => {
+    const next = patchQueue.current.shift();
+    if (!next) return;
+    updatePlanSheet(next.id, next.updates);
+    // …and write the chain columns ourselves. updatePlanSheet forwards only
+    // name / sheet_number / image_uri / page_number / width / height to
+    // Supabase — `revision`, `previous_sheet_id` and `superseded` are dropped,
+    // so the chain edit would live in local state alone and the next
+    // plan_sheets refetch would resurrect the old copy as live, leaving two
+    // current sheets carrying the number after the user was told one was
+    // superseded. (B4 review.) Going through offlineQueue keeps the write
+    // offline-safe and idempotent; delete this block once ProjectContext's
+    // updatePlanSheet forwards the three columns itself.
+    const chain: Record<string, unknown> = {};
+    if (next.updates.revision !== undefined) chain.revision = next.updates.revision;
+    if (next.updates.previousSheetId !== undefined) chain.previous_sheet_id = next.updates.previousSheetId;
+    if (next.updates.superseded !== undefined) chain.superseded = next.updates.superseded;
+    if (canSyncSheets && Object.keys(chain).length > 0) {
+      void supabaseWrite('plan_sheets', 'update', { id: next.id, ...chain, updated_at: new Date().toISOString() });
+    }
+  }, [updatePlanSheet, canSyncSheets]);
+  useEffect(() => {
+    if (patchQueue.current.length > 0) drainPatches();
+  }, [projectSheets, drainPatches]);
+
+  const saveSheetNumber = useCallback(() => {
+    if (!sheet || numberDraft === null) return;
+    const plan = planRenumber(sheet, numberDraft, projectSheets);
+    if (plan.kind === 'invalid') { showAlert('That is not a sheet number', plan.reason); return; }
+    setNumberDraft(null);
+    if (plan.kind === 'noop') return;
+    patchQueue.current = [...plan.patches];
+    drainPatches();
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (plan.message) showAlert('Revision updated', plan.message);
+  }, [sheet, numberDraft, projectSheets, drainPatches]);
+
   const [mode, setMode] = useState<Mode>('pin');
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[]>([]);
-  const [imgLayout, setImgLayout] = useState<{ w: number; h: number } | null>(null);
+  // The container is MEASURED; the image box inside it is DERIVED. It used to
+  // be the other way round — imgLayout was set once in onLayout — and a remote
+  // plan whose onLoad (and so its ratio) arrived AFTER layout kept imgLayout at
+  // the whole container, letterbox included. Every normalised pin then divided
+  // by the wrong height, so a walk pin drew up to ~74pt off the spot the super
+  // tapped on a portrait photo of a plan. Deriving it means the box is
+  // recomputed the moment the ratio lands (validate-punch-plan-pin).
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
   const [imgNaturalRatio, setImgNaturalRatio] = useState<number | null>(null);
+  // The ratio is the loaded image's, else the sheet's stored width/height
+  // (planViewerImageRatio — the pin step's precedence, so a walk pin is drawn
+  // in the rect it was placed in). The stored fallback is what makes web right:
+  // react-native-web's onLoad carries the DOM event, not `source`, so this
+  // screen used to get NO ratio on web and drew every pin against the
+  // letterboxed container (up to 270 px off). It also covers an offline cold
+  // start, where the image never loads at all. Only a sheet with neither falls
+  // back to the container as the box.
+  const imgRatio = planViewerImageRatio(imgNaturalRatio, sheet);
+  const imgLayout = useMemo(
+    () => (containerSize ? containImageRect(containerSize, imgRatio) ?? containerSize : null),
+    [containerSize, imgRatio],
+  );
   const drawingRef = useRef<boolean>(false);
 
   // Measure + calibrate state: holds 0–2 points. Both flows use the same
@@ -362,31 +444,18 @@ function PlanViewerScreenInner() {
   }, [mode, activeStroke, addPlanMarkup, sheet]);
 
   const handleImageLoad = useCallback((e: NativeSyntheticEvent<ImageLoadEventData>) => {
-    const s = e.nativeEvent.source;
-    if (s?.width && s?.height) setImgNaturalRatio(s.width / s.height);
+    // Native reports nativeEvent.source; react-native-web hands over the DOM
+    // load event, whose target is the <img> (naturalWidth/naturalHeight).
+    const ratio = imageLoadAspectRatio(e);
+    if (ratio) setImgNaturalRatio(ratio);
   }, []);
 
   const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
-    if (!imgNaturalRatio) {
-      setImgLayout({ w: width, h: height });
-      return;
-    }
-    // Compute the actually-rendered image box within the container for
-    // resizeMode="contain". Everything (pin positions, strokes) uses these
-    // effective dimensions so points track the image itself, not the
-    // surrounding letterbox.
-    const containerRatio = width / height;
-    let w: number, h: number;
-    if (containerRatio > imgNaturalRatio) {
-      h = height;
-      w = height * imgNaturalRatio;
-    } else {
-      w = width;
-      h = width / imgNaturalRatio;
-    }
-    setImgLayout({ w, h });
-  }, [imgNaturalRatio]);
+    // Same size back from a re-layout must not make a new object: imgLayout is
+    // a useMemo over this, and a fresh identity would re-run every consumer.
+    setContainerSize(prev => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }));
+  }, []);
 
   const undoLastMarkup = useCallback(() => {
     if (markups.length === 0) return;
@@ -443,7 +512,19 @@ function PlanViewerScreenInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          {sheet.sheetNumber ? <Text style={styles.headerEyebrow}>{sheet.sheetNumber}</Text> : null}
+          {/* Tap to set or correct the number. An unnumbered sheet says so —
+              it is the reason its revisions never chain. */}
+          <TouchableOpacity
+            onPress={() => setNumberDraft(sheet.sheetNumber ?? '')}
+            accessibilityRole="button"
+            accessibilityLabel={sheet.sheetNumber ? `Sheet number ${sheet.sheetNumber}. Tap to change.` : 'Add a sheet number'}
+            testID="plan-viewer-sheet-number"
+            hitSlop={6}
+          >
+            <Text style={[styles.headerEyebrow, !sheet.sheetNumber && { color: themeColors.accent }]}>
+              {sheet.sheetNumber ? sheet.sheetNumber : '+ Add sheet number'}
+            </Text>
+          </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>{sheet.name}</Text>
         </View>
         {calibration ? (
@@ -668,24 +749,37 @@ function PlanViewerScreenInner() {
             {/* Punch layer — walk-mode / AI punch items anchored to this sheet
                 that have no DrawingPin of their own. Colored by status; tapping
                 opens the punch list. */}
-            {imgLayout && punchOverlay.map(p => (
-              <TouchableOpacity
-                key={`punch-${p.id}`}
-                style={[
-                  styles.pin,
-                  {
-                    left: (p.pinX ?? 0) * imgLayout.w - 14,
-                    top: (p.pinY ?? 0) * imgLayout.h - 28,
-                    backgroundColor: punchStatusColor(p.status, themeColors),
-                    borderColor: '#FFFFFF',
-                    borderWidth: 2,
-                  },
-                ]}
-                onPress={() => router.push({ pathname: '/punch-list' as never, params: { projectId: p.projectId } as never })}
-                hitSlop={8} accessibilityRole="button" accessibilityLabel={`Punch item: ${p.description}`}>
-                <ClipboardList size={13} color={themeColors.surface} strokeWidth={2.5} />
-              </TouchableOpacity>
-            ))}
+            {/* The item he came from ("On plan" on the punch list passes its
+                id) is ringed in the accent and drawn last, on top — the same
+                marking a selected DrawingPin gets — so on a sheet with forty
+                markers he can tell which one he opened. */}
+            {imgLayout && [...punchOverlay]
+              .sort((a, b) => (a.id === punchIdParam ? 1 : 0) - (b.id === punchIdParam ? 1 : 0))
+              .map(p => {
+                const isTarget = !!punchIdParam && p.id === punchIdParam;
+                return (
+                  <TouchableOpacity
+                    key={`punch-${p.id}`}
+                    style={[
+                      styles.pin,
+                      {
+                        left: (p.pinX ?? 0) * imgLayout.w - 14,
+                        top: (p.pinY ?? 0) * imgLayout.h - 28,
+                        backgroundColor: punchStatusColor(p.status, themeColors),
+                        borderColor: isTarget ? themeColors.accent : '#FFFFFF',
+                        borderWidth: isTarget ? 3 : 2,
+                      },
+                    ]}
+                    onPress={() => router.push({ pathname: '/punch-list' as never, params: { projectId: p.projectId } as never })}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${isTarget ? 'This punch item' : 'Punch item'}: ${p.description}`}
+                    testID={isTarget ? 'plan-viewer-punch-target' : undefined}
+                  >
+                    <ClipboardList size={13} color={themeColors.surface} strokeWidth={2.5} />
+                  </TouchableOpacity>
+                );
+              })}
           </View>
         </ScrollView>
       </View>
@@ -819,6 +913,46 @@ function PlanViewerScreenInner() {
           updateDrawingPin(selectedPin.id, { linkedPhotoId: id, kind: 'photo' });
         }}
       />
+
+      {/* Sheet number modal */}
+      <Modal
+        visible={numberDraft !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNumberDraft(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { paddingBottom: 24 }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.modalTitle}>Sheet number</Text>
+              </View>
+              <TouchableOpacity onPress={() => setNumberDraft(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.emptyHint}>
+              The number printed in the title block, like A-201. Revisions chain on this: a later copy of the same number marks the earlier one superseded.
+            </Text>
+            <TextInput
+              value={numberDraft ?? ''}
+              onChangeText={setNumberDraft}
+              placeholder="A-201"
+              placeholderTextColor={themeColors.textMuted}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={styles.input}
+              autoFocus
+              testID="plan-viewer-sheet-number-input"
+            />
+            <TouchableOpacity style={[styles.primaryBtn, { marginTop: 10 }]} onPress={saveSheetNumber} testID="plan-viewer-sheet-number-save">
+              <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+              <Text style={styles.primaryBtnText}>Save sheet number</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Calibration input modal */}
       <Modal

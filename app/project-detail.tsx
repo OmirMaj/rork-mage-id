@@ -26,7 +26,7 @@ import {
   MageEstimate, MageSchedule, MageContract, MageChangeOrder, MageInvoice,
   MageDailyReport, MageMargin,
 } from '@/components/icons';
-import { PROJECT_TYPES, CONTRACT_MODES, CONTRACT_MODE_LABELS, CONTRACT_TERM_RANGES, type ContractMode, type Project, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
+import { PROJECT_TYPES, CONTRACT_MODES, CONTRACT_MODE_LABELS, CONTRACT_TERM_RANGES, type ContractMode, type Project, type ProjectContract, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
 import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -78,14 +78,19 @@ import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { buildPortalSnapshot, portalShareUrl, maskPortalLinkToken } from '@/utils/portalSnapshot';
+import { buildPortalSnapshot, portalShareUrl, maskPortalLinkToken, proposalBlockReason } from '@/utils/portalSnapshot';
+import { Button } from '@/components/ui';
+import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
+import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
+import { toClientEstimateView } from '@/utils/clientEstimateView';
+import { nextProposalStamp, proposalTermsState, splitLabel } from '@/utils/paymentTerms';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
-import { daysUntilCalendarDay } from '@/utils/calendarDate';
+import { daysUntilCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
 import {
   computeDailyLogCompletion, calendarOfSchedule,
   dailyLogHeadline, dailyLogEmptyDayLine, dailyLogGapLine, dailyLogTodayLine,
@@ -160,6 +165,36 @@ const STAGE_TO_STATUS: Record<LifecycleStage, 'estimated' | 'in_progress' | 'com
   postcon: 'completed',
   closeout: 'closed',
 };
+
+type PortalOpenBook = ReturnType<typeof buildPortalSnapshot>['openBook'];
+
+/**
+ * The open-book / GMP block the LITE portal writer may carry forward from the
+ * last RICH snapshot (it builds none itself — it passes no commitments).
+ * Nothing while the job is not open-book / GMP: the portal renders any block
+ * it finds. And the contract TERMS are re-stamped from the project as it is
+ * now — the portal titles the block from `mode` and prints the cap and fee, so
+ * carrying the old ones kept telling the homeowner "GMP, $480,000 cap" after
+ * the GC switched the job to open book or edited the cap, until he happened to
+ * reopen Client Portal setup (integration round 3). The cost figures stay as
+ * last published (with their asOf); they are the rich writer's to refresh.
+ * scripts/validate-portal-owner.ts runs this function.
+ */
+function carriedOpenBook(
+  prev: PortalOpenBook | undefined,
+  project: Pick<Project, 'contractMode' | 'gmpCap' | 'contractorFeePercent' | 'contractorFeeAmount'>,
+): PortalOpenBook | undefined {
+  const mode = project.contractMode;
+  if (mode !== 'gmp' && mode !== 'open_book') return undefined;
+  if (!prev) return undefined;
+  return {
+    ...prev,
+    mode,
+    gmpCap: project.gmpCap,
+    feePercent: project.contractorFeePercent,
+    feeAmount: project.contractorFeeAmount,
+  };
+}
 
 function statusToStage(s: string | undefined): LifecycleStage {
   switch (s) {
@@ -274,6 +309,9 @@ export default function ProjectDetailScreen() {
           fetchLienWaiversForProject(id).catch(() => []),
         ]);
         if (cancelled) return;
+        // Kept for the Client Portal "Terms needed" badge below, which needs
+        // proposalBlockReason's contract gate without a second fetch.
+        setPortalBadgeContract(contract ?? null);
         const next: typeof tileBadges = {};
         // Contract \u2014 most useful when it's hanging in 'sent' awaiting
         // signature, or already 'signed'.
@@ -422,6 +460,20 @@ export default function ProjectDetailScreen() {
             snapshotToWrite = {
               ...snap,
               messages: prev.messages?.length ? prev.messages : snap.messages,
+              // openBook is TOP-LEVEL, not under `sections`, so the spread above
+              // overwrote it with undefined on every lite write: this writer
+              // passes `commitments: []`, the builder omits the block, and
+              // merely opening the project blanked the open-book / GMP
+              // breakdown that client-portal-setup had published. The section
+              // SWITCH survived (it lives in `sections`), so the portal showed
+              // the heading with nothing under it. Carry the rich block forward
+              // exactly as `messages` is carried — but ONLY while the project is
+              // still open-book / GMP. The portal renders any openBook it finds,
+              // so carrying it after the GC moved the job to fixed price would
+              // keep publishing his cost breakdown until he next opened setup.
+              // carriedOpenBook also re-stamps mode / cap / fee from the
+              // project, so a GMP ↔ open-book switch or a cap edit shows now.
+              openBook: snap.openBook ?? carriedOpenBook(prev.openBook, project),
               sections: { ...prev.sections, ...snap.sections },
             };
           }
@@ -570,6 +622,55 @@ export default function ProjectDetailScreen() {
   // the status-pill colors. Drives the small text under each tile so
   // the GC sees what's blocking handover at a glance.
   const [tileBadges, setTileBadges] = useState<Partial<Record<SectionKey, { label: string; tone: 'pending' | 'success' | 'danger' | 'info' | 'neutral' }>>>({});
+  // The active contract from the badge batch; undefined until it has loaded,
+  // so the portal badge never guesses whether a sent contract blocks it.
+  const [portalBadgeContract, setPortalBadgeContract] = useState<ProjectContract | null | undefined>(undefined);
+
+  // ── Proposal payment terms (Direction B) ─────────────────────────────
+  // A portal switched on before the GC's terms existed publishes its proposal
+  // read-only ("Your contractor is confirming the payment schedule") and
+  // nobody can accept it. This is the screen he actually opens, so this is
+  // where he finds out: a "Terms needed" badge on the Client Portal tile, and
+  // a one-tap confirm inside it. Its own effect, merged into tileBadges, so
+  // the async money batch above and this synchronous check never overwrite
+  // each other.
+  const portalTerms = useMemo(
+    () => proposalTermsState({ portal: project?.clientPortal, profileSplit: settings?.paymentSplit, acceptance: 'none' }),
+    [project?.clientPortal, settings?.paymentSplit],
+  );
+  const portalTermsNeeded = !!project
+    && portalBadgeContract !== undefined
+    && portalTerms.state === 'unconfirmed'
+    && !proposalBlockReason(project, portalBadgeContract ?? undefined);
+  useEffect(() => {
+    if (portalTermsNeeded) {
+      setTileBadges(prev => ({ ...prev, clientPortal: { label: 'Terms needed', tone: 'pending' } }));
+    } else {
+      setTileBadges(prev => { const { clientPortal: _c, ...rest } = prev; return rest; });
+    }
+  }, [portalTermsNeeded]);
+
+  const termsGate = useClientDocumentGate();
+  /** Stamp this portal's proposal with his terms — one tap when saved, the
+   *  deposit step when not. Saved in the same press, merging only the two
+   *  proposal keys onto the saved portal, so the lite push below publishes
+   *  exactly what the stamp says. */
+  const confirmPortalProposalTerms = useCallback(() => {
+    const cp = project?.clientPortal;
+    if (!id || !project || !cp) return;
+    const est = project.linkedEstimate;
+    termsGate.run(
+      { terms: true, purpose: 'portal_proposal', total: est ? toClientEstimateView(est).projectTotal : null, projectType: project.type ?? null },
+      (a) => {
+        // A FIRST stamp: the proposal has none, so it cannot have been accepted.
+        const next = nextProposalStamp({ existing: cp.proposalPaymentTerms, split: a.split, acceptance: 'none', nowIso: new Date().toISOString() });
+        if ('refused' in next) { showAlert('Payment terms', next.refused); return; }
+        updateProject(id, {
+          clientPortal: { ...cp, proposalApprovalEnabled: cp.proposalApprovalEnabled, proposalPaymentTerms: next.stamp },
+        });
+      },
+    );
+  }, [id, project, termsGate, updateProject]);
   // Photos filter — 'all' or a normalized tag. The chip row defaults to 'all'
   // and we derive the chip set from photos at render-time so new tags appear
   // automatically without code changes.
@@ -3166,7 +3267,7 @@ export default function ProjectDetailScreen() {
                 // scroll to find what they wrote yesterday.
                 const buckets = new Map<string, { label: string; weekStart: number; reports: typeof dailyReports }>();
                 for (const dr of dailyReports) {
-                  const d = new Date(dr.date);
+                  const d = dayOrInstantDate(dr.date);
                   // Find Monday of that week (locale-agnostic: shift back by
                   // dayOfWeek - 1, treating Sunday=0 as 7 so Sun belongs to
                   // the prior week's Monday).
@@ -3192,7 +3293,7 @@ export default function ProjectDetailScreen() {
                     </View>
                     {week.reports
                       .slice()
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .sort((a, b) => dayOrInstantDate(b.date).getTime() - dayOrInstantDate(a.date).getTime())
                       .map(dr => (
                       <TouchableOpacity
                         key={dr.id}
@@ -3201,7 +3302,7 @@ export default function ProjectDetailScreen() {
                         activeOpacity={0.7}
                       >
                         <View style={styles.coInfo}>
-                          <Text style={styles.coNumber}>{new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                          <Text style={styles.coNumber}>{dayOrInstantDate(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
                           <Text style={styles.coDesc} numberOfLines={1}>
                             {dr.weather.conditions || 'No weather'} · {dr.manpower.reduce((s, m) => s + m.headcount, 0)} workers · {dr.photos.length} photos
                           </Text>
@@ -3970,6 +4071,22 @@ export default function ProjectDetailScreen() {
                     </Text>
                   </View>
 
+                  {portalTermsNeeded && (
+                    <View style={styles.portalTermsRow} testID="portal-terms-needed">
+                      <Text style={styles.portalDesc}>
+                        Your client sees this proposal without payment terms and can&apos;t accept it yet.
+                      </Text>
+                      <Button
+                        label={portalTerms.state === 'unconfirmed' && portalTerms.action === 'use-profile'
+                          ? `Use ${splitLabel(portalTerms.profileSplit)}`
+                          : 'Set your payment terms'}
+                        variant="secondary" size="sm"
+                        onPress={confirmPortalProposalTerms}
+                        testID="portal-terms-confirm"
+                      />
+                    </View>
+                  )}
+
                   {/* Inline permission toggles. Tapping a switch flips the
                       single key on project.clientPortal — same call shape
                       as on the dedicated setup screen. */}
@@ -4155,6 +4272,9 @@ export default function ProjectDetailScreen() {
         )}
             </ScrollView>
           </View>
+          {/* Inside the tile sheet: on iOS a Modal presents from the topmost
+              one, and the Client Portal row that opens it lives in here. */}
+          <ClientDocumentAskSheet {...termsGate.sheet} />
         </Modal>
 
         {hasAnyEstimate && (
@@ -5261,6 +5381,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
   portalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 2 },
   portalDesc: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
+  portalTermsRow: { gap: 8, alignItems: 'flex-start' as const, marginTop: 10 },
   portalBadge: { alignSelf: 'flex-start' as const, backgroundColor: '#5856D6' + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginBottom: 8 },
   portalBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.info },
   portalLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

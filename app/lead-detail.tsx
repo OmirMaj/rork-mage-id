@@ -38,6 +38,7 @@ import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import ReferralPrompt from '@/components/ReferralPrompt';
 import InstantBidProposalModal from '@/components/InstantBidProposalModal';
 import { quotedFromTouches } from '@/utils/leadQuoteCore';
+import { statedBudgetOf, widgetBallparkOf } from '@/utils/widgetLeadCore';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseLeadFromTranscript, pickIfEmpty, titleCase } from '@/utils/voiceFormParsers';
 
@@ -116,8 +117,15 @@ export default function LeadDetailScreen() {
   const [address, setAddress] = useState(existing?.address ?? '');
   const [projectType, setProjectType] = useState(existing?.projectType ?? '');
   const [scope, setScope] = useState(existing?.scope ?? '');
-  const [budgetMin, setBudgetMin] = useState<string>(existing?.budgetMin ? String(existing.budgetMin) : '');
-  const [budgetMax, setBudgetMax] = useState<string>(existing?.budgetMax ? String(existing.budgetMax) : '');
+  // The website widget's national range is NOT their budget (audit round 2,
+  // #24). Widget leads captured before the edge-function fix stored it in
+  // budget_min/max; statedBudgetOf drops a figure that is exactly the range
+  // printed in the scope, so the fields start empty and the range is shown
+  // below under its own label.
+  const widgetBallpark = existing ? widgetBallparkOf(existing) : null;
+  const statedBudget = existing ? statedBudgetOf(existing) : {};
+  const [budgetMin, setBudgetMin] = useState<string>(statedBudget.min ? String(statedBudget.min) : '');
+  const [budgetMax, setBudgetMax] = useState<string>(statedBudget.max ? String(statedBudget.max) : '');
   const [timeline, setTimeline] = useState(existing?.timeline ?? '');
   const [source, setSource] = useState<LeadSource>(existing?.source ?? 'other');
   const [stage, setStage] = useState<LeadStage>(existing?.stage ?? 'new');
@@ -470,6 +478,18 @@ export default function LeadDetailScreen() {
               </View>
             )}
 
+            {widgetBallpark && (
+              <View style={styles.ballparkRow} testID="lead-widget-ballpark">
+                <Text style={styles.fieldLabel}>Widget ballpark shown to them</Text>
+                <Text style={styles.ballparkRange}>
+                  ${widgetBallpark.low.toLocaleString('en-US')}{'\u2013'}${widgetBallpark.high.toLocaleString('en-US')}
+                </Text>
+                <Text style={styles.quotedMeta}>
+                  A published national range for the scope, from your website widget. Not their budget and not your price.
+                </Text>
+              </View>
+            )}
+
             <View style={styles.budgetRow}>
               <View style={{ flex: 1, marginRight: 6 }}>
                 <Text style={styles.fieldLabel}>Budget min (theirs)</Text>
@@ -698,6 +718,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   multilineInput: { minHeight: 80 },
   budgetRow: { flexDirection: 'row', marginTop: 4 },
+  ballparkRow: { marginTop: 4 },
+  ballparkRange: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text, fontVariant: ['tabular-nums' as const] },
 
   // "You quoted" (QUOTE-PERSIST-1). successSoft/successLabel rather than the
   // accent: #FF6A1A behind or under this size of type misses AA (2.87:1).

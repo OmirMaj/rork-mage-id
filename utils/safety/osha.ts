@@ -7,7 +7,7 @@
 // no injury are not recordable (a fatality always is). Pure logic — no UI,
 // unit-tested by scripts/validate-safety-osha.ts.
 
-import type { SafetyIncident, SafetyIncidentSeverity, IncidentSeverity } from '@/types';
+import type { SafetyIncident, SafetyIncidentSeverity, IncidentSeverity, OshaIllnessType } from '@/types';
 
 export type IncidentType = 'injury' | 'near_miss' | 'property' | 'environmental';
 export type Treatment = 'none' | 'first_aid' | 'medical_beyond_first_aid';
@@ -19,16 +19,51 @@ export interface IncidentClassInput {
   restrictedDuty: boolean;
   lostConsciousness: boolean;
   fatality: boolean;
+  /**
+   * OSHA 300 column L — calendar days on restriction / job transfer.
+   *
+   * WHY IT IS HERE (audit round 2, safety-compliance #1). The incident form and
+   * the DFR both ask for this number AND for a separate "Restricted duty" toggle,
+   * and the classifier only ever read the toggle. Typing "5" with the toggle left
+   * off produced "Not recordable — … no restriction." directly under the field
+   * showing 5, and the case never reached the 300. A counted day of restriction IS
+   * the 1904.7(b)(4) trigger, so the number decides it on its own.
+   * Optional so a caller that has no day count still type-checks; absent reads 0.
+   */
+  daysRestricted?: number;
+  /**
+   * OSHA 300 column M. Anything other than 'injury' is an explicit statement
+   * that a worker became ILL (skin, respiratory, poisoning, hearing, other), so
+   * the case is an injury/illness case whatever the coarse event `type` says.
+   * A chemical exposure logged as type 'environmental' with a respiratory
+   * illness was never recordable before — the type gate rejected it first.
+   */
+  oshaIllnessType?: OshaIllnessType;
+}
+
+/** True when the record describes a worker who was hurt or made ill — the
+ *  precondition for every non-fatal 1904 trigger. */
+export function isInjuryOrIllnessCase(input: Pick<IncidentClassInput, 'type' | 'oshaIllnessType'>): boolean {
+  if (input.type === 'injury') return true;
+  return !!input.oshaIllnessType && input.oshaIllnessType !== 'injury';
+}
+
+/** Restricted work counts when EITHER the toggle is on or a day of restriction
+ *  was counted. Exported so the screens show the toggle in the same state the
+ *  classifier and the 300 log read, and store the same boolean. */
+export function hasRestriction(input: Pick<IncidentClassInput, 'restrictedDuty' | 'daysRestricted'>): boolean {
+  return !!input.restrictedDuty || (Number(input.daysRestricted) || 0) > 0;
 }
 
 export function isOshaRecordable(input: IncidentClassInput): boolean {
   // A fatality is recordable regardless of any other field.
   if (input.fatality) return true;
   // Only actual injury/illness cases can be recordable — a near-miss,
-  // property-damage, or environmental event with no injury is not.
-  if (input.type !== 'injury') return false;
+  // property-damage, or environmental event with nobody hurt or made ill is
+  // not. An explicit illness classification (col M) is someone made ill.
+  if (!isInjuryOrIllnessCase(input)) return false;
   if (input.daysAway > 0) return true;
-  if (input.restrictedDuty) return true;
+  if (hasRestriction(input)) return true;
   if (input.lostConsciousness) return true;
   if (input.treatment === 'medical_beyond_first_aid') return true;
   // First-aid-only or no treatment → not recordable.
@@ -109,14 +144,14 @@ export interface RecordabilityVerdict {
 export function describeRecordability(input: IncidentClassInput): RecordabilityVerdict {
   const recordable = isOshaRecordable(input);
   if (input.fatality) return { recordable, reason: 'Recordable — fatality.' };
-  if (input.type !== 'injury') {
+  if (!isInjuryOrIllnessCase(input)) {
     return {
       recordable,
       reason: `Not recordable — ${DFR_INCIDENT_TYPE_LABEL[input.type].toLowerCase()}, no injury.`,
     };
   }
   if (input.daysAway > 0) return { recordable, reason: 'Recordable — days away from work.' };
-  if (input.restrictedDuty) return { recordable, reason: 'Recordable — restricted work or job transfer.' };
+  if (hasRestriction(input)) return { recordable, reason: 'Recordable — restricted work or job transfer.' };
   if (input.lostConsciousness) return { recordable, reason: 'Recordable — loss of consciousness.' };
   if (input.treatment === 'medical_beyond_first_aid') {
     return { recordable, reason: 'Recordable — medical treatment beyond first aid.' };
@@ -232,13 +267,19 @@ export function buildSafetyIncidentFromDfr(src: DfrIncidentSource): SafetyIncide
     treatment: src.classification.treatment,
     daysAway: src.classification.daysAway,
     daysRestricted: src.daysRestricted,
-    restrictedDuty: src.classification.restrictedDuty,
+    // The day count and the toggle are one fact; store them agreeing, so the
+    // 300 log's classification (which reads the stored fields) cannot disagree
+    // with the recordable flag computed below.
+    restrictedDuty: hasRestriction({ restrictedDuty: src.classification.restrictedDuty, daysRestricted: src.daysRestricted }),
     lostConsciousness: src.classification.lostConsciousness,
     fatality: src.classification.fatality,
     // Column M is a recordkeeping judgement (skin vs respiratory vs hearing)
     // the DFR does not ask for. Left unset rather than guessed — oshaLog reads
     // an absent value as a physical injury, which is the honest default.
-    oshaRecordable: isOshaRecordable(src.classification),
+    // daysRestricted is folded in here rather than trusted to the caller: the
+    // DFR assembles `classification` without it, and a light-duty week typed on
+    // the report must still put the case on the 300.
+    oshaRecordable: isOshaRecordable({ ...src.classification, daysRestricted: src.daysRestricted }),
     status: src.existingStatus ?? 'open',
     reportedBy,
     createdBy: src.author,
