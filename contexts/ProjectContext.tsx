@@ -29,7 +29,8 @@ import {
 } from '@/utils/settingsLoadGuard';
 import {
   acceptedRolesByProject, aiaRowToSaved, claimProjectForUser, classifyProjectForSync, coerceRate, financialPickAfterLoad,
-  financialsLoadedFor, legacyMoneyPresent, mergeLocalOnly, myRoleAfterLoad, pendingIdsByTable, pendingIdsForTable,
+  financialsLoadedFor, keepPendingPinFields, legacyMoneyPresent, mergeLocalOnly, myRoleAfterLoad, pendingIdsByTable, pendingIdsForTable,
+  pendingPinIdsInQueue, pinOverlayIds,
   queryKeysForFlushedTables, savedToAiaRow, stripPortalCredentials,
   subCoiExpiryAcross, vanishedPendingIds,
 } from '@/utils/projectContextPure';
@@ -150,16 +151,37 @@ function durablePhotoValue(storagePath: string | undefined, currentUri: string |
  *  with a shared patch at runtime, and it sees the current row. */
 type PunchBatchUpdates = Partial<PunchItem> | ((item: PunchItem) => Partial<PunchItem>);
 
+type PinColumn = 'plan_sheet_id' | 'pin_x' | 'pin_y';
+
+/** Pin columns this edit TOOK AWAY. Only those go out as NULL: an edit from a
+ *  copy that never had the pin keeps omitting them, so a stale phone cannot
+ *  wipe a pin another device placed. `undefined` alone is dropped by JSON and
+ *  the server keeps the pin (Remove pin came back on the next refetch). */
+function pinColumnsClearedBy(before: PunchItem, after: PunchItem): PinColumn[] {
+  const out: PinColumn[] = [];
+  if (before.planSheetId != null && after.planSheetId == null) out.push('plan_sheet_id');
+  if (before.pinX != null && after.pinX == null) out.push('pin_x');
+  if (before.pinY != null && after.pinY == null) out.push('pin_y');
+  return out;
+}
+
+/** Does this row's UPDATE touch the pin columns (values or NULLs)? Only those
+ *  writes are tracked for the refetch overlay. */
+function rowCarriesPin(pi: PunchItem, clears: readonly PinColumn[] = []): boolean {
+  return pi.planSheetId !== undefined || pi.pinX !== undefined || pi.pinY !== undefined || clears.length > 0;
+}
+
 function applyPunchBatchUpdate(
   items: PunchItem[],
   ids: readonly string[],
   updates: PunchBatchUpdates,
   now: string,
   finish: (item: PunchItem) => PunchItem = (item) => item,
-): { next: PunchItem[]; changed: PunchItem[] } {
+): { next: PunchItem[]; changed: PunchItem[]; cleared: Record<string, PinColumn[]> } {
   const wanted = new Set(ids);
-  if (wanted.size === 0) return { next: items, changed: [] };
+  if (wanted.size === 0) return { next: items, changed: [], cleared: {} };
   const changed: PunchItem[] = [];
+  const cleared: Record<string, PinColumn[]> = {};
   const next = items.map(pi => {
     if (!wanted.has(pi.id)) return pi;
     const patch = typeof updates === 'function' ? updates(pi) : updates;
@@ -167,11 +189,13 @@ function applyPunchBatchUpdate(
     // locally while the queued write still targets the old id.
     const merged = finish({ ...pi, ...patch, id: pi.id, updatedAt: now });
     changed.push(merged);
+    const gone = pinColumnsClearedBy(pi, merged);
+    if (gone.length > 0) cleared[pi.id] = gone;
     return merged;
   });
   // Nothing matched (every id already deleted elsewhere): hand back the SAME
   // array so the caller can skip the save and the re-render entirely.
-  return changed.length === 0 ? { next: items, changed } : { next, changed };
+  return changed.length === 0 ? { next: items, changed, cleared } : { next, changed, cleared };
 }
 
 function applyPunchBatchDelete(
@@ -194,7 +218,7 @@ function applyPunchBatchDelete(
  *  between the punch list and the crew list is an EDIT, and an update without
  *  it survives locally and silently reverts on the next refetch (putting a crew
  *  chore back on the client's portal). */
-function punchItemToUpdateRow(pi: PunchItem, now: string) {
+function punchItemToUpdateRow(pi: PunchItem, now: string, clears: readonly PinColumn[] = []) {
   return {
     id: pi.id, description: pi.description, location: pi.location, assigned_sub: pi.assignedSub,
     // `?? null`, not the bare value: a cleared id (reassigned to a typed name,
@@ -205,7 +229,12 @@ function punchItemToUpdateRow(pi: PunchItem, now: string) {
     photo_uri: durablePhotoValue(pi.photoStoragePath, pi.photoUri) || null,
     // Plan-pin anchor + captured GPS on update too (were omitted, and
     // assigned_sub_id was dropped on update — fixed here).
-    plan_sheet_id: pi.planSheetId, pin_x: pi.pinX, pin_y: pi.pinY,
+    // An explicit NULL only for a pin column THIS edit took away (Remove pin,
+    // or Undo back to no spot); otherwise the bare value, which JSON drops
+    // when undefined so a stale copy never wipes someone else's pin.
+    plan_sheet_id: clears.includes('plan_sheet_id') ? null : pi.planSheetId,
+    pin_x: clears.includes('pin_x') ? null : pi.pinX,
+    pin_y: clears.includes('pin_y') ? null : pi.pinY,
     photo_latitude: pi.photoLatitude, photo_longitude: pi.photoLongitude,
     photo_accuracy_meters: pi.photoLocationAccuracyMeters,
     photo_location_label: pi.photoLocationLabel,
@@ -216,6 +245,52 @@ function punchItemToUpdateRow(pi: PunchItem, now: string) {
     ...(pi.sourcePhotoId ? { source_photo_id: pi.sourcePhotoId } : {}),
     rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
   };
+}
+
+/** The only columns a pin-scoped write may touch: where the item is on the
+ *  plan, and where the phone was when its photo was taken. */
+const PIN_SCOPED_COLUMNS = {
+  planSheetId: 'plan_sheet_id', pinX: 'pin_x', pinY: 'pin_y',
+  photoLatitude: 'photo_latitude', photoLongitude: 'photo_longitude',
+  photoLocationAccuracyMeters: 'photo_accuracy_meters', photoLocationLabel: 'photo_location_label',
+} as const;
+type PinScopedField = keyof typeof PIN_SCOPED_COLUMNS;
+type PinScopedPatch = Partial<Pick<PunchItem, PinScopedField>>;
+
+/** Keep only the pin/GPS keys the caller NAMED (own keys, undefined included —
+ *  an own `undefined` is a removal). Anything else in the patch is dropped, so
+ *  a pin gesture can never smuggle a status or a description onto the wire. */
+function pinScopedPatchOf(patch: PinScopedPatch): PinScopedPatch {
+  const out: PinScopedPatch = {};
+  for (const key of Object.keys(PIN_SCOPED_COLUMNS) as PinScopedField[]) {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) (out as Record<string, unknown>)[key] = patch[key];
+  }
+  return out;
+}
+
+/** The punch_items UPDATE for a pin gesture (Pin items, Undo, Move/Remove pin,
+ *  the walk's late GPS stamp): `id`, the columns this patch names, and
+ *  `updated_at` — nothing else. punchItemToUpdateRow sends the WHOLE row from
+ *  this phone's copy, so a pin placed on a stale copy (63 of them queued in a
+ *  basement) put back the status, sub and description the office had changed
+ *  meanwhile. Same rule as invoiceUpdatePayload: only the keys the edit names.
+ *  A named key with no value goes out as NULL — Remove pin must reach the
+ *  server, and JSON drops `undefined`. */
+function punchPinScopedRow(id: string, patch: PinScopedPatch, now: string): Record<string, unknown> {
+  const row: Record<string, unknown> = { id };
+  const scoped = pinScopedPatchOf(patch);
+  for (const key of Object.keys(scoped) as PinScopedField[]) {
+    const v = scoped[key];
+    row[PIN_SCOPED_COLUMNS[key]] = v === undefined ? null : v;
+  }
+  row.updated_at = now;
+  return row;
+}
+
+/** Does a pin-scoped patch touch the pin itself (not just the GPS stamp)?
+ *  Only those writes are tracked for the refetch overlay. */
+function pinScopedPatchCarriesPin(patch: PinScopedPatch): boolean {
+  return ['planSheetId', 'pinX', 'pinY'].some(k => Object.prototype.hasOwnProperty.call(patch, k));
 }
 // ── punch-batch pure (end) ──────────────────────────────────────────────────
 
@@ -546,10 +621,20 @@ type FieldDataValue = {
    *  `updates` is either one patch for every id or a function giving each row
    *  its own. Never loop `updatePunchItem` for a selection. */
   updatePunchItems: (ids: readonly string[], updates: PunchBatchUpdates) => void;
+  /** A pin gesture on ONE item: its plan pin and/or photo GPS stamp, applied
+   *  locally at once, and sent as ONLY those columns (+ updated_at) through the
+   *  offline queue — never the whole row, so it cannot undo a status, sub or
+   *  description another device changed. Other keys in `fields` are ignored. */
+  updatePunchItemPin: (id: string, fields: Partial<Pick<PunchItem, 'planSheetId' | 'pinX' | 'pinY' | 'photoLatitude' | 'photoLongitude' | 'photoLocationAccuracyMeters' | 'photoLocationLabel'>>) => void;
   deletePunchItem: (id: string) => void;
   /** Bulk delete — same shape as updatePunchItems. */
   deletePunchItems: (ids: readonly string[]) => void;
   getPunchItemsForProject: (projectId: string) => PunchItem[];
+  /** True once THIS account's punch items are in `punchItems` — same contract
+   *  as `photosLoaded`. Pin items and the punch list's "On the plan" card make
+   *  claims ("all pinned", "0 of 63") that are false against an empty list
+   *  that simply has not hydrated yet. */
+  punchItemsLoaded: boolean;
   projectPhotos: ProjectPhoto[];
   /** True once THIS account's photos are in `projectPhotos` — same contract
    *  as `dailyReportsLoaded`. The photo annotator seeds its markups once, at
@@ -568,6 +653,11 @@ type FieldDataValue = {
   getEquipmentForProject: (projectId: string) => Equipment[];
   getEquipmentCostForProject: (projectId: string) => number;
   planSheets: PlanSheet[];
+  /** True once THIS account's plan sheets have had their first local AND
+   *  server pass. "Pinned" is judged against the sheet list — before it lands,
+   *  every pin reads as on a missing sheet, so "0 of 63 pinned" would be a
+   *  guess shown as fact (and Pin items would queue items already pinned). */
+  planSheetsLoaded: boolean;
   addPlanSheet: (sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) => PlanSheet;
   /**
    * Add many sheets in ONE persist (a PDF import). Returns exactly the sheets
@@ -975,6 +1065,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [dailyReportsLoadedFor, setDailyReportsLoadedFor] = useState<string | null>(null);
   const [leadsLoadedFor, setLeadsLoadedFor] = useState<string | null>(null);
   const [photosLoadedFor, setPhotosLoadedFor] = useState<string | null>(null);
+  const [punchItemsLoadedFor, setPunchItemsLoadedFor] = useState<string | null>(null);
   const [fieldTickets, setFieldTickets] = useState<FieldTicket[]>([]);
   const [delayEvents, setDelayEvents] = useState<DelayEvent[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -988,6 +1079,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // — otherwise each setState clobbers the previous and only the last survives.
   const punchItemsRef = useRef<PunchItem[]>([]);
   useEffect(() => { punchItemsRef.current = punchItems; }, [punchItems]);
+  // Pin writes still in flight (or settled a moment ago), per item id. The
+  // punch loader keeps this device's pin for those rows, so a SELECT that
+  // raced the UPDATE cannot put the old pin back on screen.
+  const pinWriteTrackerRef = useRef(new Map<string, { inFlight: number; settledAt: number }>());
+  // A new account starts with nothing pending (its loader must not keep A's pins).
+  useEffect(() => { pinWriteTrackerRef.current = new Map(); }, [userId]);
+  const trackPinWrite = useCallback((id: string, carries: boolean, p: Promise<unknown>) => {
+    if (!carries) return;
+    const map = pinWriteTrackerRef.current;
+    const entry = map.get(id) ?? { inFlight: 0, settledAt: 0 };
+    entry.inFlight += 1;
+    map.set(id, entry);
+    void p.catch(() => undefined).finally(() => {
+      // The map may have been replaced by a sign-out reset meanwhile.
+      const e = pinWriteTrackerRef.current.get(id);
+      if (!e) return;
+      e.inFlight = Math.max(0, e.inFlight - 1);
+      e.settledAt = Date.now();
+    });
+  }, []);
   // updateSubcontractor (declared above updatePunchItems) carries a sub's
   // rename onto his punch items through this.
   const updatePunchItemsRef = useRef<((ids: readonly string[], updates: PunchBatchUpdates) => void) | null>(null);
@@ -2312,6 +2423,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     queryFn: async () => {
       if (canSync) {
         try {
+          // Queued pin writes BEFORE the SELECT as well as after it: a flush
+          // that lands one while the SELECT runs takes it out of the queue, and
+          // the tracker only sees direct writes — so the post-SELECT read alone
+          // missed it and the old pin flicked back until the next refetch.
+          let queuedPinsBefore = new Set<string>();
+          try { queuedPinsBefore = pendingPinIdsInQueue(await getOfflineQueue()); } catch { /* the post-SELECT read still runs */ }
+          const fetchStartedAt = Date.now();
           const { data, error } = await supabase.from('punch_items').select('*').order('created_at', { ascending: false });
           if (!error && data && data.length > 0) {
             // photo_uri holds a bucket path — sign the batch, and keep this
@@ -2371,7 +2489,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             }) as PunchItem[];
             // SYNC-F3: keep offline-created rows whose write is still queued — the
             // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.
-            const merged = mergeLocalOnly(mapped, priorPunch, await queuedIdsFor('punch_items'));
+            // …and keep this device's pin on rows whose pin write is still
+            // queued or in flight, or the pin he just placed flicks back.
+            const merged = keepPendingPinFields(
+              mergeLocalOnly(mapped, priorPunch, await queuedIdsFor('punch_items')),
+              [punchItemsRef.current, priorPunch],
+              pinOverlayIds({ queued: new Set([...queuedPinsBefore, ...pendingPinIdsInQueue(await getOfflineQueue())]), tracker: pinWriteTrackerRef.current, fetchStartedAt }),
+            );
             await saveLocal(PUNCH_ITEMS_KEY, merged);
             return merged;
           }
@@ -2873,7 +2997,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const leadsLoaded = !authLoading && leadsLoadedFor === (userId ?? ''); // see changeOrdersLoaded
   useEffect(() => { if (bidPackagesQuery.data) setBidPackages(bidPackagesQuery.data); }, [bidPackagesQuery.data]);
   useEffect(() => { if (bidPackageBidsQuery.data) setBidPackageBids(bidPackageBidsQuery.data); }, [bidPackageBidsQuery.data]);
-  useEffect(() => { if (punchItemsQuery.data) setPunchItems(punchItemsQuery.data); }, [punchItemsQuery.data]);
+  useEffect(() => {
+    if (!punchItemsQuery.data) return;
+    setPunchItems(punchItemsQuery.data);
+    setPunchItemsLoadedFor(userId ?? '');
+  }, [punchItemsQuery.data, userId]);
+  const punchItemsLoaded = !authLoading && punchItemsLoadedFor === (userId ?? ''); // see changeOrdersLoaded
   useEffect(() => {
     if (!photosQuery.data) return;
     setProjectPhotos(photosQuery.data);
@@ -5832,6 +5961,50 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) items.forEach(item => { void supabaseWrite('punch_items', 'insert', punchItemToRow(item)); });
   }, [savePunchItemsMutation, canSync, punchItemToRow, stagePunchPhoto]);
 
+  // Pin writes per item, in the order he made them. Save pin then Undo two
+  // seconds later are two UPDATEs to the same row: sent independently, the Undo
+  // could land first, or the Save could time out into the queue while the Undo
+  // went direct — and the flush then replayed the pin over his Undo.
+  const pinWriteChainRef = useRef(new Map<string, Promise<WriteOutcome>>());
+  useEffect(() => { pinWriteChainRef.current = new Map(); }, [userId]);
+
+  // A pin gesture — see punchPinScopedRow. Same local path as updatePunchItems
+  // (ref, one setState, one save), but the server gets only the pin/GPS columns.
+  const updatePunchItemPin = useCallback((id: string, fields: PinScopedPatch) => {
+    const now = new Date().toISOString();
+    const scoped = pinScopedPatchOf(fields);
+    if (Object.keys(scoped).length === 0) return;
+    const { next, changed } = applyPunchBatchUpdate(punchItemsRef.current, [id], scoped, now);
+    if (changed.length === 0) return;
+    punchItemsRef.current = next;
+    setPunchItems(next);
+    savePunchItemsMutation.mutate(next);
+    if (!canSync) return;
+    const row = punchPinScopedRow(id, scoped, now);
+    const chains = pinWriteChainRef.current;
+    const prev = chains.get(id);
+    const run = async (): Promise<WriteOutcome> => {
+      const prevOutcome = prev ? await prev.catch((): WriteOutcome => 'failed') : null;
+      // Anything for this row still in the queue (the previous pin write, the
+      // item's own INSERT from a walk in the basement) must land first: go
+      // behind it, the flush replays FIFO. A queue we cannot read counts as
+      // holding it — queuing is never wrong, overtaking is.
+      let behindQueue = prevOutcome === 'queued';
+      if (!behindQueue) {
+        try { behindQueue = (await queuedIdsFor('punch_items')).has(id); } catch { behindQueue = true; }
+      }
+      if (behindQueue) {
+        try { await addToOfflineQueue({ table: 'punch_items', operation: 'update', data: row }); return 'queued'; } catch { return 'failed'; }
+      }
+      return supabaseWriteDetailed('punch_items', 'update', row);
+    };
+    const p = run();
+    chains.set(id, p);
+    // Drop the link once it is the tail, so the map does not grow per item forever.
+    void p.finally(() => { if (pinWriteChainRef.current.get(id) === p) pinWriteChainRef.current.delete(id); });
+    trackPinWrite(id, pinScopedPatchCarriesPin(scoped), p);
+  }, [savePunchItemsMutation, canSync, trackPinWrite]);
+
   // Batch update — see the punch-batch pure block at the top of this file.
   // Reads and writes the ref (like addPunchItems), not the `punchItems`
   // closure: two calls in the same tick — or an update right after an add —
@@ -5841,15 +6014,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const now = new Date().toISOString();
     // A photo attached AFTER creation (the common punch-walk flow: log the
     // deficiency, shoot it later) has to be staged here too.
-    const { next, changed } = applyPunchBatchUpdate(punchItemsRef.current, ids, updates, now, stagePunchPhoto);
+    const { next, changed, cleared } = applyPunchBatchUpdate(punchItemsRef.current, ids, updates, now, stagePunchPhoto);
     if (changed.length === 0) return;
     punchItemsRef.current = next;
     setPunchItems(next);
     savePunchItemsMutation.mutate(next);
     // One queued write PER ROW, same payload as a single edit — so an offline
-    // replay of a 100-item close is 100 independent, retryable updates.
-    if (canSync) changed.forEach(pi => { void supabaseWrite('punch_items', 'update', punchItemToUpdateRow(pi, now)); });
-  }, [savePunchItemsMutation, canSync, stagePunchPhoto]);
+    // replay of a 100-item close is 100 independent, retryable updates. A
+    // write that touches the pin is tracked, so a refetch that races it keeps
+    // the pin on screen (keepPendingPinFields in the loader).
+    if (canSync) changed.forEach(pi => { trackPinWrite(pi.id, rowCarriesPin(pi, cleared[pi.id] ?? []), supabaseWrite('punch_items', 'update', punchItemToUpdateRow(pi, now, cleared[pi.id]))); });
+  }, [savePunchItemsMutation, canSync, stagePunchPhoto, trackPinWrite]);
 
   updatePunchItemsRef.current = updatePunchItems;
 
@@ -6929,11 +7104,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const planSheetsRef = useRef<PlanSheet[]>([]);
   useEffect(() => { planSheetsRef.current = planSheets; }, [planSheets]);
   const [drawingPins, setDrawingPins] = useState<DrawingPin[]>([]);
+  // Latest pin list, readable synchronously — the planSheetsRef pattern. Pin
+  // items moves a linked marker and Undo puts it back in the same few
+  // gestures; built from a render closure, the second write started from a
+  // list that did not have the first.
+  // Follows state after every commit, so the account reset below (which
+  // empties the state) empties this too.
+  const drawingPinsRef = useRef<DrawingPin[]>([]);
+  useEffect(() => { drawingPinsRef.current = drawingPins; }, [drawingPins]);
   const [planZones, setPlanZones] = useState<PlanZone[]>([]);
   const [planReviews, setPlanReviews] = useState<PlanReview[]>([]);
   const [planMarkups, setPlanMarkups] = useState<PlanMarkup[]>([]);
   const [planCalibrations, setPlanCalibrations] = useState<PlanCalibration[]>([]);
   const [permitRoadmaps, setPermitRoadmaps] = useState<PermitRoadmap[]>([]);
+  // Keyed by account, like punchItemsLoadedFor ('' = signed out).
+  const [planSheetsLoadedFor, setPlanSheetsLoadedFor] = useState<string | null>(null);
+  const planSheetsLoaded = !authLoading && planSheetsLoadedFor === (userId ?? '');
   // The account reset above, for the lists declared here (their state is
   // below that reset, so it cannot name them). Same render-phase pattern:
   // after A → B, B's Universal Search listed A's sheet names, pin labels,
@@ -6966,6 +7152,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // it finished writes nothing — not to the screen, not to the cache.
     const owner = userId;
     const stillMine = () => liveUserIdRef.current === owner;
+    // The sheet list is as complete as it will get for now: the local copy
+    // (and, when syncing, the server's answer — or its failure) is in.
+    const markSheetsLoaded = () => { if (stillMine()) setPlanSheetsLoadedFor(owner ?? ''); };
     // Local first, IN THIS FLOW. Keeping the local load in a separate effect
     // raced the server fetch: both are async, so a slow AsyncStorage read could
     // resolve last and overwrite fresh server rows with a stale cache. Doing it
@@ -7002,7 +7191,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (!canSync) return;
+    if (!canSync) { markSheetsLoaded(); return; }
     try {
       const [sheets, pins, markups, cals] = await Promise.all([
         supabase.from('plan_sheets').select('*').order('created_at', { ascending: false }),
@@ -7048,6 +7237,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           ...s, imageUri: localPlanSheetValue(s.storagePath, s.imageUri),
         })));
       }
+      markSheetsLoaded();
 
       if (!stillMine()) return;
       if (!pins.error && pins.data?.length) {
@@ -7099,6 +7289,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       // Offline or the tables are unreachable — the local copy loaded below
       // still stands, which is the whole point of local-first.
     }
+    // Whatever happened above, the pass is over (a no-op if already marked).
+    markSheetsLoaded();
   }, [canSync, userId]);
 
   useEffect(() => { void hydratePlansFromServer(); }, [hydratePlansFromServer]);
@@ -7127,6 +7319,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     })));
   }, []);
   const persistDrawingPins = useCallback((list: DrawingPin[]) => {
+    drawingPinsRef.current = list;
     setDrawingPins(list);
     void saveLocal(DRAWING_PINS_KEY, list);
   }, []);
@@ -7281,7 +7474,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       createdAt: now,
       updatedAt: now,
     };
-    persistDrawingPins([fresh, ...drawingPins]);
+    persistDrawingPins([fresh, ...drawingPinsRef.current]);
     if (canSync) {
       void supabaseWrite('drawing_pins', 'insert', {
         id: fresh.id, user_id: userId, project_id: fresh.projectId,
@@ -7294,11 +7487,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       });
     }
     return fresh;
-  }, [drawingPins, persistDrawingPins, canSync, userId]);
+  }, [persistDrawingPins, canSync, userId]);
 
   const updateDrawingPin = useCallback((id: string, updates: Partial<DrawingPin>) => {
     const now = new Date().toISOString();
-    persistDrawingPins(drawingPins.map(p => p.id === id ? { ...p, ...updates, updatedAt: now } : p));
+    persistDrawingPins(drawingPinsRef.current.map(p => p.id === id ? { ...p, ...updates, updatedAt: now } : p));
     if (canSync) {
       const patch: Record<string, unknown> = { updated_at: now };
       if (updates.x !== undefined) patch.x = updates.x;
@@ -7307,16 +7500,20 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (updates.color !== undefined) patch.color = updates.color;
       if (updates.kind !== undefined) patch.kind = updates.kind;
       if (updates.linkedPhotoId !== undefined) patch.linked_photo_id = updates.linkedPhotoId;
-      if (updates.linkedPunchItemId !== undefined) patch.linked_punch_item_id = updates.linkedPunchItemId;
+      // A marker that follows its punch item to another sheet (Move pin).
+      if (updates.planSheetId !== undefined) patch.plan_sheet_id = updates.planSheetId;
+      // `in`, not `!== undefined`: unlinking sends undefined, which must reach
+      // the server as NULL or the link comes back on the next load.
+      if ('linkedPunchItemId' in updates) patch.linked_punch_item_id = updates.linkedPunchItemId ?? null;
       if (updates.linkedRfiId !== undefined) patch.linked_rfi_id = updates.linkedRfiId;
       void supabaseWrite('drawing_pins', 'update', { id, ...patch });
     }
-  }, [drawingPins, persistDrawingPins, canSync]);
+  }, [persistDrawingPins, canSync]);
 
   const deleteDrawingPin = useCallback((id: string) => {
-    persistDrawingPins(drawingPins.filter(p => p.id !== id));
+    persistDrawingPins(drawingPinsRef.current.filter(p => p.id !== id));
     if (canSync) void supabaseWrite('drawing_pins', 'delete', { id });
-  }, [drawingPins, persistDrawingPins, canSync]);
+  }, [persistDrawingPins, canSync]);
 
   const getPinsForPlan = useCallback((planSheetId: string) =>
     drawingPins.filter(p => p.planSheetId === planSheetId),
@@ -7671,17 +7868,17 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, dailyReportsLoaded, getDailyReportsForProject,
     fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject,
-    punchItems: punchItemsView, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject,
+    punchItems: punchItemsView, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, updatePunchItemPin, deletePunchItem, deletePunchItems, getPunchItemsForProject, punchItemsLoaded,
     projectPhotos, photosLoaded, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
-    planSheets, addPlanSheet, addPlanSheets, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
+    planSheets, planSheetsLoaded, addPlanSheet, addPlanSheets, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject,
     planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
     permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap,
-  }), [dailyReports, dailyReportsLoaded, getDailyReportsForProject, fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject, punchItemsView, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, getPunchItemsForProject, projectPhotos, photosLoaded, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, addPlanSheets, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
+  }), [dailyReports, dailyReportsLoaded, getDailyReportsForProject, fieldTickets, addFieldTicket, updateFieldTicket, getFieldTicketsForProject, punchItemsView, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, updatePunchItemPin, deletePunchItem, deletePunchItems, getPunchItemsForProject, punchItemsLoaded, projectPhotos, photosLoaded, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, planSheetsLoaded, addPlanSheet, addPlanSheets, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
 
   const preconData = useMemo<PreconDataValue>(() => ({
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,

@@ -225,12 +225,17 @@ export function pinsOnSheet(
   projectId: string,
   sheetId: string | null | undefined,
   sessionIds: ReadonlySet<string> | readonly string[] = [],
+  /** Items NOT drawn as faint existing pins — the item being moved, whose old
+   *  spot would otherwise sit under the new one as a duplicate. */
+  hideIds: ReadonlySet<string> | readonly string[] = [],
 ): ExistingSheetPin[] {
   if (!sheetId) return [];
   const session = sessionIds instanceof Set ? sessionIds : new Set(sessionIds as readonly string[]);
+  const hidden = hideIds instanceof Set ? hideIds : new Set(hideIds as readonly string[]);
   const out: ExistingSheetPin[] = [];
   for (const i of items) {
     if (i.projectId !== projectId || i.planSheetId !== sheetId) continue;
+    if (hidden.has(i.id)) continue;
     const { pinX: x, pinY: y } = i;
     if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) continue;
     if (x < 0 || x > 1 || y < 0 || y > 1) continue;
@@ -258,7 +263,11 @@ export function punchPinFields(pin: WalkPin | null | undefined): Pick<PunchItem,
  * times is how a speed tool becomes the thing he stops using. The "Pin on
  * plan" link under the photo still opens it on demand.
  */
-export function shouldAutoOpenPinStep(args: { pinnableSheetCount: number; dismissedNoPlanThisWalk: boolean }): boolean {
+export function shouldAutoOpenPinStep(args: { pinnableSheetCount: number; dismissedNoPlanThisWalk: boolean; pinDecided?: boolean }): boolean {
+  // He already answered "where is this item" for THIS draft (Next, Skip or
+  // Remove). A photo taken after that — pin first, or a retake — must not
+  // bring the plan back to ask again.
+  if (args.pinDecided) return false;
   if (args.pinnableSheetCount > 0) return true;
   return !args.dismissedNoPlanThisWalk;
 }
@@ -446,4 +455,59 @@ export function planViewerImageRatio(
   sheet: { width?: number | null; height?: number | null } | null | undefined,
 ): number | null {
   return finitePositive(loadedRatio) ? loadedRatio : sheetAspectRatio(sheet);
+}
+
+// ── Pin first / pin later (founder, 2026-09-18) ──────────────────────────────
+// "i want to be able to pin the location of each item before and after taking
+// photos". The helpers below are executed by scripts/validate-punch-pin-items.ts.
+
+/**
+ * Which sheet a pin step opens on when a caller knows more than the walk does:
+ *   1. the sheet of the item's own pin (Move pin, Back in Pin items);
+ *   2. `initialSheetId` — the sheet an item is filed to with no spot;
+ *   3. choosePinSheet (this session's sheet → last pinned → first offerable).
+ * 1 and 2 only when that sheet is listed for the project — a deleted sheet
+ * falls through instead of opening on nothing.
+ */
+export function pickInitialPinSheet(args: {
+  sheets: readonly SheetLike[];
+  projectId: string;
+  initialPin?: WalkPin | null;
+  initialSheetId?: string | null;
+  sessionSheetId?: string | null;
+  punchItems?: readonly Pick<PunchItem, 'projectId' | 'planSheetId' | 'pinX' | 'pinY' | 'createdAt' | 'updatedAt'>[];
+}): string | null {
+  const listed = (id: string | null | undefined) => !!id && args.sheets.some(s => s.id === id && s.projectId === args.projectId);
+  if (args.initialPin && listed(args.initialPin.sheetId)) return args.initialPin.sheetId;
+  if (listed(args.initialSheetId)) return args.initialSheetId as string;
+  return choosePinSheet({ sheets: args.sheets, projectId: args.projectId, sessionSheetId: args.sessionSheetId, punchItems: args.punchItems });
+}
+
+/** How Walk Mode starts: photo first (the default) or pin first. */
+export type WalkStart = 'photo' | 'pin';
+
+/** Only an explicit `start=pin` starts pin-first; anything else is the walk as it always was. */
+export function walkStartFromParam(raw: string | string[] | undefined): WalkStart {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return v === 'pin' ? 'pin' : 'photo';
+}
+
+/**
+ * After the pin step closes (Next or Skip pin), does the camera open? Only in
+ * pin-first mode, and only while the draft has no photo yet: a photo-first
+ * item that is being re-pinned already has its picture.
+ */
+export function shouldOpenCameraAfterPin(args: { pinFirst: boolean; draftHasPhoto: boolean }): boolean {
+  return args.pinFirst && !args.draftHasPhoto;
+}
+
+/**
+ * Why "Import a PDF plan set" is blocked, or null. The import runs on the
+ * Plans screen, which is Plans & Drawings (plan_markup). The role gate (who
+ * may store a plan at all) is planUploadBlockedReason, shown by the step.
+ */
+export function pdfImportBlockedReason(hasPlansFeature: boolean): string | null {
+  return hasPlansFeature
+    ? null
+    : 'Importing a PDF plan set is part of Plans & Drawings, which your plan does not include. Photograph or choose the plan image instead.';
 }

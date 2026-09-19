@@ -886,6 +886,7 @@ function RootLayoutNav() {
         name="punch-walk"
         options={{ headerShown: false }}
       />
+      <Stack.Screen name="punch-pin" options={{ headerShown: false }} />
       <Stack.Screen
         name="warranties"
         options={{

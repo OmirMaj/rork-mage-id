@@ -823,7 +823,7 @@ export function clusterPins(
 // The model
 // ───────────────────────────────────────────────────────────────────────────
 
-function planRefFor(item: PunchItem, sheetsById: ReadonlyMap<string, PlanSheet>): PunchExportPlanRef {
+export function planRefFor(item: PunchItem, sheetsById: ReadonlyMap<string, PlanSheet>): PunchExportPlanRef {
   const sheetId = str(item.planSheetId);
   if (!sheetId) return { state: 'none' };
   const sheet = sheetsById.get(sheetId);

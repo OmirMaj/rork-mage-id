@@ -83,6 +83,73 @@ export function mergeLocalOnly<T extends { id: string }>(
   return [...serverRows, ...keep];
 }
 
+// ─── Pins survive a refetch while their writes are pending (2026-09-18) ──────
+//
+// punchItemsQuery is server-first. mergeLocalOnly keeps only offline-CREATED
+// rows, so a SELECT that ran while a pin UPDATE was still queued (no signal) or
+// in flight (one bar) handed back the old row and the pin he had just placed
+// vanished — "12 of 63 pinned" dropping back to 11 mid-session. The loader now
+// keeps this device's three pin fields for exactly the rows whose pin write is
+// still pending. Nothing else about the row is kept, and a row whose queued
+// edit never touched the pin (an unpinned copy's status edit) keeps the
+// server's pin, so another phone's pin can never be hidden.
+
+const PIN_COLUMNS = ['plan_sheet_id', 'pin_x', 'pin_y'] as const;
+
+/** Ids with a queued punch_items insert/upsert/update whose data carries a pin
+ *  column — a value or an explicit NULL. (Queue entries are JSON: an edit from
+ *  an unpinned copy has no pin keys at all.) */
+export function pendingPinIdsInQueue(queue: readonly QueueEntryLike[]): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of queue) {
+    if (entry.table !== 'punch_items') continue;
+    if (entry.operation !== 'insert' && entry.operation !== 'upsert' && entry.operation !== 'update') continue;
+    const data = entry.data ?? {};
+    const id = data.id;
+    if (typeof id !== 'string' || !id) continue;
+    if (PIN_COLUMNS.some(c => Object.prototype.hasOwnProperty.call(data, c) && data[c] !== undefined)) ids.add(id);
+  }
+  return ids;
+}
+
+/** Rows whose device pin must survive this refetch: queued pin writes, plus
+ *  tracked writes still in flight or settled at/after the SELECT began. */
+export function pinOverlayIds(a: {
+  queued: ReadonlySet<string>;
+  tracker: ReadonlyMap<string, { inFlight: number; settledAt: number }>;
+  fetchStartedAt: number;
+}): Set<string> {
+  const out = new Set<string>(a.queued);
+  for (const [id, t] of a.tracker) {
+    if (t.inFlight > 0 || t.settledAt >= a.fetchStartedAt) out.add(id);
+  }
+  return out;
+}
+
+/** Server rows with the device's planSheetId/pinX/pinY kept for `pendingIds`.
+ *  The first local source that has the row wins (memory, then disk). A row no
+ *  local source has stays as the server sent it. Returns the SAME array when
+ *  nothing changes. */
+export function keepPendingPinFields<T extends { id: string; planSheetId?: string; pinX?: number; pinY?: number }>(
+  serverRows: readonly T[],
+  localSources: readonly (readonly T[])[],
+  pendingIds: ReadonlySet<string>,
+): T[] {
+  if (pendingIds.size === 0) return serverRows as T[];
+  const maps = localSources.map(src => new Map(src.map(r => [r.id, r] as const)));
+  let changed = false;
+  const out = serverRows.map(row => {
+    if (!pendingIds.has(row.id)) return row;
+    let local: T | undefined;
+    for (const m of maps) { local = m.get(row.id); if (local) break; }
+    if (!local) return row;
+    if (local.planSheetId === row.planSheetId && local.pinX === row.pinX && local.pinY === row.pinY) return row;
+    changed = true;
+    return { ...row, planSheetId: local.planSheetId, pinX: local.pinX, pinY: local.pinY };
+  });
+  return changed ? out : (serverRows as T[]);
+}
+
 /** Every id with a queued create/edit, grouped by table (deletes excluded). */
 export function pendingIdsByTable(queue: readonly QueueEntryLike[]): Map<string, Set<string>> {
   const byTable = new Map<string, Set<string>>();

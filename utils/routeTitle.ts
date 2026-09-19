@@ -110,6 +110,7 @@ export function pathToDocumentTitle(pathname: string): string | null {
     '/closeout-binder': 'Closeout binder',
     '/punch-list': 'Punch list',
     '/punch-walk': 'Punch walk',
+    '/punch-pin': 'Pin items',
     '/ai-punch': 'AI punch',
     '/rfi': 'RFI',
     '/submittal': 'Submittal',

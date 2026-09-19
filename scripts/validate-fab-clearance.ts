@@ -168,6 +168,11 @@ if (fixed.length) {
  */
 const LIFT_ABOVE_SCROLL: ReadonlySet<string> = new Set([
   'messages',   // styles.inputBar — plain flex row, no `position: absolute`.
+  // PlanPinStep's footer — a plain flex row under the plan canvas, which does
+  // not scroll to the window bottom. The FAB itself is hidden there
+  // (useHideBrainFab: the canvas is a touch responder); the lift raises the
+  // sync pill above Skip / Save pin.
+  'punch-pin',
 ]);
 
 /**

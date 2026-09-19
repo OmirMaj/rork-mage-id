@@ -187,8 +187,10 @@ console.log('\nzoom — content coordinates do not move with the zoom scale');
   console.log('\nlate GPS stamp and reopening the pin step');
   const walkSrc = readFileSync(join(ROOT, 'app/punch-walk.tsx'), 'utf8');
   ok('a save before the GPS fix writes the stamp onto the saved item when it arrives',
-    /pendingStamp\.promise\.then\(stamp => \{[\s\S]{0,120}updatePunchItem\(id, \{[\s\S]{0,80}photoLatitude: stamp\.latitude/.test(walkSrc));
-  ok('the late stamp never overwrites the room he typed', !/updatePunchItem\(id, \{[\s\S]{0,300}location:/.test(walkSrc));
+    // updatePunchItemPin: GPS columns only, so the stamp cannot put back an
+    // edit made to the item before the fix arrived.
+    /pendingStamp\.promise\.then\(stamp => \{[\s\S]{0,400}updatePunchItemPin\(id, \{[\s\S]{0,80}photoLatitude: stamp\.latitude/.test(walkSrc));
+  ok('the late stamp never overwrites the room he typed', !/updatePunchItem(?:Pin)?\(id, \{[\s\S]{0,300}location:/.test(walkSrc));
   ok('"Pin on plan" and the pin chip reopen through openPinStep (close, then open next frame)',
     /const openPinStep = useCallback\(\(\) => \{\s*setPinStepOpen\(false\);\s*requestAnimationFrame\(\(\) => setPinStepOpen\(true\)\);/.test(walkSrc)
     && !/onPress=\{\(\) => setPinStepOpen\(true\)\}/.test(walkSrc));
@@ -550,7 +552,7 @@ console.log('\na device-only plan is saved before it takes a pin (critic 2026-09
   ok('"Try again" / load-error overlay is only for a durable sheet', /mode === 'pin' && loadState === 'error' &&/.test(step));
   ok('a re-picked image attaches to the SAME sheet when it is not durable',
     /sheet && imageState !== 'durable'\s*\?\s*await attachFloorPlanImage\(sheet/.test(between(step, 'const runAdd = useCallback', '}, [')));
-  ok('the disabled Next says why on a device-only sheet', /Save the plan to pin on it/.test(step) && /Add the plan image to pin on it/.test(step));
+  ok('the disabled Next says why on a device-only sheet', /'Save the plan first'/.test(step) && /'Add the plan image first'/.test(step));
 }
 
 console.log('');

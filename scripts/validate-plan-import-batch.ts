@@ -103,7 +103,7 @@ console.log('\nplan PDF import batches (audit round 2, #18):');
       && /planSheetsRef\.current/.test(updBody) && !/\bplanSheets\.(map|find|filter)\(/.test(updBody)
       && /persistPlanSheets\(planSheetsRef\.current\.filter\(/.test(delBody) && !/\bplanSheets\.(map|find|filter)\(/.test(delBody));
   ok('addPlanSheets is exposed on the context',
-    /addPlanSheets: \(\s*sheets: Omit<PlanSheet/.test(ctx) && /planSheets, addPlanSheet, addPlanSheets,/.test(ctx));
+    /addPlanSheets: \(\s*sheets: Omit<PlanSheet/.test(ctx) && /planSheets,(?: planSheetsLoaded,)? addPlanSheet, addPlanSheets,/.test(ctx));
   ok('plans.tsx imports the PDF with ONE addPlanSheets call, never a loop of addPlanSheet',
     /addPlanSheets\(pages\.map\(/.test(plans) && !/pages\.forEach\([\s\S]{0,80}addPlanSheet\(/.test(plans));
   ok('…re-imports supersede by page', /\{ matchUnnumberedByPage: true \}\)/.test(plans));

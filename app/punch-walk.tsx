@@ -43,18 +43,26 @@
 //     under his thumb. Skip saves the item exactly as it saved before the step
 //     existed. The pin rides on the draft beside the photo, independent of it —
 //     removing the photo does not quietly drop where the defect is.
+//   • PIN FIRST (founder, 2026-09-18: "pin the location of each item before and
+//     after taking photos"). Opened with `start=pin` (or the toggle), the plan
+//     comes up FIRST: tap the spot → the camera opens → describe → Save → the
+//     plan reopens for the next spot. It is this same screen on purpose — the
+//     same camera call, GPS stamp, late-stamp update and addPunchItem save, not
+//     a second copy of them. `pinDecidedRef` records that he has answered
+//     "where is this item" for the current draft (Next, Skip pin or Remove), so
+//     a photo taken after that never reopens the plan to ask again.
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Image, KeyboardAvoidingView,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Image, KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Camera, Mic, Check, X, Undo2, MapPin,
+  ChevronLeft, Camera, Mic, Check, X, Undo2, MapPin, MapPinPlus,
   AlertTriangle, ChevronRight, Plus, Flag, Eye, EyeOff,
   // Aliased: a bare `Map` import would shadow the global Map constructor for
   // the whole module, which is the kind of thing nobody notices until someone
@@ -97,8 +105,10 @@ import { showAlert } from '@/utils/alert';
 import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import PlanPinStep from '@/components/punch/PlanPinStep';
 import {
-  durablePinSheetCount, punchPinFields, shouldAutoOpenPinStep, type WalkPin,
+  durablePinSheetCount, pdfImportBlockedReason, punchPinFields, shouldAutoOpenPinStep, shouldOpenCameraAfterPin,
+  walkStartFromParam, type WalkStart, type WalkPin,
 } from '@/utils/punchPlanPin';
+import { useTierAccess } from '@/hooks/useTierAccess';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Anything not recognized falls back to 'General'.
@@ -135,6 +145,17 @@ const LOCATION_CHIP_LIMIT = 10;
 // The pin step's full-screen Modal is presented after it, so UIKit never sees a
 // second presentation while the first is still animating out.
 const CAMERA_DISMISS_MS = 450;
+
+// Pin first on iOS: the camera is launched from the pin step Modal's onDismiss
+// (UIKit drops a presentation made while another is still dismissing). This
+// fallback runs it once if onDismiss never comes — only while the step is
+// still closed. ≥ 3 × CAMERA_DISMISS_MS.
+const PIN_STEP_DISMISS_FALLBACK_MS = 1500;
+// Pin first opens the plan when the push of this screen has finished
+// animating (UIKit can drop a modal presented mid-transition, and he would
+// see the walk form instead of the plan). The native stack's transitionEnd is
+// the signal; this is the fallback if it never comes (no animation at all).
+const PIN_FIRST_MOUNT_FALLBACK_MS = 700;
 
 /**
  * Ink for text and icons sitting ON `accentFill`. Not a theme token on
@@ -206,11 +227,13 @@ function PunchWalkScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const params = useLocalSearchParams<{ projectId?: string; list?: string; listType?: string }>();
+  const params = useLocalSearchParams<{ projectId?: string; list?: string; listType?: string; start?: string }>();
   const projectId = typeof params.projectId === 'string' ? params.projectId : undefined;
   // `listType` accepted as an alias so a caller spelling it after the field
   // name still lands on the right list.
   const initialList = listFromParam(params.list ?? params.listType);
+  // `start=pin` opens the walk in pin-first mode (plan, then photo).
+  const initialStart = walkStartFromParam(params.start);
   const { projects, getProject, subcontractors, addPunchItem, deletePunchItem } = useProjects();
 
   // If no projectId was passed, show a project picker. Walk mode is
@@ -220,7 +243,7 @@ function PunchWalkScreenInner() {
   if (!projectId || !project) {
     // Carry the list through the picker, or opening walk mode from the Crew
     // view without a project would quietly restart him on the punch list.
-    return <ProjectPicker projects={projects} onPick={(p) => router.replace({ pathname: '/punch-walk' as never, params: { projectId: p, list: initialList } as never })} onBack={() => router.back()} />;
+    return <ProjectPicker projects={projects} onPick={(p) => router.replace({ pathname: '/punch-walk' as never, params: { projectId: p, list: initialList, start: initialStart } as never })} onBack={() => router.back()} />;
   }
 
   return (
@@ -228,6 +251,7 @@ function PunchWalkScreenInner() {
       projectName={project.name}
       projectId={projectId}
       initialList={initialList}
+      initialStart={initialStart}
       subcontractors={subcontractors}
       onAdd={addPunchItem}
       onDelete={deletePunchItem}
@@ -251,10 +275,11 @@ interface SessionCapture {
   capturedAt: string;
 }
 
-function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd, onDelete, onBack }: {
+function WalkInner({ projectName, projectId, initialList, initialStart, subcontractors, onAdd, onDelete, onBack }: {
   projectName: string;
   projectId: string;
   initialList: PunchListType;
+  initialStart: WalkStart;
   subcontractors: Subcontractor[];
   onAdd: (item: PunchItem) => void;
   onDelete: (id: string) => void;
@@ -267,9 +292,10 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
+  const navigation = useNavigation();
   // Look up the project for AI-context (description -> location/trade/priority).
   // The voice parser needs the project; `punchItems` feeds the location chips.
-  const { getProject, punchItems, getPlanSheetsForProject, updatePunchItem } = useProjects();
+  const { getProject, punchItems, getPlanSheetsForProject, updatePunchItemPin } = useProjects();
   const project = getProject(projectId);
 
   // Draft — what the user is building right now. Each save clears it
@@ -337,6 +363,54 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
   const openPinStep = useCallback(() => {
     setPinStepOpen(false);
     requestAnimationFrame(() => setPinStepOpen(true));
+  }, []);
+
+  // ── Pin first ────────────────────────────────────────────────────────────
+  const [pinFirst, setPinFirst] = useState(initialStart === 'pin');
+  // Read by callbacks that outlive their render (the parked camera call, the
+  // camera handler after its await): refs, synced every render.
+  const pinFirstRef = useRef(pinFirst);
+  pinFirstRef.current = pinFirst;
+  const draftPhotoRef = useRef<string | undefined>(draft.photoUri);
+  draftPhotoRef.current = draft.photoUri;
+  const pinStepOpenRef = useRef(pinStepOpen);
+  pinStepOpenRef.current = pinStepOpen;
+  // He has answered "where is this item" for the current draft (Next, Skip
+  // pin or Remove). Cleared by Save. A photo taken after it never reopens the
+  // plan — not even from a stale closure, because it is a ref.
+  const pinDecidedRef = useRef(false);
+  const handleCameraRef = useRef<() => Promise<void>>(async () => {});
+  // The role gate (editor+ to store a plan) is PlanPinStep's own; this is the
+  // tier gate of the Plans screen the PDF import opens.
+  const tier = useTierAccess();
+  const pdfBlocked = pdfImportBlockedReason(tier.canAccess('plan_markup'));
+
+  // The next step after the pin step closes (pin first: the camera). Timing
+  // per platform: web runs it synchronously inside the Next click — the
+  // browser only opens a file picker on a user gesture; Android has no
+  // Modal onDismiss, so the next frame; iOS waits for onDismiss (a camera
+  // presented while the step is still sliding away is dropped by UIKit), with
+  // a once-only fallback that fires only if the step is still closed.
+  const afterPinStepRef = useRef<(() => void) | null>(null);
+  const afterPinStepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (afterPinStepTimerRef.current) clearTimeout(afterPinStepTimerRef.current); }, []);
+  const runAfterPinStep = useCallback((fn: () => void) => {
+    if (Platform.OS === 'web') { fn(); return; }
+    if (Platform.OS === 'android') { requestAnimationFrame(fn); return; }
+    afterPinStepRef.current = fn;
+    if (afterPinStepTimerRef.current) clearTimeout(afterPinStepTimerRef.current);
+    afterPinStepTimerRef.current = setTimeout(() => {
+      afterPinStepTimerRef.current = null;
+      const parked = afterPinStepRef.current;
+      afterPinStepRef.current = null;
+      if (parked && !pinStepOpenRef.current) parked();
+    }, PIN_STEP_DISMISS_FALLBACK_MS);
+  }, []);
+  const handlePinStepDismissed = useCallback(() => {
+    const parked = afterPinStepRef.current;
+    afterPinStepRef.current = null;
+    if (afterPinStepTimerRef.current) { clearTimeout(afterPinStepTimerRef.current); afterPinStepTimerRef.current = null; }
+    if (parked) parked();
   }, []);
 
   // The GPS fix for the photo on the draft. It no longer blocks the shutter,
@@ -538,7 +612,7 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // Photo, THEN pin, then description: the plan comes up before the form
       // so he pins while he is still standing on the spot.
-      if (shouldAutoOpenPinStep({ pinnableSheetCount: planSheetCount, dismissedNoPlanThisWalk: dismissedNoPlan })) {
+      if (shouldAutoOpenPinStep({ pinnableSheetCount: planSheetCount, dismissedNoPlanThisWalk: dismissedNoPlan, pinDecided: pinDecidedRef.current })) {
         if (pinOpenTimerRef.current) clearTimeout(pinOpenTimerRef.current);
         pinOpenTimerRef.current = setTimeout(() => {
           pinOpenTimerRef.current = null;
@@ -547,27 +621,55 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
       }
     }
   }, [planSheetCount, dismissedNoPlan]);
+  handleCameraRef.current = handleCamera;
 
   const handlePinNext = useCallback((pin: WalkPin, sheetLabel: string) => {
     // Location is left exactly as it is: a point on a drawing is not a room
     // name, and inventing one from coordinates would be a guess he never made.
     setDraft(d => ({ ...d, pin, pinLabel: sheetLabel }));
     setLastPinSheetId(pin.sheetId);
+    pinDecidedRef.current = true;
     setPinStepOpen(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+    // Pin first: the spot is set, now the photo.
+    if (shouldOpenCameraAfterPin({ pinFirst: pinFirstRef.current, draftHasPhoto: !!draftPhotoRef.current })) {
+      runAfterPinStep(() => { void handleCameraRef.current(); });
+    }
+  }, [runAfterPinStep]);
 
   const handlePinSkip = useCallback(({ hadPlan }: { hadPlan: boolean }) => {
     // Skip means "no pin for this item" — including clearing one he placed
     // earlier and came back to change.
     setDraft(d => ({ ...d, pin: undefined, pinLabel: undefined }));
     if (!hadPlan) setDismissedNoPlan(true);
+    // Answered: the photo that follows (pin first) must not bring the plan back.
+    pinDecidedRef.current = true;
     setPinStepOpen(false);
-  }, []);
+    if (shouldOpenCameraAfterPin({ pinFirst: pinFirstRef.current, draftHasPhoto: !!draftPhotoRef.current })) {
+      runAfterPinStep(() => { void handleCameraRef.current(); });
+    }
+  }, [runAfterPinStep]);
 
   const handleRemovePin = useCallback(() => {
     setDraft(d => ({ ...d, pin: undefined, pinLabel: undefined }));
+    // Removing is an answer too: a retake must not re-ask.
+    pinDecidedRef.current = true;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  // Opened with start=pin: the plan first. With no plan the step IS the
+  // "Add your floor plan" screen, and it latches a sheet that hydrates late.
+  useEffect(() => {
+    if (initialStart !== 'pin') return;
+    if (Platform.OS !== 'ios') { openPinStep(); return; }
+    let opened = false;
+    const open = () => { if (opened) return; opened = true; openPinStep(); };
+    const unsubscribe = (navigation as unknown as {
+      addListener: (event: 'transitionEnd', cb: () => void) => () => void;
+    }).addListener('transitionEnd', open);
+    const timer = setTimeout(open, PIN_FIRST_MOUNT_FALLBACK_MS);
+    return () => { opened = true; unsubscribe(); clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sessionItemIds = useMemo(() => session.map(c => c.id), [session]);
@@ -594,6 +696,8 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
       showAlert('Nothing to save', 'Dictate or type a description first.');
       return;
     }
+    // A new draft: the next item's "where is this" is unanswered.
+    pinDecidedRef.current = false;
     const now = new Date().toISOString();
     // Local calendar day, not a UTC slice — an evening walk would otherwise
     // date every item a day late (utils/calendarDate).
@@ -633,7 +737,10 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
       // not overwrite it.
       void pendingStamp.promise.then(stamp => {
         if (!stamp) return;
-        updatePunchItem(id, {
+        // GPS columns only (updatePunchItemPin): the fix can arrive after he
+        // has already edited the item, and a whole-row write from this
+        // closure's copy would put his edit back.
+        updatePunchItemPin(id, {
           photoLatitude: stamp.latitude,
           photoLongitude: stamp.longitude,
           photoLocationAccuracyMeters: stamp.accuracyMeters,
@@ -673,7 +780,14 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
     });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [draft, listType, subcontractors, projectId, onAdd, updatePunchItem]);
+    // Pin first: straight back to the plan for the next spot (the sheet he
+    // just used, via lastPinSheetId). A job with no plan he already skipped
+    // stays quiet, the same rule as a photo.
+    if (pinFirst && shouldAutoOpenPinStep({ pinnableSheetCount: planSheetCount, dismissedNoPlanThisWalk: dismissedNoPlan })) {
+      Keyboard.dismiss();
+      openPinStep();
+    }
+  }, [draft, listType, subcontractors, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep]);
 
   const handleUndo = useCallback((id: string) => {
     onDelete(id);
@@ -731,7 +845,7 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
           {/* The eyebrow names the ACTIVE list, in its own ink, so the list is
               readable even with the card scrolled off screen. */}
           <Text style={[styles.headerEyebrow, { color: listInk }]}>
-            Walk Mode · {isPunch ? 'Punch list' : 'Crew list'}
+            {`Walk Mode · ${pinFirst ? 'Pin first · ' : ''}${isPunch ? 'Punch list' : 'Crew list'}`}
           </Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
         </View>
@@ -1010,11 +1124,56 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
                 ]}
               />
             </View>
-            <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera} accessibilityRole="button" accessibilityLabel="Take a photo, then pin it on the plan" testID="walk-camera">
-              <Camera size={18} color={themeColors.text} strokeWidth={1.75} />
-              <Text style={styles.cameraBtnText}>Photo</Text>
-            </TouchableOpacity>
+            {/* Pin first, before the spot is set: the plan is the next thing. */}
+            {pinFirst && !draft.pin && !draft.photoUri && (
+              <TouchableOpacity
+                style={styles.cameraBtn}
+                onPress={openPinStep}
+                accessibilityRole="button"
+                accessibilityLabel="Pin the next item on the plan, then take its photo"
+                testID="walk-pin-first-open"
+              >
+                <MapPinPlus size={18} color={themeColors.text} strokeWidth={1.75} />
+                <Text style={styles.cameraBtnText}>Pin next item</Text>
+              </TouchableOpacity>
+            )}
+            {/* Pinned first, no photo yet: the photo is the next action (and the
+                way back if the camera never came up). */}
+            {pinFirst && draft.pin && !draft.photoUri ? (
+              <TouchableOpacity
+                style={[styles.cameraBtn, styles.cameraBtnEmphasis]}
+                onPress={handleCamera}
+                accessibilityRole="button"
+                accessibilityLabel={Platform.OS === 'web' ? 'Add the photo for this item' : 'Take the photo for this item'}
+                testID="walk-camera"
+              >
+                <Camera size={18} color={Colors.textOnAccent} strokeWidth={2} />
+                {/* Web opens a file picker, not a camera — don't promise one. */}
+                <Text style={[styles.cameraBtnText, styles.cameraBtnTextEmphasis]}>{Platform.OS === 'web' ? 'Add photo' : 'Take photo'}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera} accessibilityRole="button" accessibilityLabel="Take a photo, then pin it on the plan" testID="walk-camera">
+                <Camera size={18} color={themeColors.text} strokeWidth={1.75} />
+                <Text style={styles.cameraBtnText}>Photo</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {/* Which comes first. Pin first puts the plan up before the camera
+              and brings it back after every save. */}
+          <TouchableOpacity
+            style={styles.pinFirstToggle}
+            onPress={() => setPinFirst(v => !v)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: pinFirst }}
+            accessibilityLabel={pinFirst ? 'Pin first is on: tap the plan before the photo' : 'Pin first is off: photo, then pin'}
+            testID="walk-pin-first-toggle"
+          >
+            <MapPinPlus size={14} color={pinFirst ? themeColors.accentLabel : themeColors.textMuted} strokeWidth={2} />
+            <Text style={[styles.pinFirstToggleText, pinFirst && { color: themeColors.accentLabel }]}>
+              {pinFirst ? 'Pin first: on — tap the plan before the photo' : 'Pin first: off — photo, then pin'}
+            </Text>
+          </TouchableOpacity>
 
           {/* AI Punch from Photos — turns a walkthrough into a punch
               list in one tap. Pick photos → AI returns items → review
@@ -1063,6 +1222,11 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
             <Text style={styles.saveBtnText}>Save to {isPunch ? 'punch list' : 'crew list'}</Text>
           </TouchableOpacity>
 
+          {pinFirst && (
+            <Text style={styles.hint}>
+              Pin first: tap the spot, the camera opens, then say what{'’'}s wrong. Save opens the plan for the next one.
+            </Text>
+          )}
           <Text style={styles.hint}>
             The list and the room stay between saves; the room is labelled {'“'}carried{'”'} until you confirm it {'—'} tap a chip when you move, X to clear. Mic appends to the description so you can keep dictating.
           </Text>
@@ -1098,6 +1262,9 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
             <View style={styles.emptyCard}>
               <Mic size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyText}>
+                {pinFirst
+                  ? 'Tap where the item is on the plan, take its photo, then say what\u2019s wrong. Save and the plan comes back for the next one. '
+                  : ''}
                 Tap the mic below and say what you see. Walk mode is built for capturing 30 items in 10 minutes — don{'\u2019'}t worry about getting the trade or priority right, you can fix them later from the punch list screen.
               </Text>
             </View>
@@ -1116,6 +1283,19 @@ function WalkInner({ projectName, projectId, initialList, subcontractors, onAdd,
         onNext={handlePinNext}
         onSkip={handlePinSkip}
         onClose={() => setPinStepOpen(false)}
+        onDismissed={handlePinStepDismissed}
+        onImportPdf={() => {
+          setPinStepOpen(false);
+          runAfterPinStep(() => router.push({ pathname: '/plans' as never, params: { projectId } as never }));
+        }}
+        importPdfBlockedReason={pdfBlocked}
+        {...(pinFirst && !draft.photoUri ? {
+          title: 'Where’s the next item?',
+          nextLabel: Platform.OS === 'web' ? 'Next: add the photo' : 'Next: take the photo',
+          skipLabel: 'Skip pin',
+          skipHint: Platform.OS === 'web' ? 'Skip pin to add the photo without a pin' : 'Skip pin to take the photo without a pin',
+          closeLabel: 'Back to the walk',
+        } : {})}
       />
 
       {/* Trade override sheet */}
@@ -1433,6 +1613,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.card, backgroundColor: Colors.fillSecondary,
   },
   cameraBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  // accentFill is derived to clear contrast against white (constants/colors).
+  cameraBtnEmphasis: { backgroundColor: t.accentFill },
+  cameraBtnTextEmphasis: { color: Colors.textOnAccent },
+  pinFirstToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center',
+    marginTop: 10, paddingHorizontal: 12, paddingVertical: 10, minHeight: 44,
+  },
+  pinFirstToggleText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textSecondary },
   aiPunchBtn: {
     flexDirection: 'row',
     alignItems: 'center',

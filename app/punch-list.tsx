@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image,
-  FlatList, type ListRenderItemInfo,
+  FlatList, Keyboard, type ListRenderItemInfo,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,9 +10,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
-  Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter, MapPin,
+  Trash2, Link2, ChevronDown, ListChecks, ChevronRight, Filter, MapPin,
   Camera, Square, SquareCheck, Users, Send, Layers, List, ArrowUpDown,
-  ArrowLeftRight, EyeOff, Wrench, CalendarClock,
+  ArrowLeftRight, EyeOff, Wrench, CalendarClock, MapPinned, MapPinPlus, Images,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -37,7 +37,19 @@ import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, Button, EyebrowLabel } from '@/components/ui';
+// Pin items (after the photo), Pin first (before it) and the edit sheet's pin
+// controls — founder, 2026-09-18: "pin the location of each item before and
+// after taking photos". The decisions are pure (utils/punchPinQueue); every
+// write goes through hooks/usePunchPinWriter. Guard: validate-punch-pin-items.
+import PlanPinStep from '@/components/punch/PlanPinStep';
+import { usePunchPinWriter } from '@/hooks/usePunchPinWriter';
+import { punchItemNumbers } from '@/utils/punchExportCore';
+import { pinSheetLabel, punchPinFields, type WalkPin } from '@/utils/punchPlanPin';
+import {
+  CLEAR_PIN_PATCH, pinRefOf, pinSeedFor, pinWriteBlockedReason, planPinStats, removePinConfirmCopy, sheetsByIdOf,
+} from '@/utils/punchPinQueue';
+import { stashPinQueueIds } from '@/utils/pinQueueHandoff';
 import { generateUUID } from '@/utils/generateId';
 import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
 import { showAlert } from '@/utils/alert';
@@ -268,6 +280,11 @@ type PunchRowData =
       photoFailed: boolean;
       /** Which list is showing — decides how loud the row is, not what it holds. */
       variant: PunchListType;
+      /** Pinned by the export's verdict (pinRefOf), the same rule as the "On
+       *  the plan" count and Pin items. A sheet with no spot, or a deleted
+       *  sheet, is NOT on the plan — the chip used to say it was and opened a
+       *  sheet with no marker on it (or none at all). */
+      onPlan: boolean;
     };
 
 type PunchStyles = ReturnType<typeof makeStyles>;
@@ -355,7 +372,7 @@ const PunchRow = React.memo(function PunchRow({
   themeColors: ThemeColors;
   actions: PunchRowActions;
 }) {
-  const { item, selected, selectMode, photoFailed, variant } = row;
+  const { item, selected, selectMode, photoFailed, variant, onPlan } = row;
   const sc = getStatusConfig(themeColors, item.status);
   const pc = getPriorityConfig(themeColors, item.priority);
   const formal = variant === 'punch';
@@ -458,7 +475,7 @@ const PunchRow = React.memo(function PunchRow({
               </Text>
             </View>
           ) : null}
-          {item.planSheetId ? (
+          {onPlan ? (
             <TouchableOpacity
               style={styles.onPlanChip}
               onPress={() => actions.onOpenPlan(item)}
@@ -609,6 +626,9 @@ const PunchRow = React.memo(function PunchRow({
   );
 });
 
+/** The edit sheet's pin step has no walk session. Module-level so it is one array. */
+const NO_SESSION_IDS: readonly string[] = [];
+
 export default function PunchListScreen() {
   const router = useRouter();
   // Read the project from params here (not just in Inner) so the gate can
@@ -642,7 +662,7 @@ function PunchListScreenInner() {
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
   }>();
-  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos } = useProjects();
+  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -717,6 +737,14 @@ function PunchListScreenInner() {
   // upload, which never matches the source photo. The id is what lets the
   // office, web and the sub still see the circle (audit #12, review 2).
   const [attachedSourcePhotoId, setAttachedSourcePhotoId] = useState<string | undefined>(undefined);
+  // ── Where it is on the plan (the sheet's "On the plan" block) ─────────────
+  // A NEW item carries its pin here until Add Item; an existing item's pin is
+  // written the moment he places or removes it (the StatusPipeline precedent
+  // in the same sheet), so the sheet's X can never lose it. "· saved" in the
+  // row says so — a toast would render UNDER this Modal on iOS.
+  const [formPin, setFormPin] = useState<WalkPin | null>(null);
+  const [formPinOpen, setFormPinOpen] = useState(false);
+  const [pinSavedInSheet, setPinSavedInSheet] = useState(false);
 
   // Photo walk — the burst-capture path. `walkShots` is a staging area, not the
   // punch list: nothing here exists as an item until it has a description.
@@ -861,6 +889,8 @@ function PunchListScreenInner() {
     // it into the next new item.
     setAttachedPhotoUri(undefined);
     setAttachedSourcePhotoId(undefined);
+    setFormPin(null);
+    setPinSavedInSheet(false);
   }, [activeList]);
 
   // The only path that puts a REAL item in `editingItem`. Before this every
@@ -891,6 +921,8 @@ function PunchListScreenInner() {
     // a remove button that would do nothing) on top of someone else's item.
     setAttachedPhotoUri(undefined);
     setAttachedSourcePhotoId(undefined);
+    setFormPin(null);
+    setPinSavedInSheet(false);
     setShowForm(true);
   }, [subcontractors]);
 
@@ -1125,12 +1157,16 @@ function PunchListScreenInner() {
     });
   }, [sections, selectedIds]);
 
+  const planSheets = useMemo(() => getPlanSheetsForProject(projectId ?? ''), [getPlanSheetsForProject, projectId]);
+  const sheetsById = useMemo(() => sheetsByIdOf(planSheets), [planSheets]);
+
   const rows = useMemo<PunchRowData[]>(() => {
     const out: PunchRowData[] = [];
     const itemRow = (item: PunchItem): PunchRowData => ({
       kind: 'item',
       key: item.id,
       item,
+      onPlan: pinRefOf(item, sheetsById).state === 'pinned',
       selected: !!selectedIds[item.id],
       selectMode,
       photoFailed: !!(item.photoUri && failedPhotoUris[item.photoUri]),
@@ -1159,7 +1195,7 @@ function PunchListScreenInner() {
       for (const item of section.items) out.push(itemRow(item));
     }
     return out;
-  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList]);
+  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById]);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
@@ -1195,6 +1231,9 @@ function PunchListScreenInner() {
           // other device finds the markup. Only kept while the photo it points
           // at is still the one attached.
           ...(attachedPhotoUri && attachedSourcePhotoId ? { sourcePhotoId: attachedSourcePhotoId } : {}),
+          // The spot he picked in the sheet's pin step; nothing at all when he
+          // didn't, so an unpinned item saves exactly as before.
+          ...punchPinFields(formPin ?? undefined),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -1225,7 +1264,7 @@ function PunchListScreenInner() {
       return;
     }
     commit();
-  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId]);
+  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -1287,7 +1326,9 @@ function PunchListScreenInner() {
   // state cannot stop a double tap it has not re-rendered for yet.
   const filingWalkRef = useRef(false);
 
-  const fileWalkShots = useCallback(() => {
+  // `thenPin`: "Add N and pin them" — file, then open Pin items on exactly
+  // this batch (the photo walk never pins; this is the step after it).
+  const fileWalkShots = useCallback((opts?: { thenPin?: boolean }) => {
     if (describedWalkShots.length === 0) return;
     if (filingWalkRef.current) return;
     filingWalkRef.current = true;
@@ -1304,7 +1345,7 @@ function PunchListScreenInner() {
     // createdAt — ordering a walk by random UUID instead of by the route he
     // walked. Forty shots span 40 ms, so nothing else can read it as a
     // different moment.
-    addPunchItems(describedWalkShots.map((shot, i) => ({
+    const filedItems: PunchItem[] = describedWalkShots.map((shot, i) => ({
       id: createId('punch'),
       projectId: projectId ?? '',
       description: shot.description.trim(),
@@ -1318,7 +1359,8 @@ function PunchListScreenInner() {
       photoUri: shot.uri,
       createdAt: new Date(nowMs + i).toISOString(),
       updatedAt: now,
-    })));
+    }));
+    addPunchItems(filedItems);
     const filed = describedWalkShots.length;
     // Only the filed ones leave the sheet. Anything still without a sentence
     // stays exactly where it is — dropping a photo the GC took to make the
@@ -1331,7 +1373,15 @@ function PunchListScreenInner() {
     nailIt(leftover.length === 0
       ? `${filed} punch item${filed === 1 ? '' : 's'} added.`
       : `${filed} added. ${leftover.length} photo${leftover.length === 1 ? '' : 's'} still need a line.`);
-  }, [describedWalkShots, walkShots, addPunchItems, projectId, activeList]);
+    if (opts?.thenPin) {
+      // The ids ride in memory, not the URL (up to 40 of them); a web reload
+      // loses the batch and Pin items falls back to every unpinned item.
+      const batch = stashPinQueueIds(filedItems.map(i => i.id));
+      setShowWalk(false);
+      // iOS: let the walk sheet finish sliding away before the push.
+      setTimeout(() => router.push({ pathname: '/punch-pin' as never, params: { projectId: projectId ?? '', list: activeList, batch } as never }), Platform.OS === 'ios' ? 400 : 0);
+    }
+  }, [describedWalkShots, walkShots, addPunchItems, projectId, activeList, router]);
 
   // Released only once the filed shots have actually LEFT `walkShots`. Clearing
   // it at the end of fileWalkShots would make the latch useless — the second
@@ -1650,6 +1700,59 @@ function PunchListScreenInner() {
   // headerRight and the options object are memoised: an inline
   // `options={{ headerRight: () => … }}` resets the options every render — the
   // "Maximum update depth exceeded" loop project-detail hit (Sentry RN-1).
+  // ── On the plan: counts, numbers, and the one pin write path ─────────────
+  // (planSheets / sheetsById are declared above the row builder, which needs them.)
+  // "Pinned" is judged against the sheet list, so a count before the sheets
+  // land says "0 of 63" about items that are pinned (a second device, a cold
+  // start). No number until both are in.
+  const pinCountsReady = punchItemsLoaded && planSheetsLoaded;
+  // For the list that is showing — "0 of 63 pinned" is about these 63.
+  const pinStats = useMemo(() => planPinStats(items, sheetsById), [items, sheetsById]);
+  // The export's numbers (whole project list) — the edit sheet's "#14".
+  const itemNumbers = useMemo(() => punchItemNumbers(allItems), [allItems]);
+  const { writePin, removalFor, role: pinRole } = usePunchPinWriter(projectId ?? '');
+  const pinBlocked = pinWriteBlockedReason(pinRole);
+  const editingPinSeed = useMemo(
+    () => (editingItem ? pinSeedFor(editingItem, sheetsById, drawingPins) : { initialPin: formPin, initialSheetId: null }),
+    [editingItem, sheetsById, drawingPins, formPin],
+  );
+  const editingHideIds = useMemo(() => (editingItem ? [editingItem.id] : []), [editingItem]);
+  const openFormPinStep = useCallback(() => {
+    if (pinBlocked) return;
+    Keyboard.dismiss();
+    setFormPinOpen(true);
+  }, [pinBlocked]);
+  const handleFormPinNext = useCallback((pin: WalkPin) => {
+    setFormPinOpen(false);
+    if (editingItem) {
+      const w = writePin(editingItem, pin);
+      if (w) {
+        setEditingItem({ ...editingItem, ...punchPinFields(pin) });
+        setPinSavedInSheet(true);
+      }
+    } else {
+      setFormPin(pin);
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [editingItem, writePin]);
+  const handleFormPinRemove = useCallback(() => {
+    if (!editingItem) { setFormPin(null); return; }
+    const item = editingItem;
+    const c = removePinConfirmCopy(removalFor(item), itemNumbers.get(item.id) ?? 0);
+    showAlert(c.title, c.body, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: c.confirmLabel,
+        style: 'destructive',
+        onPress: () => {
+          writePin(item, null);
+          setEditingItem({ ...item, ...CLEAR_PIN_PATCH });
+          setPinSavedInSheet(true);
+        },
+      },
+    ]);
+  }, [editingItem, removalFor, itemNumbers, writePin]);
+
   const [showExport, setShowExport] = useState(false);
   const openExport = useCallback(() => setShowExport(true), []);
   const closeExport = useCallback(() => setShowExport(false), []);
@@ -1781,6 +1884,46 @@ function PunchListScreenInner() {
           {closedCount} of {totalCount} {activeList === 'punch' ? 'punch' : 'crew list'} items closed
         </Text>
       </View>
+
+      {/* ── On the plan ──────────────────────────────────────────────────
+          "Where is that ability?" — answered at the top, not under 63 rows.
+          Only once the list has hydrated: "0 of 0 pinned" on an empty cache
+          would be a claim about nothing. */}
+      {punchItemsLoaded && items.length > 0 && (
+        <View style={[cardSurface(themeColors, { radius: 'md', pad: 12 }), styles.planCard]} testID="punch-plan-card">
+          <View style={styles.planCardHead}>
+            <EyebrowLabel tone="neutral">On the plan</EyebrowLabel>
+            <Text style={[styles.planCardCount, pinCountsReady && pinStats.unpinned === 0 && { color: themeColors.successLabel }]}>
+              {!pinCountsReady
+                ? 'Checking the plan sheets…'
+                : pinStats.unpinned === 0 ? `All ${pinStats.total} pinned` : `${pinStats.pinned} of ${pinStats.total} pinned`}
+            </Text>
+          </View>
+          <View style={styles.planCardActions}>
+            {/* 48pt (md), not 36: the site entry points, tapped with gloves. */}
+            {pinCountsReady && pinStats.unpinned > 0 && (
+              <Button
+                size="md"
+                label={`Pin ${pinStats.unpinned} item${pinStats.unpinned === 1 ? '' : 's'}`}
+                onPress={() => router.push({ pathname: '/punch-pin' as never, params: { projectId: projectId ?? '', list: activeList } as never })}
+                disabled={!!pinBlocked}
+                iconLeft={<MapPinned size={14} color={Colors.textOnAccent} strokeWidth={2} />}
+                testID="punch-pin-items"
+              />
+            )}
+            <Button
+              size="md"
+              variant="secondary"
+              label="Pin first"
+              onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList, start: 'pin' } as never })}
+              disabled={!!pinBlocked}
+              iconLeft={<MapPinPlus size={14} color={themeColors.text} strokeWidth={2} />}
+              testID="punch-pin-first"
+            />
+          </View>
+          {pinBlocked ? <Text style={styles.planCardNote}>{pinBlocked}</Text> : null}
+        </View>
+      )}
 
       <View style={styles.filterBar}>
         {/* styles.filterScroll is load-bearing — see the note on the style
@@ -1980,6 +2123,36 @@ function PunchListScreenInner() {
     </View>
   );
 
+  const renderWalkRow = (r: {
+    icon: React.ReactNode; title: string; sub: string; a11y: string; testID: string;
+    onPress: () => void; disabled?: boolean; count?: string; last?: boolean;
+  }) => (
+    <TouchableOpacity
+      key={r.testID}
+      style={[styles.walkRow2, !r.last && styles.walkRow2Divider, r.disabled && styles.walkRow2Off]}
+      onPress={r.onPress}
+      disabled={r.disabled}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={r.a11y}
+      accessibilityHint={r.sub}
+      accessibilityState={{ disabled: !!r.disabled }}
+      testID={r.testID}
+    >
+      <View style={styles.walkRowIcon}>{r.icon}</View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.walkRowTitle} numberOfLines={2}>{r.title}</Text>
+        <Text style={styles.walkRowSub} numberOfLines={2}>{r.sub}</Text>
+      </View>
+      {r.count ? (
+        <View style={styles.walkRowCount}>
+          <Text style={styles.walkRowCountText}>{r.count}</Text>
+        </View>
+      ) : null}
+      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+    </TouchableOpacity>
+  );
+
   const listFooter = (
     <View>
       <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item" accessibilityRole="button" accessibilityLabel={activeList === 'punch' ? 'Add punch item' : 'Add crew list item'}>
@@ -1999,38 +2172,60 @@ function PunchListScreenInner() {
         <Text style={styles.addItemBtnText}>Apply trade template</Text>
       </TouchableOpacity>
 
-      {/* Burst capture. Sits above voice Walk Mode because a photo walk is
-          what a super does first — he shoots the floor, then describes it. */}
-      <TouchableOpacity
-        style={styles.walkBtn}
-        onPress={() => { void startPhotoWalk(); }}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel="Start a photo walk"
-        testID="start-photo-walk"
-      >
-        <Camera size={16} color={"#FFFFFF"} strokeWidth={1.75} />
-        <Text style={styles.walkBtnText}>
-          {walkShots.length > 0
-            ? `Photo walk — ${walkShots.length} waiting for a line`
-            : 'Photo walk — shoot the whole floor'}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.walkBtn}
-        // `list` hands Walk Mode the list that is showing, so a voice walk
-        // started from the crew list files crew items (app/punch-walk.tsx
-        // reads it; an absent value starts on 'punch').
-        onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList } as never })}
-        activeOpacity={0.85}
-        testID="open-punch-walk"
-        accessibilityRole="button"
-        accessibilityLabel="Walk mode, voice capture"
-      >
-        <Mic size={16} color={"#FFFFFF"} strokeWidth={1.75} />
-        <Text style={styles.walkBtnText}>Walk Mode — voice capture</Text>
-      </TouchableOpacity>
+      {/* ── Walk the job ──────────────────────────────────────────────────
+          Every way to capture on site, each saying what it does and whether
+          it pins. Walk Mode was labelled "voice capture" — the thing it is
+          for (photo → pin → describe) was invisible from here. */}
+      <View style={styles.walkGroupWrap}>
+        <EyebrowLabel tone="neutral">Walk the job</EyebrowLabel>
+        <View style={[cardSurface(themeColors, { radius: 'md', pad: 'none' }), styles.walkGroup]}>
+          {renderWalkRow({
+            icon: <Camera size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
+            title: 'Walk Mode: photo → pin → describe',
+            sub: 'Photo, then tap where it is on the plan, then say what’s wrong.',
+            a11y: 'Walk mode: take a photo, pin it on the plan, then describe it',
+            testID: 'open-punch-walk',
+            // `list` hands Walk Mode the list that is showing, so a walk
+            // started from the crew list files crew items.
+            onPress: () => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList } as never }),
+          })}
+          {renderWalkRow({
+            icon: <MapPinPlus size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
+            title: 'Pin first: pin → photo → describe',
+            sub: pinBlocked ?? 'Tap the spot on the plan, then take the photo.',
+            a11y: 'Pin first: tap the spot on the plan, then take the photo, then describe it',
+            testID: 'open-punch-pin-first',
+            disabled: !!pinBlocked,
+            onPress: () => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList, start: 'pin' } as never }),
+          })}
+          {renderWalkRow({
+            icon: <MapPinned size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
+            title: 'Pin items on the plan',
+            sub: pinBlocked
+              ?? (!pinCountsReady
+                ? 'Loading the punch list and plans…'
+                : pinStats.unpinned === 0 ? 'Every item on this list is pinned.' : 'One at a time: see the photo, tap the spot.'),
+            count: pinCountsReady && pinStats.unpinned > 0 ? `${pinStats.unpinned} not pinned` : undefined,
+            a11y: pinCountsReady && pinStats.unpinned > 0
+              ? `Pin items on the plan, ${pinStats.unpinned} not pinned`
+              : 'Pin items on the plan',
+            testID: 'open-punch-pin-items',
+            disabled: !!pinBlocked || !pinCountsReady || pinStats.unpinned === 0,
+            onPress: () => router.push({ pathname: '/punch-pin' as never, params: { projectId: projectId ?? '', list: activeList } as never }),
+          })}
+          {renderWalkRow({
+            icon: <Images size={18} color={themeColors.accentLabel} strokeWidth={1.75} />,
+            title: walkShots.length > 0
+              ? `Photo walk: ${walkShots.length} waiting for a line`
+              : 'Photo walk: shoot now, describe later',
+            sub: 'No pins — pin them after with Pin items.',
+            a11y: 'Start a photo walk',
+            testID: 'start-photo-walk',
+            last: true,
+            onPress: () => { void startPhotoWalk(); },
+          })}
+        </View>
+      </View>
 
       {allClosed && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
         <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Close project">
@@ -2265,7 +2460,7 @@ function PunchListScreenInner() {
                   names the one thing standing between the walk and the list. */}
               <TouchableOpacity
                 style={[styles.walkFileBtn, describedWalkShots.length === 0 ? styles.walkFileBtnOff : null]}
-                onPress={fileWalkShots}
+                onPress={() => fileWalkShots()}
                 disabled={describedWalkShots.length === 0}
                 activeOpacity={0.85}
                 accessibilityRole="button"
@@ -2281,6 +2476,19 @@ function PunchListScreenInner() {
                     : `Add ${describedWalkShots.length} punch item${describedWalkShots.length === 1 ? '' : 's'}`}
                 </Text>
               </TouchableOpacity>
+              {/* The photo walk never pins. This files the batch and goes
+                  straight to Pin items on exactly these items. */}
+              {describedWalkShots.length > 0 && !pinBlocked ? (
+                <Button
+                  label={`Add ${describedWalkShots.length} and pin them on the plan`}
+                  variant="secondary"
+                  onPress={() => fileWalkShots({ thenPin: true })}
+                  iconLeft={<MapPinned size={16} color={themeColors.text} strokeWidth={2} />}
+                  fullWidth
+                  style={{ marginTop: 8 }}
+                  testID="file-walk-items-and-pin"
+                />
+              ) : null}
               {walkShots.length > describedWalkShots.length ? (
                 <Text style={styles.walkPending}>
                   {walkShots.length - describedWalkShots.length} photo{walkShots.length - describedWalkShots.length === 1 ? '' : 's'} still without a line — they stay here until you write one.
@@ -2416,6 +2624,55 @@ function PunchListScreenInner() {
                   </View>
                 </View>
 
+                {/* Where it is on the plan. The row says the export's verdict
+                    in words; an existing item's pin is saved the moment it is
+                    placed or removed. */}
+                <Text style={styles.fieldLabel}>On the plan</Text>
+                {(() => {
+                  const ref = editingItem ? pinRefOf(editingItem, sheetsById) : null;
+                  const formSheet = formPin ? sheetsById.get(formPin.sheetId) : undefined;
+                  const saved = pinSavedInSheet ? ' · saved' : '';
+                  const pinnedHere = editingItem ? ref?.state === 'pinned' : !!formPin;
+                  const rowText = editingItem
+                    ? ref?.state === 'pinned'
+                      ? `Pinned on ${ref.sheetLabel}${sheetsById.get(ref.sheetId)?.superseded ? ' · older revision' : ''}${saved}`
+                      : ref?.state === 'no-position'
+                        ? `On ${ref.sheetLabel}, but its spot is missing${saved}`
+                        : ref?.state === 'sheet-missing'
+                          ? `Its plan sheet is no longer on this job${saved}`
+                          : `Not pinned — the export lists it as not pinned${saved}`
+                    : formPin
+                      ? `Will be pinned on ${formSheet ? pinSheetLabel(formSheet) : 'the plan'} when you add it`
+                      : 'Not pinned yet';
+                  return (
+                    <View style={styles.formPinBlock} testID="punch-form-pin">
+                      <View style={styles.formPinRow}>
+                        <MapPin size={14} color={pinnedHere ? themeColors.accentLabel : themeColors.textMuted} strokeWidth={2} />
+                        <Text style={styles.formPinText} testID="punch-form-pin-state">{rowText}</Text>
+                      </View>
+                      <View style={styles.formPinActions}>
+                        {pinnedHere ? (
+                          <>
+                            <Button size="md" variant="secondary" label="Move pin" onPress={openFormPinStep} disabled={!!pinBlocked} testID="punch-form-pin-move" />
+                            <Button size="md" variant="ghost" label="Remove pin" onPress={handleFormPinRemove} disabled={!!pinBlocked} testID="punch-form-pin-remove" />
+                          </>
+                        ) : (
+                          <Button
+                            size="md"
+                            variant="secondary"
+                            label="Pin on plan"
+                            onPress={openFormPinStep}
+                            disabled={!!pinBlocked}
+                            iconLeft={<MapPinPlus size={14} color={themeColors.text} strokeWidth={2} />}
+                            testID="punch-form-pin-open"
+                          />
+                        )}
+                      </View>
+                      {pinBlocked ? <Text style={styles.formListNote}>{pinBlocked}</Text> : null}
+                    </View>
+                  );
+                })()}
+
                 <Text style={styles.fieldLabel}>Assigned Sub</Text>
                 {subcontractors.length > 0 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -2480,6 +2737,27 @@ function PunchListScreenInner() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+        {/* Nested INSIDE the sheet's Modal: iOS only presents a second Modal
+            from within the first one's tree. No PDF import from here —
+            leaving would throw away the sheet's unsaved fields. */}
+        <PlanPinStep
+          visible={formPinOpen}
+          projectId={projectId ?? ''}
+          title={editingItem ? `Where is #${itemNumbers.get(editingItem.id) ?? ''}?` : 'Where is this?'}
+          nextLabel="Use this spot"
+          skipLabel="Cancel"
+          skipHint="Cancel to keep it as it was"
+          closeLabel="Back to the item"
+          photoUri={editingItem?.photoUri ?? attachedPhotoUri}
+          initialPin={editingPinSeed.initialPin}
+          initialSheetId={editingPinSeed.initialSheetId}
+          hideItemIds={editingHideIds}
+          sessionItemIds={NO_SESSION_IDS}
+          sessionSheetId={null}
+          onNext={handleFormPinNext}
+          onSkip={() => setFormPinOpen(false)}
+          onClose={() => setFormPinOpen(false)}
+        />
       </Modal>
 
       <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
@@ -3177,8 +3455,28 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '20' },
   addItemBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.accent },
-  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill },
-  walkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  planCard: { marginHorizontal: 20, marginBottom: 16, gap: 10 },
+  planCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  planCardCount: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  planCardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  planCardNote: { fontSize: Type.caption1.fontSize, color: themeColors.warningLabel, lineHeight: 17 },
+  walkGroupWrap: { marginHorizontal: 20, marginTop: 18, gap: 8 },
+  walkGroup: { overflow: 'hidden' },
+  walkRow2: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 12, minHeight: 60 },
+  walkRow2Divider: { borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  walkRow2Off: { opacity: 0.55 },
+  walkRowIcon: {
+    width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: themeColors.accentSoft,
+  },
+  walkRowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  walkRowSub: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2, lineHeight: 16 },
+  walkRowCount: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full, backgroundColor: themeColors.warningSoft },
+  walkRowCountText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.warningLabel },
+  formPinBlock: { gap: 8 },
+  formPinRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  formPinText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
+  formPinActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 16, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.success },
   closeProjectBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   projectClosedNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft },
