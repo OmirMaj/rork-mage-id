@@ -115,6 +115,9 @@ const SOURCES: JobCostActualSources = {
   timeEntries: [shift(420, 'carpenter')],
   laborRates: { carpenter: 55 },
   overtimeMultiplier: 1.5,
+  // #65: the fixture's single 420 h row pools one 'worker'; no threshold keeps
+  // the figures about WHICH SOURCES are read, not how overtime is allocated.
+  overtimeRule: { weeklyThreshold: null, dailyThreshold: null, weekStartsOn: 1 },
   equipment: [],
   permits: [],
   subcontractors: [],
@@ -349,7 +352,7 @@ console.log('\nEvery call site forwards costSources:');
   // A memo that silently drops one stream (say timeEntries) still "forwards
   // costSources" by name, and the engine then prices the job without it. So
   // every UI bundle must name all seven streams Job Costing hands the engine.
-  const STREAMS = ['receipts', 'timeEntries', 'laborRates', 'overtimeMultiplier', 'equipment', 'permits', 'subcontractors'];
+  const STREAMS = ['receipts', 'timeEntries', 'laborRates', 'overtimeMultiplier', 'overtimeRule', 'equipment', 'permits', 'subcontractors'];
   for (const file of [
     'app/portfolio-margin.tsx', 'app/margin-alerts.tsx', 'app/margin-risk.tsx',
     'app/living-estimate.tsx', 'components/ProjectHero.tsx', 'components/MarginAlertManager.tsx',

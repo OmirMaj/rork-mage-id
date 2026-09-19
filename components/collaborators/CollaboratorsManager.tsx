@@ -35,18 +35,30 @@
 // LIFTS financial blinding asks first and names what they will see, and
 // re-inviting an active member is refused (here, and by project-invite,
 // which answers code 'already_member').
+//
+// ── REMOVING SOMEONE, AND THE LINK AFTER YOU LEAVE (#95, #177) ──────────────
+// The trash icon used to revoke on touch — no dialog, no undo, and a failure
+// (weak signal on site) rendered nothing, so the GC thought the super was off
+// the job while he still had it. It now confirms, shows a spinner on that row
+// while the server answers, and says out loud when the person STILL has
+// access. It stays OUTSIDE utils/offlineQueue on purpose: removing access is a
+// server-authoritative permission change, and a queued "removed" that has not
+// happened yet is exactly the false comfort this fixes.
+// The invite's email outcome is now reported (emailSent), and a pending row
+// carries "Copy link", which re-reads the CURRENT link (getLink) instead of
+// re-sending — re-sending rotates the token and kills a link already texted.
 
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { UserPlus, Trash2, Copy, Check, Mail } from 'lucide-react-native';
+import { UserPlus, Trash2, Copy, Check, Mail, Link2 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { useProjectRole } from '@/hooks/useProjectRole';
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, isFinancialsBlinded } from '@/utils/roleBlinding';
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, FIELD_ROLE_SCOPE_NOTE, isFinancialsBlinded } from '@/utils/roleBlinding';
 import { useAccountSeats } from '@/hooks/useAccountSeats';
 import { isBillableSeat } from '@/utils/seatModel';
 import type { ProjectCollaborator } from '@/types';
@@ -60,7 +72,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
   const { canAccess } = useTierAccess();
   const role = useProjectRole(projectId);
   const isOwner = role === 'owner';
-  const { collaborators, isLoading, invite, revoke, changeRole } = useProjectCollaborators(projectId);
+  const { collaborators, isLoading, invite, revoke, changeRole, getLink } = useProjectCollaborators(projectId);
   // Account-wide, not per-project: one person on six jobs is one seat.
   const seats = useAccountSeats();
 
@@ -68,6 +80,11 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer' | 'field'>('editor');
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // #177: what happened to the last invite's email. `sent: null` = a function
+  // deployed before emailSent existed — neither claim is made then.
+  const [lastSend, setLastSend] = useState<{ email: string; sent: boolean | null } | null>(null);
+  // #177: which pending row's link was just copied (row-level "Copy link").
+  const [rowCopiedId, setRowCopiedId] = useState<string | null>(null);
 
   const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
 
@@ -112,7 +129,8 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
         { email: email.trim().toLowerCase(), role: inviteRole },
         {
           onSuccess: (data) => {
-            setLastLink((data as { link?: string })?.link ?? null);
+            setLastLink(data?.link ?? null);
+            setLastSend({ email: typed, sent: typeof data?.emailSent === 'boolean' ? data.emailSent : null });
             setEmail('');
             void seats.refetch();
           },
@@ -191,6 +209,47 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
     setTimeout(() => setCopied(false), 1500);
   }, [lastLink]);
 
+  // #95: removal asks first and names the cost of a mistake; a failure says the
+  // person STILL has access, because the row staying put said nothing.
+  const requestRevoke = useCallback((c: ProjectCollaborator) => {
+    if (revoke.isPending) return;
+    showAlert(
+      `Remove ${c.email} from this job?`,
+      "They lose access right away. To bring them back you'll have to send a new invite, and they'll have to accept it again.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            revoke.mutate(c.id, {
+              onSuccess: () => { void seats.refetch(); },
+              onError: (err) => showAlert(
+                `Couldn't remove ${c.email}`,
+                `${(err as Error)?.message || 'Check your connection and try again.'}\n\nThey still have access to this job.`,
+              ),
+            });
+          },
+        },
+      ],
+    );
+  }, [revoke, seats]);
+
+  // #177: copy a pending invite's CURRENT link, any time after sending it.
+  const copyRowLink = useCallback((c: ProjectCollaborator) => {
+    if (getLink.isPending) return;
+    getLink.mutate(c.id, {
+      onSuccess: async (data) => {
+        if (!data?.link) return;
+        await Clipboard.setStringAsync(data.link);
+        setRowCopiedId(c.id);
+        setTimeout(() => setRowCopiedId((cur) => (cur === c.id ? null : cur)), 1500);
+      },
+      onError: (err) => showAlert("Couldn't get the invite link", (err as Error)?.message || 'Check your connection and try again.'),
+    });
+  }, [getLink]);
+
   return (
     <View style={{ gap: 12 }}>
       {/* Invite form — owner only */}
@@ -253,6 +312,11 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
             ))}
           </View>
           <Text style={[styles.roleHint, { color: t.textMuted }]}>{ROLE_DESCRIPTIONS[inviteRole]}</Text>
+          {/* #176: the field promise stated at its real strength until the
+              server withholds the legacy money columns (phase 2). */}
+          {inviteRole === 'field' ? (
+            <Text style={[styles.roleHint, { color: t.textMuted }]} testID="field-scope-note">{FIELD_ROLE_SCOPE_NOTE}</Text>
+          ) : null}
           {/* Seat cost, stated before the invite is sent. */}
           <Text
             style={[styles.seatHint, { color: seatPreview.bills ? t.accentLabel : t.textMuted }]}
@@ -271,11 +335,24 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
             <Text style={styles.inviteBtnText}>Send invite</Text>
           </TouchableOpacity>
           {invite.isError ? <Text style={[styles.errText, { color: t.danger }]}>{(invite.error as Error)?.message}</Text> : null}
+          {/* #177: say what happened to the email — never "Invited" alone. */}
+          {lastSend ? (
+            <Text
+              style={[styles.sendStatus, { color: lastSend.sent === false ? t.danger : t.textSecondary }]}
+              testID="invite-email-status"
+            >
+              {lastSend.sent === true
+                ? `Emailed to ${lastSend.email}.`
+                : lastSend.sent === false
+                  ? `Email not sent to ${lastSend.email} — copy the link below and send it yourself.`
+                  : `Invite created for ${lastSend.email}. If the email doesn't arrive, copy the link below.`}
+            </Text>
+          ) : null}
           {lastLink ? (
             <TouchableOpacity onPress={copyLink} style={[styles.linkRow, { backgroundColor: t.accentSoft }]} accessibilityRole="button">
               {copied ? <Check size={14} color={t.success} strokeWidth={2} /> : <Copy size={14} color={t.accent} strokeWidth={2} />}
               <Text style={[styles.linkText, { color: t.accent }]} numberOfLines={1}>
-                {copied ? 'Link copied' : 'Copy invite link (share if the email doesn’t arrive)'}
+                {copied ? 'Link copied' : 'Copy invite link'}
               </Text>
             </TouchableOpacity>
           ) : null}
@@ -320,10 +397,43 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
               </View>
               ) : null}
             </View>
-            {isOwner ? (
-              <TouchableOpacity onPress={() => revoke.mutate(c.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Revoke">
-                <Trash2 size={16} color={t.danger} strokeWidth={1.75} />
+            {isOwner && c.status === 'pending' ? (
+              <TouchableOpacity
+                onPress={() => copyRowLink(c)}
+                disabled={getLink.isPending}
+                hitSlop={10}
+                style={styles.rowIconBtn}
+                accessibilityRole="button"
+                accessibilityLabel={rowCopiedId === c.id ? 'Invite link copied' : `Copy invite link for ${c.email}`}
+                accessibilityHint="Copies the same link the email carried; it does not send a new one"
+                testID={`collab-copy-link-${c.id}`}
+              >
+                {getLink.isPending && getLink.variables === c.id
+                  ? <ActivityIndicator size="small" color={t.accent} />
+                  : rowCopiedId === c.id
+                    ? <Check size={16} color={t.success} strokeWidth={2} />
+                    : <Link2 size={16} color={t.accent} strokeWidth={1.75} />}
               </TouchableOpacity>
+            ) : null}
+            {isOwner ? (
+              revoke.isPending && revoke.variables === c.id ? (
+                <View style={styles.rowIconBtn} accessibilityLabel={`Removing ${c.email}`}>
+                  <ActivityIndicator size="small" color={t.danger} />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => requestRevoke(c)}
+                  disabled={revoke.isPending}
+                  hitSlop={10}
+                  style={[styles.rowIconBtn, revoke.isPending && { opacity: 0.4 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${c.email}`}
+                  accessibilityState={{ disabled: revoke.isPending }}
+                  testID={`collab-revoke-${c.id}`}
+                >
+                  <Trash2 size={16} color={t.danger} strokeWidth={1.75} />
+                </TouchableOpacity>
+              )
             ) : null}
           </View>
         ))
@@ -351,6 +461,8 @@ const styles = StyleSheet.create({
   inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Tokens.radius.lg, paddingVertical: 13 },
   inviteBtnText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: '#FFF' },
   errText: { fontSize: Type.caption1.fontSize },
+  sendStatus: { fontSize: Type.caption1.fontSize, lineHeight: 16, fontWeight: '600' },
+  rowIconBtn: { minWidth: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center' },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   linkText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '700' },
   empty: { fontSize: Type.subhead.fontSize, paddingVertical: 8 },

@@ -184,5 +184,41 @@ console.log('\nhomeowner-weekly-digest/index.ts is wired to the rules:');
   ok('both owner-profile reads select digest_timezone', (code.match(/select\('id,email,name,company_name,contact_name,digest_timezone'\)/g) ?? []).length === 2);
 }
 
+{
+  // Leftovers review: finalSentAt / lastSentAt lived only in the client-owned
+  // client_portal JSON, and the app's owner upsert sends that JSON whole — a
+  // stale device erased the stamp and "the last weekly update" went again.
+  // The stamps are server-owned by a BEFORE UPDATE trigger. Executed in
+  // PGlite (scratchpad pgtest/weekly_digest_stamps.mjs: stale upsert without
+  // the keys keeps both, a signed-in writer cannot forge or null them, the
+  // service role's reopen reset still drops finalSentAt) — pinned here.
+  console.log('\nthe weekly-digest send stamps are server-owned');
+  const MIG = 'supabase/migrations/20260919190000_weekly_digest_stamps_server_owned.sql';
+  let sql = '';
+  try { sql = read(MIG); } catch { /* reported below */ }
+  const body = sql.replace(/--[^\n]*/g, '');
+  ok('the migration exists', sql.length > 0);
+  ok('only a signed-in writer is overridden (service role / direct session pass through)', /if auth\.uid\(\) is null then\s*return new;/.test(body));
+  ok('both stamps are put back from OLD (carried when old had one, removed when it had none)',
+    /foreach k in array array\['lastSentAt', 'finalSentAt'\] loop\s*if old_wd \? k then\s*new_wd := new_wd \|\| jsonb_build_object\(k, old_wd -> k\);\s*else\s*new_wd := new_wd - k;/.test(body));
+  ok('…merged back into new.client_portal.weeklyDigest', /new\.client_portal := new\.client_portal \|\| jsonb_build_object\('weeklyDigest', new_wd\);/.test(body));
+  ok('a BEFORE UPDATE trigger on projects, recreated idempotently',
+    /drop trigger if exists projects_keep_weekly_digest_stamps on public\.projects;\s*create trigger projects_keep_weekly_digest_stamps before update on public\.projects\s*for each row execute function public\.projects_keep_weekly_digest_stamps\(\);/.test(body));
+  const fn = strip(read('supabase/functions/homeowner-weekly-digest/index.ts'));
+  ok('the function still stamps (and drops finalSentAt on reopen) with its service-role client',
+    /finalSentAt: plan\.kind === 'final' \? stamp : undefined,/.test(fn) && /\.from\('projects'\)\s*\.update\(\{ client_portal: updatedPortal \}\)/.test(fn));
+
+  console.log('\na preview that sent nothing says why');
+  ok('an unsubscribed invite is reported (a bare code), not silently skipped',
+    /isEmailUnsubscribed\([^)]*'weekly_digest'\)\) \{[\s\S]{0,500}errors\.push\(DIGEST_RECIPIENT_UNSUBSCRIBED\);\s*continue;/.test(fn)
+      && /const DIGEST_RECIPIENT_UNSUBSCRIBED = 'unsubscribed';/.test(fn));
+  const setup = strip(read('app/client-portal-setup.tsx'));
+  ok('Send preview: all invites unsubscribed reads "Your client turned these emails off", not "No invites yet"',
+    /\} else if \(errs\.every\(e => e === 'unsubscribed'\)\) \{[\s\S]{0,40}showAlert\('Your client turned these emails off'/.test(setup)
+      && /const refusal = errs\.find\(e => e !== 'unsubscribed'\) \?\? errs\[0\];/.test(setup));
+  ok('a never-published portal gets no portal button in the recap',
+    /portalUnpublished = !snapRes\.error && snapRes\.data == null;/.test(fn) && /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal\) \?\? undefined\);/.test(fn));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

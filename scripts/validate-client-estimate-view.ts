@@ -8,6 +8,8 @@
 //   3. Allowances come only from isAllowance items.
 //   4. No forbidden internal key appears anywhere in the produced view.
 //   5. A zero base total does not divide by zero.
+//   2b. projectTotal and the groups are on the CENT grid (#118).
+//   2c. A marked-up (sell-side) lineTotal is not marked up a second time.
 //   6. No client-facing proposal text names a payment or warranty term the GC
 //      never stated (Direction B, 2026-09-17): no invented 10% deposit here,
 //      and the tier quotes print his ONE saved warranty — or "Workmanship
@@ -85,6 +87,46 @@ assert(view.scopeGroups.every(g => g.total !== 0), 'no empty scope groups');
   assert(credited.scopeGroups.reduce((s, g) => s + g.total, 0) === 190000, 'and the two still tie out');
 }
 assert(view.scopeGroups.some(g => /concrete/i.test(g.label)), 'groups are labeled by division name');
+
+// 2b. TO THE CENT (audit 2026-09-18, #118). projectTotal was
+// Math.round(grandTotal), so the portal proposal priced its payment lines off
+// $19,473 while the contract priced off $19,472.85.
+{
+  const centsEst: LinkedEstimate = {
+    ...est, baseTotal: 16227.38, markupTotal: 3245.47, grandTotal: 19472.85,
+    items: [
+      mkItem({ name: 'Framing', csiDivision: '06', lineTotal: 12345.67 }),
+      mkItem({ name: 'Drywall', csiDivision: '09', lineTotal: 7127.18 }),
+    ],
+  };
+  const v = toClientEstimateView(centsEst);
+  assert(v.projectTotal === 19472.85, `projectTotal keeps the cents (got ${v.projectTotal}, old code 19473)`);
+  const c = v.scopeGroups.reduce((s2, g) => s2 + Math.round(g.total * 100), 0);
+  assert(c === 1947285, `scope groups tie out to the cent (got ${c / 100})`);
+  assert(v.scopeGroups.every(g => Math.round(g.total * 100) / 100 === g.total), 'every group is on the cent grid');
+}
+
+// 2c. A SELL-side lineTotal is not marked up a second time (audit 2026-09-18,
+// the wave-2 desktop-web note on #118 — confirmed real). The canonical
+// LinkedEstimate (utils/estimateMarkup, the estimator, the wizard) stores
+// lineTotal ALREADY marked up with Σ lineTotal === grandTotal. The old factor
+// grandTotal / baseTotal multiplied it by the markup again, and the drift fold
+// then dumped the excess into the largest group: $12,000 + $6,000 at 20%
+// rendered as $10,800 / $7,200 on the homeowner's scope.
+{
+  const sellEst: LinkedEstimate = {
+    ...est, globalMarkup: 20, baseTotal: 15000, markupTotal: 3000, grandTotal: 18000,
+    items: [
+      mkItem({ name: 'Framing', csiDivision: '06', unitPrice: 10000, markup: 20, lineTotal: 12000 }),
+      mkItem({ name: 'Paint', csiDivision: '09', unitPrice: 5000, markup: 20, lineTotal: 6000 }),
+    ],
+  };
+  const v = toClientEstimateView(sellEst);
+  const g06 = v.scopeGroups.find(g => g.key === '06')?.total;
+  const g09 = v.scopeGroups.find(g => g.key === '09')?.total;
+  assert(g06 === 12000 && g09 === 6000, `sell-side rows keep their own price (06 ${g06}, 09 ${g09}; the double-markup gave 10800 / 7200)`);
+  assert(v.projectTotal === 18000, 'and the total is the grand total');
+}
 
 // 3. Allowances only from isAllowance items, client price (markup baked in)
 assert(view.allowances.length === 1, `one allowance item (got ${view.allowances.length})`);

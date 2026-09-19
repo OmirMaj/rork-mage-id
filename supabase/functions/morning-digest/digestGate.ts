@@ -32,3 +32,28 @@ export async function sendDigestUnlessUnsubscribed(opts: {
   if (await opts.isUnsubscribed()) return 'suppressed_unsubscribed';
   return (await opts.send()) ? 'sent' : 'failed';
 }
+
+/** Why a morning digest did not email (leftovers review). The GC's "preview"
+ *  button used to read every sent:false as "No projects to digest", so an
+ *  unsubscribed address or an Email switch that is off was blamed on his
+ *  projects. Pure, so scripts/validate-digest-preview-reasons.ts executes it. */
+export type DigestNotSentReason =
+  | 'email_off'
+  | 'no_email'
+  | 'nothing_to_report'
+  | 'suppressed_unsubscribed'
+  | 'send_failed';
+
+export function digestNotSentReason(o: {
+  emailChannelOn: boolean;
+  hasEmail: boolean;
+  nothingToSay: boolean;
+  emailStatus: DigestEmailOutcome | string | null;
+}): DigestNotSentReason | null {
+  if (o.emailStatus === 'sent') return null;
+  if (!o.emailChannelOn) return 'email_off';
+  if (!o.hasEmail) return 'no_email';
+  if (o.nothingToSay) return 'nothing_to_report';
+  if (o.emailStatus === 'suppressed_unsubscribed') return 'suppressed_unsubscribed';
+  return 'send_failed';
+}

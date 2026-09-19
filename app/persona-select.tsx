@@ -25,7 +25,8 @@ import {
 import PersonaSwitchOverlay from '@/components/PersonaSwitchOverlay';
 import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { takePendingDeepLink } from '@/utils/pendingDeepLink';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
@@ -73,6 +74,14 @@ export default function PersonaSelectScreen() {
   const router = useRouter();
   const { hasSeenOnboarding } = useCoreData();
   const { setUserRole, completeOnboarding } = useProjectActions();
+  // #93 / #156: set by accept-invite when a brand-new account has just joined
+  // someone else's project. He still picks his persona (a foreman and a
+  // homeowner get different homes), but the GC's own onboarding — company
+  // name, rates, "price your first bid" — is not his, so it is skipped and
+  // this screen opens the job. Only an id-shaped value is honoured; it goes
+  // into a route.
+  const rawInvited = useLocalSearchParams<{ invitedProject?: string }>().invitedProject;
+  const invitedProject = typeof rawInvited === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(rawInvited) ? rawInvited : null;
 
   const { isDesktop } = useResponsiveLayout();
 
@@ -144,6 +153,18 @@ export default function PersonaSelectScreen() {
   // while the role write + navigation are deferred to the overlay's callback.
   const commitRole = useCallback(async (role: UserRole) => {
     try {
+      if (invitedProject) {
+        // Exactly one navigation: TAKE accept-invite's stashed link before any
+        // gate flag flips, so the root layout's replay finds nothing and only
+        // the push below opens the job.
+        await takePendingDeepLink();
+        await setUserRole(role);
+        track(AnalyticsEvents.PERSONA_SELECTED, { persona: role, onboarding: !hasSeenOnboarding, invited: true });
+        if (!hasSeenOnboarding) await completeOnboarding();
+        router.replace('/(tabs)/(home)' as never);
+        router.push({ pathname: '/project-detail', params: { id: invitedProject } } as never);
+        return;
+      }
       await setUserRole(role);
       track(AnalyticsEvents.PERSONA_SELECTED, { persona: role, onboarding: !hasSeenOnboarding });
 
@@ -180,7 +201,7 @@ export default function PersonaSelectScreen() {
         'Please tap your role again.',
       );
     }
-  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding]);
+  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, invitedProject]);
 
   const handlePick = useCallback((role: UserRole) => {
     if (submitting) return;
@@ -243,9 +264,9 @@ export default function PersonaSelectScreen() {
         </Animated.Text>
 
         <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
-          MAGE ID has two sides — the operating system for builders, and a marketplace
-          for property owners hiring them. Pick one and we&apos;ll set up the right experience.
-          You can switch later in Settings.
+          {invitedProject
+            ? "You've joined a project. Tell us which side you're on and we'll open it — you can switch later in Settings."
+            : "MAGE ID has two sides — the operating system for builders, and a marketplace for property owners hiring them. Pick one and we'll set up the right experience. You can switch later in Settings."}
         </Animated.Text>
 
         <Animated.View style={[styles.cardList, isDesktop && styles.cardGrid, { opacity: cardsOpacity }]}>

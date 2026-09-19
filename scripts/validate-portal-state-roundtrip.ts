@@ -172,8 +172,20 @@ for (const { table, builder, columns } of ROW_BUILDERS) {
   // the payload once and uses it at both sites). A bound payload only counts
   // when no update site of the table passes anything else.
   const inlineUpdate = new RegExp(`supabaseWrite(?:Detailed)?\\(\\s*'${table}'\\s*,\\s*'update'\\s*,\\s*\\{\\s*\\.\\.\\.${builder}\\(`).test(code);
-  const boundNames = new Set([...code.matchAll(new RegExp(`const\\s+(\\w+)\\s*=\\s*\\{\\s*\\.\\.\\.${builder}\\(`, 'g'))].map(m => m[1]));
-  const directArgs = [...code.matchAll(new RegExp(`supabaseWrite(?:Detailed)?\\(\\s*'${table}'\\s*,\\s*'update'\\s*,\\s*(\\w+|\\{)`, 'g'))].map(m => m[1]);
+  // Wave 3 (#55): rfis / submittals send only the changed columns, picked
+  // from the SAME builder by rowPatch(builder(x), Object.keys(updates), …) —
+  // the builder still decides every value's shape.
+  const boundNames = new Set([
+    ...[...code.matchAll(new RegExp(`const\\s+(\\w+)\\s*=\\s*\\{\\s*\\.\\.\\.${builder}\\(`, 'g'))].map(m => m[1]),
+    ...[...code.matchAll(new RegExp(`const\\s+(\\w+)\\s*=\\s*rowPatch\\(${builder}\\(`, 'g'))].map(m => m[1]),
+  ]);
+  // Review round 1 (context-integrator): rfis / submittals edits go out
+  // through sendProDocPatch(table, id, patch) — the same queue path, tracked so
+  // the server's stamp is read back — so its payload counts as an update site.
+  const directArgs = [
+    ...[...code.matchAll(new RegExp(`supabaseWrite(?:Detailed)?\\(\\s*'${table}'\\s*,\\s*'update'\\s*,\\s*(\\w+|\\{)`, 'g'))].map(m => m[1]),
+    ...[...code.matchAll(new RegExp(`sendProDocPatch\\(\\s*'${table}'\\s*,\\s*\\w+\\s*,\\s*(\\w+|\\{)`, 'g'))].map(m => m[1]),
+  ];
   const queuedArgs = [...code.matchAll(new RegExp(`addToOfflineQueue\\(\\{\\s*table:\\s*'${table}'\\s*,\\s*operation:\\s*'update'\\s*,\\s*data:\\s*(\\w+|\\{)`, 'g'))].map(m => m[1]);
   const boundUpdate = directArgs.length > 0 && directArgs.every(a => boundNames.has(a)) && queuedArgs.every(a => boundNames.has(a));
   check(

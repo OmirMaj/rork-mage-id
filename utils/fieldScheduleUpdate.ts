@@ -335,6 +335,34 @@ export function scheduleWritePathForRole(role: string | null | undefined): Sched
   return 'row';
 }
 
+/**
+ * What the phone task sheet can save on the caller's access (#139), said
+ * INSIDE the sheet before he taps. The screen above already prints FIELD_SCHEDULE_HINT, but the
+ * sheet itself offered every control and refused most of them only after the
+ * tap ("Not saved: changes to Framing…"). The field RPC merges progress,
+ * status, notes and actual start/finish ONLY (FIELD_TASK_PATCH_KEYS), so:
+ *   'field_rpc' — status, % complete and notes stay live; start, duration,
+ *                 milestone, name, crew, the checklist and delete are disabled
+ *                 with this reason. Checklist ticks are not a field key yet
+ *                 (it needs a migration that accepts done-flags on existing
+ *                 items only — waiting on the founder's call).
+ *   'none'      — view-only: everything is disabled.
+ * Used by components/schedule/mobile/TaskDetailSheet.tsx.
+ */
+export const TASK_SHEET_FIELD_REASON =
+  'Field access saves status, % complete and notes here. Dates, duration, milestone, name, crew, checklist ticks and deleting need editor access from the project owner.';
+export const TASK_SHEET_VIEWER_REASON =
+  'You have view-only access to this project, so nothing in this sheet is saved. Ask the project owner for field or editor access.';
+export function taskSheetLocks(writePath: ScheduleWritePath | undefined): {
+  reason: string | null;
+  plan: boolean;     // start, duration, milestone, name, crew, checklist, delete
+  progress: boolean; // status, % complete, notes
+} {
+  if (writePath === 'field_rpc') return { reason: TASK_SHEET_FIELD_REASON, plan: true, progress: false };
+  if (writePath === 'none') return { reason: TASK_SHEET_VIEWER_REASON, plan: true, progress: true };
+  return { reason: null, plan: false, progress: false };
+}
+
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export interface FieldTaskDiff {
@@ -380,6 +408,9 @@ export function fieldTaskDiff(before: readonly ScheduleTask[], after: readonly S
 export const FIELD_BLOCKED_SCHEDULE_KEYS = [
   'name', 'startDate', 'workingDaysPerWeek', 'nonWorkingDates', 'baselines', 'baseline',
   'criticalFloatThresholdDays', 'weatherDelayLog', 'startDayBasis', 'resourceCalendars',
+  // Which baseline "behind plan" measures from (#137) — a plan setting, like
+  // the baselines themselves.
+  'activeBaselineId',
 ] as const;
 
 export function fieldScheduleSettingsChanged(before: object | null | undefined, after: object | null | undefined): boolean {
@@ -417,7 +448,7 @@ export function applyFieldTaskPatches(tasks: readonly ScheduleTask[], patches: r
 
 export type FieldSendResult =
   | { ok: true; missing: string[] }
-  | { ok: false; message: string };
+  | { ok: false; message: string; offline: boolean; retryable: boolean };
 
 interface RpcClient {
   rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
@@ -438,6 +469,197 @@ export function fieldSendFailureMessage(err: { message?: string; code?: string }
   return 'Not saved — the server did not accept the update. Try again, or ask the project owner.';
 }
 
+/**
+ * What kind of failure this was, for the screen's Retry (#138). `offline`: no
+ * connection — the same patches will very likely land once there is signal, so
+ * the screen re-sends them by itself while it is open. `retryable`: worth a
+ * Retry button at all. A refusal (42501 access revoked, 22023 not a field
+ * update) or a function that is not deployed (PGRST202) will be refused again
+ * however often it is sent, so it gets no Retry — only the reason.
+ */
+export function classifyFieldSendFailure(err: { message?: string; code?: string } | null | undefined): { offline: boolean; retryable: boolean } {
+  const msg = (err?.message ?? '').toLowerCase();
+  const code = err?.code ?? '';
+  if (code === '42501' || code === '22023' || code === 'PGRST202' || code === '42883' || msg.includes('could not find the function')) {
+    return { offline: false, retryable: false };
+  }
+  const offline = msg.includes('network') || msg.includes('fetch') || msg.includes('offline') || msg.includes('timed out');
+  return { offline, retryable: true };
+}
+
+// ── A send that did not land (#138) ─────────────────────────────────────────
+// The foreman in a basement taps 60%; the RPC cannot be reached. The update is
+// NOT queued — the offline queue has no RPC path, and this RPC stamps each key
+// with the SERVER's clock when it lands, so a queued patch flushed hours later
+// would overwrite whatever the GC set in between (the per-key trigger orders by
+// those stamps, and the late flush would carry the newest one). Instead the
+// screen keeps the failed patches IN MEMORY while it is open, re-sends them
+// when signal is likely back, and only re-sends a key whose value ON THE
+// SERVER is still the one this device held when the send failed. That check
+// is made against a FRESH READ of the row (planFieldRetry), never this
+// device's copy: a phone that had no signal cannot have received the GC's
+// newer edit, so its own copy would wave the stale value through and the RPC
+// would stamp it newest. No read, no send.
+
+/** A failed field send, kept by the screen for Retry. */
+export interface FieldSendFailure {
+  projectId: string;
+  /** What the foreman reads — fieldSendFailureMessage's wording. */
+  message: string;
+  offline: boolean;
+  retryable: boolean;
+  /** The patches that did not land (later entries win, key by key). */
+  patches: FieldTaskPatch[];
+  /** Per task id: each patched key's value and stamp on this device when the
+   *  send failed. A retry re-sends a key only while both are unchanged. */
+  before: Record<string, Record<string, { value: unknown; stamp: string | null }>>;
+}
+
+/** Record a failed send against the task list it was diffed from. */
+export function captureFieldSendFailure(
+  projectId: string,
+  baseTasks: readonly ScheduleTask[],
+  patches: readonly FieldTaskPatch[],
+  sent: { message: string; offline: boolean; retryable: boolean },
+): FieldSendFailure {
+  const byId = new Map(baseTasks.map(t => [t.id, t] as const));
+  const before: FieldSendFailure['before'] = {};
+  for (const p of patches) {
+    const t = byId.get(p.id) as unknown as Record<string, unknown> | undefined;
+    const stamps = stampsOf(t);
+    const row = before[p.id] ?? (before[p.id] = {});
+    for (const k of Object.keys(p)) {
+      if (k === 'id' || k in row) continue;
+      row[k] = { value: t ? t[k] ?? null : null, stamp: stamps[k] ?? null };
+    }
+  }
+  return { projectId, message: sent.message, offline: sent.offline, retryable: sent.retryable, patches: patches.map(p => ({ ...p })), before };
+}
+
+/** A second failure on the same project folds into the first, so Retry sends
+ *  everything that is still unsaved; the newest failure's wording and kind win.
+ *  A different project's failure replaces it (the screen switched projects). */
+export function mergeFieldSendFailure(prev: FieldSendFailure | null, next: FieldSendFailure): FieldSendFailure {
+  if (!prev || prev.projectId !== next.projectId) return next;
+  const before: FieldSendFailure['before'] = {};
+  for (const src of [next.before, prev.before]) {
+    for (const [id, row] of Object.entries(src)) {
+      before[id] = { ...(before[id] ?? {}) };
+      // The OLDER failure's "before" wins: it is the value the device held
+      // before any of the unsaved taps.
+      for (const [k, v] of Object.entries(row)) before[id][k] = v;
+    }
+  }
+  return { ...next, patches: [...prev.patches, ...next.patches], before };
+}
+
+/**
+ * The patches a retry may still send, given a task list — the SERVER's, just
+ * read, when deciding a re-send (planFieldRetry); this device's copy only for
+ * whether the banner still has anything waiting. Per
+ * key, only while the task's value AND stamp are what they were when the send
+ * failed. A key that changed since (the GC's edit arrived, or a later tap of
+ * his own saved) is dropped. A task deleted meanwhile is dropped.
+ */
+export function pendingFieldRetryPatches(failure: FieldSendFailure | null, currentTasks: readonly ScheduleTask[]): FieldTaskPatch[] {
+  if (!failure) return [];
+  const byId = new Map(currentTasks.map(t => [t.id, t] as const));
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const p of failure.patches) {
+    const { id, ...rest } = p;
+    merged.set(id, { ...(merged.get(id) ?? {}), ...rest });
+  }
+  const out: FieldTaskPatch[] = [];
+  for (const [id, keys] of merged) {
+    const t = byId.get(id) as unknown as Record<string, unknown> | undefined;
+    if (!t) continue;
+    const stamps = stampsOf(t);
+    const patch: Record<string, unknown> = { id };
+    let any = false;
+    for (const [k, v] of Object.entries(keys)) {
+      const was = failure.before[id]?.[k];
+      if (!was) continue;
+      if (!same(t[k] ?? null, was.value) || (stamps[k] ?? null) !== was.stamp) continue;
+      if (same(t[k] ?? null, v ?? null)) continue; // already holds it
+      patch[k] = v;
+      any = true;
+    }
+    if (any) out.push(patch as FieldTaskPatch);
+  }
+  return out;
+}
+
+/** What a retry may send, decided against the server's CURRENT tasks. */
+export type FieldRetryPlan =
+  | { read: false }
+  | {
+    read: true;
+    /** The row's tasks as just read — the base the retry is diffed against. */
+    serverTasks: ScheduleTask[];
+    patches: FieldTaskPatch[];
+    /** Titles of tasks where a failed value was NOT sent because the server
+     *  now holds a different one (changed elsewhere while he had no signal). */
+    superseded: string[];
+  };
+
+/**
+ * Plan a re-send of a failed field update (#138): read the row first, then
+ * keep only the keys whose SERVER value and stamp are still what this device
+ * held when the send failed. The RPC stamps each key with the server clock on
+ * arrival and merges without comparing, so a late re-send decided on this
+ * device's copy alone would overwrite the GC's newer edit (he set 80% at
+ * 11:00, the phone re-sends the foreman's 9:00 60% at noon). A read that
+ * fails or returns nothing sends nothing — the failure stays for the next try.
+ */
+export async function planFieldRetry(
+  failure: FieldSendFailure,
+  readServerTasks: () => Promise<ScheduleTask[] | null>,
+): Promise<FieldRetryPlan> {
+  let serverTasks: ScheduleTask[] | null = null;
+  try { serverTasks = await readServerTasks(); } catch { serverTasks = null; }
+  if (!Array.isArray(serverTasks)) return { read: false };
+  const patches = pendingFieldRetryPatches(failure, serverTasks);
+  const sent = new Set<string>();
+  for (const p of patches) for (const k of Object.keys(p)) if (k !== 'id') sent.add(`${p.id}\u0000${k}`);
+  const byId = new Map(serverTasks.map(t => [t.id, t] as const));
+  const superseded: string[] = [];
+  // Later taps win key by key — the value he last meant, as the send would.
+  const intended = new Map<string, Record<string, unknown>>();
+  for (const { id, ...rest } of failure.patches) intended.set(id, { ...(intended.get(id) ?? {}), ...rest });
+  for (const [id, keys] of intended) {
+    const t = byId.get(id) as unknown as Record<string, unknown> | undefined;
+    if (!t) continue;
+    const title = typeof t.title === 'string' && t.title ? t.title : 'A task';
+    for (const [k, v] of Object.entries(keys)) {
+      if (sent.has(`${id}\u0000${k}`)) continue;
+      if (same(t[k] ?? null, v ?? null)) continue; // the server already holds his value
+      if (!superseded.includes(title)) superseded.push(title);
+    }
+  }
+  return { read: true, serverTasks, patches, superseded };
+}
+
+/** The foreman's notice when a held value was not re-sent because a newer one
+ *  reached the server first. Plain about what happened, and what he sees now. */
+export function fieldRetrySupersededMessage(titles: readonly string[]): string {
+  const names = titles.length <= 2 ? titles.join(' and ') : `${titles.slice(0, 2).join(', ')} and ${titles.length - 2} more`;
+  return `Your unsent change to ${names} was not sent: it was changed elsewhere while you had no signal. It now shows the newer value — change it again if yours is right.`;
+}
+
+/** That notice as a banner entry: nothing left to send, so no Retry — only the
+ *  reason, until he dismisses it (the screens show a non-retryable failure). */
+export function fieldRetrySupersededNotice(projectId: string, titles: readonly string[]): FieldSendFailure {
+  return { projectId, message: fieldRetrySupersededMessage(titles), offline: false, retryable: false, patches: [], before: {} };
+}
+
+/** Wait before the Nth automatic re-send of an offline failure: 5 s, doubling,
+ *  capped at a minute — the offline queue's own backoff shape, shorter cap
+ *  because the screen is open and he is waiting to see it land. */
+export function fieldAutoRetryDelayMs(attempt: number): number {
+  const n = Math.max(0, Math.floor(attempt));
+  return Math.min(5_000 * 2 ** Math.min(n, 10), 60_000);
+}
+
 /** Send patches through the field RPC. Never queues: the offline queue has no
  *  RPC path, and a "queued" that the database later refuses is the silent loss
  *  this module exists to end, so a failure is returned for the screen to show. */
@@ -452,12 +674,13 @@ export async function sendFieldTaskPatches(
       p_project_id: projectId,
       p_task_patches: patches,
     });
-    if (error) return { ok: false, message: fieldSendFailureMessage(error) };
+    if (error) return { ok: false, message: fieldSendFailureMessage(error), ...classifyFieldSendFailure(error) };
     const missing = Array.isArray((data as { missing?: unknown } | null)?.missing)
       ? ((data as { missing: unknown[] }).missing.filter((x): x is string => typeof x === 'string'))
       : [];
     return { ok: true, missing };
   } catch (e) {
-    return { ok: false, message: fieldSendFailureMessage({ message: e instanceof Error ? e.message : String(e) }) };
+    const err = { message: e instanceof Error ? e.message : String(e) };
+    return { ok: false, message: fieldSendFailureMessage(err), ...classifyFieldSendFailure(err) };
   }
 }

@@ -111,10 +111,10 @@ export default function AskMageScreen() {
   // blocks are built on subcontracts alone — and they SAY so — so a self-perform
   // job's crew overrun never reaches the answer (audit round 2, #16).
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
   const [allConstraints, setAllConstraints] = useState<Record<string, Constraint[]>>({});
   const queryClient = useQueryClient();
   const { user } = useAuth();

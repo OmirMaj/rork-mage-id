@@ -45,7 +45,7 @@ import { estimateGroundingProps } from '@/utils/activationSignals';
 import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
 import { PROFILE_FAILED_TITLE } from '@/utils/settingsLoadGuard';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
-import { acceptanceSentence, paymentStageRows } from '@/utils/paymentTerms';
+import { acceptanceSentence, paymentStageRows, resolvePaymentSplit, sameSplit, splitLabel } from '@/utils/paymentTerms';
 import {
   EMPTY_GROUNDING, buildGroundingFacts, estimateThinkingSteps, groundingChipLabel, selectGroundingEntries,
   type GroundingBundle, type ScopeHints,
@@ -62,7 +62,7 @@ import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import {
-  buildQuickLinkedEstimate, priceCostBreakdown, isMarkupSet, marginOf,
+  buildQuickLinkedEstimate, priceCostBreakdown, isMarkupSet, marginOf, round2,
   MARKUP_CHOICES, type MarkupPct,
 } from '@/utils/estimateMarkup';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
@@ -75,7 +75,7 @@ import { generateUUID } from '@/utils/generateId';
 import type { Commitment, CompanyBranding, PaymentSplit, Project, ProjectType, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, SCOPE_STEPS, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
-  estimateSchema, QUALITY_LABELS, stepBlockReason,
+  estimateSchema, QUALITY_LABELS, stepBlockReason, jobsiteLocationFor, typedPricingLocation,
   type WizardAnswers, type EstimateResult,
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
@@ -85,6 +85,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { showAlert } from '@/utils/alert';
+import { formatMoney } from '@/utils/formatters';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // The loader's "Pricing from …" line is a claim about this run's prompt, so it
@@ -131,8 +132,19 @@ function calibrationFactFor(
 const BREAKDOWN_COLORS = ['#FF6A1A', '#5FBF6B', '#90A4AE', '#4FC3F7', '#FFA726', '#8D6E63', '#EF5350', '#26C6DA'];
 
 // Single source of truth for the post-wizard paywall destination in onboarding
-// mode — avoids the cast being duplicated at every leave site.
+// mode — avoids the cast being duplicated at every leave site. Always used as a
+// pathname WITH a projectId: the paywall's every exit (purchase, restore,
+// "Continue on the free plan") lands on that project, and the bare route —
+// no project — is what used to drop his first bid on an empty Summary (#69).
 const ONBOARDING_PAYWALL_ROUTE = '/onboarding-paywall' as never;
+
+/** The name a first bid's project gets when the onboarding share has to save
+ *  it for him (#69) — his own answers, never a placeholder he did not give. */
+function onboardingProjectName(a: WizardAnswers): string {
+  const type = a.projectType.trim() || 'First estimate';
+  const where = a.location.trim();
+  return where ? `${type} — ${where}` : type;
+}
 
 // Where the TRAILING run of optional steps begins (5 today: timeline, special
 // requirements, target budget). From here on the wizard has everything it needs
@@ -348,7 +360,30 @@ function EstimateWizardScreenInner() {
   // profile read lands `settings` is the DEFAULT, which has no split, so the
   // card used to say "not set yet" to a GC who had set it (#106).
   const savedTerms = useSavedPaymentTerms();
+  // THIS JOB'S terms, when the wizard was opened for a job whose portal
+  // proposal already carries a payment stamp (audit 2026-09-18, #120). The
+  // contract seeds from that stamp and the portal prints it, so a re-sent PDF
+  // that printed his CURRENT profile split instead put a 10% deposit in the
+  // homeowner's hands beside a portal and a contract that said 25%. The stamp
+  // wins on the PDF, the gate and the preview alike — the same resolver
+  // contract.tsx uses. An accepted stamp must always win; whether an
+  // UNaccepted one should give way to newer profile terms is the founder's
+  // call, and until he makes it the stamp wins and the card says so. A wizard
+  // run with no ?projectId has no job, so it has no stamp and uses the profile.
+  const jobStamp = useMemo<PaymentSplit | null>(
+    () => (projectId ? resolvePaymentSplit({ record: scopedProject?.clientPortal?.proposalPaymentTerms }).split : null),
+    [projectId, scopedProject?.clientPortal?.proposalPaymentTerms],
+  );
   const [newProjectName, setNewProjectName] = useState('');
+  // The jobsite address for a project created from the Save sheet (#157).
+  // Starts blank: the step-3 answer is a PRICING market, not an address.
+  const [jobsiteAddress, setJobsiteAddress] = useState('');
+  // The markup the share being sent was priced at, set by share()'s `go` the
+  // moment it prices. generateAndSharePdf needs it to save the onboarding bid
+  // at the SAME price the PDF quotes, and cannot read `markupPct` from its
+  // closure — on the first answer that is still the pre-answer value (see
+  // requireMarkup). Its signature is held by validate-activation-signals.
+  const sharePctRef = useRef<number | null>(null);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   // The project the estimate was ACTUALLY written to by the ?projectId
   // link-back, set inside commitAutoLink after updateProject has run — not
@@ -409,6 +444,12 @@ function EstimateWizardScreenInner() {
     const loc = (settings?.location ?? '').trim();
     return loc && loc !== 'United States' ? loc : '';
   }, [settings?.location]);
+  // A step-3 location he TYPED for this job (not his default market carried
+  // through), offered in the Save sheet as a one-tap jobsite fill (#157).
+  const jobsiteOffer = useMemo(
+    () => typedPricingLocation(answers.location, homeMarketSeed),
+    [answers.location, homeMarketSeed],
+  );
   useEffect(() => {
     if (projectId || !homeMarketSeed) return;
     setAnswers((prev) => (prev.location.trim() ? prev : { ...prev, location: homeMarketSeed }));
@@ -577,20 +618,27 @@ function EstimateWizardScreenInner() {
       } else {
         // NEVER trust AI arithmetic in a client-facing PDF or saved
         // project financials. Deterministically recompute every number
-        // (mirrors app/takeoff-estimate.tsx): line total = round(qty ×
-        // unit), subtotal = Σ line totals, grand = subtotal + contingency
-        // + permits. Contingency/permits are AI-provided inputs (not
-        // derived from line items), so we keep them — but round them and
-        // fold them into the recomputed total. Display, PDF, and the
-        // linkedEstimate baseTotal/grandTotal all read from this `data`.
+        // (mirrors app/takeoff-estimate.tsx): unit to the cent, line total =
+        // qty × that unit to the cent, subtotal = Σ line totals, grand =
+        // subtotal + contingency + permits. Contingency/permits are
+        // AI-provided inputs (not derived from line items), so we keep them —
+        // but round them and fold them into the recomputed total. Display,
+        // PDF, and the linkedEstimate baseTotal/grandTotal all read from this
+        // `data`.
+        //
+        // CENTS, NOT DOLLARS (audit 2026-09-18, #158). This rounded every line
+        // to whole dollars: 125 SF × $3.33 printed a $416 line under a $3.33
+        // unit, a figure the homeowner can check by hand and find wrong, and
+        // the project's estimate (built from the unrounded unit × qty) landed
+        // on a different total than the PDF. round2 is the same grid
+        // utils/estimateMarkup prices on.
         const raw = res.data as EstimateResult;
-        const round = (n: number) => Math.round(Number.isFinite(n) ? n : 0);
         const lineItems = raw.lineItems.map((li) => {
           const quantity = Number.isFinite(li.quantity) ? li.quantity : 0;
-          const unitCost = Number.isFinite(li.unitCost) ? li.unitCost : 0;
-          return { ...li, quantity, unitCost, total: round(quantity * unitCost) };
+          const unitCost = round2(li.unitCost);
+          return { ...li, quantity, unitCost, total: round2(quantity * unitCost) };
         });
-        const subtotal = lineItems.reduce((s, li) => s + li.total, 0);
+        const subtotal = round2(lineItems.reduce((s, li) => s + li.total, 0));
         // Contingency is HIS number. Settings → Estimate Defaults has asked for
         // a contingency rate since launch, validated it 0-50 and synced it as
         // profiles.contingency_rate — and nothing read it: the prompt tells the
@@ -602,9 +650,9 @@ function EstimateWizardScreenInner() {
         // outside what Settings accepts falls back to the model's figure.
         const rate = Number(settings?.contingencyRate);
         const rateUsable = Number.isFinite(rate) && rate >= 0 && rate <= 50;
-        const contingency = rateUsable ? round(subtotal * rate / 100) : round(raw.contingency);
-        const permits = round(raw.permits);
-        const total = subtotal + contingency + permits;
+        const contingency = rateUsable ? round2(subtotal * rate / 100) : round2(raw.contingency);
+        const permits = round2(raw.permits);
+        const total = round2(subtotal + contingency + permits);
 
         // Hard failure: an empty or non-positive estimate is not a real
         // $0 estimate — do NOT render/save it or overwrite the project.
@@ -790,6 +838,70 @@ function EstimateWizardScreenInner() {
     setShowMarkupSheet(false);
   }, []);
 
+  /**
+   * Write a NEW project from the wizard answers with this estimate folded in,
+   * and return its id. No navigation and no push ask — createAt (the Save
+   * sheet) and the onboarding share (#69) decide what happens next.
+   *
+   * Project.location is the JOBSITE (#157): the address he typed in the Save
+   * sheet, else a location he typed for this job at step 3, else '' — never
+   * his default pricing market and never 'United States'. The pricing answer
+   * itself stays in scope.location, where regional pricing reads it.
+   */
+  const persistNewProject = useCallback((pct: MarkupPct, name: string, jobsite: string): string | null => {
+    if (!costResult || !name.trim()) return null;
+    const now = new Date().toISOString();
+    const id = generateUUID();
+    const baseProject: Project = {
+      id,
+      name: name.trim(),
+      type: mapProjectType(answers.projectType),
+      location: jobsiteLocationFor({ jobsite, pricingAnswer: answers.location, homeMarket: homeMarketSeed }),
+      squareFootage: Number(answers.sizeSqft) || 0,
+      quality: mapQuality(answers.quality),
+      description: answers.scope.trim(),
+      scope: {
+        projectType: answers.projectType,
+        sizeSqft: answers.sizeSqft,
+        location: answers.location,
+        quality: answers.quality,
+        scope: answers.scope,
+        timelineWeeks: answers.timelineWeeks,
+        specialRequirements: answers.specialRequirements,
+        targetBudget: answers.targetBudget,
+        updatedAt: now,
+      },
+      createdAt: now,
+      updatedAt: now,
+      estimate: null,
+      schedule: null,
+      status: 'estimated',
+    };
+    // Fold the AI estimate in through the same commit path so the new
+    // project starts with an estimate revision (rev 1), not a bare project.
+    // buildQuickLinkedEstimate prices each row exactly as the PDF does
+    // (utils/estimateMarkup.pricedLine), so the saved grandTotal is the PDF's.
+    const linkedEstimate = buildQuickLinkedEstimate(costResult, pct, generateUUID);
+    const withEstimate = { ...baseProject, ...commitEstimatePatch(baseProject, linkedEstimate, { reason: 'pre_overwrite' }) };
+    addProject(withEstimate);
+    // G4: fire-and-forget capture — ledger failure must never break project create
+    try {
+      const snapshotPayload = buildEstimateSnapshotPayload(
+        withEstimate, [...projects, withEstimate], commitments, receipts, laborSamples, seeds,
+      );
+      if (snapshotPayload) {
+        recordPrediction(
+          'estimate_confidence_snapshot',
+          snapshotPayload.estimateId,
+          snapshotPayload as unknown as Record<string, unknown>,
+          id,
+        );
+      }
+    } catch { /* G4 */ }
+    setSavedProjectId(id);
+    return id;
+  }, [costResult, answers, homeMarketSeed, addProject, projects, commitments, receipts, laborSamples, seeds]);
+
   // The PDF actually goes out from here, and ONLY from here. It takes the
   // branding and the payment split as arguments rather than reading `settings`
   // itself, because the ask sheet hands it values that were typed one tick ago:
@@ -815,13 +927,27 @@ function EstimateWizardScreenInner() {
       });
       // Onboarding arc: the bid has just left his hands, so this is the one
       // moment the ask follows a delivered artifact rather than replacing one.
-      // The project (if the estimate is attached to one) rides along so the
-      // paywall's "Continue on the free plan" returns him to it.
+      //
+      // THE BID IS SAVED BEFORE ANYTHING MOVES (audit 2026-09-18, #69). This
+      // used to router.replace onto the paywall with no project whenever he
+      // shared before tapping "Save to a project" — a REPLACE, so the only
+      // copy of the line items he had just quoted a homeowner was destroyed,
+      // and every paywall exit landed on an empty Summary. Now an unattached
+      // bid is written to a new project first, at the price the PDF quoted,
+      // and that project rides to the paywall so each exit returns him to it.
+      //
+      // AND HE LEAVES ONLY ON A DELIVERY WE CAN SEE. On web the PDF window
+      // opened (shareQuickEstimatePDF throws when the browser blocks it), so
+      // the move is earned. On iOS/Android Sharing.shareAsync resolves the
+      // same way whether he sent it or cancelled the sheet, so the result
+      // screen stays up — its primary button now reads "Saved to … —
+      // continue", which is the same ask, one tap away, over the bid itself.
       if (isOnboarding) {
-        const attachedId = committedProjectId ?? savedProjectId;
-        router.replace(attachedId
-          ? ({ pathname: '/onboarding-paywall', params: { projectId: attachedId } } as never)
-          : ONBOARDING_PAYWALL_ROUTE);
+        const attachedId = committedProjectId ?? savedProjectId
+          ?? persistNewProject(sharePctRef.current ?? (isMarkupSet(markupPct) ? markupPct : null), onboardingProjectName(answers), '');
+        if (Platform.OS === 'web' && attachedId) {
+          router.replace({ pathname: ONBOARDING_PAYWALL_ROUTE, params: { projectId: attachedId } } as never);
+        }
       } else {
         // The contextual push ask. A proposal that just left for a homeowner is
         // the moment a reply notification obviously matters; NotificationContext
@@ -835,12 +961,13 @@ function EstimateWizardScreenInner() {
       sharingRef.current = false;
       setSharingPdf(false);
     }
-  }, [answers, isOnboarding, router, maybeAskForPush, committedProjectId, savedProjectId]);
+  }, [answers, isOnboarding, router, maybeAskForPush, committedProjectId, savedProjectId, persistNewProject, markupPct]);
 
   const share = useCallback(() => {
     if (!costResult) return;
     const go = (pct: number) => {
       const priced = priceCostBreakdown(costResult, pct);
+      sharePctRef.current = pct;
       // Held between the two halves below on native. `then` keeps the press
       // (web: window.open must happen inside it); the native print → share
       // sheet waits for the ask sheet to finish sliding out, because iOS will
@@ -853,6 +980,7 @@ function EstimateWizardScreenInner() {
           purpose: 'proposal_pdf',
           total: priced.total,
           projectType: scopedProject?.type ?? null,
+          record: jobStamp,
         },
         (a) => {
           if (Platform.OS === 'web') void generateAndSharePdf(a.branding, priced, a.split);
@@ -873,7 +1001,7 @@ function EstimateWizardScreenInner() {
     // never on screen together.
     if (!requireMarkup(go)) return;
     go(markupPct as number);
-  }, [costResult, gate, scopedProject?.type, generateAndSharePdf, requireMarkup, markupPct]);
+  }, [costResult, gate, scopedProject?.type, jobStamp, generateAndSharePdf, requireMarkup, markupPct]);
 
   const reset = useCallback(() => {
     // Same seed as mount: "start over" must not un-learn his market.
@@ -884,6 +1012,7 @@ function EstimateWizardScreenInner() {
     setSavedProjectId(null);
     setCommittedProjectId(null);
     setAutoLinkParked(false);
+    setJobsiteAddress('');
     pendingAutoLinkRef.current = null;
   }, [projectId, homeMarketSeed]);
 
@@ -939,60 +1068,16 @@ function EstimateWizardScreenInner() {
 
   // Create a NEW project from the wizard answers, hydrate its linkedEstimate,
   // and jump to it. The wizard answers are also stamped onto project.scope so
-  // the estimate re-opens in the wizard with zero re-keying.
+  // the estimate re-opens in the wizard with zero re-keying. The write itself
+  // is persistNewProject, shared with the onboarding share.
   const createAt = useCallback((pct: MarkupPct) => {
-    if (!costResult) return;
     const name = newProjectName.trim();
     if (!name) return;
-    const now = new Date().toISOString();
-    const id = generateUUID();
-    const baseProject: Project = {
-      id,
-      name,
-      type: mapProjectType(answers.projectType),
-      location: answers.location.trim() || 'United States',
-      squareFootage: Number(answers.sizeSqft) || 0,
-      quality: mapQuality(answers.quality),
-      description: answers.scope.trim(),
-      scope: {
-        projectType: answers.projectType,
-        sizeSqft: answers.sizeSqft,
-        location: answers.location,
-        quality: answers.quality,
-        scope: answers.scope,
-        timelineWeeks: answers.timelineWeeks,
-        specialRequirements: answers.specialRequirements,
-        targetBudget: answers.targetBudget,
-        updatedAt: now,
-      },
-      createdAt: now,
-      updatedAt: now,
-      estimate: null,
-      schedule: null,
-      status: 'estimated',
-    };
-    // Fold the AI estimate in through the same commit path so the new
-    // project starts with an estimate revision (rev 1), not a bare project.
-    const linkedEstimate = buildQuickLinkedEstimate(costResult, pct, generateUUID);
-    const withEstimate = { ...baseProject, ...commitEstimatePatch(baseProject, linkedEstimate, { reason: 'pre_overwrite' }) };
-    addProject(withEstimate);
-    // G4: fire-and-forget capture — ledger failure must never break project create
-    try {
-      const snapshotPayload = buildEstimateSnapshotPayload(
-        withEstimate, [...projects, withEstimate], commitments, receipts, laborSamples, seeds,
-      );
-      if (snapshotPayload) {
-        recordPrediction(
-          'estimate_confidence_snapshot',
-          snapshotPayload.estimateId,
-          snapshotPayload as unknown as Record<string, unknown>,
-          id,
-        );
-      }
-    } catch { /* G4 */ }
+    const id = persistNewProject(pct, name, jobsiteAddress);
+    if (!id) return;
     setShowSaveModal(false);
     setNewProjectName('');
-    setSavedProjectId(id);
+    setJobsiteAddress('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (!isOnboarding) {
       // A project the user just created is the other moment a push is
@@ -1005,7 +1090,7 @@ function EstimateWizardScreenInner() {
     }
     // In onboarding we stay on the result for the same reason as
     // attachToExisting above: show him the thing he made before asking for $29.
-  }, [costResult, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding, maybeAskForPush]);
+  }, [newProjectName, jobsiteAddress, persistNewProject, router, isOnboarding, maybeAskForPush]);
 
   /** Gated entry point for "create a new project from this estimate". The name
    *  check runs BEFORE the markup sheet — being stopped for a markup and then
@@ -1058,7 +1143,13 @@ function EstimateWizardScreenInner() {
     // Payment terms preview — the GC's own split, the same rows the PDF prints
     // (utils/paymentTerms.paymentStageRows). Not set → the card says so and
     // offers to set it; the PDF cannot go out without it (share asks first).
-    const previewSplit = savedTerms.split;
+    const previewSplit = jobStamp ?? savedTerms.split;
+    // One line, only when the job's stamp is overriding a DIFFERENT profile
+    // split — so a GC who meant to re-price the terms is told, not silently
+    // overridden.
+    const stampNote = jobStamp && savedTerms.split && !sameSplit(jobStamp, savedTerms.split)
+      ? `This PDF prints this job's portal terms (${splitLabel(jobStamp)}), not your current profile terms (${splitLabel(savedTerms.split)}).`
+      : null;
     const previewStages = previewSplit ? paymentStageRows(result.total, previewSplit) : [];
 
     return (
@@ -1137,7 +1228,7 @@ function EstimateWizardScreenInner() {
             <TapeRollNumber
               value={result.total}
               prefix="$"
-              decimals={0}
+              decimals={2}
               duration={1100}
               style={styles.heroTotal}
             />
@@ -1343,7 +1434,7 @@ function EstimateWizardScreenInner() {
                         <Text style={styles.breakdownCat}>{cat}</Text>
                       </View>
                       <Text style={styles.breakdownAmt}>
-                        ${subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })} <Text style={styles.breakdownPct}>· {pct.toFixed(1)}%</Text>
+                        {formatMoney(subtotal, 2)} <Text style={styles.breakdownPct}>· {pct.toFixed(1)}%</Text>
                       </Text>
                     </View>
                     <View style={styles.breakdownBar}>
@@ -1367,7 +1458,7 @@ function EstimateWizardScreenInner() {
                   <Text style={styles.categoryName}>{cat}</Text>
                   <View style={styles.categoryHeadRight}>
                     <Text style={styles.categoryMeta}>{pct.toFixed(0)}% · {items.length} item{items.length === 1 ? '' : 's'}</Text>
-                    <Text style={styles.categoryTotal}>${subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                    <Text style={styles.categoryTotal}>{formatMoney(subtotal, 2)}</Text>
                   </View>
                 </View>
                 {items.map((li, i) => (
@@ -1376,7 +1467,7 @@ function EstimateWizardScreenInner() {
                       <Text style={styles.lineDesc}>{li.description}</Text>
                       <Text style={styles.lineMeta}>{li.quantity} {li.unit} × ${li.unitCost.toFixed(2)}</Text>
                     </View>
-                    <Text style={styles.lineTotal}>${li.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                    <Text style={styles.lineTotal}>{formatMoney(li.total, 2)}</Text>
                   </View>
                 ))}
               </View>
@@ -1384,7 +1475,7 @@ function EstimateWizardScreenInner() {
           })}
 
           <View style={styles.totalsBlockNew}>
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Line items subtotal</Text><Text style={styles.totalValue}>${result.subtotal.toLocaleString()}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Line items subtotal</Text><Text style={styles.totalValue}>{formatMoney(result.subtotal, 2)}</Text></View>
             <View style={styles.totalRow}>
               {/* Names the rate and its source, so an 8% line is defensible
                   when a client asks — and so a GC who never set one can see
@@ -1394,9 +1485,9 @@ function EstimateWizardScreenInner() {
                   ? `Contingency · ${contingencyRateUsed}% (your default in Settings)`
                   : 'Contingency'}
               </Text>
-              <Text style={styles.totalValue}>${result.contingency.toLocaleString()}</Text>
+              <Text style={styles.totalValue}>{formatMoney(result.contingency, 2)}</Text>
             </View>
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Permits & fees</Text><Text style={styles.totalValue}>${result.permits.toLocaleString()}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Permits & fees</Text><Text style={styles.totalValue}>{formatMoney(result.permits, 2)}</Text></View>
             <View style={[styles.totalRow, styles.totalRowGrand]}>
               <View>
                 <Text style={styles.grandLabel}>Estimated total</Text>
@@ -1404,7 +1495,7 @@ function EstimateWizardScreenInner() {
                   <Text style={styles.grandSubLabel}>${costPerSqft.toFixed(0)}/sqft · {sizeNum.toLocaleString()} sqft</Text>
                 ) : null}
               </View>
-              <Text style={styles.grandValue}>${result.total.toLocaleString()}</Text>
+              <Text style={styles.grandValue}>{formatMoney(result.total, 2)}</Text>
             </View>
           </View>
 
@@ -1466,7 +1557,7 @@ function EstimateWizardScreenInner() {
                     <Text style={styles.paymentRowTitle}>{`${row.label} (${row.pct}%)`}</Text>
                     <Text style={styles.paymentRowDesc}>{row.detail}</Text>
                   </View>
-                  <Text style={styles.paymentRowAmt}>${row.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                  <Text style={styles.paymentRowAmt}>{formatMoney(row.amount, 2)}</Text>
                 </View>
               ))
             ) : (
@@ -1478,11 +1569,14 @@ function EstimateWizardScreenInner() {
                   label="Set now"
                   size="sm"
                   variant="secondary"
-                  onPress={() => { gate.run({ terms: true, purpose: 'proposal_pdf', total: result.total, projectType: scopedProject?.type ?? null }, () => {}); }}
+                  onPress={() => { gate.run({ terms: true, purpose: 'proposal_pdf', total: result.total, projectType: scopedProject?.type ?? null, record: jobStamp }, () => {}); }}
                   testID="wizard-payment-terms-set"
                 />
               </View>
             )}
+            {stampNote ? (
+              <Text style={styles.paymentRowDesc} testID="wizard-payment-terms-job-stamp">{stampNote}</Text>
+            ) : null}
           </View>
 
           {/* Acceptance / Next Steps — soft CTA to the client. */}
@@ -1686,6 +1780,40 @@ function EstimateWizardScreenInner() {
                     <Text style={styles.saveCreateText}>Create</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* The jobsite, asked where the project is made (#157). The
+                    step-3 city is a PRICING market — often his default one,
+                    carried through untouched — so it is never stamped as the
+                    address; a city he typed for this job is offered as a
+                    one-tap fill, like Home's "usual area". */}
+                <Text style={[styles.saveSectionLabel, { marginTop: 14 }]}>Jobsite address · optional</Text>
+                <TextInput
+                  style={[styles.saveInput, { flex: 0 }]}
+                  value={jobsiteAddress}
+                  onChangeText={setJobsiteAddress}
+                  placeholder="e.g. 412 Oak St, Austin, TX"
+                  placeholderTextColor={themeColors.textMuted}
+                  returnKeyType="done"
+                  onSubmitEditing={createFromEstimate}
+                  testID="wizard-new-project-jobsite"
+                />
+                {jobsiteOffer && !jobsiteAddress.trim() ? (
+                  <TouchableOpacity
+                    style={styles.jobsiteFill}
+                    onPress={() => setJobsiteAddress(jobsiteOffer)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use ${jobsiteOffer} as the jobsite`}
+                    testID="wizard-new-project-jobsite-fill"
+                  >
+                    <Text style={styles.jobsiteFillText} numberOfLines={1}>Use {jobsiteOffer}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <Text style={styles.jobsiteHint}>
+                  {jobsiteOffer
+                    ? `Printed on proposals and invoices. Left blank, the project uses ${jobsiteOffer}.`
+                    : 'Printed on proposals and invoices. Left blank, the project has no address until you add one — your pricing market is not a jobsite.'}
+                </Text>
 
                 {projects.length > 0 ? (
                   <>
@@ -2636,6 +2764,27 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   saveList: {
     maxHeight: 240,
     marginTop: 2,
+  },
+  jobsiteFill: {
+    alignSelf: 'flex-start' as const,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    borderRadius: Tokens.radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: '100%' as const,
+  },
+  jobsiteFillText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.accent,
+  },
+  jobsiteHint: {
+    fontSize: Type.caption1.fontSize,
+    lineHeight: 16,
+    color: themeColors.textMuted,
+    marginTop: 6,
   },
 
   // Reason line under the markup sheet's title.

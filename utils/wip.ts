@@ -21,6 +21,7 @@ import {
   isEligibleLaborEntry, normalizeTradeKey, priceLaborEntry, type LaborRateMap,
 } from '@/utils/laborSamples';
 import { EQUIPMENT_HOURS_PER_DAY, commitmentPaidToDate } from '@/utils/jobCostEngine';
+import { computeOvertime, overtimeFor, type OvertimeRule } from '@/utils/overtime';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE WIP TERMS — one definition each (app-experience audit 2026-09-07, "Do
@@ -1101,6 +1102,12 @@ export interface WipDirectCostSources {
   /** The GC's overtime premium (hooks/useLaborRates). Omitted → the 1.5× FLSA
    *  default, via priceLaborEntry. */
   overtimeMultiplier?: number;
+  /** #65 · The GC's overtime rule (hooks/useLaborRates overtimeRule). WHICH
+   *  hours are overtime is decided from the whole week of each worker's
+   *  shifts under this rule — never the stale per-shift overtime_hours — the
+   *  same way computeJobCost does, so WIP and Job Costing price one labour
+   *  figure. Omitted → the federal weekly >40 default. */
+  overtimeRule?: OvertimeRule;
   /** Machines. Utilisation logged against THIS project, at the machine's day
    *  rate; a machine with no day rate contributes zero rather than a guess. */
   equipment?: Equipment[];
@@ -1199,17 +1206,20 @@ export function suggestCostToDateWithSource(
     };
   }
   const {
-    projectId, timeEntries = [], laborRates = {}, overtimeMultiplier, equipment = [], permits = [],
+    projectId, timeEntries = [], laborRates = {}, overtimeMultiplier, overtimeRule, equipment = [], permits = [],
   } = direct;
 
   let labor = 0;
+  // #65: overtime allocated per worker across EVERY entry (all jobs), then
+  // priced on this job's shifts — mirrors computeJobCost exactly.
+  const ot = computeOvertime(timeEntries, overtimeRule);
   for (const e of timeEntries) {
     if (e.projectId !== projectId || !isEligibleLaborEntry(e)) continue;
     const rate = laborRates[normalizeTradeKey(e.trade)];
     // Hours alone carry no dollars. A trade with no configured rate contributes
     // nothing rather than a market average MAGE would be inventing.
     if (!Number.isFinite(rate) || rate <= 0) continue;
-    labor += priceLaborEntry(e, rate, overtimeMultiplier);
+    labor += priceLaborEntry({ totalHours: e.totalHours, overtimeHours: overtimeFor(ot, e.id) }, rate, overtimeMultiplier);
   }
 
   let equipmentCost = 0;

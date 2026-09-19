@@ -38,8 +38,11 @@ function serializeSchedule(tasks: ScheduleTask[], cpm: CpmResult): string {
     const deps = t.dependencies.map(d => aliasById.get(d) ?? '?').join(',');
     const cpmRow = cpm.perTask.get(t.id);
     const float = cpmRow ? ` float=${cpmRow.totalFloat}` : '';
+    // Actuals are CALENDAR days (weekends count, like "Project finish" above);
+    // `start` is a WORKING-day number. Named so the model does not subtract one
+    // from the other.
     const actual = t.actualStartDay != null
-      ? ` actualStart=${t.actualStartDay}${t.actualEndDay ? ` actualEnd=${t.actualEndDay}` : ''}`
+      ? ` actualStartCalendarDay=${t.actualStartDay}${t.actualEndDay != null ? ` actualEndCalendarDay=${t.actualEndDay}` : ''}`
       : '';
     lines.push(`${alias} | ${t.title} | start=${t.startDay} | dur=${t.durationDays}d | ${t.crew || '-'} | deps=[${deps}] | ${t.status} | ${t.progress}%${float}${actual}`);
   }
@@ -438,12 +441,16 @@ ${simplified}`;
     const patch: Partial<ScheduleTask> = {};
     if (typeof u.progressPercent === 'number') patch.progress = Math.max(0, Math.min(100, u.progressPercent));
     if (u.markDone) { patch.status = 'done'; patch.progress = 100; }
+    // `todayDayNumber` is the caller's CALENDAR index (schedule-pro's
+    // dateToCalendarDay) — the one scale actuals are stored on
+    // (utils/pace/stampActuals.ts). An unrecorded start is NOT back-filled from
+    // the plan: `t.startDay` is a working ordinal, and nobody observed it
+    // (audit #141) — the task keeps an empty start, as on every status path.
     if (u.actualStartToday) patch.actualStartDay = todayDayNumber;
     if (u.actualEndToday) {
       patch.actualEndDay = todayDayNumber;
       patch.status = 'done';
       patch.progress = 100;
-      if (!t.actualStartDay) patch.actualStartDay = t.startDay;
     }
     patches.push({ taskId: id, taskTitle: t.title, patch, rationale: u.rationale || '' });
   }

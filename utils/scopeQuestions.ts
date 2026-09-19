@@ -208,3 +208,41 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 export function scopeCacheKey(a: WizardAnswers): string {
   return `wizard::${a.projectType}::${a.sizeSqft}::${a.location}::${a.quality}::${a.scope.slice(0, 80)}`;
 }
+
+// ── The pricing market is not the jobsite (audit 2026-09-18, #157) ─────────
+//
+// Step 3 asks "City and state — we use this for regional pricing", and on a
+// standalone run it is pre-filled with his default market from Settings. The
+// Save-estimate path then wrote that answer as Project.location — the string
+// proposals, invoices, POs, permits and the weather geocoder all read as the
+// jobsite — so the first project he ever made printed "Location: Houston, TX"
+// and geocoded to the city centroid. Home's create modal refuses exactly that
+// stamp (app/(tabs)/(home)/index.tsx usualArea). The pricing answer stays in
+// project.scope.location, where pricing reads it; these two decide what, if
+// anything, may become the address.
+
+const norm = (s: string | null | undefined): string => (s ?? '').trim();
+const sameText = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
+/** The pricing answer, when it is something he TYPED for this job — not his
+ *  default market carried through unchanged, and not the 'United States'
+ *  placeholder. Null otherwise. Also what the save sheet offers as a one-tap
+ *  fill for the jobsite field. */
+export function typedPricingLocation(pricingAnswer: string, homeMarket: string): string | null {
+  const a = norm(pricingAnswer);
+  if (!a || sameText(a, 'United States')) return null;
+  const m = norm(homeMarket);
+  if (m && sameText(a, m)) return null;
+  return a;
+}
+
+/** Project.location for a project created from the wizard: the jobsite
+ *  address he entered; failing that, a location he typed for this job at step
+ *  3; failing that, '' — never his default market and never 'United States'.
+ *  An empty string is honest: it is under the geocoder's threshold, so the
+ *  job falls to the marked simulated-weather path instead of inventing a site. */
+export function jobsiteLocationFor(opts: { jobsite: string; pricingAnswer: string; homeMarket: string }): string {
+  const typed = norm(opts.jobsite);
+  if (typed && !sameText(typed, 'United States')) return typed;
+  return typedPricingLocation(opts.pricingAnswer, opts.homeMarket) ?? '';
+}

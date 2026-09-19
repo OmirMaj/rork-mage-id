@@ -23,13 +23,16 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import Paywall from '@/components/Paywall';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { SafetyAccessBlocked, useSafetySeat } from '@/app/safety';
 import EmptyState from '@/components/EmptyState';
 import type { Hazard, HazardScale, HazardStatus } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { formatCalendarDay } from '@/utils/calendarDate';
+import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason } from '@/utils/safety/osha';
 import { computeRiskScore, riskBand, type RiskBand } from '@/utils/safety/risk';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from '@/lib/supabase';
 import { queuePhotoUpload } from '@/utils/photoUploadQueue';
@@ -76,16 +79,15 @@ type Suggestion = { description: string; severity: number; likelihood: number };
 
 export default function SafetyHazardsScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project here (not just in Inner) so the gate can ask "was he
+  // invited to THIS job?" before paywalling — the tools a foreman actually
+  // runs (audit #170). Safe because 20260919130000 routes a collaborator's
+  // records to the project owner; before it, they stayed on his own account.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
+  const roleState = useProjectRoleState(gateProjectId);
   if (!canAccess('safety_management')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="Safety Management"
-        requiredTier="business"
-        onClose={() => router.back()}
-      />
-    );
+    return <SafetyAccessBlocked roleState={roleState} onClose={() => router.back()} />;
   }
   return <SafetyHazardsInner />;
 }
@@ -104,6 +106,7 @@ function SafetyHazardsInner() {
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
+  const seat = useSafetySeat(projectId);
   const { getHazardsForProject, addHazard, updateHazard, deleteHazard } = useSafety();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -184,8 +187,12 @@ function SafetyHazardsInner() {
   }, [user?.id, projectId]);
 
   const handleSave = useCallback(() => {
+    const blocked = safetyWriteBlockedReason(seat);
+    if (blocked) { showAlert('View only', blocked); return; }
     const desc = description.trim();
     if (!desc) { showAlert('Missing description', 'Describe the hazard.'); return; }
+    const dateProblem = safetyDateProblem(dueDate, 'Due date', { optional: true });
+    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
     const now = new Date().toISOString();
     const score = computeRiskScore(severity, likelihood);
     // Stage only when the photo is actually going on this record — an
@@ -216,7 +223,7 @@ function SafetyHazardsInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [description, location, severity, likelihood, assignedTo, dueDate, correctiveAction, status, editingHazard, projectId, addHazard, updateHazard, resetForm, author, attachPhoto, pickedUri, photoUrl, stageHazardPhoto]);
+  }, [description, location, severity, likelihood, assignedTo, dueDate, correctiveAction, status, editingHazard, projectId, addHazard, updateHazard, resetForm, author, attachPhoto, pickedUri, photoUrl, stageHazardPhoto, seat]);
 
   // Capture or pick a site photo to scan. Clears any pasted URL — a local
   // capture takes precedence and gets encoded inline (the server can't fetch
@@ -283,6 +290,10 @@ function SafetyHazardsInner() {
       await recordAIUsage('smart', 'photoAnalysis');
       if (found.length === 0) {
         setScanNote('No hazards detected in that photo. Try a wider shot or better lighting, or log hazards manually.');
+      } else {
+        // A count next to the button, so a found hazard never reads as
+        // "nothing happened".
+        setScanNote(`${found.length} hazard${found.length === 1 ? '' : 's'} found. Tap one below to review and log it.`);
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -346,11 +357,13 @@ function SafetyHazardsInner() {
   }, [updateHazard]);
 
   const handleDelete = useCallback((id: string) => {
+    const blocked = safetyDeleteBlockedReason(seat);
+    if (blocked) { showAlert('Can\'t delete', blocked); return; }
     showAlert('Delete hazard', 'Delete this hazard from the log?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteHazard(id) },
     ]);
-  }, [deleteHazard]);
+  }, [deleteHazard, seat]);
 
   const previewScore = computeRiskScore(severity, likelihood);
   const previewBand = riskBand(previewScore);
@@ -364,12 +377,14 @@ function SafetyHazardsInner() {
           title="Open a project first"
           message="Hazards are tied to a project so each one carries its risk score, owner, and corrective action. To log one:"
           steps={[
-            'Open or create a project from the Projects tab.',
-            'Tap Safety inside the project tile grid.',
+            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
             'Open Hazard Log and hit + to log one, or scan a site photo.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
+          // Safety's own project picker, not Home: the "Safety tile inside the
+          // project tile grid" these steps used to promise did not exist, so
+          // this door led nowhere (audit #81).
+          actionLabel="Pick a job"
+          onAction={() => router.replace('/safety' as never)}
         />
       </View>
     );
@@ -379,26 +394,6 @@ function SafetyHazardsInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Hazard Log — ${project.name}` }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
-        {suggestions.length > 0 && (
-          <View style={styles.suggestionBox}>
-            <Text style={styles.suggestionTitle}>AI-detected hazards — tap to review</Text>
-            <View style={styles.chipWrap}>
-              {suggestions.map((s, idx) => {
-                const band = riskBand(computeRiskScore(s.severity, s.likelihood));
-                return (
-                  <TouchableOpacity key={idx} style={styles.suggestionChip} onPress={() => applySuggestion(s)} activeOpacity={0.8}>
-                    <View style={[styles.chipDot, { backgroundColor: bandColor(themeColors, band) }]} />
-                    <Text style={styles.suggestionChipText} numberOfLines={1}>{s.description}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <TouchableOpacity onPress={() => setSuggestions([])} hitSlop={8}>
-              <Text style={styles.suggestionDismiss}>Dismiss suggestions</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {items.map(item => {
           const band = riskBand(item.riskScore);
           const sc = getStatusConfig(themeColors, item.status);
@@ -510,10 +505,35 @@ function SafetyHazardsInner() {
             </View>
           ) : null}
 
+          {/* The scan's results sit under the scan button, where his thumb is
+              (audit #167). At the top of the list they rendered off screen —
+              the scan section is below the fold even on an empty log — and
+              the only signal near the button was a haptic, none on web. */}
+          {suggestions.length > 0 && (
+            <View style={styles.suggestionBox}>
+              <Text style={styles.suggestionTitle}>AI-detected hazards — tap to review</Text>
+              <View style={styles.chipWrap}>
+                {suggestions.map((s, idx) => {
+                  const band = riskBand(computeRiskScore(s.severity, s.likelihood));
+                  return (
+                    <TouchableOpacity key={idx} style={styles.suggestionChip} onPress={() => applySuggestion(s)} activeOpacity={0.8}>
+                      <View style={[styles.chipDot, { backgroundColor: bandColor(themeColors, band) }]} />
+                      <Text style={styles.suggestionChipText} numberOfLines={1}>{s.description}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TouchableOpacity onPress={() => { setSuggestions([]); setScanNote(null); }} hitSlop={8}>
+                <Text style={styles.suggestionDismiss}>Dismiss suggestions</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+
           <TextInput
             style={styles.photoInput}
             value={photoUrl}
-            onChangeText={t => { setPhotoUrl(t); if (t.trim()) setPickedUri(null); setSuggestions([]); }}
+            onChangeText={t => { setPhotoUrl(t); if (t.trim()) setPickedUri(null); setSuggestions([]); setScanNote(null); }}
             placeholder="Or paste a site photo URL to scan…"
             placeholderTextColor={themeColors.textMuted}
             autoCapitalize="none"
@@ -716,7 +736,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   scanNoteBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '30' },
   scanNoteText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
   photoInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.footnote.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
-  suggestionBox: { marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '0D', borderWidth: 1, borderColor: themeColors.accent + '20', gap: 10 },
+  suggestionBox: { padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '0D', borderWidth: 1, borderColor: themeColors.accent + '20', gap: 10 },
   suggestionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
   chipWrap: { gap: 8 },
   suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line },

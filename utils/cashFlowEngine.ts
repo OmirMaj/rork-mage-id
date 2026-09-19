@@ -4,6 +4,7 @@ import { netBalanceDue, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { commitmentUnpaid } from '@/utils/jobCostEngine';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { paymentReceivedAt } from '@/utils/billingFlowCore';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
 export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
@@ -109,7 +110,9 @@ export function getEffectiveStartingBalance(
   let additional = 0;
   for (const inv of invoices) {
     for (const p of inv.payments ?? []) {
-      const ts = new Date(p.date).getTime();
+      // When the money ARRIVED (#133): a check received before he set the
+      // balance is most likely already in it, however late he recorded it.
+      const ts = paymentReceivedAt(p).getTime();
       if (!Number.isNaN(ts) && ts > cutoff) {
         additional += p.amount ?? 0;
       }

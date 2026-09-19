@@ -15,6 +15,12 @@
 // — the provider's callback checks that, because the loader is server-first
 // and would put the server's older row over an offline edit that has not
 // landed yet (the post-flush listener re-pulls once it does).
+//
+// ProjectContext binds it ONCE for every foreground re-read (projects, the
+// money and the profile #48/#121, the pro docs, and every other list the
+// homeowner portal is built from, #23): one binding means one gap decision,
+// and the portal's read epoch is bumped before any re-read starts. Each part
+// carries its own guards (writes still out skip or defer that read).
 
 import { useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';

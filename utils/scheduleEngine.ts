@@ -463,6 +463,135 @@ export function mergeEditedSchedule(
   };
 }
 
+// ─── Replacing a RUNNING schedule with a freshly built one (#52) ───────────
+// schedule-review's Accept (every AI route lands there: copilot, generative
+// setup, AutoScheduleReviewSheet, ScheduleBuilderInterview, the tab on-ramp,
+// the tab's build-from-estimate) and the template wizard's Save both write a
+// brand-new task list with brand-new ids. Accept used to do it with no
+// confirmation at all and `{ ...draft.schedule, ...rebuilt }`, which silently
+// took the foreman's progress and actuals, every baseline and the weather
+// delay-day log with it. Now: the replace is confirmed with a count of what
+// goes, and what does NOT depend on task ids is carried over.
+
+/** What a replace throws away, counted from the live schedule. Null when there
+ *  is nothing to replace (no schedule, or no tasks) — no confirm needed. */
+export interface ScheduleReplacementLoss {
+  taskCount: number;
+  /** Tasks with progress > 0 or an actual start/finish — field record that
+   *  cannot follow new task ids. */
+  tasksWithProgress: number;
+  /** baselines[] plus the legacy singular `baseline`: keyed by old task ids. */
+  baselineCount: number;
+  /** Saved plans (scenarios): snapshots of the OLD task graph. */
+  savedPlanCount: number;
+  /** Weather delay-log entries and their evidenced days — KEPT (by date). */
+  delayLogEntries: number;
+  delayLogDays: number;
+  /** Non-working dates — KEPT. */
+  nonWorkingDates: number;
+  /** The running schedule's working week (absent = the engine's 5). Kept
+   *  unless the replacing build sets its own — then the confirm names it. */
+  workingDaysPerWeek: number;
+}
+
+export function scheduleReplacementLoss(existing: ProjectSchedule | null | undefined): ScheduleReplacementLoss | null {
+  const tasks = existing?.tasks ?? [];
+  if (!existing || tasks.length === 0) return null;
+  const log = existing.weatherDelayLog ?? [];
+  return {
+    taskCount: tasks.length,
+    tasksWithProgress: tasks.filter(t =>
+      (t.progress ?? 0) > 0
+      || t.actualStartDate != null || t.actualEndDate != null
+      || t.actualStartDay != null || t.actualEndDay != null,
+    ).length,
+    baselineCount: (existing.baselines?.length ?? 0) + (existing.baseline && (existing.baselines?.length ?? 0) === 0 ? 1 : 0),
+    savedPlanCount: existing.scenarios?.length ?? 0,
+    delayLogEntries: log.length,
+    delayLogDays: log.reduce((n, e) => n + (e.dates?.length ?? 0), 0),
+    nonWorkingDates: existing.nonWorkingDates?.length ?? 0,
+    workingDaysPerWeek: typeof existing.workingDaysPerWeek === 'number' ? existing.workingDaysPerWeek : 5,
+  };
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** The confirm's body: what is lost, said plainly — progress cannot be kept
+ *  across new task ids, so it does not pretend otherwise — then what is kept. */
+export function describeScheduleReplacement(
+  loss: ScheduleReplacementLoss,
+  projectName?: string,
+  // The working week the replacing build WRITES, when it sets its own (the
+  // template wizard does). Omitted = the running schedule's is carried, so
+  // "Kept" is true. Set and different = the confirm says it changes, rather
+  // than promising a 6-day job keeps a week the save then overwrites.
+  opts: { newWorkingDaysPerWeek?: number } = {},
+): string {
+  const lost: string[] = [];
+  if (loss.tasksWithProgress > 0) lost.push(`progress and actual dates on ${plural(loss.tasksWithProgress, 'task')}`);
+  if (loss.baselineCount > 0) lost.push(`${plural(loss.baselineCount, 'locked baseline')} ("behind plan" starts again from a new lock)`);
+  if (loss.savedPlanCount > 0) lost.push(plural(loss.savedPlanCount, 'saved plan'));
+  const kept: string[] = [];
+  if (loss.delayLogEntries > 0) kept.push(`the weather delay log (${plural(loss.delayLogEntries, 'entry', 'entries')}, ${plural(loss.delayLogDays, 'day')})`);
+  if (loss.nonWorkingDates > 0) kept.push(plural(loss.nonWorkingDates, 'non-working day'));
+  const newWeek = opts.newWorkingDaysPerWeek;
+  const weekChanges = newWeek !== undefined && newWeek !== loss.workingDaysPerWeek;
+  kept.push(weekChanges ? 'crew resources' : 'the working week and crew resources');
+  const who = projectName ? `${projectName} has` : 'This job has';
+  return [
+    `${who} a running schedule with ${plural(loss.taskCount, 'task')}. The new plan has new tasks, so it replaces them all.`,
+    lost.length > 0 ? `Lost for good: ${lost.join('; ')}.` : 'No progress, baselines or saved plans are recorded on it yet.',
+    `Kept: ${kept.join(', ')}.`,
+    ...(weekChanges && newWeek !== undefined ? [`Changed: the working week goes from ${plural(loss.workingDaysPerWeek, 'day')} to ${plural(newWeek, 'day')}.`] : []),
+  ].join('\n\n');
+}
+
+/**
+ * The replacement schedule to write: the new build, plus the sidecars that do
+ * NOT depend on task ids, taken from the running schedule. Picked by name, not
+ * `...existing`, so a future id-keyed field cannot leak onto the new tasks:
+ *   KEPT    weatherDelayLog (dated evidence — the delay-claim record),
+ *           nonWorkingDates, workingDaysPerWeek (unless the caller sets it —
+ *           the wizard's own), resources, resourceCalendars,
+ *           criticalFloatThresholdDays, fragnets (a template library).
+ *   DROPPED baselines[] / baseline / activeBaselineId (per old task id —
+ *           re-attached they would claim every task has no plan), scenarios /
+ *           activeScenarioId (snapshots of the old task graph), weatherAlerts
+ *           (per old task id), startDayBasis (an answer about the OLD tasks'
+ *           day scale; a fresh build is read from its own data).
+ *   startDate is the NEW plan's (opts.startDate, possibly none) — never the
+ *   old anchor, which mergeEditedSchedule would keep.
+ */
+export function replaceRunningSchedule(
+  existing: ProjectSchedule | null | undefined,
+  built: ProjectSchedule,
+  opts: { startDate?: string | null; workingDaysPerWeek?: number; bufferDays?: number } = {},
+): ProjectSchedule {
+  const next: ProjectSchedule = { ...built };
+  if (existing) {
+    if (existing.weatherDelayLog !== undefined) next.weatherDelayLog = existing.weatherDelayLog;
+    if (existing.nonWorkingDates !== undefined) next.nonWorkingDates = existing.nonWorkingDates;
+    if (existing.resources !== undefined) next.resources = existing.resources;
+    if (existing.resourceCalendars !== undefined) next.resourceCalendars = existing.resourceCalendars;
+    if (existing.criticalFloatThresholdDays !== undefined) next.criticalFloatThresholdDays = existing.criticalFloatThresholdDays;
+    if (existing.fragnets !== undefined) next.fragnets = existing.fragnets;
+    if (typeof existing.workingDaysPerWeek === 'number') next.workingDaysPerWeek = existing.workingDaysPerWeek;
+  }
+  if (opts.workingDaysPerWeek !== undefined) next.workingDaysPerWeek = opts.workingDaysPerWeek;
+  if (opts.bufferDays !== undefined) next.bufferDays = opts.bufferDays;
+  // Id-keyed and per-old-plan fields never come across, whatever `built` held.
+  delete next.baselines;
+  delete (next as { activeBaselineId?: unknown }).activeBaselineId;
+  delete next.scenarios;
+  delete next.activeScenarioId;
+  delete next.weatherAlerts;
+  delete next.startDayBasis;
+  next.baseline = built.baseline ?? null;
+  if (opts.startDate) next.startDate = opts.startDate;
+  else delete next.startDate;
+  return next;
+}
+
 export function saveBaseline(schedule: ProjectSchedule): ScheduleBaseline {
   return {
     savedAt: new Date().toISOString(),

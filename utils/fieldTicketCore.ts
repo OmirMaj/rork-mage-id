@@ -457,6 +457,30 @@ export function pricingRoleFor(
   return ownerUserId && userId && ownerUserId === userId ? 'owner' : null;
 }
 
+/**
+ * Wave 3 (#41 interim, change-orders fix1 A) · Who may turn a signed ticket
+ * into a change order: the PROJECT OWNER only. Migration 20260919110000 makes
+ * a change_orders INSERT owner-only under RLS, and offlineQueue treats an RLS
+ * refusal as terminal — so a collaborator's conversion would patch the ticket
+ * "converted" to a CO that never reaches the server. Owner = the cached
+ * project row names him (works offline), else the live role says 'owner'.
+ * Returns the reason the control is off, or null when he may convert.
+ */
+export const FIELD_TICKET_GC_CREATES_COS = 'Your GC creates change orders on this job. The signed ticket is on file for them to bill.';
+export function fieldTicketConvertBlockReason(
+  role: ProjectRole,
+  ownerUserId: string | null | undefined,
+  userId: string | null | undefined,
+  roleError = false,
+): string | null {
+  if (ownerUserId && userId && ownerUserId === userId) return null;
+  if (role === 'owner') return null;
+  if (role === 'editor' || role === 'field' || role === 'viewer') return FIELD_TICKET_GC_CREATES_COS;
+  return roleError
+    ? 'Couldn’t confirm you own this project, so billing stays off. Reopen the ticket to try again.'
+    : 'Checking your access on this project before billing opens…';
+}
+
 export function fieldTicketPricingBlockReason(role: ProjectRole, roleError = false): string | null {
   if (role === 'owner' || role === 'editor') return null;
   if (role === 'viewer') return 'Pricing is locked for you: your access on this project is view-only. The owner or an editor sets the rates.';

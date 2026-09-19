@@ -16,11 +16,24 @@
 // The review now files the revision (addPlanSheet chains it and marks the old
 // copy superseded), creates each RFI against the sheet, and starts a change
 // order prefilled with the change and the drawing it came from.
+//
+// Wave 3 (plans-revisions):
+//   #76 A re-issued SET is the normal case, so the revision can be a chosen
+//       page of a multi-page PDF (startPage), or a sheet ALREADY in the plan set
+//       (oldSheetId/newSheetId from the viewer and the Plans list) — which is
+//       then "already in the set", never filed a second time.
+//   #75 An unnumbered old sheet takes its number inline; the paid comparison is
+//       kept while he types it, so filing needs no second render or compare.
+//   #160 A JPG/PNG revision is uploaded like a Plans image and compared by path.
+//   #165 The AI limit is checked BEFORE anything is rendered or billed, and a
+//       failed compare reuses its render when he picks the same file again.
+//   #166 A created RFI opens (to assign and send), and every change can raise one.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, TextInput, ActivityIndicator,
 } from 'react-native';
+import { onlineManager } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -30,7 +43,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
   FileText, AlertCircle, Plus, Minus, Pencil, Info,
-  ArrowUpRight, ArrowDown, Layers, Check, FilePlus2, MessageSquarePlus,
+  ArrowUpRight, Layers, Check, FilePlus2, MessageSquarePlus,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -38,24 +51,61 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
 import {
   compareDrawings, type CompareDrawingsResult, type ChangeType, type ChangeImpact,
 } from '@/utils/compareDrawings';
 import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
+import { edgeErrorCode } from '@/utils/edgeError';
 import {
-  currentSheetsForCompare, revisionFiling, changeOrderPrefill, rfiFromCandidate, sheetCitation,
+  currentSheetsForCompare, revisionFiling, changeOrderPrefill, rfiFromCandidate, rfiFromChange, sheetCitation,
+  planRenumber, chainColumnsPatch, planControlBlock, effectivePlanRole,
 } from '@/utils/plans/revisionActions';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import {
+  precheckFloorPlanImage, classifyFloorPlanFailure, floorPlanFailureReason, type FloorPlanFailure,
+} from '@/utils/planSheetImageCore';
+import { uploadPlanSheetImage, PlanSheetUploadNotConfiguredError } from '@/utils/planSheetImageUpload';
+import { resolvePlanSheetUrl } from '@/utils/planSheetUrls';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, Button } from '@/components/ui';
 import type { PlanSheet } from '@/types';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
 
 type Step = 'pickOld' | 'pickNew' | 'analyzing' | 'review';
+
+type PickedAsset = DocumentPicker.DocumentPickerAsset;
+/** What gets rendered/uploaded for the NEW side of an upload compare. */
+type RevisionSource =
+  | { kind: 'pdf'; asset: PickedAsset; page: number; pageCount: number | null }
+  | { kind: 'image'; asset: PickedAsset };
+/** The last render, so a retry of the SAME file does not render (and bill a
+ *  takeoff page) again (#165). Keyed on name + size + page, not the uri: the
+ *  native picker copies to a fresh cache path on every pick. */
+interface RenderedRevision { key: string; url: string; path: string; width: number | null; height: number | null }
+
+const isPdfAsset = (a: PickedAsset) => (a.mimeType ?? '').includes('pdf') || /\.pdf$/i.test(a.name ?? '');
+const renderKey = (src: RevisionSource) =>
+  `${src.kind}|${src.asset.name ?? ''}|${src.asset.size ?? ''}|${src.kind === 'pdf' ? src.page : 0}`;
+const isHttpUrl = (u: string) => /^https?:\/\//i.test(u);
+
+/** Natural size of a local image — the overlay and the filed sheet use it. */
+function localImageSize(uri: string): Promise<{ width: number; height: number } | null> {
+  return new Promise(resolve => {
+    try {
+      Image.getSize(uri, (width, height) => resolve({ width, height }), () => resolve(null));
+    } catch {
+      resolve(null);
+    }
+  });
+}
 
 export default function CompareDrawingsScreen() {
   const { colors: themeColors } = useTheme();
@@ -65,15 +115,27 @@ export default function CompareDrawingsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
-  const { projects, getProject, getPlanSheetsForProject, addPlanSheet, addRFI, getChangeOrdersForProject } = useProjects();
+  const params = useLocalSearchParams<{ projectId?: string; oldSheetId?: string; newSheetId?: string }>();
+  const paramProjectId = typeof params.projectId === 'string' ? params.projectId : undefined;
+  const {
+    projects, getProject, getPlanSheetsForProject, addPlanSheet, updatePlanSheet, addRFI, getChangeOrdersForProject,
+  } = useProjects();
   const { tier } = useSubscription();
+  const { user: authUser } = useAuth();
+  // Web react-query pauses the role read offline (neither loading nor
+  // errored); that is "check your connection", not "no access".
+  const offline = useSyncExternalStore(onlineManager.subscribe, () => !onlineManager.isOnline(), () => false);
+  // Same gate the plan viewer uses before it writes chain columns.
+  const canSyncSheets = !!authUser?.id && isSupabaseConfigured;
 
   // Opened without params (Tools hub, search): land on a project picker
   // instead of the old flat "Project not found." dead end (sim-audit #5).
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? null;
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
+  // #73: a field or viewer seat can now open Plans; Compare files a new
+  // revision into the GC's set, so it stays with the owner and editors.
+  const roleState = useProjectRoleState(projectId ?? undefined);
   const allSheets = useMemo(() => projectId ? getPlanSheetsForProject(projectId) : [], [projectId, getPlanSheetsForProject]);
   // A superseded revision is not "the sheet currently in the field" — offering
   // it as the comparison base is how a diff gets run against a dead drawing.
@@ -81,7 +143,21 @@ export default function CompareDrawingsScreen() {
 
   const [step, setStep] = useState<Step>('pickOld');
   const [error, setError] = useState<string | null>(null);
-  const [oldSheet, setOldSheet] = useState<PlanSheet | null>(null);
+  // The PICK is a snapshot; the sheet itself is re-read from allSheets on every
+  // render, so a number typed inline (#75) or a chain change made elsewhere is
+  // what filing sees — without that the paid result would still be blocked.
+  const [oldPick, setOldPick] = useState<PlanSheet | null>(null);
+  const oldSheet = useMemo(
+    () => (oldPick ? allSheets.find(s => s.id === oldPick.id) ?? oldPick : null),
+    [oldPick, allSheets],
+  );
+  // #76: the "new" side can be a sheet already in the plan set. Resolved from
+  // allSheets (NOT planSheets, which has already hidden the superseded copy).
+  const [pairNewId, setPairNewId] = useState<string | null>(null);
+  const pairNew = useMemo(
+    () => (pairNewId ? allSheets.find(s => s.id === pairNewId) ?? null : null),
+    [pairNewId, allSheets],
+  );
   const [newPageUrl, setNewPageUrl] = useState<string | null>(null);
   const [newPageLabel, setNewPageLabel] = useState<string | null>(null);
   const [result, setResult] = useState<CompareDrawingsResult | null>(null);
@@ -91,23 +167,76 @@ export default function CompareDrawingsScreen() {
   // What this comparison has already committed — so a second tap can't file the
   // same revision twice or raise the same RFI twice, and the button can say so.
   const [filed, setFiled] = useState<{ sheetId: string; revision: number } | null>(null);
-  const [rfiByIndex, setRfiByIndex] = useState<Record<number, number>>({});
+  // id AND number: the done row opens the RFI (#166), it is not dead text.
+  const [rfiByIndex, setRfiByIndex] = useState<Record<number, { id: string; number: number }>>({});
+  // RFIs raised from a flagged CHANGE, keyed by change index — a separate map
+  // so it never collides with the drafted-question indices above.
+  const [changeRfi, setChangeRfi] = useState<Record<number, { id: string; number: number }>>({});
+  // A multi-page PDF waits here while he says which page is the sheet (#76).
+  const [pendingPdf, setPendingPdf] = useState<{ asset: PickedAsset; pageCount: number | null } | null>(null);
+  const [pageDraft, setPageDraft] = useState('1');
+  const renderCache = useRef<RenderedRevision | null>(null);
+  // #75 inline sheet number.
+  const [numberDraft, setNumberDraft] = useState('');
+  const [numberError, setNumberError] = useState<string | null>(null);
 
-  // ── Pick the OLD sheet — from the project's existing plan sheets ──
-  const handlePickOld = useCallback((sheet: PlanSheet) => {
-    setOldSheet(sheet);
+  // Deep link from the viewer's revision banner or a Plans row (#76): both
+  // sheets are in the set, so land straight on the confirm step. Applied once —
+  // a later sheet refetch must not yank him back from wherever he went.
+  const appliedPairParams = useRef(false);
+  useEffect(() => {
+    if (appliedPairParams.current) return;
+    const oldId = typeof params.oldSheetId === 'string' ? params.oldSheetId : '';
+    const newId = typeof params.newSheetId === 'string' ? params.newSheetId : '';
+    if (!oldId || !newId || allSheets.length === 0) return;
+    const o = allSheets.find(s => s.id === oldId);
+    const n = allSheets.find(s => s.id === newId);
+    if (!o || !n || o.id === n.id) return;
+    appliedPairParams.current = true;
+    setOldPick(o);
+    setPairNewId(n.id);
     setStep('pickNew');
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, []);
+  }, [params.oldSheetId, params.newSheetId, allSheets]);
 
-  // ── Pick the NEW revision — upload a single-page PDF or PNG ───────
-  const handlePickNew = useCallback(async () => {
-    if (!project || !oldSheet) return;
+  const resetComparison = useCallback(() => {
     setError(null);
+    setResult(null);
     setNewPagePath('');
     setNewPageSize(null);
     setFiled(null);
     setRfiByIndex({});
+    setChangeRfi({});
+    setNumberDraft('');
+    setNumberError(null);
+  }, []);
+
+  // ── Pick the OLD sheet — from the project's existing plan sheets ──
+  const handlePickOld = useCallback((sheet: PlanSheet) => {
+    setOldPick(sheet);
+    setPairNewId(null);
+    setPendingPdf(null);
+    // A different base is a different comparison: drop the kept render.
+    renderCache.current = null;
+    setStep('pickNew');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  // The drawingAnalysis limit, checked BEFORE anything is rendered, uploaded or
+  // billed (#165). It is local and free; a refusal used to arrive only after
+  // convert-pdf-to-images had charged a takeoff page — and a free user got the
+  // render's raw tier error instead of the upgrade prompt.
+  const limitAllows = useCallback(async (): Promise<boolean> => {
+    const limit = await checkAILimit(tier, 'smart', 'drawingAnalysis');
+    if (limit.allowed) return true;
+    showAILimitAlert({ limit, router, monthly: true });
+    return false;
+  }, [tier, router]);
+
+  // ── Pick the NEW revision — a PDF (any page of it) or a JPG/PNG ───
+  const handlePickNew = useCallback(async () => {
+    if (!project || !oldSheet) return;
+    resetComparison();
+    setPendingPdf(null);
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/png', 'image/jpeg'],
@@ -116,71 +245,94 @@ export default function CompareDrawingsScreen() {
       });
       if (picked.canceled || !picked.assets?.[0]) return;
       const asset = picked.assets[0];
-      setNewPageLabel(asset.name);
+      if (!(await limitAllows())) return;
 
-      // PDF → render first page; image → use directly.
-      //
-      // DB-F11: the NEW page is freshly rendered, so we know its storage path
-      // and the function downloads it with the service role. `url` is still
-      // carried for the image-pick branch (an already-hosted asset that has no
-      // path) and as the one-release fallback for a function that has not been
-      // redeployed yet.
-      let url: string;
-      let newPath = '';
-      if ((asset.mimeType ?? '').includes('pdf')) {
-        // Only page 1 is rendered and compared. A re-issued SET would silently
-        // have its cover sheet diffed against A-101, and the result would read
-        // like a total redesign. Say so before spending the render + the AI call.
-        const pages = await countPdfPages(asset.uri);
-        if (pages !== null && pages > 1) {
-          const proceed = await new Promise<boolean>((resolve) => {
-            showAlert(
-              `${asset.name} has ${pages} pages`,
-              `Only page 1 is compared against ${oldSheet.sheetNumber || oldSheet.name}. If this is a whole re-issued set, split out the single sheet first — otherwise the cover page gets compared to your drawing.`,
-              [
-                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                { text: 'Compare page 1', onPress: () => resolve(true) },
-              ],
-              { cancelable: true, onDismiss: () => resolve(false) },
-            );
-          });
-          if (!proceed) return;
-        }
-        setStep('analyzing');
-        const rendered = await uploadAndRenderPdf({
-          fileUri: asset.uri,
-          projectId: project.id,
-          fileName: asset.name,
-          dpi: 150,
-          maxPages: 1,
-        });
-        if (!rendered[0]) throw new Error('Could not render the PDF page.');
-        url = rendered[0].viewUrl;
-        newPath = rendered[0].storagePath;
-        setNewPagePath(newPath);
-        setNewPageSize({ width: rendered[0].width, height: rendered[0].height });
-      } else {
-        // For now, image picks need to already be on a public URL. The
-        // current Plans pipeline already pushes to storage on upload, so
-        // this branch is unusual; keep it simple: tell the user.
-        if (!asset.uri.startsWith('http')) {
-          showAlert(
-            'Need a public URL',
-            'Upload your new revision as a PDF — the AI compare runs server-side and needs a public image URL. PDF uploads are auto-rendered.',
-          );
+      if (isPdfAsset(asset)) {
+        // A re-issued SET is the normal case: ask which page is this sheet
+        // instead of diffing its cover page against A-201. Only the chosen
+        // page is rendered.
+        const pageCount = await countPdfPages(asset.uri);
+        if (pageCount === null || pageCount > 1) {
+          setPendingPdf({ asset, pageCount });
+          setPageDraft('1');
           return;
         }
-        url = asset.uri;
-      }
-
-      // Run the compare.
-      const limit = await checkAILimit(tier, 'smart', 'drawingAnalysis');
-      if (!limit.allowed) {
-        showAILimitAlert({ limit, router, monthly: true });
-        setStep('pickNew');
+        await runCompareRef.current({ kind: 'pdf', asset, page: 1, pageCount });
         return;
       }
-      setNewPageUrl(url);
+      await runCompareRef.current({ kind: 'image', asset });
+    } catch (e) {
+      console.warn('[compare-drawings] pick failed', e);
+      setError(String((e as Error).message ?? e));
+      setStep('pickNew');
+    }
+  }, [project, oldSheet, resetComparison, limitAllows]);
+
+  // Render (or upload) the revision, then run the compare.
+  const runCompare = useCallback(async (src: RevisionSource) => {
+    if (!project || !oldSheet) return;
+    setError(null);
+    // Checked again here: the page picker can sit open a while.
+    if (!(await limitAllows())) return;
+    const key = renderKey(src);
+    const label = src.kind === 'pdf' && (src.pageCount === null || src.pageCount > 1)
+      ? `${src.asset.name} · page ${src.page}`
+      : src.asset.name;
+    setNewPageLabel(label);
+    try {
+      let rendered = renderCache.current?.key === key ? renderCache.current : null;
+      if (!rendered) {
+        setStep('analyzing');
+        if (src.kind === 'pdf') {
+          // DB-F11: the NEW page is freshly rendered, so we know its storage
+          // path and the function downloads it with the service role.
+          const pages = await uploadAndRenderPdf({
+            fileUri: src.asset.uri,
+            projectId: project.id,
+            fileName: src.asset.name,
+            dpi: 150,
+            maxPages: 1,
+            startPage: src.page,
+          });
+          if (!pages[0]) throw new Error('Could not render the PDF page.');
+          rendered = { key, url: pages[0].viewUrl, path: pages[0].storagePath, width: pages[0].width, height: pages[0].height };
+        } else {
+          // #160: a JPG/PNG goes into plan-sheets exactly like a Plans image
+          // import (same precheck, same bucket path), and is compared by path.
+          const image = {
+            uri: src.asset.uri,
+            mimeType: src.asset.mimeType ?? null,
+            fileName: src.asset.name ?? null,
+            fileSize: typeof src.asset.size === 'number' ? src.asset.size : null,
+          };
+          const pre = precheckFloorPlanImage(project.id, image);
+          if (!pre.ok) throw new Error(floorPlanFailureReason(pre.kind, pre.detail));
+          let path: string;
+          try {
+            path = await uploadPlanSheetImage(project.id, image, pre);
+          } catch (err) {
+            if (err instanceof PlanSheetUploadNotConfiguredError) throw new Error(floorPlanFailureReason('not-configured'));
+            const outcome = classifyFloorPlanFailure(err);
+            const kind: FloorPlanFailure = outcome === 'already-uploaded' || outcome === 'success' ? 'retryable' : outcome;
+            throw new Error(floorPlanFailureReason(kind, kind === 'terminal' || kind === 'retryable' ? (err as Error)?.message : undefined));
+          }
+          // A signed URL to show it (and to file it with); the local file
+          // renders if signing is refused. Never the local uri on the wire.
+          const signed = await resolvePlanSheetUrl(path);
+          const size = await localImageSize(src.asset.uri);
+          rendered = {
+            key,
+            url: isHttpUrl(signed) ? signed : src.asset.uri,
+            path,
+            width: size?.width ?? null,
+            height: size?.height ?? null,
+          };
+        }
+        renderCache.current = rendered;
+      }
+      setNewPagePath(rendered.path);
+      setNewPageSize(rendered.width && rendered.height ? { width: rendered.width, height: rendered.height } : null);
+      setNewPageUrl(rendered.url);
       setStep('analyzing');
       const { result: r, modelUsed: m } = await compareDrawings({
         // The OLD sheet comes out of a plan_sheets row. `storagePath` is set by
@@ -188,13 +340,63 @@ export default function CompareDrawingsScreen() {
         // under the shared `tmp/` prefix deliberately arrives with none and
         // takes the URL fallback — the path would recover fine but no policy can
         // admit it and planSheetBytes refuses it, which would turn a comparison
-        // that works today into a 403. The image-pick branch above is url-only
-        // for the same reason: it has no storage object at all.
+        // that works today into a 403.
         oldPagePath: oldSheet.storagePath,
-        newPagePath: newPath || undefined,
+        newPagePath: rendered.path || undefined,
         oldPageUrl: oldSheet.imageUri,
-        newPageUrl: url,
+        newPageUrl: isHttpUrl(rendered.url) ? rendered.url : '',
         sheetNumber: oldSheet.sheetNumber || oldSheet.name,
+        projectName: project.name,
+      });
+      await recordAIUsage('smart', 'drawingAnalysis');
+      renderCache.current = null;
+      setPendingPdf(null);
+      setResult(r);
+      setModelUsed(m);
+      setStep('review');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn('[compare-drawings] failed', e);
+      // The function's own sentence (edgeError) — a page past the end keeps
+      // the page picker open with the real page count in the reason.
+      setError(String((e as Error).message ?? e));
+      if (src.kind === 'pdf' && edgeErrorCode(e) === 'start_page_past_end') {
+        setPendingPdf({ asset: src.asset, pageCount: src.pageCount });
+      }
+      setStep('pickNew');
+    }
+  }, [project, oldSheet, limitAllows]);
+  // handlePickNew is declared first (the pick decides what runs); the ref keeps
+  // it on the latest runCompare without a declaration-order dependency.
+  const runCompareRef = useRef(runCompare);
+  runCompareRef.current = runCompare;
+
+  const pageChoice = useMemo(() => {
+    const n = Number(pageDraft.trim());
+    const max = pendingPdf?.pageCount ?? null;
+    if (!Number.isInteger(n) || n < 1) return { page: null, reason: 'Type the page number of this sheet in the PDF.' };
+    if (max !== null && n > max) return { page: null, reason: `That PDF has ${max} pages — pick a page from 1 to ${max}.` };
+    return { page: n, reason: null };
+  }, [pageDraft, pendingPdf]);
+
+  // #76: both sheets are already in the plan set. Nothing is rendered.
+  const handleCompareExisting = useCallback(async () => {
+    if (!project || !oldSheet || !pairNew) return;
+    resetComparison();
+    if (!(await limitAllows())) return;
+    setNewPageUrl(pairNew.imageUri);
+    setNewPageLabel(sheetCitation(pairNew));
+    setNewPagePath(pairNew.storagePath ?? '');
+    setStep('analyzing');
+    try {
+      const { result: r, modelUsed: m } = await compareDrawings({
+        // Each side sends its storagePath; a legacy `tmp/` row has none and
+        // takes the URL fallback, the same rule as the upload path.
+        oldPagePath: oldSheet.storagePath,
+        newPagePath: pairNew.storagePath,
+        oldPageUrl: oldSheet.imageUri,
+        newPageUrl: pairNew.imageUri,
+        sheetNumber: pairNew.sheetNumber || oldSheet.sheetNumber || oldSheet.name,
         projectName: project.name,
       });
       await recordAIUsage('smart', 'drawingAnalysis');
@@ -207,17 +409,17 @@ export default function CompareDrawingsScreen() {
       setError(String((e as Error).message ?? e));
       setStep('pickNew');
     }
-  }, [project, oldSheet, tier]);
+  }, [project, oldSheet, pairNew, resetComparison, limitAllows]);
 
   // ── Turn the comparison into records ────────────────────────────────
   // Filing is the one that cannot be recovered later: until the revision is in
   // the plan set, the old sheet is still what the crew opens in the field.
   const filing = oldSheet
-    ? revisionFiling({ oldSheet, allSheets, newPath: newPagePath, filedRevision: filed?.revision ?? null })
+    ? revisionFiling({ oldSheet, allSheets, newPath: newPagePath, filedRevision: filed?.revision ?? null, newSheetInSet: pairNew })
     : null;
 
   const handleFileRevision = useCallback(() => {
-    if (!project || !oldSheet || !newPagePath || filed) return;
+    if (!project || !oldSheet || !newPagePath || filed || pairNew) return;
     const fresh = addPlanSheet({
       projectId: project.id,
       // Same name and number as the sheet it replaces: the number is what
@@ -233,16 +435,62 @@ export default function CompareDrawingsScreen() {
     });
     setFiled({ sheetId: fresh.id, revision: fresh.revision ?? 1 });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, oldSheet, newPagePath, newPageUrl, newPageSize, filed, addPlanSheet]);
+  }, [project, oldSheet, newPagePath, newPageUrl, newPageSize, filed, pairNew, addPlanSheet]);
+
+  // #75: give the old sheet its number here, through the same planRenumber the
+  // viewer uses — chain columns written through the offline queue — so filing
+  // re-derives to "ready" on the comparison already paid for.
+  const handleSaveNumber = useCallback(() => {
+    if (!oldSheet) return;
+    const plan = planRenumber(oldSheet, numberDraft, allSheets);
+    if (plan.kind === 'invalid') { setNumberError(plan.reason); return; }
+    setNumberError(null);
+    if (plan.kind === 'noop') return;
+    const now = new Date().toISOString();
+    for (const p of plan.patches) {
+      // updatePlanSheet reads the context's ref, so patches applied in one
+      // tick do not overwrite each other.
+      updatePlanSheet(p.id, p.updates);
+      const chain = chainColumnsPatch(p.updates);
+      if (canSyncSheets && chain) void supabaseWrite('plan_sheets', 'update', { id: p.id, ...chain, updated_at: now });
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (plan.message) showAlert('Revision updated', plan.message);
+  }, [oldSheet, numberDraft, allSheets, updatePlanSheet, canSyncSheets]);
+
+  // #77: both drawings ride on the RFI (old, then new), so the architect sees
+  // what changed instead of a sheet number in text. The new side is the sheet
+  // already in the set, or the page just rendered for this comparison.
+  const comparedSheetImages = useMemo(
+    () => [oldSheet?.imageUri, pairNew ? pairNew.imageUri : newPageUrl],
+    [oldSheet?.imageUri, pairNew, newPageUrl],
+  );
 
   const handleCreateRfi = useCallback((index: number) => {
     if (!oldSheet || !result || rfiByIndex[index]) return;
     const candidate = result.rfiCandidates[index];
     if (!candidate) return;
-    const rfi = addRFI(rfiFromCandidate(candidate, oldSheet, newPageLabel, new Date()));
-    setRfiByIndex(prev => ({ ...prev, [index]: rfi.number }));
+    // In the two-sheets-in-the-set mode the RFI is about the NEW sheet.
+    const rfi = addRFI(rfiFromCandidate(candidate, oldSheet, newPageLabel, new Date(), { newSheet: pairNew, sheetImages: comparedSheetImages }));
+    setRfiByIndex(prev => ({ ...prev, [index]: { id: rfi.id, number: rfi.number } }));
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [oldSheet, result, rfiByIndex, newPageLabel, addRFI]);
+  }, [oldSheet, result, rfiByIndex, newPageLabel, pairNew, addRFI, comparedSheetImages]);
+
+  const handleRaiseChangeRfi = useCallback((index: number) => {
+    if (!oldSheet || !result || changeRfi[index]) return;
+    const change = result.changes[index];
+    if (!change) return;
+    const rfi = addRFI(rfiFromChange(change, oldSheet, newPageLabel, new Date(), { newSheet: pairNew, sheetImages: comparedSheetImages }));
+    setChangeRfi(prev => ({ ...prev, [index]: { id: rfi.id, number: rfi.number } }));
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [oldSheet, result, changeRfi, newPageLabel, pairNew, addRFI, comparedSheetImages]);
+
+  // The RFI is created with no addressee on purpose (never guessed) — this is
+  // where he adds one and sends it.
+  const openRfi = useCallback((rfiId: string) => {
+    if (!project) return;
+    router.push({ pathname: '/rfi' as never, params: { projectId: project.id, rfiId } as never });
+  }, [project, router]);
 
   // Which changes have a change order in the project that CARRIES this change's
   // text. This used to be a flag set the moment the user tapped through to the
@@ -272,20 +520,25 @@ export default function CompareDrawingsScreen() {
     const change = result.changes[index];
     if (!change) return;
     const existing = coSaved[index];
+    // Two sheets in the set: the CO cites the NEW revision, compared with the old.
+    const prefill = pairNew
+      ? changeOrderPrefill(change, pairNew, `compared with ${sheetCitation(oldSheet)}`)
+      : changeOrderPrefill(change, oldSheet, newPageLabel);
     router.push({
       pathname: '/change-order' as never,
       // An already-saved change reopens ITS change order rather than prefilling
       // a second one with the same scope.
       params: (existing
         ? { projectId: project.id, coId: existing.id }
-        : { projectId: project.id, ...changeOrderPrefill(change, oldSheet, newPageLabel) }) as never,
+        : { projectId: project.id, ...prefill }) as never,
     });
-  }, [project, oldSheet, result, newPageLabel, router, coSaved]);
+  }, [project, oldSheet, result, newPageLabel, pairNew, router, coSaved]);
 
   // Nothing here is saved until one of the buttons above is used, so Done asks
   // once rather than discarding a revision drop silently.
   const handleDone = useCallback(() => {
-    const savedSomething = !!filed || Object.keys(rfiByIndex).length > 0 || Object.keys(coSaved).length > 0;
+    const savedSomething = !!filed || Object.keys(rfiByIndex).length > 0 || Object.keys(changeRfi).length > 0
+      || Object.keys(coSaved).length > 0;
     const foundSomething = (result?.changes.length ?? 0) > 0 || (result?.rfiCandidates.length ?? 0) > 0;
     if (savedSomething || !foundSomething) { router.back(); return; }
     showAlert(
@@ -297,7 +550,7 @@ export default function CompareDrawingsScreen() {
       ],
       { cancelable: true },
     );
-  }, [filed, rfiByIndex, coSaved, result, router]);
+  }, [filed, rfiByIndex, changeRfi, coSaved, result, router]);
 
   if (!project) {
     return (
@@ -314,6 +567,42 @@ export default function CompareDrawingsScreen() {
     );
   }
 
+  // The gating contract: a spinner only while the role read is in flight, a
+  // retry when it failed (or is paused offline), and a plain reason when this
+  // seat may not compare. The job's OWNER (projects.user_id on the local row)
+  // is never held on the collaborator read — a blip must not lock him out.
+  const seatRole = effectivePlanRole(roleState.role, project, authUser?.id);
+  const roleWaiting = seatRole === null && roleState.isLoading;
+  const roleFailed = seatRole === null && !roleState.isLoading && (roleState.isError || offline);
+  const compareBlock = roleWaiting || roleFailed
+    ? null
+    : seatRole === null
+      ? 'You don\u2019t have access to this project. Ask the project owner to invite you.'
+      : planControlBlock(seatRole, 'compare');
+  if (roleWaiting || roleFailed || compareBlock) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
+        <View style={[styles.hero, { alignItems: 'flex-start' }]} testID="compare-role-gate">
+          {roleWaiting ? (
+            <ActivityIndicator size="small" color={themeColors.accent} />
+          ) : roleFailed ? (
+            <>
+              <Text style={styles.heroBody}>Couldn&apos;t check your role on this job. Check your connection and try again.</Text>
+              <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} testID="compare-role-retry" />
+            </>
+          ) : (
+            <>
+              <Text style={styles.heroTitle}>Compare isn&apos;t available on your seat</Text>
+              <Text style={styles.heroBody}>{compareBlock}</Text>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   // Full-screen crane + rotating facts during the 30-60s AI compare (was a tiny
   // centered spinner on an otherwise empty screen).
   if (step === 'analyzing') {
@@ -325,6 +614,13 @@ export default function CompareDrawingsScreen() {
       </View>
     );
   }
+
+  const errorBanner = error ? (
+    <View style={styles.errorBanner}>
+      <AlertCircle size={14} color={themeColors.danger} strokeWidth={1.75} />
+      <Text style={styles.errorText}>{error}</Text>
+    </View>
+  ) : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -341,7 +637,7 @@ export default function CompareDrawingsScreen() {
               </View>
               <Text style={styles.heroTitle}>Find what changed</Text>
               <Text style={styles.heroBody}>
-                Pick the sheet that&apos;s currently in the field. Then upload the new revision and AI will tell you exactly what changed — scope, dimensions, notes — and what each change probably means for cost or schedule.
+                Pick the sheet that&apos;s currently in the field. Then upload the new revision — a PDF (any page of a re-issued set) or a JPG/PNG — and AI will tell you exactly what changed — scope, dimensions, notes — and what each change probably means for cost or schedule.
               </Text>
             </View>
 
@@ -349,7 +645,7 @@ export default function CompareDrawingsScreen() {
             {planSheets.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyText}>No plan sheets in this project yet.</Text>
-                <Text style={styles.emptyBody}>Add a sheet from the Plans screen first — that's the &quot;current&quot; reference for the comparison.</Text>
+                <Text style={styles.emptyBody}>Add a sheet from the Plans screen first — that&apos;s the &quot;current&quot; reference for the comparison.</Text>
               </View>
             ) : (
               planSheets.map(s => (
@@ -372,12 +668,44 @@ export default function CompareDrawingsScreen() {
         )}
 
         {/* ── Step 2: pick the NEW revision ───────────────────────── */}
-        {step === 'pickNew' && oldSheet && (
+        {step === 'pickNew' && oldSheet && pairNew && (
+          <>
+            {/* #76: two revisions already in the plan set. */}
+            <View style={styles.hero}>
+              <Text style={styles.heroTitle}>Compare two revisions</Text>
+              <Text style={styles.heroBody}>
+                Both sheets are already in the plan set, so nothing is uploaded or filed. AI compares {sheetCitation(oldSheet)} with {sheetCitation(pairNew)} and flags every change.
+              </Text>
+            </View>
+            <View style={styles.previewRow}>
+              <View style={styles.previewItem}>
+                <Text style={styles.previewLabel}>Older</Text>
+                <Image source={{ uri: oldSheet.imageUri }} style={styles.previewImg} resizeMode="contain" />
+                <Text style={styles.previewName} numberOfLines={1}>{sheetCitation(oldSheet)}{oldSheet.superseded ? ' · superseded' : ''}</Text>
+              </View>
+              <View style={styles.previewItem}>
+                <Text style={styles.previewLabel}>Newer</Text>
+                <Image source={{ uri: pairNew.imageUri }} style={styles.previewImg} resizeMode="contain" />
+                <Text style={styles.previewName} numberOfLines={1}>{sheetCitation(pairNew)}</Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => { void handleCompareExisting(); }} style={styles.primaryBtn} activeOpacity={0.85} testID="compare-existing-pair">
+              <Layers size={16} color="#FFF" strokeWidth={1.75} />
+              <Text style={styles.primaryBtnText}>Compare these revisions</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setPairNewId(null)} style={[styles.changeBtn, { marginHorizontal: 16 }]}>
+              <Text style={styles.changeBtnText}>Upload a different revision instead</Text>
+            </TouchableOpacity>
+            {errorBanner}
+          </>
+        )}
+
+        {step === 'pickNew' && oldSheet && !pairNew && (
           <>
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>Now upload the revision</Text>
               <Text style={styles.heroBody}>
-                Pick the new PDF (single sheet) or PNG showing the same drawing as <Text style={{ fontWeight: '700' }}>{oldSheet.name}</Text>. We&apos;ll render it and run the comparison.
+                Pick the new PDF, or a JPG/PNG, showing the same drawing as <Text style={{ fontWeight: '700' }}>{oldSheet.name}</Text>. For a whole re-issued set you choose the page. We&apos;ll render it and run the comparison.
               </Text>
             </View>
 
@@ -390,22 +718,80 @@ export default function CompareDrawingsScreen() {
                   {oldSheet.sheetNumber ? <Text style={styles.sheetMeta}>{oldSheet.sheetNumber}</Text> : null}
                 </View>
               </View>
-              <TouchableOpacity onPress={() => setStep('pickOld')} style={styles.changeBtn}>
+              <TouchableOpacity onPress={() => { setPendingPdf(null); renderCache.current = null; setStep('pickOld'); }} style={styles.changeBtn}>
                 <Text style={styles.changeBtnText}>Pick a different sheet</Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity onPress={handlePickNew} style={styles.primaryBtn} activeOpacity={0.85}>
-              <FileText size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.primaryBtnText}>Pick new revision (PDF)</Text>
-            </TouchableOpacity>
-
-            {error && (
-              <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={themeColors.danger} strokeWidth={1.75} />
-                <Text style={styles.errorText}>{error}</Text>
+            {pendingPdf ? (
+              /* #76: which page of the set is this sheet. Only that page is
+                 rendered (one takeoff page). */
+              <View style={styles.fileCard} testID="compare-page-picker">
+                <View style={styles.fileCardHead}>
+                  <FileText size={15} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.fileCardTitle} numberOfLines={2}>
+                    {pendingPdf.asset.name}{pendingPdf.pageCount ? ` · ${pendingPdf.pageCount} pages` : ''}
+                  </Text>
+                </View>
+                <Text style={styles.fileCardBody}>
+                  Which page is {oldSheet.sheetNumber || oldSheet.name}? Only that page is rendered and compared — it uses 1 takeoff page.
+                </Text>
+                <View style={styles.pageRow}>
+                  <TouchableOpacity
+                    onPress={() => setPageDraft(p => String(Math.max(1, (Number(p) || 1) - 1)))}
+                    style={styles.pageStepBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Previous page"
+                  >
+                    <Minus size={14} color={themeColors.text} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                  <TextInput
+                    value={pageDraft}
+                    onChangeText={setPageDraft}
+                    keyboardType="number-pad"
+                    style={styles.pageInput}
+                    accessibilityLabel="Page number"
+                    testID="compare-page-input"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setPageDraft(p => {
+                      const next = (Number(p) || 0) + 1;
+                      return String(pendingPdf.pageCount ? Math.min(pendingPdf.pageCount, next) : next);
+                    })}
+                    style={styles.pageStepBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Next page"
+                  >
+                    <Plus size={14} color={themeColors.text} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                  {pendingPdf.pageCount ? <Text style={styles.sheetMeta}>of {pendingPdf.pageCount}</Text> : null}
+                </View>
+                {pageChoice.reason ? <Text style={styles.fileCardBlocked}>{pageChoice.reason}</Text> : null}
+                <TouchableOpacity
+                  onPress={() => {
+                    if (pageChoice.page === null) return;
+                    void runCompare({ kind: 'pdf', asset: pendingPdf.asset, page: pageChoice.page, pageCount: pendingPdf.pageCount });
+                  }}
+                  disabled={pageChoice.page === null}
+                  style={[styles.fileBtn, pageChoice.page === null && { opacity: 0.5 }]}
+                  activeOpacity={0.85}
+                  accessibilityState={{ disabled: pageChoice.page === null }}
+                  testID="compare-page-go"
+                >
+                  <Text style={styles.fileBtnText}>{pageChoice.page === null ? 'Pick a page' : `Compare page ${pageChoice.page}`}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setPendingPdf(null)} style={styles.linkBtn}>
+                  <Text style={styles.linkBtnText}>Pick a different file</Text>
+                </TouchableOpacity>
               </View>
+            ) : (
+              <TouchableOpacity onPress={handlePickNew} style={styles.primaryBtn} activeOpacity={0.85}>
+                <FileText size={16} color="#FFF" strokeWidth={1.75} />
+                <Text style={styles.primaryBtnText}>Pick new revision (PDF or image)</Text>
+              </TouchableOpacity>
             )}
+
+            {errorBanner}
           </>
         )}
 
@@ -455,23 +841,51 @@ export default function CompareDrawingsScreen() {
                       <Text style={styles.fileBtnText}>{filing.label}</Text>
                     </TouchableOpacity>
                   </>
-                ) : filing.kind === 'filed' ? (
+                ) : filing.kind === 'filed' || filing.kind === 'in_set' ? (
                   <>
                     <View style={styles.doneRow}>
                       <Check size={14} color={themeColors.successLabel} strokeWidth={2} />
                       <Text style={styles.doneText}>{filing.label}</Text>
                     </View>
                     <TouchableOpacity
-                      onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: filed?.sheetId ?? '' } as never })}
+                      onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: (filing.kind === 'in_set' ? pairNew?.id : filed?.sheetId) ?? '' } as never })}
                       style={styles.linkBtn}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.linkBtnText}>Open the filed sheet</Text>
+                      <Text style={styles.linkBtnText}>{filing.kind === 'in_set' ? 'Open the newer sheet' : 'Open the filed sheet'}</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
-                  /* Disabled controls say why (house rule) — and what to do. */
-                  <Text style={styles.fileCardBlocked}>{filing.reason}</Text>
+                  <>
+                    {/* Disabled controls say why (house rule) — and what to do. */}
+                    <Text style={styles.fileCardBlocked}>{filing.reason}</Text>
+                    {filing.needsNumber ? (
+                      /* #75: number it here; the comparison above is kept. */
+                      <View style={styles.pageRow}>
+                        <TextInput
+                          value={numberDraft}
+                          onChangeText={(t) => { setNumberDraft(t); setNumberError(null); }}
+                          placeholder="A-201"
+                          autoCapitalize="characters"
+                          autoCorrect={false}
+                          style={[styles.pageInput, { flex: 1, textAlign: 'left' }]}
+                          accessibilityLabel={`Sheet number for ${oldSheet.name}`}
+                          testID="compare-sheet-number-input"
+                        />
+                        <TouchableOpacity
+                          onPress={handleSaveNumber}
+                          disabled={!numberDraft.trim()}
+                          style={[styles.rowBtn, { marginTop: 0 }, !numberDraft.trim() && { opacity: 0.5 }]}
+                          accessibilityState={{ disabled: !numberDraft.trim() }}
+                          testID="compare-sheet-number-save"
+                        >
+                          <Check size={13} color={themeColors.accent} strokeWidth={1.75} />
+                          <Text style={styles.rowBtnText}>{numberDraft.trim() ? 'Save number' : 'Type a number'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                    {numberError ? <Text style={styles.errorText}>{numberError}</Text> : null}
+                  </>
                 )}
               </View>
             ) : null}
@@ -499,17 +913,29 @@ export default function CompareDrawingsScreen() {
                       {c.suggestedAction ? (
                         <Text style={styles.suggestedAction}>→ {c.suggestedAction}</Text>
                       ) : null}
-                      {/* The change, the place, and the drawing it came from,
-                          carried into the CO — no retyping from memory. */}
-                      <TouchableOpacity
-                        onPress={() => handleStartChangeOrder(i)}
-                        style={styles.rowBtn}
-                        activeOpacity={0.8}
-                        testID={`compare-start-co-${i}`}
-                      >
-                        <FilePlus2 size={13} color={themeColors.accent} strokeWidth={1.75} />
-                        <Text style={styles.rowBtnText}>{coSaved[i] ? `Open CO #${coSaved[i].number}` : 'Start change order'}</Text>
-                      </TouchableOpacity>
+                      <View style={styles.rowBtnWrap}>
+                        {/* The change, the place, and the drawing it came from,
+                            carried into the CO — no retyping from memory. */}
+                        <TouchableOpacity
+                          onPress={() => handleStartChangeOrder(i)}
+                          style={styles.rowBtn}
+                          activeOpacity={0.8}
+                          testID={`compare-start-co-${i}`}
+                        >
+                          <FilePlus2 size={13} color={themeColors.accent} strokeWidth={1.75} />
+                          <Text style={styles.rowBtnText}>{coSaved[i] ? `Open CO #${coSaved[i].number}` : 'Start change order'}</Text>
+                        </TouchableOpacity>
+                        {/* #166: a change that needs the architect's word. */}
+                        <TouchableOpacity
+                          onPress={() => (changeRfi[i] ? openRfi(changeRfi[i].id) : handleRaiseChangeRfi(i))}
+                          style={styles.rowBtn}
+                          activeOpacity={0.8}
+                          testID={`compare-change-rfi-${i}`}
+                        >
+                          <MessageSquarePlus size={13} color={themeColors.accent} strokeWidth={1.75} />
+                          <Text style={styles.rowBtnText}>{changeRfi[i] ? `Open RFI #${changeRfi[i].number} to assign and send` : 'Raise RFI'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -526,10 +952,19 @@ export default function CompareDrawingsScreen() {
                       <Text style={styles.rfiSubject}>{r.subject}</Text>
                       <Text style={styles.rfiQuestion}>{r.question}</Text>
                       {rfiByIndex[i] ? (
-                        <View style={styles.doneRow}>
+                        /* #166: created with no addressee — open it to add one and send. */
+                        <TouchableOpacity
+                          onPress={() => openRfi(rfiByIndex[i].id)}
+                          style={styles.doneRow}
+                          activeOpacity={0.8}
+                          accessibilityRole="button"
+                          testID={`compare-open-rfi-${i}`}
+                        >
                           <Check size={13} color={themeColors.successLabel} strokeWidth={2} />
-                          <Text style={styles.doneText}>Created as RFI #{rfiByIndex[i]}, linked to {oldSheet.sheetNumber || oldSheet.name}</Text>
-                        </View>
+                          <Text style={styles.doneText}>
+                            RFI #{rfiByIndex[i].number} created, linked to {sheetCitation(pairNew ?? oldSheet)}. <Text style={styles.linkBtnText}>Open RFI #{rfiByIndex[i].number} to assign and send</Text>
+                          </Text>
+                        </TouchableOpacity>
                       ) : (
                         <TouchableOpacity
                           onPress={() => handleCreateRfi(i)}
@@ -717,6 +1152,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.accent + '44',
   },
   rowBtnText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' },
+  rowBtnWrap: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8 },
+  pageRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pageStepBtn: {
+    width: 34, height: 34, borderRadius: Tokens.radius.md,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt,
+  },
+  pageInput: {
+    minWidth: 64, height: 36, paddingHorizontal: 10, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt,
+    color: t.text, fontSize: Type.body.fontSize, textAlign: 'center',
+  },
 
   rfiCard: {
     marginHorizontal: 16, marginBottom: 8, padding: 12,

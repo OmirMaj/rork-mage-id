@@ -7,7 +7,8 @@
 // no injury are not recordable (a fatality always is). Pure logic — no UI,
 // unit-tested by scripts/validate-safety-osha.ts.
 
-import type { SafetyIncident, SafetyIncidentSeverity, IncidentSeverity, OshaIllnessType } from '@/types';
+import type { SafetyIncident, SafetyIncidentSeverity, IncidentSeverity, OshaIllnessType, IncidentPerson } from '@/types';
+import { parseCalendarDay } from '@/utils/calendarDate';
 
 export type IncidentType = 'injury' | 'near_miss' | 'property' | 'environmental';
 export type Treatment = 'none' | 'first_aid' | 'medical_beyond_first_aid';
@@ -246,24 +247,49 @@ export interface DfrIncidentSource {
   existingStatus?: SafetyIncident['status'];
 }
 
-export function buildSafetyIncidentFromDfr(src: DfrIncidentSource): SafetyIncident {
+/** Case-insensitive, whitespace-trimmed text key, for "is this the same entry". */
+function sameText(a: string | undefined, b: string | undefined): boolean {
+  return (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase();
+}
+
+/**
+ * The register case for one daily report.
+ *
+ * `existing` is the case already on the register (the DFR's `linkedIncident`).
+ * Without it this files a fresh case. WITH it, it MERGES, and that is the fix
+ * for audit #83: re-saving the report used to rebuild the whole record from the
+ * DFR's few fields, so a typo fix on Tuesday wiped everything the safety manager
+ * had added in Incidents on Monday — the injured worker's job title (the 300
+ * printed a blank Job Title), his extra corrective actions and their done
+ * marks, the scene photos (replaced by the report's device URIs), the real
+ * location, and who first filed it.
+ *
+ * The DFR owns ONLY what the DFR asks: what happened (description), when
+ * (occurredAt), how bad (severity) and the 1904 classification inputs, with
+ * oshaRecordable recomputed from them. Everything else belongs to the log:
+ *  - people involved: kept as the log has them; the DFR's names are used only
+ *    when the log has nobody yet,
+ *  - corrective actions: kept, done marks included; the DFR's action is
+ *    appended only when no action with the same text is already there,
+ *  - photos: a union — the log's storage paths are never dropped,
+ *  - location: the log's, unless it is blank,
+ *  - illness type (col M), plan pin, status, createdBy / reportedBy / createdAt.
+ * One pure function so scripts/validate-safety-dfr-merge.ts runs the real rule.
+ */
+export function buildSafetyIncidentFromDfr(src: DfrIncidentSource, existing?: SafetyIncident | null): SafetyIncident {
   const names = src.peopleInvolved.trim();
   const action = src.correctiveAction.trim();
   const reportedBy = src.reportedBy.trim() || src.author;
-  return {
-    id: safetyIncidentIdForReport(src.reportId),
-    projectId: src.projectId,
+  // Col M is a recordkeeping judgement the DFR never asks for. A value the
+  // safety manager set in the log is part of the determination, so the
+  // recomputed flag must read it — otherwise a respiratory case logged as
+  // 'environmental' would drop off the 300 on the next DFR save.
+  const illness = src.classification.oshaIllnessType ?? existing?.oshaIllnessType;
+  const dfrOwned = {
     type: src.classification.type,
     severity: DFR_SEVERITY_TO_REGISTER_SEVERITY[src.severity ?? 'minor'],
     occurredAt: src.occurredOn,
     description: src.description.trim(),
-    location: src.location.trim(),
-    // One person, not a comma-split: "Jose R, foreman" is one man with a role,
-    // and guessing which commas separate people would put a job title in the
-    // employee-name column of the 300.
-    peopleInvolved: names ? [{ name: names, role: '' }] : [],
-    photoUrls: src.photoUrls,
-    correctiveActions: action ? [{ action, owner: reportedBy, done: false }] : [],
     treatment: src.classification.treatment,
     daysAway: src.classification.daysAway,
     daysRestricted: src.daysRestricted,
@@ -273,17 +299,183 @@ export function buildSafetyIncidentFromDfr(src: DfrIncidentSource): SafetyIncide
     restrictedDuty: hasRestriction({ restrictedDuty: src.classification.restrictedDuty, daysRestricted: src.daysRestricted }),
     lostConsciousness: src.classification.lostConsciousness,
     fatality: src.classification.fatality,
-    // Column M is a recordkeeping judgement (skin vs respiratory vs hearing)
-    // the DFR does not ask for. Left unset rather than guessed — oshaLog reads
-    // an absent value as a physical injury, which is the honest default.
     // daysRestricted is folded in here rather than trusted to the caller: the
     // DFR assembles `classification` without it, and a light-duty week typed on
     // the report must still put the case on the 300.
-    oshaRecordable: isOshaRecordable({ ...src.classification, daysRestricted: src.daysRestricted }),
+    oshaRecordable: isOshaRecordable({ ...src.classification, oshaIllnessType: illness, daysRestricted: src.daysRestricted }),
+    updatedAt: src.now,
+  };
+
+  if (existing) {
+    const actions = existing.correctiveActions ?? [];
+    const photos = existing.photoUrls ?? [];
+    return {
+      ...existing,
+      ...dfrOwned,
+      id: existing.id,
+      projectId: existing.projectId || src.projectId,
+      oshaIllnessType: illness,
+      location: (existing.location ?? '').trim() ? existing.location : src.location.trim(),
+      peopleInvolved: (existing.peopleInvolved ?? []).length > 0
+        ? existing.peopleInvolved
+        : (names ? [{ name: names, role: '' }] : []),
+      correctiveActions: action && !actions.some(a => sameText(a.action, action))
+        ? [...actions, { action, owner: reportedBy, done: false }]
+        : actions,
+      photoUrls: [...photos, ...src.photoUrls.filter(u => u && !photos.includes(u))],
+      status: existing.status ?? src.existingStatus ?? 'open',
+      reportedBy: existing.reportedBy || reportedBy,
+      createdBy: existing.createdBy || src.author,
+      createdAt: existing.createdAt || src.existingCreatedAt || src.now,
+    };
+  }
+
+  return {
+    id: safetyIncidentIdForReport(src.reportId),
+    projectId: src.projectId,
+    ...dfrOwned,
+    location: src.location.trim(),
+    // One person, not a comma-split: "Jose R, foreman" is one man with a role,
+    // and guessing which commas separate people would put a job title in the
+    // employee-name column of the 300.
+    peopleInvolved: names ? [{ name: names, role: '' }] : [],
+    photoUrls: src.photoUrls,
+    correctiveActions: action ? [{ action, owner: reportedBy, done: false }] : [],
+    // Column M left unset rather than guessed — oshaLog reads an absent value
+    // as a physical injury, which is the honest default.
+    ...(illness ? { oshaIllnessType: illness } : {}),
     status: src.existingStatus ?? 'open',
     reportedBy,
     createdBy: src.author,
     createdAt: src.existingCreatedAt ?? src.now,
-    updatedAt: src.now,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// The injured worker on the 300 (audit #88).
+//
+// peopleInvolved is a flat list; nothing said which entry was HURT, so the 300
+// printed peopleInvolved[0] — which could be the witness — and a recordable
+// case could be saved with nobody on it at all, printing '—' in the one column
+// an inspector reads first. `injured` marks the employee the case is about;
+// `privacyCase` is 1904.29(b)(7): for the listed injury types the employer
+// writes "Privacy case" instead of the name (the job title is still required).
+//
+// IncidentPersonRecord widens IncidentPerson locally so this compiles whether
+// or not types/index.ts has the two optional fields yet; the JSONB column
+// round-trips them verbatim either way.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type IncidentPersonRecord = IncidentPerson & { injured?: boolean; privacyCase?: boolean };
+
+/** The person the case is about: the one marked injured, else the first entry
+ *  (every case saved before the flag existed has only that to go on). */
+export function injuredPersonOf(people: readonly IncidentPerson[] | undefined): IncidentPersonRecord | undefined {
+  const list = (people ?? []) as readonly IncidentPersonRecord[];
+  return list.find(p => p?.injured) ?? list[0];
+}
+
+/** Blank rows ({name:'', role:''}) are an "Add" tap nobody filled in. They are
+ *  dropped at save instead of printing an empty line on the record. */
+export function cleanPeopleInvolved(people: readonly IncidentPerson[]): IncidentPersonRecord[] {
+  return (people as readonly IncidentPersonRecord[]).filter(
+    p => (p.name ?? '').trim() || (p.role ?? '').trim() || p.privacyCase,
+  );
+}
+
+/**
+ * Why a RECORDABLE case can't be saved yet, or null when it can. The 300 needs
+ * the injured employee's name (or "Privacy case") and job title — a recordable
+ * case without them is a log row the employer has to fix by hand later, and
+ * the Save button is where he is still looking at the case.
+ */
+export function recordableWorkerProblem(people: readonly IncidentPerson[]): string | null {
+  const list = cleanPeopleInvolved(people);
+  const marked = list.find(p => p.injured);
+  const person = marked ?? (list.length === 1 ? list[0] : undefined);
+  if (!person) {
+    return list.length === 0
+      ? 'This case is OSHA-recordable, so the 300 log needs the injured worker. Add him under People involved with his name and job title.'
+      : 'This case is OSHA-recordable. Mark which person was injured (tap "Injured" on his row) so the 300 log names the right worker.';
+  }
+  if (!person.privacyCase && !(person.name ?? '').trim()) {
+    return 'The injured worker needs a name on the 300 log. Type it, or mark it a privacy case if 1904.29(b)(7) applies.';
+  }
+  if (!(person.role ?? '').trim()) {
+    return 'The injured worker needs a job title on the 300 log (for example "Carpenter"). Add it on his row.';
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Dates (audit #168). The safety forms took dates as free text, so '9/18/26'
+// saved as typed: buildOsha300Log's year filter dropped the case from every
+// year's log while the hub still counted it recordable, and the OSHA screen
+// offered a '9/18' year chip. A date field now accepts a real calendar day
+// in YYYY-MM-DD or refuses, and says why.
+// ─────────────────────────────────────────────────────────────────────────
+
+const STRICT_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The value as a real calendar day, or null. 2026-02-30 is not a day
+ *  (parseCalendarDay round-trips the components), and nothing may trail it. */
+export function strictCalendarDay(value: string | null | undefined): string | null {
+  const v = (value ?? '').trim();
+  return STRICT_DAY.test(v) && parseCalendarDay(v) ? v : null;
+}
+
+/** Why `value` is refused as the `label` date, or null when it is fine. An
+ *  optional field may be blank; a required one may not. */
+export function safetyDateProblem(value: string | null | undefined, label: string, opts: { optional?: boolean } = {}): string | null {
+  const v = (value ?? '').trim();
+  if (!v) return opts.optional ? null : `${label} is required. Enter it as YYYY-MM-DD, for example ${EXAMPLE_DAY}.`;
+  if (strictCalendarDay(v)) return null;
+  return `${label} "${v}" is not a date MAGE can file. Enter it as YYYY-MM-DD, for example ${EXAMPLE_DAY}, so it lands in the right year's log.`;
+}
+const EXAMPLE_DAY = '2026-09-18';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Who may do what on a project's safety records — the client half of
+// supabase/migrations/20260919130000_safety_project_rls.sql. A collaborator
+// may file (field / editor), a viewer may only read, and only the project
+// owner may delete. The server refuses the rest, and the offline queue treats
+// that refusal as terminal — so a button the server will refuse must be
+// disabled here, with the reason, rather than "succeeding" locally and
+// quietly coming back on the next load.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type SafetySeat = 'owner' | 'crew' | 'viewer' | 'checking';
+
+/**
+ * `ownerUserId` is the device copy of the project's owner (offline-safe, the
+ * change-order gate's rule); `role` is useProjectRole (null while loading or on
+ * error); `myRole` is the loader's stamp on a shared project.
+ */
+export function safetySeatFor(args: {
+  ownerUserId?: string | null;
+  userId?: string | null;
+  role: 'owner' | 'editor' | 'viewer' | 'field' | null;
+  myRole?: string | null;
+}): SafetySeat {
+  const { ownerUserId, userId, role, myRole } = args;
+  if (ownerUserId && userId && ownerUserId === userId) return 'owner';
+  if (role === 'owner') return 'owner';
+  const r = role ?? myRole ?? null;
+  if (r === 'editor' || r === 'field') return 'crew';
+  if (r === 'viewer') return 'viewer';
+  return 'checking';
+}
+
+/** The reason a seat can't delete a safety record, or null when it can. */
+export function safetyDeleteBlockedReason(seat: SafetySeat): string | null {
+  if (seat === 'owner') return null;
+  if (seat === 'checking') return 'Checking your role on this job. Try again in a moment.';
+  return 'Only the project owner can delete safety records. Ask your GC to remove it.';
+}
+
+/** The reason a seat can't file or edit safety records, or null when it can. */
+export function safetyWriteBlockedReason(seat: SafetySeat): string | null {
+  return seat === 'viewer'
+    ? 'You were invited to this job as a viewer, so you can read its safety records but not file them. Ask your GC for field access.'
+    : null;
 }

@@ -11,14 +11,16 @@ import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
   SavedAIAPayApp, PortalState, ProjectSchedule, Permit, Warranty,
-  SendableItemKind,
+  SendableItemKind, InvoicePayment, ScheduleTask,
 } from '@/types';
 import { portalLiveOverrides, PORTAL_MAX_INVOICE_LINES } from '@/utils/portalFreeze';
 import { punchListTypeOf } from '@/types';
-import { dayOrInstantDate } from '@/utils/calendarDate';
+import { dayOrInstantDate, calendarDayOf, parseCalendarDay } from '@/utils/calendarDate';
+import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { roundCents } from '@/utils/aiaBilling';
+import { paymentReceivedDay, type RecordedPaymentFields } from '@/utils/billingFlowCore';
 import {
   getEffectiveInvoiceStatus, getOutstandingBalance, getInvoicedToDate,
   getRetentionHeld, getPaidToDate,
@@ -560,8 +562,18 @@ export interface PortalSnapshot {
       reason?: string;
       newContractTotal?: number;
       scheduleImpactDays?: number;
+      /** Wave 3 (#131) — the sales tax frozen on the CO and the tax-inclusive
+       *  figure the CO screen tells him the client approves. Dollar amounts,
+       *  never a rate: the portal must not work tax out on its own. Absent
+       *  on a CO with no tax (or one saved before the freeze existed). */
+      taxAmount?: number;
+      totalWithTax?: number;
     }[];
     photos?: {
+      /** The photo row's id — the server overlay (portal_overlay_live) drops
+       *  a photo recalled from ANY device on read, and needs the id to find
+       *  its row. Absent on snapshots built before 2026-09-19 (matched by url). */
+      id?: string;
       url: string;
       caption?: string;
       timestamp?: string;
@@ -715,7 +727,30 @@ export interface PortalProposal {
    *  `payment` is then empty, the document says `payment_terms: not_confirmed`,
    *  and the page and the acceptance RPC refuse to let it be accepted. */
   paymentTermsPending?: true;
+  /** Whether the portal may draw Accept / Decline at all. The acceptance RPC
+   *  (portal_submit_proposal_approval_signed) lives in the HELD migration
+   *  supabase/migrations/held/20260913120000_portal_proposal_acceptance.sql,
+   *  so today a homeowner who typed a name, drew a signature and tapped
+   *  "Sign & accept" got a 404 and "not switched on" AFTER signing (audit #29).
+   *  The page requires `true` (proposalCanDecide), so a proposal published
+   *  while the RPC is absent is read-only, never a dead end. */
+  acceptanceLive: boolean;
 }
+
+/**
+ * Whether production has the proposal-acceptance RPC. FALSE until the founder
+ * applies the held migration (checked read-only 2026-09-18: pg_proc has no
+ * portal_submit_proposal_approval_signed). Flip to true in the SAME change
+ * that applies it — the portal page and the setup screen both read this, so
+ * one line turns acceptance on everywhere, and nothing else has to guess.
+ */
+export const PORTAL_PROPOSAL_ACCEPTANCE_LIVE = false;
+
+/** The one line the GC sees on the Accept-the-proposal switch while
+ *  acceptance is not live. A blocked control says why and names the path
+ *  that works today. */
+export const PROPOSAL_ACCEPTANCE_OFF_REASON =
+  "Online acceptance isn't switched on for your account yet. Send the proposal and collect the signature on the contract.";
 
 /** Collapse whitespace and hard-cap free text, so the same estimate always
  *  produces the same bytes no matter how the contractor typed it. */
@@ -1006,6 +1041,7 @@ export function buildPortalProposal(opts: {
     preparedAt: est.createdAt,
     documentText,
     ...(paymentTermsPending ? { paymentTermsPending: true as const } : {}),
+    acceptanceLive: PORTAL_PROPOSAL_ACCEPTANCE_LIVE,
   };
 }
 
@@ -1333,14 +1369,73 @@ export function buildPortalDocuments(input: {
  * that ("Settled with invoice"), which is only reachable while this stays
  * undefined — see the paidAt comment in the AIA section below.
  */
+/**
+ * The CO's frozen sales tax and tax-inclusive total, for the portal card and
+ * the e-sign consent record (#131) — both present and finite, tax non-zero, or
+ * neither. Exported for scripts/validate-client-portal-lane.ts.
+ */
+export function coTaxForPortal(co: unknown): { taxAmount?: number; totalWithTax?: number } {
+  const c = (co ?? {}) as { taxAmount?: unknown; totalWithTax?: unknown };
+  const tax = typeof c.taxAmount === 'number' && Number.isFinite(c.taxAmount) ? c.taxAmount : null;
+  const total = typeof c.totalWithTax === 'number' && Number.isFinite(c.totalWithTax) ? c.totalWithTax : null;
+  if (tax == null || total == null || Math.abs(tax) < 0.005) return {};
+  return { taxAmount: roundCents(tax), totalWithTax: roundCents(total) };
+}
+
 export function latestPaymentDate(
   invoice: Pick<Invoice, 'payments'> | undefined,
 ): string | undefined {
-  const dates = (invoice?.payments ?? [])
-    .map(p => p?.date)
+  // #133: the day the money was RECEIVED — his picked day when he recorded
+  // one, else the local day the payment was recorded — as a bare YYYY-MM-DD.
+  // The raw `date` is the moment he tapped Save: a check received Friday and
+  // entered Monday evening printed "Paid Tuesday" (UTC) on a client-facing
+  // certificate. Bare days sort correctly as strings; the portal's fmtDate
+  // reads a bare day as that local day.
+  const days = (invoice?.payments ?? [])
+    .map(p => (p ? paymentReceivedDay(p as InvoicePayment & RecordedPaymentFields) : null))
     .filter((d): d is string => typeof d === 'string' && d !== '')
     .sort();
-  return dates.length ? dates[dates.length - 1] : undefined;
+  return days.length ? days[days.length - 1] : undefined;
+}
+
+/**
+ * #51 (export audit) · Where the SCHEDULE ENGINE puts each task, in the
+ * portal's own units, instead of the stored `startDay` pin. A pin that
+ * dependencies (or a slipped predecessor) have pushed later read a week early
+ * on the homeowner's Gantt, hero finish and milestone dates while the app
+ * showed the real ones. Same rule as utils/subPortalSnapshot: the page walks
+ * startDay/durationDays in WORKING days, so a dated run's calendar es/ef is
+ * converted to working ordinals; an undated run is already in working days.
+ * A task the engine could not place (a cycle, a throw) keeps its stored pin,
+ * so this never invents a date the data does not support.
+ */
+export function portalPlacedTasks<T extends Pick<ScheduleTask, 'id' | 'startDay' | 'durationDays' | 'isMilestone'>>(
+  schedule: { tasks?: T[]; startDate?: string; workingDaysPerWeek?: number; nonWorkingDates?: string[] } | null | undefined,
+): (T & { startDay: number; durationDays: number })[] {
+  const tasks = schedule?.tasks ?? [];
+  if (!schedule || tasks.length === 0) return [];
+  const startIso = calendarDayOf(schedule.startDate);
+  const dayOpts = {
+    scheduleStartDate: startIso && parseCalendarDay(startIso) ? startIso : undefined,
+    workingDaysPerWeek: schedule.workingDaysPerWeek || 5,
+    nonWorkingDates: schedule.nonWorkingDates ?? [],
+  };
+  let perTask: Map<string, { es: number; ef: number }> = new Map();
+  try {
+    perTask = runCpm(tasks as unknown as ScheduleTask[], dayOpts).perTask as Map<string, { es: number; ef: number }>;
+  } catch { /* keep the pins */ }
+  return tasks.map(t => {
+    const r = perTask.get(t.id);
+    if (!r || !Number.isFinite(r.es) || !Number.isFinite(r.ef)) {
+      return { ...t, startDay: t.startDay ?? 0, durationDays: t.durationDays ?? 0 };
+    }
+    if (!dayOpts.scheduleStartDate) {
+      return { ...t, startDay: r.es, durationDays: t.isMilestone ? (t.durationDays ?? 0) : Math.max(1, r.ef - r.es + 1) };
+    }
+    const s0 = calendarIndexToWorkingOrdinal(r.es, dayOpts);
+    const e0 = calendarIndexToWorkingOrdinal(Math.max(r.es, r.ef), dayOpts);
+    return { ...t, startDay: s0, durationDays: t.isMilestone ? (t.durationDays ?? 0) : Math.max(1, e0 - s0 + 1) };
+  });
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
@@ -1358,6 +1453,10 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // Schedule — includes anchors (project start date + working days) +
   // per-task startDay so the portal can render a real Gantt with dates
   // instead of a flat task list.
+  // #51: every date this snapshot prints comes from the engine's placement,
+  // not the stored pins (portalPlacedTasks) — Gantt bars, hero finish and the
+  // period milestones agree with each other and with the app.
+  const placedTasks = portalPlacedTasks(project.schedule);
   if (portal.showSchedule && project.schedule?.tasks?.length) {
     sections.schedule = {
       startDate: project.schedule.startDate,
@@ -1368,14 +1467,14 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       ...(project.schedule.nonWorkingDates?.length
         ? { nonWorkingDates: project.schedule.nonWorkingDates }
         : {}),
-      tasks: project.schedule.tasks.map(t => ({
+      tasks: placedTasks.map(t => ({
         id: t.id,
         title: t.title,
         phase: t.phase,
         progress: t.progress ?? 0,
         status: t.status,
-        durationDays: t.durationDays ?? 0,
-        startDay: t.startDay ?? 0,
+        durationDays: t.durationDays,
+        startDay: t.startDay,
         isMilestone: t.isMilestone,
         isCriticalPath: t.isCriticalPath,
       })),
@@ -1630,6 +1729,12 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         reason: co.description && co.reason && co.reason !== co.description ? co.reason : undefined,
         newContractTotal: co.newContractTotal || undefined,
         scheduleImpactDays: co.scheduleImpactDays || undefined,
+        // #131: the tax-inclusive total the CO screen promises is the one the
+        // client approves. Only when the CO carries a frozen, non-zero tax —
+        // a figure computed here from today's settings could disagree with
+        // the invoice that later bills it. Read defensively: the fields are
+        // optional and older rows have neither.
+        ...coTaxForPortal(co),
       }))) as PortalSnapshot['sections']['changeOrders'];
     }
   }
@@ -1644,6 +1749,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         return tb - ta;
       });
       sections.photos = (sorted.slice(0, maxPhotos).map(p => renderSerialized('photo', p, (photo) => ({
+        id: p.id, // the live row's id, never a frozen copy's
         url: photo.uri ?? '',
         caption: photo.tag ?? photo.location,
         timestamp: photo.timestamp,
@@ -1779,7 +1885,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     // very page. Stays undefined when the schedule gives us nothing to count:
     // the hero then falls back to "Started <date>" rather than inventing a
     // completion date for the homeowner to plan around.
-    targetDate = scheduleFinishDate(sched) ?? undefined;
+    targetDate = scheduleFinishDate(placedTasks.length ? { ...sched, tasks: placedTasks } : sched) ?? undefined;
   }
 
   // Show the "set your budget" card only when (a) the GC has opted in
@@ -1944,7 +2050,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       if (!sch?.tasks?.length || !anchor) return [];
       const wpw = sch.workingDaysPerWeek ?? 5;
       const start = new Date(`${anchor}T00:00:00Z`);
-      return sch.tasks
+      return placedTasks
         .filter(t => t.isMilestone)
         .map(t => {
           const endDay = (t.startDay ?? 1) + Math.max(0, (t.durationDays ?? 1) - 1);

@@ -91,6 +91,12 @@ function commitment(id: string, over: Partial<Commitment>): Commitment {
 }
 
 const RATES = { carpenter: 55 };
+// The fixture books the job's crew hours as ONE pooled row (420 h by one
+// "worker"). Since #65 overtime is allocated per worker per payroll week, so a
+// 420-hour row would be 380 h of weekly overtime — true of no real crew. This
+// file pins where priced hours ROUTE, not which hours are overtime
+// (validate-labor-cost-overtime pins that), so it prices at straight time.
+const STRAIGHT_TIME = { weeklyThreshold: null, dailyThreshold: null, weekStartsOn: 1 as const };
 
 const KITCHEN = project(estimate([
   { category: 'Labor', cost: 15_000 },
@@ -138,9 +144,9 @@ function shape(s: JobCostSummary) {
 console.log('\nThe audit kitchen: a crew-labor overrun reaches the EAC:');
 {
   const withHours = run(KITCHEN, {
-    receipts: [receipt(25_000, 'Materials')], timeEntries: [shift(420, 'carpenter')], laborRates: RATES,
+    receipts: [receipt(25_000, 'Materials')], timeEntries: [shift(420, 'carpenter')], laborRates: RATES, overtimeRule: STRAIGHT_TIME,
   });
-  const noHours = run(KITCHEN, { receipts: [receipt(25_000, 'Materials')], laborRates: RATES });
+  const noHours = run(KITCHEN, { receipts: [receipt(25_000, 'Materials')], laborRates: RATES, overtimeRule: STRAIGHT_TIME });
   close('the 420 h are priced at $23,100 of actual', withHours.actual - noHours.actual, 23_100);
   const labor = row(withHours, 'Labor');
   close('…and land on the estimate\'s Labor row', labor?.actual, 23_100);
@@ -158,7 +164,7 @@ console.log('\nThe audit kitchen: a crew-labor overrun reaches the EAC:');
 
   // The audit's full repro: receipts ALSO over ($31,000 vs $25,000).
   const full = run(KITCHEN, {
-    receipts: [receipt(31_000, 'Materials')], timeEntries: [shift(420, 'carpenter')], laborRates: RATES,
+    receipts: [receipt(31_000, 'Materials')], timeEntries: [shift(420, 'carpenter')], laborRates: RATES, overtimeRule: STRAIGHT_TIME,
   });
   close('with receipts $6,000 over too, EAC carries both overruns ($74,100)', full.projectedFinal, 74_100);
 }
@@ -176,7 +182,7 @@ console.log('\nThe headline never drops below actual + remaining committed:');
   ] as [string, Project, Commitment[]][]) {
     for (const [h, hours] of hourSets.entries()) {
       for (const [r, receipts] of receiptSets.entries()) {
-        cases.push([`${name} h${h} r${r}`, p, { commitments, timeEntries: hours, receipts, laborRates: RATES }]);
+        cases.push([`${name} h${h} r${r}`, p, { commitments, timeEntries: hours, receipts, laborRates: RATES, overtimeRule: STRAIGHT_TIME }]);
       }
     }
   }
@@ -210,10 +216,10 @@ const GOLDEN: Record<string, ReturnType<typeof shape>> = {
 };
 
 const NO_HOUR_FIXTURES: Record<string, () => JobCostSummary> = {
-  kitchen: () => run(KITCHEN, { receipts: [receipt(31_000, 'Materials')], laborRates: RATES }),
-  worldish: () => run(WORLDISH, { commitments: WORLD_COMMITMENTS, receipts: [receipt(4_000, 'labor')], laborRates: RATES }),
-  noLaborLine: () => run(NO_LABOR_LINE, { receipts: [receipt(30_000, 'Materials')], laborRates: RATES }),
-  noEstimate: () => run(NO_ESTIMATE, { commitments: WORLD_COMMITMENTS, laborRates: RATES }),
+  kitchen: () => run(KITCHEN, { receipts: [receipt(31_000, 'Materials')], laborRates: RATES, overtimeRule: STRAIGHT_TIME }),
+  worldish: () => run(WORLDISH, { commitments: WORLD_COMMITMENTS, receipts: [receipt(4_000, 'labor')], laborRates: RATES, overtimeRule: STRAIGHT_TIME }),
+  noLaborLine: () => run(NO_LABOR_LINE, { receipts: [receipt(30_000, 'Materials')], laborRates: RATES, overtimeRule: STRAIGHT_TIME }),
+  noEstimate: () => run(NO_ESTIMATE, { commitments: WORLD_COMMITMENTS, laborRates: RATES, overtimeRule: STRAIGHT_TIME }),
 };
 // The fallback path WITH hours is also pre-fix behavior (no labor line to
 // route to), so it is golden too. Its absorbedVariance of $20,000 is the
@@ -222,7 +228,7 @@ const NO_HOUR_FIXTURES: Record<string, () => JobCostSummary> = {
 // this one golden with the reason; the four no-hours goldens must never move.
 const FALLBACK_FIXTURES: Record<string, () => JobCostSummary> = {
   noLaborLineWithHours: () => run(NO_LABOR_LINE, {
-    receipts: [receipt(30_000, 'Materials')], timeEntries: [shift(420, 'carpenter')], laborRates: RATES,
+    receipts: [receipt(30_000, 'Materials')], timeEntries: [shift(420, 'carpenter')], laborRates: RATES, overtimeRule: STRAIGHT_TIME,
   }),
 };
 
@@ -241,7 +247,7 @@ for (const [name, f] of Object.entries({ ...NO_HOUR_FIXTURES, ...FALLBACK_FIXTUR
 {
   // Three ways a job can have entries and still no PRICED hours. Each must be
   // indistinguishable from passing no entries at all.
-  const base = { receipts: [receipt(31_000, 'Materials')], laborRates: RATES };
+  const base = { receipts: [receipt(31_000, 'Materials')], laborRates: RATES, overtimeRule: STRAIGHT_TIME };
   const none = JSON.stringify(shape(run(KITCHEN, base)));
   ok('an unrated trade (hours, no rate) moves nothing',
     JSON.stringify(shape(run(KITCHEN, { ...base, timeEntries: [shift(420, 'plumber')] }))) === none);
@@ -256,7 +262,7 @@ for (const [name, f] of Object.entries({ ...NO_HOUR_FIXTURES, ...FALLBACK_FIXTUR
 console.log('\nRouting rules:');
 {
   const w = run(WORLDISH, {
-    commitments: WORLD_COMMITMENTS, timeEntries: [shift(1_000, 'carpenter')], laborRates: RATES,
+    commitments: WORLD_COMMITMENTS, timeEntries: [shift(1_000, 'carpenter')], laborRates: RATES, overtimeRule: STRAIGHT_TIME,
   });
   const labor = row(w, 'labor');
   close('lowercase "labor" (assemblies, the smoke world) receives the hours', labor?.actual, 55_000);
@@ -265,7 +271,7 @@ console.log('\nRouting rules:');
   close('…and the $13,812 labor overrun is on the headline', w.variance, 1_200 + (55_000 - 41_188));
 
   const uk = run(project(estimate([{ category: 'Labour', cost: 15_000 }, { category: 'Materials', cost: 25_000 }], 50_000)), {
-    timeEntries: [shift(420, 'carpenter')], laborRates: RATES,
+    timeEntries: [shift(420, 'carpenter')], laborRates: RATES, overtimeRule: STRAIGHT_TIME,
   });
   close('"Labour" is the same line', row(uk, 'Labour')?.actual, 23_100);
   close('…and its overrun is on the headline', uk.variance, 8_100);
@@ -283,14 +289,14 @@ console.log('\nRouting rules:');
     { category: 'Materials', cost: 25_000 },
   ], 50_000)), {
     commitments: [commitment('c-lab', { vendorName: 'Crew Rental LLC', phase: 'Framing', amount: 15_000 })],
-    timeEntries: [shift(40, 'carpenter')], laborRates: RATES,
+    timeEntries: [shift(40, 'carpenter')], laborRates: RATES, overtimeRule: STRAIGHT_TIME,
   });
   // A 'Labor' row the ESTIMATE never budgeted — here a labor-broker PO the GC
   // typed as phase 'Labor' — is not the estimate's labor line. Merging the
   // crew's hours into it would present them as spend against that PO.
   const brokerOnly = run(NO_LABOR_LINE, {
     commitments: [commitment('c-broker', { vendorName: 'Temp Crew Co', phase: 'Labor', amount: 5_000 })],
-    timeEntries: [shift(40, 'carpenter')], laborRates: RATES,
+    timeEntries: [shift(40, 'carpenter')], laborRates: RATES, overtimeRule: STRAIGHT_TIME,
   });
   ok('an unbudgeted "Labor" row (a broker PO) does not take the GC\'s hours',
     (row(brokerOnly, 'Labor')?.sources.timeEntries.length ?? 0) === 0

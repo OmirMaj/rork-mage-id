@@ -209,7 +209,7 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
   const currentId = current?.id;
   const hideIds = useMemo(() => (currentId ? [currentId] : []), [currentId]);
   const hasDurablePlan = durablePinSheetCount(sheets, projectId) > 0;
-  const pinBlocked = pinWriteBlockedReason(roleState.role);
+  const pinBlocked = pinWriteBlockedReason(roleState.role, roleState);
   const pdfBlocked = pdfImportBlockedReason(tier.canAccess('plan_markup'));
   const openAfter = useCallback((id: string) => env.exists.has(id) && !env.pinned.has(id) && !session.pinnedThisSession.includes(id), [env, session.pinnedThisSession]);
 
@@ -275,7 +275,7 @@ function PinItems({ projectId, list, batchToken, idsParam }: {
   if (pinBlocked) {
     return frame(
       <>
-        <Text style={styles.title}>View-only access</Text>
+        <Text style={styles.title}>{roleState.role === 'viewer' ? 'View-only access' : 'Pins can’t be saved'}</Text>
         <Text style={styles.body}>{pinBlocked}</Text>
         <Button label="Back" variant="secondary" onPress={exit} iconLeft={<ChevronLeft size={16} color={t.text} strokeWidth={2} />} testID="pin-queue-exit" />
       </>,

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -14,10 +14,13 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectRole } from '@/hooks/useProjectRole';
 import { supabase } from '@/lib/supabase';
-import LockedAccessCard from '@/components/LockedAccessCard';
+import LockedAccessCard, { FieldSendFailureBanner } from '@/components/LockedAccessCard';
 import {
   applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, FIELD_TASK_PATCH_KEYS,
   scheduleWritePathForRole, sendFieldTaskPatches, staleFieldEdits,
+  captureFieldSendFailure, mergeFieldSendFailure, pendingFieldRetryPatches, fieldAutoRetryDelayMs,
+  planFieldRetry, fieldRetrySupersededNotice,
+  type FieldSendFailure,
 } from '@/utils/fieldScheduleUpdate';
 import type { Project, ProjectSchedule, ScheduleAuditEntry, ScheduleTask } from '@/types';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
@@ -25,6 +28,7 @@ import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
 import { buildScheduleFromTasks, mergeEditedSchedule, createId } from '@/utils/scheduleEngine';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
+import { useLiveSchedule, type LiveScheduleCopy } from '@/hooks/useLiveSchedule';
 import {
   runCpm, previewStartDayBasisMigration, startDayBasisAnswerPatch,
   calendarDayToDate, workingDaysBetween, type CpmResult,
@@ -50,9 +54,9 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { parseCalendarDay, todayCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import {
   resolveScheduleAnchor, startDayNumberFor,
-  captureBaseline, applyBaselineToTasks,
+  captureBaseline, applyBaselineToTasks, getActiveBaseline, withActiveBaselineId,
   baselineFinishDayWorkingScale, finishDriverTitle, pacedScheduleVerdict, planCatchUpToToday,
-  taskCalendarRange,
+  taskCalendarRange, scheduledPlacements, startDaySnapBack, followStoredTask,
   UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
   verdictToneTokens,
   type CatchUpPlan, type NamedBaseline, type PacedVerdict,
@@ -106,15 +110,19 @@ const PROGRESS_KEYS = new Set(['progress', 'status', 'actualStartDate', 'actualE
 const VIEWER_SCHEDULE_NOTICE = 'You have view-only access to this project, so nothing you change here is saved. Ask the project owner for field or editor access.';
 /** What a FIELD collaborator is told BEFORE he taps. The same sentence
  *  schedule-pro prints, so the phone and the laptop promise the same thing. */
-const FIELD_SCHEDULE_HINT = 'Field access: progress, status, notes and actual start/finish save. Moving dates or changing tasks needs editor access.';
+const FIELD_SCHEDULE_HINT = 'Field access: progress, status, notes and actual start/finish save. Moving dates, ticking checklist items or changing tasks needs editor access.';
 /** …and what he is told after a change this screen could not save. Same
  *  wording as app/schedule-pro.tsx `saveAsField`. */
 /** How the row-conflict notice names a field-owned key. */
 const ROW_FIELD_KEY_LABEL: Record<string, string> = {
-  progress: 'progress', status: 'status', notes: 'notes',
+  progress: 'progress', status: 'status', notes: 'notes', title: 'name', crew: 'crew',
   actualStartDate: 'actual start', actualStartDay: 'actual start',
   actualEndDate: 'actual finish', actualEndDay: 'actual finish',
 };
+/** Task fields TaskDetailSheet keeps as local drafts from the moment it opens
+ *  (its % slider, title, crew and notes inputs) — a peer change to one of these
+ *  cannot show in the open sheet, so the screen says so. */
+const SHEET_DRAFT_KEYS: readonly string[] = ['progress', 'title', 'crew', 'notes'];
 const FIELD_NOT_SAVED = (what: string) => `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.`;
 
 /**
@@ -223,6 +231,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     projects,
     updateProject: updateProjectRaw,
     getPlanSheetsForProject,
+    absorbServerSchedule,
   } = useProjects();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -323,6 +332,13 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // A refusal on one project is not news on the next — the picker switches
   // projects in place (same reset as schedule-pro's).
   useEffect(() => { setFieldNotice(null); setRowConflictNotice(null); }, [selectedProject?.id]);
+  // A field send that did not reach the server (#138) — no signal, or the
+  // server said no. Its own plain banner with Retry, NOT the padlock card:
+  // "Date and task editing is hidden on field access" over a lost connection
+  // read as a permissions problem, and nothing ever re-sent his tap.
+  const [fieldFailure, setFieldFailure] = useState<FieldSendFailure | null>(null);
+  const autoRetryAttemptRef = useRef(0);
+  useEffect(() => { setFieldFailure(null); autoRetryAttemptRef.current = 0; }, [selectedProject?.id]);
   // The field keys the task sheet's CURRENT change touched, set by
   // onUpdateTask around its saveTasks call so saveAsRow can tell a value he
   // changed from one the sheet merely carried in from when it opened.
@@ -331,10 +347,12 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // predate the render that holds the edit it is diffing against.
   const projectsRef = useRef(projects);
   useEffect(() => { projectsRef.current = projects; }, [projects]);
-  const saveAsField = useCallback(async (id: string, updates: Partial<Project>) => {
+  // `serverBase`: a retry's fresh read of the row (#138) — diffed against and
+  // applied over THAT, not this device's copy, which may predate it.
+  const saveAsField = useCallback(async (id: string, updates: Partial<Project>, serverBase?: ScheduleTask[]) => {
     const currentSchedule = projectsRef.current.find((p) => p.id === id)?.schedule;
     if (!currentSchedule) return;
-    const baseTasks = currentSchedule.tasks ?? [];
+    const baseTasks = serverBase ?? currentSchedule.tasks ?? [];
     const { patches, blocked } = updates.schedule?.tasks
       ? fieldTaskDiff(baseTasks, updates.schedule.tasks)
       : { patches: [], blocked: [] };
@@ -351,6 +369,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         updateProjectRaw(id, { schedule: { ...currentSchedule, tasks: accepted, updatedAt: new Date().toISOString() } });
       } else {
         failure = sent.message;
+        // Kept in memory for Retry (and the automatic re-send while offline)
+        // — see captureFieldSendFailure for why this is not the offline queue.
+        const captured = captureFieldSendFailure(id, baseTasks, patches, sent);
+        setFieldFailure((prev) => mergeFieldSendFailure(prev, captured));
       }
     }
     if (failure || blocked.length > 0 || settingsChanged) {
@@ -361,11 +383,14 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       const what = blocked.length > 0
         ? `changes to ${blocked.slice(0, 3).join(', ')}${blocked.length > 3 ? ` and ${blocked.length - 3} more` : ''}`
         : settingsChanged ? 'schedule settings' : '';
-      setFieldNotice([failure, what ? FIELD_NOT_SAVED(what) : null].filter(Boolean).join(' '));
+      // The padlock card carries ONLY what access refused; a send failure has
+      // its own banner (fieldFailure) — both show when both happened.
+      if (what) setFieldNotice(FIELD_NOT_SAVED(what));
     } else {
       // Everything he changed was saved — a stale refusal must not linger over
       // an edit that did land.
       setFieldNotice(null);
+      autoRetryAttemptRef.current = 0;
     }
   }, [updateProjectRaw]);
   // The row save. The list is built from `projects`, but the open task sheet
@@ -407,6 +432,69 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     // or the GC's own other device.
     setRowConflictNotice(`${title}'s ${what} was updated elsewhere — in the field or on another device — at ${when}, after you opened it, so your change was not saved. It now shows that value — change it again if yours is right.`);
   }, [updateProjectRaw]);
+  // Re-send what did not land (#138). The row is READ FIRST and the decision is
+  // made against the server's copy (planFieldRetry): a phone that had no
+  // signal cannot have received the GC's newer edit, and the RPC stamps what
+  // it takes with the server clock, so a re-send decided on this device's copy
+  // would overwrite that edit. A key goes out only while the server still holds
+  // the value and stamp this device had when the send failed; one changed
+  // elsewhere is dropped and he is told so. No read (still offline): nothing is
+  // sent and the failure stays for the next try. The send goes through
+  // saveAsField, diffed against and applied over the read, like the original.
+  const fieldFailureRef = useRef<FieldSendFailure | null>(null);
+  fieldFailureRef.current = fieldFailure;
+  const retryInFlightRef = useRef(false);
+  const retryFieldSend = useCallback(() => {
+    const f = fieldFailureRef.current;
+    if (!f || retryInFlightRef.current) return;
+    if (writePath !== 'field_rpc') { setFieldFailure(null); return; }
+    retryInFlightRef.current = true;
+    void (async () => {
+      try {
+        const plan = await planFieldRetry(f, async () => {
+          const { data, error } = await supabase.from('projects').select('schedule').eq('id', f.projectId).maybeSingle();
+          if (error) return null;
+          const fresh = (data as { schedule?: { tasks?: ScheduleTask[] } } | null)?.schedule?.tasks;
+          return Array.isArray(fresh) ? fresh : null;
+        });
+        // A new object re-arms the backoff timer; the same failure, still held.
+        if (!plan.read) { setFieldFailure((cur) => (cur === f ? { ...f } : cur)); return; }
+        // Anything folded in while the read was out stays for its own retry. A
+        // value dropped because it changed elsewhere is said, not swallowed.
+        const notice = plan.superseded.length > 0 ? fieldRetrySupersededNotice(f.projectId, plan.superseded) : null;
+        setFieldFailure((cur) => (cur === f ? notice : cur));
+        absorbServerSchedule(f.projectId, plan.serverTasks);
+        if (plan.patches.length === 0) return;
+        const current = projectsRef.current.find((p) => p.id === f.projectId)?.schedule;
+        if (!current) return;
+        await saveAsField(f.projectId, { schedule: { ...current, tasks: applyFieldTaskPatches(plan.serverTasks, plan.patches) } }, plan.serverTasks);
+      } finally {
+        retryInFlightRef.current = false;
+      }
+    })();
+  }, [writePath, saveAsField, absorbServerSchedule]);
+  const dismissFieldFailure = useCallback(() => { setFieldFailure(null); autoRetryAttemptRef.current = 0; }, []);
+  // A retryable failure whose every key has since been saved or superseded is
+  // no longer news — nothing is waiting to go. A refusal stays until read.
+  const fieldFailureShown = useMemo<FieldSendFailure | null>(() => {
+    if (!fieldFailure) return null;
+    if (!fieldFailure.retryable) return fieldFailure;
+    return pendingFieldRetryPatches(fieldFailure, tasks).length > 0 ? fieldFailure : null;
+  }, [fieldFailure, tasks]);
+  // No signal: re-send by itself while the screen is open — on a backoff, and
+  // at once when the app comes back to the foreground. (There is no NetInfo
+  // in this app: it is a native module and would need a new build.)
+  useEffect(() => {
+    if (!fieldFailure?.offline) return;
+    const h = setTimeout(() => { autoRetryAttemptRef.current += 1; retryFieldSend(); }, fieldAutoRetryDelayMs(autoRetryAttemptRef.current));
+    return () => clearTimeout(h);
+  }, [fieldFailure, retryFieldSend]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && fieldFailureRef.current?.offline) retryFieldSend();
+    });
+    return () => sub.remove();
+  }, [retryFieldSend]);
   const updateProject = useMemo<typeof updateProjectRaw>(
     () => (writePath === 'row'
       ? saveAsRow
@@ -415,6 +503,74 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         : () => { setFieldNotice(VIEWER_SCHEDULE_NOTICE); }),
     [writePath, updateProjectRaw, saveAsField, saveAsRow],
   );
+  // ── LIVE: the foreman's save reaches this phone while it is open (audit #140).
+  // Schedule Pro (web) was the only subscriber, so the GC's iPhone kept the
+  // old percent and verdict until the app went to the background. The list is
+  // built straight from `projects`, so absorbing into the shared copy is the
+  // whole job — no working copy, no debounce, none of Schedule Pro's merge.
+  // absorbServerSchedule does the field-key 3-way merge, so an echo of this
+  // phone's own older save cannot undo a newer one. projects_select admits
+  // collaborators (is_project_collaborator), so a field seat receives it too.
+  // The 'schedule-tab' scope gives this mount its OWN channel: realtime-js
+  // hands back the existing channel for a matching topic, and Schedule Pro
+  // pushed over this tab for the same job would otherwise share it and tear
+  // it down on unmount (hooks/useLiveSchedule.ts).
+  const liveProjectId = selectedProject?.id;
+  const onPeerSchedule = useCallback((copy: LiveScheduleCopy) => {
+    if (liveProjectId) absorbServerSchedule(liveProjectId, copy.tasks);
+  }, [liveProjectId, absorbServerSchedule]);
+  // Realtime does not replay what it missed while the socket was down (a
+  // pocketed phone, a dead zone on site) — re-read the row once it rejoins.
+  const onLiveGap = useCallback(() => {
+    const pid = liveProjectId;
+    if (!pid) return;
+    void (async () => {
+      try {
+        const { data } = await supabase.from('projects').select('schedule').eq('id', pid).maybeSingle();
+        const fresh = (data as { schedule?: { tasks?: ScheduleTask[] } } | null)?.schedule?.tasks;
+        if (Array.isArray(fresh)) absorbServerSchedule(pid, fresh);
+      } catch {
+        // Offline again — the next rejoin or the foreground refetch catches up.
+      }
+    })();
+  }, [liveProjectId, absorbServerSchedule]);
+  useLiveSchedule(liveProjectId, onPeerSchedule, onLiveGap, 'schedule-tab');
+
+  // A plain notice for things that are not refusals: a dragged bar the engine
+  // put back (and why), or a peer change to the task open in the sheet.
+  const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
+  useEffect(() => { setScheduleNotice(null); }, [selectedProject?.id]);
+
+  // Keep the open task sheet in step with the stored task. It holds its own
+  // copy, so a realtime save by the foreman used to change the list row while
+  // the sheet above it still showed the old status and dates until he saved
+  // over them. Fields he has not changed follow the stored copy
+  // (followStoredTask); his own in-flight change keeps its value.
+  const detailTaskRef = useRef(detailTask);
+  detailTaskRef.current = detailTask;
+  const prevStoredTasksRef = useRef(tasks);
+  useEffect(() => {
+    const prevList = prevStoredTasksRef.current;
+    prevStoredTasksRef.current = tasks;
+    const open = detailTaskRef.current;
+    if (!open || prevList === tasks) return;
+    const { task: followed, peerChangedKeys } = followStoredTask(
+      open,
+      prevList.find((t) => t.id === open.id),
+      tasks.find((t) => t.id === open.id),
+    );
+    if (followed === open) return;
+    setDetailTask(followed);
+    // The sheet keeps its own drafts of these (the % slider, title, crew,
+    // notes) from the moment it opened, so it cannot show the new value
+    // itself — say so rather than let the slider contradict the row.
+    const drafted = peerChangedKeys.filter((k) => SHEET_DRAFT_KEYS.includes(k));
+    if (drafted.length > 0) {
+      const what = drafted.map((k) => ROW_FIELD_KEY_LABEL[k] ?? k).join(', ');
+      setScheduleNotice(`${followed.title || 'This task'} was updated elsewhere while it was open (${what}). The list shows the new value — close and reopen the task to edit from it.`);
+    }
+  }, [tasks]);
+
   /**
    * Why the two WHOLE-PLAN actions (bring the plan up to date, lock the plan)
    * cannot run on this access, or null when they can. Both are dates and
@@ -495,6 +651,18 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   }), [anchor.iso, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
 
   /**
+   * Where the engine placed each task (es/ef, calendar indices). The list and
+   * the timeline draw THESE, not the stored startDay pin (audit #51): the
+   * verdict and finish above already come from this same run, so the screen
+   * gives one answer.
+   */
+  // reportCpm runs dated only when the schedule has an anchor; undated it is in
+  // raw-day mode and es/ef are WORKING counts — the flag carries that scale to
+  // the list and the timeline so an undated bar is walked, not drawn raw.
+  const placementsDated = !!anchor.iso;
+  const placements = useMemo(() => scheduledPlacements(reportCpm, placementsDated), [reportCpm, placementsDated]);
+
+  /**
    * TODAY as a CALENDAR index on this schedule's anchor — null when the
    * schedule is undated, which is the state 2 of the 3 real production
    * schedules are in. Null means there is no "today" to measure against, and
@@ -526,13 +694,13 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
    * lockPlan below is the phone's own capture. The verdict handles null by
    * falling back to pace.
    */
-  const activeBaseline = useMemo<NamedBaseline | null>(() => {
-    const list = activeSchedule?.baselines;
-    if (!list || list.length === 0) return null;
-    // Cast at the boundary, as types/index.ts documents: ProjectSchedule stores
-    // baselines structurally to avoid a circular type import.
-    return list[list.length - 1] as unknown as NamedBaseline;
-  }, [activeSchedule?.baselines]);
+  // The schedule's NAMED active baseline (#137) — the one the web Baseline
+  // manager activated — else the newest lock. One resolver for every reader,
+  // so the phone, Schedule Pro and the tab can never measure from two.
+  const activeBaseline = useMemo<NamedBaseline | null>(
+    () => getActiveBaseline(activeSchedule),
+    [activeSchedule],
+  );
   const baselineFinishDay = useMemo<number | null>(
     () => (activeBaseline ? baselineFinishDayWorkingScale(activeBaseline, scheduleCalendar) : null),
     [activeBaseline, scheduleCalendar],
@@ -697,7 +865,10 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     const prev = tasks.find((t) => t.id === next.id);
     let stamped: ScheduleTask = next;
     if (prev && next.status !== prev.status) {
-      const stamp = stampActuals(prev, next.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString());
+      // No retro start (audit #141): a task closed with no recorded start keeps
+      // an EMPTY start — the same rule as the daily report — rather than a planned
+      // day nobody observed. Pace samples need both stamps, so it is skipped there.
+      const stamp = stampActuals(prev, next.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString(), { retroStartFromPlanned: false });
       stamped = { ...next, ...stamp };
       // Morning-brief ledger: a real capture (stamp set an ISO date) is a
       // did-for-you moment. recordDidForYou is G4-safe by contract.
@@ -718,7 +889,23 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     } finally {
       sheetTouchedRef.current = null;
     }
-  }, [tasks, saveTasks, activeSchedule?.startDate, selectedProject?.id, detailTask]);
+    // A drag or ± stepper moved the pin earlier than the predecessors allow:
+    // the bar is drawn where the ENGINE puts it, so it snaps back. Say why
+    // (a blocked control says why) instead of looking like the drag was lost.
+    if (prev && stamped.startDay !== prev.startDay && writePath === 'row') {
+      const nextTasks = tasks.map((t) => (t.id === stamped.id ? stamped : t));
+      const snap = startDaySnapBack(nextTasks, stamped.id, runCpm(nextTasks, scheduleCalendar), scheduleCalendar);
+      if (snap) {
+        const fmtDay = (d: number) => (anchor.date
+          ? calendarDayToDate(anchor.date, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+          : `day ${d}`);
+        const who = snap.waitsOn ? `it waits on ${snap.waitsOn}` : 'its links and constraints hold it later';
+        setScheduleNotice(`${stamped.title || 'This task'} can’t start ${fmtDay(snap.requestedCalendarDay)} — ${who}, so it stays on ${fmtDay(snap.scheduledCalendarDay)}. To bring it earlier, shorten or unlink ${snap.waitsOn ?? 'what it depends on'}.`);
+      } else {
+        setScheduleNotice(null);
+      }
+    }
+  }, [tasks, saveTasks, activeSchedule?.startDate, selectedProject?.id, detailTask, writePath, scheduleCalendar, anchor.date]);
 
   const onCreate = useCallback((values: NewTaskValues) => {
     // startDay is 1-indexed to MATCH the desktop + CPM engine (day 1 = schedule
@@ -870,13 +1057,15 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       scale, cpm, capturedBy: auditUser,
     });
     updateProject(selectedProject.id, {
-      schedule: {
+      // The lock becomes THE yardstick (#137): named, so an older baseline
+      // activated on the web does not stay active over the one just locked.
+      schedule: withActiveBaselineId({
         ...schedule,
         projectId: selectedProject.id,
         tasks: applyBaselineToTasks(schedule.tasks, snap),
         baselines: [...existing, snap],
         updatedAt: new Date().toISOString(),
-      },
+      }, snap.id),
     });
     const finishLabel = cpm.projectFinish > 0
       ? calendarDayToDate(planAnchor.date, cpm.projectFinish)
@@ -1012,8 +1201,12 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         {/* MAGE Copilot — the flagship phone-create path: speak the scope, the
             AI asks grounded clarifying questions, then builds the schedule.
             Accent-tinted so it reads as the primary "make one" action. Only shown
-            when there's a linked estimate to build from (voice-build needs it). */}
-        {hasEstimate && (
+            when there's a linked estimate to build from (voice-build needs it)
+            AND the job has no tasks yet (#52): on a running schedule this
+            one-tap "make one" built a brand-new plan whose Accept replaced the
+            live one. A rebuild still exists (Copilot hub, the Schedule tab), and
+            schedule-review's Accept now says what a replace loses first. */}
+        {hasEstimate && tasks.length === 0 && (
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)} accessibilityLabel="Build schedule by voice" testID="open-copilot-schedule">
             <Mic size={19} color={colors.accent} strokeWidth={2} />
           </TouchableOpacity>
@@ -1113,6 +1306,23 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           <Text style={styles.fieldAccessHint} testID="schedule-field-access-hint">{FIELD_SCHEDULE_HINT}</Text>
         )
       ) : null}
+      {writePath === 'field_rpc' && fieldFailureShown ? (
+        <FieldSendFailureBanner
+          message={fieldFailureShown.message}
+          onRetry={fieldFailureShown.retryable ? retryFieldSend : undefined}
+          onDismiss={dismissFieldFailure}
+          autoRetrying={fieldFailureShown.offline}
+          style={{ marginHorizontal: 16, marginTop: 10 }}
+        />
+      ) : null}
+      {scheduleNotice ? (
+        <View style={styles.rowConflict} testID="schedule-snap-notice" accessibilityRole="alert">
+          <Text style={styles.rowConflictText}>{scheduleNotice}</Text>
+          <TouchableOpacity onPress={() => setScheduleNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+            <Text style={styles.rowConflictDismiss}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Legacy day-scale disclosure. Renders null for every schedule that is
           fine. Sits with the undated banner because both are statements about
@@ -1194,6 +1404,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
                 startDate={anchor.iso}
                 workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
                 nonWorkingDates={activeSchedule?.nonWorkingDates}
+                placements={placements}
                 collapsedPhases={collapsed}
                 onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
                 onPressTask={setDetailTask}
@@ -1207,6 +1418,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
                 startDate={anchor.iso ?? anchor.unanchoredPreviewIso}
                 workingDaysPerWeek={activeSchedule?.workingDaysPerWeek}
                 nonWorkingDates={activeSchedule?.nonWorkingDates}
+                placements={placements}
                 selectedDate={selectedDate}
                 collapsedPhases={collapsed}
                 onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
@@ -1249,6 +1461,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         onClose={() => setDetailTask(null)}
         onUpdateTask={onUpdateTask}
         onDeleteTask={onDeleteTask}
+        writePath={writePath}
       />
       <AddTaskModal visible={showAdd} onCancel={() => { setShowAdd(false); setAddPrefillDate(undefined); }} onCreate={onCreate} tasks={tasks} defaultStartDate={addPrefillDate} />
 

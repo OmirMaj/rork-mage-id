@@ -19,7 +19,8 @@ import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabS
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { toClientEstimateView } from '@/utils/clientEstimateView';
-import { proposalPaymentLines } from '@/utils/paymentTerms';
+import { acceptanceSentence, proposalPaymentLines } from '@/utils/paymentTerms';
+import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import { PROFILE_FAILED_TITLE } from '@/utils/settingsLoadGuard';
 import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
@@ -275,12 +276,24 @@ export default function EstimateReviewScreen() {
   //     and run straight after the copy everywhere else / when nothing asked.
   // `split` is the gate's answer, passed in: savePaymentTerms has only just
   // written it, so this closure's `settings` may still be the old one.
+  //
+  // The link also carries how to say yes (#123): his saved phone and email
+  // (only when saved — never a placeholder) and the same closing sentence the
+  // PDF prints, from the SAME split. And it carries the 30-day validity the
+  // PDF and the wizard state, as a calendar day. It carries no client name and
+  // no inclusions/exclusions list: this screen is a material cart with no
+  // client on it and no scope list the GC has seen, and a link must not print
+  // a name or a promise the preview above never showed him.
   const copyProposalLink = useCallback((split: PaymentSplit) => {
     const gcName = settings?.branding?.companyName || undefined;
     const payload = buildClientEstimateSharePayload(clientView, {
       projectName: gcName ? `${gcName} — Estimate` : 'Project Estimate',
       gcName,
       paymentSchedule: proposalPaymentLines(clientView.projectTotal, split),
+      validThrough: toCalendarDayString(addCalendarDays(new Date(), 30)),
+      gcPhone: settings?.branding?.phone,
+      gcEmail: settings?.branding?.email,
+      acceptance: acceptanceSentence(split),
     });
     const token = encodeClientEstimateToken(payload);
     const url = buildShareUrl('shared-estimate', token,

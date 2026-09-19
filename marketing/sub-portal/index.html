@@ -561,6 +561,35 @@
     font-weight: 700; color: #6B7177;
   }
   .punch-loc, .punch-due { color: #6B7177; }
+  .punch-group-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--text-2); margin: 18px 0 8px;
+  }
+  .punch-group-title:first-child { margin-top: 0; }
+  .punch-sheet { color: var(--ink); font-weight: 600; }
+  .punch-nopin, .punch-photo-note { color: #6B7177; }
+  .punch-bad-due { color: var(--warning); font-weight: 600; }
+  .punch-note {
+    margin-top: 8px; font-size: 12px; color: var(--text-2);
+    background: var(--surface); border-radius: 8px; padding: 6px 10px;
+  }
+  .punch-actions { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .punch-fix-btn, .punch-send-btn, .punch-cancel-btn {
+    align-self: flex-start;
+    font-family: inherit; font-weight: 700; font-size: 13px;
+    border-radius: 10px; padding: 9px 14px; cursor: pointer; min-height: 40px;
+  }
+  .punch-fix-btn, .punch-send-btn { background: var(--ink); color: #fff; border: none; }
+  .punch-fix-btn:disabled, .punch-send-btn:disabled { opacity: 0.55; cursor: default; }
+  .punch-cancel-btn { background: transparent; color: var(--text-2); border: 1px solid var(--bone); }
+  .punch-note-input {
+    width: 100%; font-family: inherit; font-size: 14px; padding: 8px 10px;
+    border: 1px solid var(--bone); border-radius: 10px; background: var(--surface); min-height: 60px;
+  }
+  .punch-sent { font-size: 12px; font-weight: 600; color: var(--success); }
+  .punch-err { font-size: 12px; font-weight: 600; color: var(--error); }
+  .punch-row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .punch-asof { font-size: 12px; color: var(--text-2); margin-top: 4px; }
 
   /* ───────── Schedule slice (Wave 5) ───────── */
   .sched-list { display: flex; flex-direction: column; gap: 12px; }
@@ -665,7 +694,7 @@
 
       <footer class="portal-footer">
         <span><span class="footer-mark">M</span>Powered by <a href="https://mageid.app">MAGE ID</a></span>
-        <div style="margin-top:6px">Snapshot taken <span id="snapshot-time">just now</span></div>
+        <div style="margin-top:6px">Contract, invoices and schedule as of <span id="snapshot-time">just now</span></div>
       </footer>
     </main>
   </div>
@@ -1008,39 +1037,167 @@
     sel.innerHTML = opts.join('');
   }
 
-  // ───────── Render: Punch list (Wave 5) ─────────
-  // The sub's "what's still on me to fix?" list — top of the page so
-  // the answer to their #1 question is the first thing they see.
-  function renderPunch(items) {
+  // ───────── Render: Punch list ─────────
+  // The sub's "what's still on me to fix?" list — top of the page so the
+  // answer to their #1 question is the first thing they see.
+  //
+  // Where the rows come from: sub_portal_get_snapshot replaces the stored
+  // punchItems with the LIVE punch_items rows for this link at read time
+  // (migration 20260919200000 — punchLiveAt is set). Only a hash-only fallback
+  // (the server could not be reached) shows the copy frozen into the link, and
+  // then the section says so with its date.
+  //
+  // Two groups, never blended: open / in progress are still on the sub;
+  // Ready for Review is waiting on the contractor to verify. The rows arrive
+  // already sorted (on-him first, priority, earliest due, oldest) and capped;
+  // punchTotal is the uncapped count, so a capped list says "Showing 60 of 75".
+  //
+  // What a row shows: description, status, location, due date, the plan sheet
+  // it is pinned on ("On sheet A-101", or "Not pinned on a plan"). The photo is
+  // NOT drawn here yet — it sits in a private bucket and needs a signed link —
+  // so a row with a photo says the contractor has one.
+  var punchState = { items: [], total: 0, liveAt: null, frozenAt: null, contractor: 'your contractor', subPortalId: null };
+  var punchOpenNote = {};   // id -> true while the note box is open
+  var punchPending = {};    // id -> 'sending' | 'sent' | error text
+
+  function punchIsOnSub(p) { var s = p.status || 'open'; return s === 'open' || s === 'in_progress'; }
+
+  function renderPunchRow(p) {
+    var priorityColor = p.priority === 'high' ? '#E5484D' : p.priority === 'medium' ? '#FF6A1A' : '#6B7177';
+    var statusText = (p.status || 'open').replace(/_/g, ' ');
+    var dueLine = '';
+    if (p.dueDate && /^\d{4}-\d{2}-\d{2}/.test(String(p.dueDate))) {
+      dueLine = '<span class="punch-due">Due ' + esc(fmtCalendarDay(p.dueDate)) + '</span>';
+    } else if (p.dueDate) {
+      // A due date typed as free text ("Fri") is not a date: say so rather
+      // than print it like one.
+      dueLine = '<span class="punch-bad-due">Due “' + esc(p.dueDate) + '” — not a date, ask your contractor</span>';
+    }
+    var locLine = p.location ? '<span class="punch-loc">' + esc(p.location) + '</span>' : '';
+    var pinLine = p.planSheetId
+      ? '<span class="punch-sheet">On sheet ' + esc(p.sheetLabel || 'Plan') + '</span>'
+      : '<span class="punch-nopin">Not pinned on a plan</span>';
+    var photoLine = p.photoStoragePath ? '<span class="punch-photo-note">Photo on file with ' + esc(punchState.contractor) + '</span>' : '';
+    var noteLine = p.subNote ? '<div class="punch-note">Your note: ' + esc(p.subNote) + '</div>' : '';
+    var actions = '';
+    var pend = punchPending[p.id];
+    if (pend === 'sent') {
+      actions = '<div class="punch-actions"><span class="punch-sent">Sent to ' + esc(punchState.contractor) + ' for review</span></div>';
+    } else if (punchIsOnSub(p) && getSubToken() && punchState.subPortalId) {
+      if (punchOpenNote[p.id]) {
+        actions = '<div class="punch-actions">' +
+          '<textarea class="punch-note-input" data-note-for="' + esc(p.id) + '" maxlength="1000" placeholder="Optional note for your contractor, e.g. swapped the cover plate"></textarea>' +
+          '<div class="punch-row-btns">' +
+            '<button type="button" class="punch-send-btn" data-punch-send="' + esc(p.id) + '"' + (pend === 'sending' ? ' disabled' : '') + '>' + (pend === 'sending' ? 'Sending…' : 'Send for review') + '</button>' +
+            '<button type="button" class="punch-cancel-btn" data-punch-cancel="' + esc(p.id) + '">Cancel</button>' +
+          '</div>' +
+          (pend && pend !== 'sending' ? '<span class="punch-err">' + esc(pend) + '</span>' : '') +
+        '</div>';
+      } else {
+        actions = '<div class="punch-actions"><button type="button" class="punch-fix-btn" data-punch-fix="' + esc(p.id) + '">Mark fixed</button></div>';
+      }
+    }
+    return '' +
+      '<div class="punch-row">' +
+        '<div class="punch-dot" style="background:' + priorityColor + '"></div>' +
+        '<div class="punch-main">' +
+          '<div class="punch-desc">' + esc(p.description) + '</div>' +
+          '<div class="punch-meta">' +
+            '<span class="punch-status">' + esc(statusText) + '</span>' +
+            locLine + dueLine + pinLine + photoLine +
+          '</div>' +
+          noteLine + actions +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderPunchSection() {
     var sec = document.getElementById('punch-section');
     if (!sec) return;
-    if (!items || !items.length) { sec.innerHTML = ''; return; }
-    var rows = items.map(function (p) {
-      var priorityColor = p.priority === 'high' ? '#E5484D' : p.priority === 'medium' ? '#FF6A1A' : '#6B7177';
-      var statusLabel = (p.status || 'open').replace(/_/g, ' ');
-      var dueLine = p.dueDate ? '<span class="punch-due">Due ' + esc(fmtCalendarDay(p.dueDate)) + '</span>' : '';
-      var locLine = p.location ? '<span class="punch-loc">' + esc(p.location) + '</span>' : '';
-      return '' +
-        '<div class="punch-row">' +
-          '<div class="punch-dot" style="background:' + priorityColor + '"></div>' +
-          '<div class="punch-main">' +
-            '<div class="punch-desc">' + esc(p.description) + '</div>' +
-            '<div class="punch-meta">' +
-              '<span class="punch-status">' + esc(statusLabel) + '</span>' +
-              locLine + dueLine +
-            '</div>' +
-          '</div>' +
-        '</div>';
-    }).join('');
+    var items = punchState.items || [];
+    if (!items.length) { sec.innerHTML = ''; return; }
+    var onYou = items.filter(punchIsOnSub);
+    var waiting = items.filter(function (p) { return (p.status || 'open') === 'ready_for_review'; });
+    var total = Math.max(punchState.total || 0, items.length);
+    var head = onYou.length + ' still on you' + (waiting.length ? ' · ' + waiting.length + ' waiting on ' + punchState.contractor + ' to verify' : '');
+    var capLine = total > items.length ? '<p class="punch-asof">Showing ' + items.length + ' of ' + total + ' — the most urgent first. Ask ' + esc(punchState.contractor) + ' for the full list.</p>' : '';
+    var asOf = punchState.liveAt
+      ? '<p class="punch-asof">Live from ' + esc(punchState.contractor) + '’s punch list.</p>'
+      : '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — this copy could not be refreshed. Reload when you are back online.</p>';
+    var html = '';
+    if (onYou.length) html += '<div class="punch-group-title">Still on you</div><div class="punch-list">' + onYou.map(renderPunchRow).join('') + '</div>';
+    if (waiting.length) html += '<div class="punch-group-title">Waiting on ' + esc(punchState.contractor) + ' to verify</div><div class="punch-list">' + waiting.map(renderPunchRow).join('') + '</div>';
     sec.innerHTML = '' +
       '<section class="section">' +
         '<div class="section-head">' +
-          '<h3>What\'s still on you</h3>' +
-          '<p>' + items.length + ' open punch ' + (items.length === 1 ? 'item' : 'items') + ' assigned to your scope</p>' +
+          '<h3>Punch list</h3>' +
+          '<p>' + esc(head) + '</p>' +
         '</div>' +
-        '<div class="punch-list">' + rows + '</div>' +
+        asOf + capLine + html +
       '</section>';
   }
+
+  function renderPunch(data) {
+    punchState.items = (data.punchItems || []).slice();
+    punchState.total = typeof data.punchTotal === 'number' ? data.punchTotal : punchState.items.length;
+    punchState.liveAt = data.punchLiveAt || null;
+    punchState.frozenAt = data.snapshotAt || null;
+    punchState.contractor = (data.company && data.company.name) || 'your contractor';
+    punchState.subPortalId = (data.submitInvoice && data.submitInvoice.subPortalId) || parseSubPortalIdFromPath();
+    renderPunchSection();
+  }
+
+  // Mark fixed → sub_portal_mark_punch_ready. Optimistic: the row moves to
+  // "Waiting on … to verify" with "Sent to … for review" at once, and goes
+  // back (with the reason) if the server refuses.
+  function markPunchReady(id, note) {
+    var token = getSubToken();
+    var url = SUPABASE_URL_PUBLIC + '/rest/v1/rpc/sub_portal_mark_punch_ready';
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+      body: JSON.stringify({ p_sub_portal_id: punchState.subPortalId, p_access_token: token, p_punch_id: id, p_note: note || null }),
+    }).then(function (r) {
+      if (r.ok) return r.json();
+      return r.text().then(function (t) {
+        var msg = /punch_not_open/.test(t) ? 'Your contractor already closed or changed this item. Reload to see the current list.'
+          : /punch_not_found/.test(t) ? 'This item is no longer on your list. Reload to see the current list.'
+          : /sub_portal_denied/.test(t) ? 'This link was turned off or replaced. Ask your contractor for a new one.'
+          : 'Could not send it just now. Check your connection and try again.';
+        throw new Error(msg);
+      });
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.getAttribute) return;
+    var fix = t.getAttribute('data-punch-fix');
+    var send = t.getAttribute('data-punch-send');
+    var cancel = t.getAttribute('data-punch-cancel');
+    if (fix) { punchOpenNote[fix] = true; delete punchPending[fix]; renderPunchSection(); return; }
+    if (cancel) { delete punchOpenNote[cancel]; delete punchPending[cancel]; renderPunchSection(); return; }
+    if (!send || punchPending[send] === 'sending') return;
+    var box = document.querySelector('[data-note-for="' + send.replace(/"/g, '') + '"]');
+    var note = box ? String(box.value || '').trim() : '';
+    var item = null;
+    for (var i = 0; i < punchState.items.length; i++) if (punchState.items[i].id === send) item = punchState.items[i];
+    if (!item) return;
+    var prev = { status: item.status, subNote: item.subNote };
+    punchPending[send] = 'sending';
+    renderPunchSection();
+    markPunchReady(send, note).then(function () {
+      item.status = 'ready_for_review';
+      if (note) item.subNote = note;
+      punchPending[send] = 'sent';
+      delete punchOpenNote[send];
+      renderPunchSection();
+    }).catch(function (err) {
+      item.status = prev.status; item.subNote = prev.subNote;
+      punchPending[send] = (err && err.message) || 'Could not send it just now. Try again.';
+      renderPunchSection();
+    });
+  });
 
   // ───────── Render: Schedule slice (Wave 5) ─────────
   // Shows only tasks where this sub is on the hook. Compact list
@@ -1196,13 +1353,16 @@
     }
 
     renderStats(data);
-    renderPunch(data.punchItems || []);
+    renderPunch(data);
     renderSchedule(data.scheduleSlice);
     renderCommitments(data.commitments || []);
     renderInvoices(data.submittedInvoices || []);
     renderCommitmentSelect(data.commitments || []);
 
-    if (data.snapshotAt) document.getElementById('snapshot-time').textContent = timeAgo(data.snapshotAt);
+    // Commitments, invoices and the schedule are the copy the contractor last
+    // published (snapshotAt) — they are NOT live, unlike the punch list. Say
+    // the date, not only "3 days ago".
+    if (data.snapshotAt) document.getElementById('snapshot-time').textContent = fmtDate(data.snapshotAt) + ' (' + timeAgo(data.snapshotAt) + ')';
 
     document.getElementById('open-submit').addEventListener('click', function () {
       var num = document.getElementById('f-num');
@@ -1332,13 +1492,13 @@
     document.getElementById('fallback').style.display = 'flex';
   }
 
-  // Two-stage load (matches the homeowner portal pattern):
-  //   1. Try the URL-hash payload.
-  //   2. Fall back to fetching from sub_portal_snapshots keyed by the
-  //      sub_portal_id parsed from the URL path. The GC's app refreshes
-  //      this on every snapshot build, so even an old / truncated link
-  //      gets fresh data.
-  //   3. Show fallback only if both fail.
+  // Load order. The SERVER copy first whenever the link carries its `?t=`
+  // token and an id: sub_portal_get_snapshot returns the contractor's latest
+  // published snapshot with the punch list merged LIVE from punch_items. The
+  // `#d=` hash is only a fallback for when that read fails (offline, link
+  // turned off) — it is frozen at the moment the link was copied, so it used
+  // to show yesterday's punch list forever when it was read first. A link
+  // with no token can only be the hash. Fallback page only if both fail.
   var SUPABASE_URL_PUBLIC  = 'https://nteoqhcswappxxjlpvap.supabase.co';
   var SUPABASE_ANON_PUBLIC = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
@@ -1367,16 +1527,19 @@
       .catch(function () { return null; });
   }
 
-  var data = decodeHash();
-  if (data) {
-    runGate(data, function () { render(data); });
-  } else {
-    var subPortalId = parseSubPortalIdFromPath();
-    if (!subPortalId) { showFallback(); return; }
-    fetchSubSnapshot(subPortalId).then(function (fresh) {
-      if (!fresh) { showFallback(); return; }
-      runGate(fresh, function () { render(fresh); });
+  var hashData = decodeHash();
+  var subPortalIdFromPath = parseSubPortalIdFromPath();
+  function renderGated(d) { runGate(d, function () { render(d); }); }
+  if (subPortalIdFromPath && getSubToken()) {
+    fetchSubSnapshot(subPortalIdFromPath).then(function (fresh) {
+      if (fresh) { renderGated(fresh); return; }
+      if (hashData) { renderGated(hashData); return; }
+      showFallback();
     });
+  } else if (hashData) {
+    renderGated(hashData);
+  } else {
+    showFallback();
   }
 })();
 </script>

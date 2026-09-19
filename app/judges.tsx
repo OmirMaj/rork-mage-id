@@ -117,10 +117,10 @@ function JudgesInner() {
   // pick-mode verdict is scored with no margin-risk voice at all, and a
   // self-perform overrun reads as the bid margin (audit round 2, #16).
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
 
   const ctx = useMemo(
     () => ({ projects, commitments, changeOrders, invoices, costSources, receipts, laborSamples, seeds }),

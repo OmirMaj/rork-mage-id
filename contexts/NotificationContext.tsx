@@ -22,6 +22,7 @@ import { usePortalApprovalReconciler } from '@/hooks/usePortalApprovalReconciler
 // The one event -> screen table, shared with the notify edge function's email
 // buttons and the in-app inbox (audit round 2, #12). Pure TS, no Deno globals.
 import { notificationRoute, routeHref } from '@/supabase/functions/notify/routes';
+import { coRealtimeShouldRefetch } from '@/utils/projectContextPure';
 
 /** Records that this device has had its one contextual push ask. `mageid_` so
  *  the tenant-switch sweep in utils/localCacheKeys.ts covers it: the record
@@ -158,14 +159,33 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         (payload) => {
           const r = payload.new as Record<string, unknown>;
           const oldR = payload.old as Record<string, unknown>;
-          if (r.status !== oldR.status) {
-            console.log('[Realtime] Change order status changed:', r.id, r.status);
+          // Not only a status change (#40): the client's sealed e-signature is
+          // an audit-only append on the server (co_append_audit /
+          // portal_submit_co_approval_signed), and it never reached the GC's
+          // screen. utils/projectContextPure.coRealtimeShouldRefetch.
+          if (coRealtimeShouldRefetch(r, oldR)) {
+            console.log('[Realtime] Change order changed:', r.id, r.status);
             void queryClient.invalidateQueries({ queryKey: ['changeOrders'] });
           }
         },
       )
+      // #56: the architect's answer (submit_pro_response) and a reply-portal
+      // review cycle are server-side UPDATEs of the GC's own rfis/submittals
+      // rows; nothing re-read those lists until a cold relaunch, so he kept
+      // editing the pre-answer copy. Filtered to his rows (the loader keeps
+      // any row with a queued write of his own, so an echo cannot undo it).
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'rfis', filter: `user_id=eq.${user.id}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ['rfis'] }); },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'submittals', filter: `user_id=eq.${user.id}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ['submittals'] }); },
+      )
       .subscribe((status) => {
-        console.log('[NotificationContext] Bid/CO realtime status:', status);
+        console.log('[NotificationContext] Bid/CO/RFI/submittal realtime status:', status);
       });
 
     return () => {

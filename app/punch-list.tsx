@@ -29,7 +29,7 @@ import EmptyState from '@/components/EmptyState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { PunchExportHeaderButton, PunchExportSheet } from '@/components/punch/PunchExportSheet';
 import type { PunchItem, PunchItemStatus, PunchItemPriority, PunchListType, SubTrade } from '@/types';
-import { punchListTypeOf } from '@/types';
+import { punchListTypeOf, SUB_TRADES } from '@/types';
 import {
   PhotoMarkupOverlay, ContainedPhotoMarkupOverlay, markupForSource, sourcePhotoIdOf,
 } from '@/components/PhotoMarkupOverlay';
@@ -53,8 +53,13 @@ import { stashPinQueueIds } from '@/utils/pinQueueHandoff';
 import { generateUUID } from '@/utils/generateId';
 import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
 import { showAlert } from '@/utils/alert';
-import { formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
-import { resolvePunchSub } from '@/utils/subPortalSnapshot';
+import { formatCalendarDay, daysUntilCalendarDay, calendarDayOf, parseCalendarDay } from '@/utils/calendarDate';
+import { resolvePunchSub, scopePunchForSub, punchIsOnSub } from '@/utils/subPortalSnapshot';
+import DatePickerModal from '@/components/DatePickerModal';
+import { useAuth } from '@/contexts/AuthContext';
+// The subs this user may assign on THIS job: his directory when he owns it,
+// the owner's subs on the job when he is a collaborator (#110).
+import { useProjectSubcontractors } from '@/hooks/useProjectSubcontractors';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
 import { nailIt } from '@/components/animations/NailItToast';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
@@ -155,6 +160,42 @@ function otherList(list: PunchListType): PunchListType {
 function daysUntilDue(item: PunchItem): number | null {
   if (item.status === 'closed' || !item.dueDate) return null;
   return daysUntilCalendarDay(item.dueDate.slice(0, 10));
+}
+
+/**
+ * Who may delete a punch item (#111). The server's delete policy
+ * (punch_items_collab_delete) admits the item's CREATOR or the PROJECT OWNER —
+ * narrower than update, which any field/editor collaborator passes. A delete
+ * outside that matched 0 rows, counted as synced, and the item came back on
+ * the next load. So the control says who may delete, instead of pretending.
+ * A missing createdByUserId (a row loaded before the creator was mapped) is
+ * "not yours" unless he owns the project. Founder decision #111 pending: if
+ * collaborators may delete others' items, one migration aligns the policy
+ * with update and this gate goes.
+ */
+function punchDeleteAllowed(item: Pick<PunchItem, 'createdByUserId'>, userId: string | undefined, ownsProject: boolean): boolean {
+  if (ownsProject) return true;
+  return !!userId && item.createdByUserId === userId;
+}
+const PUNCH_DELETE_BLOCKED_REASON = 'Only the person who added this item or the project owner can delete it.';
+
+/**
+ * A sub column holding a bare TRADE word ("Electrical", "General") that no
+ * directory sub is named — written by older walks and templates when no sub
+ * was found. It is not an assignment and must not read like one (#20).
+ */
+function isTradeWordOnly(name: string | undefined, subNames: ReadonlySet<string>): boolean {
+  const n = (name ?? '').trim();
+  if (!n) return false;
+  if (subNames.has(n.toLowerCase())) return false;
+  return (SUB_TRADES as readonly string[]).some(t => t.toLowerCase() === n.toLowerCase());
+}
+
+/** A stored due date that is not a calendar day (typed "9/25", "Fri"): it is
+ *  never tracked as overdue, so it must not print like a real date (#113). */
+function dueDateUnreadable(due: string | undefined): boolean {
+  const v = (due ?? '').trim();
+  return !!v && !parseCalendarDay(v.slice(0, 10));
 }
 
 function pluralDays(n: number): string {
@@ -285,6 +326,10 @@ type PunchRowData =
        *  sheet, is NOT on the plan — the chip used to say it was and opened a
        *  sheet with no marker on it (or none at all). */
       onPlan: boolean;
+      /** punchDeleteAllowed for this user — the trash says why when false. */
+      canDelete: boolean;
+      /** The sub column is a bare trade word, not a sub (isTradeWordOnly). */
+      subIsTradeWord: boolean;
     };
 
 type PunchStyles = ReturnType<typeof makeStyles>;
@@ -297,6 +342,8 @@ interface PunchRowActions {
   onStatus: (item: PunchItem, next: PunchItemStatus) => void;
   onReject: (item: PunchItem) => void;
   onDelete: (item: PunchItem) => void;
+  /** Tapped the trash on an item he may not delete: says why. */
+  onDeleteBlocked: () => void;
   onOpenPhoto: (item: PunchItem) => void;
   onPhotoFailed: (uri: string) => void;
   onOpenPlan: (item: PunchItem) => void;
@@ -372,7 +419,8 @@ const PunchRow = React.memo(function PunchRow({
   themeColors: ThemeColors;
   actions: PunchRowActions;
 }) {
-  const { item, selected, selectMode, photoFailed, variant, onPlan } = row;
+  const { item, selected, selectMode, photoFailed, variant, onPlan, canDelete, subIsTradeWord } = row;
+  const dueUnreadable = dueDateUnreadable(item.dueDate);
   const sc = getStatusConfig(themeColors, item.status);
   const pc = getPriorityConfig(themeColors, item.priority);
   const formal = variant === 'punch';
@@ -509,7 +557,16 @@ const PunchRow = React.memo(function PunchRow({
       {/* PUNCH: the due date is the headline of the meta line, as a chip —
           red and counted when late, amber inside two days. Someone is holding
           the builder to these dates, so they are the first thing read. */}
-      {formal && item.dueDate ? (
+      {item.dueDate && dueUnreadable ? (
+        // Typed free text ("Fri", "9/25") — not a date, so not tracked. Said,
+        // never printed like a deadline he believes is being watched.
+        <View style={[styles.dueChip, styles.dueChipSoon]}>
+          <CalendarClock size={12} color={themeColors.warningLabel} strokeWidth={1.75} />
+          <Text style={[styles.dueChipText, { color: themeColors.warningLabel }]}>
+            Due “{item.dueDate}” — not a date, not tracked. Edit to pick one.
+          </Text>
+        </View>
+      ) : formal && item.dueDate ? (
         <View style={[
           styles.dueChip,
           overdue ? styles.dueChipOverdue : (dueIn !== null && dueIn <= 2 ? styles.dueChipSoon : null),
@@ -533,7 +590,11 @@ const PunchRow = React.memo(function PunchRow({
       ) : null}
 
       <View style={styles.punchMeta}>
-        {item.assignedSub ? <Text style={styles.punchMetaText}>Sub: {item.assignedSub}</Text> : null}
+        {item.assignedSub ? (
+          subIsTradeWord
+            ? <Text style={styles.punchMetaText}>Trade: {item.assignedSub} · no sub assigned</Text>
+            : <Text style={styles.punchMetaText}>Sub: {item.assignedSub}</Text>
+        ) : null}
         {/* dueDate is declared 'YYYY-MM-DD' but Supabase-synced rows
             carry a full ISO timestamp — openEditForm already slices
             for exactly that reason. This printed the raw field, so one
@@ -542,7 +603,7 @@ const PunchRow = React.memo(function PunchRow({
 
             CREW: the date stays in the quiet meta line. Late is still SAID —
             hiding it would be its own lie — but in secondary ink, no fill. */}
-        {!formal && item.dueDate ? (
+        {!formal && item.dueDate && !dueUnreadable ? (
           <Text style={[styles.punchMetaText, overdue && styles.punchMetaTextLate]}>
             Due {formatCalendarDay(item.dueDate)}{overdue ? ` · ${pluralDays(-(dueIn as number))} past` : ''}
           </Text>
@@ -554,6 +615,15 @@ const PunchRow = React.memo(function PunchRow({
         <View style={styles.linkedTaskBadge}>
           <Link2 size={11} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.linkedTaskBadgeText} numberOfLines={1}>Task: {item.linkedTaskName}</Text>
+        </View>
+      ) : null}
+
+      {/* What the sub wrote when he marked it fixed from his portal
+          (punch_items.sub_note) — his words, labelled as his. */}
+      {item.subNote ? (
+        <View style={styles.subNoteBox}>
+          <MessageSquare size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
+          <Text style={styles.subNoteText}>Sub’s note: {item.subNote}</Text>
         </View>
       ) : null}
 
@@ -613,12 +683,16 @@ const PunchRow = React.memo(function PunchRow({
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.punchDeleteBtn}
-            onPress={() => actions.onDelete(item)}
+            style={[styles.punchDeleteBtn, !canDelete && styles.punchDeleteBtnBlocked]}
+            // Blocked, not hidden: the tap says who may delete it.
+            onPress={() => (canDelete ? actions.onDelete(item) : actions.onDeleteBlocked())}
             accessibilityRole="button"
-            accessibilityLabel="Delete"
+            accessibilityState={{ disabled: !canDelete }}
+            accessibilityLabel={canDelete ? 'Delete' : 'Delete unavailable'}
+            accessibilityHint={canDelete ? undefined : PUNCH_DELETE_BLOCKED_REASON}
+            testID={`punch-delete-${item.id}`}
           >
-            <Trash2 size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Trash2 size={14} color={canDelete ? themeColors.dangerLabel : themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       )}
@@ -663,6 +737,7 @@ function PunchListScreenInner() {
     prefillPhotoId?: string;
   }>();
   const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded } = useProjects();
+  const { user } = useAuth();
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -672,6 +747,20 @@ function PunchListScreenInner() {
   const projectId = pickedProjectId ?? paramProjectId ?? '';
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  // The sub chips (edit sheet, bulk assign). On his own job: his directory. On
+  // someone else's: the OWNER's subs on this job — never his own directory,
+  // whose ids no GC portal will ever match (#110).
+  const projectSubs = useProjectSubcontractors(projectId || undefined);
+  const pickerSubs = projectSubs.subs;
+  const ownsThisProject = projectSubs.isOwner;
+  const pickerSubNames = useMemo(
+    () => new Set(pickerSubs.map(s => (s.companyName ?? '').trim().toLowerCase())),
+    [pickerSubs],
+  );
+  const canDeleteItem = useCallback(
+    (item: PunchItem) => punchDeleteAllowed(item, user?.id, ownsThisProject),
+    [user?.id, ownsThisProject],
+  );
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   /** Both lists. Closeout ("is every item done?") and selection resolution
@@ -722,6 +811,9 @@ function PunchListScreenInner() {
    *  it — and that sub's portal (utils/subPortalSnapshot) kept the item. */
   const [formSubId, setFormSubId] = useState<string | undefined>(undefined);
   const [dueDate, setDueDate] = useState('');
+  const [showDuePicker, setShowDuePicker] = useState(false);
+  /** "Other…" — a sub name that is not one of the chips (typed once). */
+  const [subOther, setSubOther] = useState(false);
   const [priority, setPriority] = useState<PunchItemPriority>('medium');
   /** The add/edit sheet's own list choice. Seeded from the list showing (new)
    *  or the item (edit); he can flip it explicitly in the sheet. */
@@ -811,10 +903,13 @@ function PunchListScreenInner() {
         projectId,
         description: item.description,
         location: '',
-        assignedSub: template.trade === 'General' || template.trade === 'Other' ? '' : template.trade,
+        // Unassigned, never the trade word: "Sub: Electrical" read as an
+        // assignment on the list, the filter and the export (#20).
+        assignedSub: '',
         dueDate: '',
         priority: item.priority,
         status: 'open',
+        ...(user?.id ? { createdByUserId: user.id } : {}),
         // Onto whichever list he applied it from — a trade checklist dropped
         // into the crew list must not surface on the client's portal.
         listType: activeList,
@@ -830,7 +925,7 @@ function PunchListScreenInner() {
       'Template applied',
       `Added ${added} item${added === 1 ? '' : 's'} from "${template.label}" to the ${activeList === 'punch' ? 'punch list' : 'crew list'}. Edit or remove any that don't apply to this project.`,
     );
-  }, [projectId, addPunchItem, activeList]);
+  }, [projectId, addPunchItem, activeList, user?.id]);
   const [rejectionNote, setRejectionNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<PunchItemStatus | 'all'>('all');
@@ -880,7 +975,7 @@ function PunchListScreenInner() {
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
 
   const resetForm = useCallback(() => {
-    setDescription(''); setLocation(''); setAssignedSub(''); setFormSubId(undefined);
+    setDescription(''); setLocation(''); setAssignedSub(''); setFormSubId(undefined); setSubOther(false);
     setDueDate(''); setPriority('medium'); setEditingItem(null);
     setLinkedTaskId('');
     // A new item lands on the list he is looking at.
@@ -907,7 +1002,17 @@ function PunchListScreenInner() {
     // Seed the id from the record the NAME points at: an id left behind by an
     // older reassignment (the name says Rivera, the id says ABC) is dropped on
     // this save instead of being carried forward.
-    setFormSubId(resolvePunchSub(item.assignedSub ?? '', [item.assignedSubId], subcontractors)?.id);
+    const seededSub = resolvePunchSub(item.assignedSub ?? '', [item.assignedSubId], pickerSubs);
+    // A collaborator whose list cannot see the item's sub (the owner's list is
+    // still loading, failed, or the sub is not on this job) cannot tell a stale
+    // id from a good one — so an untouched save keeps the id the item already
+    // has rather than wiping the GC's assignment. Only a list that CAN see the
+    // id may call it stale.
+    const cannotJudgeId = !ownsThisProject && !!item.assignedSubId && !pickerSubs.some(s => s.id === item.assignedSubId);
+    setFormSubId(seededSub?.id ?? (cannotJudgeId ? item.assignedSubId : undefined));
+    // A name that is not one of the chips opens in the "Other…" box, so he can
+    // see and clear it.
+    setSubOther(!!(item.assignedSub ?? '').trim() && !seededSub);
     // The field is declared YYYY-MM-DD; Supabase-synced items can carry a full
     // ISO timestamp. Slice to the form's own format (same as permits) rather
     // than seeding the input with a value it doesn't accept.
@@ -924,7 +1029,7 @@ function PunchListScreenInner() {
     setFormPin(null);
     setPinSavedInSheet(false);
     setShowForm(true);
-  }, [subcontractors]);
+  }, [pickerSubs, ownsThisProject]);
 
   // Progress is per list — "18 of 40 punch items closed" is the number that
   // means something on the punch list; blending in crew chores would dilute it.
@@ -951,10 +1056,11 @@ function PunchListScreenInner() {
     const set = new Set<string>();
     for (const i of items) {
       const s = (i.assignedSub ?? '').trim();
-      if (s) set.add(s);
+      // A bare trade word is not a sub (#20) — not offered as one to filter by.
+      if (s && !isTradeWordOnly(s, pickerSubNames)) set.add(s);
     }
     return Array.from(set).sort();
-  }, [items]);
+  }, [items, pickerSubNames]);
 
   // ── Locations ────────────────────────────────────────────────────────────
   // One source for every location on this project: the rooms already on punch
@@ -1171,6 +1277,8 @@ function PunchListScreenInner() {
       selectMode,
       photoFailed: !!(item.photoUri && failedPhotoUris[item.photoUri]),
       variant: activeList,
+      canDelete: canDeleteItem(item),
+      subIsTradeWord: isTradeWordOnly(item.assignedSub, pickerSubNames),
     });
 
     if (!grouped) {
@@ -1195,12 +1303,19 @@ function PunchListScreenInner() {
       for (const item of section.items) out.push(itemRow(item));
     }
     return out;
-  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById]);
+  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById, canDeleteItem, pickerSubNames]);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
     if (!desc) {
       showAlert('Missing Description', 'Please describe the punch item.');
+      return;
+    }
+    // The picker stores a calendar day; this refuses anything else (an old
+    // free-text value he left in place), with the reason — a date that is not
+    // a date would never go overdue (#113).
+    if (dueDate.trim() && !parseCalendarDay(dueDate.trim().slice(0, 10))) {
+      showAlert('Due date not understood', `“${dueDate.trim()}” is not a date, so it would never be tracked as overdue. Pick a date, or clear it.`);
       return;
     }
     const linkedTaskName = linkedTask?.title;
@@ -1223,6 +1338,8 @@ function PunchListScreenInner() {
           ...(assignedSub.trim() && formSubId ? { assignedSubId: formSubId } : {}),
           dueDate,
           priority, status: 'open',
+          // Who raised it — the delete check (#111) reads this.
+          ...(user?.id ? { createdByUserId: user.id } : {}),
           listType: formListType,
           linkedTaskId: linkedTaskId || undefined,
           linkedTaskName: linkedTaskName || undefined,
@@ -1264,7 +1381,7 @@ function PunchListScreenInner() {
       return;
     }
     commit();
-  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin]);
+  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin, user?.id]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -1354,6 +1471,7 @@ function PunchListScreenInner() {
       dueDate: '',
       priority: 'medium' as const,
       status: 'open' as const,
+      ...(user?.id ? { createdByUserId: user.id } : {}),
       // The walk files onto the list that is showing, like every other add.
       listType: activeList,
       photoUri: shot.uri,
@@ -1381,7 +1499,7 @@ function PunchListScreenInner() {
       // iOS: let the walk sheet finish sliding away before the push.
       setTimeout(() => router.push({ pathname: '/punch-pin' as never, params: { projectId: projectId ?? '', list: activeList, batch } as never }), Platform.OS === 'ios' ? 400 : 0);
     }
-  }, [describedWalkShots, walkShots, addPunchItems, projectId, activeList, router]);
+  }, [describedWalkShots, walkShots, addPunchItems, projectId, activeList, router, user?.id]);
 
   // Released only once the filed shots have actually LEFT `walkShots`. Clearing
   // it at the end of fileWalkShots would make the latch useless — the second
@@ -1567,12 +1685,23 @@ function PunchListScreenInner() {
 
   const bulkDelete = useCallback(() => {
     if (selectedIdList.length === 0) return;
-    const ids = [...selectedIdList];
+    // Only the rows he may delete (#111). The rest would "delete" on screen,
+    // match 0 rows on the server and come back on the next load — so they are
+    // left out, and the dialog says how many and why.
+    const ids = selectedItems.filter(canDeleteItem).map(i => i.id);
+    const kept = selectedIdList.length - ids.length;
     const n = ids.length;
+    if (n === 0) {
+      showAlert('Can’t delete these items', PUNCH_DELETE_BLOCKED_REASON);
+      return;
+    }
+    const keptLine = kept > 0
+      ? ` ${kept} other selected item${kept === 1 ? ' was' : 's were'} added by someone else and will stay: ${PUNCH_DELETE_BLOCKED_REASON.charAt(0).toLowerCase()}${PUNCH_DELETE_BLOCKED_REASON.slice(1)}`
+      : '';
     // The one irreversible verb on this bar, so it says the number out loud.
     showAlert(
       `Delete ${n} punch item${n === 1 ? '' : 's'}?`,
-      'They are removed from this project and from the closeout packet. This cannot be undone.',
+      `They are removed from this project and from the closeout packet. This cannot be undone.${keptLine}`,
       [
         { text: 'Keep them', style: 'cancel' },
         {
@@ -1585,7 +1714,7 @@ function PunchListScreenInner() {
         },
       ],
     );
-  }, [selectedIdList, deletePunchItems, finishBulk]);
+  }, [selectedIdList, selectedItems, canDeleteItem, deletePunchItems, finishBulk]);
 
   // ── Handing a sub their list ─────────────────────────────────────────────
   // The sub portal already exists and already scopes punch items to one sub
@@ -1594,6 +1723,9 @@ function PunchListScreenInner() {
   // he wanted it. Offered when the view is about EXACTLY one sub — the list is
   // filtered to them, or every selected item is theirs.
   const portalTarget = useMemo(() => {
+    // The sub portal is the owner's (his subs, his link). A collaborator's own
+    // directory would resolve the GC's sub name to a stranger's record.
+    if (!ownsThisProject) return null;
     const pool = selectedCount > 0 ? selectedItems : (filterSub ? filteredItems : []);
     if (pool.length === 0) return null;
     const names = new Set<string>();
@@ -1612,8 +1744,15 @@ function PunchListScreenInner() {
     // open the wrong sub's portal setup (one stale ABC id among 20 Rivera
     // items used to route "Hand Rivera Drywall their 20 items" to ABC).
     const sub = resolvePunchSub(name, ids, subcontractors);
-    return { name, sub, count: pool.length };
-  }, [selectedCount, selectedItems, filterSub, filteredItems, subcontractors]);
+    // The number the sub will SEE as still on him: counted by the portal's own
+    // scoping function (scopePunchForSub — the same rows, same rule, the server
+    // read applies it in SQL), not the pool, which counted closed and
+    // ready-for-review items too (#109). No sub record: the pool's open items.
+    const count = sub
+      ? scopePunchForSub(allItems, sub, projectId ?? '').filter(punchIsOnSub).length
+      : pool.filter(punchIsOnSub).length;
+    return { name, sub, count };
+  }, [ownsThisProject, selectedCount, selectedItems, filterSub, filteredItems, subcontractors, allItems, projectId]);
 
   const openSubPortal = useCallback(() => {
     if (!portalTarget?.sub || !projectId) return;
@@ -1647,6 +1786,7 @@ function PunchListScreenInner() {
       latestActions.current.setShowRejectModal(item.id);
       latestActions.current.setRejectionNote('');
     },
+    onDeleteBlocked: () => showAlert('Can’t delete this item', PUNCH_DELETE_BLOCKED_REASON),
     onDelete: item => {
       showAlert('Delete', 'Delete this punch item?', [
         { text: 'Cancel', style: 'cancel' },
@@ -2085,7 +2225,7 @@ function PunchListScreenInner() {
           >
             <Send size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.portalBannerText} numberOfLines={2}>
-              Hand {portalTarget.name} their {portalTarget.count} item{portalTarget.count === 1 ? '' : 's'} — open their portal link
+              Hand {portalTarget.name} their {portalTarget.count} open item{portalTarget.count === 1 ? '' : 's'} — open their portal link
             </Text>
             <ChevronRight size={14} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -2550,8 +2690,10 @@ function PunchListScreenInner() {
                       <Image source={{ uri: attachedPhotoUri }} style={styles.photoImg} resizeMode="cover" />
                       {/* The circle he drew round the defect, drawn over the
                           photo on THIS screen. It is stored beside the photo,
-                          not burned into it — the sub portal carries only the
-                          photo — so the note below says so. */}
+                          not burned into it, and the sub portal shows neither
+                          the photo nor the mark yet (only the description,
+                          location, due date and plan sheet) — so the note
+                          below says so. */}
                       <PhotoMarkupOverlay markup={markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri)} />
                     </View>
                     <TouchableOpacity
@@ -2569,10 +2711,11 @@ function PunchListScreenInner() {
                   </View>
                 ) : null}
                 {attachedPhotoUri && markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri).length > 0 ? (
-                  // Same boundary the RFI screen states: the sub's portal shows
-                  // the plain photo, so he must not assume the sub sees the mark.
+                  // The sub's portal does not draw the photo yet (it is in a
+                  // private bucket and needs a signed link), let alone the mark,
+                  // so he must describe it in words.
                   <Text style={styles.formListNote}>
-                    Your markup shows here. The sub sees the plain photo — describe the mark in the description too.
+                    Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark — describe the mark in the description.
                   </Text>
                 ) : null}
 
@@ -2620,7 +2763,44 @@ function PunchListScreenInner() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Due Date</Text>
-                    <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                    {/* A picker, not a text box: a typed "9/25" saved, never
+                        went overdue and printed raw (#113). Stored as the
+                        calendar day picked (utils/calendarDate), never a UTC
+                        slice. Optional, so it can be cleared. */}
+                    <TouchableOpacity
+                      style={[styles.input, styles.dueField]}
+                      onPress={() => setShowDuePicker(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel={dueDate ? `Due date ${dueDate}. Change` : 'Pick a due date'}
+                      testID="punch-due-field"
+                    >
+                      <CalendarClock size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                      <Text
+                        style={[styles.dueFieldText, !dueDate && { color: themeColors.textMuted }, dueDate && !parseCalendarDay(dueDate.slice(0, 10)) && { color: themeColors.warningLabel }]}
+                        numberOfLines={1}
+                      >
+                        {!dueDate
+                          ? 'No due date'
+                          : parseCalendarDay(dueDate.slice(0, 10))
+                            ? formatCalendarDay(dueDate.slice(0, 10))
+                            : `“${dueDate}” — not a date`}
+                      </Text>
+                    </TouchableOpacity>
+                    {dueDate ? (
+                      <TouchableOpacity onPress={() => setDueDate('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear due date" testID="punch-due-clear">
+                        <Text style={styles.dueClear}>Clear</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    <DatePickerModal
+                      visible={showDuePicker}
+                      value={dueDate && parseCalendarDay(dueDate.slice(0, 10)) ? (parseCalendarDay(dueDate.slice(0, 10))?.toISOString() ?? '') : ''}
+                      allowFuture
+                      title="Due date"
+                      onClose={() => setShowDuePicker(false)}
+                      // The picker hands back noon-UTC of the day he picked;
+                      // calendarDayOf keeps that local calendar day as YYYY-MM-DD.
+                      onChange={(iso) => setDueDate(calendarDayOf(iso) ?? '')}
+                    />
                   </View>
                 </View>
 
@@ -2674,21 +2854,73 @@ function PunchListScreenInner() {
                 })()}
 
                 <Text style={styles.fieldLabel}>Assigned Sub</Text>
-                {subcontractors.length > 0 ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                    {subcontractors.map(s => (
+                {/* Unassigned, the subs, and Other…. Tapping the active chip
+                    also clears it. Every choice sets the name AND the id
+                    together: a chip gives its sub's id; Unassigned and Other…
+                    clear it (the update sends null — see punchItemToUpdateRow),
+                    so no earlier sub's portal keeps the item (#18/#19). */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
+                  <TouchableOpacity
+                    style={[styles.subChip, !assignedSub.trim() && !subOther && styles.subChipActive]}
+                    onPress={() => { setAssignedSub(''); setFormSubId(undefined); setSubOther(false); }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: !assignedSub.trim() && !subOther }}
+                    testID="punch-sub-unassigned"
+                  >
+                    <Text style={[styles.subChipText, !assignedSub.trim() && !subOther && styles.subChipTextActive]}>Unassigned</Text>
+                  </TouchableOpacity>
+                  {pickerSubs.map(s => {
+                    const on = !subOther && assignedSub === s.companyName;
+                    return (
                       <TouchableOpacity
                         key={s.id}
-                        style={[styles.subChip, assignedSub === s.companyName && styles.subChipActive]}
-                        onPress={() => { setAssignedSub(s.companyName); setFormSubId(s.id); }}
+                        style={[styles.subChip, on && styles.subChipActive]}
+                        onPress={() => {
+                          setSubOther(false);
+                          if (on) { setAssignedSub(''); setFormSubId(undefined); return; }
+                          setAssignedSub(s.companyName); setFormSubId(s.id);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        accessibilityHint={on ? 'Tap again to unassign' : undefined}
                       >
-                        <Text style={[styles.subChipText, assignedSub === s.companyName && styles.subChipTextActive]}>{s.companyName}</Text>
+                        <Text style={[styles.subChipText, on && styles.subChipTextActive]}>{s.companyName}</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <TextInput style={styles.input} value={assignedSub} onChangeText={t => { setAssignedSub(t); setFormSubId(undefined); }} placeholder="Sub name" placeholderTextColor={themeColors.textMuted} />
-                )}
+                    );
+                  })}
+                  <TouchableOpacity
+                    style={[styles.subChip, subOther && styles.subChipActive]}
+                    onPress={() => { setSubOther(true); setAssignedSub(''); setFormSubId(undefined); }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: subOther }}
+                    testID="punch-sub-other"
+                  >
+                    <Text style={[styles.subChipText, subOther && styles.subChipTextActive]}>Other…</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+                {subOther ? (
+                  <TextInput
+                    style={[styles.input, { marginTop: 8 }]}
+                    value={assignedSub}
+                    onChangeText={t => { setAssignedSub(t); setFormSubId(undefined); }}
+                    placeholder="Company name"
+                    placeholderTextColor={themeColors.textMuted}
+                    autoFocus
+                    testID="punch-sub-other-input"
+                  />
+                ) : null}
+                {!projectSubs.isOwner && (projectSubs.isLoading || projectSubs.isError || pickerSubs.length === 0) ? (
+                  <Text style={styles.formListNote}>
+                    {projectSubs.isLoading
+                      ? 'Loading your GC’s subs on this job…'
+                      : projectSubs.isError
+                        ? 'Couldn’t load your GC’s subs on this job. Leave it unassigned and your GC assigns it.'
+                        : 'Your GC has no subs on this job yet. Leave it unassigned and your GC assigns it.'}
+                  </Text>
+                ) : null}
+                {editingItem?.subNote ? (
+                  <Text style={styles.formListNote}>Sub’s note from the portal: {editingItem.subNote}</Text>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Priority</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -3068,9 +3300,12 @@ function PunchListScreenInner() {
       </Modal>
 
       {/* ── Bulk: assign to a sub ────────────────────────────────────────
-          Assign only — there is no bulk "unassign" verb. Every assign sends
-          the id with the name (undefined for a typed trade), so a reassigned
-          item never keeps the previous sub's id. */}
+          Assign only — there is no bulk "unassign" verb; to clear one item's
+          sub, open it and tap Unassigned (or the active chip) in its edit
+          sheet. Every assign sends the id with the name (undefined for a name
+          with no sub record), and the update writes a missing id as NULL
+          (assigned_sub_id is a nullable TEXT column), so a reassigned item
+          never keeps the previous sub's id. */}
       <Modal visible={showBulkSubPicker} transparent animationType="slide" onRequestClose={() => setShowBulkSubPicker(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxHeight: '80%' as const, paddingBottom: insets.bottom + 20 }]}>
@@ -3081,7 +3316,7 @@ function PunchListScreenInner() {
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingBottom: 8 }}>
-              {subcontractors.map(s => (
+              {pickerSubs.map(s => (
                 <TouchableOpacity
                   key={s.id}
                   style={styles.pickerOption}
@@ -3099,7 +3334,7 @@ function PunchListScreenInner() {
                   — templates write these. Offered so a bulk assign still works
                   before the address book is filled in. */}
               {subsInList
-                .filter(name => !subcontractors.some(s => (s.companyName ?? '').trim().toLowerCase() === name.toLowerCase()))
+                .filter(name => !pickerSubs.some(s => (s.companyName ?? '').trim().toLowerCase() === name.toLowerCase()))
                 .map(name => (
                   <TouchableOpacity
                     key={`free-${name}`}
@@ -3113,7 +3348,7 @@ function PunchListScreenInner() {
                     <Text style={styles.pickerOptionMeta}>Typed on items — not in your subs list</Text>
                   </TouchableOpacity>
                 ))}
-              {subcontractors.length === 0 && subsInList.length === 0 ? (
+              {pickerSubs.length === 0 && subsInList.length === 0 ? (
                 <Text style={[styles.rejectDesc, { padding: 20, textAlign: 'center' as const }]}>
                   No subcontractors yet. Add one under Subs, then come back and assign the whole room at once.
                 </Text>
@@ -3449,6 +3684,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   punchActions: { flexDirection: 'row', gap: 8, paddingLeft: 18, flexWrap: 'wrap' },
   punchActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
   punchActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
+  punchDeleteBtnBlocked: { opacity: 0.55 },
+  subNoteBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8,
+    padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt,
+  },
+  subNoteText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.text, lineHeight: 17 },
+  dueField: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dueFieldText: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text },
+  dueClear: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: themeColors.accentLabel, marginTop: 6 },
   punchDeleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.dangerSoft, alignItems: 'center', justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },

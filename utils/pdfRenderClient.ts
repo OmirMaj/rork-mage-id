@@ -51,6 +51,7 @@ import { Platform } from 'react-native';
 import { PDFDocument } from 'pdf-lib';
 import { readFileBytes } from '@/utils/fileBytes';
 import { isProjectScopedPlanSheetPath, resolvePlanSheetUrls } from '@/utils/planSheetUrls';
+import { edgeFunctionError } from '@/utils/edgeError';
 
 const PDF_BUCKET = 'pdf-uploads';
 const FUNCTION_NAME = 'convert-pdf-to-images';
@@ -129,6 +130,12 @@ export interface RenderPdfOptions {
   dpi?: number;
   /** Hard cap on pages converted; protects from a 500-page set blowing storage. */
   maxPages?: number;
+  /** 1-based first page to render (#76). With `maxPages: 1` this renders just
+   *  that page — Compare picks one sheet out of a re-issued set, and
+   *  extract-submittals starts past the front matter. convert-pdf-to-images
+   *  (v14+) answers a page past the end with code `start_page_past_end` and a
+   *  sentence naming the real page count. Omitted = page 1, as before. */
+  startPage?: number;
 }
 
 /**
@@ -143,6 +150,7 @@ export async function uploadAndRenderPdf({
   fileName,
   dpi,
   maxPages,
+  startPage,
 }: RenderPdfOptions): Promise<RenderedPlanPage[]> {
   const session = await supabase.auth.getSession();
   const userId = session.data.session?.user?.id;
@@ -192,13 +200,21 @@ export async function uploadAndRenderPdf({
       projectId,
       dpi,
       maxPages,
+      // Only sent when asked for, so a body is byte-identical to before for
+      // every caller that renders from page 1.
+      ...(typeof startPage === 'number' && startPage > 1 ? { startPage: Math.floor(startPage) } : {}),
     },
   });
 
   if (fnErr) {
+    // #79: decode the function's own `{ error, code }` FIRST — the Response
+    // body can be read once — so the takeoff 402 ("Takeoffs aren't included on
+    // the free plan…"), the page-cap 429 and the page-range 400 reach the
+    // screen instead of "Edge Function returned a non-2xx status code".
+    const decoded = await edgeFunctionError(fnErr, 'The PDF could not be rendered');
     // Best-effort cleanup of the orphaned PDF if the function never got to delete it.
     supabase.storage.from(PDF_BUCKET).remove([storagePath]).catch(() => {});
-    throw new Error(`Render failed: ${fnErr.message}`);
+    throw decoded;
   }
   if (!data?.success || !data.pages) {
     supabase.storage.from(PDF_BUCKET).remove([storagePath]).catch(() => {});

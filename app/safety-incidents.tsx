@@ -23,16 +23,20 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 // invited to do, even though their own tier is free. See
 // utils/collaboratorAccess.
 import { useProjectAccess } from '@/hooks/useProjectAccess';
-import Paywall from '@/components/Paywall';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import EmptyState from '@/components/EmptyState';
 import type {
   SafetyIncident, SafetyIncidentType, SafetyIncidentSeverity, SafetyIncidentStatus,
-  SafetyTreatment, IncidentCorrectiveAction, IncidentPerson, OshaIllnessType,
+  SafetyTreatment, IncidentCorrectiveAction, OshaIllnessType,
 } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
-import { isOshaRecordable, describeRecordability, hasRestriction } from '@/utils/safety/osha';
+import {
+  isOshaRecordable, describeRecordability, hasRestriction, cleanPeopleInvolved, recordableWorkerProblem,
+  safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason, type IncidentPersonRecord,
+} from '@/utils/safety/osha';
+import { SafetyAccessBlocked, useSafetySeat } from '@/app/safety';
 import { isRecordableCase } from '@/utils/safety/oshaLog';
 import { todayCalendarDay } from '@/utils/calendarDate';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from '@/lib/supabase';
@@ -111,15 +115,12 @@ export default function SafetyIncidentsScreen() {
   // ask 'were they invited to THIS project?' before paywalling.
   const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { canAccess } = useProjectAccess(gateProjectId);
+  // Spinner while the role read is in flight, retry on error, paywall with
+  // the reason only once the answer is "no" — an invited foreman on a free
+  // plan otherwise sees a Business paywall flash over his own job.
+  const roleState = useProjectRoleState(gateProjectId);
   if (!canAccess('safety_management')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="Safety Management"
-        requiredTier="business"
-        onClose={() => router.back()}
-      />
-    );
+    return <SafetyAccessBlocked roleState={roleState} onClose={() => router.back()} />;
   }
   return <SafetyIncidentsInner />;
 }
@@ -136,8 +137,11 @@ function SafetyIncidentsInner() {
   const { tier } = useTierAccess();
   const { user } = useAuth();
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
-  const { projectId, prefillDescription, prefillTreatment, prefillType, prefillLocation } = useLocalSearchParams<{
+  const { projectId, incidentId, prefillDescription, prefillTreatment, prefillType, prefillLocation } = useLocalSearchParams<{
     projectId: string;
+    /** Opens that case straight into the edit form — the OSHA 300 screen's
+     *  rows link here so a row missing its worker is one tap from the fix. */
+    incidentId?: string;
     prefillDescription?: string;
     prefillTreatment?: string;
     prefillType?: string;
@@ -145,6 +149,7 @@ function SafetyIncidentsInner() {
   }>();
   const { getProject } = useProjects();
   const { getIncidentsForProject, addIncident, updateIncident, deleteIncident } = useSafety();
+  const seat = useSafetySeat(projectId);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const items = useMemo(() => getIncidentsForProject(projectId ?? ''), [projectId, getIncidentsForProject]);
@@ -166,7 +171,7 @@ function SafetyIncidentsInner() {
   const [lostConsciousness, setLostConsciousness] = useState(false);
   const [fatality, setFatality] = useState(false);
   const [correctiveActions, setCorrectiveActions] = useState<IncidentCorrectiveAction[]>([]);
-  const [peopleInvolved, setPeopleInvolved] = useState<IncidentPerson[]>([]);
+  const [peopleInvolved, setPeopleInvolved] = useState<IncidentPersonRecord[]>([]);
   // INCIDENT-PHOTO (audit 2026-09-07 "worth doing" #11). photoUrls had this
   // useState, a `photo_urls` column, a field on SafetyIncident and a sync path
   // in SafetyContext — and NO WRITER anywhere in the app. The one record OSHA
@@ -237,6 +242,16 @@ function SafetyIncidentsInner() {
   }, []);
   const updatePerson = useCallback((idx: number, field: 'name' | 'role', value: string) => {
     setPeopleInvolved(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  }, []);
+  // One person is THE injured worker — the one the OSHA 300 row names. Marking
+  // one unmarks the others; a witness row stays a witness.
+  const markInjured = useCallback((idx: number) => {
+    setPeopleInvolved(prev => prev.map((p, i) => ({ ...p, injured: i === idx ? !p.injured : false })));
+  }, []);
+  // 1904.29(b)(7): for the listed injury types the 300 says "Privacy case"
+  // instead of the name. The name stays on the record; the log hides it.
+  const togglePrivacyCase = useCallback((idx: number) => {
+    setPeopleInvolved(prev => prev.map((p, i) => i === idx ? { ...p, privacyCase: !p.privacyCase } : p));
   }, []);
   const removePerson = useCallback((idx: number) => {
     setPeopleInvolved(prev => prev.filter((_, i) => i !== idx));
@@ -412,6 +427,17 @@ function SafetyIncidentsInner() {
     setShowForm(true);
   }, []);
 
+  // ?incidentId= opens that case for editing once, as soon as it is loaded
+  // (the list hydrates asynchronously, so the first render may not have it).
+  const incidentParamApplied = useRef<string | null>(null);
+  useEffect(() => {
+    if (!incidentId || incidentParamApplied.current === incidentId) return;
+    const inc = items.find(i => i.id === incidentId);
+    if (!inc) return;
+    incidentParamApplied.current = incidentId;
+    openEdit(inc);
+  }, [incidentId, items, openEdit]);
+
   const handleDraftAI = useCallback(async () => {
     if (!draftNotes.trim()) { showAlert('Add notes', 'Type or dictate what happened first.'); return; }
     const check = await checkAILimit(tier, 'smart');
@@ -461,6 +487,9 @@ function SafetyIncidentsInner() {
    *  toggles so the classification is visible while it is being decided, not
    *  only after the case is saved. */
   const liveVerdict = useMemo(() => describeRecordability(classInput), [classInput]);
+  /** What the 300 still needs from the People section, shown under it while
+   *  the verdict is recordable — the same check Save runs. */
+  const workerProblem = useMemo(() => recordableWorkerProblem(peopleInvolved), [peopleInvolved]);
 
   const toggleRestrictedDuty = useCallback(() => {
     // Blocked, and says why: unticking while days are counted would store a
@@ -476,22 +505,37 @@ function SafetyIncidentsInner() {
   }, [daysRestrictedNum]);
 
   const handleSave = useCallback(() => {
+    const blocked = safetyWriteBlockedReason(seat);
+    if (blocked) { showAlert('View only', blocked); return; }
     const desc = description.trim();
     if (!desc) { showAlert('Missing description', 'Describe what happened.'); return; }
+    // A free-text '9/18/26' dropped the case off every year's 300 while the
+    // hub still counted it (audit #168). Only a real day is filed.
+    const dateProblem = safetyDateProblem(occurredAt, 'Occurred date');
+    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
     const now = new Date().toISOString();
     const recordable = isOshaRecordable(classInput);
+    // A recordable case needs the injured worker's name (or "Privacy case")
+    // and job title — the 300 row is otherwise '—' in the columns an inspector
+    // reads first (audit #88). Blocked here, with the reason, while he is
+    // still looking at the case.
+    const people = cleanPeopleInvolved(peopleInvolved);
+    if (recordable) {
+      const problem = recordableWorkerProblem(people);
+      if (problem) { showAlert('Who was injured?', problem); return; }
+    }
     if (editingIncident) {
       updateIncident(editingIncident.id, {
-        type, severity, occurredAt, description: desc, location: location.trim(),
-        peopleInvolved, photoUrls, correctiveActions, treatment,
+        type, severity, occurredAt: occurredAt.trim(), description: desc, location: location.trim(),
+        peopleInvolved: people, photoUrls, correctiveActions, treatment,
         daysAway: Number(daysAway) || 0, daysRestricted: daysRestrictedNum,
         restrictedDuty: effectiveRestricted, lostConsciousness, fatality, oshaIllnessType,
         oshaRecordable: recordable, status,
       });
     } else {
       const incident: SafetyIncident = {
-        id: generateUUID(), projectId: projectId ?? '', type, severity, occurredAt,
-        description: desc, location: location.trim(), peopleInvolved, photoUrls,
+        id: generateUUID(), projectId: projectId ?? '', type, severity, occurredAt: occurredAt.trim(),
+        description: desc, location: location.trim(), peopleInvolved: people, photoUrls,
         correctiveActions, treatment, daysAway: Number(daysAway) || 0,
         daysRestricted: daysRestrictedNum, oshaIllnessType,
         restrictedDuty: effectiveRestricted, lostConsciousness, fatality, oshaRecordable: recordable,
@@ -501,7 +545,7 @@ function SafetyIncidentsInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, daysRestrictedNum, oshaIllnessType, effectiveRestricted, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author, classInput]);
+  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, daysRestrictedNum, oshaIllnessType, effectiveRestricted, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author, classInput, seat]);
 
   const handleAdvanceStatus = useCallback((inc: SafetyIncident) => {
     updateIncident(inc.id, { status: nextStatus(inc.status) });
@@ -509,11 +553,28 @@ function SafetyIncidentsInner() {
   }, [updateIncident]);
 
   const handleDelete = useCallback((id: string) => {
-    showAlert('Delete incident', 'Delete this incident report?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteIncident(id) },
-    ]);
-  }, [deleteIncident]);
+    const item = items.find(x => x.id === id);
+    // A recordable case is kept, the way a signed JHA is (audit #89). Deleting
+    // it renumbered the 300 and dropped the 300A totals with one confirm.
+    // SafetyContext.deleteIncident refuses it too; this is where he is told why.
+    if (item && isRecordableCase(item)) {
+      showAlert(
+        'Kept on the OSHA 300',
+        'This case is OSHA-recordable, and recordable cases must be kept for five years (29 CFR 1904.33), so it cannot be deleted. Close it when the follow-up is done. If it was marked recordable by mistake, open it and correct the classification.',
+      );
+      return;
+    }
+    const blocked = safetyDeleteBlockedReason(seat);
+    if (blocked) { showAlert('Can\'t delete', blocked); return; }
+    showAlert(
+      'Delete incident',
+      'Delete this incident report? If it came from a daily report, that report will not file it again from this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => { deleteIncident(id); } },
+      ],
+    );
+  }, [deleteIncident, items, seat]);
 
   if (!project) {
     return (
@@ -524,12 +585,14 @@ function SafetyIncidentsInner() {
           title="Open a project first"
           message="Incidents are tied to a project so each report carries its people, corrective actions, and OSHA classification. To log one:"
           steps={[
-            'Open or create a project from the Projects tab.',
-            'Tap Safety inside the project tile grid.',
+            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
             'Open Incidents and hit + to report one, or draft it with AI.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
+          // Safety's own project picker, not Home: the "Safety tile inside the
+          // project tile grid" these steps used to promise did not exist, so
+          // this door led nowhere (audit #81).
+          actionLabel="Pick a job"
+          onAction={() => router.replace('/safety' as never)}
         />
       </View>
     );
@@ -539,6 +602,16 @@ function SafetyIncidentsInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Incidents — ${project.name}` }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+        {/* An invited crew member sees only the cases HE filed: injury detail
+            is private to the worker's employer (1904.29), so the safety policy
+            (20260919130000) never shows him anyone else's. Says what is true
+            either way — it names who can see the case, and does not promise
+            the GC's OSHA 300, which is the GC's own record to keep. */}
+        {seat === 'crew' ? (
+          <Text style={styles.collabNote} testID="incident-collab-note">
+            Only you and this job&apos;s owner can see the cases you report here, never the rest of the crew. Your list shows the cases you filed.
+          </Text>
+        ) : null}
         {items.map(item => {
           const sc = getStatusConfig(themeColors, item.status);
           const doneCount = item.correctiveActions.filter(a => a.done).length;
@@ -813,6 +886,59 @@ function SafetyIncidentsInner() {
                   </Text>
                 </View>
 
+                {/* People involved — directly under the verdict, because a
+                    recordable case needs its injured worker before it can be
+                    saved (audit #88). It used to sit at the very bottom,
+                    optional, so a recordable case saved with nobody on it. */}
+                <View style={styles.stepsHeader}>
+                  <Text style={styles.fieldLabel}>People involved{liveVerdict.recordable ? ' *' : ''}</Text>
+                  <TouchableOpacity onPress={addPerson} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel="Add person">
+                    <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.addStepText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+                {liveVerdict.recordable && workerProblem ? (
+                  <Text style={styles.workerHint} testID="incident-worker-missing">{workerProblem}</Text>
+                ) : null}
+                {peopleInvolved.map((p, idx) => (
+                  <View key={idx} style={styles.editRow}>
+                    <View style={styles.editRowHeader}>
+                      <Text style={styles.stepNum}>Person {idx + 1}</Text>
+                      <TouchableOpacity onPress={() => removePerson(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove person">
+                        <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput style={styles.input} value={p.name} onChangeText={v => updatePerson(idx, 'name', v)} placeholder="Name" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={styles.input} value={p.role} onChangeText={v => updatePerson(idx, 'role', v)} placeholder="Job title (for the OSHA 300)" placeholderTextColor={themeColors.textMuted} />
+                    <View style={styles.personFlags}>
+                      <TouchableOpacity
+                        style={[styles.doneToggle, p.injured ? styles.doneToggleOn : null]}
+                        onPress={() => markInjured(idx)}
+                        accessibilityRole="button"
+                        accessibilityLabel={p.injured ? 'Marked as the injured worker' : 'Mark as the injured worker'}
+                        testID={`incident-person-injured-${idx}`}
+                      >
+                        <Text style={[styles.doneToggleText, { color: p.injured ? themeColors.success : themeColors.textSecondary }]}>
+                          {p.injured ? 'Injured worker' : 'Injured?'}
+                        </Text>
+                      </TouchableOpacity>
+                      {p.injured ? (
+                        <TouchableOpacity
+                          style={[styles.doneToggle, p.privacyCase ? styles.doneToggleOn : null]}
+                          onPress={() => togglePrivacyCase(idx)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Privacy case"
+                          testID={`incident-person-privacy-${idx}`}
+                        >
+                          <Text style={[styles.doneToggleText, { color: p.privacyCase ? themeColors.success : themeColors.textSecondary }]}>
+                            {p.privacyCase ? 'Privacy case (name hidden on the 300)' : 'Privacy case?'}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+
                 {/* Corrective actions */}
                 <View style={styles.stepsHeader}>
                   <Text style={styles.fieldLabel}>Corrective actions</Text>
@@ -833,27 +959,6 @@ function SafetyIncidentsInner() {
                     </View>
                     <TextInput style={styles.input} value={a.action} onChangeText={v => updateCorrectiveAction(idx, 'action', v)} placeholder="Action" placeholderTextColor={themeColors.textMuted} />
                     <TextInput style={styles.input} value={a.owner} onChangeText={v => updateCorrectiveAction(idx, 'owner', v)} placeholder="Owner" placeholderTextColor={themeColors.textMuted} />
-                  </View>
-                ))}
-
-                {/* People involved */}
-                <View style={styles.stepsHeader}>
-                  <Text style={styles.fieldLabel}>People involved</Text>
-                  <TouchableOpacity onPress={addPerson} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel="Add person">
-                    <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addStepText}>Add</Text>
-                  </TouchableOpacity>
-                </View>
-                {peopleInvolved.map((p, idx) => (
-                  <View key={idx} style={styles.editRow}>
-                    <View style={styles.editRowHeader}>
-                      <Text style={styles.stepNum}>Person {idx + 1}</Text>
-                      <TouchableOpacity onPress={() => removePerson(idx)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove person">
-                        <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-                      </TouchableOpacity>
-                    </View>
-                    <TextInput style={styles.input} value={p.name} onChangeText={v => updatePerson(idx, 'name', v)} placeholder="Name" placeholderTextColor={themeColors.textMuted} />
-                    <TextInput style={styles.input} value={p.role} onChangeText={v => updatePerson(idx, 'role', v)} placeholder="Role" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 ))}
 
@@ -894,6 +999,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   deleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.danger + '18', alignItems: 'center', justifyContent: 'center' },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '20' },
   addItemBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  workerHint: { fontSize: Type.footnote.fontSize, color: themeColors.danger, lineHeight: 18 },
+  personFlags: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  collabNote: { marginHorizontal: 20, marginTop: 12, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 19 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
   formCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

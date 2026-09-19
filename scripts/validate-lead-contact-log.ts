@@ -102,8 +102,16 @@ console.log('\n#9 a flood against one GC cannot become a flood of pushes');
   ok('…and caps captured leads per resolved account', /rateLimitCount\(`widget:lead:\$\{userId\}`\)/.test(WEc) && /leadCount > WIDGET_LEAD_HOURLY_LIMIT/.test(WEc));
   // Post-ship review: the lead mail goes TO the GC, so its footer must not say
   // "Sent by <his own company>" and Reply must reach the homeowner.
-  ok('lead_received names the lead as sender, not the GC', /sender: \{ name: who, email: leadEmail \?\? undefined, phone: phone \?\? undefined \}/.test(LEAD));
-  ok('lead_received replies go to a well-formed lead email', /replyTo: leadEmail && \/\^[^\n]*\.test\(leadEmail\) \? leadEmail : undefined/.test(LEAD));
+  // Leftovers review: the footer's sender line ends "Replies go to them, not
+  // us." (_shared/email.ts footerHtml), which is false when there is no
+  // reply_to — so a lead with no / a malformed email gets NO sender line.
+  ok('lead_received names the lead as sender (not the GC) only when the lead left a usable email; otherwise no sender line',
+    /sender: validLeadEmail \? \{ name: who, email: validLeadEmail, phone: phone \?\? undefined \} : null,/.test(LEAD)
+      && !/sender: \{ name: who, email: leadEmail/.test(LEAD));
+  ok('lead_received replies go to a well-formed lead email — the same check that gates the sender line',
+    /const validLeadEmail = leadEmail && \/\^[^\n]*\.test\(leadEmail\) \? leadEmail : null;/.test(LEAD) && /replyTo: validLeadEmail \?\? undefined,/.test(LEAD));
+  ok('the footer sender line still promises replies reach the sender (why the gate above matters)',
+    /Replies go to them, not us\./.test(read('supabase/functions/_shared/email.ts')));
   ok('dispatchOne honours a sender override over sharedEmail', /\.\.\.sharedEmail,\s*\.\.\.\(spec\.sender !== undefined \? \{ sender: spec\.sender \?\? undefined \} : \{\}\)/.test(read('supabase/functions/notify/index.ts')));
   ok('notify caps lead_received per GC before dispatching', /exceedsRateLimit\(`notify:lead:\$\{gcUserId\}`, LEAD_NOTIFY_HOURLY_CAP\)[\s\S]*?break;[\s\S]*?await dispatchOne\('gc'/.test(LEAD));
 }

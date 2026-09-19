@@ -677,13 +677,6 @@ export function applyCoScheduleReflow(
   return { plan, nextSchedule, coPatch, auditEntry };
 }
 
-/**
- * Marker for an approved CO whose days could not be placed — nothing on the
- * schedule links to it (`no_anchor`), or the dependency network has a loop the
- * engine refuses to guess through (`blocked`). Stamped once (callers check
- * `hasUnanchoredMarker` first) so the gap stays visible in the CO's own history
- * instead of vanishing. `detail` carries the plan's own explanation.
- */
 /** The "place these days" marker for a CO approved somewhere the GC was not
  *  looking (the client portal, via hooks/usePortalApprovalReconciler.ts).
  *  Same action as the no-anchor marker — hasUnanchoredMarker keeps it
@@ -705,6 +698,13 @@ export function buildDeferredCoAuditEntry(
   };
 }
 
+/**
+ * Marker for an approved CO whose days could not be placed — nothing on the
+ * schedule links to it (`no_anchor`), or the dependency network has a loop the
+ * engine refuses to guess through (`blocked`). Stamped once (callers check
+ * `hasUnanchoredMarker` first) so the gap stays visible in the CO's own history
+ * instead of vanishing. `detail` carries the plan's own explanation.
+ */
 export function buildUnanchoredCoAuditEntry(
   plan: CoReflowPlan,
   opts: CoReflowOptions = {},

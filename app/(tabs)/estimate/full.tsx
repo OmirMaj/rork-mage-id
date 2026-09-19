@@ -77,6 +77,7 @@ import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { pdfFailureMessage } from '@/utils/platformFile';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -1335,7 +1336,7 @@ export default function EstimateScreen() {
       }, 'share');
     } catch (e) {
       console.error('[Estimate] PDF share error:', e);
-      showAlert('Error', 'Failed to generate PDF. Please try again.');
+      showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));
     }
   }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, showBulkSavings, pendingProjectBulkSavings]);
 

@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { readAsBase64 } from '@/utils/platformFile';
 import { supabase } from '@/lib/supabase';
+import { readEdgeError } from '@/utils/edgeError';
 
 export interface PlanCodeFindingRaw {
   category?: string;
@@ -73,29 +74,12 @@ export async function imageUriToBase64(uri: string): Promise<{ base64: string; m
 }
 
 /**
- * supabase-js collapses every non-2xx into "Edge Function returned a non-2xx
- * status code"; the real reason — `unauthorized`, `cap_reached`, `rate_limited`,
- * a tier gate — is the JSON `error` (or `code`) the function wrote, hanging off
- * `error.context` (a Response). Read it best-effort: a non-JSON body degrades to
- * the HTTP status, and no context at all degrades to the error's own message.
- * Same idea as serverErrorMessage() in utils/invoiceReminders.ts.
+ * The function's own sentence for a failed invoke. Kept as a thin alias for the
+ * existing import sites; the reader itself lives in utils/edgeError.ts (audit
+ * #79 — one copy, because the Response body can be read only once).
  */
 export async function edgeFunctionErrorMessage(error: unknown, fallback: string): Promise<string> {
-  const err = error as { message?: unknown; context?: { status?: unknown; json?: () => Promise<unknown> } } | null;
-  const ctx = err?.context;
-  if (ctx && typeof ctx.json === 'function') {
-    try {
-      const body = await ctx.json() as { error?: unknown; code?: unknown } | null;
-      const text = typeof body?.error === 'string' && body.error.trim()
-        ? body.error.trim()
-        : typeof body?.code === 'string' && body.code.trim() ? body.code.trim() : null;
-      if (text) return text;
-    } catch {
-      // Body was not JSON (or already consumed) — fall through to the status.
-    }
-    if (typeof ctx.status === 'number' && ctx.status > 0) return `${fallback} (HTTP ${ctx.status})`;
-  }
-  return typeof err?.message === 'string' && err.message.trim() ? err.message : fallback;
+  return (await readEdgeError(error, fallback)).message;
 }
 
 export async function reviewPlanCode(opts: {

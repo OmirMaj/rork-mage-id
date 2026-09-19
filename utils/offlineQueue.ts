@@ -392,6 +392,47 @@ export async function retainOfflineQueueForUser(userId: string, opts: RetainOpti
   return counts;
 }
 
+/**
+ * #90 · Take queued writes OUT of the queue through the failure path, because
+ * the app has learned they can never land — not because a send failed. The
+ * one caller today: the projects load found a job he was removed from, and
+ * every write still queued for it would be refused by RLS (terminal) on the
+ * next flush anyway, reported only as "couldn't be synced (daily_reports)".
+ * Here each entry is dropped with the caller's own sentence ("You no longer
+ * have access to Henderson Remodel"), recorded in the sync ledger and toasted
+ * like any other drop — never silently. `reasonFor` returns that sentence to
+ * drop an entry, or null to keep it. Runs under the queue lock. Returns how
+ * many were dropped.
+ */
+export async function discardQueuedWrites(reasonFor: (m: OfflineMutation) => string | null): Promise<number> {
+  const dropped: { entry: OfflineMutation; reason: string }[] = [];
+  let remaining = -1;
+  await withQueueLock(async () => {
+    let current: OfflineMutation[];
+    try { current = await readOfflineQueueOrThrow(); } catch { return; }
+    const keep: OfflineMutation[] = [];
+    for (const m of current) {
+      let reason: string | null = null;
+      try { reason = reasonFor(m); } catch { reason = null; }
+      if (reason) dropped.push({ entry: m, reason }); else keep.push(m);
+    }
+    if (dropped.length === 0) return;
+    if (keep.length === 0) await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY);
+    else await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(keep));
+    remaining = keep.length;
+  });
+  if (dropped.length === 0) return 0;
+  const byReason = new Map<string, OfflineMutation[]>();
+  for (const d of dropped) {
+    const list = byReason.get(d.reason) ?? [];
+    list.push(d.entry);
+    byReason.set(d.reason, list);
+  }
+  for (const [reason, entries] of byReason) notifyDroppedWrites(entries, reason);
+  if (remaining >= 0) notifyQueueChanged(remaining);
+  return dropped.length;
+}
+
 export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | 'timestamp' | 'retryCount' | 'userId'>): Promise<void> {
   // B1: tag the entry with the signed-in user BEFORE taking the storage lock
   // (a session read is not a queue read-modify-write). No session → no tag;

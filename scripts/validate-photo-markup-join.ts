@@ -232,7 +232,9 @@ ok('a new RFI raised from a photo keeps the photo id',
 ok('an existing RFI reads its own id; a new one takes the prefill\'s',
   /const sourcePhotoId = existingRFI \? sourcePhotoIdOf\(existingRFI\) : \(prefillPhotoId \|\| undefined\);/.test(rfi));
 ok('the emailed attachment is the source photo\'s current uri, not an expired copy',
-  /existingRFI\.attachments\.map\(\(stored, index\) => attachmentView\(stored, index\)\.uri\)/.test(rfi));
+  // rfi-core (wave 3) re-seeds the send from the saved record, so the list is
+  // read off `sent` (the persisted RFI) — the same attachments, the same view.
+  /(?:existingRFI|sent)\.attachments\.map\(\(stored, index\) => attachmentView\(stored, index\)\.uri\)/.test(rfi));
 ok('the note does not promise the markup shows everywhere in MAGE ID',
   !/shows here and in MAGE ID/.test(rfi));
 ok('…on a SQUARE cover thumbnail, the frame the annotator normalized against',
@@ -271,10 +273,11 @@ ok('…and the id is cleared everywhere the attached photo is, so it cannot ride
   (punch.match(/setAttachedPhotoUri\(undefined\)/g) ?? []).length
     === (punch.match(/setAttachedSourcePhotoId\(undefined\)/g) ?? []).length);
 ok('no punch surface resolves markup by URI alone any more', !/markupForUri\(/.test(punch));
-// The sub portal carries only the photo (utils/subPortalSnapshot maps
-// photoUri, no markup), so the punch form must say what the RFI form says.
-ok('the punch form is honest that the SUB sees the plain photo when it carries markup',
-  /The sub sees the plain photo/.test(punch)
+// The sub portal carries the photo's storage path but draws no photo (and no
+// mark) yet — #107's media function is future work — so the punch form must
+// say the sub sees neither.
+ok('the punch form is honest that the SUB PORTAL shows neither the photo nor the mark',
+  /Your markup shows here only\. The sub portal shows the description, location and plan sheet, not the photo or the mark/.test(punch)
   && /attachedPhotoUri && markupForSource\(projectPhotos, attachedSourcePhotoId, attachedPhotoUri\)\.length > 0 \?/.test(punch));
 ok('the preview frame is SQUARE and covers — the frame the marks were drawn on',
   /photoImgWrap: \{ width: (\d+), height: \1,/.test(punch)

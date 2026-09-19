@@ -27,6 +27,7 @@ import {
 } from '@/utils/subPortalSnapshot';
 import { formatMoney } from '@/utils/formatters';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWriteDetailed } from '@/utils/offlineQueue';
 import { pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { sendEmail } from '@/utils/emailService';
 import {
@@ -314,7 +315,7 @@ function SubPortalSetupEditor() {
   // branch is reached only for a sub who genuinely has none.
   const {
     getProject, subcontractors, settings,
-    getCommitmentsForProject, getPunchItemsForProject,
+    getCommitmentsForProject, getPunchItemsForProject, getPlanSheetsForProject,
     getSubPortalLinkFor, upsertSubPortalLink, adoptSubPortalToken,
     commitments: allCommitments,
   } = useProjects();
@@ -323,6 +324,8 @@ function SubPortalSetupEditor() {
   const sub = useMemo(() => subcontractors.find(s => s.id === subId), [subcontractors, subId]);
   const commitments = useMemo(() => projectId ? getCommitmentsForProject(projectId).filter(c => c.subcontractorId === subId) : [], [projectId, subId, getCommitmentsForProject]);
   const projectPunchItems = useMemo(() => projectId ? getPunchItemsForProject(projectId) : [], [projectId, getPunchItemsForProject]);
+  // For the "On sheet A-101" label on pinned items in the sub's portal.
+  const projectPlanSheets = useMemo(() => projectId ? getPlanSheetsForProject(projectId) : [], [projectId, getPlanSheetsForProject]);
 
   const existing = useMemo(() =>
     projectId && subId ? getSubPortalLinkFor(projectId, subId) : undefined,
@@ -397,13 +400,44 @@ function SubPortalSetupEditor() {
       commitments,
       submittedInvoices: submitted.invoices,
       punchItems: projectPunchItems,
+      planSheets: projectPlanSheets,
       schedule: project.schedule,
       supabaseUrl: SUPABASE_URL,
       supabaseAnonKey: SUPABASE_ANON_KEY,
       contactEmail: settings?.branding?.email,
       contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
     });
-  }, [link, project, sub, settings, commitments, submitted.invoices, projectPunchItems]);
+  }, [link, project, sub, settings, commitments, submitted.invoices, projectPunchItems, projectPlanSheets]);
+
+  // Server copy of the snapshot (sub_portal_snapshots), written through the
+  // offline queue like every other write. The page reads it FIRST — with the
+  // punch list merged live at read time (migration 20260919200000) — so a
+  // SHORT link (no #d= hash) is the one worth handing out: it never freezes.
+  // But only once the server copy is known to exist for this link; before
+  // that (queued offline, refused, still in flight) a short link would open
+  // the "link not found" page, so the long link with the hash goes out
+  // instead and still works on its own. `serverCopyFor` is the link id whose
+  // copy has been confirmed written.
+  const [serverCopyFor, setServerCopyFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!snapshot || !project?.id || !link.id) return;
+    if (!isSupabaseConfigured) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      void supabaseWriteDetailed('sub_portal_snapshots', 'upsert', {
+        sub_portal_id: link.id,
+        project_id: project.id,
+        snapshot: snapshot as unknown as Record<string, unknown>,
+        updated_at: new Date().toISOString(),
+      }).then(outcome => {
+        if (cancelled) return;
+        // 'queued' / 'failed' leave an earlier confirmed copy standing: the row
+        // exists, and the page merges the punch list live either way.
+        if (outcome === 'synced') setServerCopyFor(link.id);
+      });
+    }, 1500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [snapshot, project?.id, link.id]);
 
   const portalUrl = useMemo(() => {
     // The no-snapshot fallback used to be `${SUB_PORTAL_BASE_URL}/${link.id}`
@@ -411,32 +445,9 @@ function SubPortalSetupEditor() {
     // RPCs gate on `?t=`, so that URL opened a page the sub could read and
     // could not submit an invoice from, and it was what Copy, Share and the
     // email invite all handed out until the first snapshot landed.
-    if (!snapshot) return buildShortSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, link.accessToken);
+    if (!snapshot || serverCopyFor === link.id) return buildShortSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, link.accessToken);
     return buildSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, snapshot, link.accessToken);
-  }, [snapshot, link.id, link.accessToken]);
-
-  // Server-side persistence so the sub portal URL works even when the
-  // URL hash is missing or corrupt. Same model as the homeowner portal:
-  // push the snapshot to sub_portal_snapshots; the static page falls
-  // back to fetching by sub_portal_id when hash decode fails.
-  useEffect(() => {
-    if (!snapshot || !project?.id || !link.id) return;
-    if (!isSupabaseConfigured) return;
-    const t = setTimeout(() => {
-      void supabase
-        .from('sub_portal_snapshots')
-        .upsert({
-          sub_portal_id: link.id,
-          project_id: project.id,
-          snapshot: snapshot as unknown as Record<string, unknown>,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'sub_portal_id' })
-        .then(({ error }) => {
-          if (error) console.warn('[sub-portal-snapshot] persist failed', error.message);
-        });
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [snapshot, project?.id, link.id]);
+  }, [snapshot, link.id, link.accessToken, serverCopyFor]);
 
   // The link's `?t=` token is the SERVER's (sub_portal_links.access_token has a
   // random default). If this screen's copy has none — a brand-new link, or one
@@ -595,7 +606,7 @@ function SubPortalSetupEditor() {
         subtitle: `Hi ${greeting}, ${companyName} just set up your portal.`,
         bodyHtml: [
           `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
-             You can review your scope, see open punch items and schedule, and submit invoices for review — no app to install, no account to create. Just bookmark the link below; it stays up to date.
+             You can review your scope, see open punch items and schedule, and submit invoices for review — no app to install, no account to create. Bookmark the link below: your punch list on it is live, and you can mark items fixed from it. Contract and payment figures show the date your contractor last updated them.
            </p>`,
           link.welcomeMessage ? emailQuote(link.welcomeMessage) : '',
           passcodeLine,

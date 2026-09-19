@@ -18,22 +18,32 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ProjectSchedule, ScheduleScenario, ScheduleTask } from '@/types';
-import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
 /**
- * What-If Scenarios manager.
+ * Saved plans — frozen snapshots of the schedule (stored as `scenarios`).
  *
- * Lets the user snapshot the current schedule into a named scenario, then
- * switch between the baseline plan and any scenario on-the-fly. Stored on
- * `ProjectSchedule.scenarios` — the baseline `tasks` array is never mutated
- * by scenario switches; the consumer chooses which tasks to render based
- * on `activeScenarioId`.
+ * Lets the user save a named copy of the current schedule, look at it, and
+ * restore it. Stored on `ProjectSchedule.scenarios`; the live `tasks` array is
+ * never mutated by viewing one — the consumer chooses which tasks to render
+ * based on `activeScenarioId`.
  *
- * Gated behind `schedule_scenarios` (Pro+). Free users see a paywall CTA.
+ * NAMED FOR WHAT IT DOES (#53). This shipped as "What-If Scenarios" and the
+ * Pro paywall sold it as "try the what-if", but nothing can edit a snapshot:
+ * every edit is refused while one is on screen (whatIfEditRefusal in the
+ * Schedule tab), so no scenario could ever differ from the plan it copied.
+ * The create card even promised "changes you make while a scenario is active
+ * only affect that scenario". Until real scenario editing is built (a
+ * founder decision: edits into scenario.tasks, CPM on the copy, a finish
+ * delta against live), it is called what it is: a saved plan you can view and
+ * restore.
+ *
+ * Gated behind `schedule_scenarios` (Pro+) — own tier OR the collaborator
+ * grant on this project (#91). Free users see a paywall CTA.
  */
 interface ScenariosModalProps {
   visible: boolean;
@@ -51,7 +61,7 @@ export default function ScenariosModal({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
-  const { canAccess } = useTierAccess();
+  const { canAccess } = useProjectAccess(schedule.projectId ?? undefined);
   const hasAccess = canAccess('schedule_scenarios');
 
   const [showCreate, setShowCreate] = useState(false);
@@ -67,7 +77,7 @@ export default function ScenariosModal({
   const handleCreate = useCallback(() => {
     const name = newName.trim();
     if (!name) {
-      showAlert('Missing Name', 'Scenarios need a name so you can tell them apart.');
+      showAlert('Missing Name', 'Saved plans need a name so you can tell them apart.');
       return;
     }
     const scenario: ScheduleScenario = {
@@ -77,9 +87,10 @@ export default function ScenariosModal({
       createdAt: new Date().toISOString(),
       tasks: schedule.tasks.map((t) => ({ ...t })) as ScheduleTask[],
     };
+    // Saved, NOT switched to: the copy is identical to the live plan, and
+    // showing it would only make every row read-only (#54).
     onScheduleChange({
       scenarios: [...scenarios, scenario],
-      activeScenarioId: scenario.id,
     });
     if (Platform.OS !== 'web') {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -138,8 +149,8 @@ export default function ScenariosModal({
   const handleDelete = useCallback(
     (scenarioId: string) => {
       showAlert(
-        'Delete Scenario?',
-        'The baseline plan is unaffected. This only removes the saved scenario.',
+        'Delete saved plan?',
+        'The live plan is unaffected. This only removes the saved copy.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -174,7 +185,7 @@ export default function ScenariosModal({
               <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>What-If Scenarios</Text>
+            <Text style={styles.title}>Saved plans</Text>
             <View style={{ width: 56 }} />
           </View>
           <View style={styles.paywallWrap}>
@@ -201,7 +212,7 @@ export default function ScenariosModal({
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>What-If Scenarios</Text>
+          <Text style={styles.title}>Saved plans</Text>
           <TouchableOpacity
             style={styles.newBtn}
             onPress={() => setShowCreate(true)}
@@ -221,9 +232,9 @@ export default function ScenariosModal({
           <View style={styles.helpCard}>
             <GitBranch size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.helpText}>
-              Snapshot the schedule into a named alternate, like {'"'}Overtime push{'"'} or
-              {' "'}Rain delay,{'"'} then toggle between the baseline plan and any
-              scenario. The baseline is never overwritten.
+              Save a frozen copy of the plan — before a big change, a re-sequence or
+              an import — so you can look back at it or restore it later. A saved
+              plan can{"'"}t be edited: every change goes to the live plan.
             </Text>
           </View>
 
@@ -235,7 +246,7 @@ export default function ScenariosModal({
           >
             <View style={styles.rowHeader}>
               <Text style={[styles.rowName, activeId === null && styles.rowNameActive]}>
-                Baseline Plan
+                Live plan
               </Text>
               {activeId === null && <Check size={16} color={themeColors.accent} strokeWidth={1.75} />}
             </View>
@@ -297,8 +308,7 @@ export default function ScenariosModal({
           {scenarios.length === 0 && (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
-                No scenarios yet. Tap + to snapshot the current plan as
-                {' "'}Scenario A{'"'} and start branching.
+                No saved plans yet. Tap + to save a copy of the current plan.
               </Text>
             </View>
           )}
@@ -312,10 +322,11 @@ export default function ScenariosModal({
         >
           <View style={styles.createOverlay}>
             <View style={styles.createCard}>
-              <Text style={styles.createTitle}>New Scenario</Text>
+              <Text style={styles.createTitle}>Save this plan</Text>
               <Text style={styles.createHint}>
-                This snapshots the current schedule. Changes you make while a
-                scenario is active only affect that scenario.
+                Saves a frozen copy of the schedule as it is now. The copy can{"'"}t
+                be edited — keep working in the live plan, and restore this copy
+                any time.
               </Text>
 
               <Text style={styles.fieldLabel}>Name</Text>
@@ -323,7 +334,7 @@ export default function ScenariosModal({
                 style={styles.input}
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="e.g. Overtime push"
+                placeholder="e.g. Before re-sequencing framing"
                 placeholderTextColor={themeColors.textMuted}
                 autoFocus
                 testID="scenarios-new-name"
@@ -334,7 +345,7 @@ export default function ScenariosModal({
                 style={[styles.input, styles.inputMulti]}
                 value={newNote}
                 onChangeText={setNewNote}
-                placeholder="Why this scenario exists..."
+                placeholder="Why you saved it..."
                 placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"

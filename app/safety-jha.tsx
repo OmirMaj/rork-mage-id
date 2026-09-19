@@ -19,7 +19,9 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import Paywall from '@/components/Paywall';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { SafetyAccessBlocked, useSafetySeat } from '@/app/safety';
 import EmptyState from '@/components/EmptyState';
 import type { JobHazardAnalysis, JHAStep, JHAStatus, SafetySignoff } from '@/types';
 import { Type } from '@/constants/typography';
@@ -31,6 +33,7 @@ import { showAlert } from '@/utils/alert';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason } from '@/utils/safety/osha';
 
 function getStatusConfig(t: ThemeColors, status: JHAStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -42,16 +45,15 @@ function getStatusConfig(t: ThemeColors, status: JHAStatus): { label: string; co
 
 export default function SafetyJhaScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project here (not just in Inner) so the gate can ask "was he
+  // invited to THIS job?" before paywalling — the tools a foreman actually
+  // runs (audit #170). Safe because 20260919130000 routes a collaborator's
+  // records to the project owner; before it, they stayed on his own account.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
+  const roleState = useProjectRoleState(gateProjectId);
   if (!canAccess('safety_management')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="Safety Management"
-        requiredTier="business"
-        onClose={() => router.back()}
-      />
-    );
+    return <SafetyAccessBlocked roleState={roleState} onClose={() => router.back()} />;
   }
   return <SafetyJhaInner />;
 }
@@ -69,6 +71,7 @@ function SafetyJhaInner() {
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
+  const seat = useSafetySeat(projectId);
   const { getJhasForProject, addJha, updateJha, deleteJha, certifications } = useSafety();
   const { getCrewForProject } = useCrew();
   const assignedCrew = useMemo(
@@ -91,6 +94,17 @@ function SafetyJhaInner() {
   const [ppeText, setPpeText] = useState('');
   const [aiGenerated, setAiGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // What he is TYPING in each step's Hazards / Controls box, keyed by step id
+  // (audit #84). The boxes used to be controlled by `list.join(', ')` of the
+  // parsed array, so every keystroke split, trimmed and re-joined the text: a
+  // trailing space or comma vanished the moment it was typed and 'Fall from
+  // height, open edge' became 'Fallfromheightopenedge'. The raw text is the
+  // controlled value now; the arrays are parsed from it on every change (so
+  // Save always has current arrays) and it lives OUTSIDE `steps`, so it can
+  // never reach the saved JobHazardAnalysis. A step with no entry here shows
+  // its saved list joined — that is the seed for an opened, AI-built or new
+  // step.
+  const [stepText, setStepText] = useState<Record<string, { hazards?: string; controls?: string }>>({});
 
   // Once a JHA carries any sign-off it becomes an immutable safety record:
   // sign-offs are append-only, and the analysis itself (title, trade, task,
@@ -118,7 +132,7 @@ function SafetyJhaInner() {
     setEditingJha(null);
     setTitle(''); setTrade(''); setTaskDescription('');
     setDate(todayCalendarDay());
-    setSteps([]); setRequiredPPE([]); setPpeText('');
+    setSteps([]); setRequiredPPE([]); setPpeText(''); setStepText({});
     setAiGenerated(false); setGenerating(false);
   }, []);
 
@@ -138,6 +152,7 @@ function SafetyJhaInner() {
   }, []);
 
   const updateStepField = useCallback((id: string, field: 'step' | 'hazards' | 'controls', value: string) => {
+    if (field !== 'step') setStepText(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
     setSteps(prev => prev.map(s => {
       if (s.id !== id) return s;
       if (field === 'step') return { ...s, step: value };
@@ -153,6 +168,7 @@ function SafetyJhaInner() {
     setTaskDescription(jha.taskDescription);
     setDate(jha.date);
     setSteps(jha.steps);
+    setStepText({});
     setRequiredPPE(jha.requiredPPE);
     setPpeText(jha.requiredPPE.join(', '));
     setAiGenerated(jha.aiGenerated);
@@ -181,6 +197,7 @@ function SafetyJhaInner() {
         id: generateUUID(), step: s.step, hazards: s.hazards ?? [], controls: s.controls ?? [],
       }));
       setSteps(aiSteps);
+      setStepText({});
       setRequiredPPE(json.data.requiredPPE ?? []);
       setPpeText((json.data.requiredPPE ?? []).join(', '));
       setAiGenerated(true);
@@ -199,8 +216,12 @@ function SafetyJhaInner() {
       showAlert('Signed — locked', 'This JHA has sign-offs and can no longer be edited. Archive it instead.');
       return;
     }
+    const blocked = safetyWriteBlockedReason(seat);
+    if (blocked) { showAlert('View only', blocked); return; }
     const t = title.trim();
     if (!t) { showAlert('Missing title', 'Give this JHA a title.'); return; }
+    const dateProblem = safetyDateProblem(date, 'JHA date');
+    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
     const now = new Date().toISOString();
     const ppe = requiredPPE.map(p => p.trim()).filter(Boolean);
     if (editingJha) {
@@ -215,7 +236,7 @@ function SafetyJhaInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [title, trade, taskDescription, date, steps, requiredPPE, aiGenerated, editingJha, projectId, addJha, updateJha, resetForm, author]);
+  }, [title, trade, taskDescription, date, steps, requiredPPE, aiGenerated, editingJha, projectId, addJha, updateJha, resetForm, author, seat]);
 
   const handleActivate = useCallback((jha: JobHazardAnalysis) => {
     updateJha(jha.id, { status: 'active' });
@@ -232,6 +253,8 @@ function SafetyJhaInner() {
   }, [editingJha, updateJha, resetForm]);
 
   const handleDelete = useCallback((id: string) => {
+    const blocked = safetyDeleteBlockedReason(seat);
+    if (blocked) { showAlert('Can\'t delete', blocked); return; }
     const jha = items.find(x => x.id === id);
     if (jha && jha.signOffs.length > 0) {
       showAlert('Signed — locked', 'A JHA with recorded sign-offs is part of the safety record and can\'t be deleted. Archive it instead.');
@@ -241,7 +264,7 @@ function SafetyJhaInner() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteJha(id) },
     ]);
-  }, [deleteJha, items]);
+  }, [deleteJha, items, seat]);
 
   const commitSignOff = useCallback(() => {
     const jha = items.find(x => x.id === signOffFor);
@@ -279,12 +302,14 @@ function SafetyJhaInner() {
           title="Open a project first"
           message="Job hazard analyses are tied to a project so each one carries its trade, steps, and sign-offs. To start one:"
           steps={[
-            'Open or create a project from the Projects tab.',
-            'Tap Safety inside the project tile grid.',
+            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
             'Open JHAs and hit + to add one, or generate it with AI.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
+          // Safety's own project picker, not Home: the "Safety tile inside the
+          // project tile grid" these steps used to promise did not exist, so
+          // this door led nowhere (audit #81).
+          actionLabel="Pick a job"
+          onAction={() => router.replace('/safety' as never)}
         />
       </View>
     );
@@ -464,7 +489,7 @@ function SafetyJhaInner() {
                     />
                     <TextInput
                       style={[styles.input, isLocked ? styles.inputLocked : null]}
-                      value={s.hazards.join(', ')}
+                      value={stepText[s.id]?.hazards ?? s.hazards.join(', ')}
                       onChangeText={v => updateStepField(s.id, 'hazards', v)}
                       editable={!isLocked}
                       placeholder="Hazards (comma-separated)"
@@ -472,7 +497,7 @@ function SafetyJhaInner() {
                     />
                     <TextInput
                       style={[styles.input, isLocked ? styles.inputLocked : null]}
-                      value={s.controls.join(', ')}
+                      value={stepText[s.id]?.controls ?? s.controls.join(', ')}
                       onChangeText={v => updateStepField(s.id, 'controls', v)}
                       editable={!isLocked}
                       placeholder="Controls (comma-separated)"

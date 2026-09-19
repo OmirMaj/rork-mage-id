@@ -5,6 +5,9 @@
 // Pure — no React, no network, no AsyncStorage.
 // Exits non-zero on any assertion failure.
 
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   collectDraftableLeaks, buildDraftCO, AUTO_DRAFT_ACTION, isAutoLeakDraft,
   formatReportDayLocal, guardSnippetsForReportDate,
@@ -31,6 +34,10 @@ function assert(cond: boolean, label: string): void {
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const NOW = new Date('2026-07-26T10:00:00');
+
+// The signed-in owner. makeProject carries no ownerUserId / myRole, which
+// isLeakDraftOwner reads as "his own job" (a cache predating ownerUserId).
+const GC_ID = 'gc-1';
 
 function makeProject(id: string): Project {
   return {
@@ -88,7 +95,7 @@ const rep1 = makeReport({
 
 const candidates = collectDraftableLeaks({
   dailyReports: [rep1], projects: [proj1], changeOrders: [],
-  processedReportIds: new Set(), now: NOW,
+  processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(candidates.length === 1, 'priced scan produces 1 candidate');
 assert(candidates[0]?.report.id === 'r1', 'candidate has correct report id');
@@ -103,7 +110,7 @@ const rep2 = makeReport({
 });
 const candidatesUnpriced = collectDraftableLeaks({
   dailyReports: [rep2], projects: [proj1], changeOrders: [],
-  processedReportIds: new Set(), now: NOW,
+  processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(candidatesUnpriced.length === 0, 'unpriced-only scan excluded');
 
@@ -114,7 +121,7 @@ console.log('\ncollectDraftableLeaks — processedReportIds dedupe');
 const alreadyProcessed = new Set<string>(['r1']);
 const candidatesDeduped = collectDraftableLeaks({
   dailyReports: [rep1], projects: [proj1], changeOrders: [],
-  processedReportIds: alreadyProcessed, now: NOW,
+  processedReportIds: alreadyProcessed, userId: GC_ID, now: NOW,
 });
 assert(candidatesDeduped.length === 0, 'already-processed report excluded');
 
@@ -132,7 +139,7 @@ const markedCO: ChangeOrder = {
 };
 const candidatesMarked = collectDraftableLeaks({
   dailyReports: [rep1], projects: [proj1], changeOrders: [markedCO],
-  processedReportIds: new Set(), now: NOW,
+  processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(candidatesMarked.length === 0, 'auditTrail marker excludes report');
 
@@ -149,7 +156,7 @@ const manualCO: ChangeOrder = {
 };
 const candidatesManual = collectDraftableLeaks({
   dailyReports: [rep1], projects: [proj1], changeOrders: [manualCO],
-  processedReportIds: new Set(), now: NOW,
+  processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(candidatesManual.length === 0, 'manual draft guard excludes duplicate');
 
@@ -163,7 +170,7 @@ const oldReport = makeReport({
 });
 const candidatesOld = collectDraftableLeaks({
   dailyReports: [oldReport], projects: [proj1], changeOrders: [],
-  processedReportIds: new Set(), now: NOW,
+  processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(candidatesOld.length === 0, 'old report (>14 days) excluded');
 
@@ -174,7 +181,7 @@ const rep14 = makeReport({
 });
 const candidates14 = collectDraftableLeaks({
   dailyReports: [rep14], projects: [proj1], changeOrders: [],
-  processedReportIds: new Set(), now: NOW,
+  processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(candidates14.length === 1, 'exactly-14-day report included');
 
@@ -189,7 +196,7 @@ const repDone = makeReport({
 });
 const candidatesDone = collectDraftableLeaks({
   dailyReports: [repDone], projects: [projDone],
-  changeOrders: [], processedReportIds: new Set(), now: NOW,
+  changeOrders: [], processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(candidatesDone.length === 0, 'completed project excluded');
 
@@ -239,7 +246,7 @@ const mixedReport = makeReport({
 });
 const mixedCandidates = collectDraftableLeaks({
   dailyReports: [mixedReport], projects: [proj1], changeOrders: [],
-  processedReportIds: new Set(), now: NOW,
+  processedReportIds: new Set(), userId: GC_ID, now: NOW,
 });
 assert(mixedCandidates.length === 1, 'mixed report (has priced item) is candidate');
 
@@ -264,7 +271,7 @@ console.log('\nbuildDraftCO — same-project accumulation numbering');
   });
   const accCandidates = collectDraftableLeaks({
     dailyReports: [repA, repB], projects: [proj1], changeOrders: [],
-    processedReportIds: new Set(), now: NOW,
+    processedReportIds: new Set(), userId: GC_ID, now: NOW,
   });
   assert(accCandidates.length === 2, 'two same-project candidates collected');
 
@@ -320,7 +327,7 @@ console.log('\nformatReportDayLocal + manual guard — UTC/local parity');
   };
   const parityCandidates = collectDraftableLeaks({
     dailyReports: [tsReport], projects: [proj1], changeOrders: [manualFromTs],
-    processedReportIds: new Set(), now: NOW,
+    processedReportIds: new Set(), userId: GC_ID, now: NOW,
   });
   assert(parityCandidates.length === 0, 'manual guard catches local-day CO from timestamped report');
 
@@ -328,7 +335,7 @@ console.log('\nformatReportDayLocal + manual guard — UTC/local parity');
   const builtFromTs = buildDraftCO(
     collectDraftableLeaks({
       dailyReports: [tsReport], projects: [proj1], changeOrders: [],
-      processedReportIds: new Set(), now: NOW,
+      processedReportIds: new Set(), userId: GC_ID, now: NOW,
     })[0]!,
     [], '2026-07-26',
   );
@@ -353,7 +360,7 @@ console.log('\nformatReportDayLocal + manual guard — UTC/local parity');
   };
   const tolCandidates = collectDraftableLeaks({
     dailyReports: [rep1], projects: [proj1], changeOrders: [offByOneCO],
-    processedReportIds: new Set(), now: NOW,
+    processedReportIds: new Set(), userId: GC_ID, now: NOW,
   });
   assert(tolCandidates.length === 0, 'manual guard tolerates ±1 day (off-by-one CO still blocks)');
 }
@@ -370,9 +377,40 @@ console.log('\ncollectDraftableLeaks — auditTrail report.id dedupe (any action
   };
   const idDedupe = collectDraftableLeaks({
     dailyReports: [rep1], projects: [proj1], changeOrders: [otherActionCO],
-    processedReportIds: new Set(), now: NOW,
+    processedReportIds: new Set(), userId: GC_ID, now: NOW,
   });
   assert(idDedupe.length === 0, 'any auditTrail entry with detail=report.id blocks re-draft');
+}
+
+// ─── Test 15: only the project OWNER drafts (integration critic money-portal) ─
+
+console.log('\ncollectDraftableLeaks — owner-only (change_orders INSERT is owner-only)');
+
+{
+  const shared = { ...proj1, ownerUserId: 'gc-1', myRole: 'editor' } as unknown as Project;
+  const asCollaborator = collectDraftableLeaks({
+    dailyReports: [rep1], projects: [shared], changeOrders: [],
+    processedReportIds: new Set(), userId: 'foreman-9', now: NOW,
+  });
+  assert(asCollaborator.length === 0, 'a collaborator gets no draft on the GC\'s job');
+  const asOwner = collectDraftableLeaks({
+    dailyReports: [rep1], projects: [shared], changeOrders: [],
+    processedReportIds: new Set(), userId: 'gc-1', now: NOW,
+  });
+  assert(asOwner.length === 1, 'the owner (ownerUserId match) still gets it');
+  const legacyShared = { ...proj1, myRole: 'field' } as unknown as Project;
+  assert(collectDraftableLeaks({
+    dailyReports: [rep1], projects: [legacyShared], changeOrders: [],
+    processedReportIds: new Set(), userId: 'foreman-9', now: NOW,
+  }).length === 0, 'a cached shared job with no ownerUserId (myRole set) is not his');
+  assert(collectDraftableLeaks({
+    dailyReports: [rep1], projects: [proj1], changeOrders: [],
+    processedReportIds: new Set(), userId: null, now: NOW,
+  }).length === 0, 'no signed-in user → nothing drafted');
+}
+{
+  const hook = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'useLeakCoDrafts.ts'), 'utf8');
+  assert(/userId: user\?\.id,/.test(hook), 'the sweep passes the signed-in user');
 }
 
 // ─── Summary ──────────────────────────────────────────────────────────────

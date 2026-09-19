@@ -140,12 +140,12 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
 {
   const p = pkg({ estimateBudget: 45000, awardedBidId: 'bid-B' } as Partial<BidPackage>);
   const c = cmt({ amount: 38000 });
-  const bids = [{ id: 'bid-A', normalizedAdjustment: 0 }, { id: 'bid-B', normalizedAdjustment: 3200 }];
+  const bids = [{ id: 'bid-A', amount: 42000, normalizedAdjustment: 0 }, { id: 'bid-B', amount: 38000, normalizedAdjustment: 3200 }];
   const r = computeBulkSavings(PROJECT_ID, [p], [c], bids);
   eq('leveled: $3,800, the buyout screens\' figure', r.bulkSavings, 3800);
   ok('leveled: equals packageBuyoutSavings to the cent',
     r.bulkSavings === packageBuyoutSavings({ ...p, status: 'awarded' } as BidPackage, [{ id: 'bid-B', amount: 38000, normalizedAdjustment: 3200 } as BidPackageBid]));
-  const extra = computeBulkSavings(PROJECT_ID, [p], [c], [{ id: 'bid-B', normalizedAdjustment: -1500 }]);
+  const extra = computeBulkSavings(PROJECT_ID, [p], [c], [{ id: 'bid-B', amount: 38000, normalizedAdjustment: -1500 }]);
   // A NEGATIVE adjustment is the AI's guess that the bid covers extra scope.
   // This figure prints on the CLIENT's PDF as "Bulk Savings", so it may not
   // rise above budget − what he signed ($7,000) on that guess (integration
@@ -153,7 +153,7 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
   eq('client-facing: a negative AI adjustment does not raise savings above budget − signed ($7,000, not $8,500)', extra.bulkSavings, 7000);
   const noRow = computeBulkSavings(PROJECT_ID, [p], [c], []);
   eq('awarded bid row gone → budget − commitment', noRow.bulkSavings, 7000);
-  const cent = computeBulkSavings(PROJECT_ID, [pkg({ estimateBudget: 100.1, awardedBidId: 'x' } as Partial<BidPackage>)], [cmt({ amount: 50.05 })], [{ id: 'x', normalizedAdjustment: 0.02 }]);
+  const cent = computeBulkSavings(PROJECT_ID, [pkg({ estimateBudget: 100.1, awardedBidId: 'x' } as Partial<BidPackage>)], [cmt({ amount: 50.05 })], [{ id: 'x', amount: 50.05, normalizedAdjustment: 0.02 }]);
   eq('money to the cent', cent.bulkSavings, 50.03);
 }
 

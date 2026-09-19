@@ -17,7 +17,7 @@ import type { Project, ChangeOrder, Commitment } from '@/types';
 import type { HomeownerBidResponse } from '@/types';
 import { computeEstimateActuals } from '@/utils/estimateActuals';
 import { realizedMarginPct } from '@/utils/judges/typeMargin';
-import { isWorkingDay } from '@/utils/cpm';
+import { isWorkingDay, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 
 // ─── Grading context ─────────────────────────────────────────────────────────
 
@@ -168,13 +168,21 @@ export function gradeDelayRipple(
     // |actualDelta| — NOT |actualDelta − deltaDays|, which scored a perfect
     // ripple wrong by exactly its own deltaDays.
     const plannedEndDay = task.startDay + Math.max(0, task.durationDays - 1);
-    const actualDelta = task.actualEndDay - plannedEndDay;
+    // actualEndDay is a CALENDAR index (utils/pace/stampActuals.ts — the one
+    // scale for actuals); the planned ends here are WORKING ordinals. Convert
+    // before subtracting, or every weekend since the start reads as a slip.
+    const actualEndOrdinal = calendarIndexToWorkingOrdinal(task.actualEndDay, {
+      scheduleStartDate: project.schedule?.startDate,
+      workingDaysPerWeek: project.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project.schedule?.nonWorkingDates,
+    });
+    const actualDelta = actualEndOrdinal - plannedEndDay;
     // Richer grading when the capture recorded the PRE-apply planned end
     // (additive payload field, Wave 8+): grade the predicted shift itself —
     // err = |(actual − preApplyEnd) − deltaDays|. Absent on older rows, in
     // which case the post-apply |actualDelta| carries the signal.
     const errDays = hit.preApplyEndDay != null
-      ? Math.abs((task.actualEndDay - hit.preApplyEndDay) - hit.deltaDays)
+      ? Math.abs((actualEndOrdinal - hit.preApplyEndDay) - hit.deltaDays)
       : Math.abs(actualDelta);
     perTask.push({
       taskId: hit.taskId,
@@ -186,7 +194,9 @@ export function gradeDelayRipple(
 
   if (!allResolved) return null; // wait until all hit tasks have actuals
 
-  // Finish error
+  // Finish error. Both sides are CALENDAR indices: predictedFinishDay is
+  // runCpm's projectFinish (app/daily-report.tsx), and actualEndDay is stamped
+  // on the calendar scale — so no conversion here.
   let finishErrDays: number | null = null;
   if (predictedFinishDay != null && project.schedule) {
     const lastActualEnd = tasks

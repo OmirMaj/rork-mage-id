@@ -57,7 +57,8 @@
 -- Step 3 is the one the 2026-09 audit found missing on the change-order path:
 -- portal_submit_co_approval / _signed insert an approval row for ANY
 -- p_change_order_id, without ever confirming that change order belongs to the
--- token's project. Section 3 of this file closes that too.
+-- token's project. 20260919030000_client_portal_live_overlay.sql closes that
+-- (with the co_not_shared rule); Section 3 below is superseded and empty.
 --
 -- ── ERROR SURFACE (deliberate) ──────────────────────────────────────────────
 -- Anything that could be used to probe what exists behind a token raises the
@@ -89,9 +90,9 @@
 --      step 3 above finds no proposal and every acceptance is denied. This is
 --      the correct failure (a signature with nothing to bind to must not be
 --      recorded) but it means the feature is dark until the snapshot rolls.
---   3. Section 3 (the change-order ownership check) tightens a function that
---      is LIVE. Before applying, run the query in its header against
---      production: if any existing change_order_approvals row references a
+--   3. Section 3 (the change-order ownership check) is SUPERSEDED by
+--      20260919030000 and no longer creates anything. Still, before applying,
+--      run the query in its header against production: if any existing change_order_approvals row references a
 --      change order that does not belong to its project_id, that is either the
 --      bug firing or a data-repair job, and it wants looking at first.
 --   4. (2026-09-17, Direction B) The esign-2 portal page is deployed to
@@ -141,8 +142,7 @@
 -- app rotates it on every re-link, so a per-proposal index would let a
 -- contractor's re-save unlock a second acceptance at a second price.
 --
--- Additive. Section 3 replaces two existing functions in place and can be
--- applied independently of sections 1-2.
+-- Additive. Section 3 is superseded (it creates nothing; see its header).
 -- ============================================================================
 
 -- pgcrypto supplies digest(). Supabase installs it in `extensions`; the search
@@ -593,7 +593,18 @@ create trigger portal_snapshots_pin_accepted_proposal
   before insert or update on public.portal_snapshots
   for each row execute function public.portal_snapshots_pin_accepted_proposal();
 
--- ── 3. Close the same hole on the change-order path ─────────────────────────
+-- ── 3. Close the same hole on the change-order path — SUPERSEDED ────────────
+--
+-- 2026-09-18 (wave 3 post-chain): this section's two CREATE OR REPLACEs were
+-- REMOVED from this file. 20260919030000_client_portal_live_overlay.sql ships
+-- the same change-order ownership check (flat portal_denied) PLUS the
+-- co_not_shared rule (#44: a recalled or never-sent CO is not signable), and
+-- it is applied before the OTA. Re-creating the two functions here, without
+-- co_not_shared, would silently re-open #44 whichever order the two files are
+-- applied in. Sections 1-2 (proposal acceptance) are unchanged. The original
+-- text of this section is below for the record; the orphan query still
+-- belongs in the pre-apply checklist.
+--
 --
 -- THE BUG. Both portal_submit_co_approval (20260713150000) and
 -- portal_submit_co_approval_signed (20260803120500) insert an approval row for
@@ -631,140 +642,4 @@ create trigger portal_snapshots_pin_accepted_proposal
 -- the benign case where the change order was simply deleted, so check the
 -- change_orders history before concluding anything.
 
-create or replace function public.portal_submit_co_approval(
-  p_portal_id text, p_access_token text, p_change_order_id text,
-  p_decision text, p_signer_name text, p_note text, p_user_agent text)
-returns jsonb language plpgsql security definer set search_path to 'public' as $$
-declare v_pid uuid; v_id uuid;
-begin
-  v_pid := public.portal_project_for_token(p_portal_id, p_access_token);
-  if v_pid is null then raise exception 'portal_denied'; end if;
-  if p_decision is null or p_decision not in ('approved', 'declined') then raise exception 'portal_denied'; end if;
-  if p_change_order_id is null or length(btrim(p_change_order_id)) = 0 then raise exception 'portal_denied'; end if;
-  -- The change order must be THIS project's. Flat portal_denied: whether a
-  -- given uuid exists elsewhere is not something a link-holder gets to probe.
-  if not exists (select 1 from public.change_orders c
-                  where c.id::text = btrim(p_change_order_id)
-                    and c.project_id = v_pid) then
-    raise exception 'portal_denied';
-  end if;
-  insert into public.change_order_approvals(
-      portal_id, project_id, change_order_id, decision, signer_name, note, user_agent)
-    values (p_portal_id, v_pid::text, btrim(p_change_order_id), p_decision,
-            left(coalesce(nullif(btrim(p_signer_name), ''), 'Client'), 200),
-            left(coalesce(p_note, ''), 2000),
-            left(coalesce(p_user_agent, ''), 200))
-    returning id into v_id;
-  return jsonb_build_object('ok', true, 'id', v_id);
-end; $$;
-
-create or replace function public.portal_submit_co_approval_signed(
-  p_portal_id        text,
-  p_access_token     text,
-  p_change_order_id  text,
-  p_decision         text,
-  p_signer_name      text,
-  p_note             text,
-  p_user_agent       text,
-  p_signature_data   text,
-  p_signature_hash   text,
-  p_consent_record   text,
-  p_client_hash      text,
-  p_consent_version  text,
-  p_consent_accepted boolean
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path to 'public', 'extensions'
-as $$
-declare
-  v_pid          uuid;
-  v_id           uuid;
-  v_server_hash  text;
-  v_now          timestamptz := now();
-  v_audit        jsonb;
-begin
-  v_pid := public.portal_project_for_token(p_portal_id, p_access_token);
-  if v_pid is null then raise exception 'portal_denied'; end if;
-  if p_decision is null or p_decision not in ('approved', 'declined') then raise exception 'portal_denied'; end if;
-  if p_change_order_id is null or length(btrim(p_change_order_id)) = 0 then raise exception 'portal_denied'; end if;
-  -- Added 2026-09-13: the ownership check this function never had. Without it
-  -- the row below claims a foreign change order was signed for this project,
-  -- and the in-app reconciler matches approvals by change_order_id alone.
-  if not exists (select 1 from public.change_orders c
-                  where c.id::text = btrim(p_change_order_id)
-                    and c.project_id = v_pid) then
-    raise exception 'portal_denied';
-  end if;
-
-  if p_decision = 'approved' then
-    if coalesce(p_consent_accepted, false) is not true then raise exception 'esign_consent_required'; end if;
-    if p_signature_data is null or length(btrim(p_signature_data)) = 0 then raise exception 'esign_signature_required'; end if;
-    if p_signer_name is null or length(btrim(p_signer_name)) < 3 then raise exception 'esign_signer_name_required'; end if;
-    if p_consent_record is null or length(btrim(p_consent_record)) = 0 then raise exception 'esign_record_required'; end if;
-  else
-    if p_note is null or length(btrim(p_note)) = 0 then raise exception 'decline_reason_required'; end if;
-  end if;
-
-  if p_consent_record is not null and length(p_consent_record) > 0 then
-    v_server_hash := encode(digest(p_consent_record, 'sha256'), 'hex');
-    if p_client_hash is not null and length(p_client_hash) = 64
-       and lower(p_client_hash) <> lower(v_server_hash) then
-      raise exception 'hash_mismatch';
-    end if;
-  end if;
-
-  insert into public.change_order_approvals(
-      portal_id, project_id, change_order_id, decision, signer_name, note, user_agent,
-      signature_data, signature_hash, consent_record, document_hash,
-      consent_version, consent_accepted, sealed_at)
-    values (
-      p_portal_id, v_pid::text, btrim(p_change_order_id), p_decision,
-      left(coalesce(nullif(btrim(p_signer_name), ''), 'Client'), 200),
-      left(coalesce(p_note, ''), 2000),
-      left(coalesce(p_user_agent, ''), 200),
-      left(coalesce(p_signature_data, ''), 200000),
-      nullif(left(coalesce(p_signature_hash, ''), 64), ''),
-      p_consent_record,
-      v_server_hash,
-      left(coalesce(p_consent_version, ''), 40),
-      coalesce(p_consent_accepted, false),
-      v_now)
-    returning id into v_id;
-
-  v_audit := jsonb_build_object(
-    'id',        v_id::text,
-    'action',    case when p_decision = 'approved' then 'client_signed_via_portal' else 'client_declined_via_portal' end,
-    'actor',     left(coalesce(nullif(btrim(p_signer_name), ''), 'Client'), 200),
-    'timestamp', to_char(v_now at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'detail',    case
-                   when p_decision = 'approved' then
-                     'Electronically signed via the client portal (E-SIGN/UETA consent '
-                     || coalesce(nullif(btrim(p_consent_version), ''), 'unversioned')
-                     || ', record SHA-256 ' || coalesce(left(v_server_hash, 16), 'n/a') || '…).'
-                   else
-                     'Declined via the client portal. Reason: ' || left(coalesce(btrim(p_note), '(none given)'), 500)
-                 end
-  );
-
-  update public.change_orders
-     set audit_trail = coalesce(audit_trail, '[]'::jsonb) || jsonb_build_array(v_audit),
-         updated_at  = v_now
-   where id::text = btrim(p_change_order_id)
-     and project_id = v_pid;
-
-  return jsonb_build_object(
-    'ok', true,
-    'id', v_id,
-    'document_hash', v_server_hash,
-    'sealed_at', v_now
-  );
-end $$;
-
--- CREATE OR REPLACE preserves an existing function's ACL, so the two grants
--- above are unchanged. Restated for the record, and harmless if re-run.
-grant execute on function public.portal_submit_co_approval(
-  text, text, text, text, text, text, text) to anon, authenticated;
-grant execute on function public.portal_submit_co_approval_signed(
-  text, text, text, text, text, text, text, text, text, text, text, text, boolean) to anon, authenticated;
+-- (The two function bodies that followed were removed — see above.)

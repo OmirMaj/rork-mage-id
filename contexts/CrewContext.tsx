@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { CrewMember } from '@/types';
+import type { CrewMember, Certification } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -96,8 +96,15 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     queryFn: async () => {
       if (canSync) {
         try {
-          // Owner rows OR rows the current user has claimed (RLS enforces).
-          const { data, error } = await supabase.from('crew_members').select('*').order('created_at', { ascending: false });
+          // HIS roster: rows he owns OR has claimed. Named in the query, not
+          // left to RLS (#62): a foreman on a field seat also reads the GC's
+          // crew for the job he clocks in on, and that roster must never land
+          // in HIS own list (where he could edit or delete it) — it arrives
+          // through useProjectCrew below, and only there. Filtering here keeps
+          // the split true even if a policy is ever widened.
+          const { data, error } = await supabase.from('crew_members').select('*')
+            .or(`user_id.eq.${userId},claimed_by_user_id.eq.${userId}`)
+            .order('created_at', { ascending: false });
           // An EMPTY remote result is AUTHORITATIVE, not "remote unavailable" —
           // persist it so a deleted/un-claimed roster clears the local cache
           // (this table holds gov-ID-derived PII; a stale cache would resurrect
@@ -199,3 +206,77 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     surfaceToMarketplace,
   }), [crewMembers, crewQuery.isLoading, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, getCrewForProject, startClaimInvite, surfaceToMarketplace]);
 });
+
+// ── The GC's crew on ONE job, for a field / editor seat (#62) ───────────────
+//
+// A foreman invited to Henderson clocks the GC's crew in on Henderson. His own
+// roster (above) holds none of them, and crew_members / certifications RLS
+// lets only their owner read them — so his Clock In sheet said "No crew added
+// yet" and the GC's lapsed-card warnings never showed. Migration
+// 20260919180000 adds two SECURITY DEFINER reads, gated on can_access_project
+// (…, 'field'), that return only what the sheet needs: the crew the project
+// OWNER assigned to this job (id, name, trades, status — never the claim
+// token, phone or ID scan), and those workers' certificate type + expiry.
+//
+// Read-only and never persisted: it is the GC's data, shown for one job, and
+// it never enters CrewProvider's list, so nothing here can edit or delete it.
+
+export interface ProjectCrewMember {
+  id: string;
+  fullName: string;
+  trades: string[];
+  status: CrewMember['status'];
+}
+
+export interface ProjectCrewState {
+  crew: ProjectCrewMember[];
+  /** Enough of each certificate for utils/safety/crewCerts.certFlagsForWorker. */
+  certifications: Certification[];
+  isLoading: boolean;
+  /** The read failed (offline, or the migration is not live yet). */
+  isError: boolean;
+  refetch: () => void;
+}
+
+export function useProjectCrew(projectId: string | null | undefined, enabled: boolean): ProjectCrewState {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const on = enabled && !!projectId && !!userId && isSupabaseConfigured;
+  const q = useQuery({
+    queryKey: ['project_crew', userId, projectId],
+    enabled: on,
+    queryFn: async () => {
+      const [crewRes, certRes] = await Promise.all([
+        supabase.rpc('project_crew_roster', { p_project_id: projectId }),
+        supabase.rpc('project_crew_cert_flags', { p_project_id: projectId }),
+      ]);
+      if (crewRes.error) throw new Error(crewRes.error.message);
+      if (certRes.error) throw new Error(certRes.error.message);
+      const crew: ProjectCrewMember[] = ((crewRes.data ?? []) as Record<string, unknown>[]).map(r => ({
+        id: String(r.id),
+        fullName: (r.full_name as string) ?? '',
+        trades: Array.isArray(r.trades) ? (r.trades as string[]) : [],
+        status: ((r.status as CrewMember['status']) ?? 'active'),
+      }));
+      const certifications: Certification[] = ((certRes.data ?? []) as Record<string, unknown>[]).map(r => ({
+        id: String(r.id),
+        workerId: (r.worker_id as string | null) ?? undefined,
+        type: (r.type as string) ?? '',
+        expiresDate: (r.expires_date as string | null) ?? undefined,
+        // Not returned (and not read by the flags): certFlagsForWorker derives
+        // the status from expiresDate itself.
+        status: 'valid',
+        createdAt: '',
+        createdBy: '',
+      }));
+      return { crew, certifications };
+    },
+  });
+  return {
+    crew: q.data?.crew ?? [],
+    certifications: q.data?.certifications ?? [],
+    isLoading: on && q.isLoading,
+    isError: on && q.isError,
+    refetch: () => { void q.refetch(); },
+  };
+}

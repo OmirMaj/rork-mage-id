@@ -86,6 +86,7 @@ import {
   isEligibleLaborEntry, normalizeTradeKey, priceLaborEntry, DEFAULT_OVERTIME_MULTIPLIER,
   type LaborRateMap,
 } from '@/utils/laborSamples';
+import { computeOvertime, overtimeFor, DEFAULT_OVERTIME_RULE, type OvertimeRule } from '@/utils/overtime';
 // The contract value the CO cost ratio is measured against — the same
 // definition every other money surface uses (JOBCOST-CO-COST-1).
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -179,6 +180,19 @@ export interface JobCostSummary {
   absorbedVariance: number;
   /** Commitments that exceed their linked estimate items. */
   overcommittedCommitments: Commitment[];
+  /**
+   * Finished crew hours on THIS job whose trade has no loaded rate (#61), and
+   * the trades they are on (normalized keys, sorted). Those hours add $0 to
+   * `actual` — MAGE never invents a rate — so `actual`, the EAC and every margin
+   * built on them are missing that labor. A screen that shows these numbers
+   * while this is non-zero owes the reader one line saying so ("N crew hours on
+   * this job have no rate, so labor is not in these numbers"), the way the WIP
+   * report already does. Rates live on the device AND the account now
+   * (hooks/useLaborRates, gc_labor_rates), but a trade can still simply be
+   * missing a rate, so this stays necessary after the sync.
+   */
+  unpricedLaborHours: number;
+  unpricedTrades: string[];
   /** Engine signature for reports / telemetry. */
   method: 'mage_committed_plus_uncommitted';
 }
@@ -513,6 +527,13 @@ export interface JobCostInput {
    *  overtimeMultiplier). Overtime hours on a shift are priced at
    *  rate × multiplier; omit for the 1.5× default. */
   overtimeMultiplier?: number;
+  /** #65: the GC's overtime rule (hooks/useLaborRates overtimeRule). Overtime
+   *  is ALLOCATED across every entry in `timeEntries` — per worker, per day /
+   *  payroll week (utils/overtime.computeOvertime) — and the stored per-shift
+   *  `overtimeHours` is never read. Pass the whole mirror, not one job's rows:
+   *  a worker's hours on another job still push this job's late hours into
+   *  overtime. Omit for the federal default (weekly >40). */
+  overtimeRule?: OvertimeRule;
   /** MONEY-EQP-1: the GC's machines. Utilization entries logged against THIS
    *  project are charged at the machine's `dailyRate` into an "Equipment"
    *  phase line. A machine with no day rate contributes nothing — hours alone
@@ -666,8 +687,40 @@ export interface JobCostInput {
  */
 export type JobCostActualSources =
   Pick<JobCostInput,
-    'receipts' | 'timeEntries' | 'laborRates' | 'overtimeMultiplier' | 'equipment' | 'permits'
+    'receipts' | 'timeEntries' | 'laborRates' | 'overtimeMultiplier' | 'overtimeRule' | 'equipment' | 'permits'
     | 'subcontractors'>;
+
+/**
+ * Finished crew hours on one project whose trade has no configured rate — the
+ * hours computeJobCost prices at $0 (#61). Exported so a screen that does not
+ * run the engine itself (the Living Estimate, Margin Alerts) can still say so.
+ */
+export function unpricedLaborFor(
+  projectId: string,
+  timeEntries: readonly TimeEntry[] | null | undefined,
+  laborRates: LaborRateMap | null | undefined,
+): { hours: number; trades: string[] } {
+  let hours = 0;
+  const trades = new Set<string>();
+  for (const e of timeEntries ?? []) {
+    if (e.projectId !== projectId || !isEligibleLaborEntry(e)) continue;
+    const key = normalizeTradeKey(e.trade);
+    const rate = laborRates?.[key];
+    if (Number.isFinite(rate) && (rate as number) > 0) continue;
+    hours += e.totalHours;
+    trades.add(key);
+  }
+  return { hours: Math.round(hours * 100) / 100, trades: [...trades].sort() };
+}
+
+/** "12.5 crew hours on this job have no rate, so labor is not in these
+ *  numbers." — the one sentence every cost screen shows while any are unpriced
+ *  (modelled on the WIP report's disclosure). '' when there are none. */
+export function unpricedLaborLine(hours: number, subject = 'this job'): string {
+  if (!(hours > 0)) return '';
+  const h = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+  return `${h} crew hour${hours === 1 ? '' : 's'} on ${subject} ${hours === 1 ? 'has' : 'have'} no rate, so labor is not in these numbers.`;
+}
 
 /**
  * Run the cost-to-complete engine on one project's numbers.
@@ -678,8 +731,8 @@ export type JobCostActualSources =
  */
 export function computeJobCost({
   project, commitments, changeOrders, receipts = [], timeEntries = [], laborRates = {},
-  overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER, equipment = [], permits = [],
-  subcontractors = [],
+  overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER, overtimeRule = DEFAULT_OVERTIME_RULE,
+  equipment = [], permits = [], subcontractors = [],
 }: JobCostInput): JobCostSummary {
   const projectCommitments = commitments.filter(c => c.projectId === project.id && c.status !== 'draft');
   const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
@@ -989,16 +1042,22 @@ export function computeJobCost({
   // A job with NO priced hours never enters this branch, so it computes
   // byte-identically to before — scripts/validate-job-cost-labor-routing.ts
   // pins both halves.
+  const unpriced = unpricedLaborFor(project.id, timeEntries, laborRates);
   {
     let laborActual = 0;
     const countedIds: string[] = [];
+    // #65: overtime is allocated per worker across EVERY entry (all jobs),
+    // then priced on this job's shifts — never the stale per-shift figure.
+    const ot = computeOvertime(timeEntries, overtimeRule);
     for (const e of timeEntries) {
       if (e.projectId !== project.id || !isEligibleLaborEntry(e)) continue;
       const rate = laborRates[normalizeTradeKey(e.trade)];
+      // No rate ⇒ $0, never an invented one — counted in `unpriced` above so
+      // the screens say so instead of reading the job as cheaper (#61).
       if (!Number.isFinite(rate) || rate <= 0) continue;
       // MONEY-F19: overtime is PRICED, not just counted. totalHours × rate
       // booked a 10-hour day at $500 when the crew cost $550.
-      laborActual += priceLaborEntry(e, rate, overtimeMultiplier);
+      laborActual += priceLaborEntry({ totalHours: e.totalHours, overtimeHours: overtimeFor(ot, e.id) }, rate, overtimeMultiplier);
       countedIds.push(e.id);
     }
     if (laborActual > 0) {
@@ -1260,6 +1319,8 @@ export function computeJobCost({
     // implicit is the "two answers in one render" defect.
     absorbedVariance: Math.max(0, Math.round((perPhaseProjected - totalProjected) * 100) / 100),
     overcommittedCommitments: overcommitted,
+    unpricedLaborHours: unpriced.hours,
+    unpricedTrades: unpriced.trades,
     method: 'mage_committed_plus_uncommitted',
   };
 }

@@ -717,9 +717,13 @@ console.log('\ncontract screen — progress rows (Direction B):');
 
   const core = read('utils/billingFlowCore.ts');
   const valueImports = [...core.matchAll(/^import\s+(?!type\b)[^;]*?from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]);
-  ok('billingFlowCore value-imports only ./invoiceBilling and ./paymentTerms',
-    valueImports.length === 2 && valueImports.includes('./invoiceBilling') && valueImports.includes('./paymentTerms'),
+  // ./calendarDate joined in wave 3 (#133: a picked received-day must never be
+  // read as UTC midnight). It is allowed only while it has no imports at all.
+  ok('billingFlowCore value-imports only ./invoiceBilling, ./paymentTerms and ./calendarDate',
+    valueImports.length === 3 && valueImports.includes('./invoiceBilling') && valueImports.includes('./paymentTerms') && valueImports.includes('./calendarDate'),
     JSON.stringify(valueImports));
+  ok('…and utils/calendarDate.ts imports nothing',
+    !/^import\s/m.test(read('utils/calendarDate.ts')));
   // AND NOT THROUGH THE ALIAS, type-only imports included (review round 5).
   // The check above deliberately ignores `import type`, which is erased — so
   // it said nothing when a `from '@/types'` appeared in a module whose header

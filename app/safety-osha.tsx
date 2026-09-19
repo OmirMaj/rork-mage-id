@@ -6,20 +6,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ShieldAlert, FileText, Download } from 'lucide-react-native';
+import { ShieldAlert, FileText, Download, AlertTriangle, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useSafety } from '@/contexts/SafetyContext';
-import { useCompanies } from '@/contexts/CompaniesContext';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import {
-  buildOsha300Log, OSHA_CLASS_LABEL, isRecordableCase, buildOsha300ATotals, prefillHoursFromTimeEntries,
-  osha300ARates, type Osha300ASummaryInput,
+  buildOsha300Log, OSHA_CLASS_LABEL, buildOsha300ATotals, prefillHoursFromTimeEntries,
+  osha300ARates, type Osha300ASummaryInput, availableOshaYears, currentOshaYear,
+  incidentsForOwnEstablishment, recordablesWithUnreadableDates,
 } from '@/utils/safety/oshaLog';
 import { useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { Card, Button, StatusPill } from '@/components/ui';
@@ -51,45 +53,45 @@ function SafetyOshaInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
+  const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { incidents } = useSafety();
-  const { companies } = useCompanies();
+  const { settings, projects } = useProjects();
+  const { user } = useAuth();
 
-  const scopedIncidents = useMemo(
-    () => (projectId ? incidents.filter((i) => i.projectId === projectId) : incidents),
-    [incidents, projectId],
-  );
+  // His establishment's cases only: incidents on projects he owns. A case he
+  // filed as an invited foreman on his GC's job is the GC's record, not a row
+  // on his own company's 300 (audit #82).
+  const scopedIncidents = useMemo(() => {
+    const own = incidentsForOwnEstablishment(incidents, projects, user?.id);
+    return projectId ? own.filter((i) => i.projectId === projectId) : own;
+  }, [incidents, projects, user?.id, projectId]);
   // OSHA 300 logs must be retained for 5 years and are routinely pulled for a
   // PRIOR year (audits, insurance, EMR). Offer any year that has a recordable
   // case, plus the current year (so a fresh year's log is reachable even before
   // its first case). Newest first; the current year is the default selection.
-  const currentYear = String(new Date().getFullYear());
-  const availableYears = useMemo(() => {
-    const years = new Set<string>([currentYear]);
-    for (const inc of scopedIncidents) {
-      if (!isRecordableCase(inc)) continue;
-      const y = (inc.occurredAt ?? '').slice(0, 4);
-      if (y.length === 4) years.add(y);
-    }
-    return Array.from(years).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
-  }, [scopedIncidents, currentYear]);
+  // Same helper the Safety hub's tile counts with, so the two agree (#169).
+  const currentYear = currentOshaYear();
+  // Only a readable YYYY-MM-DD makes a year: a typed '9/18/26' used to add a
+  // '9/18' chip (#168).
+  const availableYears = useMemo(() => availableOshaYears(scopedIncidents, currentYear), [scopedIncidents, currentYear]);
+  // Recordable cases no year's log can read. Counted as recordable everywhere
+  // else, so they are named here instead of vanishing from every year.
+  const undatedCases = useMemo(() => recordablesWithUnreadableDates(scopedIncidents), [scopedIncidents]);
 
   const [selectedYear, setSelectedYear] = useState(currentYear);
   // Keep the selection valid if the underlying incident set changes.
   const year = availableYears.includes(selectedYear) ? selectedYear : currentYear;
 
-  // OSHA 300 is a per-establishment form. We only have a clean establishment
-  // when a single company profile exists (or a project is selected under it);
-  // with multiple company profiles and no project, an org-wide log commingles
-  // establishments, so we must NOT stamp one company's name over it — title it
-  // neutrally instead of falsely branding it as companies[0].
-  const est = useMemo(() => {
-    const orgWideMultiCompany = !projectId && companies.length > 1;
-    const name = orgWideMultiCompany
-      ? 'All establishments'
-      : (companies[0]?.companyName || 'My Company');
-    return { name, year };
-  }, [companies, projectId, year]);
+  // The establishment is HIS company: settings.branding.companyName, the name
+  // on every document he sends (audit #86). This used to read
+  // useCompanies().companies — the PUBLIC marketplace directory, readable by
+  // every signed-in user — so the legal form printed 'My Company', whoever
+  // registered a directory profile most recently, or 'All establishments'
+  // once a second stranger did. With no name set there is nothing true to
+  // print, so the exports are disabled below and say why.
+  const companyName = (settings?.branding?.companyName ?? '').trim();
+  const est = useMemo(() => ({ name: companyName, year }), [companyName, year]);
   const rows = useMemo(() => buildOsha300Log(scopedIncidents, est.year), [scopedIncidents, est.year]);
 
   // ── 300A summary (audit round 2 #4) ──────────────────────────────────────
@@ -127,23 +129,35 @@ function SafetyOshaInner() {
     projectScoped,
   } : undefined), [confirmed, hoursNum, employeesNum, hoursEdited, prefill.sourceLabel, projectScoped]);
 
+  const exportBlocked = companyName ? null : 'Add your company name in Settings to print the OSHA 300.';
+
   const handleExportPdf = useCallback(async () => {
+    if (!companyName) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     try {
       await exportOsha300Pdf(scopedIncidents, est, summaryInput);
     } catch {
       showAlert('Export failed', 'Could not generate the OSHA 300 PDF. Please try again.');
     }
-  }, [scopedIncidents, est, summaryInput]);
+  }, [scopedIncidents, est, summaryInput, companyName]);
 
   const handleExportCsv = useCallback(async () => {
+    if (!companyName) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     try {
       await shareOsha300Csv(scopedIncidents, est);
     } catch {
       showAlert('Export failed', 'Could not generate the OSHA 300 CSV. Please try again.');
     }
-  }, [scopedIncidents, est]);
+  }, [scopedIncidents, est, companyName]);
+
+  // A row opens its incident for the fix — the 300 row missing a name used to
+  // be a plain View, so he had to go find the case in the incidents list.
+  const openCase = useCallback((incidentId: string) => {
+    const inc = scopedIncidents.find((i) => i.id === incidentId);
+    if (!inc?.projectId) return;
+    router.push({ pathname: '/safety-incidents', params: { projectId: inc.projectId, incidentId } });
+  }, [scopedIncidents, router]);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -153,7 +167,9 @@ function SafetyOshaInner() {
           <View style={styles.summaryTop}>
             <View style={{ flex: 1 }}>
               <Text style={styles.summaryEyebrow}>OSHA Form 300</Text>
-              <Text style={styles.summaryTitle}>{est.name}</Text>
+              <Text style={[styles.summaryTitle, !companyName && styles.summaryTitleMissing]}>
+                {companyName || 'Company name not set'}
+              </Text>
               <Text style={styles.summarySub}>Log year {est.year}</Text>
             </View>
             <View style={styles.countBadge}>
@@ -197,13 +213,51 @@ function SafetyOshaInner() {
             posts a 300A, and the PDF prints the "No recordable cases" 300 page
             plus the 300A once hours are confirmed. CSV is the case rows only,
             so it waits for a case. */}
+        {exportBlocked ? (
+          <View style={styles.blockedBanner} testID="osha-export-blocked">
+            <AlertTriangle size={14} color={themeColors.warningLabel} strokeWidth={1.9} />
+            <Text style={styles.blockedText}>{exportBlocked}</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as never)} accessibilityRole="button" accessibilityLabel="Open Settings" hitSlop={8}>
+              <Text style={styles.blockedLink}>Open Settings</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {undatedCases.length > 0 ? (
+          <View style={styles.blockedBanner} testID="osha-undated-cases">
+            <AlertTriangle size={14} color={themeColors.warningLabel} strokeWidth={1.9} />
+            <Text style={styles.blockedText}>
+              {undatedCases.length} recordable case{undatedCases.length === 1 ? ' has' : 's have'} a date that needs fixing, so {undatedCases.length === 1 ? 'it is' : 'they are'} on no year&apos;s log. Tap to fix:
+            </Text>
+            {undatedCases.map((inc) => (
+              <TouchableOpacity key={inc.id} onPress={() => openCase(inc.id)} accessibilityRole="button" accessibilityLabel="Fix this case's date" hitSlop={6}>
+                <Text style={styles.blockedLink} numberOfLines={1}>
+                  {`"${inc.occurredAt || 'no date'}" · ${inc.description || 'Untitled case'}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
         <View style={styles.exportRow}>
-          <TouchableOpacity style={styles.exportPrimary} onPress={handleExportPdf} activeOpacity={0.85} testID="osha-export-pdf">
+          <TouchableOpacity
+            style={[styles.exportPrimary, exportBlocked ? styles.exportDisabled : null]}
+            onPress={handleExportPdf}
+            disabled={!!exportBlocked}
+            accessibilityState={{ disabled: !!exportBlocked }}
+            activeOpacity={0.85}
+            testID="osha-export-pdf"
+          >
             <FileText size={16} color="#FFFFFF" strokeWidth={1.75} />
             <Text style={styles.exportPrimaryText}>Export PDF</Text>
           </TouchableOpacity>
           {rows.length > 0 ? (
-            <TouchableOpacity style={styles.exportSecondary} onPress={handleExportCsv} activeOpacity={0.85} testID="osha-export-csv">
+            <TouchableOpacity
+              style={[styles.exportSecondary, exportBlocked ? styles.exportDisabled : null]}
+              onPress={handleExportCsv}
+              disabled={!!exportBlocked}
+              accessibilityState={{ disabled: !!exportBlocked }}
+              activeOpacity={0.85}
+              testID="osha-export-csv"
+            >
               <Download size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.exportSecondaryText}>Export CSV</Text>
             </TouchableOpacity>
@@ -213,7 +267,15 @@ function SafetyOshaInner() {
         {rows.length > 0 ? (
           <>
             {rows.map((r) => (
-              <View key={r.caseNo} style={styles.row}>
+              <TouchableOpacity
+                key={r.incidentId}
+                style={styles.row}
+                onPress={() => openCase(r.incidentId)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Open case ${r.caseNo}`}
+                testID={`osha-row-${r.caseNo}`}
+              >
                 <View style={styles.caseChip}>
                   <Text style={styles.caseChipText}>{r.caseNo}</Text>
                 </View>
@@ -229,8 +291,12 @@ function SafetyOshaInner() {
                   <View style={styles.classPill}>
                     <Text style={styles.classPillText}>{OSHA_CLASS_LABEL[r.classification]}</Text>
                   </View>
+                  {r.missing.length > 0 ? (
+                    <Text style={styles.rowMissing}>Missing {r.missing.join(' and ')}: tap to fix</Text>
+                  ) : null}
                 </View>
-              </View>
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
             ))}
           </>
         ) : (
@@ -430,6 +496,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   rowEmployee: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
   rowMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
   rowDesc: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 6, lineHeight: 18 },
+  rowMissing: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.danger, marginTop: 6 },
+  summaryTitleMissing: { color: themeColors.warningLabel },
+  exportDisabled: { opacity: 0.45 },
+  blockedBanner: {
+    marginHorizontal: 20, marginTop: 12, padding: 12, gap: 6, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.warningLabel + '14', borderWidth: 1, borderColor: themeColors.warningLabel + '33',
+  },
+  blockedText: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
+  blockedLink: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   classPill: {
     alignSelf: 'flex-start' as const, marginTop: 8,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,

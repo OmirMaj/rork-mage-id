@@ -82,7 +82,7 @@ import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
-import { inferTradeFromText, pickSubForTrade } from '@/utils/tradeInference';
+import { inferTradeFromText, walkProposedSub, type WalkSubChoice } from '@/utils/tradeInference';
 // The ONE answer to "what locations exist on this project?" — shared with
 // app/punch-list.tsx so the chips he taps here and the rooms he filters by
 // there cannot drift into two different spellings of one corridor.
@@ -96,7 +96,7 @@ import {
 import { usePlanRooms } from '@/hooks/usePlanRooms';
 import { parsePunchFromTranscript, sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
-import type { PunchItem, PunchItemPriority, PunchListType, SubTrade, Subcontractor } from '@/types';
+import type { PunchItem, PunchItemPriority, PunchListType, SubTrade } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -109,6 +109,11 @@ import {
   walkStartFromParam, type WalkStart, type WalkPin,
 } from '@/utils/punchPlanPin';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useAuth } from '@/contexts/AuthContext';
+// The subs an item on THIS job may go to: his own directory when he owns the
+// job, the owner's subs on the job when he is a collaborator — never his own
+// directory on someone else's job (#110).
+import { useProjectSubcontractors, type ProjectSubcontractorsState } from '@/hooks/useProjectSubcontractors';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Anything not recognized falls back to 'General'.
@@ -234,7 +239,9 @@ function PunchWalkScreenInner() {
   const initialList = listFromParam(params.list ?? params.listType);
   // `start=pin` opens the walk in pin-first mode (plan, then photo).
   const initialStart = walkStartFromParam(params.start);
-  const { projects, getProject, subcontractors, addPunchItem, deletePunchItem } = useProjects();
+  const { projects, getProject, addPunchItem, deletePunchItem } = useProjects();
+  const projectSubs = useProjectSubcontractors(projectId);
+  const { user } = useAuth();
 
   // If no projectId was passed, show a project picker. Walk mode is
   // always bound to one project — you can't mix items across jobs.
@@ -252,7 +259,8 @@ function PunchWalkScreenInner() {
       projectId={projectId}
       initialList={initialList}
       initialStart={initialStart}
-      subcontractors={subcontractors}
+      projectSubs={projectSubs}
+      userId={user?.id}
       onAdd={addPunchItem}
       onDelete={deletePunchItem}
       onBack={() => router.back()}
@@ -275,12 +283,14 @@ interface SessionCapture {
   capturedAt: string;
 }
 
-function WalkInner({ projectName, projectId, initialList, initialStart, subcontractors, onAdd, onDelete, onBack }: {
+function WalkInner({ projectName, projectId, initialList, initialStart, projectSubs, userId, onAdd, onDelete, onBack }: {
   projectName: string;
   projectId: string;
   initialList: PunchListType;
   initialStart: WalkStart;
-  subcontractors: Subcontractor[];
+  projectSubs: ProjectSubcontractorsState;
+  /** Stamped as createdByUserId: who may delete the item later (#111). */
+  userId: string | undefined;
   onAdd: (item: PunchItem) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
@@ -332,6 +342,23 @@ function WalkInner({ projectName, projectId, initialList, initialStart, subcontr
   const [session, setSession] = useState<SessionCapture[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [showTradeOverride, setShowTradeOverride] = useState(false);
+  const [showSubPicker, setShowSubPicker] = useState(false);
+  const [subChoice, setSubChoice] = useState<WalkSubChoice>({ mode: 'auto' });
+  // A trade change re-proposes: 'picked' was a choice for the OLD trade.
+  const lastTradeRef = useRef<SubTrade>(draft.trade);
+  useEffect(() => {
+    if (lastTradeRef.current !== draft.trade) {
+      lastTradeRef.current = draft.trade;
+      setSubChoice(c => (c.mode === 'auto' ? c : { mode: 'auto' }));
+    }
+  }, [draft.trade]);
+  const subs = projectSubs.subs;
+  const proposedSub = walkProposedSub(subChoice, draft.trade, subs, projectId);
+  /** Subs on THIS job, for the picker: the sheet never offers an off-job sub. */
+  const subsOnJob = useMemo(
+    () => subs.filter(s => (s.assignedProjects ?? []).includes(projectId)),
+    [subs, projectId],
+  );
   const [showAllLocations, setShowAllLocations] = useState(false);
 
   // ── Pin step ─────────────────────────────────────────────────────────────
@@ -702,7 +729,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, subcontr
     // Local calendar day, not a UTC slice — an evening walk would otherwise
     // date every item a day late (utils/calendarDate).
     const due = toCalendarDayString(addCalendarDays(new Date(), 7));
-    const sub = pickSubForTrade(draft.trade, subcontractors, projectId);
+    // Exactly the sub the card showed — never a second, unseen guess.
+    const sub = walkProposedSub(subChoice, draft.trade, subs, projectId);
     const id = generateUUID();
 
     const item: PunchItem = {
@@ -710,8 +738,12 @@ function WalkInner({ projectName, projectId, initialList, initialStart, subcontr
       projectId,
       description: draft.description.trim(),
       location: draft.location.trim() || 'Unspecified',
-      assignedSub: sub?.companyName ?? draft.trade,
+      // '' when no sub on this job, never the trade word: "Sub: Electrical"
+      // read as an assignment on the list, the filter and the export.
+      assignedSub: sub?.companyName ?? '',
       assignedSubId: sub?.id,
+      // Who raised it — the delete check (#111) reads this.
+      ...(userId ? { createdByUserId: userId } : {}),
       dueDate: due,
       priority: draft.priority,
       status: 'open',
@@ -778,6 +810,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, subcontr
       priority: 'medium',
       locationOrigin: draft.location.trim() ? 'carried' : 'none',
     });
+    setSubChoice({ mode: 'auto' });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Pin first: straight back to the plan for the next spot (the sheet he
@@ -787,7 +820,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, subcontr
       Keyboard.dismiss();
       openPinStep();
     }
-  }, [draft, listType, subcontractors, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep]);
+  }, [draft, listType, subChoice, subs, userId, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep]);
 
   const handleUndo = useCallback((id: string) => {
     onDelete(id);
@@ -1056,6 +1089,37 @@ function WalkInner({ projectName, projectId, initialList, initialStart, subcontr
                 <Text style={styles.metaChipGhostText}>Pick trade</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Who it goes to — shown BEFORE save, so what is saved is what he
+                saw. Only subs on this job are ever proposed; tap to change or
+                clear. On someone else's job the list is the owner's subs. */}
+            <TouchableOpacity
+              style={styles.subLine}
+              onPress={() => {
+                if (projectSubs.isError) { projectSubs.refetch(); return; }
+                setShowSubPicker(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={proposedSub ? `Assigned to ${proposedSub.companyName}. Change or clear` : 'No sub assigned. Pick one'}
+              testID="walk-sub-line"
+            >
+              <Text style={[styles.subLineText, !proposedSub && styles.subLineMuted]} numberOfLines={2}>
+                {projectSubs.isLoading
+                  ? (projectSubs.isOwner ? 'Checking your subs…' : 'Loading your GC’s subs on this job…')
+                  : projectSubs.isError
+                    ? 'Couldn’t load the subs on this job — tap to retry. Saves unassigned.'
+                    : proposedSub
+                      ? `→ ${proposedSub.companyName} (on this job)`
+                      : subChoice.mode === 'none'
+                        ? 'No sub — saves unassigned'
+                        : projectSubs.isOwner
+                          ? `No ${draft.trade === 'General' ? '' : `${draft.trade} `}sub on this job`
+                          : `Trade: ${draft.trade} — GC to assign`}
+              </Text>
+              {!projectSubs.isLoading && !projectSubs.isError ? (
+                <Text style={styles.subLineAction}>{proposedSub ? 'Change' : 'Pick'}</Text>
+              ) : null}
+            </TouchableOpacity>
 
             {/* Preview photo */}
             {draft.photoUri && (
@@ -1328,6 +1392,48 @@ function WalkInner({ projectName, projectId, initialList, initialStart, subcontr
         </View>
       </Modal>
 
+      {/* Sub picker — only subs on this job, plus "no sub". */}
+      <Modal visible={showSubPicker} animationType="slide" transparent onRequestClose={() => setShowSubPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Who fixes this?</Text>
+              <TouchableOpacity onPress={() => setShowSubPicker(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 12 }}>
+              <TouchableOpacity
+                style={[styles.tradeOption, !proposedSub && styles.tradeOptionActive]}
+                onPress={() => { setSubChoice({ mode: 'none' }); setShowSubPicker(false); }}
+                testID="walk-sub-none"
+              >
+                <Text style={styles.tradeOptionText}>{projectSubs.isOwner ? 'No sub — leave unassigned' : 'No sub — the GC assigns it'}</Text>
+                {!proposedSub && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
+              </TouchableOpacity>
+              {subsOnJob.map(s => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles.tradeOption, proposedSub?.id === s.id && styles.tradeOptionActive]}
+                  onPress={() => { setSubChoice({ mode: 'picked', sub: s }); setShowSubPicker(false); }}
+                >
+                  <Text style={styles.tradeOptionText}>{s.companyName}</Text>
+                  <Text style={styles.subOptionTrade}>{s.trade}</Text>
+                  {proposedSub?.id === s.id && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
+                </TouchableOpacity>
+              ))}
+              {subsOnJob.length === 0 ? (
+                <Text style={styles.subPickerEmpty}>
+                  {projectSubs.isOwner
+                    ? 'No subs are assigned to this job yet. Add them to the job under Subs, then they show here.'
+                    : 'Your GC has no subs assigned to this job yet. The item saves unassigned and your GC assigns it.'}
+                </Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* All-rooms sheet — the overflow behind the chip rail. Every location
           this job has, in the same order, with the counts spelled out so he
           can tell a room he has already worked from one he hasn't. */}
@@ -1576,6 +1682,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
 
   metaRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  subLine: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10,
+    paddingVertical: 10, paddingHorizontal: 12, minHeight: 44,
+    borderRadius: Tokens.radius.md, backgroundColor: t.surfaceAlt,
+  },
+  subLineText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  subLineMuted: { color: t.textSecondary, fontWeight: '500' },
+  subLineAction: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accentLabel },
+  subOptionTrade: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  subPickerEmpty: { fontSize: Type.footnote.fontSize, color: t.textSecondary, padding: 14, lineHeight: 19 },
   metaChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary,

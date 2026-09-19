@@ -26,6 +26,7 @@
 import type { TimeEntry } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
 import { toCalendarDayString } from '@/utils/calendarDate';
+import { computeOvertime, overtimeFor, normalizeOvertimeRule, DEFAULT_OVERTIME_RULE, type OvertimeRule } from '@/utils/overtime';
 
 /** The local calendar day a shift was worked, from its clock-in instant; the
  *  stored `date` only when there is no usable clock-in. Older rows wrote
@@ -101,7 +102,8 @@ export function isEligibleLaborEntry(e: TimeEntry): boolean {
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /** Time-and-a-half — the FLSA default and what nearly every GC pays. The
- *  per-GC override lives in hooks/useLaborRates.ts (overtimeMultiplier). */
+ *  per-GC override lives in hooks/useLaborRates.ts (overtimeMultiplier), set
+ *  in Time Tracking's Labor rates sheet ("Overtime pays ×", #153). */
 export const DEFAULT_OVERTIME_MULTIPLIER = 1.5;
 /** Ceiling for a typed multiplier — "15" meant as "1.5" must not price OT at 15×. */
 export const MAX_OVERTIME_MULTIPLIER = 3;
@@ -117,13 +119,17 @@ export function normalizeOvertimeMultiplier(raw: unknown): number {
 
 /**
  * MONEY-F19: the DOLLAR cost of one shift — straight hours at the loaded rate,
- * overtime hours at rate × multiplier. hooks/useTimeEntries.computeShiftHours
- * splits every shift (anything past 8h/day is OT), but nothing downstream
- * priced the premium: a 10-hour day at $50 booked $500 when the crew cost
- * $550, so every OT day understated self-perform actuals and the cost book
- * learned a $/hr no crew on overtime ever achieves. Legacy entries with no
- * overtimeHours price at straight time; OT is clamped to [0, totalHours] so a
- * corrupt row can never price more hours than it has.
+ * overtime hours at rate × multiplier. Nothing downstream used to price the
+ * premium: a 10-hour day at $50 booked $500 when the crew cost $550, so every
+ * OT day understated self-perform actuals and the cost book learned a $/hr no
+ * crew on overtime ever achieves.
+ *
+ * `overtimeHours` here is whatever the CALLER hands in, and since #65 every
+ * production caller hands in the ALLOCATED figure from utils/overtime
+ * (computeOvertime — per worker, per day/week, under the GC's rule), never
+ * the per-shift number stored on the row, which went stale the moment another
+ * shift landed in the same day or week. OT is clamped to [0, totalHours] so a
+ * corrupt input can never price more hours than the shift has.
  */
 export function priceLaborEntry(
   e: Pick<TimeEntry, 'totalHours' | 'overtimeHours'>,
@@ -145,11 +151,16 @@ export function priceLaborEntry(
  * cost. bidUnit is 0 (clocked hours carry no bid context — same as
  * receipts), so labor never distorts bid-bias math. Entries whose trade has
  * no configured rate are skipped entirely.
+ *
+ * Overtime is allocated across ALL of `entries` (every project, unpriced
+ * trades included — a worker's 41st hour is overtime whatever job the first 40
+ * were on) under `overtimeRule`, then priced per entry (#65).
  */
 export function buildLaborSamples(
   entries: TimeEntry[],
   rates: LaborRateMap,
   overtimeMultiplier: number = DEFAULT_OVERTIME_MULTIPLIER,
+  overtimeRule: OvertimeRule = DEFAULT_OVERTIME_RULE,
 ): CostSample[] {
   interface Group {
     projectId: string;
@@ -165,6 +176,7 @@ export function buildLaborSamples(
     lastDate: string;
   }
   const groups = new Map<string, Group>();
+  const ot = computeOvertime(entries, overtimeRule);
 
   for (const e of entries ?? []) {
     if (!isEligibleLaborEntry(e)) continue;
@@ -172,8 +184,9 @@ export function buildLaborSamples(
     const rate = rates?.[tradeKey];
     if (!Number.isFinite(rate) || (rate as number) <= 0) continue;
 
-    const cost = priceLaborEntry(e, rate as number, overtimeMultiplier);
-    const overtime = Number.isFinite(e.overtimeHours) && e.overtimeHours > 0;
+    const otHours = overtimeFor(ot, e.id);
+    const cost = priceLaborEntry({ totalHours: e.totalHours, overtimeHours: otHours }, rate as number, overtimeMultiplier);
+    const overtime = otHours > 0;
     const key = `${e.projectId}|${tradeKey}`;
     const g = groups.get(key);
     if (g) {
@@ -258,5 +271,183 @@ export function computeLaborStats(entries: TimeEntry[], rates: LaborRateMap): La
     sampledEntries,
     sampledHours: round2(sampledHours),
     tradesMissingRates: [...missing].sort(),
+  };
+}
+
+// ── The rate book: device cache + the account copy (#61) ────────────────────
+//
+// Rates used to live ONLY in AsyncStorage on the device where he typed them,
+// and the tenant sweep (utils/localCacheKeys — every `mageid_` key goes on
+// sign-in and sign-out) erased them. On the web app, or after any sign-out,
+// every clocked hour priced at $0 on Job Costing, the Living Estimate and
+// Margin Alerts, and in the cost book grounding his estimates.
+//
+// The account copy is two per-user tables (migration 20260919180000):
+// gc_labor_rates (one row per trade) and gc_labor_settings (one row: the OT
+// multiplier and the OT rule). The device keeps a cache so a jobsite with no
+// signal still prices labor. Adding the keys to DEVICE_SCOPED_KEYS instead
+// was rejected: that keeps one GC's rates on a shared phone for the next
+// tenant.
+//
+// MERGE RULE — the simplest provable one: every cell (a trade's rate, or the
+// settings row) carries the instant it was edited, and the newer edit wins,
+// on the device AND on the server (a trigger there refuses an older write, so
+// a queued edit that lands late can never roll back a newer one from another
+// device). A cleared rate is written as rate = null, never a delete, so a
+// clear is just another dated edit and needs no tombstone. A cell the device
+// holds newer than the account (an offline edit, or a rate from before the
+// sync existed) is pushed up on the next load.
+
+export interface RateCell { rate: number | null; updatedAt: string }
+export interface LaborSettingsCell {
+  overtimeMultiplier: number;
+  overtimeRule: OvertimeRule;
+  updatedAt: string;
+}
+export interface LaborRateBook {
+  rates: Record<string, RateCell>;
+  settings: LaborSettingsCell | null;
+}
+
+/** Cells from before the sync existed carry this — any account edit beats it. */
+export const LEGACY_CELL_TIME = '1970-01-01T00:00:00.000Z';
+
+const ms = (iso: string | undefined | null): number => {
+  const t = Date.parse(iso ?? '');
+  return Number.isFinite(t) ? t : 0;
+};
+
+/** Cents — the column is numeric(10,2); a device must price what the server holds. */
+export function roundRate(rate: number): number {
+  return Math.round(rate * 100) / 100;
+}
+
+/** A book's live rate map: only trades with a positive rate. */
+export function rateMapOf(book: LaborRateBook | null | undefined): LaborRateMap {
+  const out: LaborRateMap = {};
+  for (const [k, c] of Object.entries(book?.rates ?? {})) {
+    if (c && typeof c.rate === 'number' && Number.isFinite(c.rate) && c.rate > 0) out[k] = c.rate;
+  }
+  return out;
+}
+
+/** Read whatever the device cache holds — the v2 book, or the v1 bare
+ *  `{trade: rate}` map every build before #61 wrote (dated LEGACY_CELL_TIME so
+ *  the account wins wherever it has a value). Corrupt values are dropped. */
+export function parseCachedBook(raw: unknown, legacyMultiplier?: unknown): LaborRateBook {
+  const book: LaborRateBook = { rates: {}, settings: null };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return book;
+  const o = raw as Record<string, unknown>;
+  if (o.v === 2 && o.rates && typeof o.rates === 'object') {
+    for (const [k, c] of Object.entries(o.rates as Record<string, unknown>)) {
+      const cell = c as Partial<RateCell> | null;
+      if (!cell || typeof cell !== 'object') continue;
+      const rate = typeof cell.rate === 'number' && Number.isFinite(cell.rate) && cell.rate > 0 ? cell.rate : null;
+      book.rates[k] = { rate, updatedAt: typeof cell.updatedAt === 'string' ? cell.updatedAt : LEGACY_CELL_TIME };
+    }
+    const st = o.settings as Partial<LaborSettingsCell> | null | undefined;
+    if (st && typeof st === 'object') {
+      book.settings = {
+        overtimeMultiplier: normalizeOvertimeMultiplier(st.overtimeMultiplier),
+        overtimeRule: normalizeOvertimeRule(st.overtimeRule),
+        updatedAt: typeof st.updatedAt === 'string' ? st.updatedAt : LEGACY_CELL_TIME,
+      };
+    }
+    return book;
+  }
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) book.rates[k] = { rate: v, updatedAt: LEGACY_CELL_TIME };
+  }
+  if (legacyMultiplier != null && legacyMultiplier !== '') {
+    book.settings = {
+      overtimeMultiplier: normalizeOvertimeMultiplier(Number(legacyMultiplier)),
+      overtimeRule: DEFAULT_OVERTIME_RULE,
+      updatedAt: LEGACY_CELL_TIME,
+    };
+  }
+  return book;
+}
+
+/** Account rows → a book. */
+export function bookFromServer(
+  rateRows: readonly { trade_key?: unknown; rate?: unknown; updated_at?: unknown }[] | null | undefined,
+  settingsRow: {
+    overtime_multiplier?: unknown; ot_weekly_threshold?: unknown; ot_daily_threshold?: unknown;
+    week_starts_on?: unknown; updated_at?: unknown;
+  } | null | undefined,
+): LaborRateBook {
+  const book: LaborRateBook = { rates: {}, settings: null };
+  for (const r of rateRows ?? []) {
+    if (typeof r.trade_key !== 'string' || !r.trade_key) continue;
+    const n = r.rate == null ? null : Number(r.rate);
+    book.rates[r.trade_key] = {
+      rate: n != null && Number.isFinite(n) && n > 0 ? n : null,
+      updatedAt: typeof r.updated_at === 'string' ? r.updated_at : LEGACY_CELL_TIME,
+    };
+  }
+  if (settingsRow) {
+    book.settings = {
+      overtimeMultiplier: normalizeOvertimeMultiplier(Number(settingsRow.overtime_multiplier)),
+      overtimeRule: normalizeOvertimeRule({
+        weeklyThreshold: settingsRow.ot_weekly_threshold == null ? null : Number(settingsRow.ot_weekly_threshold),
+        dailyThreshold: settingsRow.ot_daily_threshold == null ? null : Number(settingsRow.ot_daily_threshold),
+        weekStartsOn: settingsRow.week_starts_on,
+      }),
+      updatedAt: typeof settingsRow.updated_at === 'string' ? settingsRow.updated_at : LEGACY_CELL_TIME,
+    };
+  }
+  return book;
+}
+
+export interface BookMerge {
+  merged: LaborRateBook;
+  /** Trades whose device cell is NEWER than the account's (or missing there). */
+  pushRates: string[];
+  /** The device's settings cell is newer than the account's. */
+  pushSettings: boolean;
+}
+
+/** Newest edit wins, cell by cell; a tie keeps the account's copy. */
+export function mergeRateBooks(local: LaborRateBook, server: LaborRateBook): BookMerge {
+  const merged: LaborRateBook = { rates: { ...server.rates }, settings: server.settings };
+  const pushRates: string[] = [];
+  for (const [k, cell] of Object.entries(local.rates)) {
+    const s = server.rates[k];
+    if (!s || ms(cell.updatedAt) > ms(s.updatedAt)) {
+      merged.rates[k] = cell;
+      pushRates.push(k);
+    }
+  }
+  let pushSettings = false;
+  if (local.settings && (!server.settings || ms(local.settings.updatedAt) > ms(server.settings.updatedAt))) {
+    merged.settings = local.settings;
+    pushSettings = true;
+  }
+  return { merged, pushRates: pushRates.sort(), pushSettings };
+}
+
+/** The gc_labor_rates row for one cell. The id is `<user>:<trade>` (the table
+ *  CHECKs it), so the offline queue serializes two edits to one trade
+ *  oldest-first instead of racing them. */
+export function rateRowFor(userId: string, tradeKey: string, cell: RateCell): Record<string, unknown> {
+  return {
+    id: `${userId}:${tradeKey}`,
+    user_id: userId,
+    trade_key: tradeKey,
+    rate: cell.rate == null ? null : roundRate(cell.rate),
+    updated_at: cell.updatedAt,
+  };
+}
+
+/** The gc_labor_settings row (id = user id, CHECKed). */
+export function settingsRowFor(userId: string, s: LaborSettingsCell): Record<string, unknown> {
+  return {
+    id: userId,
+    user_id: userId,
+    overtime_multiplier: normalizeOvertimeMultiplier(s.overtimeMultiplier),
+    ot_weekly_threshold: s.overtimeRule.weeklyThreshold,
+    ot_daily_threshold: s.overtimeRule.dailyThreshold,
+    week_starts_on: s.overtimeRule.weekStartsOn,
+    updated_at: s.updatedAt,
   };
 }

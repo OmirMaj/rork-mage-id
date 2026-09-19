@@ -68,7 +68,7 @@ import { complianceLabel, getComplianceStatus, reviewAwardCompliance } from '@/u
 import { subCoiExpiryAcross } from '@/utils/projectContextPure';
 import { matchSubForPhase } from '@/utils/subTradeMatch';
 import { normalizeTradeKey } from '@/utils/laborSamples';
-import { leveledBidTotal, leveledBuyoutSavings, packageBuyoutSavings, uncoveredScopeOf } from '@/utils/projectFinancials';
+import { leveledBidTotal, leveledBuyoutSavings, packageBuyoutSavings, uncoveredScopeOf, openExcludedScope, awardedCommitmentOf } from '@/utils/projectFinancials';
 
 // Invite timestamps are instants (timestamptz), shown here as the day they
 // fall on in the reader's own zone — which is what a GC means by "sent Tuesday".
@@ -116,8 +116,9 @@ export default function BuyoutPackageScreen() {
   // Leveled savings off the awarded bid — the same figure the Award dialog
   // showed — and the excluded scope he still has to place (audit round 2, #5).
   const heroSavings = pkg ? packageBuyoutSavings(pkg, bids, commitments) : null;
+  // Minus what an edited-up commitment already absorbed (openExcludedScope).
   const heroUncovered = pkg?.status === 'awarded'
-    ? uncoveredScopeOf(bids.find(b => b.id === pkg.awardedBidId))
+    ? openExcludedScope(bids.find(b => b.id === pkg.awardedBidId), awardedCommitmentOf(pkg, commitments)?.amount)
     : 0;
 
   // Identify allowance items that the package will lock to firm price

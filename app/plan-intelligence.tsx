@@ -57,7 +57,6 @@ import { formatMoney } from '@/utils/formatters';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import AskPlansPanel from '@/components/plans/AskPlansPanel';
 import { showAlert } from '@/utils/alert';
 
 export default function PlanIntelligenceScreen() {
@@ -98,8 +97,11 @@ function PlanIntelligenceInner() {
 
   const [projectId, setProjectId] = useState<string | null>(paramProjectId ?? null);
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
+  // #163: current sheets only. A superseded revision is history — estimating
+  // rooms off it prices a drawing nobody builds from, and spends a metered AI
+  // run doing it.
   const planSheets = useMemo(
-    () => (projectId ? getPlanSheetsForProject(projectId) : []),
+    () => (projectId ? getPlanSheetsForProject(projectId).filter(s => !s.superseded) : []),
     [projectId, getPlanSheetsForProject],
   );
 
@@ -336,10 +338,10 @@ function PlanIntelligenceInner() {
             </Text>
           </View>
 
-          {/* Ask Your Plans — shown whenever a project is loaded (all phases). */}
-          {project && (
-            <AskPlansPanel projectId={project.id} sheets={planSheets} />
-          )}
+          {/* Ask Your Plans lives on the Plans screen (#163) — this screen is
+              the estimating tool, and the two sat on top of each other: a Pro
+              user came here to ask a question and tapped a sheet, which
+              started a metered room estimate. */}
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -377,7 +379,8 @@ function PlanIntelligenceInner() {
                     </TouchableOpacity>
                   )}
 
-                  <Text style={styles.sectionTitle}>Pick a plan sheet</Text>
+                  <Text style={styles.sectionTitle}>Estimate rooms from a sheet</Text>
+                  <Text style={styles.note}>Tapping a sheet starts an AI room-by-room estimate — it uses your AI allowance.</Text>
                   {planSheets.map(s => (
                     <TouchableOpacity key={s.id} style={styles.pickRow} onPress={() => void runAnalysis(s.imageUri, s.id, s.width, s.height)} activeOpacity={0.8}>
                       <FileImage size={16} color={t.textSecondary} strokeWidth={1.75} />

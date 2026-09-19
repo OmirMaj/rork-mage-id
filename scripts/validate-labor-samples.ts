@@ -183,9 +183,13 @@ console.log('\njob-cost labor actuals:');
   const jcNoRates = computeJobCost({ ...base, timeEntries: shifts });
   expect('no configured rates ⇒ no labor line (never fake dollars)',
     jcNoRates.byPhase.some(l => l.phase === 'Self-perform labor'), false);
-  expect('omitting timeEntries is byte-identical to the pre-labor engine',
-    JSON.stringify({ ...computeJobCost(base), asOf: 'x' }),
-    JSON.stringify({ ...jcNoRates, asOf: 'x' }));
+  // #61: the one thing that DOES differ is the disclosure — unrated hours are
+  // counted (so the screens can say "N crew hours have no rate"), never priced.
+  expect('omitting timeEntries is byte-identical to the pre-labor engine (bar the unpriced-hours disclosure)',
+    JSON.stringify({ ...computeJobCost(base), asOf: 'x', unpricedLaborHours: 0, unpricedTrades: [] }),
+    JSON.stringify({ ...jcNoRates, asOf: 'x', unpricedLaborHours: 0, unpricedTrades: [] }));
+  expect('…and those unrated hours are reported, not dropped silently',
+    jcNoRates.unpricedLaborHours > 0, true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

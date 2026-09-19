@@ -22,8 +22,10 @@ import { Button } from '@/components/ui/Button';
 import { useProjects, type RecordWriteOutcome } from '@/contexts/ProjectContext';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { isMarkupSet, marginOf, type MarkupPct } from '@/utils/estimateMarkup';
-import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState, type ProjectRole } from '@/hooks/useProjectRole';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { useAuth } from '@/contexts/AuthContext';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
@@ -42,6 +44,9 @@ import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleRe
 import { resolveAiAffectedTaskIds } from '@/utils/coScheduleReflowCore';
 import { formatMoney } from '@/utils/formatters';
 import { changeOrderBillingState } from '@/utils/changeOrderBilling';
+import { portalShareUrl } from '@/utils/portalSnapshot';
+import { freezeForPortal } from '@/utils/portalFreeze';
+import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 
 // Pipeline stages — happy path through the CO lifecycle. Side branches
 // (rejected, revised, void) live outside this visual; the user can still
@@ -73,6 +78,21 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+import { cardSurface } from '@/components/ui';
+
+/**
+ * The CO fields frozen at save/send (#129, #131). Declared here and SPREAD
+ * into the record, so this screen compiles before and after types/index.ts
+ * gains them (the context lane adds them, and maps them to the
+ * 20260919110000 migration's columns). Optional: a CO saved before this
+ * carries none, and readers fall back instead of inventing a zero.
+ */
+type COFrozenFields = {
+  taxRatePct?: number;
+  taxAmount?: number;
+  totalWithTax?: number;
+  priorApprovedChangesTotal?: number;
+};
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -80,8 +100,40 @@ function createId(_prefix: string): string {
 
 export default function ChangeOrderScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
-  const { colors: themeColors } = useTheme();
+  const { coId, projectId: paramProjectId, prefillDescription } = useLocalSearchParams<{ coId?: string; projectId?: string; prefillDescription?: string }>();
+  const { changeOrders, projects: allProjects } = useProjects();
+  const { user: authUser } = useAuth();
+  // The job this link is about, when it names one: the URL's project, else the
+  // named CO's. A link with neither (sidebar, Tools) has no job yet — the
+  // editor's own picker asks, and the role gate runs again inside it.
+  const gateProjectId = paramProjectId || (coId ? changeOrders.find(c => c.id === coId)?.projectId : undefined) || undefined;
+  const roleState = useProjectRoleState(gateProjectId);
+  // useProjectAccess, not the bare tier: on a job he OWNS this is his own tier,
+  // exactly as before; the collaborator branch never reaches it (below).
+  const { canAccess } = useProjectAccess(gateProjectId);
+  // #41 — the role decision runs BEFORE the tier paywall. A foreman on a free
+  // account used to meet a "Change Orders — Pro" paywall here, which upgrading
+  // would not have fixed: a CO written from his account is invisible to the GC.
+  const roleGate = coRoleGate({
+    hasProject: !!gateProjectId,
+    role: roleState.role,
+    isLoading: roleState.isLoading,
+    isError: roleState.isError,
+    stampedRole: gateProjectId ? allProjects.find(p => p.id === gateProjectId)?.myRole : undefined,
+    ownedLocally: coOwnedLocally(gateProjectId ? allProjects.find(p => p.id === gateProjectId)?.ownerUserId : undefined, authUser?.id),
+  });
+  const blockedRole = roleState.role ?? (gateProjectId ? allProjects.find(p => p.id === gateProjectId)?.myRole ?? null : null);
+  if (roleGate !== 'open') {
+    return (
+      <CoRoleBlocked
+        gate={roleGate}
+        role={blockedRole}
+        projectId={gateProjectId}
+        prefillDescription={prefillDescription}
+        onRetry={roleState.refetch}
+      />
+    );
+  }
   if (!canAccess('change_orders_invoicing')) {
     return (
       <Paywall
@@ -93,6 +145,63 @@ export default function ChangeOrderScreen() {
     );
   }
   return <ChangeOrderGate />;
+}
+
+/**
+ * What a collaborator (or a role still resolving) sees instead of the editor.
+ * Says WHY, and for a seat that files daily reports, where the extra work goes
+ * instead: the daily report is a surface the project owner reads, so the scope
+ * reaches him — a CO written from this account would not (#41).
+ */
+function CoRoleBlocked({ gate, role, projectId, prefillDescription, onRetry }: {
+  gate: Exclude<CoRoleGate, 'open'>;
+  role: ProjectRole;
+  projectId: string | undefined;
+  prefillDescription: string | undefined;
+  onRetry: () => void;
+}) {
+  const router = useRouter();
+  const goBack = useSafeBack();
+  const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const copy = coRoleBlockedCopy(gate, role);
+  return (
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Order" />
+      <View style={styles.gateBody}>
+        {gate === 'loading' ? (
+          <Text style={styles.gateText}>{copy.body}</Text>
+        ) : (
+          <>
+            <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.gateTitle}>{copy.title}</Text>
+            <Text style={styles.gateText}>{copy.body}</Text>
+            {!!prefillDescription && gate === 'collaborator' && (
+              <View style={styles.gatePrefillBox}><Text style={styles.gatePrefill} selectable>{prefillDescription}</Text></View>
+            )}
+            {gate === 'error' && <Button label="Try again" variant="primary" onPress={onRetry} />}
+            {gate === 'collaborator' && copy.canFileReport && !!projectId && (
+              <Button
+                label="Log it in a daily report"
+                variant="primary"
+                onPress={() => router.replace({
+                  pathname: '/daily-report',
+                  // fieldIssue carries the extra work into the report's
+                  // field-issue note (dfr-screen reads it), so the owner gets
+                  // the scope without him retyping it.
+                  params: prefillDescription ? { projectId, fieldIssue: prefillDescription } : { projectId },
+                })}
+                testID="co-collab-daily-report"
+              />
+            )}
+            <Button label="Back" variant="secondary" onPress={goBack} />
+          </>
+        )}
+      </View>
+    </View>
+  );
 }
 
 // >>> co-deep-link-gate (pure; scripts/validate-notification-routes.ts evaluates this block)
@@ -177,6 +286,8 @@ export function coSendReport(o: {
   status: ChangeOrderStatus;
   write: RecordWriteOutcome | 'pending';
   recipient: string;
+  /** #35 — what happened to the portal share Send & Save made (absent: none). */
+  portal?: 'shared' | 'failed';
 }): { title: string; message: string } {
   const where: Record<RecordWriteOutcome | 'pending', string> = {
     synced: '',
@@ -197,7 +308,9 @@ export function coSendReport(o: {
   if (o.email === 'sent') {
     return {
       title: o.write === 'failed' ? 'Sent — not saved to MAGE' : 'Sent',
-      message: `CO #${o.number} was emailed${o.recipient ? ` to ${o.recipient}` : ''} for approval.${o.write === 'synced' ? ' It is saved.' : where[o.write]}`,
+      message: `CO #${o.number} was emailed${o.recipient ? ` to ${o.recipient}` : ''} for approval.${o.write === 'synced' ? ' It is saved.' : where[o.write]}`
+        + (o.portal === 'shared' ? ' It is on the client portal for them to review and sign.' : '')
+        + (o.portal === 'failed' ? ' It could NOT be put on the client portal, so the link in the email will not show it yet — open this change order and tap Send to client portal.' : ''),
     };
   }
   // Never "saved" for a write MAGE refused — the tail below says where it is.
@@ -226,6 +339,316 @@ export function coSendFinishedLabel(email: SendEmailOutcome, write: RecordWriteO
   return write === 'failed' ? 'Sent, not saved — close' : 'Sent — close';
 }
 // <<< co-send-outcome
+
+// >>> co-wave3 (pure; scripts/validate-change-orders-wave3.ts evaluates this block)
+/** Money is whole cents where it is COMPUTED, not only where it is printed
+ *  (same rule as utils/invoiceBilling.roundCents — repeated here because this
+ *  block is evaluated on its own by the validator). */
+export function coRoundCents(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+export type CoRoleGate = 'open' | 'loading' | 'error' | 'no_access' | 'collaborator';
+
+/**
+ * #41 — who may open the change-order editor on a job. Only the PROJECT OWNER
+ * writes change orders for now (a founder decision is open on editor seats):
+ * a CO inserted from a collaborator's account is stored under HIS user_id, and
+ * every change_orders SELECT policy is `auth.uid() = user_id`, so the GC never
+ * sees it. The server now refuses that insert too
+ * (20260919110000_change_orders_owner_insert_and_tax_freeze.sql).
+ *
+ * The gating contract: spin only while the role is loading, offer a retry on
+ * an error, and a null role that is neither is NO ACCESS — said, never spun.
+ * No job yet (the sidebar entry) is 'open': the editor's picker asks, and the
+ * same gate runs again on the picked job.
+ */
+export function coRoleGate(o: { hasProject: boolean; role: string | null; isLoading: boolean; isError: boolean; stampedRole?: string | null; ownedLocally?: boolean }): CoRoleGate {
+  if (!o.hasProject) return 'open';
+  // The project list's own stamp (Project.myRole) is only ever set on a job
+  // shared WITH him, so it is proof of a collaborator seat without waiting on
+  // the collaborator read — or on a failed one. Its absence proves nothing
+  // (old caches predate it), so it can only block, never open.
+  if (o.stampedRole === 'editor' || o.stampedRole === 'viewer' || o.stampedRole === 'field') return 'collaborator';
+  // The OWNER must never depend on the network: on a job site with no signal
+  // the collaborator read fails (native) or pauses forever (web), and the GC
+  // would be locked out of his own change orders. The device copy of the job
+  // carries ownerUserId (ProjectContext persists it for exactly this offline
+  // case — same rule as fieldTicketCore.pricingRoleFor), so a job whose stored
+  // owner is the signed-in user opens without waiting on the read.
+  if (o.ownedLocally) return 'open';
+  if (o.isLoading) return 'loading';
+  if (o.isError) return 'error';
+  if (o.role === 'owner') return 'open';
+  if (o.role === 'editor' || o.role === 'viewer' || o.role === 'field') return 'collaborator';
+  return 'no_access';
+}
+
+/** The job's stored owner is the signed-in user. Both ids must be present:
+ *  a cache predating ownerUserId, or no session, proves nothing. */
+export function coOwnedLocally(ownerUserId: string | null | undefined, userId: string | null | undefined): boolean {
+  return !!ownerUserId && !!userId && ownerUserId === userId;
+}
+
+export function coRoleBlockedCopy(gate: Exclude<CoRoleGate, 'open'>, role: string | null): { title: string; body: string; canFileReport: boolean } {
+  if (gate === 'loading') return { title: '', body: 'Checking your role on this job…', canFileReport: false };
+  if (gate === 'error') {
+    return {
+      title: 'Could not check your role on this job',
+      body: 'MAGE could not load who is on this project, so it cannot tell whether you may write change orders here. Check your connection and try again.',
+      canFileReport: false,
+    };
+  }
+  if (gate === 'no_access') {
+    return {
+      title: 'You are not on this job',
+      body: 'This project is not shared with your account (or your access was removed), so you cannot open its change orders.',
+      canFileReport: false,
+    };
+  }
+  const canFileReport = role === 'field' || role === 'editor';
+  return {
+    title: 'Your GC creates change orders on this job',
+    body: canFileReport
+      ? 'Send it as a field issue instead: log the extra work in a daily report, and the project owner sees it there and writes the change order. A change order written from your account would not reach your GC.'
+      : 'Your seat on this project is view-only. Tell the project owner about the extra work so they can write the change order.',
+    canFileReport,
+  };
+}
+
+/**
+ * #38 — the status a save writes. A plain "Save to Project" on a CO already
+ * out for approval KEEPS its status: it used to write 'draft' over a
+ * submitted, in-review or revised CO, which dropped it out of follow-up
+ * tracking and took the sign button off the portal. Only a real submission
+ * changes the status; a brand-new CO takes what was asked for.
+ */
+export function coPlainSaveStatus(requested: ChangeOrderStatus, existing: ChangeOrderStatus | undefined): ChangeOrderStatus {
+  if (!existing) return requested;
+  if (requested === 'draft') return existing;
+  return requested;
+}
+
+/** Was the client already sent this CO (it is waiting on them)? */
+export function coIsOutForApproval(status: ChangeOrderStatus | undefined): boolean {
+  return status === 'submitted' || status === 'under_review' || status === 'revised';
+}
+
+/** #38 — did this save change what the client is being asked to approve? */
+export function coPricedEditChanged(
+  before: { changeAmount: number; lineItems: { quantity: number; unitPrice: number; total: number; name: string }[] },
+  after: { changeAmount: number; lineItems: { quantity: number; unitPrice: number; total: number; name: string }[] },
+): boolean {
+  if (coRoundCents(before.changeAmount) !== coRoundCents(after.changeAmount)) return true;
+  if (before.lineItems.length !== after.lineItems.length) return true;
+  return before.lineItems.some((b, i) => {
+    const a = after.lineItems[i];
+    return b.name !== a.name || b.quantity !== a.quantity || coRoundCents(b.unitPrice) !== coRoundCents(a.unitPrice);
+  });
+}
+
+/** #38 — the message a save shows; never "saved to project" over a CO that is
+ *  still waiting on the client, and never silent about stale numbers. */
+export function coSaveMessage(o: {
+  number: number;
+  isUpdate: boolean;
+  requested: ChangeOrderStatus;
+  next: ChangeOrderStatus;
+  recipientInfo: string;
+  pricedEditOnSentCO: boolean;
+}): { title: string; message: string } {
+  if (o.requested === 'submitted') {
+    return { title: o.isUpdate ? 'Updated' : 'Saved', message: `Change Order #${o.number} has been submitted for approval${o.recipientInfo}.` };
+  }
+  if (o.isUpdate && coIsOutForApproval(o.next)) {
+    return {
+      title: 'Saved',
+      message: `Change Order #${o.number} is saved — still awaiting approval.` + (o.pricedEditOnSentCO
+        ? ' You changed its price or lines: your client still sees the numbers you sent until you re-send it (Send & Save, or Send to client portal).'
+        : ''),
+    };
+  }
+  return { title: o.isUpdate ? 'Updated' : 'Saved', message: `Change Order #${o.number} has been saved to the project.` };
+}
+
+/**
+ * #125 — the client's decline, as the CO screen shows it: who, when, and the
+ * reason they gave. The newest rejected Client approver first (the in-app
+ * client-view signing path writes it there), else the newest portal decline in
+ * the audit trail (the reconciler writes that — and when the GC had already
+ * marked the CO rejected it writes NO approver row, so the trail is the only
+ * copy). `when` is the raw stored value; the screen formats it as a calendar day.
+ */
+export function coDeclineLine(co: {
+  status: ChangeOrderStatus;
+  approvers?: { role: string; status: string; name?: string; email?: string; responseDate?: string; rejectionReason?: string }[];
+  auditTrail?: { action: string; actor: string; timestamp: string; detail?: string }[];
+}): { who: string; when: string | null; reason: string | null } | null {
+  if (co.status !== 'rejected') return null;
+  const audit = [...(co.auditTrail ?? [])]
+    .filter(e => e.action === 'declined_via_portal')
+    .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))[0];
+  const auditNote = audit?.detail ? audit.detail.replace(/^Note:\s*/, '').trim() || null : null;
+  const approver = [...(co.approvers ?? [])]
+    .filter(a => a.role === 'Client' && a.status === 'rejected')
+    .sort((a, b) => String(b.responseDate ?? '').localeCompare(String(a.responseDate ?? '')))[0];
+  if (approver) {
+    return {
+      who: approver.name?.trim() || approver.email?.trim() || 'the client',
+      when: approver.responseDate ?? audit?.timestamp ?? null,
+      reason: approver.rejectionReason?.trim() || auditNote,
+    };
+  }
+  if (audit) return { who: audit.actor?.trim() || 'the client', when: audit.timestamp ?? null, reason: auditNote };
+  return null;
+}
+
+/** #126 — a Qty/Price box accepts a partial number while it is being typed:
+ *  '45.', '-', '.5', '-12.' — never a letter or a second point. */
+export function coLineDraftAccepts(s: string): boolean {
+  return /^-?\d*\.?\d*$/.test(s);
+}
+
+/** The number a draft holds, or null while it holds none yet ('', '-', '.').
+ *  null is not zero: an emptied box is not a $0 line. */
+export function coParseLineDraft(s: string): number | null {
+  if (!/\d/.test(s)) return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** A Qty/Price box that is showing NO number (emptied, or just '-' / '.')
+ *  while the line underneath still carries its last one. Saving then would
+ *  write a figure he can't see — and on iOS the Save tap does not blur the box
+ *  (keyboardShouldPersistTaps='handled'), so the blur commit never ran. The
+ *  save is refused with the line named instead. Returns that refusal, or null. */
+export function coEmptyLineDraftBlocker(
+  drafts: Record<string, { qty?: string; price?: string } | undefined>,
+  items: { id: string; name: string }[],
+): { title: string; message: string } | null {
+  for (let i = 0; i < items.length; i++) {
+    const d = drafts[items[i].id];
+    if (!d) continue;
+    const field = d.price !== undefined && coParseLineDraft(d.price) == null ? 'price'
+      : d.qty !== undefined && coParseLineDraft(d.qty) == null ? 'quantity' : null;
+    if (!field) continue;
+    const label = items[i].name.trim() || `Line ${i + 1}`;
+    return { title: `${label} has no ${field}`, message: `Type a ${field} for "${label}" (or remove the line) before saving.` };
+  }
+  return null;
+}
+
+/** Every line at a whole-cent price with a whole-cent total — run on blur and
+ *  again before any save, so no fraction of a cent reaches the record. */
+export function coCommitLineItems<T extends { quantity: number; unitPrice: number; total: number }>(items: T[]): T[] {
+  return items.map(i => {
+    const unitPrice = coRoundCents(i.unitPrice);
+    return { ...i, unitPrice, total: coRoundCents(i.quantity * unitPrice) };
+  });
+}
+
+/**
+ * #127 — the basis line under an "Add from Estimate" row, true to what the add
+ * path will actually do. unitSell != null FIRST: such a line goes on at the
+ * signed rate — at cost when that rate carries no markup (labor, assemblies,
+ * Cost X-Ray and drawing lines are all-in by design) — so "+ your N% markup"
+ * is only ever said for a legacy cost-only line, where it really is applied.
+ */
+export function coEstimatePickBasis(
+  item: { unitCost: number; unitSell: number | null; markupPct: number | null },
+  seedMarkupPct: number | null,
+  money: (n: number) => string,
+): string {
+  if (item.unitSell != null) {
+    if (item.markupPct != null && item.markupPct > 0) {
+      return `Your cost ${money(item.unitCost)} + ${Math.round(item.markupPct)}% — the rate on the signed estimate`;
+    }
+    return `Your cost ${money(item.unitCost)} — at your cost — no markup on the signed estimate, so it goes on the change order at cost`;
+  }
+  if (seedMarkupPct != null && Number.isFinite(seedMarkupPct) && seedMarkupPct > 0) {
+    return `Your cost ${money(item.unitCost)} + your ${Math.round(seedMarkupPct)}% markup — this line carries none on the estimate`;
+  }
+  return 'This is your cost. No markup is set, so it goes on the change order at what it costs you.';
+}
+
+/**
+ * #129 — "Net change by previously authorized change orders" (AIA G701): the
+ * approved COs numbered BELOW this one. Not "every other approved CO": reopening
+ * CO #1 after CO #2 was approved pulled CO #2 into CO #1's base.
+ */
+export function coPriorApprovedChanges(
+  cos: { id: string; number: number; status: string; changeAmount: number }[],
+  thisNumber: number,
+  thisId: string | null | undefined,
+): number {
+  return coRoundCents(cos
+    .filter(c => c.status === 'approved' && c.id !== thisId && (c.number || 0) < thisNumber)
+    .reduce((s, c) => s + (Number.isFinite(c.changeAmount) ? c.changeAmount : 0), 0));
+}
+
+/**
+ * #131 — the tax frozen onto a CO when it goes out for approval, so the screen,
+ * the email, the portal and the invoice read ONE number even if the rate in
+ * settings changes later. Sign-aware for a credit CO.
+ */
+export function coTaxFreeze(changeAmount: number, ratePct: number): { taxRatePct: number; taxAmount: number; totalWithTax: number } {
+  const rate = Number.isFinite(ratePct) && ratePct > 0 ? ratePct : 0;
+  const amount = coRoundCents(changeAmount);
+  const taxAmount = coRoundCents(amount * (rate / 100));
+  return { taxRatePct: rate, taxAmount, totalWithTax: coRoundCents(amount + taxAmount) };
+}
+
+/** #130/#128 — ONE parse of the Schedule Impact box, shared by the save, the
+ *  G714 and the confirm prompt so they cannot disagree. Empty or 0 is
+ *  undefined — "to be determined", never "+0 days". */
+export function coParseImpactDays(s: string): number | undefined {
+  const d = parseInt(s, 10);
+  return Number.isFinite(d) && d > 0 ? d : undefined;
+}
+
+export type CoImpactDaysSource = 'user' | 'ai' | 'voice' | null;
+
+/**
+ * #128 — the days a save or send must have him confirm first, or null. The
+ * autofill stays (a GC on site should not have to tap a chip), but a number
+ * the model guessed or parsed and nobody touched never reaches the saved CO or
+ * the client unconfirmed: it is the time extension the client signs.
+ */
+export function coImpactDaysNeedsConfirm(o: { source: CoImpactDaysSource; value: string }): number | null {
+  if (o.source !== 'ai' && o.source !== 'voice') return null;
+  return coParseImpactDays(o.value) ?? null;
+}
+
+/** #128 — the line under the Schedule Impact box while it holds a fill. */
+export function coImpactDaysHelper(source: CoImpactDaysSource, value: string): string | null {
+  const d = coParseImpactDays(value);
+  if (d == null) return null;
+  if (source === 'ai') return `AI estimate: +${d} day${d === 1 ? '' : 's'} — check before sending. This is the number the client signs.`;
+  if (source === 'voice') return `Heard: +${d} day${d === 1 ? '' : 's'} — check before sending. This is the number the client signs.`;
+  return null;
+}
+
+/**
+ * #35 — whether Send & Save may put this CO on the client portal and name the
+ * portal in the email. Decided BEFORE the email goes out, from the project's
+ * portal: it must be on, have a working share link (portalId + access token),
+ * and show change orders. Anything else gets the reply-by-email wording only.
+ */
+export function coPortalShare(o: {
+  shareUrl: string | null;
+  showChangeOrders: boolean | undefined;
+  requirePasscode: boolean | undefined;
+  snapshotFits: boolean;
+}): { portalUrl: string; portalNeedsPasscode: boolean } | null {
+  if (!o.shareUrl) return null;
+  // utils/portalSnapshot builds the CO section only when this is TRUE — an
+  // unset flag is a hidden section, so it is not a portal to point at.
+  if (o.showChangeOrders !== true) return null;
+  if (!o.snapshotFits) return null;
+  return { portalUrl: o.shareUrl, portalNeedsPasscode: o.requirePasscode === true };
+}
+// <<< co-wave3
 
 function ChangeOrderGate() {
   const router = useRouter();
@@ -296,6 +719,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
+  // The CCD link row floats above the dock; the scroll padding clears both.
+  const [ccdRowH, setCcdRowH] = useState(0);
+  const onCcdRowLayout = useCallback((e: LayoutChangeEvent) => {
+    setCcdRowH(e.nativeEvent.layout.height);
+  }, []);
   const router = useRouter();
   const goBack = useSafeBack();
   const { colors: themeColors } = useTheme();
@@ -315,8 +743,21 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   }>();
   const {
     getProject, getChangeOrdersForProject, getInvoicesForProject, addChangeOrder, updateChangeOrder, contacts,
-    projects,
+    projects, changeOrders: allChangeOrders, sendToClientPortal,
   } = useProjects();
+  const { user: authUser } = useAuth();
+  // #35 — Send & Save shares the CO to the portal AFTER its write. The
+  // context's sendToClientPortal finds the item in the change-order list its
+  // closure was built with, and writes the portal state over that list — so
+  // it must be the closure from a render that already holds THIS save (an
+  // older one throws "Item not found" for a new CO, or writes the pre-edit CO
+  // back over the edit). Both refs are refreshed from the same render.
+  const latestCOsRef = useRef(allChangeOrders);
+  const sendToPortalRef = useRef(sendToClientPortal);
+  useEffect(() => {
+    latestCOsRef.current = allChangeOrders;
+    sendToPortalRef.current = sendToClientPortal;
+  }, [allChangeOrders, sendToClientPortal]);
 
   // The record's own project seeds the pick (the gate keys this editor on the
   // record, so it seeds once per record): a link may carry only the record id,
@@ -324,20 +765,19 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(projectIdOverride ?? null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  const innerRoleState = useProjectRoleState(project ? projectId : undefined);
+  const innerRoleGate = coRoleGate({
+    hasProject: !!project,
+    role: innerRoleState.role,
+    isLoading: innerRoleState.isLoading,
+    isError: innerRoleState.isError,
+    stampedRole: project?.myRole,
+    ownedLocally: coOwnedLocally(project?.ownerUserId, authUser?.id),
+  });
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingCOs = useMemo(() => getChangeOrdersForProject(projectId ?? ''), [projectId, getChangeOrdersForProject]);
   const existingCO = useMemo(() => coId ? existingCOs.find(c => c.id === coId) : null, [coId, existingCOs]);
-
-  const originalContractValue = useMemo(() => {
-    if (!project) return 0;
-    const linked = project.linkedEstimate;
-    const legacy = project.estimate;
-    let base = linked?.grandTotal ?? legacy?.grandTotal ?? 0;
-    const approvedCOs = existingCOs.filter(c => c.status === 'approved' && c.id !== coId);
-    approvedCOs.forEach(c => { base += c.changeAmount; });
-    return base;
-  }, [project, existingCOs, coId]);
 
   const nextCoNumber = useMemo(() => {
     if (existingCO) return existingCO.number;
@@ -346,6 +786,30 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // on signed, client-facing documents.
     return existingCOs.reduce((max, c) => Math.max(max, c.number || 0), 0) + 1;
   }, [existingCOs, existingCO]);
+
+  // #129 — AIA G701's three rows. This used to be ONE figure labelled
+  // "Original Contract" that already carried every other approved CO, so CO #2
+  // read $105,000 on a $100,000 contract — and reopening CO #1 after CO #2 was
+  // approved pulled CO #2 into CO #1's base. Now: the original contract sum
+  // (the signed estimate only), the net change by approved COs numbered BELOW
+  // this one, and their sum.
+  //
+  // `originalContractValue` keeps its stored meaning — the contract sum just
+  // before this CO (utils/wip's snapshot fallback, fieldTicketCore,
+  // leakCoDraft and UniversalMicButton all write/read it that way); only the
+  // filter is corrected, from "every other approved CO" to "the ones before it".
+  const originalContractSum = useMemo(() => {
+    if (!project) return 0;
+    return project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
+  }, [project]);
+  const priorApprovedChanges = useMemo(
+    () => coPriorApprovedChanges(existingCOs, nextCoNumber, coId),
+    [existingCOs, nextCoNumber, coId],
+  );
+  const originalContractValue = useMemo(
+    () => coRoundCents(originalContractSum + priorApprovedChanges),
+    [originalContractSum, priorApprovedChanges],
+  );
 
   // Prefill from selections-overage CTA: when the homeowner picks an
   // option over allowance, the selections screen routes here with
@@ -366,6 +830,29 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     existingCO?.scheduleImpactDays ? String(existingCO.scheduleImpactDays)
       : (prefillScheduleDays && Number(prefillScheduleDays) > 0 ? prefillScheduleDays : '')
   );
+  // #128 — where the Schedule Impact number came from. The AI analysis and the
+  // voice fill write into an EMPTY box (kept: a GC on site should not have to
+  // tap a chip), but a guessed number is the time extension the client signs,
+  // so it is marked under the box and must be confirmed before it is saved or
+  // sent. A number seeded from the saved CO or a prefill link is his (null).
+  const [impactDaysSource, setImpactDaysSource] = useState<CoImpactDaysSource>(null);
+  // The async voice parse resolves after renders; it reads the box through a
+  // ref so "only fill an empty box" tests the box as it is NOW.
+  const scheduleImpactDaysRef = useRef(scheduleImpactDays);
+  scheduleImpactDaysRef.current = scheduleImpactDays;
+  const fillImpactDaysIfEmpty = useCallback((days: number, source: 'ai' | 'voice') => {
+    if (!(days > 0) || scheduleImpactDaysRef.current.trim() !== '') return;
+    const v = String(Math.round(days));
+    scheduleImpactDaysRef.current = v;
+    setScheduleImpactDays(v);
+    setImpactDaysSource(source);
+  }, []);
+  const onImpactDaysTyped = useCallback((v: string) => {
+    setScheduleImpactDays(v);
+    setImpactDaysSource('user');
+  }, []);
+  /** ONE parse, shared by the save, the G714 and the confirm prompt (#130). */
+  const parsedImpactDays = useMemo(() => coParseImpactDays(scheduleImpactDays), [scheduleImpactDays]);
   // Schedule tasks the AI impact analysis named, resolved to real task ids.
   // Persisted on the CO so approval can extend the activity the model
   // identified — the analysis used to be rendered and thrown away.
@@ -374,6 +861,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   );
   // CO being previewed before its schedule impact is applied (pipeline approve).
   const [reflowPreviewCO, setReflowPreviewCO] = useState<ChangeOrder | null>(null);
+  // #37: placing the days of an ALREADY approved CO (portal approval deferred them).
+  const [placePreviewCO, setPlacePreviewCO] = useState<ChangeOrder | null>(null);
   // Pre-seed line items: single overage line so the dollar amount
   // shows on the change order without manual entry.
   const seedFromOverage: ChangeOrderLineItem[] | null = !existingCO && prefillAmount && Number(prefillAmount) > 0
@@ -496,9 +985,16 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // progress invoice. Surface the same tax the invoice will add so the
   // approved number matches what gets billed. Sign-aware for credit COs.
   // MONEY-F3: the persisted setting, 0 % when the GC never set one.
-  const taxRatePct = settings.taxRate ?? 0;
-  const changeTaxAmount = useMemo(() => changeAmount * (taxRatePct / 100), [changeAmount, taxRatePct]);
-  const changeAmountWithTax = useMemo(() => changeAmount + changeTaxAmount, [changeAmount, changeTaxAmount]);
+  // #131: a CO already sent carries the rate it was SENT at (frozen on the
+  // record) and that rate wins — the client approved it, and a later change in
+  // settings must not move the number on this screen away from the email,
+  // the portal and the invoice.
+  const liveTaxRatePct = settings.taxRate ?? 0;
+  const existingFrozenTaxRate = (existingCO as (ChangeOrder & COFrozenFields) | null | undefined)?.taxRatePct;
+  const taxRatePct = existingFrozenTaxRate ?? liveTaxRatePct;
+  const taxPreview = useMemo(() => coTaxFreeze(changeAmount, taxRatePct), [changeAmount, taxRatePct]);
+  const changeTaxAmount = taxPreview.taxAmount;
+  const changeAmountWithTax = taxPreview.totalWithTax;
 
   /** The Add New Item modal's live preview: what he typed, plus his markup. */
   const newItemMarkupPct = Math.max(0, parseFloat(itemMarkup) || 0);
@@ -627,7 +1123,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     const qty = parseFloat(newItemQty) || 0;
     const price = parseFloat(newItemPrice) || 0;
     const markup = parseFloat(itemMarkup) || 0;
-    const finalPrice = price * (1 + markup / 100);
+    // Whole cents: cost × (1 + markup) is rarely a cent amount (#126).
+    const finalPrice = coRoundCents(price * (1 + markup / 100));
     const item: ChangeOrderLineItem = {
       id: createId('coli'),
       name,
@@ -639,7 +1136,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       // Keeping both is what lets the totals card below show him the margin
       // instead of one number that looks right either way.
       unitCost: price,
-      total: qty * finalPrice,
+      total: coRoundCents(qty * finalPrice),
       isNew: true,
     };
     setLineItems(prev => [...prev, item]);
@@ -661,7 +1158,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const handleAddFromMaterials = useCallback((material: MaterialItem) => {
     const price = selectedPriceType === 'bulk' ? material.baseBulkPrice : material.baseRetailPrice;
     const markup = parseFloat(itemMarkup) || 0;
-    const finalPrice = price * (1 + markup / 100);
+    // Whole cents (#126): the catalogue price times a markup printed as
+    // 45.123456789 in the Price box and reached the record that way.
+    const finalPrice = coRoundCents(price * (1 + markup / 100));
     // The comparison a GC wants here is against what this item is already
     // SOLD at on the estimate, not against what it cost — a marked-up CO price
     // next to a cost figure reads as a rip-off the contractor has to explain.
@@ -711,9 +1210,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       description: '',
       quantity: 1,
       unit: pick.unit,
-      unitPrice: price,
+      // lineTotal / qty is rarely a whole cent; the line is (#126).
+      unitPrice: coRoundCents(price),
       unitCost: pick.unitCost,
-      total: price,
+      total: coRoundCents(price),
       isNew: false,
     };
     setLineItems(prev => [...prev, newItem]);
@@ -726,19 +1226,49 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
 
-  const handleUpdateItemQty = useCallback((id: string, qtyStr: string) => {
-    const qty = parseFloat(qtyStr) || 0;
-    setLineItems(prev => prev.map(item =>
-      item.id === id ? { ...item, quantity: qty, total: qty * item.unitPrice } : item
-    ));
+  // #126 — per-line STRING drafts for the Qty and Price boxes. The boxes used
+  // to render from the parsed number on every keystroke, so '45.' snapped back
+  // to 45 (no cents could be typed), '-' became 0 (no credit line), and a
+  // Materials line showed 45.123456789. The draft holds what he is typing; the
+  // number follows it whenever the draft holds one, and on blur the price is
+  // committed to whole cents. An emptied box is NOT a $0 line — the line keeps
+  // its last number until he types a new one.
+  // unitCost is deliberately left alone: editing the SELL price inline does not
+  // change what the line costs him.
+  const [lineDrafts, setLineDrafts] = useState<Record<string, { qty?: string; price?: string }>>({});
+  const setLineDraft = useCallback((id: string, field: 'qty' | 'price', v: string | undefined) => {
+    setLineDrafts(prev => {
+      const next = { ...prev, [id]: { ...prev[id], [field]: v } };
+      if (next[id].qty === undefined && next[id].price === undefined) delete next[id];
+      return next;
+    });
   }, []);
 
-  const handleUpdateItemPrice = useCallback((id: string, priceStr: string) => {
-    const price = parseFloat(priceStr) || 0;
+  const handleUpdateItemQty = useCallback((id: string, qtyStr: string) => {
+    if (!coLineDraftAccepts(qtyStr)) return;
+    setLineDraft(id, 'qty', qtyStr);
+    const qty = coParseLineDraft(qtyStr);
+    if (qty == null) return;
     setLineItems(prev => prev.map(item =>
-      item.id === id ? { ...item, unitPrice: price, total: item.quantity * price } : item
+      item.id === id ? { ...item, quantity: qty, total: coRoundCents(qty * item.unitPrice) } : item
     ));
-  }, []);
+  }, [setLineDraft]);
+
+  const handleUpdateItemPrice = useCallback((id: string, priceStr: string) => {
+    if (!coLineDraftAccepts(priceStr)) return;
+    setLineDraft(id, 'price', priceStr);
+    const price = coParseLineDraft(priceStr);
+    if (price == null) return;
+    setLineItems(prev => prev.map(item =>
+      item.id === id ? { ...item, unitPrice: price, total: coRoundCents(item.quantity * price) } : item
+    ));
+  }, [setLineDraft]);
+
+  /** Blur: drop the draft and commit the line to whole cents. */
+  const commitLineDraft = useCallback((id: string, field: 'qty' | 'price') => {
+    setLineDraft(id, field, undefined);
+    setLineItems(prev => prev.map(item => item.id === id ? coCommitLineItems([item])[0] : item));
+  }, [setLineDraft]);
 
   /**
    * Writes the CO — and ONLY writes it: no toast, no navigation. Split out of
@@ -747,9 +1277,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
    * cannot run mid-send). Returns null when the form is refused (the refusal
    * has been shown), else the CO's number and the write outcome.
    */
-  const persistCO = useCallback((status: ChangeOrderStatus, recipientName?: string, recipientEmail?: string): { number: number; isUpdate: boolean; write: Promise<RecordWriteOutcome> } | null => {
+  const persistCO = useCallback((status: ChangeOrderStatus, recipientName?: string, recipientEmail?: string): { id: string; number: number; isUpdate: boolean; status: ChangeOrderStatus; pricedEditOnSentCO: boolean; write: Promise<RecordWriteOutcome> } | null => {
     if (!projectId) return null;
-    const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length });
+    const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length })
+      ?? coEmptyLineDraftBlocker(lineDrafts, lineItems);
     if (blocked) {
       showAlert(blocked.title, blocked.message);
       return null;
@@ -757,8 +1288,27 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
     const now = new Date().toISOString();
 
-    const parsedImpactDays = parseInt(scheduleImpactDays, 10);
-    const impactDays = Number.isFinite(parsedImpactDays) && parsedImpactDays > 0 ? parsedImpactDays : undefined;
+    const impactDays = parsedImpactDays;
+    // #126 — whatever is still half-typed in a Qty/Price box is committed to
+    // whole cents here, so the record never carries a fraction of a cent.
+    const committedLines = coCommitLineItems(lineItems);
+    const committedAmount = coRoundCents(committedLines.reduce((sum, i) => sum + i.total, 0));
+    const committedNewTotal = coRoundCents(originalContractValue + committedAmount);
+    // #38 — a plain save keeps a sent CO's status; only a real submission moves it.
+    const nextStatus = coPlainSaveStatus(status, existingCO?.status);
+    // #131 — once the CO is out for approval its tax is FROZEN on the record
+    // (the rate it was sent at wins over today's settings), so the screen,
+    // email, portal and invoice all read the same incl.-tax figure. A draft
+    // freezes nothing: nobody has been shown a number yet.
+    // #129 — the G701 "prior approved changes" row is frozen on every save.
+    // Typed on its own and SPREAD (not written inline) so this compiles
+    // whether or not types/index.ts carries the fields yet (context lane).
+    const frozen: COFrozenFields = {
+      priorApprovedChangesTotal: priorApprovedChanges,
+      ...(nextStatus !== 'draft'
+        ? coTaxFreeze(committedAmount, existingFrozenTaxRate ?? liveTaxRatePct)
+        : {}),
+    };
 
     // ── The two facts the send sheet collected and then threw away ──────────
     //
@@ -817,14 +1367,19 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           ? existing.map((a, i) => i === idx ? { ...a, name: recipient, email: recipientAddr } : a)
           : [...existing, { ...pendingClientApprover(), order: existing.length }];
       }
+      const pricedEditOnSentCO = coIsOutForApproval(existingCO.status)
+        && coPricedEditChanged(existingCO, { changeAmount: committedAmount, lineItems: committedLines });
       const write = updateChangeOrder(existingCO.id, {
         description: description.trim(),
         reason: reason.trim(),
-        lineItems,
+        lineItems: committedLines,
         originalContractValue,
-        changeAmount,
-        newContractTotal,
-        status,
+        changeAmount: committedAmount,
+        newContractTotal: committedNewTotal,
+        // Written only when it CHANGES (#38): a plain save used to put
+        // 'draft' over a submitted / in-review / revised CO.
+        ...(nextStatus !== existingCO.status ? { status: nextStatus } : {}),
+        ...frozen,
         scheduleImpactDays: impactDays,
         scheduleImpactTaskIds: aiAffectedTaskIds.length > 0 ? aiAffectedTaskIds : undefined,
         // updateChangeOrder spreads the patch over the record, so an explicit
@@ -834,7 +1389,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         ...(approversPatch ? { approvers: approversPatch } : {}),
         ...(sending ? { approvalDeadlineDays: deadlineDays } : {}),
       });
-      return { number: existingCO.number, isUpdate: true, write };
+      return { id: existingCO.id, number: existingCO.number, isUpdate: true, status: nextStatus, pricedEditOnSentCO, write };
     }
     const co: ChangeOrder = {
       id: createId('co'),
@@ -843,11 +1398,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       date: now,
       description: description.trim(),
       reason: reason.trim(),
-      lineItems,
+      lineItems: committedLines,
       originalContractValue,
-      changeAmount,
-      newContractTotal,
-      status,
+      changeAmount: committedAmount,
+      newContractTotal: committedNewTotal,
+      status: nextStatus,
+      ...frozen,
       createdAt: now,
       updatedAt: now,
       scheduleImpactDays: impactDays,
@@ -856,8 +1412,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       approvalDeadlineDays: sending ? deadlineDays : undefined,
     };
     const write = addChangeOrder(co);
-    return { number: nextCoNumber, isUpdate: false, write };
-  }, [projectId, description, reason, scheduleImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder]);
+    return { id: co.id, number: nextCoNumber, isUpdate: false, status: nextStatus, pricedEditOnSentCO: false, write };
+  }, [projectId, description, reason, parsedImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, lineDrafts, originalContractValue, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder]);
 
   // Send & Save in flight: from the tap on Send until the screen pops. The
   // email await and then the write report (up to CO_WRITE_REPORT_TIMEOUT_MS on
@@ -884,6 +1440,26 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
+  /**
+   * #128 — run `proceed` only once any AI- or voice-filled Schedule Impact he
+   * has not touched is confirmed. The number is the time extension the client
+   * signs; an unconfirmed guess must not reach the saved CO, the email, the
+   * portal or a G714.
+   */
+  const withConfirmedImpactDays = useCallback((proceed: () => void) => {
+    const days = coImpactDaysNeedsConfirm({ source: impactDaysSource, value: scheduleImpactDays });
+    if (days == null) { proceed(); return; }
+    const plural = days === 1 ? '' : 's';
+    showAlert(
+      `The client signs +${days} day${plural} — keep it?`,
+      `${impactDaysSource === 'ai' ? 'The schedule impact was estimated by AI' : 'The schedule impact was taken from your voice note'} and has not been checked. It goes on the change order as the time extension your client approves.`,
+      [
+        { text: 'Change it', style: 'cancel' },
+        { text: `Keep +${days} day${plural}`, onPress: () => { setImpactDaysSource('user'); proceed(); } },
+      ],
+    );
+  }, [impactDaysSource, scheduleImpactDays]);
+
   const handleSave = useCallback((status: 'draft' | 'submitted', recipientName?: string, recipientEmail?: string) => {
     if (sendingRef.current) return;
     const saved = persistCO(status, recipientName, recipientEmail);
@@ -891,7 +1467,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (saved.isUpdate) {
-      showAlert('Updated', `Change Order #${saved.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
+      const msg = coSaveMessage({
+        number: saved.number, isUpdate: true, requested: status, next: saved.status,
+        recipientInfo, pricedEditOnSentCO: saved.pricedEditOnSentCO,
+      });
+      showAlert(msg.title, msg.message);
     } else {
       nailIt(status === 'submitted' ? `CO #${saved.number} submitted${recipientInfo}` : `CO #${saved.number} saved`);
     }
@@ -901,33 +1481,14 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   const handleSendPress = useCallback(() => {
     if (sendingRef.current) return;
-    setShowSendRecipient(true);
-  }, []);
+    withConfirmedImpactDays(() => setShowSendRecipient(true));
+  }, [withConfirmedImpactDays]);
 
   // Issue as G714 — Construction Change Directive. The same change
   // content is rendered as a G714 PDF instead of (or in addition to)
   // the standard Change Order. Used when work must proceed before the
   // owner/GC have agreed on price/time. Action sheet picks the payment
   // basis (lump sum, T&M, cost+, unit prices, or pending negotiation).
-  const handleIssueAsCcd = useCallback(() => {
-    if (!project) return;
-    if (!description.trim()) {
-      showAlert('Add a description', 'A CCD needs a clear description of the work being directed.');
-      return;
-    }
-    showAlert(
-      'Issue as Construction Change Directive?',
-      'A CCD directs the contractor to start work before final pricing is agreed. Pick how payment will be calculated:',
-      [
-        { text: 'Lump sum (estimate stated)',  onPress: () => generateCcd('lump_sum') },
-        { text: 'Time & materials',            onPress: () => generateCcd('time_and_materials') },
-        { text: 'Cost-plus fee',               onPress: () => generateCcd('cost_plus') },
-        { text: 'Unit prices in contract',     onPress: () => generateCcd('unit_prices') },
-        { text: 'Pending negotiation',         onPress: () => generateCcd('pending_negotiation') },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-    );
-  }, [project, description]);
 
   const generateCcd = useCallback(async (basis: CCDPaymentBasis) => {
     if (!project) return;
@@ -958,7 +1519,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         changeDescription: description.trim(),
         paymentBasis: basis,
         estimatedCostAdjustment: lineItems.reduce((s, l) => s + (l.total ?? 0), 0) || undefined,
-        estimatedTimeAdjustmentDays: undefined,
+        // #130 — the days he entered, parsed exactly as the save parses them.
+        // Empty or 0 stays undefined, so the form keeps its honest
+        // "— (to be determined)" instead of printing "+0 days".
+        estimatedTimeAdjustmentDays: parsedImpactDays,
       };
       await generateG714PDF(data, branding);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -966,7 +1530,61 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       console.error('[CCD] Generate failed:', err);
       showAlert('Could not generate', err instanceof Error ? err.message : 'Try again.');
     }
-  }, [project, settings, description, lineItems, nextCoNumber]);
+  }, [project, settings, description, lineItems, nextCoNumber, parsedImpactDays]);
+
+  const handleIssueAsCcd = useCallback(() => {
+    if (!project) return;
+    if (!description.trim()) {
+      showAlert('Add a description', 'A CCD needs a clear description of the work being directed.');
+      return;
+    }
+    // A signed directive must not print a price his screen isn't showing (#126).
+    const emptyDraft = coEmptyLineDraftBlocker(lineDrafts, lineItems);
+    if (emptyDraft) {
+      showAlert(emptyDraft.title, emptyDraft.message);
+      return;
+    }
+    withConfirmedImpactDays(() => showAlert(
+      'Issue as Construction Change Directive?',
+      'A CCD directs the contractor to start work before final pricing is agreed. Pick how payment will be calculated:',
+      [
+        { text: 'Lump sum (estimate stated)',  onPress: () => generateCcd('lump_sum') },
+        { text: 'Time & materials',            onPress: () => generateCcd('time_and_materials') },
+        { text: 'Cost-plus fee',               onPress: () => generateCcd('cost_plus') },
+        { text: 'Unit prices in contract',     onPress: () => generateCcd('unit_prices') },
+        { text: 'Pending negotiation',         onPress: () => generateCcd('pending_negotiation') },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    ));
+    // Declared AFTER generateCcd and depending on it: this callback used to
+    // hold the first render's generateCcd, whose lines and days never updated
+    // after he edited them (#130).
+  }, [project, description, lineDrafts, lineItems, withConfirmedImpactDays, generateCcd]);
+
+  /**
+   * #35 — share a CO this screen just wrote to the client portal. Waits (up to
+   * ~2 s) for a render whose change-order list holds THAT write — the new row,
+   * or the edited row's new updatedAt — then calls the context's share from
+   * that render (see latestCOsRef). 'failed' when it never appeared or the
+   * share threw, and the report then says so instead of claiming it.
+   */
+  const shareSavedCOToPortal = useCallback(async (id: string, priorUpdatedAt: string | null): Promise<'shared' | 'failed'> => {
+    const landed = () => {
+      const c = latestCOsRef.current.find(x => x.id === id);
+      return !!c && (priorUpdatedAt == null || c.updatedAt !== priorUpdatedAt);
+    };
+    for (let i = 0; i < 40 && !landed(); i++) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    if (!landed()) return 'failed';
+    try {
+      await sendToPortalRef.current({ kind: 'change_order', itemId: id, projectId });
+      return 'shared';
+    } catch (e) {
+      console.warn('[ChangeOrder] portal share failed:', e);
+      return 'failed';
+    }
+  }, [projectId]);
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
@@ -974,7 +1592,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       return;
     }
     // Refuse BEFORE anything goes out — see coSaveBlocker.
-    const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length });
+    const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length })
+      ?? coEmptyLineDraftBlocker(lineDrafts, lineItems);
     if (blocked) {
       showAlert(blocked.title, blocked.message);
       return;
@@ -986,26 +1605,61 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
     if (sendRecipientEmail.trim()) {
       const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
-      const html = buildChangeOrderEmailHtml({
+      // #35 — may this send put the CO on the client portal and point the email
+      // at it? Decided BEFORE the email goes out: the portal must be on, have a
+      // working share link, show change orders, and take this CO's frozen copy.
+      // Otherwise the email says "reply with your decision" and nothing more —
+      // it never names a portal the client cannot sign on.
+      const cp = project?.clientPortal;
+      const sendLines = coCommitLineItems(lineItems);
+      const sendAmount = coRoundCents(sendLines.reduce((sum, i) => sum + i.total, 0));
+      const portal = coPortalShare({
+        shareUrl: portalShareUrl(cp),
+        showChangeOrders: cp?.showChangeOrders,
+        requirePasscode: cp?.requirePasscode === true && !!cp?.passcode,
+        snapshotFits: freezeForPortal('change_order', {
+          ...(existingCO ?? {}),
+          description: description.trim(), reason: reason.trim(), lineItems: sendLines, changeAmount: sendAmount,
+        }) != null,
+      });
+      // #131 — the incl.-tax figure the client approves, at the rate this send
+      // freezes onto the CO (persistCO writes the same numbers).
+      const sendTax = coTaxFreeze(sendAmount, existingFrozenTaxRate ?? liveTaxRatePct);
+      // The fields past contactEmail drive the builder's portal CTA (#35), its
+      // tax rows and tax-inclusive headline (#131) and the G701 build-up (#129).
+      // Typed against the builder so a renamed option fails tsc here instead
+      // of being carried and silently ignored.
+      const emailOpts: Parameters<typeof buildChangeOrderEmailHtml>[0] = {
         companyName: branding.companyName,
         recipientName: sendRecipientName,
         projectName: project?.name ?? 'Project',
         coNumber: existingCO?.number ?? nextCoNumber,
         description: description.trim(),
-        changeAmount,
-        newContractTotal,
+        changeAmount: sendAmount,
+        newContractTotal: coRoundCents(originalContractValue + sendAmount),
         contactName: branding.contactName,
         contactEmail: branding.email,
-      });
+        portalUrl: portal?.portalUrl,
+        portalNeedsPasscode: portal?.portalNeedsPasscode ?? false,
+        taxRatePct: sendTax.taxRatePct,
+        taxAmount: sendTax.taxAmount,
+        totalWithTax: sendTax.totalWithTax,
+        originalContractSum,
+        priorApprovedChangesTotal: priorApprovedChanges,
+      };
+      const html = buildChangeOrderEmailHtml(emailOpts);
 
       // Subject: tight, scannable. Inbox preview shows the dollar swing
       // up front so the homeowner knows before opening. Drops the
       // "{Company} - " prefix because the FROM personalization (handled
       // server-side via fromCompanyName) already shows the company.
       const coNum = existingCO?.number ?? nextCoNumber;
-      const sign = changeAmount >= 0 ? '+' : '−';
+      // #131 — the headline is what the client approves: incl. tax when a tax
+      // rate applies (the body lists the pre-tax change and the tax).
+      const headline = sendTax.taxAmount !== 0 ? sendTax.totalWithTax : sendAmount;
+      const sign = headline >= 0 ? '+' : '−';
       const moneyShort = (() => {
-        const v = Math.abs(changeAmount);
+        const v = Math.abs(headline);
         if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(v >= 10_000_000 ? 0 : 1)}M`;
         if (v >= 1_000) return `$${Math.round(v / 1_000)}K`;
         return `$${v.toLocaleString('en-US')}`;
@@ -1046,12 +1700,18 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       // The validation above already ran, so this cannot be refused now.
       const status = coStatusForSend(result.outcome, existingCO?.status);
       const sent = result.outcome === 'sent';
+      const priorUpdatedAt = existingCO?.updatedAt ?? null;
       const saved = persistCO(status, sent ? sendRecipientName : undefined, sent ? sendRecipientEmail : undefined);
       if (!saved) { releaseSending(); return; }
       const write = await Promise.race<RecordWriteOutcome | 'pending'>([
         saved.write.catch((): RecordWriteOutcome => 'failed'),
         new Promise<'pending'>(resolve => setTimeout(() => resolve('pending'), CO_WRITE_REPORT_TIMEOUT_MS)),
       ]);
+      // #35 — the email just named the portal, so put the CO on it. Only for
+      // a real send (the CO is now submitted) of a CO MAGE did not refuse.
+      const portalOutcome = sent && portal && saved.status === 'submitted' && write !== 'failed'
+        ? await shareSavedCOToPortal(saved.id, saved.isUpdate ? priorUpdatedAt : null)
+        : undefined;
       const report = coSendReport({
         number: saved.number,
         email: result.outcome,
@@ -1059,6 +1719,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         status,
         write,
         recipient: sendRecipientName.trim() || sendRecipientEmail.trim(),
+        portal: portalOutcome,
       });
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(sent && write !== 'failed'
@@ -1077,7 +1738,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     } else {
       releaseSending();
     }
-  }, [persistCO, releaseSending, goBack, navigation, lineItems.length, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, changeAmount, newContractTotal]);
+  }, [persistCO, releaseSending, goBack, navigation, lineItems, lineDrafts, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, reason, originalContractValue, originalContractSum, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, shareSavedCOToPortal]);
 
   // A locked CO hides the EDIT action bar — an approved one gets the billing
   // bar below instead, which lifts the FAB the same way.
@@ -1139,7 +1800,34 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     }
   }, [existingCO, getInvoicesForProject]);
 
+  // #33 (app side) — the portal only signs a CO that is out for approval; a
+  // draft shared there showed the client a change order with nothing to sign.
+  const portalSendGate = useMemo((): { canSend: boolean; reason?: string } => {
+    if (existingCO?.status === 'draft') {
+      return { canSend: false, reason: 'Submit this change order for approval first (Send & Save, or Mark submitted) — the portal only asks your client to sign a submitted change order.' };
+    }
+    if (lineItems.length === 0) return { canSend: false, reason: 'Add at least one line item before sending.' };
+    return { canSend: true };
+  }, [existingCO?.status, lineItems.length]);
+
+  const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
+
   useBrainFabLift(!isLocked || coBilling ? bottomBarH : 0);
+
+  // #41 — the same role gate, on the job this editor actually resolved: a job
+  // picked in the editor (sidebar entry) or a link that named only a CO the
+  // outer gate could not see yet.
+  if (project && innerRoleGate !== 'open') {
+    return (
+      <CoRoleBlocked
+        gate={innerRoleGate}
+        role={innerRoleState.role ?? project.myRole ?? null}
+        projectId={projectId}
+        prefillDescription={prefillDescription}
+        onRetry={innerRoleState.refetch}
+      />
+    );
+  }
 
   if (!project) {
     return (
@@ -1175,7 +1863,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           {...fabScroll}
           // The approved-CO billing bar is taller than the edit bar it replaces
           // (it carries an explanatory line), so clear the measured height.
-          contentContainerStyle={[{ paddingBottom: Math.max(insets.bottom + 100, bottomBarH + 24) }, isDesktop && styles.contentDesktop]}
+          contentContainerStyle={[{ paddingBottom: Math.max(insets.bottom + 100, bottomBarH + (isLocked ? 0 : ccdRowH) + 24) }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -1212,7 +1900,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     setReflowPreviewCO(existingCO);
                     return;
                   }
-                  updateChangeOrder(existingCO.id, { status: next });
+                  // #131 — "Mark submitted" puts the CO out for approval too,
+                  // so it freezes the tax the same way Send & Save does (the
+                  // rate already frozen on the CO wins over today's setting).
+                  const freeze: COFrozenFields = next === 'submitted' && existingFrozenTaxRate == null
+                    ? coTaxFreeze(existingCO.changeAmount, liveTaxRatePct)
+                    : {};
+                  updateChangeOrder(existingCO.id, { status: next, ...freeze });
                   if (next === 'approved') {
                     nailIt(`CO #${existingCO.number} approved`);
                   }
@@ -1228,10 +1922,25 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           )}
 
           <View style={styles.totalsCard}>
+            {/* AIA G701's rows (#129). "Original Contract" used to show the
+                contract WITH every other approved CO in it. The prior-CO rows
+                only appear when there is a prior approved change to show. */}
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Original Contract</Text>
-              <Text style={styles.totalValue}>${originalContractValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              <Text style={styles.totalLabel}>Original contract sum</Text>
+              <Text style={styles.totalValue}>{formatCurrency(originalContractSum)}</Text>
             </View>
+            {priorApprovedChanges !== 0 && (
+              <>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Net change by prior approved COs</Text>
+                  <Text style={styles.totalValue}>{priorApprovedChanges >= 0 ? '+' : ''}{formatCurrency(priorApprovedChanges)}</Text>
+                </View>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Contract sum prior to this CO</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(originalContractValue)}</Text>
+                </View>
+              </>
+            )}
             <View style={styles.divider} />
             <View style={styles.totalRow}>
               <Text style={[styles.totalLabel, { color: changeAmount >= 0 ? themeColors.accent : themeColors.success }]}>
@@ -1309,13 +2018,19 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   </Text>
                 </View>
                 <Text style={styles.coTaxNote}>
-                  Sales tax is applied when this change is billed on a progress invoice — shown here so the total you approve matches what gets invoiced.
+                  {/* Integration critic money-portal: no invoice path reads the
+                      frozen rate (an invoice carries ONE rate — its own, from
+                      Settings when it is created), so the note must not promise
+                      the approved incl.-tax total is what gets billed. */}
+                  {existingFrozenTaxRate != null
+                    ? `Your client approved this change at ${taxRatePct}% sales tax. Tax is added when you bill it on a progress invoice, at your Settings rate on that day — if that rate has changed, the invoice total will differ from the approved one.`
+                    : 'Sales tax is added when you bill this change on a progress invoice, at your Settings rate on that day. The rate shown here is recorded on the change order when you send it, as the one your client approves.'}
                 </Text>
               </>
             )}
             <View style={styles.dividerThick} />
             <View style={styles.totalRow}>
-              <Text style={styles.grandLabel}>New Contract Total</Text>
+              <Text style={styles.grandLabel}>{taxRatePct > 0 && changeAmount !== 0 ? 'New Contract Total (pre-tax)' : 'New Contract Total'}</Text>
               <TapeRollNumber
                 value={newContractTotal}
                 formatter={formatCurrency}
@@ -1342,8 +2057,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     const partial = await parseCOFromTranscript(transcript, project);
                     if (partial.description) setDescription(prev => mergeText(prev, partial.description, prev ? 'append' : 'replace-if-empty'));
                     if (partial.reason) setReason(prev => pickIfEmpty(prev, partial.reason));
-                    if (partial.scheduleImpactDays && partial.scheduleImpactDays !== 0) {
-                      setScheduleImpactDays(prev => prev || String(partial.scheduleImpactDays));
+                    if (partial.scheduleImpactDays && partial.scheduleImpactDays > 0) {
+                      fillImpactDaysIfEmpty(partial.scheduleImpactDays, 'voice');
                     }
                     // Line items: append voice-derived items to whatever's already there.
                     if (partial.lineItems && partial.lineItems.length > 0) {
@@ -1389,7 +2104,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               </View>
 
               <View style={styles.fieldSection}>
-                <Text style={styles.fieldLabel}>Reason</Text>
+                <Text style={styles.fieldLabel}>Reason for change</Text>
                 <TextInput
                   style={styles.input}
                   value={reason}
@@ -1405,7 +2120,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 <TextInput
                   style={styles.input}
                   value={scheduleImpactDays}
-                  onChangeText={setScheduleImpactDays}
+                  onChangeText={onImpactDaysTyped}
                   placeholder="Additional days added to project (0 if none)"
                   placeholderTextColor={themeColors.textMuted}
                   keyboardType="numeric"
@@ -1417,6 +2132,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     untouched. Approval now really does reflow the schedule —
                     behind a preview — so the copy says exactly that, and says
                     something different when there is no schedule to reflow. */}
+                {!!coImpactDaysHelper(impactDaysSource, scheduleImpactDays) && (
+                  <Text style={styles.impactGuessText} testID="co-impact-days-source">
+                    {coImpactDaysHelper(impactDaysSource, scheduleImpactDays)}
+                  </Text>
+                )}
                 <Text style={styles.helperText}>
                   {project?.schedule?.tasks?.length
                     ? 'On approval you\'ll see which task absorbs these days and what shifts downstream — nothing moves until you apply it.'
@@ -1436,8 +2156,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     const ids = resolveAiAffectedTaskIds(project?.schedule?.tasks ?? [], names);
                     if (ids.length > 0) setAiAffectedTaskIds(ids);
                     // Only fill the days field when the user left it blank —
-                    // their number is the contractual one.
-                    if (res.scheduleDays > 0) setScheduleImpactDays(prev => prev || String(res.scheduleDays));
+                    // their number is the contractual one — and mark the fill
+                    // as an AI estimate he must confirm before it goes out.
+                    if (res.scheduleDays > 0) fillImpactDaysIfEmpty(res.scheduleDays, 'ai');
                   }}
                 />
               </View>
@@ -1448,7 +2169,21 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             <View style={styles.fieldSection}>
               <View style={styles.lockedCard}>
                 <Text style={styles.lockedTitle}>{existingCO?.description}</Text>
-                {existingCO?.reason ? <Text style={styles.lockedSub}>Reason: {existingCO.reason}</Text> : null}
+                {/* #125 — the client's decline, with their reason. The portal
+                    requires one, the reconciler stored it, and this card showed
+                    only "Rejected". */}
+                {declineLine && (
+                  <View style={styles.declineBox} testID="co-decline-line">
+                    <Text style={styles.declineTitle}>
+                      Declined by {declineLine.who}{declineLine.when ? ` on ${formatCalendarDay(calendarDayOf(declineLine.when) ?? declineLine.when)}` : ''}
+                    </Text>
+                    <Text style={styles.lockedSub}>
+                      {declineLine.reason ? `Their reason: ${declineLine.reason}` : 'No reason given.'}
+                    </Text>
+                  </View>
+                )}
+                {/* "for change", so his own reason is never read as the client's. */}
+                {existingCO?.reason ? <Text style={styles.lockedSub}>Reason for change: {existingCO.reason}</Text> : null}
                 {existingCO?.scheduleImpactDays ? (
                   <Text style={styles.lockedSub}>
                     Schedule Impact: +{existingCO.scheduleImpactDays} day{existingCO.scheduleImpactDays === 1 ? '' : 's'}
@@ -1458,9 +2193,27 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     {existingCO.scheduleImpactApplied
                       ? ' — applied to the schedule'
                       : existingCO.status === 'approved'
-                        ? ' — approved but not yet placed on the schedule. Open Change Orders on the project to pick the activity that absorbs them.'
+                        ? ((project?.schedule?.tasks?.length ?? 0) > 0
+                          ? ' — approved but not yet placed on the schedule.'
+                          : ' — approved, but this job has no schedule to place them on yet.')
                         : ' — not applied yet'}
                   </Text>
+                ) : null}
+                {/* #37: a CO approved in the client portal waits for him to
+                    place its days (the reconciler defers the reflow). The
+                    push he got says "review and place them" and opens THIS
+                    screen, so the control lives here too — the same preview
+                    the project screen uses, in its 'place' intent. */}
+                {existingCO?.status === 'approved'
+                  && (existingCO.scheduleImpactDays ?? 0) > 0
+                  && !existingCO.scheduleImpactApplied
+                  && (project?.schedule?.tasks?.length ?? 0) > 0 ? (
+                  <Button
+                    label={`Place +${existingCO.scheduleImpactDays}d on the schedule`}
+                    variant="secondary"
+                    onPress={() => setPlacePreviewCO(existingCO)}
+                    testID="co-place-days"
+                  />
                 ) : null}
               </View>
             </View>
@@ -1529,9 +2282,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                         <Text style={styles.lineItemFieldLabel}>Qty</Text>
                         <TextInput
                           style={styles.lineItemInput}
-                          value={item.quantity.toString()}
+                          value={lineDrafts[item.id]?.qty ?? String(item.quantity)}
                           onChangeText={(v) => handleUpdateItemQty(item.id, v)}
-                          keyboardType="numeric"
+                          onBlur={() => commitLineDraft(item.id, 'qty')}
+                          // Not iOS's decimal-pad: it has no minus key, and a
+                          // credit line needs one.
+                          keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'decimal-pad'}
+                          testID={`co-line-qty-${item.id}`}
                         />
                       </View>
                       <View style={styles.lineItemFieldSmall}>
@@ -1542,9 +2299,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                         <Text style={styles.lineItemFieldLabel}>Price</Text>
                         <TextInput
                           style={styles.lineItemInput}
-                          value={item.unitPrice.toString()}
+                          value={lineDrafts[item.id]?.price ?? item.unitPrice.toFixed(2)}
                           onChangeText={(v) => handleUpdateItemPrice(item.id, v)}
-                          keyboardType="numeric"
+                          onBlur={() => commitLineDraft(item.id, 'price')}
+                          keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'decimal-pad'}
+                          testID={`co-line-price-${item.id}`}
                         />
                       </View>
                       <View style={styles.lineItemFieldSmall}>
@@ -1585,7 +2344,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             basis → renders G714 PDF with same change content. The CO
             record is unchanged; G714 is just an alternate output. */}
         {!isLocked && (
-          <View style={styles.ccdRow}>
+          <View style={[styles.ccdRow, { bottom: bottomBarH }]} onLayout={onCcdRowLayout}>
             <TouchableOpacity
               style={styles.ccdLink}
               onPress={handleIssueAsCcd}
@@ -1600,78 +2359,101 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           </View>
         )}
 
-        {existingCO && (
+        {/* Rejected / void: no bar at the foot, so the portal control (recall,
+            "shared with client") stays in the normal flow. */}
+        {existingCO && (existingCO.status === 'rejected' || existingCO.status === 'void') && (
           <SendToClientButton
             kind="change_order"
             itemId={existingCO.id}
             projectId={existingCO.projectId}
             portalState={existingCO.portalState}
             itemUpdatedAt={existingCO.updatedAt}
-            canSend={lineItems.length > 0}
-            canSendReason={lineItems.length === 0 ? 'Add at least one line item before sending.' : undefined}
+            canSend={portalSendGate.canSend}
+            canSendReason={portalSendGate.reason}
           />
         )}
 
-        {!isLocked && sendFinished && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
-            <Button
-              label={sendFinished}
-              onPress={goBack}
-              variant="secondary"
-              style={{ flex: 1 }}
-              testID="co-sent-close"
-            />
-          </View>
-        )}
-
-        {!isLocked && !sendFinished && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
-            <Button
-              label="Save to Project"
-              onPress={() => handleSave('draft')}
-              variant="secondary"
-              style={{ flex: 1 }}
-              disabled={sendInFlight}
-              testID="save-co-draft"
-            />
-            <Button
-              label={sendInFlight ? 'Sending…' : 'Send & Save'}
-              onPress={handleSendPress}
-              disabled={sendInFlight}
-              iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
-              style={{ flex: 1 }}
-              testID="send-co-btn"
-            />
-          </View>
-        )}
-
-        {/* Approved CO → the one action that was missing: turn it into money.
-            When it cannot be billed the control still renders and SAYS WHY,
-            rather than vanishing and leaving the GC to guess. */}
-        {coBilling && existingCO && (
-          <View style={[styles.coBillBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
-            {coBilling.canBill ? (
-              <>
+        {/* #36 — ONE measured, absolute dock. The portal send used to render
+            in flow and sit underneath the absolute Save / Send & Save bar (and
+            the bill bar on an approved CO), so it could not be tapped. It now
+            stacks above them, inside the measured height the scroll padding,
+            the CCD row and the FAB lift all read. Email and portal stay two
+            actions: different channels, and merging them is a product call. */}
+        {(!isLocked || !!coBilling) && (
+          <View style={styles.bottomDock} onLayout={onBottomBarLayout}>
+            {existingCO && existingCO.status !== 'rejected' && existingCO.status !== 'void' && (
+              <SendToClientButton
+                kind="change_order"
+                itemId={existingCO.id}
+                projectId={existingCO.projectId}
+                portalState={existingCO.portalState}
+                itemUpdatedAt={existingCO.updatedAt}
+                canSend={portalSendGate.canSend}
+                canSendReason={portalSendGate.reason}
+              />
+            )}
+            {!isLocked && sendFinished && (
+              <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
                 <Button
-                  label={coBilling.label}
-                  onPress={() => {
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                    router.push({
-                      pathname: '/bill-from-estimate' as any,
-                      params: { projectId: existingCO.projectId, focusChangeOrderId: existingCO.id, type: 'progress' },
-                    });
-                  }}
-                  iconLeft={<Percent size={16} color="#FFFFFF" strokeWidth={1.75} />}
-                  fullWidth
-                  testID="bill-change-order-btn"
+                  label={sendFinished}
+                  onPress={goBack}
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                  testID="co-sent-close"
                 />
-                {!!coBilling.note && <Text style={styles.coBillNote}>{coBilling.note}</Text>}
-              </>
-            ) : (
-              <>
-                <Button label="Bill this change order" onPress={() => {}} disabled fullWidth testID="bill-change-order-btn" />
-                <Text style={styles.coBillNote}>{coBilling.reason}</Text>
-              </>
+              </View>
+            )}
+
+            {!isLocked && !sendFinished && (
+              <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+                <Button
+                  label="Save to Project"
+                  disabled={sendInFlight}
+                  onPress={() => withConfirmedImpactDays(() => handleSave('draft'))}
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                  testID="save-co-draft"
+                />
+                <Button
+                  label={sendInFlight ? 'Sending…' : 'Send & Save'}
+                  onPress={handleSendPress}
+                  disabled={sendInFlight}
+                  iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
+                  style={{ flex: 1 }}
+                  testID="send-co-btn"
+                />
+              </View>
+            )}
+
+            {/* Approved CO → the one action that was missing: turn it into money.
+                When it cannot be billed the control still renders and SAYS WHY,
+                rather than vanishing and leaving the GC to guess. */}
+            {coBilling && existingCO && (
+              <View style={[styles.coBillBar, { paddingBottom: insets.bottom + 12 }]}>
+                {coBilling.canBill ? (
+                  <>
+                    <Button
+                      label={coBilling.label}
+                      onPress={() => {
+                        if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                        router.push({
+                          pathname: '/bill-from-estimate' as any,
+                          params: { projectId: existingCO.projectId, focusChangeOrderId: existingCO.id, type: 'progress' },
+                        });
+                      }}
+                      iconLeft={<Percent size={16} color="#FFFFFF" strokeWidth={1.75} />}
+                      fullWidth
+                      testID="bill-change-order-btn"
+                    />
+                    {!!coBilling.note && <Text style={styles.coBillNote}>{coBilling.note}</Text>}
+                  </>
+                ) : (
+                  <>
+                    <Button label="Bill this change order" onPress={() => {}} disabled fullWidth testID="bill-change-order-btn" />
+                    <Text style={styles.coBillNote}>{coBilling.reason}</Text>
+                  </>
+                )}
+              </View>
             )}
           </View>
         )}
@@ -1884,11 +2666,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       {item.category} · {formatCurrency(item.unitSell ?? (isMarkupSet(seedMarkupPct) ? item.unitCost * (1 + seedMarkupPct / 100) : item.unitCost))}/{item.unit}
                     </Text>
                     <Text style={styles.estimateItemBasis}>
-                      {item.unitSell != null && item.markupPct != null && item.markupPct > 0
-                        ? `Your cost ${formatCurrency(item.unitCost)} + ${Math.round(item.markupPct)}% — the rate on the signed estimate`
-                        : isMarkupSet(seedMarkupPct) && seedMarkupPct > 0
-                          ? `Your cost ${formatCurrency(item.unitCost)} + your ${Math.round(seedMarkupPct)}% markup — this line carries none on the estimate`
-                          : `This is your cost. No markup is set, so it goes on the change order at what it costs you.`}
+                      {coEstimatePickBasis(item, isMarkupSet(seedMarkupPct) ? seedMarkupPct : null, formatCurrency)}
                     </Text>
                   </View>
                   <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
@@ -2034,6 +2812,24 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           }}
         />
       )}
+      {placePreviewCO !== null && (
+        <COScheduleReflowPreviewModal
+          visible
+          changeOrder={placePreviewCO}
+          schedule={project?.schedule ?? null}
+          estimateItems={reflowEstimateItems}
+          intent="place"
+          onClose={() => setPlacePreviewCO(null)}
+          onConfirm={(anchorTaskId) => {
+            const co = placePreviewCO;
+            setPlacePreviewCO(null);
+            // Already approved: an explicit anchor lets the reflow run with no
+            // status change (ProjectContext updateChangeOrder, #37).
+            updateChangeOrder(co.id, {}, { anchorTaskId });
+            nailIt(`CO #${co.number}: +${co.scheduleImpactDays}d placed on the schedule`);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -2072,6 +2868,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   gateBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.lg },
   gateTitle: { ...Type.headline, color: themeColors.text, textAlign: 'center' },
   gateText: { ...Type.subhead, color: themeColors.textSecondary, textAlign: 'center', maxWidth: 420 },
+  gatePrefillBox: { ...cardSurface(themeColors, { radius: 'md' }), maxWidth: 420 },
+  gatePrefill: { ...Type.footnote, color: themeColors.text },
+  impactGuessText: { fontSize: Type.caption1.fontSize, color: themeColors.dangerLabel, marginTop: 6, fontWeight: '600' as const },
+  declineBox: { borderLeftWidth: 3, borderLeftColor: themeColors.dangerLabel, paddingLeft: 10, marginVertical: 4, gap: 2 },
+  declineTitle: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '600' as const },
   pipelineWrap: pipelineWrapStyle,
   container: { flex: 1, backgroundColor: themeColors.bg },
   // Document-style form — cap kept, widened for desktop.
@@ -2141,8 +2942,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // by GCs who know what a CCD is, but doesn't compete with the
   // primary save/send actions.
   ccdRow: {
+    // `bottom` is set inline from the measured dock height (#36): a fixed 76
+    // left ~30pt of this row under the bar on an iPhone with a home indicator.
     position: 'absolute' as const,
-    bottom: 76, left: 0, right: 0,
+    left: 0, right: 0,
     paddingHorizontal: 20, paddingVertical: 8,
     backgroundColor: themeColors.surface,
   },
@@ -2159,9 +2962,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '500' as const,
     lineHeight: 16,
   },
-  coBillBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, gap: 8 },
+  coBillBar: { backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, gap: 8 },
   coBillNote: { fontSize: Type.caption1.fontSize, lineHeight: 16, color: themeColors.textSecondary, textAlign: 'center' as const },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  // The one absolute container at the foot of the screen (#36): the portal
+  // send sits INSIDE it, above Save / Send & Save (or the bill bar), so it is
+  // measured with them and nothing is drawn under anything.
+  bottomDock: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  bottomBar: { backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '15', borderWidth: 1.5, borderColor: themeColors.accent, alignItems: 'center', justifyContent: 'center' },

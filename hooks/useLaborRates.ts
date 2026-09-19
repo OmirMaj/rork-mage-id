@@ -1,15 +1,21 @@
-// useLaborRates — the GC's loaded labor rates, per trade.
+// useLaborRates — the GC's loaded labor rates, per trade, plus how he pays
+// overtime (the multiplier and the overtime rule).
 //
 // The one missing piece between crew time tracking and the cost book: hours
-// are measured, but no pay rate exists anywhere in the data model (verified
-// 2026-07 — not on TimeEntry, not on CrewMember, not in the Supabase
-// schema). The GC knows their loaded rate (wages + burden) — they write the
-// paychecks — so this store captures it once per trade, locally.
+// are measured, but no pay rate exists on TimeEntry or CrewMember. The GC
+// knows his loaded rate (wages + burden) — he writes the paychecks — so he
+// states it once per trade in Time Tracking's Labor rates sheet.
 //
-// Storage: AsyncStorage `mageid_labor_rates` (registered in
-// LOCAL_USER_CACHE_KEYS — contexts/AuthContext.tsx — so it never leaks
-// across tenants on shared devices), shared across screens via the
-// react-query cache. Same pattern as hooks/useMaterialReceipts.ts.
+// Storage (#61). The rates used to live only in AsyncStorage on the device
+// where he typed them, and the tenant sweep erases every `mageid_` key on
+// sign-in and sign-out (the sweep is prefix-based now — the old header said
+// "registered in LOCAL_USER_CACHE_KEYS", which stopped being the mechanism).
+// On the web app, or after any sign-out, every clocked hour priced at $0. They
+// now live on the ACCOUNT — gc_labor_rates + gc_labor_settings, RLS user_id =
+// auth.uid(), written through utils/offlineQueue supabaseWrite — and
+// `mageid_labor_rates` is only this device's cache of that book, so a jobsite
+// with no signal still prices labor. The merge (newest edit wins, cell by
+// cell, on device and server alike) is utils/laborSamples mergeRateBooks.
 //
 // Also exports useLaborCostSamples(): the read-side bridge that grounding
 // screens (estimate wizard, quick estimate, judges, cost database) mount to
@@ -21,101 +27,167 @@
 
 import { useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TimeEntry } from '@/types';
 import type { CostSample } from '@/utils/costDatabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   buildLaborSamples, normalizeOvertimeMultiplier, DEFAULT_OVERTIME_MULTIPLIER,
-  type LaborRateMap,
+  parseCachedBook, bookFromServer, mergeRateBooks, rateMapOf, rateRowFor, settingsRowFor, roundRate,
+  type LaborRateBook, type LaborSettingsCell,
 } from '@/utils/laborSamples';
+import { DEFAULT_OVERTIME_RULE, normalizeOvertimeRule, type OvertimeRule } from '@/utils/overtime';
 import { loadTimeEntriesMirror } from '@/hooks/useTimeEntries';
 
+/** Device cache of the account's rate book (v2: `{ v: 2, userId, rates, settings }`;
+ *  a v1 bare `{trade: rate}` map is read once and pushed up). `mageid_` prefix
+ *  ⇒ swept on a tenant switch; the account copy survives that. */
 const RATES_KEY = 'mageid_labor_rates';
-const RATES_QUERY = ['labor-rates'] as const;
-// MONEY-F19: the GC's overtime premium (default 1.5×). Its OWN key rather
-// than a reserved entry in the trade→rate map above, so nothing that iterates
-// `rates` (the labor-rates modal, computeLaborStats, buildLaborSamples) can
-// mistake it for a trade — and a device holding only the v1 map on disk keeps
-// working, reading the default. `mageid_` prefix ⇒ tenant-wiped with the rates.
-const OVERTIME_KEY = 'mageid_labor_overtime_multiplier';
-const OVERTIME_QUERY = ['labor-overtime-multiplier'] as const;
+// MONEY-F19's own key for the multiplier, from before the settings row existed.
+// Read ONLY to carry a v1 device's multiplier into the book; never written.
+const LEGACY_OVERTIME_KEY = 'mageid_labor_overtime_multiplier';
+const RATES_QUERY = 'labor-rate-book';
 const ENTRIES_MIRROR_QUERY = ['time-entries-mirror'] as const;
+const EMPTY_BOOK: LaborRateBook = { rates: {}, settings: null };
 
-async function loadRates(): Promise<LaborRateMap> {
+async function readCache(userId: string | null): Promise<LaborRateBook> {
   try {
-    const raw = await AsyncStorage.getItem(RATES_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    // Keep only sane numeric rates — a corrupt value must never poison the book.
-    const out: LaborRateMap = {};
-    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[k] = v;
-    }
-    return out;
+    const [raw, legacyOt] = await Promise.all([
+      AsyncStorage.getItem(RATES_KEY),
+      AsyncStorage.getItem(LEGACY_OVERTIME_KEY),
+    ]);
+    if (!raw && !legacyOt) return EMPTY_BOOK;
+    const parsed = raw ? JSON.parse(raw) : {};
+    // A cache stamped for another account is not this user's book. The sweep
+    // should already have removed it; this is the belt to that brace.
+    if (parsed && typeof parsed === 'object' && parsed.v === 2 && parsed.userId && parsed.userId !== userId) return EMPTY_BOOK;
+    return parseCachedBook(parsed, legacyOt);
   } catch {
-    return {};
+    return EMPTY_BOOK;
   }
 }
 
-async function persistRates(rates: LaborRateMap): Promise<void> {
+async function writeCache(userId: string | null, book: LaborRateBook): Promise<void> {
   try {
-    await AsyncStorage.setItem(RATES_KEY, JSON.stringify(rates));
+    await AsyncStorage.setItem(RATES_KEY, JSON.stringify({ v: 2, userId, rates: book.rates, settings: book.settings }));
+    await AsyncStorage.removeItem(LEGACY_OVERTIME_KEY);
   } catch (err) {
-    console.log('[laborRates] persist failed:', err);
+    console.log('[laborRates] cache write failed:', err);
   }
 }
 
-async function loadOvertimeMultiplier(): Promise<number> {
+interface BookState { book: LaborRateBook }
+
+/** The ACCOUNT half, run in the background (never on the path to `rates`).
+ *  Read the account copy; merge it, newest cell wins, with what this device
+ *  holds NOW — the in-memory book (every edit lands there synchronously),
+ *  else the disk cache; publish the merge into the book query, write the
+ *  cache, and push any cell the device holds newer. Returns true once the
+ *  account copy has been read. A failed read (offline, or the migration not
+ *  applied yet) changes nothing — never an empty book over a real one. */
+async function syncBookWithAccount(
+  userId: string,
+  getLocal: () => LaborRateBook | undefined,
+  publish: (book: LaborRateBook) => void,
+): Promise<boolean> {
   try {
-    const raw = await AsyncStorage.getItem(OVERTIME_KEY);
-    return raw == null ? DEFAULT_OVERTIME_MULTIPLIER : normalizeOvertimeMultiplier(Number(raw));
+    const [ratesRes, settingsRes] = await Promise.all([
+      supabase.from('gc_labor_rates').select('trade_key, rate, updated_at').eq('user_id', userId),
+      supabase.from('gc_labor_settings').select('overtime_multiplier, ot_weekly_threshold, ot_daily_threshold, week_starts_on, updated_at').eq('user_id', userId).maybeSingle(),
+    ]);
+    if (ratesRes.error || settingsRes.error) return false;
+    const server = bookFromServer(ratesRes.data ?? [], settingsRes.data ?? null);
+    // Read the device side AFTER the round trip: an edit saved while the read
+    // was in flight must win over the account's older copy.
+    const local = getLocal() ?? await readCache(userId);
+    const { merged, pushRates, pushSettings } = mergeRateBooks(local, server);
+    publish(merged);
+    // Cache what memory holds by now (an edit may have landed on top of the
+    // merge), so the disk never lags the book the screens are showing.
+    await writeCache(userId, getLocal() ?? merged);
+    for (const k of pushRates) void supabaseWrite('gc_labor_rates', 'upsert', rateRowFor(userId, k, merged.rates[k]));
+    if (pushSettings && merged.settings) void supabaseWrite('gc_labor_settings', 'upsert', settingsRowFor(userId, merged.settings));
+    return true;
   } catch {
-    return DEFAULT_OVERTIME_MULTIPLIER;
-  }
-}
-
-async function persistOvertimeMultiplier(multiplier: number): Promise<void> {
-  try {
-    await AsyncStorage.setItem(OVERTIME_KEY, String(multiplier));
-  } catch (err) {
-    console.log('[laborRates] persist overtime multiplier failed:', err);
+    return false;
   }
 }
 
 export function useLaborRates() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  // Keyed by user: the in-memory cache must never hand one account's book to
+  // the next on a shared device.
+  const queryKey = useMemo(() => [RATES_QUERY, userId] as const, [userId]);
 
-  const { data: rates = {}, isLoading } = useQuery({
-    queryKey: RATES_QUERY,
-    queryFn: loadRates,
+  // CACHE FIRST (review). `rates` comes from THIS query, which only reads the
+  // device cache — milliseconds, no network. Waiting on the account read
+  // (supabase-js sets no timeout) left every costing screen at $0 labor and
+  // a false "no rate" banner for the whole round trip on jobsite signal.
+  // If the account sync has already published into this key, that wins.
+  const { data, isLoading } = useQuery({
+    queryKey,
+    queryFn: async (): Promise<BookState> => {
+      const cached = await readCache(userId);
+      return queryClient.getQueryData<BookState>(queryKey) ?? { book: cached };
+    },
+    // The cache only changes through this hook (commit / the sync below),
+    // both of which update this key directly — re-reading it is never needed.
+    staleTime: Infinity,
   });
 
-  const save = useMutation({
-    mutationFn: async (next: LaborRateMap) => { await persistRates(next); return next; },
-    onSuccess: (next) => { queryClient.setQueryData(RATES_QUERY, next); },
+  // The account sync, in the background: merges into the book above when it
+  // lands. Every costing screen mounts this hook, so five minutes, plus a
+  // fresh pull whenever the signed-in account changes (the key does).
+  const { data: fromAccount } = useQuery({
+    queryKey: [RATES_QUERY, 'account-sync', userId] as const,
+    enabled: !!userId && isSupabaseConfigured,
+    queryFn: () => syncBookWithAccount(
+      userId as string,
+      () => queryClient.getQueryData<BookState>(queryKey)?.book,
+      (merged) => queryClient.setQueryData<BookState>(queryKey, { book: merged }),
+    ),
+    staleTime: 5 * 60 * 1000,
   });
+  const book = data?.book ?? EMPTY_BOOK;
+  const rates = useMemo(() => rateMapOf(book), [book]);
 
+  // Read-modify-write against the CACHE, updated synchronously before any
+  // await, so two edits in one tick each see the other (the old onSuccess
+  // update lost all but the last of a multi-trade edit).
   const current = useCallback(
-    () => (queryClient.getQueryData<LaborRateMap>(RATES_QUERY) ?? rates),
-    [queryClient, rates],
+    (): BookState => queryClient.getQueryData<BookState>(queryKey) ?? { book },
+    [queryClient, queryKey, book],
   );
+  const commit = useCallback((next: LaborRateBook, rateKeys: string[], settings: boolean) => {
+    queryClient.setQueryData<BookState>(queryKey, { book: next });
+    void writeCache(userId, next);
+    if (!userId) return;
+    for (const k of rateKeys) void supabaseWrite('gc_labor_rates', 'upsert', rateRowFor(userId, k, next.rates[k]));
+    if (settings && next.settings) void supabaseWrite('gc_labor_settings', 'upsert', settingsRowFor(userId, next.settings));
+  }, [queryClient, queryKey, userId]);
 
   /** Apply a batch of rate edits in ONE read-merge-write. Set when rate > 0,
-   *  clear when null/0/NaN. This is the only safe way to persist multiple
-   *  edits at once: the query cache is updated in the mutation's onSuccess
-   *  (a microtask AFTER AsyncStorage persists), so a loop of per-key
-   *  setRate() calls reads the SAME stale snapshot every iteration — each
-   *  mutation carries only its own key's change and the last one to settle
-   *  overwrites the rest (the labor-rates-modal lost-update bug). */
+   *  clear when null/0/NaN. Only keys whose value actually changed are
+   *  written (and re-dated), so saving the sheet unchanged sends nothing. */
   const setRates = useCallback((batch: Record<string, number | null>) => {
-    const next = { ...current() };
-    for (const [tradeKey, rate] of Object.entries(batch)) {
-      if (rate !== null && Number.isFinite(rate) && rate > 0) next[tradeKey] = rate;
-      else delete next[tradeKey];
+    const prev = current().book;
+    const now = new Date().toISOString();
+    const nextRates = { ...prev.rates };
+    const changed: string[] = [];
+    for (const [tradeKey, raw] of Object.entries(batch)) {
+      const rate = raw !== null && Number.isFinite(raw) && raw > 0 ? roundRate(raw) : null;
+      const had = prev.rates[tradeKey]?.rate ?? null;
+      if (had === rate) continue;
+      nextRates[tradeKey] = { rate, updatedAt: now };
+      changed.push(tradeKey);
     }
-    save.mutate(next);
-  }, [save, current]);
+    if (changed.length === 0) return;
+    commit({ rates: nextRates, settings: prev.settings }, changed, false);
+  }, [current, commit]);
 
   /** Set (rate > 0) or clear (rate null/0) the loaded $/hr for a normalized
    *  trade key (utils/laborSamples.ts normalizeTradeKey). For multiple
@@ -124,27 +196,47 @@ export function useLaborRates() {
     setRates({ [tradeKey]: rate });
   }, [setRates]);
 
-  // MONEY-F19: per-GC overtime multiplier. Read with the rates, sane-d on the
-  // way in and out (normalizeOvertimeMultiplier), 1.5× until the GC says
-  // otherwise. Consumers: useLaborCostSamples below and computeJobCost's
-  // `overtimeMultiplier` input.
-  const { data: overtimeMultiplier = DEFAULT_OVERTIME_MULTIPLIER } = useQuery({
-    queryKey: OVERTIME_QUERY,
-    queryFn: loadOvertimeMultiplier,
-  });
-  const saveOvertime = useMutation({
-    mutationFn: async (raw: number) => {
-      const next = normalizeOvertimeMultiplier(raw);
-      await persistOvertimeMultiplier(next);
-      return next;
-    },
-    onSuccess: (next) => { queryClient.setQueryData(OVERTIME_QUERY, next); },
-  });
-  const setOvertimeMultiplier = useCallback((multiplier: number) => {
-    saveOvertime.mutate(multiplier);
-  }, [saveOvertime]);
+  // MONEY-F19 / #153 / #65: how he pays overtime. The multiplier is sane-d on
+  // the way in (normalizeOvertimeMultiplier: 1–3, junk → 1.5); the rule is the
+  // federal weekly >40 until he says otherwise. `overtimeIsDefault` lets a
+  // screen say "1.5× — the default" instead of presenting it as his setting.
+  const overtimeMultiplier = book.settings?.overtimeMultiplier ?? DEFAULT_OVERTIME_MULTIPLIER;
+  const overtimeRule: OvertimeRule = book.settings?.overtimeRule ?? DEFAULT_OVERTIME_RULE;
+  const overtimeIsDefault = book.settings == null;
 
-  return { rates, isLoading, setRate, setRates, overtimeMultiplier, setOvertimeMultiplier };
+  const setOvertimeSettings = useCallback((patch: { overtimeMultiplier?: number; overtimeRule?: Partial<OvertimeRule> }) => {
+    const prev = current().book;
+    const base: LaborSettingsCell = prev.settings ?? {
+      overtimeMultiplier: DEFAULT_OVERTIME_MULTIPLIER, overtimeRule: DEFAULT_OVERTIME_RULE, updatedAt: '',
+    };
+    const nextMultiplier = patch.overtimeMultiplier === undefined
+      ? base.overtimeMultiplier : normalizeOvertimeMultiplier(patch.overtimeMultiplier);
+    const nextRule = normalizeOvertimeRule({ ...base.overtimeRule, ...(patch.overtimeRule ?? {}) });
+    // Nothing changed (including "still the defaults") ⇒ nothing written, so
+    // closing the sheet untouched never stamps a setting he did not make.
+    const same = nextMultiplier === base.overtimeMultiplier
+      && JSON.stringify(nextRule) === JSON.stringify(normalizeOvertimeRule(base.overtimeRule));
+    if (same) return;
+    commit({
+      rates: prev.rates,
+      settings: { overtimeMultiplier: nextMultiplier, overtimeRule: nextRule, updatedAt: new Date().toISOString() },
+    }, [], true);
+  }, [current, commit]);
+
+  const setOvertimeMultiplier = useCallback((multiplier: number) => {
+    setOvertimeSettings({ overtimeMultiplier: multiplier });
+  }, [setOvertimeSettings]);
+  const setOvertimeRule = useCallback((rule: Partial<OvertimeRule>) => {
+    setOvertimeSettings({ overtimeRule: rule });
+  }, [setOvertimeSettings]);
+
+  return {
+    rates, isLoading, setRate, setRates,
+    overtimeMultiplier, setOvertimeMultiplier, overtimeRule, setOvertimeRule, setOvertimeSettings, overtimeIsDefault,
+    /** False until this device has read the account copy once this session
+     *  (offline, or the migration not live yet) — the sheet says so. */
+    ratesFromAccount: fromAccount === true,
+  };
 }
 
 /**
@@ -171,7 +263,10 @@ export function useTimeEntriesMirror(): TimeEntry[] {
 
 /** Self-perform labor cost samples for buildCostDatabase's 4th param. */
 export function useLaborCostSamples(): CostSample[] {
-  const { rates, overtimeMultiplier } = useLaborRates();
+  const { rates, overtimeMultiplier, overtimeRule } = useLaborRates();
   const entries = useTimeEntriesMirror();
-  return useMemo(() => buildLaborSamples(entries, rates, overtimeMultiplier), [entries, rates, overtimeMultiplier]);
+  return useMemo(
+    () => buildLaborSamples(entries, rates, overtimeMultiplier, overtimeRule),
+    [entries, rates, overtimeMultiplier, overtimeRule],
+  );
 }

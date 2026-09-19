@@ -26,6 +26,7 @@ import {
   resolveProjectAccess,
   COLLABORATOR_PROJECT_FEATURES,
   OWNER_ONLY_FEATURES,
+  FEATURE_ROLES,
 } from '../utils/collaboratorAccess';
 
 let failures = 0;
@@ -83,6 +84,27 @@ check('own tier wins for project features too',
 // ── an unknown feature key is denied, not defaulted open ────────────────────
 check('unlisted feature is NOT granted',
   resolveProjectAccess(false, 'field', 'some_future_feature') === false);
+
+// ── #62: clocking the GC's crew is a field/editor grant, per role ───────────
+// A foreman on a field seat opened Time Tracking and hit the Business paywall.
+// The grant is its own key — subcontractor_management (the GC's cross-job sub
+// book) stays owner-only — and it is role-checked: a viewer cannot clock
+// anyone in.
+check('field seat may clock crew in (crew_time_tracking)',
+  resolveProjectAccess(false, 'field', 'crew_time_tracking') === true);
+check('editor seat may clock crew in',
+  resolveProjectAccess(false, 'editor', 'crew_time_tracking') === true);
+check('a VIEWER seat may not clock crew in',
+  resolveProjectAccess(false, 'viewer', 'crew_time_tracking') === false);
+check('a free OWNER is not granted crew_time_tracking by the collaborator path',
+  resolveProjectAccess(false, 'owner', 'crew_time_tracking') === false);
+check('null role is not granted crew_time_tracking',
+  resolveProjectAccess(false, null, 'crew_time_tracking') === false);
+check('subcontractor_management stays owner-only (the sub book is not this job)',
+  OWNER_ONLY_FEATURES.has('subcontractor_management')
+  && resolveProjectAccess(false, 'field', 'subcontractor_management') === false);
+check('a per-role feature still needs to be in the collaborator list',
+  Object.keys(FEATURE_ROLES).every(f => COLLABORATOR_PROJECT_FEATURES.has(f)));
 
 // ── the field role is still blinded from money by the OTHER axis ────────────
 // collaboratorAccess decides whether a screen OPENS; roleBlinding decides

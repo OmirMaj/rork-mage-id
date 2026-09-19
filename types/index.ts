@@ -887,8 +887,11 @@ export interface ScheduleTask {
   // As-built tracking (Phase 5). These are OPTIONAL and read-only to the CPM
   // engine — they don't cascade to successors unless the user explicitly hits
   // "Reflow from actuals." The rule: the plan stays the plan until you say so.
-  //   actualStartDay: day the task actually started (1-indexed, same basis as startDay)
-  //   actualEndDay:   day the task actually finished (inclusive)
+  //   actualStartDay: CALENDAR index of the day the task actually started (day 1 = schedule.startDate,
+  //                   every calendar day counts — utils/pace/stampActuals.ts; NOT the working-ordinal
+  //                   basis of startDay)
+  //   actualEndDay:   CALENDAR index of the day the task actually finished (inclusive; same basis as
+  //                   actualStartDay, NOT the working-ordinal basis of startDay)
   //   actualStartDate / actualEndDate: absolute dates captured alongside the
   //     day numbers — useful for reporting and less fragile than recomputing
   //     from projectStartDate (which can shift if the user edits it).
@@ -1155,6 +1158,9 @@ export interface ProjectSchedule {
   workingDaysPerWeek: number;
   bufferDays: number;
   tasks: ScheduleTask[];
+  /** The NAMED active baseline slip is measured from (#137). Absent = the
+   *  newest baselines[] entry. Read via utils/scheduleOps getActiveBaseline. */
+  activeBaselineId?: string;
   totalDurationDays: number;
   criticalPathDays: number;
   laborAlignmentScore: number;
@@ -1694,6 +1700,14 @@ export interface ChangeOrder {
    */
   approvalDeadlineDays?: number;
   auditTrail?: COAuditEntry[];
+  /** Sales tax frozen on the CO when it is sent (server tax_rate_pct,
+   *  tax_amount, total_with_tax), so the screen, email, portal and invoice
+   *  cannot disagree if the rate changes later (audit #131). */
+  taxRatePct?: number;
+  taxAmount?: number;
+  totalWithTax?: number;
+  /** Sum of the approved COs before this one, frozen with the tax figures. */
+  priorApprovedChangesTotal?: number;
   revision?: number;
   createdAt: string;
   updatedAt: string;
@@ -1877,6 +1891,12 @@ export interface InvoicePayment {
   date: string;
   amount: number;
   method: PaymentMethod;
+  /** The local calendar day (YYYY-MM-DD, utils/calendarDate) the money was
+   *  RECEIVED. `date` is the instant it was recorded; a check recorded Monday
+   *  night for Friday's deposit must reach QuickBooks as Friday (audit #133). */
+  receivedDate?: string;
+  /** Check number / reference, sent to QuickBooks as PaymentRefNum. */
+  reference?: string;
 }
 
 export interface RetentionRelease {
@@ -1957,6 +1977,11 @@ export interface Invoice {
    */
   dunningStage?: number;
   dunningLastSentAt?: string;
+  /** The address (and name) he last emailed this invoice to — server columns
+   *  bill_to_email / bill_to_name. invoice-dunning reminds this address first,
+   *  the first portal invitee only as a fallback (audit #47). */
+  billToEmail?: string;
+  billToName?: string;
 }
 
 // AIA G702/G703 progress pay application saved against a project. The portal
@@ -2064,6 +2089,8 @@ export interface DFRWeather {
 
 export interface DFRPhoto {
   id: string;
+  /** Evidence of an incident — kept off the client portal. */
+  incidentPhoto?: boolean;
   /** Best URL to render RIGHT NOW — the device-local file when this device
    *  still has it, otherwise a signed URL resolved from `storagePath`. */
   uri: string;
@@ -2971,6 +2998,10 @@ export interface PunchItem {
   assignedSubId?: string;
   linkedTaskId?: string;
   linkedTaskName?: string;
+  /** auth user id of whoever raised the item (delete-permission check). */
+  createdByUserId?: string;
+  /** The sub's note when marking the item ready (server sub_note). */
+  subNote?: string;
   dueDate: string;
   priority: PunchItemPriority;
   status: PunchItemStatus;
@@ -3097,6 +3128,9 @@ export interface IncidentPerson {
   name: string;
   role: string;
   injuryDescription?: string;
+  injured?: boolean;
+  /** OSHA 300 privacy case — the name is withheld on the log. */
+  privacyCase?: boolean;
 }
 
 export interface IncidentCorrectiveAction {
@@ -3902,6 +3936,14 @@ export interface RFI {
   shareToken?: string;
   createdAt: string;
   updatedAt: string;
+  /** #55 review round · The updated_at of the row as the SERVER last reported it
+   *  (the loader, or the read-back after this device wrote it landed) —
+   *  never a device clock. updateRFI sends it so the answer guard
+   *  (20260919080000) knows he saw the current row and lets a deliberate
+   *  reopen land. Cleared the moment this device sends an edit (the server
+   *  stamps a new value); absent = unknown, and a reopen then asks for a
+   *  fresh copy instead of being silently undone. Never written to a column. */
+  serverUpdatedAt?: string;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
 }
@@ -3924,8 +3966,22 @@ export interface Submittal {
   title: string;
   specSection: string;
   submittedBy: string;
+  /** '' = not sent yet (generativeSetup and the intake write ''); read with
+   *  `||`, never `??`, or '' becomes an Invalid Date. */
   submittedDate: string;
+  /** '' = not set; otherwise a bare calendar day (utils/calendarDate). */
   requiredDate: string;
+  /** Schedule task this submittal gates (server linked_task_id). */
+  linkedTaskId?: string;
+  submittalType?: string;
+  trade?: string;
+  /** Plan pages the submittal was raised from (server source_pages jsonb). */
+  sourcePages?: number[];
+  /** Estimated days before installation the architect wants it in hand (AI,
+   *  from the spec book; server lead_days). An estimate, not a deadline. */
+  leadDays?: number;
+  /** Whether requiredDate was derived from the schedule or typed by hand. */
+  requiredDateSource?: 'schedule' | 'manual';
   reviewCycles: SubmittalReviewCycle[];
   currentStatus: SubmittalStatus;
   attachments: string[];
@@ -3933,6 +3989,8 @@ export interface Submittal {
   shareToken?: string;
   createdAt: string;
   updatedAt: string;
+  /** #55 review round · The updated_at the server last reported (see RFI.serverUpdatedAt). */
+  serverUpdatedAt?: string;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
 }

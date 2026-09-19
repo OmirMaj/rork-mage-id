@@ -15,6 +15,7 @@
 import {
   currentSheetCandidates, effectiveRevision, sheetNumberKey, type RevisionSheetLike,
 } from '@/utils/planRevisionCore';
+import { sheetIdFromDocId } from './planChunk';
 import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 
 export interface SheetLike extends RevisionSheetLike {
@@ -32,8 +33,16 @@ export function currentSheetsForCompare<T extends RevisionSheetLike>(sheets: rea
 
 export type RevisionFiling =
   | { kind: 'ready'; label: string; nextRevision: number }
-  | { kind: 'blocked'; reason: string }
-  | { kind: 'filed'; label: string };
+  /** `needsNumber`: the only thing missing is the old sheet's number, and the
+   *  screen can take it inline without throwing the paid comparison away (#75). */
+  | { kind: 'blocked'; reason: string; needsNumber?: boolean }
+  | { kind: 'filed'; label: string }
+  /** #76: both sides were already in the plan set — there is nothing to file,
+   *  and offering "File as Rev N+1" would create a duplicate revision. */
+  | { kind: 'in_set'; label: string };
+
+/** How a sheet is cited (see sheetCitation). */
+export interface SheetCite { sheetNumber?: string; name: string; revision?: number }
 
 /**
  * Can the uploaded revision be filed into the plan set as the next revision of
@@ -43,22 +52,31 @@ export type RevisionFiling =
 export function revisionFiling(opts: {
   oldSheet: SheetLike;
   allSheets: readonly SheetLike[];
-  /** Storage path of the rendered revision page; '' for a picked image. */
+  /** Storage path of the rendered revision page (PDF render or uploaded
+   *  image); '' when the revision has no stored copy. */
   newPath: string;
   filedRevision?: number | null;
+  /** #76: the "new" side is a sheet already in the plan set. */
+  newSheetInSet?: SheetCite | null;
 }): RevisionFiling {
-  const { oldSheet, allSheets, newPath, filedRevision } = opts;
+  const { oldSheet, allSheets, newPath, filedRevision, newSheetInSet } = opts;
   const number = sheetNumberKey(oldSheet);
+  if (newSheetInSet) {
+    return { kind: 'in_set', label: `Already in the plan set as ${sheetCitation(newSheetInSet)} — nothing to file.` };
+  }
   if (typeof filedRevision === 'number') {
     return { kind: 'filed', label: `Filed as Rev ${filedRevision} of ${number ?? oldSheet.name} — the old copy is marked superseded` };
   }
   if (!newPath) {
-    return { kind: 'blocked', reason: 'Only a PDF revision can be filed into the plan set — a picked image has no stored copy.' };
+    return { kind: 'blocked', reason: 'Only a PDF revision or an uploaded image can be filed into the plan set — this revision has no stored copy.' };
   }
   if (!number) {
     return {
       kind: 'blocked',
-      reason: `${oldSheet.name} has no sheet number, so a new copy can't replace it. Give it a number in the plan viewer, then compare again.`,
+      needsNumber: true,
+      // The comparison is kept while he types it (#75): no second render, no
+      // second paid compare.
+      reason: `${oldSheet.name} has no sheet number, so a new copy can't replace it. Type the number from its title block below (or in the plan viewer) — this comparison is kept.`,
     };
   }
   // addPlanSheet chains onto the highest live revision with this number; say
@@ -111,12 +129,24 @@ export function rfiFromCandidate(
   oldSheet: { projectId: string; sheetNumber?: string; name: string; revision?: number },
   revisionLabel: string | null,
   now: Date,
+  /** #76: when the revision is itself a sheet in the plan set, the RFI is about
+   *  THAT sheet — cite it and link it, and name the old one as the baseline.
+   *  #77: `sheetImages` are the two drawings compared (old, then new), attached
+   *  so the architect can see what changed instead of a sheet number in text.
+   *  Only viewable http(s) images are kept (attachableSheetUri). */
+  opts?: { newSheet?: SheetCite | null; sheetImages?: readonly (string | null | undefined)[] },
 ) {
-  const cite = sheetCitation(oldSheet);
+  const newSheet = opts?.newSheet ?? null;
+  const images = [...new Set((opts?.sheetImages ?? []).map(attachableSheetUri).filter(Boolean))];
+  const cite = sheetCitation(newSheet ?? oldSheet);
+  const raised = newSheet
+    ? `(Raised comparing ${sheetCitation(oldSheet)} with ${cite}, both in the plan set.)`
+    : `(Raised comparing ${cite} against the revision${revisionLabel ? ` "${revisionLabel}"` : ''}.)`;
+  const linked = newSheet ?? oldSheet;
   return {
     projectId: oldSheet.projectId,
     subject: candidate.subject.trim() || `${cite} revision question`,
-    question: `${candidate.question.trim()}\n\n(Raised comparing ${cite} against the revision${revisionLabel ? ` "${revisionLabel}"` : ''}.)`,
+    question: `${candidate.question.trim()}\n\n${raised}`,
     submittedBy: '',
     assignedTo: '',
     dateSubmitted: now.toISOString(),
@@ -124,9 +154,39 @@ export function rfiFromCandidate(
     status: 'open' as const,
     priority: 'normal' as const,
     ballInCourt: 'gc' as const,
-    linkedDrawing: (oldSheet.sheetNumber ?? '').trim() || oldSheet.name,
-    attachments: [] as string[],
+    linkedDrawing: (linked.sheetNumber ?? '').trim() || linked.name,
+    attachments: images as string[],
   };
+}
+
+const CHANGE_LABEL: Record<string, string> = {
+  added: 'Added', removed: 'Removed', modified: 'Modified', renote: 'Note revised',
+};
+
+/**
+ * #166: a flagged CHANGE that needs the architect's word, as an RFI. Same
+ * record as a drafted question (rfiFromCandidate) — the subject says what kind
+ * of change and where, the question carries the AI's description and asks for
+ * the intent. The addressee stays empty on purpose: the screen then opens the
+ * RFI so he fills it in, rather than guessing one.
+ */
+export function rfiFromChange(
+  change: { type?: string; location?: string; description: string },
+  oldSheet: { projectId: string; sheetNumber?: string; name: string; revision?: number },
+  revisionLabel: string | null,
+  now: Date,
+  opts?: { newSheet?: SheetCite | null; sheetImages?: readonly (string | null | undefined)[] },
+) {
+  const where = (change.location ?? '').trim();
+  const kind = CHANGE_LABEL[change.type ?? ''] ?? 'Change';
+  const what = change.description.trim();
+  return rfiFromCandidate(
+    {
+      subject: `${kind}${where ? ` · ${where}` : ''}`,
+      question: `${what}${/[.?!]$/.test(what) ? '' : '.'} Please confirm the intent of this change before we price or build it.`,
+    },
+    oldSheet, revisionLabel, now, opts,
+  );
 }
 
 // ── #21 Renumbering a sheet ────────────────────────────────────────────────
@@ -222,4 +282,295 @@ export function planRenumber(
     patches,
     message: `A newer copy of ${number} is already in the set, so this sheet is now marked superseded.`,
   };
+}
+
+/**
+ * The plan_sheets columns a SheetPatch carries that ProjectContext.updatePlanSheet
+ * does not forward (revision / previous_sheet_id / superseded). Without this
+ * write a chain edit lives in local state alone and the next refetch resurrects
+ * the old copy as live (plan-viewer B4 review). null when there is nothing to
+ * write. Shared by the viewer's number field and Compare's inline one (#75).
+ */
+export function chainColumnsPatch(updates: SheetPatch['updates']): Record<string, unknown> | null {
+  const chain: Record<string, unknown> = {};
+  if (updates.revision !== undefined) chain.revision = updates.revision;
+  if (updates.previousSheetId !== undefined) chain.previous_sheet_id = updates.previousSheetId;
+  if (updates.superseded !== undefined) chain.superseded = updates.superseded;
+  return Object.keys(chain).length > 0 ? chain : null;
+}
+
+// ── #75 Title-block sheet numbers ──────────────────────────────────────────
+
+/** A number read off a sheet's title block, offered — never written — until he
+ *  confirms it. The model can misread, and a wrong number supersedes the
+ *  wrong sheet. */
+export interface TitleBlockSuggestion {
+  sheetId: string;
+  /** How the sheet is named today ("IFC Set — Page 12"). */
+  label: string;
+  sheetNumber: string;
+  /** Another sheet in the same batch read the same number. Offered, but not
+   *  pre-ticked: two pages of one set cannot both be A-201. */
+  duplicate: boolean;
+}
+
+/**
+ * Which title-block reads are worth offering: sheets that still have NO number
+ * (a number he typed always wins), are not superseded history, and whose read
+ * is a plausible sheet number (non-empty, ≤ 40 chars — planRenumber's limit).
+ */
+export function titleBlockSuggestions(
+  sheets: readonly SheetLike[],
+  reads: readonly { sheetId: string; sheetNumber?: string | null }[],
+): TitleBlockSuggestion[] {
+  const byId = new Map(sheets.map(s => [s.id, s]));
+  const out: Omit<TitleBlockSuggestion, 'duplicate'>[] = [];
+  for (const r of reads) {
+    const sheet = byId.get(r.sheetId);
+    const number = String(r.sheetNumber ?? '').replace(/\s+/g, ' ').trim();
+    if (!sheet || !number || number.length > 40) continue;
+    if ((sheet.sheetNumber ?? '').trim()) continue;
+    if (sheet.superseded === true) continue;
+    if (out.some(o => o.sheetId === sheet.id)) continue;
+    out.push({ sheetId: sheet.id, label: sheet.name, sheetNumber: number });
+  }
+  const key = (n: string) => n.toUpperCase();
+  const counts = new Map<string, number>();
+  for (const o of out) counts.set(key(o.sheetNumber), (counts.get(key(o.sheetNumber)) ?? 0) + 1);
+  return out.map(o => ({ ...o, duplicate: (counts.get(key(o.sheetNumber)) ?? 0) > 1 }));
+}
+
+/**
+ * Apply several confirmed numbers as ONE ordered patch list. Each renumber is
+ * planned against the set as the previous ones left it, so numbering page 3
+ * A-201 and then meeting the older IFC A-201 chains correctly, exactly as if
+ * he had typed each number in the viewer one after another.
+ */
+export function planBatchRenumber(
+  accepted: readonly { sheetId: string; sheetNumber: string }[],
+  allSheets: readonly SheetLike[],
+): { patches: SheetPatch[]; messages: string[]; applied: number } {
+  let working: SheetLike[] = allSheets.map(s => ({ ...s }));
+  const patches: SheetPatch[] = [];
+  const messages: string[] = [];
+  let applied = 0;
+  for (const a of accepted) {
+    const sheet = working.find(s => s.id === a.sheetId);
+    if (!sheet) continue;
+    const plan = planRenumber(sheet, a.sheetNumber, working);
+    if (plan.kind === 'invalid') { messages.push(`${sheet.name}: ${plan.reason}`); continue; }
+    if (plan.kind === 'noop') continue;
+    applied++;
+    for (const p of plan.patches) {
+      patches.push(p);
+      working = working.map(s => (s.id === p.id ? { ...s, ...p.updates } : s));
+    }
+    // Named: in a batch, "this sheet" alone does not say which one.
+    if (plan.message) messages.push(`${sheet.name}: ${plan.message}`);
+  }
+  return { patches, messages, applied };
+}
+
+// ── #77 An RFI raised from a pin ───────────────────────────────────────────
+
+/**
+ * Where a pin sits on a sheet, in words someone holding ONLY the sheet can
+ * find: a 3×3 zone plus the percentages. The RFI used to say "the marked
+ * location", and nothing the architect received — email or portal — showed a
+ * mark, so he answered the wrong beam pocket or wrote back "which mark?".
+ */
+export function pinPositionPhrase(x: number, y: number): string {
+  const cx = Math.min(1, Math.max(0, Number.isFinite(x) ? x : 0.5));
+  const cy = Math.min(1, Math.max(0, Number.isFinite(y) ? y : 0.5));
+  const col = cx < 1 / 3 ? 'left' : cx > 2 / 3 ? 'right' : 'centre';
+  const row = cy < 1 / 3 ? 'upper' : cy > 2 / 3 ? 'lower' : 'middle';
+  const zone = row === 'middle' && col === 'centre' ? 'centre' : row === 'middle' ? `middle ${col}` : col === 'centre' ? `${row} centre` : `${row}-${col}`;
+  return `${zone} of the sheet (about ${Math.round(cx * 100)}% from the left, ${Math.round(cy * 100)}% from the top)`;
+}
+
+/**
+ * The addRFI input for "Raise RFI from this location".
+ *
+ * `sheetImageUri` is the drawing itself, attached so the recipient can see the
+ * sheet; `photo` is a photo linked to the pin. The photo goes FIRST: app/rfi.tsx
+ * treats attachment 0 as the source photo (sourcePhotoId) and draws its markup
+ * from there, so putting the sheet ahead of it would hang the photo's circle on
+ * the drawing. The question never says "marked" — an attached sheet shows the
+ * drawing, not the pin, so the position is written out in words either way.
+ *
+ * `dateRequired` is a CALENDAR DAY 14 days out (#164), the same shape app/rfi.tsx
+ * writes; `now + 14 * 86_400_000` then `.toISOString()` was the next UTC day for
+ * anyone raising it after ~5 pm west of Greenwich, so the screen said day 15
+ * while the email said day 14.
+ */
+export function rfiFromPin(
+  sheet: { projectId: string; sheetNumber?: string; name: string },
+  pin: { x: number; y: number; label?: string },
+  now: Date,
+  attach: { sheetImageUri?: string | null; photo?: { id: string; uri: string } | null } = {},
+) {
+  const sheetName = (sheet.sheetNumber ?? '').trim() || sheet.name;
+  const label = (pin.label ?? '').trim();
+  const where = `on ${sheetName}, ${pinPositionPhrase(pin.x, pin.y)}`;
+  const photo = attach.photo && attach.photo.uri ? attach.photo : null;
+  const sheetUri = (attach.sheetImageUri ?? '').trim();
+  const attachments = [...(photo ? [photo.uri] : []), ...(sheetUri ? [sheetUri] : [])];
+  const seeAttached = sheetUri ? ` ${sheetName} is attached.` : '';
+  return {
+    projectId: sheet.projectId,
+    subject: label ? `${sheetName}: ${label}` : `${sheetName} — RFI`,
+    question: label
+      ? `Regarding ${label} ${where}: please advise.${seeAttached}`
+      : `Please clarify the detail ${where}.${seeAttached}`,
+    submittedBy: '',
+    assignedTo: '',
+    dateSubmitted: now.toISOString(),
+    dateRequired: toCalendarDayString(addCalendarDays(now, 14)),
+    status: 'open' as const,
+    priority: 'normal' as const,
+    ballInCourt: 'gc' as const,
+    linkedDrawing: sheetName,
+    attachments,
+    // #146: the linked photo's id rides with it, so app/rfi.tsx draws the
+    // markup he made on that photo (attachment 0) on every device.
+    ...(photo ? { sourcePhotoId: photo.id } : {}),
+  };
+}
+
+/** A viewable, http(s) sheet image to attach, or ''. A device-local file or a
+ *  bare storage path cannot be emailed or opened by the architect. */
+export function attachableSheetUri(uri: string | null | undefined): string {
+  const u = String(uri ?? '').trim();
+  return /^https:\/\//i.test(u) ? u : '';
+}
+
+// ── #78 Answers only from the current revision ─────────────────────────────
+
+/**
+ * Split vector matches into those on a CURRENT sheet and those on a superseded
+ * or deleted one. Runs BEFORE the confidence floor and the prompt: filtering
+ * only the citation chips is too late, the model has already read the old
+ * header size by then.
+ */
+export function splitMatchesByCurrentSheet<T extends { doc_id: string }>(
+  matches: readonly T[],
+  sheets: readonly { id: string; superseded?: boolean }[],
+): { current: T[]; staleDropped: number } {
+  const currentIds = new Set(sheets.filter(s => s.superseded !== true).map(s => s.id));
+  const current: T[] = [];
+  let staleDropped = 0;
+  for (const m of matches) {
+    const id = sheetIdFromDocId(m.doc_id);
+    if (id && currentIds.has(id)) current.push(m);
+    else staleDropped++;
+  }
+  return { current, staleDropped };
+}
+
+/** The line shown when older-revision matches were left out of an answer. */
+export function staleMatchesNote(staleDropped: number, answeredFromCurrent: boolean): string | null {
+  if (staleDropped <= 0) return null;
+  const n = `${staleDropped} match${staleDropped === 1 ? '' : 'es'}`;
+  return answeredFromCurrent
+    ? `${n} came from a superseded or deleted sheet and ${staleDropped === 1 ? 'was' : 'were'} left out — tap Index to read the new revision.`
+    : `The only matching sheets were older revisions — the current set isn't indexed yet. Tap Index to search it.`;
+}
+
+/** The index button's wording when the manifest says sheets changed since the
+ *  last run. null = the manifest could not be read (never claim "up to date"). */
+export function changedSinceIndexLabel(staleCount: number | null): string | null {
+  if (staleCount === null || staleCount <= 0) return null;
+  return `Index ${staleCount} changed sheet${staleCount === 1 ? '' : 's'} — answers may be from older revisions`;
+}
+
+// ── #73 Who may do what to the plan set ────────────────────────────────────
+
+export type PlanRole = 'owner' | 'editor' | 'viewer' | 'field' | null;
+
+/** What a project-scoped plan screen shows. `open` means the screen renders;
+ *  the per-control blocks below still apply inside it. */
+export type PlanGate = 'open' | 'loading' | 'error' | 'no_access' | 'locked';
+
+/**
+ * The GATING CONTRACT for Plans / the viewer. Project access (own tier OR the
+ * collaborator grant) opens it. Otherwise: a spinner only while the role read
+ * is in flight (a free foreman must not see a paywall flash), a retry on a
+ * failed read (a network error is not an upgrade prompt), and a null role after
+ * loading is "no access" said plainly — never a spinner forever.
+ */
+export function planScreenGate(s: { canAccess: boolean; roleLoading: boolean; roleError: boolean; role: PlanRole; offline?: boolean }): PlanGate {
+  if (s.canAccess) return 'open';
+  if (s.roleLoading) return 'loading';
+  // Offline, a paused role read is neither loading nor errored — and it is not
+  // "no access" either. It gets the retry ("check your connection").
+  if (s.roleError || (s.offline && s.role === null)) return 'error';
+  if (s.role === null) return 'no_access';
+  return 'locked';
+}
+
+export type PlanControl = 'import' | 'delete' | 'compare' | 'estimate' | 'index' | 'markup';
+
+/** Why the role read has not produced a role. A null role means different
+ *  things, and each needs its own sentence: still in flight, the read FAILED
+ *  (retry), or paused because the device is offline (web react-query pauses a
+ *  query offline — it is then neither loading nor errored). */
+export interface PlanRoleStatus { isError?: boolean; offline?: boolean }
+
+/**
+ * The role the plan controls act on. The collaborator read is the authority,
+ * but when it has not produced a role (in flight, failed, paused offline) the
+ * local project row already knows whether this user OWNS the job
+ * (projects.user_id, loaded as ownerUserId). An owner must not lose Delete or
+ * Import to a network blip. Only 'owner' is inferred — a collaborator's cached
+ * role could be stale (removed from the job), so it is never trusted here.
+ */
+export function effectivePlanRole(
+  role: PlanRole,
+  project: { ownerUserId?: string | null } | null | undefined,
+  userId: string | null | undefined,
+): PlanRole {
+  if (role !== null) return role;
+  const owner = project?.ownerUserId;
+  return owner && userId && owner === userId ? 'owner' : null;
+}
+
+/**
+ * Why `role` may NOT use a plan control, or null when it may. Every refusal is
+ * the sentence the disabled control shows.
+ *
+ *   import / compare — write sheets into the GC's set (plan-sheets storage is
+ *     editor+), so field and viewer seats are refused;
+ *   delete — plan_sheets rows delete for their owner only (plan_sheets_all_own);
+ *   estimate — Plan Intelligence is the GC's estimating tool, not the job's;
+ *   index — the Ask Your Plans index is built on the owner's plan and allowance;
+ *   markup — pins, strokes, scale and sheet numbers insert/update at field tier
+ *     and above (field_role_reconcile: drawing_pins, plan_markups,
+ *     plan_calibrations, plan_sheets _collab_insert/_collab_update), so a
+ *     viewer's write would fail silently at RLS.
+ *
+ * A null role is refused, never waved through — with the sentence that is true
+ * for WHY it is null: a failed read says so and points at Try again; offline
+ * says the check waits for signal; otherwise it is still checking.
+ */
+export function planControlBlock(role: PlanRole, control: PlanControl, status?: PlanRoleStatus): string | null {
+  if (role === null) {
+    if (status?.isError) return 'Couldn\u2019t check your role on this job \u2014 tap Try again.';
+    if (status?.offline) return 'You\u2019re offline, so your role on this job can\u2019t be checked yet \u2014 this unlocks when you reconnect.';
+    return 'Checking your role on this job\u2026';
+  }
+  if (role === 'owner') return null;
+  switch (control) {
+    case 'import':
+      return role === 'editor' ? null : 'Only the project owner or an editor can add sheets to this job.';
+    case 'compare':
+      return role === 'editor' ? null : 'Only the project owner or an editor can compare revisions \u2014 a comparison files the new revision into the set.';
+    case 'delete':
+      return 'Only the project owner can delete sheets.';
+    case 'estimate':
+      return role === 'editor' ? null : 'Estimating rooms from a sheet is the project owner\u2019s tool.';
+    case 'index':
+      return 'The project owner indexes the plan set \u2014 you can ask questions of the sheets they indexed.';
+    case 'markup':
+      return role === 'viewer' ? 'Viewer seats can look but not mark up \u2014 ask the project owner for a field seat.' : null;
+  }
 }

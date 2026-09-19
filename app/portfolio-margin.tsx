@@ -94,10 +94,10 @@ function PortfolioMarginInner() {
   // receipts at its bid margin while Job Costing showed the overrun.
   const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: ratesLoading } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
   // Hold the board until those stores have loaded. They default to [] / {}
   // while AsyncStorage is read, and for that beat every self-perform job
   // priced at its bid margin — a guess rendered as a reading — and the

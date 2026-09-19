@@ -47,7 +47,10 @@ import { generateUUID } from '@/utils/generateId';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import type { Submittal } from '@/types';
+import {
+  markSpecDuplicates, absoluteSourcePages, deriveSubmittalRequiredDate, requiredDateNote, extractedSubmittal,
+  type SpecDuplicate, type DerivedRequiredDate,
+} from '@/utils/submittalAttachments';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -58,7 +61,17 @@ interface PickItem extends AiSubmittalCandidate {
   rowId: string;
   // Whether the GC keeps this row when bulk-saving.
   selected: boolean;
+  /** #59: already in the project's log, or already on this list from an
+   *  earlier pass. Shown unchecked with the reason — never silently dropped. */
+  duplicate: SpecDuplicate;
+  /** #60: the Required Date this row would get, and where it came from. */
+  derived: DerivedRequiredDate;
 }
+
+/** The PDF this session is reading, kept so the next pass re-uses it (#59).
+ *  convert-pdf-to-images deletes its uploaded copy after rendering, so a later
+ *  pass uploads this same local file again with a later startPage. */
+interface PickedBook { uri: string; name: string; pageCount: number | null }
 
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
 
@@ -71,7 +84,7 @@ export default function ExtractSubmittalsScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
-  const { projects, getProject, addSubmittals, settings } = useProjects();
+  const { projects, getProject, addSubmittals, settings, getSubmittalsForProject } = useProjects();
   const { tier } = useSubscription();
 
   // Opened without params (Tools hub, search): land on a project picker
@@ -88,6 +101,67 @@ export default function ExtractSubmittalsScreen() {
   const [coverage, setCoverage] = useState<SpecCoverage | null>(null);
   const [items, setItems] = useState<PickItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [book, setBook] = useState<PickedBook | null>(null);
+
+  // ── One pass: render pages [startPage, startPage+23] and read them ──
+  // Rows from a later pass are ADDED to the review list, each checked against
+  // the project's log and the rows already here (#59).
+  const runPass = useCallback(async (picked: PickedBook, startPage: number) => {
+    if (!project) return;
+    setStep('uploading');
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const rendered = await uploadAndRenderPdf({
+        fileUri: picked.uri,
+        projectId: project.id,
+        fileName: picked.name,
+        dpi: 130,
+        maxPages: SPEC_PAGES_PER_PASS,
+        startPage,
+      });
+      // Passes run in order from page 1 (each starts at the last one's
+      // nextPage), so the list on screen covers pages 1 through this pass's
+      // last — and that is what the hero and the unread warning must say.
+      setCoverage(specCoverage(picked.pageCount, 1, startPage - 1 + rendered.length));
+
+      setStep('analyzing');
+      const { result } = await extractSubmittalsFromSpecBook({
+        // DB-F11: paths, not URLs — the function downloads the bytes with the
+        // service role. pageUrls is the one-release fallback for a function
+        // that has not been redeployed yet.
+        pagePaths: rendered.map(p => p.storagePath),
+        pageUrls: rendered.map(p => p.viewUrl),
+        projectName: project.name,
+      });
+      await recordAIUsage('smart', 'specBookExtract');
+
+      const pageNumbers = rendered.map(p => p.pageNumber);
+      const candidates = result.items.map(item => ({
+        ...item,
+        // The model numbers the pages it was shown; the log keeps the book's.
+        sourcePages: absoluteSourcePages(item.sourcePages, pageNumbers),
+      }));
+      setAiResult(result);
+      setItems(prev => [
+        ...prev,
+        // Default-select every "high" / "medium" item; "low" defaults off so
+        // the GC opts in for fuzzy entries — and a duplicate defaults off.
+        ...markSpecDuplicates(candidates, getSubmittalsForProject(project.id), prev).map(item => ({
+          ...item,
+          rowId: generateUUID(),
+          derived: deriveSubmittalRequiredDate({ schedule: project.schedule, trade: item.trade, leadDays: item.dueRelativeDays }),
+        })),
+      ]);
+      setStep('review');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn('[extract-submittals] failed', e);
+      setError(String((e as Error).message ?? e));
+      // A later pass that fails keeps what the earlier passes found; the
+      // review screen shows the error above its list.
+      setStep(startPage > 1 ? 'review' : 'idle');
+    }
+  }, [project, getSubmittalsForProject]);
 
   // ── Pick + analyze ─────────────────────────────────────────────
   const handlePickAndAnalyze = useCallback(async () => {
@@ -129,49 +203,19 @@ export default function ExtractSubmittalsScreen() {
         if (!fits) return;
       }
 
-      setStep('uploading');
-      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      // Render the PDF to PNG pages we can ship to Gemini Vision. The
-      // edge function caps at 24 pages — for a typical residential spec
-      // book that's enough; commercial books may need batching.
-      const rendered = await uploadAndRenderPdf({
-        fileUri: asset.uri,
-        projectId: project.id,
-        fileName: asset.name,
-        dpi: 130,
-        maxPages: SPEC_PAGES_PER_PASS,
-      });
-      const read = specCoverage(pageCount, 1, rendered.length);
-      setCoverage(read);
-
-      setStep('analyzing');
-      const { result } = await extractSubmittalsFromSpecBook({
-        // DB-F11: paths, not URLs — the function downloads the bytes with the
-        // service role. pageUrls is the one-release fallback for a function
-        // that has not been redeployed yet.
-        pagePaths: rendered.map(p => p.storagePath),
-        pageUrls: rendered.map(p => p.viewUrl),
-        projectName: project.name,
-      });
-      await recordAIUsage('smart', 'specBookExtract');
-
-      setAiResult(result);
-      // Default-select every "high" / "medium" item; "low" defaults off
-      // so the GC opts in for fuzzy entries.
-      setItems(result.items.map(item => ({
-        ...item,
-        rowId: generateUUID(),
-        selected: item.confidence !== 'low',
-      })));
-      setStep('review');
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const pickedBook: PickedBook = { uri: asset.uri, name: asset.name ?? 'Spec book PDF', pageCount };
+      // A new book starts a new review list.
+      setBook(pickedBook);
+      setItems([]);
+      setAiResult(null);
+      setCoverage(null);
+      await runPass(pickedBook, 1);
     } catch (e) {
       console.warn('[extract-submittals] failed', e);
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [project, tier]);
+  }, [project, tier, router, runPass]);
 
   // ── Review-list mutations ──────────────────────────────────────
   const toggleRow = useCallback((rowId: string) => {
@@ -183,39 +227,64 @@ export default function ExtractSubmittalsScreen() {
   }, []);
   const selectedCount = items.filter(i => i.selected).length;
 
+  // ── #59: read the next pages of the SAME book ──────────────────
+  const nextPage = coverage && !coverage.complete ? coverage.nextPage : null;
+  const nextPassLabel = nextPage
+    ? (book?.pageCount
+      ? `Read pages ${nextPage}–${Math.min(book.pageCount, nextPage + SPEC_PAGES_PER_PASS - 1)}`
+      : `Read pages ${nextPage}–${nextPage + SPEC_PAGES_PER_PASS - 1}`)
+    : null;
+  const handleNextPass = useCallback(async () => {
+    if (!book || !nextPage) return;
+    setError(null);
+    const limit = await checkAILimit(tier, 'smart', 'specBookExtract');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router, monthly: true });
+      return;
+    }
+    // No client quota dialog for a later pass: confirmQuotaFits words its
+    // refusal as "That PDF is N pages", and N would be this pass's range, not
+    // the book. convert-pdf-to-images meters exactly the pages it will render
+    // from startPage and refuses before any spend with both numbers named.
+    await runPass(book, nextPage);
+  }, [book, nextPage, tier, router, runPass]);
+
   // ── Bulk save selected → submittal log ─────────────────────────
   const handleSave = useCallback(async () => {
     if (!project) return;
     if (selectedCount === 0) { showAlert('Nothing selected'); return; }
     setSaving(true);
     try {
-      const today = new Date();
       // Build every keeper first, then insert as ONE batch. Looping
       // addSubmittal (which used a stale render closure) collapsed all rows
       // onto the same number so only the last survived, yet the count below
       // reported the full total. addSubmittals numbers + commits atomically.
-      const toAdd: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[] = items
-        .filter(row => row.selected)
-        .map(row => {
-          const requiredDate = new Date(today.getTime() + row.dueRelativeDays * 24 * 60 * 60 * 1000);
-          return {
-            projectId: project.id,
-            title: row.title,
-            specSection: row.specSection || '',
-            submittedBy: settings?.branding?.companyName || 'Project Team',
-            submittedDate: today.toISOString(),
-            requiredDate: requiredDate.toISOString(),
-            reviewCycles: [],
-            currentStatus: 'pending',
-            attachments: [],
-          };
-        });
+      //
+      // #60: each row is logged NOT sent (no submitted date) and with a
+      // Required Date only when a schedule task gives it one; its type, trade,
+      // spec pages and estimated lead are kept on the record.
+      const keepers = items.filter(row => row.selected);
+      const toAdd = keepers.map(row => extractedSubmittal({
+        projectId: project.id,
+        submittedBy: settings?.branding?.companyName || 'Project Team',
+        row,
+        derived: row.derived,
+      }));
       addSubmittals(toAdd);
       const added = toAdd.length;
+      const dated = toAdd.filter(x => !!x.requiredDate).length;
+      const skipped = items.filter(r => r.duplicate === 'log' && !r.selected).length;
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
         'Submittals added',
-        `${added} submittal${added === 1 ? '' : 's'} logged. Open the project's submittal section to attach files and route them.`,
+        [
+          `${added} submittal${added === 1 ? '' : 's'} logged — none sent yet.`,
+          skipped > 0 ? `${skipped} already in the log ${skipped === 1 ? 'was' : 'were'} left out.` : '',
+          dated < added
+            ? `${added - dated} ${added - dated === 1 ? 'has' : 'have'} no required date — no schedule task matched the trade. Set it on each submittal, or link a task.`
+            : '',
+          'Open each one from the project\'s Submittals to attach the product data and send it for review.',
+        ].filter(Boolean).join('\n\n'),
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
@@ -289,7 +358,7 @@ export default function ExtractSubmittalsScreen() {
               <Text style={styles.helperTitle}>What works</Text>
               <Text style={styles.helperBody}>
                 • {SPEC_PAGES_PER_PASS} pages per pass — the review screen says which pages were read, and a longer book needs one pass per section.{'\n'}
-                • Default lead time is 14 days; AI bumps to 30 for long-lead items (mock-ups, custom fabrication).{'\n'}
+                • Lead times are AI estimates (14 days typical, 30 for long-lead items like mock-ups and custom fabrication). A required date is set only when a schedule task matches the trade — its start less the lead. Otherwise it stays blank for you to set.{'\n'}
                 • Architect-grade spec books work best (Division 02-33 with explicit &quot;Submittals&quot; sections). Quick scope letters give thinner results.
               </Text>
             </View>
@@ -314,8 +383,20 @@ export default function ExtractSubmittalsScreen() {
               <View style={styles.partialBanner}>
                 <AlertCircle size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
                 <Text style={styles.partialText}>
-                  {specUnreadWarning(coverage)} Run the remaining pages as their own upload (split the PDF from page {coverage.nextPage}).
+                  {specUnreadWarning(coverage)}
                 </Text>
+              </View>
+            ) : null}
+            {nextPassLabel ? (
+              <TouchableOpacity onPress={() => { void handleNextPass(); }} style={[styles.secondaryBtn]} activeOpacity={0.85} testID="spec-next-pass">
+                <FileText size={15} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.secondaryBtnText}>{nextPassLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {error ? (
+              <View style={styles.errorBanner}>
+                <AlertCircle size={14} color={themeColors.danger} strokeWidth={1.75} />
+                <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
@@ -340,8 +421,13 @@ export default function ExtractSubmittalsScreen() {
                       </View>
                       <View style={styles.metaChip}>
                         <Calendar size={11} color={themeColors.textMuted} strokeWidth={1.75} />
-                        <Text style={styles.metaChipText}>{row.dueRelativeDays}d lead</Text>
+                        <Text style={styles.metaChipText}>{row.dueRelativeDays}d estimated lead (AI)</Text>
                       </View>
+                      {row.duplicate ? (
+                        <View style={[styles.metaChip, { backgroundColor: themeColors.warningSoft }]}>
+                          <Text style={styles.metaChipText}>{row.duplicate === 'log' ? 'already in log' : 'already on this list'}</Text>
+                        </View>
+                      ) : null}
                       <View style={[styles.confChip, confColor(row.confidence, themeColors)]}>
                         <Text style={styles.confText}>{row.confidence}</Text>
                       </View>
@@ -350,6 +436,7 @@ export default function ExtractSubmittalsScreen() {
                     {row.sourcePages.length > 0 ? (
                       <Text style={styles.itemPages}>p. {row.sourcePages.join(', ')}</Text>
                     ) : null}
+                    <Text style={styles.itemPages}>{requiredDateNote(row.derived, row.dueRelativeDays)}</Text>
                   </View>
                   <Switch
                     value={row.selected}
@@ -423,6 +510,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
+  secondaryBtn: {
+    marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.accent, backgroundColor: 'transparent',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  secondaryBtnText: { color: t.accent, fontSize: Type.subhead.fontSize, fontWeight: '700' },
 
   partialBanner: {
     marginHorizontal: 16, marginBottom: 12,

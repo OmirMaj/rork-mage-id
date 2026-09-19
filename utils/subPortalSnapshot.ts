@@ -8,6 +8,8 @@ import type {
   Invoice, SubPortalLink, SubSubmittedInvoice,
   PunchItem, ProjectSchedule,
 } from '@/types';
+import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
+import { calendarDayOf, parseCalendarDay } from '@/utils/calendarDate';
 
 // v2 adds (Wave 5):
 // - punchItems: open + in-progress punch items assigned to this sub
@@ -73,17 +75,17 @@ export interface SubPortalSnapshot {
     notesFromGc?: string;
   }[];
 
-  // v2: open + in-progress punch items assigned to this sub. Helps
-  // the sub answer "what's still on my list?" without calling the GC.
-  punchItems?: {
-    id: string;
-    description: string;
-    location?: string;
-    priority?: string;
-    status: string;
-    dueDate?: string;
-    photoUri?: string;
-  }[];
+  // v2: every NOT-CLOSED punch item in this sub's scope (scopePunchForSub),
+  // sorted and capped at SUB_PORTAL_PUNCH_CAP. open / in_progress are "still
+  // on you"; ready_for_review is "waiting on the GC to verify" — the page
+  // groups them apart. When the page reads through sub_portal_get_snapshot
+  // this list is REPLACED server-side by the live punch_items rows (migration
+  // 20260919200000), so only a hash-only fallback shows this frozen copy.
+  punchItems?: SubPortalPunchEntry[];
+  /** Scoped not-closed items BEFORE the cap — "Showing 60 of 75". */
+  punchTotal?: number;
+  /** Set by the server read when punchItems are live (ISO instant). */
+  punchLiveAt?: string;
 
   // v2: schedule tasks where this sub is assigned (or their trade
   // matches the task's crew). Includes the parent project's schedule
@@ -116,6 +118,87 @@ export interface SubPortalSnapshot {
   };
 }
 
+/**
+ * One punch row as the sub's portal receives it. The photo travels as its
+ * durable STORAGE PATH in the private project-photos bucket, never as photoUri:
+ * on the phone that took it that is a file:// the sub's browser cannot open.
+ * The portal does not draw the photo yet (a private bucket needs a signed URL,
+ * which Postgres cannot mint) — it shows the description, location, due date
+ * and the plan sheet the item is pinned on.
+ */
+export interface SubPortalPunchEntry {
+  id: string;
+  description: string;
+  location?: string;
+  priority?: string;
+  status: string;
+  dueDate?: string;
+  photoStoragePath?: string;
+  planSheetId?: string;
+  /** "A-101 · Level 2" — utils/punchPlanPin.pinSheetLabel's rule. */
+  sheetLabel?: string;
+  pinX?: number;
+  pinY?: number;
+  /** The sub's own note from "Mark fixed" (punch_items.sub_note). */
+  subNote?: string;
+}
+
+/** Keep equal to the cap in sub_portal_live_punch (migration 20260919200000). */
+export const SUB_PORTAL_PUNCH_CAP = 60;
+
+/** Still on the sub: open or in progress. ready_for_review is on the GC. */
+export function punchIsOnSub(p: Pick<PunchItem, 'status'>): boolean {
+  return p.status === 'open' || p.status === 'in_progress';
+}
+
+const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+const dueKey = (d: string | undefined): string => {
+  const v = (d ?? '').trim();
+  return /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : '9999-12-31';
+};
+
+/**
+ * THE punch list a sub's portal shows, in the order it shows it: every item on
+ * this project in his scope (punchItemBelongsToSub) that is not closed —
+ * on-him items first, then the ones waiting on the GC; within each, priority
+ * high→low, earliest due (an unreadable due date last), oldest first. Sorted
+ * BEFORE any cap, so the cap drops the least urgent rows, never the oldest
+ * overdue ones. The punch-list banner counts from this same function, and the
+ * server read (sub_portal_live_punch) applies the same rule in SQL.
+ */
+export function scopePunchForSub<T extends Pick<PunchItem, 'projectId' | 'assignedSub' | 'assignedSubId' | 'status' | 'priority' | 'dueDate' | 'createdAt' | 'id'>>(
+  items: readonly T[],
+  sub: Pick<Subcontractor, 'id' | 'companyName'>,
+  projectId: string,
+): T[] {
+  return items
+    .filter(p => p.projectId === projectId && p.status !== 'closed' && punchItemBelongsToSub(p, sub))
+    .sort((a, b) =>
+      (punchIsOnSub(a) ? 0 : 1) - (punchIsOnSub(b) ? 0 : 1)
+      || (PRIORITY_RANK[a.priority] ?? 1) - (PRIORITY_RANK[b.priority] ?? 1)
+      || dueKey(a.dueDate).localeCompare(dueKey(b.dueDate))
+      || (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
+      || a.id.localeCompare(b.id));
+}
+
+/** A durable storage path, or undefined for a device/remote URI. */
+function durablePhotoPath(p: Pick<PunchItem, 'photoStoragePath' | 'photoUri'>): string | undefined {
+  const path = (p.photoStoragePath ?? '').trim();
+  if (path && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(path)) return path;
+  // Synced rows keep the path in photoUri (punch_items.photo_uri).
+  const uri = (p.photoUri ?? '').trim();
+  if (uri && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri)) return uri;
+  return undefined;
+}
+
+function sheetLabelOf(sheet: { name?: string | null; sheetNumber?: string | null } | undefined): string | undefined {
+  if (!sheet) return undefined;
+  const num = String(sheet.sheetNumber ?? '').trim();
+  const name = String(sheet.name ?? '').trim();
+  if (num && name && num !== name) return `${num} · ${name}`;
+  return num || name || 'Plan';
+}
+
 interface BuildOpts {
   link: SubPortalLink;
   project: Project;
@@ -131,6 +214,8 @@ interface BuildOpts {
   // v2: punch items + schedule for this sub.
   punchItems?: PunchItem[];
   schedule?: ProjectSchedule | null;
+  /** This project's plan sheets, for the "Sheet A-101" label on pinned items. */
+  planSheets?: readonly { id: string; name?: string | null; sheetNumber?: string | null }[];
 
   supabaseUrl?: string;
   supabaseAnonKey?: string;
@@ -142,7 +227,7 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
   const {
     link, project, sub, settings, commitments,
     submittedInvoices = [],
-    punchItems = [], schedule,
+    punchItems = [], schedule, planSheets = [],
     supabaseUrl, supabaseAnonKey, contactEmail, contactName,
   } = opts;
 
@@ -226,25 +311,32 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
       notesFromGc: i.notesFromGc,
     })),
 
-    // v2: scoped punch list — anything assigned to this sub, OR
-    // matching their company name (legacy free-text). Filter to open /
-    // in-progress only; the sub doesn't need to scroll past completed.
-    punchItems: (() => {
-      const scoped = punchItems
-        .filter(p => p.projectId === project.id)
-        .filter(p => punchItemBelongsToSub(p, sub))
-        .filter(p => p.status !== 'closed')
-        .slice(0, 30);
-      if (!scoped.length) return undefined;
-      return scoped.map(p => ({
-        id: p.id,
-        description: p.description,
-        location: p.location || undefined,
-        priority: p.priority,
-        status: p.status,
-        dueDate: p.dueDate || undefined,
-        photoUri: p.photoUri,
-      }));
+    // Scoped by the one exported rule (scopePunchForSub), sorted, then capped
+    // — with the uncapped count, so the page never quietly hides rows.
+    ...(() => {
+      const scoped = scopePunchForSub(punchItems, sub, project.id);
+      if (!scoped.length) return {};
+      const sheets = new Map(planSheets.map(sh => [sh.id, sh]));
+      const entries: SubPortalPunchEntry[] = scoped.slice(0, SUB_PORTAL_PUNCH_CAP).map(p => {
+        const pinned = !!p.planSheetId;
+        return {
+          id: p.id,
+          description: p.description,
+          location: p.location || undefined,
+          priority: p.priority,
+          status: p.status,
+          dueDate: p.dueDate || undefined,
+          photoStoragePath: durablePhotoPath(p),
+          ...(pinned ? {
+            planSheetId: p.planSheetId,
+            sheetLabel: sheetLabelOf(sheets.get(p.planSheetId as string)) ?? 'Plan',
+            pinX: p.pinX,
+            pinY: p.pinY,
+          } : {}),
+          subNote: p.subNote || undefined,
+        };
+      });
+      return { punchItems: entries, punchTotal: scoped.length };
     })(),
 
     // v2: schedule slice — tasks where assignedSubId matches OR the
@@ -259,19 +351,42 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
         return false;
       });
       if (!scoped.length) return undefined;
-      const ordered = [...scoped].sort((a, b) => a.startDay - b.startDay).slice(0, 40);
+      // Where the ENGINE put each task, not the stored startDay pin: a pin
+      // that dependencies have pushed later reads a week early in the sub's
+      // portal while the app shows the real date (#51). The page walks
+      // startDay/durationDays in WORKING days, so a dated run's calendar
+      // es/ef is converted to working ordinals; an undated run is already in
+      // working days. No placement (a cycle, or a task the engine skipped)
+      // keeps the stored pin.
+      const dpw = schedule.workingDaysPerWeek || 5;
+      const startIso = calendarDayOf(schedule.startDate);
+      const dayOpts = { scheduleStartDate: startIso && parseCalendarDay(startIso) ? startIso : undefined, workingDaysPerWeek: dpw, nonWorkingDates: schedule.nonWorkingDates ?? [] };
+      let perTask: Map<string, { es: number; ef: number }> = new Map();
+      try { perTask = runCpm(schedule.tasks, dayOpts).perTask as Map<string, { es: number; ef: number }>; } catch { /* keep pins */ }
+      const placed = (t: typeof scoped[number]): { startDay: number; durationDays: number } => {
+        const r = perTask.get(t.id);
+        if (!r || !Number.isFinite(r.es) || !Number.isFinite(r.ef)) return { startDay: t.startDay ?? 0, durationDays: t.durationDays ?? 0 };
+        if (!dayOpts.scheduleStartDate) return { startDay: r.es, durationDays: Math.max(1, r.ef - r.es + 1) };
+        const s0 = calendarIndexToWorkingOrdinal(r.es, dayOpts);
+        const e0 = calendarIndexToWorkingOrdinal(Math.max(r.es, r.ef), dayOpts);
+        return { startDay: s0, durationDays: t.isMilestone ? (t.durationDays ?? 0) : Math.max(1, e0 - s0 + 1) };
+      };
+      const ordered = scoped
+        .map(t => ({ t, at: placed(t) }))
+        .sort((a, b) => a.at.startDay - b.at.startDay)
+        .slice(0, 40);
       return {
         projectStartDate: schedule.startDate,
-        workingDaysPerWeek: schedule.workingDaysPerWeek || 5,
+        workingDaysPerWeek: dpw,
         ...(schedule.nonWorkingDates?.length ? { nonWorkingDates: [...schedule.nonWorkingDates] } : {}),
-        tasks: ordered.map(t => ({
+        tasks: ordered.map(({ t, at }) => ({
           id: t.id,
           title: t.title,
           phase: t.phase,
           progress: t.progress ?? 0,
           status: t.status,
-          durationDays: t.durationDays ?? 0,
-          startDay: t.startDay ?? 0,
+          durationDays: at.durationDays,
+          startDay: at.startDay,
           isMilestone: t.isMilestone,
         })),
       };

@@ -123,13 +123,20 @@ console.log('\na sub rename carries onto his punch items (round-2 integration):'
 
 console.log('\napp/punch-list.tsx keeps the name and the id together:');
 const screen = read('app', 'punch-list.tsx');
-check('a sub chip sets the id with the name',
-  /onPress=\{\(\) => \{ setAssignedSub\(s\.companyName\); setFormSubId\(s\.id\); \}\}/.test(screen));
+check('a sub chip sets the id with the name (and tapping the active chip clears both — #19)',
+  /if \(on\) \{ setAssignedSub\(''\); setFormSubId\(undefined\); return; \}\s*setAssignedSub\(s\.companyName\); setFormSubId\(s\.id\);/.test(screen));
+check('the Unassigned chip clears the name AND the id (#19)',
+  /onPress=\{\(\) => \{ setAssignedSub\(''\); setFormSubId\(undefined\); setSubOther\(false\); \}\}[\s\S]{0,200}testID="punch-sub-unassigned"/.test(screen));
+check('Other… clears the id before he types a name (#19)',
+  /onPress=\{\(\) => \{ setSubOther\(true\); setAssignedSub\(''\); setFormSubId\(undefined\); \}\}/.test(screen));
 check('typing a name clears the id', /onChangeText=\{t => \{ setAssignedSub\(t\); setFormSubId\(undefined\); \}\}/.test(screen));
 check('the edit save always sends assignedSubId (undefined clears a stale one)',
   /assignedSubId: assignedSub\.trim\(\) \? formSubId : undefined,/.test(screen));
-check('opening an item seeds the id from the record its NAME points at',
-  /setFormSubId\(resolvePunchSub\(item\.assignedSub \?\? '', \[item\.assignedSubId\], subcontractors\)\?\.id\);/.test(screen));
+check('opening an item seeds the id from the record its NAME points at (in the subs this user may assign on this job — #110)',
+  /const seededSub = resolvePunchSub\(item\.assignedSub \?\? '', \[item\.assignedSubId\], pickerSubs\);/.test(screen)
+  && /setFormSubId\(seededSub\?\.id \?\? \(cannotJudgeId \? item\.assignedSubId : undefined\)\);/.test(screen));
+check('…a stale id is kept ONLY by a collaborator whose list cannot see that id at all (the owner always drops it)',
+  /const cannotJudgeId = !ownsThisProject && !!item\.assignedSubId && !pickerSubs\.some\(s => s\.id === item\.assignedSubId\);/.test(screen));
 check('bulk assign always sends the id with the name', /\{ assignedSub: companyName, assignedSubId: subId \}/.test(screen));
 check('the portal shortcut resolves through resolvePunchSub, not "the last id in the pool"',
   /const sub = resolvePunchSub\(name, ids, subcontractors\);/.test(screen) && !/if \(i\.assignedSubId\) assignedId = i\.assignedSubId;/.test(screen));

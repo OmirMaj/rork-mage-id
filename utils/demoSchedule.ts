@@ -14,6 +14,7 @@
 
 import type { ScheduleTask } from '@/types';
 import { createId, generateWbsCodes } from './scheduleEngine';
+import { workingOrdinalToCalendarIndex, type DayScaleOptions } from './cpm';
 
 interface SeedSpec {
   alias: string;                   // local alias, used in `deps`
@@ -25,8 +26,8 @@ interface SeedSpec {
   crewSize?: number;
   isMilestone?: boolean;
   progress?: number;                // 0-100
-  actualStartOffset?: number;       // day number where actual started (1-indexed)
-  actualEndOffset?: number;         // day number where actual finished
+  actualStartOffset?: number;       // WORKING day number where actual started (1-indexed, startDay's scale)
+  actualEndOffset?: number;         // WORKING day number where actual finished
   status?: ScheduleTask['status'];
   isWeatherSensitive?: boolean;
 }
@@ -92,7 +93,16 @@ const SPEC: SeedSpec[] = [
  * Build ~35 realistic tasks with dependencies, baselines, and a handful of
  * actuals pre-filled so the as-built UI shows something interesting on load.
  */
-export function seedDemoSchedule(): ScheduleTask[] {
+/**
+ * `dayScale` is the calendar the demo lands on. actualStartDay/actualEndDay
+ * are CALENDAR indices (day 1 = schedule.startDate, every calendar day counts —
+ * utils/pace/stampActuals, #50), while the spec's actual offsets are written
+ * in WORKING days like startDay. On a dated schedule they are converted, so the
+ * Gantt's late/early badges measure the demo truthfully; on an undated one
+ * (no scheduleStartDate) the two scales coincide and nothing moves.
+ */
+export function seedDemoSchedule(dayScale: DayScaleOptions = {}): ScheduleTask[] {
+  const toCal = (workingDay: number): number => workingOrdinalToCalendarIndex(workingDay, dayScale);
   // First pass: assign ids.
   const idByAlias = new Map<string, string>();
   for (const spec of SPEC) {
@@ -150,10 +160,10 @@ export function seedDemoSchedule(): ScheduleTask[] {
     // to show variance: e.g. the clear/grub actually took an extra day so the
     // +1d late badge appears.
     if (spec.actualStartOffset != null) {
-      task.actualStartDay = spec.actualStartOffset;
+      task.actualStartDay = toCal(spec.actualStartOffset);
     }
     if (spec.actualEndOffset != null) {
-      task.actualEndDay = spec.actualEndOffset;
+      task.actualEndDay = toCal(spec.actualEndOffset);
     }
 
     return task;
@@ -166,7 +176,7 @@ export function seedDemoSchedule(): ScheduleTask[] {
   //   badge.
   const formwork = tasks.find(t => t.title.startsWith('Foundation formwork'));
   if (formwork && formwork.baselineStartDay != null) {
-    formwork.actualStartDay = formwork.baselineStartDay + 1;
+    formwork.actualStartDay = toCal(formwork.baselineStartDay + 1);
   }
 
   return generateWbsCodes(tasks);

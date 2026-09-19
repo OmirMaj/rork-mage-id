@@ -643,6 +643,131 @@ async function creditInvoice(
 }
 // --- END creditInvoice ---
 
+// ── Tell the GC (#48) ─────────────────────────────────────────────────
+//
+// A client paying through Stripe used to reach only the CLIENT (the receipt
+// below). The GC had no push, no email, no inbox row — nothing — and found
+// out when the money landed in his bank, if he looked. These hand the event to
+// the notify function (push + email + notification_outbox row, which is what
+// the in-app inbox reads), the same service-role hop award-rfp uses.
+//
+// Deliberately OUTSIDE creditInvoice: the AIA path calls creditInvoice too,
+// and scripts/validate-invoice-billing.ts lifts and executes that function —
+// a network side effect inside it would fire twice for one payment and run
+// under the validator's fake Db. Callers fire these only when credit.ok and
+// NOT a duplicate delivery, so a Stripe retry never re-notifies.
+//
+// Fire-and-forget: nothing here may turn the webhook non-2xx (Stripe would
+// retry an event whose money has already been credited).
+
+/** The notify request for a credited payment. Pure: executed by the validator. */
+// >>> client-paid-notify
+export function clientInvoicePaidEvent(
+  invoice: { id: string; number: number | null; project_id: string | null; user_id: string | null },
+  credit: { amountReceived: number; newStatus: string },
+  remaining: number,
+): { event: string; source_table: string; source_id: string; payload: Record<string, unknown> } | null {
+  if (!invoice.project_id) return null;
+  return {
+    event: "client_invoice_paid",
+    source_table: "invoices",
+    source_id: invoice.id,
+    payload: {
+      project_id: invoice.project_id,
+      gc_user_id: invoice.user_id,
+      invoice_id: invoice.id,
+      number: invoice.number,
+      amount_paid: credit.amountReceived,
+      balance: credit.newStatus === "paid" ? 0 : Math.max(0, remaining),
+      paid_in_full: credit.newStatus === "paid",
+    },
+  };
+}
+// <<< client-paid-notify
+
+async function postNotify(body: Record<string, unknown>): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/notify`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) console.warn("[stripe-webhook] notify returned", resp.status, "for", body.event);
+  } catch (e) {
+    console.warn("[stripe-webhook] notify failed for", body.event, (e as Error)?.message ?? e);
+  }
+}
+
+async function notifyGcInvoicePaid(
+  supabase: Db,
+  invoiceId: string,
+  credit: { amountReceived: number; newAmountPaid: number; totalDue: number; retentionAmount: number; retentionReleased: number; newStatus: string },
+): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from("invoices")
+      .select("id, number, project_id, user_id")
+      .eq("id", invoiceId)
+      .single();
+    if (!data) return;
+    const { remaining } = receiptBalance({
+      totalDue: credit.totalDue,
+      newAmountPaid: credit.newAmountPaid,
+      retentionAmount: credit.retentionAmount,
+      retentionReleased: credit.retentionReleased,
+    });
+    const req = clientInvoicePaidEvent(
+      data as { id: string; number: number | null; project_id: string | null; user_id: string | null },
+      credit,
+      remaining,
+    );
+    if (req) await postNotify(req);
+  } catch (e) {
+    console.warn("[stripe-webhook] paid notification skipped:", (e as Error)?.message ?? e);
+  }
+}
+
+/**
+ * An ACH (or other delayed) payment the client STARTED and that then failed
+ * (checkout.session.async_payment_failed). The client believes they paid; the
+ * GC must hear it bounced, or nobody chases it until dunning does.
+ */
+async function notifyGcPaymentFailed(supabase: Db, session: StripeCheckoutSession): Promise<void> {
+  try {
+    let invoiceId = session.metadata?.invoice_id ?? "";
+    if (session.metadata?.record_type === "aia_pay_app") {
+      const appId = session.metadata?.record_id ?? session.metadata?.invoice_id ?? "";
+      const { data: app } = await supabase.from("aia_pay_apps").select("invoice_id").eq("id", appId).single();
+      invoiceId = typeof app?.invoice_id === "string" ? app.invoice_id.trim() : "";
+    }
+    if (!invoiceId) return;
+    const { data } = await supabase
+      .from("invoices")
+      .select("id, number, project_id, user_id")
+      .eq("id", invoiceId)
+      .single();
+    if (!data?.project_id) return;
+    await postNotify({
+      event: "client_payment_failed",
+      source_table: "invoices",
+      source_id: data.id,
+      payload: {
+        project_id: data.project_id,
+        gc_user_id: data.user_id,
+        invoice_id: data.id,
+        number: data.number,
+        amount: toCents2(Number(session.amount_total ?? 0) / 100),
+      },
+    });
+  } catch (e) {
+    console.warn("[stripe-webhook] payment-failed notification skipped:", (e as Error)?.message ?? e);
+  }
+}
+
 async function handleCheckoutCompleted(
   supabase: Db,
   session: StripeCheckoutSession,
@@ -659,6 +784,9 @@ async function handleCheckoutCompleted(
   const credit = await creditInvoice(supabase, invoiceId, session, eventAccount, "invoice");
   if (!credit.ok) return credit;
   if (credit.duplicate) return { ok: true, reason: "duplicate" };
+
+  // #48: the GC hears about it — once, on the delivery that moved the money.
+  void notifyGcInvoicePaid(supabase, invoiceId, credit);
 
   // Best-effort receipt email — fire-and-forget so a Resend hiccup never
   // fails the webhook (Stripe retries on non-2xx and the duplicate-payment
@@ -761,6 +889,8 @@ async function handleAiaPayAppCompleted(
     // so Stripe retries the whole event; the retry re-runs both safely.
     return credit;
   }
+  // #48: same notice as the invoice path, once per credited session.
+  if (!credit.duplicate) void notifyGcInvoicePaid(supabase, invoiceId, credit);
   return { ok: true };
 }
 
@@ -1132,9 +1262,20 @@ async function dispatchEvent(supabase: Db, event: StripeWebhookEvent): Promise<O
     case "payment_intent.payment_failed": {
       // Log type + object id ONLY. The object carries card and customer
       // details; the old line dumped 200 chars of it into the logs
-      // (01-security appendix). TODO: surface as a contractor notification.
+      // (01-security appendix).
       const obj = event.data.object as { id?: string } | null;
       console.log("[stripe-webhook] Payment failed:", event.type, obj?.id ?? "(no id)");
+      // #48: the GC is told when a payment the client STARTED fails later —
+      // the delayed (ACH) case, whose session carries our invoice metadata.
+      // payment_intent.payment_failed is a card declined inside Checkout: the
+      // client is still on the page and can retry, and the PaymentIntent
+      // carries no MAGE invoice id, so it stays a log line.
+      if (event.type === "checkout.session.async_payment_failed") {
+        const failed = event.data.object as StripeCheckoutSession;
+        if (failed?.metadata?.record_id || failed?.metadata?.invoice_id) {
+          void notifyGcPaymentFailed(supabase, failed);
+        }
+      }
       return { retry: false };
     }
     case "account.updated": {

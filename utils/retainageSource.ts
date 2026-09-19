@@ -34,7 +34,8 @@
 //   1. this invoice's own saved rate  — including a deliberate 0. An issued
 //      invoice is a document; its rate is a fact about it, not a preference.
 //   2. the most recent NON-DRAFT invoice on the job — the existing carry.
-//      Drafts are excluded because a draft is a guess in progress. EXCEPT when
+//      Drafts are excluded because a draft is a guess in progress, and so is a
+//      contract milestone billed at 0% (a deposit — carriesJobRetainage). EXCEPT when
 //      he has TYPED a contract rate that disagrees with it (below).
 //   3. Project.retainagePercent — the contract term, when he has told us.
 //
@@ -79,7 +80,26 @@ export interface ResolvedRetainage {
 }
 
 /** Prior invoices on the same job, in any order. */
-export type RetainagePriorInvoice = Pick<Invoice, 'id' | 'number' | 'status' | 'retentionPercent' | 'createdAt'>;
+export type RetainagePriorInvoice = Pick<Invoice, 'id' | 'number' | 'status' | 'retentionPercent' | 'createdAt'>
+  & Partial<Pick<Invoice, 'sourceMilestoneId'>>;
+
+/**
+ * Does this invoice's rate say anything about what the JOB holds back?
+ *
+ * Not when it is a contract payment milestone billed at 0% (audit #32). The
+ * deposit ("Due on signing") now opens at 0% by rule — app/invoice.tsx seeds
+ * it from the contract — and a lump schedule payment at 0% says how THAT
+ * payment was billed, not what the progress draws hold. Carrying it made
+ * invoice #2 "same as #1" at 0% on a job whose contract holds 10%: the
+ * invoice-#1-at-0% bug this file exists to prevent, moved one invoice later.
+ * Skipped, the next invoice falls through to the contract term, the pay app
+ * or the ask. A milestone invoice that DID withhold (a draw at 10%) still
+ * carries: that rate is a withholding he chose.
+ */
+export function carriesJobRetainage(inv: Pick<RetainagePriorInvoice, 'retentionPercent' | 'sourceMilestoneId'>): boolean {
+  if (!isRecordedRetainageRate(inv.retentionPercent)) return false;
+  return !(inv.sourceMilestoneId && inv.retentionPercent === 0);
+}
 export type RetainageProject = Pick<Project, 'retainagePercent' | 'retainagePercentAssumed'>;
 export type RetainagePayApp = Pick<SavedAIAPayApp, 'applicationNumber' | 'retainagePercent'>;
 
@@ -122,7 +142,7 @@ export function resolveRetainagePercent(input: RetainageSourceInput): ResolvedRe
   // carry-forward shipped; keeping it identical is what makes this refactor a
   // no-op for every job that already bills.
   const prior = (input.priorInvoices ?? [])
-    .filter(i => i.id !== input.excludeInvoiceId && i.status !== 'draft' && isRecordedRetainageRate(i.retentionPercent))
+    .filter(i => i.id !== input.excludeInvoiceId && i.status !== 'draft' && carriesJobRetainage(i))
     .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0];
   if (prior) {
     const carried = prior.retentionPercent as number;

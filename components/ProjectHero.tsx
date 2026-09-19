@@ -56,10 +56,10 @@ export default function ProjectHero({ project }: { project: Project }) {
   // HEALTHY while Job Costing, one tap away, showed the job over.
   const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: ratesLoading } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
   // Those stores default to [] / {} while AsyncStorage is read. For that beat
   // a self-perform job priced at its bid margin and the hero COUNTED UP to it
   // under a HEALTHY bracket, then snapped to the real number — a guess animated

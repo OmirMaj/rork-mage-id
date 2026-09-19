@@ -1,16 +1,23 @@
 // hooks/useProjectRole.ts
 //
-// The current user's role on a project (owner/editor/viewer) or null while
-// loading / signed out. Pure logic lives in utils/projectRole.ts (unit-tested).
+// The current user's role on a project (owner/editor/viewer/field) or null
+// while loading / signed out / not on the job. The decision lives in
+// utils/projectRole.ts (resolveRoleState, unit-tested).
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCachedProjectRoleHint } from '@/contexts/ProjectContext';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
-import { roleForUser, type ProjectRole } from '@/utils/projectRole';
+import { resolveRoleState, type ProjectRole } from '@/utils/projectRole';
 
 export type { ProjectRole } from '@/utils/projectRole';
 
 export interface ProjectRoleState {
-  /** owner/editor/viewer/field, or null while loading, on error, or with no project. */
+  /** owner/editor/viewer/field, or null while loading, on error, with no
+   *  project — or, settled (isLoading and isError both false), when he is NOT
+   *  on this job: a known owner who is someone else and no accepted row
+   *  (#90, a removed collaborator). A gate says why in that state; it never
+   *  spins. */
   role: ProjectRole;
   isLoading: boolean;
   /** The collaborator read FAILED — distinct from "still resolving". A screen
@@ -18,23 +25,39 @@ export interface ProjectRoleState {
    *  `refetch` (audit RT-R2 / UX-F6: Job Costing sat on a blank sheet forever
    *  after a failed read; the money hero vanished silently). */
   isError: boolean;
+  /** The read is waiting for a network (offline). `role` is then the last
+   *  role this device knew for the job, or null while still loading. */
+  isPaused: boolean;
+  /** Why `role` is null while paused offline (the gate shows it). */
+  reason?: string;
   refetch: () => void;
 }
 
 export function useProjectRoleState(projectId: string | undefined): ProjectRoleState {
   const { user } = useAuth();
+  const hint = useCachedProjectRoleHint(projectId);
   const { collaborators, isLoading, isError, refetch } = useProjectCollaborators(projectId);
-  // NULL on error, never 'owner'. roleForUser falls back to 'owner' when the
-  // caller is absent from the collaborator list, which is right when the list
-  // actually loaded — and a privilege escalation when the query merely failed
-  // and handed back an empty array.
-  //
-  // Null is safe here, not a lockout: canViewFinancials(null) is false (blinds
-  // margin, the conservative outcome) while resolveProjectAccess still falls
-  // through to the user's OWN tier, so an owner keeps everything they pay for
-  // and simply cannot see financials until the role resolves.
-  const role: ProjectRole = (!projectId || isLoading || isError) ? null : roleForUser(collaborators, user?.id);
-  return { role, isLoading: !!projectId && isLoading, isError: !!projectId && isError, refetch };
+  const queryClient = useQueryClient();
+  // react-query's isLoading is pending AND fetching: a read PAUSED offline is
+  // pending but not fetching, so it looked settled with an empty list — which
+  // roleForUser used to read as 'owner'. The status says it never answered.
+  const queryState = projectId ? queryClient.getQueryState(['project_collaborators', projectId]) : undefined;
+  const status = queryState?.status;
+  const resolved = resolveRoleState({
+    projectId,
+    uid: user?.id,
+    ownerUserId: hint?.ownerUserId,
+    cachedRole: hint?.myRole,
+    collaborators,
+    isLoading: !!projectId && isLoading,
+    isError: !!projectId && isError,
+    isPending: !!projectId && (status === undefined || status === 'pending'),
+    // Review round 1: a job missing from the cache is never "his own unsynced
+    // create", and a read truly paused offline says why instead of spinning.
+    inCache: !!hint,
+    fetchPaused: queryState?.fetchStatus === 'paused',
+  });
+  return { ...resolved, refetch };
 }
 
 export function useProjectRole(projectId: string | undefined): ProjectRole {

@@ -44,18 +44,19 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import {
-  computeJobCost, formatMoney, formatMoneyFull, describeVariance, EQUIPMENT_HOURS_PER_DAY,
+  computeJobCost, formatMoney, formatMoneyFull, describeVariance, EQUIPMENT_HOURS_PER_DAY, unpricedLaborLine,
   type JobCostLine, type JobCostSummary, type VarianceDisplay,
 } from '@/utils/jobCostEngine';
+import { computeOvertime, overtimeFor, type OvertimeAllocation } from '@/utils/overtime';
 import type {
   Commitment, CommitmentType, ChangeOrder, MaterialReceipt, TimeEntry,
   Equipment, Permit, Subcontractor,
 } from '@/types';
 import { calendarDayStart, todayCalendarDay } from '@/utils/calendarDate';
-import { timeEntryDay } from '@/hooks/useTimeEntries';
+import { timeEntryDay, teamLoggedByLabel, type TeamTimeEntry } from '@/hooks/useTimeEntries';
 import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
 import { buildCostDatabase } from '@/utils/costDatabase';
-import { uncoveredScopeOf } from '@/utils/projectFinancials';
+import { openExcludedScope, awardedCommitmentOf } from '@/utils/projectFinancials';
 import { sharePurchaseOrderPDF } from '@/utils/purchaseOrderPdf';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -121,10 +122,13 @@ function JobCostingInner() {
   // rates land as an ACTUAL "Self-perform labor" line — the largest actual
   // stream a self-perform crew generates was previously invisible here.
   const timeEntries = useTimeEntriesMirror();
-  // overtimeMultiplier is the GC's configured OT premium
-  // (mageid_labor_overtime_multiplier); without it computeJobCost priced every
-  // overtime hour at straight time (B3b follow-up).
-  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  // overtimeMultiplier is the GC's configured OT premium; without it
+  // computeJobCost priced every overtime hour at straight time (B3b
+  // follow-up). overtimeRule is how he decides WHICH hours are overtime (#65:
+  // weekly >40 by default, daily >8 optional) — allocated per worker across
+  // the whole mirror, never the per-shift figure stored on the row. Both live
+  // on his account (#61), so web and phone price the same hours.
+  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: laborRatesLoading } = useLaborRates();
   const laborSamples = useLaborCostSamples();
   // Cold-start seeds — this book feeds checkSubBid's trade_match basis, which
   // is how the Sub-Bid Reality Check knows a $4,600 bid is 30% under. With an
@@ -155,10 +159,10 @@ function JobCostingInner() {
     // carries $3,600 of cans, so the bucket budget is $26,200. Both figures are
     // asserted in scripts/validate-money-definitions.ts.
     return computeJobCost({
-      project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier,
+      project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule,
       equipment, permits, subcontractors,
     });
-  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+  }, [project, commitments, changeOrders, receipts, timeEntries, laborRates, overtimeRule, overtimeMultiplier, equipment, permits, subcontractors]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
@@ -177,17 +181,24 @@ function JobCostingInner() {
       .filter(p => p.status === 'awarded' && p.awardedBidId)
       .map(p => {
         const bid = getBidsForPackage(p.id).find(b => b.id === p.awardedBidId);
-        return { id: p.id, name: p.name, excludes: bid?.excludes ?? '', amount: uncoveredScopeOf(bid) };
+        // Minus what an edited-up commitment already absorbed — once he
+        // folds the scope into the sub's contract it is no longer open.
+        const committed = awardedCommitmentOf(p, projectCommitments);
+        return { id: p.id, name: p.name, excludes: bid?.excludes ?? '', amount: openExcludedScope(bid, committed?.amount) };
       })
       .filter(r => r.amount > 0);
-  }, [projectId, getBidPackagesForProject, getBidsForPackage]);
+  }, [projectId, getBidPackagesForProject, getBidsForPackage, projectCommitments]);
 
   // Everything the phase drill-down resolves ids against. Same arrays the
   // engine was handed, so a row can never name a record the summary did not
   // actually count (MONEY-DRILL-1).
   const drillRecords: PhaseDrillRecords = useMemo(() => ({
     commitments, changeOrders, receipts, timeEntries, equipment, permits, subcontractors,
-  }), [commitments, changeOrders, receipts, timeEntries, equipment, permits, subcontractors]);
+    // The same allocation the engine priced (#65), so a crew row's "OT" is
+    // the overtime its dollars include — not the stale per-shift figure.
+    overtime: computeOvertime(timeEntries, overtimeRule),
+    overtimeMultiplier,
+  }), [commitments, changeOrders, receipts, timeEntries, equipment, permits, subcontractors, overtimeRule, overtimeMultiplier]);
 
   const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts, laborSamples, seeds), [projects, commitments, receipts, laborSamples, seeds]);
   const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
@@ -380,6 +391,27 @@ function JobCostingInner() {
             testID="variance-kpi"
           />
         </View>
+
+        {/* #61: clocked hours on a trade with no rate price at $0 — MAGE never
+            invents one — so every number above is missing that labor. Said
+            once, here, with the way to fix it (the WIP report's wording).
+            Never while the rate book is still being read off the device —
+            "no rate" for rates that are merely loading is a false alarm. */}
+        {!laborRatesLoading && summary.unpricedLaborHours > 0 ? (
+          <TouchableOpacity
+            testID="job-cost-unpriced-labor"
+            style={[styles.banner, { backgroundColor: themeColors.warningSoft, borderLeftColor: themeColors.warningLabel }]}
+            onPress={() => router.push({ pathname: '/time-tracking', params: { projectId } } as never)}
+            accessibilityRole="link"
+            activeOpacity={0.8}
+          >
+            <Text style={styles.bannerTitle}>{unpricedLaborLine(summary.unpricedLaborHours)}</Text>
+            <Text style={styles.bannerSub}>
+              {summary.unpricedTrades.length > 0 ? `No rate for: ${summary.unpricedTrades.map(t => (t === 'general' ? 'general labor' : t)).join(', ')}. ` : ''}
+              Set labor rates in Time Tracking →
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* Projection banner — the TL;DR */}
         <View
@@ -1049,6 +1081,9 @@ interface PhaseDrillRecords {
   equipment: Equipment[];
   permits: Permit[];
   subcontractors: Subcontractor[];
+  /** Overtime allocated by the GC's rule across the mirror (#65). */
+  overtime: OvertimeAllocation;
+  overtimeMultiplier: number;
 }
 
 interface DrillRow {
@@ -1184,18 +1219,45 @@ function buildPhaseDrill(
   for (const id of line.sources.timeEntries) {
     const e = records.timeEntries.find(x => x.id === id);
     if (!e) continue;
+    // #63: a shift his foreman clocked says so — the same "Logged by" tag
+    // Time Tracking now shows on it, so the drill and the screen it opens name
+    // the same rows.
+    const loggedBy = 'loggedByUserId' in e ? teamLoggedByLabel(e as TeamTimeEntry) : null;
     crewRows.push({
       id,
-      title: `${e.workerName || 'Crew'} · ${e.trade || 'crew'}`,
+      title: `${e.workerName || 'Crew'} · ${e.trade || 'crew'}${loggedBy ? ` · ${loggedBy}` : ''}`,
       // timeEntryDay: shifts saved before the #9 fix hold the UTC day in
       // `date`, so an evening shift read it as tomorrow; the clock-in instant
       // names the day it was worked, as History does.
-      detail: `${shortDate(timeEntryDay(e))} · ${e.totalHours}h${e.overtimeHours > 0 ? ` (${e.overtimeHours}h OT)` : ''}`,
+      // OT is the ALLOCATED figure the engine priced (#65), tagged "so far"
+      // while that payroll week is still open, with the multiplier it was
+      // priced at so the 1.5× default is visible rather than assumed (#153).
+      detail: `${shortDate(timeEntryDay(e))} · ${e.totalHours}h${(() => {
+        const ot = overtimeFor(records.overtime, e.id);
+        if (!(ot > 0)) return '';
+        return ` (${ot}h OT at ${records.overtimeMultiplier}×${records.overtime.provisional.has(e.id) ? ', week so far' : ''})`;
+      })()}`,
       onPress: open.crew,
     });
   }
   if (crewRows.length > 0) {
-    groups.push({ key: 'timeEntries', label: `Crew shifts, self-perform (${crewRows.length})`, rows: crewRows });
+    // #63: the count here is the PRICED shifts (a trade with no rate costs $0
+    // and is not in this total). Time Tracking, opened from a row, lists every
+    // finished shift on the job — so when the two differ, say why here rather
+    // than let the drill contradict the screen it opens.
+    const jobId = records.timeEntries.find(x => x.id === line.sources.timeEntries[0])?.projectId;
+    const finishedOnJob = jobId
+      ? records.timeEntries.filter(x => x.projectId === jobId && x.status === 'clocked_out').length
+      : crewRows.length;
+    const notInTotal = Math.max(0, finishedOnJob - crewRows.length);
+    groups.push({
+      key: 'timeEntries',
+      label: `Crew shifts, self-perform (${crewRows.length})`,
+      rows: crewRows,
+      ...(notInTotal > 0 ? {
+        note: `${notInTotal} more finished shift${notInTotal === 1 ? '' : 's'} on this job ${notInTotal === 1 ? 'is' : 'are'} not in this total — no labor rate for the trade, or 0 hours. Time Tracking lists all ${finishedOnJob}.`,
+      } : {}),
+    });
   }
 
   const equipRows: DrillRow[] = [];

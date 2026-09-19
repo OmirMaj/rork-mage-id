@@ -220,6 +220,16 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
           params: { projectId: proj.id, rfiId: newRfi.id } as never,
         });
       } else if (parsed.kind === 'co') {
+        // #41 interim: only the project owner creates change orders. On a job
+        // he was invited to (myRole is stamped only on shared jobs) the insert
+        // is refused by RLS (20260919110000) and the offline queue drops it as
+        // terminal — so a voice CO there would appear, then vanish. Say where
+        // the scope belongs instead.
+        if (proj.myRole) {
+          setError('Your GC creates change orders on this job — log it in a daily report as a field issue.');
+          setStep('reviewing');
+          return;
+        }
         const lineItems = (parsed.lineItems && parsed.lineItems.length > 0)
           ? parsed.lineItems.map(li => ({
               id: generateUUID(),

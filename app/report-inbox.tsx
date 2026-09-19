@@ -161,7 +161,9 @@ export default function ReportInboxScreen() {
           s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? themeColors.dangerSoft :
           s.currentStatus === 'in_review' ? themeColors.surfaceAlt :
           themeColors.warningSoft,
-        timestamp: new Date(s.submittedDate ?? s.createdAt).getTime(),
+        // submittedDate is '' until sent (read with ||) and a bare calendar day
+        // once it is — dayOrInstantDate reads that at LOCAL noon, not UTC midnight.
+        timestamp: dayOrInstantDate(s.submittedDate || s.createdAt).getTime(),
         overdue: false,
         href: '/submittal',
         hrefParams: { projectId: s.projectId, submittalId: s.id },

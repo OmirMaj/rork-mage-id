@@ -404,7 +404,7 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
 // in the 800 ms debounce, on the wire, or queued offline must go out AFTER the
 // project write — executed here against the real ordering function.
 {
-  const { writePortalMessageOrdered, isPortalLockRefusal, PORTAL_STILL_SAVING } = await import('../utils/portalMessageWrite');
+  const { writePortalMessageOrdered, isPortalLockRefusal, PORTAL_STILL_SAVING, PORTAL_MESSAGE_REFUSED, portalRefusalCopy } = await import('../utils/portalMessageWrite');
   type Log = string[];
   function world(o: { waiting?: boolean; inFlightFor?: number; queuedAfterFlush?: boolean; queueThrows?: boolean; enqueueThrows?: boolean }) {
     const log: Log = [];
@@ -421,7 +421,11 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
       waitProjectSyncSettled: async (_id: string, _ms: number) => { log.push('wait'); await new Promise(r => setTimeout(r, o.inFlightFor ?? 0)); inFlight = false; log.push('project:settled'); },
       projectWriteQueued: async () => { if (o.queueThrows) throw new Error('storage'); return queued; },
       enqueue: async () => { if (o.enqueueThrows) throw new Error('full'); log.push('message:queued'); },
-      writeNow: async () => { log.push('message:sent'); return 'synced' as const; },
+      writeNow: async (_row: Record<string, unknown>, ctx?: { projectWritePending: boolean }) => {
+        log.push('message:sent');
+        if (ctx) log.push(ctx.projectWritePending ? 'ctx:pending' : 'ctx:idle');
+        return 'synced' as const;
+      },
     };
     return { log, deps };
   }
@@ -430,12 +434,12 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
   const w1 = world({ waiting: true });
   const r1 = await writePortalMessageOrdered(row, w1.deps);
   ok('portal message: a project write in its debounce is sent BEFORE the message',
-    r1 === 'synced' && w1.log.join(',') === 'flush,project:sent,message:sent', w1.log.join(','));
+    r1 === 'synced' && w1.log.join(',') === 'flush,project:sent,message:sent,ctx:pending', w1.log.join(','));
 
   const w2 = world({ inFlightFor: 20 });
   const r2 = await writePortalMessageOrdered(row, w2.deps);
   ok('…a project write already on the wire is waited for, then the message is sent',
-    r2 === 'synced' && w2.log.join(',') === 'wait,project:settled,message:sent', w2.log.join(','));
+    r2 === 'synced' && w2.log.join(',') === 'wait,project:settled,message:sent,ctx:pending', w2.log.join(','));
 
   const w3 = world({ waiting: true, queuedAfterFlush: true });
   const r3 = await writePortalMessageOrdered(row, w3.deps);
@@ -454,8 +458,19 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
   const w6 = world({});
   const r6 = await writePortalMessageOrdered({ ...row, project_id: null }, w6.deps);
   ok('…no project id: straight to the direct write',
-    r6 === 'synced' && w6.log.join(',') === 'message:sent', w6.log.join(','));
+    r6 === 'synced' && w6.log.join(',') === 'message:sent,ctx:idle', w6.log.join(','));
 
+  // Leftovers review: every 42501 read "still saving", including a
+  // collaborator's refusal that never clears. "Still saving" is now said only
+  // when our own project write was pending as the send began.
+  const w7 = world({});
+  await writePortalMessageOrdered(row, w7.deps);
+  ok('…with no project write pending, the direct write is told so (a refusal is not "still saving")',
+    w7.log.join(',') === 'message:sent,ctx:idle', w7.log.join(','));
+  ok('portalRefusalCopy: pending → still saving; idle → names owner-only and portal-on, never "try again in a moment"',
+    portalRefusalCopy(true) === PORTAL_STILL_SAVING && portalRefusalCopy(false) === PORTAL_MESSAGE_REFUSED
+      && /only the project owner/i.test(PORTAL_MESSAGE_REFUSED) && !/still saving|in a moment/i.test(PORTAL_MESSAGE_REFUSED)
+      && !/row-level|policy/i.test(PORTAL_MESSAGE_REFUSED));
   ok('an RLS refusal reads as "still saving", not Postgres text',
     isPortalLockRefusal('new row violates row-level security policy for table "portal_messages"')
       && isPortalLockRefusal('x', '42501') && !isPortalLockRefusal('Failed to fetch')
@@ -465,11 +480,16 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
   const pc = readFileSync(join(ROOT, 'contexts', 'ProjectContext.tsx'), 'utf8');
   const pt = readFileSync(join(ROOT, 'hooks', 'usePortalThread.ts'), 'utf8');
   ok('ProjectContext has no direct portal_messages insert left',
-    !/supabaseWrite(Detailed)?\('portal_messages', 'insert'/.test(pc.replace(/writeNow: \(data\) => supabaseWriteDetailed\('portal_messages', 'insert'/, '')));
+    !/supabaseWrite(Detailed)?\('portal_messages', 'insert'/.test(pc.replace(/writeNow: \(data, \{ projectWritePending \}\) => supabaseWriteDetailed\('portal_messages', 'insert'/, '')));
+  const cm = readFileSync(join(ROOT, 'app', 'client-messages.tsx'), 'utf8');
+  ok('client-messages: a collaborator (editor/viewer/field) sees why instead of a composer the policy always refuses',
+    /const ownerOnlyBlocked = role === 'editor' \|\| role === 'viewer' \|\| role === 'field';/.test(cm)
+      && /\{ownerOnlyBlocked \? \([\s\S]{0,400}Only the project owner can message the client\.[\s\S]{0,120}\) : \(\s*<View style=\{\[styles\.compose, \{ paddingBottom/.test(cm));
   ok('…its notices use writePortalMessage (3 sites)', (pc.match(/void writePortalMessage\(\{/g) ?? []).length === 3);
   ok('…writePortalMessage wires the ordered writer with the plain RLS message',
     /writePortalMessageOrdered\(row\.id \? row : \{ \.\.\.row, id: generateUUID\(\) \}/.test(pc)
-      && /describeFailure: \(msg, code\) => \(isPortalLockRefusal\(msg, code\) \? PORTAL_STILL_SAVING : undefined\)/.test(pc)
+      && /writeNow: \(data, \{ projectWritePending \}\) => supabaseWriteDetailed\('portal_messages', 'insert', data, \{\s*describeFailure: \(msg, code\) => \(isPortalLockRefusal\(msg, code\) \? portalRefusalCopy\(projectWritePending\) : undefined\)/.test(pc)
+      && !/PORTAL_STILL_SAVING/.test(pc)
       && /enqueue: \(data\) => addToOfflineQueue\(\{ table: 'portal_messages', operation: 'insert', data \}\)/.test(pc));
   ok('usePortalThread sends through writePortalMessage, not a direct insert',
     /await writePortalMessage\(\{ \.\.\.row \}\)/.test(pt) && !/supabaseWriteDetailed\('portal_messages'/.test(pt));

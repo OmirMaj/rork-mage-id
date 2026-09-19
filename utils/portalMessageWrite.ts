@@ -25,6 +25,20 @@ import type { WriteOutcome } from '@/utils/offlineQueue';
 
 export const PORTAL_STILL_SAVING = 'Your portal is still saving — try again in a moment.';
 
+/** A refusal with NO project write of ours pending cannot be "still saving":
+ *  the policy also refuses anyone but the project owner, and a portal whose
+ *  server portalId no longer matches (disabled, or re-enabled on another
+ *  device). Neither clears by waiting, so the copy names both conditions
+ *  instead of guessing one (leftovers review). */
+export const PORTAL_MESSAGE_REFUSED = 'The portal refused this message. Only the project owner can message the client, and only while the portal is on — check Client Portal setup.';
+
+/** Words for an RLS refusal of a GC portal message. "Still saving" only when
+ *  this device had a project write for the job unconfirmed when the send
+ *  began — the one case where retrying in a moment actually helps. */
+export function portalRefusalCopy(projectWritePending: boolean): string {
+  return projectWritePending ? PORTAL_STILL_SAVING : PORTAL_MESSAGE_REFUSED;
+}
+
 /** How long a GC send waits for a project write already on the wire. */
 export const PORTAL_SYNC_WAIT_MS = 8000;
 
@@ -44,7 +58,9 @@ export interface PortalMessageWriteDeps {
   /** This session's offline queue holds a write for this project. May throw. */
   projectWriteQueued: (projectId: string) => Promise<boolean>;
   enqueue: (row: Record<string, unknown>) => Promise<void>;
-  writeNow: (row: Record<string, unknown>) => Promise<WriteOutcome>;
+  /** `projectWritePending`: a project write for this job was waiting or on
+   *  the wire when the send began (see portalRefusalCopy). */
+  writeNow: (row: Record<string, unknown>, ctx: { projectWritePending: boolean }) => Promise<WriteOutcome>;
 }
 
 export async function writePortalMessageOrdered(
@@ -52,6 +68,10 @@ export async function writePortalMessageOrdered(
   deps: PortalMessageWriteDeps,
 ): Promise<WriteOutcome> {
   const projectId = typeof row.project_id === 'string' && row.project_id ? row.project_id : null;
+  // Read BEFORE the flush/wait below clears it: a refusal is only "still
+  // saving" if our own project write was in flight when he pressed Send.
+  const projectWritePending = !!projectId
+    && (deps.projectSyncWaiting(projectId) || deps.projectSyncUnconfirmed(projectId));
   if (projectId) {
     if (deps.projectSyncWaiting(projectId)) {
       try { await deps.flushProjectSyncs(); } catch { /* each run reports its own failure */ }
@@ -75,5 +95,5 @@ export async function writePortalMessageOrdered(
       }
     }
   }
-  return deps.writeNow(row);
+  return deps.writeNow(row, { projectWritePending });
 }

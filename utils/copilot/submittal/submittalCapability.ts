@@ -4,7 +4,7 @@
 import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
 import { submittalGaps, type SubmittalDraft } from './submittalGaps';
 import { buildSubmittalGrounding } from './submittalGrounding';
-import { todayCalendarDay, toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface SubmittalApplied { route: '/submittal'; projectId: string; params: { projectId: string } }
 
@@ -29,7 +29,7 @@ export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApp
     composeQuestion: 'What’s the submittal?',
     composeHint: 'The item + spec section — I’ll number it and log it.',
     reviewHeadline: 'Here’s your submittal, ready to track.',
-    reviewSub: 'Review the item + spec section, then open it to send for review.',
+    reviewSub: 'Review the item + spec section, then open it from Submittals to attach the product data and send it for review.',
     buildingLabel: 'Logging the submittal…',
     webRoute: '/submittal',
   },
@@ -68,16 +68,25 @@ export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApp
     // is tomorrow's date from about 5-8 pm anywhere west of Greenwich, so a
     // voice-logged record filed after the crew knocked off carried the NEXT
     // day and its due date was a day out (audit round 2, #2 appendix).
-    const today = todayCalendarDay();
-    const requiredDate = toCalendarDayString(addCalendarDays(new Date(), draft.urgent ? 7 : 14));
+    //
+    // #57/#60: logging is not sending. The row starts unsent (submittedDate
+    // blank — the first review round records when it went) and with NO
+    // required date unless he said one: "7 days if urgent, else 14" was a
+    // deadline nobody set, and the chase list then blamed the reviewer for it.
+    // An urgent flag becomes the date only because he said so — today, the
+    // honest reading of "rush" — and he adjusts it on the screen. The product
+    // data is attached on the submittal screen (attachments start empty on
+    // every create path; the screen's attach control is where they come from).
+    const requiredDate = draft.urgent ? todayCalendarDay() : '';
 
     ctx.ctx?.addSubmittal?.({
       projectId: ctx.projectId,
       title: title.slice(0, 100),
       specSection: draft.specSection ?? '',
       submittedBy: '',
-      submittedDate: today,
+      submittedDate: '',
       requiredDate,
+      ...(requiredDate ? { requiredDateSource: 'manual' as const } : {}),
       reviewCycles: [],
       currentStatus: 'pending',
       attachments: [],

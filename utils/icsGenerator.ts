@@ -19,7 +19,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { toCalendarDayString } from '@/utils/calendarDate';
-import { resolveScheduleAnchor, taskCalendarRange } from '@/utils/scheduleOps';
+import { resolveScheduleAnchor, scheduledPlacements, scheduledTaskRange, type ScheduledPlacement } from '@/utils/scheduleOps';
+import { runCpm } from '@/utils/cpm';
 import type {
   Project, ProjectSchedule, ScheduleTask, Invoice, Warranty,
 } from '@/types';
@@ -83,8 +84,21 @@ export function buildProjectEvents(input: BuildProjectEventsInput): IcsEvent[] {
   const schedule = project.schedule;
   const anchor = resolveScheduleAnchor(schedule);
   if (schedule && schedule.tasks.length > 0 && anchor.date) {
+    // #51 (export audit): date each task where the ENGINE puts it (CPM es/ef
+    // on the schedule's own calendar), not from its stored startDay pin — a
+    // pin that a slipped predecessor pushed later exported a week early while
+    // the app showed the real date. A task the engine cannot place (a cycle,
+    // a throw) keeps its pin through scheduledTaskRange's fallback.
+    let placements = new Map<string, ScheduledPlacement>();
+    try {
+      placements = scheduledPlacements(runCpm(schedule.tasks, {
+        scheduleStartDate: anchor.iso ?? undefined,
+        workingDaysPerWeek: schedule.workingDaysPerWeek,
+        nonWorkingDates: schedule.nonWorkingDates,
+      }), true);
+    } catch { /* keep the pins */ }
     for (const t of schedule.tasks) {
-      const ev = scheduleTaskToEvent(project, anchor.date, schedule, t);
+      const ev = scheduleTaskToEvent(project, anchor.date, schedule, t, placements.get(t.id));
       if (ev) events.push(ev);
     }
   }
@@ -151,13 +165,14 @@ function scheduleTaskToEvent(
   anchor: Date,
   schedule: ProjectSchedule,
   t: ScheduleTask,
+  placement?: ScheduledPlacement,
 ): IcsEvent | null {
-  // startDay and durationDays are WORKING-day quantities on the schedule's own
-  // calendar, so they are walked with taskCalendarRange — the same resolver the
-  // grid, the CSV export and the mobile list use. Advancing raw calendar days
-  // (the old addDays walk) put every task a day later per weekend crossed, and
-  // the error compounded down the file.
-  const { start, end } = taskCalendarRange(t, anchor, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
+  // The engine's placement, read through scheduledTaskRange — the same
+  // resolver the mobile list and timeline use. With no placement it walks the
+  // stored startDay/durationDays as WORKING days (taskCalendarRange); raw
+  // calendar days (the old addDays walk) put every task a day later per
+  // weekend crossed, and the error compounded down the file.
+  const { start, end } = scheduledTaskRange(t, placement, anchor, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
   const startIso = toCalendarDayString(start);
   const endIso = toCalendarDayString(end);
 

@@ -12,6 +12,9 @@
 //   acceptPending { collaboratorId }        — accept one of those, same email check
 //   revoke     { collaboratorId }           — caller must OWN the parent project
 //   changeRole { collaboratorId, role }     — caller must OWN the parent project
+//   getLink    { collaboratorId }           — owner re-reads a PENDING row's link
+//                                              (no token rotation, #177)
+//   leave      { projectId }                — a collaborator removes HIMSELF
 //
 // Auth model: deployed with the default platform JWT verification (the caller's
 // Supabase session). We ALSO verify the JWT with GoTrue here (verifyUser →
@@ -185,22 +188,79 @@ async function seatCheck(
   return { allowed: true, reason: "", used: admins.size, included };
 }
 
-async function sendInviteEmail(to: string, link: string, projectName: string): Promise<void> {
-  if (!RESEND_API_KEY) return; // email is best-effort; the link is returned regardless
+/** HTML-escape text interpolated into the email body. The project name and
+ *  the inviter's company are typed by users; raw, a name with `<a href=…>` in
+ *  it rendered as a link inside a MAGE-branded email (#177). */
+function escapeHtml(v: string): string {
+  return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/** Subject lines are plain text, but a CR/LF in one is a header-injection
+ *  shape some relays honour; collapse whitespace and cap the length. */
+function plainLine(v: string, max = 80): string {
+  return v.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+const ROLE_WORD: Record<string, string> = { editor: "Editor", viewer: "Viewer", field: "Field" };
+const ROLE_LINE: Record<string, string> = {
+  editor: "You'll be able to edit the job, including its costs.",
+  viewer: "You'll be able to see the job, including its costs, read-only.",
+  field: "You'll see the schedule and the field work — daily reports, photos, RFIs, punch list.",
+};
+
+export type InviteEmailResult = { sent: boolean; reason?: "not_configured" | "rejected" | "network" };
+
+/**
+ * #177: the send's outcome is REPORTED, not swallowed. It used to return void
+ * whatever happened — RESEND_API_KEY unset, Resend refusing the address, the
+ * network failing — and the function still answered success, so the roster
+ * said "Invited" and the GC waited on an email that never left.
+ */
+async function sendInviteEmail(
+  to: string, link: string, projectName: string, inviterName: string, role: string,
+): Promise<InviteEmailResult> {
+  if (!RESEND_API_KEY) return { sent: false, reason: "not_configured" };
+  const project = plainLine(projectName) || "a project";
+  const who = plainLine(inviterName) || "A contractor";
+  const roleWord = ROLE_WORD[role] ?? "";
   try {
-    await fetch("https://api.resend.com/emails", {
+    const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: FROM_EMAIL,
         to,
-        subject: `You've been invited to collaborate on ${projectName || "a project"} in MAGE ID`,
-        html: `<p>You've been invited to collaborate on <b>${projectName || "a project"}</b> in MAGE ID.</p>
-               <p><a href="${link}">Open the invite</a> (sign in or create an account to accept).</p>
+        subject: `${who} invited you to ${project}${roleWord ? ` as ${roleWord}` : ""} — MAGE ID`,
+        html: `<p><b>${escapeHtml(who)}</b> invited you to <b>${escapeHtml(project)}</b> in MAGE ID${roleWord ? ` as <b>${escapeHtml(roleWord)}</b>` : ""}.</p>
+               ${ROLE_LINE[role] ? `<p>${escapeHtml(ROLE_LINE[role])}</p>` : ""}
+               <p><a href="${escapeHtml(link)}">Open the invite</a> (sign in or create a free account with this address to accept).</p>
                <p style="color:#888;font-size:12px">If you weren't expecting this, you can ignore this email.</p>`,
       }),
     });
-  } catch { /* non-fatal */ }
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.text()).slice(0, 300); } catch { /* body is diagnostics only */ }
+      console.error("[project-invite] Resend rejected the invite email:", res.status, detail);
+      return { sent: false, reason: "rejected" };
+    }
+    return { sent: true };
+  } catch (err) {
+    console.error("[project-invite] invite email send failed:", err instanceof Error ? err.message : String(err));
+    return { sent: false, reason: "network" };
+  }
+}
+
+/** The inviter as the invitee knows him: company first, then his name. */
+async function inviterDisplayName(uid: string): Promise<string> {
+  try {
+    const prof = await rest(`profiles?id=eq.${encodeURIComponent(uid)}&select=name,company_name&limit=1`);
+    if (!prof.ok) return "";
+    const p = ((await prof.json()) as { name?: string; company_name?: string }[])[0];
+    return (p?.company_name || p?.name || "").trim();
+  } catch {
+    return "";
+  }
 }
 
 serve(async (req) => {
@@ -294,8 +354,62 @@ serve(async (req) => {
       if (pr.ok) projectName = (((await pr.json()) as { name?: string }[])[0]?.name) ?? "";
     } catch { /* ignore */ }
     const link = `${APP_ORIGIN}/accept-invite?token=${token}`;
-    await sendInviteEmail(email, link, projectName);
-    return json({ success: true, link, collaborator: rows[0] ?? null });
+    const inviterName = await inviterDisplayName(caller.sub);
+    const mail = await sendInviteEmail(email, link, projectName, inviterName, role);
+    // #177: emailSent tells the owner's screen whether to say "Emailed to X"
+    // or "Email not sent — copy the link". The invite row exists either way.
+    return json({ success: true, link, collaborator: rows[0] ?? null, emailSent: mail.sent, emailReason: mail.reason ?? null });
+  }
+
+  // ── getLink ──────────────────────────────────────────────────────────────────
+  // #177: the copy-link fallback lived only in the invite form's state, so
+  // once the GC left the screen his only way to the link again was re-sending
+  // — which rotates the token and kills the link he may already have texted.
+  // This re-reads the CURRENT token of a still-pending row; nothing changes.
+  if (action === "getLink") {
+    const collaboratorId = String(body.collaboratorId || "");
+    if (!collaboratorId) return json({ error: "Missing collaboratorId" }, 400);
+    const own = await ownsCollaboratorsProject(collaboratorId, caller.sub);
+    if (!own.ok) return json({ error: "Only the project owner can copy an invite link" }, 403);
+    const r = await rest(`project_collaborators?id=eq.${encodeURIComponent(collaboratorId)}&select=status,invite_token&limit=1`);
+    if (!r.ok) return json({ error: `Could not read the invite (${r.status})` }, 502);
+    const row = ((await r.json()) as { status: string; invite_token: string | null }[])[0];
+    if (!row || row.status !== "pending" || !row.invite_token) {
+      // 200 + error: invoke() drops a non-2xx body, and this line is the answer.
+      return json({ success: false, code: "not_pending", error: "This invite isn't waiting any more — they've accepted it or it was removed." });
+    }
+    return json({ success: true, link: `${APP_ORIGIN}/accept-invite?token=${row.invite_token}` });
+  }
+
+  // ── leave ────────────────────────────────────────────────────────────────────
+  // A collaborator takes HIMSELF off a job (the project hub's "Leave"). Only
+  // his own row — matched on his user id, or on his verified email for an
+  // invite he never accepted — and never the owner's: an owner leaving his own
+  // project would orphan it. Server-authoritative like revoke, so it is not
+  // queued offline.
+  if (action === "leave") {
+    const projectId = String(body.projectId || "");
+    if (!projectId) return json({ error: "Missing projectId" }, 400);
+    if (await callerOwnsProject(projectId, caller.sub)) {
+      return json({ success: false, code: "owner", error: "You own this project, so you can't leave it. Delete or hand it over instead." });
+    }
+    // Two plain eq. filters, not one or=(…) splice: the email is user text,
+    // and a comma or parenthesis in it would re-shape an or-list (the
+    // PostgREST splice class the 2026-09-03 audit found in `.in()`).
+    const base = `project_collaborators?project_id=eq.${encodeURIComponent(projectId)}&status=neq.revoked`;
+    const patch = { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ status: "revoked", invite_token: null }) };
+    const mine = await rest(`${base}&user_id=eq.${encodeURIComponent(caller.sub)}`, patch);
+    if (!mine.ok) return json({ error: `Could not leave the project (${mine.status})` }, 502);
+    let changed = ((await mine.json()) as unknown[]).length;
+    if (caller.email) {
+      const invited = await rest(`${base}&status=eq.pending&invited_email=eq.${encodeURIComponent(caller.email)}`, patch);
+      if (!invited.ok) return json({ error: `Could not leave the project (${invited.status})` }, 502);
+      changed += ((await invited.json()) as unknown[]).length;
+    }
+    if (!changed) {
+      return json({ success: false, code: "not_member", error: "You're not on this project any more." });
+    }
+    return json({ success: true });
   }
 
   // ── accept ───────────────────────────────────────────────────────────────────

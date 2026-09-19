@@ -19,9 +19,12 @@
 // utils/paymentTerms.ts, which imports only types and ./generateId. The
 // milestone's printed "when" comes from there so the invoice line, the
 // contract screen and the sealed PDF say the same words (Direction B).
+// utils/calendarDate.ts has no imports at all; the payment-date readers below
+// use it so a bare received-day is never read as UTC midnight.
 
 import { invoiceOutstanding, billedAmountForLine } from './invoiceBilling';
 import { milestoneDueText } from './paymentTerms';
+import { dayOrInstantDate, parseCalendarDay, toCalendarDayString } from './calendarDate';
 // Relative, not '@/types': the header above promises this module resolves
 // without app tooling, and an alias only the app's tsconfig knows would break
 // that the moment a Deno function or a bare `bun` run imports the file. It is
@@ -772,7 +775,53 @@ export type MilestoneBillEffect =
       /** Stamped onto the invoice as `sourceMilestoneId` — the identifier
        *  `billedAgainstMilestones` actually runs on. */
       milestoneId: string;
+      /** The payment terms the SIGNED contract already fixed for this row, or
+       *  null when the contract leaves them to his usual terms. See
+       *  `milestoneContractTerms`. */
+      terms: MilestoneContractTerms | null;
+      /** A deposit ('Due on signing'): the invoice opens at 0% retainage and
+       *  does not ask. See `milestoneHoldsNoRetainage`. */
+      depositNoRetainage: boolean;
     };
+
+/**
+ * The payment terms a signed contract row already decided (audit #31).
+ *
+ * The contract prints "Due on signing" for the deposit and "Due at substantial
+ * completion" for the final payment. The invoice for either used to open on
+ * his cash-flow terms (or Net 30), so the deposit invoice said "due in 30
+ * days" under a contract that said "due on signing" — and dunning and the
+ * cash-flow forecast followed the invoice, not the contract. Both rows are due
+ * the day they are billed: the event that triggers them has already happened
+ * by the time he taps "Create invoice".
+ *
+ * Every other trigger keeps his usual terms. `on_invoice` never reaches the
+ * invoice editor (it bills through Bill from Estimate), and an `on_date` /
+ * `on_milestone` row names WHEN it may be billed, not how long the client then
+ * has to pay — that is what his terms answer.
+ */
+export type MilestoneContractTerms = 'due_on_receipt';
+export function milestoneContractTerms(trigger: string | null | undefined): MilestoneContractTerms | null {
+  return trigger === 'on_signing' || trigger === 'on_final' ? 'due_on_receipt' : null;
+}
+
+/** What the invoice's terms caption says when the terms came from the contract. */
+export function milestoneContractTermsCaption(trigger: string | null | undefined): string | null {
+  if (trigger === 'on_signing') return 'From the signed contract: due on signing.';
+  if (trigger === 'on_final') return 'From the signed contract: due at substantial completion.';
+  return null;
+}
+
+/**
+ * A deposit holds no retainage (audit #32). The contract prints the deposit
+ * as the amount due on signing; withholding 10% of it bills the homeowner 90%
+ * of the figure he signed for, and the retainage ask popping up over a deposit
+ * asks a question the contract already answered. Only the deposit: the final
+ * payment is where held retainage is usually settled, so it is left to him.
+ */
+export function milestoneHoldsNoRetainage(trigger: string | null | undefined): boolean {
+  return trigger === 'on_signing';
+}
 
 export function milestoneBillEffect(
   bill: MilestoneBillability,
@@ -808,7 +857,167 @@ export function milestoneBillEffect(
     line: deriveMilestoneInvoiceLine(milestone, contract.contractValue),
     note: milestoneInvoiceNote(milestone, contract.title),
     milestoneId: milestone.id,
+    terms: milestoneContractTerms(milestone.trigger),
+    depositNoRetainage: milestoneHoldsNoRetainage(milestone.trigger),
   };
+}
+
+/**
+ * Is this milestone PAID, as far as the money says (audits #132, #136)?
+ *
+ * The stored `status: 'paid'` is written by exactly one path — the app's own
+ * Record Payment, fire-and-forget, straight to Supabase and outside the
+ * offline queue. A Pay-link payment (stripe-webhook), a flip lost in a
+ * basement, and every row billed before that path existed all leave the
+ * milestone at 'invoiced' while its invoice is paid, so the contract kept
+ * saying "Billed" on a draw the homeowner had paid.
+ *
+ * So the invoices decide whenever any are known: a milestone is paid when it
+ * has at least one linked invoice (by `sourceMilestoneId`, or the milestone's
+ * own `invoiceId`) and EVERY one of them is paid. That also un-pays a draw
+ * whose invoice was refunded, which the stored flag never does. With no linked
+ * invoice on this device (a hand-set status, or invoices not loaded yet) the
+ * stored status stands.
+ *
+ * `paid` on each invoice is the caller's EFFECTIVE status (getEffectiveInvoiceStatus),
+ * not the stored column — this module cannot import it.
+ */
+export function milestonePaidFromInvoices(
+  m: Pick<MilestoneLike, 'id' | 'status' | 'invoiceId'>,
+  invoices: readonly { id: string; sourceMilestoneId?: string | null; paid: boolean }[],
+): boolean {
+  const linked = invoices.filter(i => i.sourceMilestoneId === m.id || (!!m.invoiceId && i.id === m.invoiceId));
+  if (linked.length === 0) return m.status === 'paid';
+  return linked.every(i => i.paid);
+}
+
+/**
+ * The stored-status repair the contract screen runs when it opens (#136): the
+ * milestones the invoices say are paid but whose row does not, each with the
+ * invoice it already names. markMilestonePaidByInvoice keys on that link, so a
+ * row that never got its 'invoiced' flip (no `invoiceId`) is not repaired
+ * here — the contract screen never writes the invoiced link itself (that is
+ * the invoice editor's job, on creation) — and it still SHOWS paid, from
+ * milestonePaidFromInvoices.
+ */
+export function milestonePaidRepairs(
+  schedule: readonly Pick<MilestoneLike, 'id' | 'status' | 'invoiceId'>[],
+  invoices: readonly { id: string; sourceMilestoneId?: string | null; paid: boolean }[],
+): { milestoneId: string; invoiceId: string }[] {
+  const out: { milestoneId: string; invoiceId: string }[] = [];
+  for (const m of schedule) {
+    if (m.status === 'paid' || m.status === 'skipped' || !m.invoiceId) continue;
+    if (milestonePaidFromInvoices(m, invoices)) out.push({ milestoneId: m.id, invoiceId: m.invoiceId });
+  }
+  return out;
+}
+
+// ─── 1b. Recording a payment ─────────────────────────────────────────
+
+/**
+ * The two facts Record Payment now asks for (audit #133), on top of the
+ * InvoicePayment row. `payments` is a jsonb column, so they ride along with no
+ * migration; declared here, not required of types/index.ts, so every reader
+ * compiles whether or not the shared type carries them yet.
+ *
+ * `receivedDate` is the LOCAL calendar day the money arrived ('YYYY-MM-DD'),
+ * which he picks. `date` stays the instant the entry was recorded — the
+ * QuickBooks reconciler matches untagged Payments against that instant
+ * (paymentLedger.pairDistanceMs), so it must keep meaning "when MAGE knew".
+ */
+export interface RecordedPaymentFields {
+  receivedDate?: string;
+  /** Check number or other reference, as he typed it. */
+  reference?: string;
+}
+
+/** The calendar day a payment was RECEIVED: his picked day, else the local day it was recorded. */
+export function paymentReceivedDay(p: { date?: string | null } & RecordedPaymentFields): string | null {
+  if (p.receivedDate && parseCalendarDay(p.receivedDate) && /^\d{4}-\d{2}-\d{2}$/.test(p.receivedDate)) return p.receivedDate;
+  if (!p.date) return null;
+  const at = dayOrInstantDate(p.date);
+  if (!Number.isFinite(at.getTime())) return null;
+  return toCalendarDayString(at);
+}
+
+/**
+ * A Date for when a payment was received, for arithmetic (days-to-pay, the
+ * cash-balance cutoff). His received day at LOCAL NOON when he picked one —
+ * `new Date('2026-09-11')` is UTC midnight, the previous evening anywhere in
+ * the Americas — else the recorded instant, exactly as before. Invalid in,
+ * Invalid Date out, so existing NaN guards keep working.
+ */
+export function paymentReceivedAt(p: { date?: string | null } & RecordedPaymentFields): Date {
+  if (p.receivedDate && /^\d{4}-\d{2}-\d{2}$/.test(p.receivedDate) && parseCalendarDay(p.receivedDate)) {
+    return dayOrInstantDate(p.receivedDate);
+  }
+  return dayOrInstantDate(p.date ?? undefined);
+}
+
+export type RecordPaymentDecision =
+  | { kind: 'refuse'; title: string; message: string }
+  /** More than the balance. Overpayments happen (a credit, a combined check),
+   *  so this asks rather than blocks. */
+  | { kind: 'confirm'; amount: number; title: string; message: string }
+  | { kind: 'record'; amount: number };
+
+/**
+ * What Record Payment does with the typed amount (audit #134).
+ *
+ * It used `parseFloat(x) || 0`: '12,500.00' typed on the web (or pasted on
+ * iOS) parsed as 12, and a $12 payment went to the ledger and to QuickBooks.
+ * `parse` is utils/cashFlowEngine.parseMoneyInput — passed in because that
+ * module is not React-Native-free — which reads US thousands separators and
+ * returns null on anything ambiguous. Null or not above zero is refused with
+ * the reason; the amount is rounded to the cent; more than the balance asks.
+ */
+export function recordPaymentDecision(
+  typed: string,
+  balanceDue: number,
+  parse: (text: string) => number | null,
+  fmt: (n: number) => string,
+): RecordPaymentDecision {
+  const parsed = parse(typed);
+  if (parsed == null || !Number.isFinite(parsed)) {
+    return { kind: 'refuse', title: 'Couldn’t read that amount', message: 'Type it like 12500.00 or 12,500.00.' };
+  }
+  const amount = toCents(parsed);
+  if (amount <= 0) {
+    return { kind: 'refuse', title: 'Invalid Amount', message: 'Enter a payment amount above $0.00.' };
+  }
+  const balance = toCents(Math.max(0, balanceDue));
+  if (amount > balance + 0.005) {
+    return {
+      kind: 'confirm',
+      amount,
+      title: 'More than the balance',
+      message: `This is ${fmt(toCents(amount - balance))} more than the ${fmt(balance)} balance. Record ${fmt(amount)} anyway?`,
+    };
+  }
+  return { kind: 'record', amount };
+}
+
+/**
+ * A typed MONEY figure that must be above zero, rounded to the cent, or null
+ * with no fallback to 0. The retention release uses it (#134).
+ */
+export function parsePositiveMoney(typed: string, parse: (text: string) => number | null): number | null {
+  const n = parse(typed);
+  if (n == null || !Number.isFinite(n)) return null;
+  const cents = toCents(n);
+  return cents > 0 ? cents : null;
+}
+
+/**
+ * A typed PERCENTAGE for the retainage ask. `parseFloat` read '1,5' as 1 and
+ * '10abc' as 10; this accepts '10', '7.5' and '10%' and nothing else, and the
+ * caller still checks the 0–100 range.
+ */
+export function parsePercentInput(typed: string): number | null {
+  const t = typed.trim().replace(/%$/, '').trim();
+  if (!/^\d+(\.\d+)?$|^\.\d+$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }
 
 // ─── 2. Invoice reminders (dunning) ──────────────────────────────────
@@ -872,7 +1081,11 @@ export type ReminderBlockReason =
   | 'not_overdue'
   | 'unsubscribed'
   | 'stage_already_sent'
-  | 'too_soon';
+  | 'too_soon'
+  // Nobody to email (#47): no billing address stored on the invoice and no
+  // portal invitee on the project. The cron skips these every day; the card
+  // says so up front instead of after a tap.
+  | 'no_recipient';
 
 export interface ReminderEligibilityInput {
   /** Stored invoice status. Never trusted alone — the math below rules. */
@@ -904,6 +1117,12 @@ export interface ReminderEligibilityInput {
   unsubscribed?: boolean;
   /** true = GC tapped "Send reminder now"; false/undefined = cron. */
   manual?: boolean;
+  /**
+   * Whether the invoice has anyone to remind (reminderRecipient below).
+   * `false` blocks with 'no_recipient'; undefined means "not known here" and
+   * leaves the decision to the server, which resolves the address itself.
+   */
+  hasRecipient?: boolean;
   nowMs: number;
 }
 
@@ -965,8 +1184,15 @@ export function reminderEligibility(input: ReminderEligibilityInput): ReminderEl
   // Fully collected even if the stored status lagged behind.
   if (outstanding <= 0) return base('nothing_outstanding', 0, 0);
   if (!Number.isFinite(input.dueMs)) return base('bad_due_date', 0, 0);
-
+  // Before the overdue check ON PURPOSE: "reminders are off, there is no
+  // client email" is worth knowing while the invoice is still current — that
+  // is when he can still fix it — not only once it is late and the cron has
+  // already skipped it (#47).
+  // Days are still counted, so the card keeps saying "N days overdue" next to
+  // "reminders are off" instead of dropping the lateness it is warning about.
   const days = daysOverdue(input.dueMs, input.nowMs);
+  if (input.hasRecipient === false) return base('no_recipient', Math.max(0, days), 0);
+
   const target = targetDunningStage(days);
   if (target === 0) return base('not_overdue', days, 0);
 
@@ -1009,6 +1235,8 @@ export function reminderBlockMessage(reason: ReminderBlockReason, lastSentMs?: n
         : 24;
       return `A reminder already went out in the last 24 hours. You can send another in ${hoursLeft}h.`;
     }
+    case 'no_recipient':
+      return 'Automatic reminders are off — no client email on this invoice or project. Send the invoice to the client by email (or add a portal invitee) and reminders start.';
     // The server owns this string's input, so a value the client doesn't know
     // yet is possible across an OTA/edge-function version skew. Never render
     // "undefined" at the GC.
@@ -1039,3 +1267,117 @@ export function reminderSentLabel(
 // renders in full. The project invoice list reuses that function rather than
 // growing a second, subtly-different definition of "outstanding": two
 // disagreeing A/R numbers in one app is worse than one imperfect one.
+
+// ─── 4. Send → pay → remind: the honest-outcome rules (wave 3) ───────
+//
+// The invoice screen's Send used to report "Invoice #N sent" whatever happened
+// to the Pay button, and the reminder card could not say who (if anyone) the
+// cron would chase. These are the decisions, kept pure so
+// scripts/validate-invoice-send-pay-honesty.ts executes them.
+
+/** Stripe's per-charge limits for USD, in cents (create-payment-link enforces the same). */
+export const STRIPE_MIN_CHARGE_CENTS = 50;
+export const STRIPE_MAX_CHARGE_CENTS = 99_999_999;
+
+/**
+ * Why a Pay link cannot be minted for `amount` (dollars) at all, or null.
+ * Checked BEFORE the round trip: these two never succeed on retry, so the
+ * copy says what to do instead (#49). A $1.2M progress draw is the real case —
+ * Stripe cannot take it as one card/ACH payment.
+ */
+export function payLinkAmountBlock(amount: number): string | null {
+  const cents = Math.round(amount * 100);
+  if (!Number.isFinite(cents) || cents <= 0) return null; // nothing due — callers skip the mint anyway
+  if (cents > STRIPE_MAX_CHARGE_CENTS) return STRIPE_OVER_MAX_REASON;
+  if (cents < STRIPE_MIN_CHARGE_CENTS) return STRIPE_UNDER_MIN_REASON;
+  return null;
+}
+
+/** The two limit reasons, shared so every path words them the same way. */
+export const STRIPE_OVER_MAX_REASON = "this amount is over Stripe's $999,999.99 per-payment limit. Collect it by ACH or check, or split the draw into smaller invoices";
+export const STRIPE_UNDER_MIN_REASON = 'Stripe cannot charge less than $0.50. Collect it another way';
+
+/**
+ * Whether trying again could ever produce a Pay link. Stripe's per-charge
+ * limits never pass on retry, so their copy must not end in "tap Generate
+ * Payment Link" — that button would only hit the same wall.
+ */
+export function payLinkReasonIsRetryable(reason: string): boolean {
+  return reason !== STRIPE_OVER_MAX_REASON && reason !== STRIPE_UNDER_MIN_REASON;
+}
+
+/**
+ * Plain-words reason for a failed mint, from the edge function's error text.
+ * 'invoice not found' is the new invoice not having reached the server yet.
+ */
+export function payLinkFailureReason(error: string | undefined | null): string {
+  const e = (error ?? '').trim();
+  // Not "it will arrive": a queued insert is caught before the mint, so a 404
+  // here is either an insert still on the wire or one the server rejected —
+  // this screen cannot tell which, so the copy names both.
+  if (/not found/i.test(e)) return "the server doesn't have this invoice yet — it may still be saving, or the save may have failed (check the sync status)";
+  if (/maximum|999,999/i.test(e)) return STRIPE_OVER_MAX_REASON;
+  if (/minimum|0\.50/i.test(e)) return STRIPE_UNDER_MIN_REASON;
+  return e ? `Stripe said: ${e}` : "Stripe couldn't create the link";
+}
+
+/**
+ * The toast that replaces "Invoice #N sent" when the email went but the Pay
+ * button did not. One message for the new-invoice Send and the PDF send.
+ */
+export function sentWithoutPayButtonMessage(invoiceNumber: number, reason: string): string {
+  if (!payLinkReasonIsRetryable(reason)) return `Sent — without a Pay button: ${reason}.`;
+  return `Sent — without a Pay button: ${reason}. Open Invoice #${invoiceNumber} and tap Generate Payment Link to add one.`;
+}
+
+/**
+ * The next invoice number: one past the highest number on the project's list
+ * AND the highest this device issued in this session (#3 part c). The session
+ * max covers the window where a just-created invoice is not on the list yet —
+ * a refetch that lands before its queued INSERT, or a screen that remounted
+ * before the context re-rendered — which is how the same number went out twice.
+ */
+/**
+ * Highest invoice number this DEVICE has issued per project, this session
+ * (#3 part c). Module scope, shared by every screen that creates invoices
+ * (app/invoice.tsx and app/bill-from-estimate.tsx): a just-created invoice can
+ * be missing from the list for a moment (a refetch that lands before its
+ * queued INSERT), and max+1 over that list alone handed its number out again —
+ * from the other screen too, when only one of them remembered.
+ */
+export const sessionIssuedInvoiceMax = new Map<string, number>();
+export function noteIssuedInvoiceNumber(projectId: string, n: number): void {
+  if (!projectId || !Number.isFinite(n)) return;
+  sessionIssuedInvoiceMax.set(projectId, Math.max(sessionIssuedInvoiceMax.get(projectId) ?? 0, n));
+}
+
+export function nextInvoiceNumberFrom(list: readonly { number?: number | null }[], sessionIssuedMax = 0): number {
+  const listMax = list.reduce((max, i) => Math.max(max, Number(i.number) || 0), 0);
+  return Math.max(listMax, sessionIssuedMax || 0) + 1;
+}
+
+/**
+ * Whether the client portal shows this invoice — the same rule as
+ * utils/portalSnapshot.isShared (no state = legacy, shown; 'sent' shown;
+ * 'draft' / 'recalled' hidden). The pay-link copy may only promise a portal
+ * Pay button when this is true (#45).
+ */
+export function invoiceShownInPortal(portalState: { status?: string } | null | undefined): boolean {
+  return portalState == null || portalState.status === 'sent';
+}
+
+/**
+ * Who a payment reminder goes to — the SAME order invoice-dunning uses:
+ * the address the invoice was emailed to (bill_to_email) first, then the
+ * project's first portal invitee with an '@'. Null = nobody, and the cron
+ * skips it with 'no_recipient' (#47).
+ */
+export function reminderRecipient(
+  billToEmail: string | null | undefined,
+  invites: readonly { email?: string | null }[] | null | undefined,
+): string | null {
+  const bill = (billToEmail ?? '').trim();
+  if (bill.includes('@')) return bill;
+  const invite = (invites ?? []).find(i => (i.email ?? '').includes('@'));
+  return invite ? (invite.email ?? '').trim() : null;
+}

@@ -184,7 +184,7 @@ export default function ScheduleImportScreen() {
     //  1. A full-fidelity scenario snapshot (`Before import — <date>`) holding
     //     complete ScheduleTask objects (titles, durations, dependencies,
     //     progress, crew, constraints, …). This is the ACTUAL restore path —
-    //     the user can one-tap "Restore" it from What-If Scenarios, which
+    //     the user can one-tap "Restore" it from Saved plans, which
     //     copies these tasks back into schedule.tasks. A ScheduleBaseline only
     //     snapshots {id,startDay,endDay}, so it could never rebuild the plan.
     //  2. A variance baseline (unchanged) so slip/variance display still works.
@@ -297,7 +297,7 @@ export default function ScheduleImportScreen() {
         ? ` The import has fewer tasks (${mappedTasks.length}) than your current plan (${existingCount}) — double-check the mapping.`
         : '';
       const replaceLine =
-        `This replaces your existing ${existingCount} task${existingCount === 1 ? '' : 's'} with ${mappedTasks.length} imported task${mappedTasks.length === 1 ? '' : 's'}.${shrinkNote}\n\nYour current plan is saved as a restore point first (What-If Scenarios → Restore).`;
+        `This replaces your existing ${existingCount} task${existingCount === 1 ? '' : 's'} with ${mappedTasks.length} imported task${mappedTasks.length === 1 ? '' : 's'}.${shrinkNote}\n\nYour current plan is saved as a restore point first (Saved plans → Restore).`;
 
       if (cpm.conflicts.length > 0) {
         setImporting(false);
@@ -519,7 +519,7 @@ export default function ScheduleImportScreen() {
               <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.roBadgeText}>
                 Your current schedule is saved as a restore point before the import replaces it —
-                bring it back anytime from What-If Scenarios → Restore.
+                bring it back anytime from Saved plans → Restore.
               </Text>
             </View>
           </>

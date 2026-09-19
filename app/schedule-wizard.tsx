@@ -63,7 +63,9 @@ import {
 import type { ScheduleTemplate, TemplateTask } from '@/constants/scheduleTemplates';
 import TaskRowDrag, { type TaskDragHandle } from '@/components/schedule/TaskRowDrag';
 import PredecessorPicker, { type PredecessorLink } from '@/components/schedule/PredecessorPicker';
-import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
+import {
+  PHASE_COLORS, buildScheduleFromTasks, scheduleReplacementLoss, describeScheduleReplacement, replaceRunningSchedule,
+} from '@/utils/scheduleEngine';
 import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { generateUUID } from '@/utils/generateId';
 import type { ScheduleTask } from '@/types';
@@ -550,13 +552,17 @@ export default function ScheduleWizardScreen() {
     );
 
     updateProject(project.id, {
-      schedule: {
-        ...built,
-        // Keep the wizard's own commitments: what the preview showed is what
-        // gets stored (the engine defaults to a 3-day buffer we never showed).
+      // Keep the wizard's own commitments: what the preview showed is what
+      // gets stored (the engine defaults to a 3-day buffer we never showed).
+      // Replacing a RUNNING schedule (#52) carries its id-independent sidecars
+      // — the weather delay log, closures, resources — and drops what the
+      // confirm said goes (baselines and saved plans keyed by the old task
+      // ids). The wizard's own start date and working week, never the old ones.
+      schedule: replaceRunningSchedule(project.schedule, built, {
+        startDate: isoStart,
         workingDaysPerWeek: WIZARD_WORKING_DAYS_PER_WEEK,
         bufferDays: 0,
-      },
+      }),
     });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -583,14 +589,17 @@ export default function ScheduleWizardScreen() {
   // Confirmation guard — overwrites an existing schedule.
   const onSavePressed = useCallback(() => {
     if (!project) return;
-    const existing = project.schedule?.tasks?.length ?? 0;
-    if (existing === 0) {
+    // The same count of what a replace loses as schedule-review's Accept
+    // (#52) — this confirm used to say only "Saving replaces it", never that
+    // the foreman's progress and the locked baselines went with it.
+    const loss = scheduleReplacementLoss(project.schedule);
+    if (!loss) {
       handleSave();
       return;
     }
     setConfirm({
-      title: 'Replace existing schedule?',
-      message: `${project.name} already has a schedule with ${existing} task${existing === 1 ? '' : 's'}. Saving replaces it.`,
+      title: 'Replace the running schedule?',
+      message: describeScheduleReplacement(loss, project.name, { newWorkingDaysPerWeek: WIZARD_WORKING_DAYS_PER_WEEK }),
       confirmLabel: 'Replace',
       destructive: true,
       onConfirm: handleSave,

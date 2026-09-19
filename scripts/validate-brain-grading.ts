@@ -295,13 +295,16 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
           title: 'Electrical',
           phase: 'Rough',
           durationDays: 8, // POST-apply duration (5 + the 3-day ripple)
-          startDay: 10,    // planned end = 10+8-1 = 17
+          startDay: 10,    // planned end = 10+8-1 = 17 (working ordinal)
           progress: 100,
           crew: 'Electrical',
           dependencies: [],
           notes: '',
           status: 'done',
-          actualEndDay: 17, // landed exactly on the rippled plan
+          // Landed exactly on the rippled plan. actualEndDay is a CALENDAR index
+          // (utils/pace/stampActuals.ts, audit #50): working day 17 on a 5-day
+          // week from Thu 2026-01-01 is Fri Jan 23 = calendar day 23.
+          actualEndDay: 23,
         } as any,
       ],
     } as any,
@@ -311,7 +314,7 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
   const noPre = gradeDelayRipple(makeRow('delay_ripple_applied', 'report-p', {
     reportId: 'report-p',
     hits: [{ taskId: 'task-p', deltaDays: 3 }], // legacy payload: no preApplyEndDay
-    predictedFinishDay: 17,
+    predictedFinishDay: 23, // runCpm projectFinish — a calendar index, like the actual
   }, 'proj-1'), ctx);
   assert(noPre !== null, 'gradeDelayRipple post-apply: resolvable');
   if (noPre) {

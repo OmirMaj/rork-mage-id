@@ -107,7 +107,7 @@ function BudgetDashboardScreenInner() {
   } = useProjects();
   const { receipts } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const projectInvoices = useMemo(() => invoices.filter(inv => inv.projectId === (projectId ?? '')), [invoices, projectId]);
@@ -134,10 +134,10 @@ function BudgetDashboardScreenInner() {
     if (!project) return null;
     return computeJobCost({
       project, commitments, changeOrders, receipts, timeEntries, laborRates,
-      overtimeMultiplier, equipment, permits, subcontractors,
+      overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
     });
   }, [project, commitments, changeOrders, receipts, timeEntries, laborRates,
-      overtimeMultiplier, equipment, permits, subcontractors]);
+      overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
 
   // Actual Cost WITH the records that produced it. The counts are the union of
   // JobCostLine.sources across every phase, deduped — a receipt that splits

@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Modal,
+  AppState, RefreshControl,
 } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +38,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   loadActiveContract, saveContractDetailed, setContractStatus,
+  markMilestonePaidByInvoice,
   buildDraftContract, buildProposalFromRevision,
   contractTimeline, contractTimelineSentence, suggestContractTimeline,
 } from '@/utils/contractEngine';
@@ -53,10 +55,11 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
   milestoneBillability, milestoneBillEffect, milestoneBlockMessage, progressRowOpen,
-  contractBilledToDate, attributableContractBilling,
+  contractBilledToDate, attributableContractBilling, milestonePaidFromInvoices, milestonePaidRepairs,
   type MilestoneBillability,
 } from '@/utils/billingFlowCore';
 import { generateUUID } from '@/utils/generateId';
+import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 import { formatMoney } from '@/utils/formatters';
 import { statusPillStyle } from '@/utils/statusPill';
 import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
@@ -311,9 +314,12 @@ function ContractScreenInner() {
 
   // Re-read the contract when this screen regains focus, so a milestone the
   // invoice editor just flipped to 'invoiced' shows as billed the moment the
-  // GC lands back here. Gated on a SIGNED contract on purpose: a draft holds
-  // unsaved local edits (scope text, amounts) that a refetch would silently
-  // discard, and only a signed contract can be invoiced against anyway.
+  // GC lands back here. Gated on a SENT or SIGNED contract on purpose: a draft
+  // holds unsaved local edits (scope text, amounts) that a refetch would
+  // silently discard. A sent contract is locked (contractTermsLocked), so it
+  // has nothing local to lose — and it is the one that changes under him: the
+  // homeowner counter-signs on their own phone and, until this re-read, the
+  // screen kept saying "Sent" with no Create invoice on the deposit (#119).
   //
   // A draft with NO id (seeded here, never saved) is re-checked too: if the job
   // has a live contract after all — it was written on another device, or it
@@ -336,7 +342,7 @@ function ContractScreenInner() {
       const held = contractRef.current;
       if (!focusProjectId || !held) return;
       const unsavedDraft = !focusContractId;
-      if (!unsavedDraft && focusContractStatus !== 'signed') return;
+      if (!unsavedDraft && focusContractStatus !== 'signed' && focusContractStatus !== 'sent') return;
       (async () => {
         const fresh = await loadActiveContract(focusProjectId);
         if (cancelled || !fresh.ok || !fresh.contract) return;
@@ -356,6 +362,35 @@ function ContractScreenInner() {
       return () => { cancelled = true; };
     }, [focusContractId, focusContractStatus, focusProjectId]),
   );
+
+  // The same re-read for a sent/signed contract, OFF the focus path (#119).
+  // useFocusEffect does not fire when the app comes back from the background,
+  // and the kitchen-table case never leaves this screen at all: he sends, the
+  // homeowner signs on their phone, he is still looking at "Sent". So it also
+  // runs on AppState 'active' and on pull-to-refresh. Only the SAME contract
+  // is adopted (fresh.id === held.id): a superseding revision or a void is
+  // never swapped in silently. Content-compared, like the focus read.
+  const [refreshing, setRefreshing] = useState(false);
+  const recheckLockedContract = useCallback(async () => {
+    const held = contractRef.current;
+    const pid = projectRef.current?.id;
+    if (!held?.id || !pid || (held.status !== 'sent' && held.status !== 'signed')) return;
+    const fresh = await loadActiveContract(pid);
+    if (!fresh.ok || !fresh.contract || fresh.contract.id !== held.id) return;
+    const current = contractRef.current;
+    if (!current || current.id !== fresh.contract.id) return;
+    if (JSON.stringify(current) !== JSON.stringify(fresh.contract)) setContract(fresh.contract);
+  }, []);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void recheckLockedContract();
+    });
+    return () => sub.remove();
+  }, [recheckLockedContract]);
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await recheckLockedContract(); } finally { setRefreshing(false); }
+  }, [recheckLockedContract]);
 
   /** Tell him the job already has a contract and show it — the refusal of a
    *  save that would have inserted a second one. */
@@ -385,6 +420,54 @@ function ContractScreenInner() {
     }
     return map;
   }, [projectInvoices]);
+
+  // PAID, AS THE MONEY SAYS (#132, #136). The stored milestone status only
+  // turns 'paid' through the app's own Record Payment, fire-and-forget; a
+  // Pay-link payment, a flip lost offline and every older row stayed
+  // "Billed" on a paid draw. The invoices decide whenever this device knows
+  // them — EFFECTIVE status, so a refund un-pays the draw too.
+  const invoicePaidRows = useMemo(
+    () => projectInvoices.map(inv => ({
+      id: inv.id,
+      sourceMilestoneId: inv.sourceMilestoneId,
+      paid: getEffectiveInvoiceStatus(inv) === 'paid',
+    })),
+    [projectInvoices],
+  );
+  const paidMilestoneIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of contract?.paymentSchedule ?? []) {
+      if (milestonePaidFromInvoices(m, invoicePaidRows)) ids.add(m.id);
+    }
+    return ids;
+  }, [contract?.paymentSchedule, invoicePaidRows]);
+
+  // Best-effort repair of the STORED status when the contract opens (#136):
+  // the retry markMilestonePaidByInvoice's callers were supposed to provide
+  // and never did. Each is a fresh read-verify-write on the live row (never a
+  // queued copy of the whole schedule, which could overwrite an edit made in
+  // between). Once per milestone per visit; silent, because the screen already
+  // shows the derived PAID either way, and a failure is retried next open.
+  const repairAttemptedRef = useRef(new Set<string>());
+  const repairContractId = contract?.id;
+  const repairContractStatus = contract?.status;
+  useEffect(() => {
+    const c = contractRef.current;
+    if (!repairContractId || repairContractStatus !== 'signed' || !c || c.id !== repairContractId) return;
+    const todo = milestonePaidRepairs(c.paymentSchedule, invoicePaidRows)
+      .filter(r => !repairAttemptedRef.current.has(r.milestoneId));
+    if (todo.length === 0) return;
+    for (const r of todo) repairAttemptedRef.current.add(r.milestoneId);
+    void (async () => {
+      let changed = false;
+      for (const r of todo) {
+        try {
+          if (await markMilestonePaidByInvoice(repairContractId, r.invoiceId) === 'flipped') changed = true;
+        } catch { /* retried on the next open */ }
+      }
+      if (changed) await recheckLockedContract();
+    })();
+  }, [repairContractId, repairContractStatus, invoicePaidRows, recheckLockedContract]);
 
   // ONE CONTRACT, ONE BILLED-TO-DATE — the direction this screen owns
   // (MONEY-LEDGER-1, audit 2026-09-11). /bill-from-estimate was taught to see
@@ -472,6 +555,12 @@ function ContractScreenInner() {
         prefillNotes: effect.note,
         milestoneId: effect.milestoneId,
         contractId: contract.id,
+        // What the signed contract already decided for this row (#31, #32):
+        // the deposit and the final are due on receipt, and the deposit holds
+        // no retainage. The editor seeds both and labels them as the
+        // contract's; the trigger names the row for the caption.
+        ...(effect.terms ? { contractTerms: effect.terms, milestoneTrigger: m.trigger } : {}),
+        ...(effect.depositNoRetainage ? { depositNoRetainage: '1' } : {}),
       },
     } as never);
   }, [contract, projectId, billabilityFor, router]);
@@ -1066,7 +1155,16 @@ function ContractScreenInner() {
         <StatusPill status={contract.status} />
       </View>
 
-      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
+      <ScrollView
+        {...fabScroll}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        // Pull to re-read a sent/signed contract (#119) — the homeowner can
+        // sign while he is looking at it. A draft has nothing to pull: its
+        // unsaved edits are the truth, and a re-read would discard them.
+        refreshControl={contract.status === 'sent' || contract.status === 'signed'
+          ? <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor={themeColors.accent} />
+          : undefined}
+      >
         {/* Centered icon-circle hero — matches the AI-feature screens
             (Construction AI, AI Punch, Payment Predictions) so the
             contract screen reads as part of the same design language. */}
@@ -1361,6 +1459,7 @@ function ContractScreenInner() {
                 onChange={patch => updateMilestone(m.id, patch)}
                 onRemove={() => removeMilestone(m.id)}
                 billability={contract.status === 'signed' ? bill : null}
+                paidByInvoices={paidMilestoneIds.has(m.id)}
                 onCreateInvoice={() => handleCreateInvoiceFromMilestone(m)}
                 onBillProgress={() => router.push({ pathname: '/bill-from-estimate', params: { projectId } } as never)}
                 onOpenInvoice={bill.existingInvoiceId
@@ -1719,8 +1818,11 @@ function StatusPill({ status }: { status: ProjectContract['status'] }) {
   );
 }
 
-function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCreateInvoice, onBillProgress, onOpenInvoice }: {
+function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCreateInvoice, onBillProgress, onOpenInvoice, paidByInvoices }: {
   milestone: PaymentMilestone;
+  /** PAID as the linked invoices say (milestonePaidFromInvoices) — the
+   *  stored status can lag behind a Pay-link payment or a lost flip. */
+  paidByInvoices?: boolean;
   locked: boolean;
   onChange: (patch: Partial<PaymentMilestone>) => void;
   onRemove: () => void;
@@ -1733,6 +1835,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
+  const isPaid = paidByInvoices ?? milestone.status === 'paid';
   const isProgressRow = milestone.trigger === 'on_invoice';
   // WHY A PROGRESS ROW HAS NO "PENDING". The progress stage is drawn against
   // from Bill from Estimate, which writes its own lines and stamps no
@@ -1745,7 +1848,8 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
   // billed against as it gets done. A hand-set paid / invoiced / skipped still
   // wins — that is a state somebody chose.
   const cfg =
-    milestone.status === 'paid'     ? { bg: themeColors.success + '15', color: themeColors.success, label: 'PAID' } :
+    isPaid                          ? { bg: themeColors.success + '15', color: themeColors.success, label: 'PAID' } :
+    milestone.status === 'paid'     ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'INVOICED' } :
     milestone.status === 'invoiced' ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'INVOICED' } :
     milestone.status === 'skipped'  ? { bg: themeColors.surfaceAlt,  color: themeColors.textMuted, label: 'SKIPPED' } :
     isProgressRow                   ? { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'AS WORK IS DONE' } :
@@ -1894,7 +1998,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
         >
           <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
           <Text style={styles.milestoneBilledText}>
-            {milestone.status === 'paid' ? 'Paid' : 'Billed'} — already on an invoice
+            {isPaid ? 'Paid' : 'Billed'} — already on an invoice
           </Text>
           <Text style={styles.milestoneBilledLink}>Open</Text>
         </TouchableOpacity>

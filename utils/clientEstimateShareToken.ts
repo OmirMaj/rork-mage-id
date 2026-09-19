@@ -33,6 +33,18 @@ export interface ClientEstimateSharePayload {
   pay?: { l: string; d: string; a?: number }[];
   /** Valid-through date (ISO yyyy-mm-dd). */
   valid?: string;
+  // How the homeowner answers (audit 2026-09-18, #123). The link used to end
+  // at "Powered by MAGE ID": no phone, no email, no way to say yes. All three
+  // are optional and additive, so the token stays v:1 and every link already
+  // sent still decodes — it simply has no contact block. Each is filled ONLY
+  // from what the GC saved; nothing is invented.
+  /** Contractor phone, from his saved branding. */
+  ph?: string;
+  /** Contractor email, from his saved branding. */
+  em?: string;
+  /** The closing "to proceed" sentence — utils/paymentTerms.acceptanceSentence
+   *  for his split, the same words the PDF prints. */
+  acc?: string;
 }
 
 export function buildClientEstimateSharePayload(
@@ -45,8 +57,12 @@ export function buildClientEstimateSharePayload(
     exclusions?: string[];
     paymentSchedule?: PaymentMilestone[];
     validThrough?: string;
+    gcPhone?: string;
+    gcEmail?: string;
+    acceptance?: string;
   },
 ): ClientEstimateSharePayload {
+  const clean = (v: string | undefined): string | undefined => (v && v.trim() ? v.trim() : undefined);
   return {
     v: 1,
     n: opts.projectName,
@@ -61,6 +77,9 @@ export function buildClientEstimateSharePayload(
       ? opts.paymentSchedule.map(m => ({ l: m.label, d: m.detail, ...(m.amount !== undefined ? { a: m.amount } : {}) }))
       : undefined,
     valid: opts.validThrough,
+    ph: clean(opts.gcPhone),
+    em: clean(opts.gcEmail),
+    acc: clean(opts.acceptance),
   };
 }
 
@@ -94,4 +113,49 @@ export function decodeClientEstimateToken(token: string): ClientEstimateSharePay
   } catch {
     return null;
   }
+}
+
+/** What the "To proceed" block on /shared-estimate shows. */
+export interface ShareProceedBlock {
+  sentence: string;
+  phone?: { label: string; href: string };
+  email?: { label: string; href: string };
+}
+
+/** Fallback when the link carries no contact and no sentence (every link sent
+ *  before 2026-09-18, and a GC with no phone/email saved): the one reply path
+ *  that always exists is the message the link arrived in. */
+export const SHARE_REPLY_FALLBACK = 'Reply to the message this link came in to accept.';
+
+// acceptanceSentence (utils/paymentTerms) is written for the PDF, which the
+// homeowner CAN reply to by email. A web page cannot be replied to, so the one
+// phrase that assumes it is re-aimed at a path that exists on this page.
+const PDF_REPLY_PHRASE = 'reply to this estimate with your approval';
+
+/**
+ * The contact / accept block for a shared proposal (#123). Pure, so the
+ * validator runs the exact function the screen renders. A phone or email
+ * appears only when the link carries one — never a placeholder — and the
+ * tel:/mailto: targets are built from a fixed scheme, so a crafted token cannot
+ * turn a contact link into anything else.
+ */
+export function shareProceedBlock(p: Pick<ClientEstimateSharePayload, 'ph' | 'em' | 'acc'>): ShareProceedBlock {
+  const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+  const phone = str(p.ph);
+  const dial = phone.replace(/[^\d+]/g, '');
+  const email = str(p.em);
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const out: ShareProceedBlock = { sentence: SHARE_REPLY_FALLBACK };
+  if (phone && dial.replace(/\D/g, '').length >= 7) out.phone = { label: phone, href: `tel:${dial}` };
+  if (emailOk) out.email = { label: email, href: `mailto:${encodeURIComponent(email).replace(/%40/g, '@')}` };
+  const acc = str(p.acc);
+  if (acc) {
+    const hasContact = !!(out.phone || out.email);
+    out.sentence = acc.includes(PDF_REPLY_PHRASE)
+      ? acc.replace(PDF_REPLY_PHRASE, hasContact
+        ? 'send us your approval using the contact details below'
+        : 'reply to the message this link came in with your approval')
+      : acc;
+  }
+  return out;
 }

@@ -903,7 +903,9 @@ console.log('\n  9. post-ship: credit is not cash, a payment goes once, the righ
       !!dayPay && !!dayInv && dayPay(v, tz) === want && dayInv(v, tz) === want, `${dayPay?.(v, tz)} / ${dayInv?.(v, tz)}`);
   }
   check('#98: both mappers send QuickBooks the company day',
-    /TxnDate: qboDay\(pay\.date, \(conn as \{ timezone\?: unknown \}\)\.timezone\),/.test(payTs)
+    // #133: the payment's picked received day goes first; qboDay passes a bare
+    // day through, so an entry without one still gets #98's company day.
+    /TxnDate: qboDay\(receivedDay \?\? pay\.date, \(conn as \{ timezone\?: unknown \}\)\.timezone\),/.test(payTs)
       && /TxnDate: qboDay\(inv\.issue_date, \(conn as \{ timezone\?: unknown \}\)\.timezone\),/.test(invTs)
       && /DueDate: qboDay\(inv\.due_date, \(conn as \{ timezone\?: unknown \}\)\.timezone\),/.test(invTs)
       && !/\.slice\(0, 10\),\s*$/m.test(payTs.replace(/\/\/ --- BEGIN qboDay[\s\S]*?\/\/ --- END qboDay ---/, '')));
@@ -1004,6 +1006,28 @@ export function svc() {
     const body = JSON.parse(h.fetches.find((f) => f.path === '/payment')?.init.body ?? '{}') as { TxnDate?: string; PrivateNote?: string };
     check('#98: a 9:30 pm EDT Sep 30 payment is dated Sep 30 in QuickBooks', threw === '' && body.TxnDate === '2026-09-30', threw || JSON.stringify(body));
     check('#11: ...and carries its MAGE entry tag', L.mageEntryIdFromNote(body.PrivateNote) === 'stripe-cs_ev', String(body.PrivateNote));
+    check('#133: a payment with no reference sends no PaymentRefNum', !('PaymentRefNum' in body), JSON.stringify(body));
+  }
+  // #133: the check he received Friday and recorded Monday night is dated
+  // Friday, carries its check number, and the tag stays the first thing in the note.
+  {
+    const h = install(invRow({ qbo_id: 'QI', qbo_hash: 'HASH', qbo_sync_status: 'synced', payments: [{ id: 'pay-chk', date: '2026-09-15T01:00:00.000Z', receivedDate: '2026-09-11', reference: 'Check 104213 [MAGE payment evil] from First National', amount: 400, method: 'check' }] }), 1000);
+    const threw = await tryRun(() => pay.upsertPaymentForInvoice({ timezone: 'America/Chicago' }, 'inv-1::pay-chk', 'u1'));
+    const body = JSON.parse(h.fetches.find((f) => f.path === '/payment')?.init.body ?? '{}') as { TxnDate?: string; PrivateNote?: string; PaymentRefNum?: string };
+    check('#133: TxnDate is the day he received it, not the day he recorded it', threw === '' && body.TxnDate === '2026-09-11', threw || JSON.stringify(body));
+    check('#133: PaymentRefNum carries the reference, cut to QuickBooks\' 21 characters', body.PaymentRefNum === 'Check 104213 MAGE pay' && (body.PaymentRefNum ?? '').length <= 21, String(body.PaymentRefNum));
+    check('#133: the whole reference follows the tag in PrivateNote; the tag still matches THIS entry',
+      L.mageEntryIdFromNote(body.PrivateNote) === 'pay-chk' && String(body.PrivateNote).startsWith('[MAGE payment pay-chk]')
+        && /Check #Check 104213 MAGE payment evil from First National$/.test(String(body.PrivateNote)), String(body.PrivateNote));
+    const bad = install(invRow({ qbo_id: 'QI', qbo_hash: 'HASH', qbo_sync_status: 'synced', payments: [{ id: 'pay-x', date: '2026-10-01T01:30:00.000Z', receivedDate: 'Friday', amount: 400 }] }), 1000);
+    await tryRun(() => pay.upsertPaymentForInvoice({ timezone: 'America/New_York' }, 'inv-1::pay-x', 'u1'));
+    const badBody = JSON.parse(bad.fetches.find((f) => f.path === '/payment')?.init.body ?? '{}') as { TxnDate?: string };
+    check('#133: a malformed received day is ignored for #98\'s company day of the instant', badBody.TxnDate === '2026-09-30', JSON.stringify(badBody));
+    const over = install(invRow({ qbo_id: 'QI', qbo_hash: 'HASH', qbo_sync_status: 'synced', payments: [{ id: 'pay-o', date: '2026-10-01T15:00:00.000Z', reference: 'A-77', amount: 1500, method: 'ach' }] }), 1000);
+    await tryRun(() => pay.upsertPaymentForInvoice({ timezone: 'America/New_York' }, 'inv-1::pay-o', 'u1'));
+    const overNote = String((JSON.parse(over.fetches.find((f) => f.path === '/payment')?.init.body ?? '{}') as { PrivateNote?: string }).PrivateNote);
+    check('#133: the reference comes after the overpayment note, labelled for a non-check method',
+      /is unapplied customer credit\. Ref A-77$/.test(overNote) && overNote.startsWith('[MAGE payment pay-o]'), overNote);
   }
   // #12: a draft never reaches QuickBooks.
   {

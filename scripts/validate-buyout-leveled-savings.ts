@@ -18,7 +18,7 @@
 // packages awarded before the fix read right too.
 import { readFileSync } from 'node:fs';
 import {
-  leveledBidTotal, leveledBuyoutSavings, packageBuyoutSavings, uncoveredScopeOf,
+  leveledBidTotal, leveledBuyoutSavings, packageBuyoutSavings, uncoveredScopeOf, openExcludedScope,
 } from '../utils/projectFinancials';
 import { computeBulkSavings } from '../utils/bulkSavings';
 import type { BidPackage, BidPackageBid, Commitment } from '../types';
@@ -61,7 +61,17 @@ for (const [label, cs, want] of [
   ['as awarded', commit(38000), 3800],
   ['commitment edited to $37,000 in Job Costing', commit(37000), 4800],
   ['sub CO +$1,500', commit(38000, 1500), 2300],
-  ['cents', commit(38000.37, 0.01), 3799.62],
+  // Below the bid, so nothing reads as absorbed (a rise above it would —
+  // openExcludedScope's stated trade-off).
+  ['cents', commit(37999.63, 0.01), 3800.36],
+  // Leftovers review: the sub agrees to take the blocking and dumpster and he
+  // edits the commitment $38,000 → $41,200. That rise IS the excluded scope,
+  // bought — levelling the award-time +$3,200 again read $600 everywhere,
+  // client PDF included, while a separate PO for the same scope kept $3,800.
+  ['excluded scope folded into the commitment ($38,000 → $41,200)', commit(41200), 3800],
+  ['…partly folded in ($38,000 → $40,000: $1,200 still open)', commit(40000), 3800],
+  ['…folded in AND the sub charged more ($38,000 → $42,000)', commit(42000), 3000],
+  ['…folded in, then a sub CO +$1,500 (a CO is extra cost)', commit(41200, 1500), 2300],
 ] as const) {
   const r = both([...cs]);
   ok(`${label}: buyout screens $${want} = project page / client PDF`, r.screen === want && r.client === want, JSON.stringify(r));
@@ -100,8 +110,23 @@ ok('project page Bulk Savings (hero, modal, PDFs) is leveled off the awarded bid
   /computeBulkSavings\(id \?\? '', projectBidPackages, projectCommitments, bidPackageBids\)/.test(projectDetail));
 ok('the client estimate PDF\'s Bulk Savings is leveled off the awarded bids',
   /computeBulkSavings\(pendingLinkProject\.id, pkgs, commitments, bidPackageBids\)/.test(estimateFull));
-ok('Job Costing lists the excluded scope as uncommitted, estimated — off the awarded bid',
-  /uncoveredScopeOf\(bid\)/.test(jobCosting) && /testID="uncovered-scope-notice"/.test(jobCosting));
+ok('Job Costing lists the excluded scope as uncommitted, estimated — off the awarded bid, minus what the commitment absorbed',
+  /openExcludedScope\(bid, committed\?\.amount\)/.test(jobCosting) && /const committed = awardedCommitmentOf\(p, projectCommitments\);/.test(jobCosting)
+    && /testID="uncovered-scope-notice"/.test(jobCosting));
+{
+  // Separate PO bought the same scope: the commitment is untouched → the
+  // excluded scope is still read open (the known, deferred "excluded scope
+  // bought" link — not this rule's to solve), savings stay $3,800 either way.
+  const sepPo = [...commit(38000), { id: 'PO9', projectId: 'J', amount: 3200, changeAmount: 0 } as Commitment];
+  ok('separate PO for the excluded scope: $3,800 on screens and client PDF (same as folding it in)',
+    packageBuyoutSavings(pkgC, [bidA, bidB], sepPo) === 3800 && computeBulkSavings('J', [pkgC], sepPo, [bidA, bidB]).bulkSavings === 3800);
+  ok('openExcludedScope: award-time (no commitment) = full adj; folded in = 0; partial = remainder; never negative',
+    openExcludedScope(bidB, undefined) === 3200 && openExcludedScope(bidB, 41200) === 0 && openExcludedScope(bidB, 40000) === 1200
+      && openExcludedScope(bidB, 50000) === 0 && openExcludedScope(bidB, 37000) === 3200 && openExcludedScope(bidExtra, 44000) === 0);
+  const pkgScreen2 = read('app/buyout-package.tsx');
+  ok('the package hero\'s "still to place" uses the same open figure',
+    /openExcludedScope\(bids\.find\(b => b\.id === pkg\.awardedBidId\), awardedCommitmentOf\(pkg, commitments\)\?\.amount\)/.test(pkgScreen2));
+}
 
 ok('the cost breakdown never reconciles buyout savings into the estimate total (it printed them back as "Other / unreconciled")',
   /const explained = base \+ tax \+ markup \+ \(estimate\.contingency \?\? 0\);/.test(projectDetail)

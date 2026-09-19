@@ -21,13 +21,14 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import MageRefreshControl from '@/components/MageRefreshControl';
-import { MessageSquare, Send, Inbox } from 'lucide-react-native';
+import { MessageSquare, Send, Inbox, Lock } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { usePortalThread } from '@/hooks/usePortalThread';
+import { useProjectRole } from '@/hooks/useProjectRole';
 import type { PortalMessage } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -212,6 +213,13 @@ export default function ClientMessagesScreen() {
   const project = useMemo(() => projects.find(p => p.id === id), [projects, id]);
   const portal = project?.clientPortal;
   const threadQ = usePortalThread({ projectId: project?.id, portalId: portal?.portalId });
+  // The "gc inserts own portal messages" policy accepts the project OWNER
+  // only, so a collaborator's send is refused every time. Say so up front
+  // instead of letting him type a message the server will never take. A
+  // role still resolving (null) keeps the composer: the owner's own
+  // unsynced job resolves as 'owner' from the cache hint.
+  const role = useProjectRole(project?.id);
+  const ownerOnlyBlocked = role === 'editor' || role === 'viewer' || role === 'field';
 
   const messages = threadQ.messages;
   const display: DisplayItem[] = useMemo(() => buildDisplayList(messages), [messages]);
@@ -408,6 +416,16 @@ export default function ClientMessagesScreen() {
         )}
       </ScrollView>
 
+      {ownerOnlyBlocked ? (
+      <View
+        style={[styles.compose, styles.composeBlocked, { paddingBottom: insets.bottom + 10 }]}
+        accessibilityRole="text"
+        testID="client-messages-owner-only"
+      >
+        <Lock size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+        <Text style={styles.composeBlockedText}>Only the project owner can message the client. You can read the thread.</Text>
+      </View>
+      ) : (
       <View style={[styles.compose, { paddingBottom: insets.bottom + 10 }]}>
         <TextInput
           style={styles.input}
@@ -437,6 +455,7 @@ export default function ClientMessagesScreen() {
           </Pressable>
         </Animated.View>
       </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -516,6 +535,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10,
     fontSize: 15, color: t.text, backgroundColor: t.bg,
   },
+  composeBlocked: { alignItems: 'center', paddingBottom: 12 },
+  composeBlockedText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
   sendBtnWrap: { },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,

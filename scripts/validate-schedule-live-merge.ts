@@ -917,6 +917,23 @@ console.log('\nanother writer on this device while he edits (integration round 3
     expect(`the mount read showed the colleague's P=31; his own older echo does not take it away${dragAt ? ', and his drag keeps it (server P=31, A=4)' : ''}`,
       [firstShown < 2_880, s.shown.some(x => x.at > firstShown && day(x.tasks, 'P') !== 31), day(s.server, 'P'), converged(s)], [true, false, 31, true]);
   }
+  // Leftovers review: the same race after a SOCKET GAP instead of a remount.
+  // The gap re-read shows the colleague's P=31 (and stands in for my S1);
+  // S1's own echo, landing after it, is older news (heldThrough).
+  for (const dragAt of [0, 2_950]) {
+    resetScheduleSyncGatesForTest();
+    const s = new Sim('fixed');
+    s.echoMs = () => 1_500;
+    s.at(0, () => s.commit(drag('B', 12)));            // S1: commits ~1.38 s, echo ~2.88 s
+    s.at(100, () => s.socketDown());
+    s.at(1_500, () => s.w.peerRowWrite(drag('P', 31))); // a colleague, after S1, while the socket is down
+    s.at(1_600, () => s.socketBack());                  // gap re-read once quiet
+    if (dragAt) s.at(dragAt, () => s.commit(drag('A', 4)));
+    s.run();
+    const firstShown = s.shown.find(x => day(x.tasks, 'P') === 31)?.at ?? Infinity;
+    expect(`after a socket gap: the re-read showed P=31; his own older echo does not take it away${dragAt ? ', and his drag keeps it (server P=31, A=4)' : ''}`,
+      [firstShown < 2_880, s.shown.some(x => x.at > firstShown && day(x.tasks, 'P') !== 31), day(s.server, 'P'), converged(s)], [true, false, 31, true]);
+  }
 }
 
 console.log('\nfuzz — whole sessions:');
@@ -1017,7 +1034,7 @@ console.log('\nwiring:');
     /withSubRollup\(inLocalOrder\(copy\.tasks, h\.present\), subRollupRef\.current\)/.test(adopt)
       && /baselinesRef\.current = next;\s*setNamedBaselines\(next\);/.test(adopt)
       && /if \(!fromServer\) return;\s*lastServerTasksRef\.current = copy\.tasks;/.test(adopt)
-      && /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{ stamp: copy\.stamp \}\)/.test(adopt) && !/schedulePersist|pushHistory/.test(adopt), true);
+      && /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{ stamp: copy\.stamp, baselines: copy\.baselines \}\)/.test(adopt) && !/schedulePersist|pushHistory/.test(adopt), true);
   expect('events and the re-read carry the row\'s baselines',
     /baselines: Array\.isArray\(schedule\?\.baselines\) \? schedule\.baselines : undefined/.test(LIVE)
       && /baselines: Array\.isArray\(schedule\.baselines\) \? schedule\.baselines : undefined/.test(PRO), true);
@@ -1046,10 +1063,16 @@ console.log('\nwiring:');
   expect('useLiveSchedule hands over the save stamp and reports a re-subscribe after a drop',
     /const stamp = typeof schedule\?\.updatedAt === 'string' \? schedule\.updatedAt : null;/.test(LIVE)
       && /if \(joined && dropped\) gapRef\.current\?\.\(\);/.test(LIVE), true);
-  const abs = slice(CTX, 'const absorbServerSchedule = useCallback(', 'const saveChangeOrdersMutation = useMutation(');
+  const abs = slice(CTX, 'const absorbServerSchedule = useCallback(', 'const saveChangeOrdersMutationRaw = useMutation(');
   expect('ProjectContext takes an adopted copy whole with its stamp — unless a sync of the project is still out',
     /const whole = !!adopt && !unconfirmedProjectSyncIds\(syncDebounceMap\.current, inFlightProjectSyncsRef\.current\)\.has\(projectId\);/.test(abs)
       && /const next = whole \? tasks : absorbServerScheduleTasks\(prevServer, tasks, localTasks\);/.test(abs), true);
+  // Leftovers review: the store took TASKS only, so another screen's write of
+  // project.schedule from it deleted a baseline captured on another device.
+  expect('…and whole means its named baselines too (a copy without the key keeps the stored ones)',
+    /const baselines = whole && Array\.isArray\(adopt\?\.baselines\)\s*\?[^:]*adopt!\.baselines[^:]*:\s*p\.schedule\.baselines;/.test(abs)
+      && /schedule: \{ \.\.\.x\.schedule, tasks: next, updatedAt: stamp, baselines \}/.test(abs)
+      && /JSON\.stringify\(baselines\) === JSON\.stringify\(p\.schedule\.baselines\)\) return;/.test(abs), true);
   expect('ProjectContext tells listeners each time a project sync reports',
     /inFlightProjectSyncsRef\.current\.delete\(entry\);[\s\S]{0,200}for \(const listener of Array\.from\(projectSyncSettledListenersRef\.current\)\)/.test(CTX), true);
 }

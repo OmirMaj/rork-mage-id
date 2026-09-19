@@ -64,12 +64,14 @@ expect('→in_progress with a date-only start capture does NOT invent a day numb
 expect('→done stamps end only, when start exists',
   stampActuals(t({ status: 'in_progress', actualStartDay: 6 }), 'done', 12, NOW),
   { actualEndDay: 12, actualEndDate: NOW });
-expect('→done retro-stamps start from planned startDay (Gantt rule)',
+// The retro start stamps the DAY NUMBER only — never an ISO "now" for a start
+// nobody observed (audit #141: the two used to disagree, one the plan, one today).
+expect('→done retro-stamps start from planned startDay (Gantt rule), day number only',
   stampActuals(t({}), 'done', 12, NOW),
-  { actualEndDay: 12, actualEndDate: NOW, actualStartDay: 4, actualStartDate: NOW });
+  { actualEndDay: 12, actualEndDate: NOW, actualStartDay: 4 });
 expect('→done retro-fill is CAPPED at today (early finish cannot invert the pair)',
   stampActuals(t({ startDay: 30 }), 'done', 10, NOW),
-  { actualEndDay: 10, actualEndDate: NOW, actualStartDay: 10, actualStartDate: NOW });
+  { actualEndDay: 10, actualEndDate: NOW, actualStartDay: 10 });
 expect('→done never overwrites an existing end',
   stampActuals(t({ status: 'in_progress', actualStartDay: 6, actualEndDay: 9 }), 'done', 12, NOW),
   {});
@@ -93,9 +95,9 @@ expect('DFR: →done with a REAL observed start still stamps the end',
 expect('DFR: →in_progress is unaffected (that start is observed, not invented)',
   stampActuals(t({}), 'in_progress', 12, NOW, { retroStartFromPlanned: false }),
   { actualStartDay: 12, actualStartDate: NOW });
-expect('the option DEFAULTS to the Gantt rule, so existing callers are untouched',
+expect('the option DEFAULTS to the Gantt rule (day number only)',
   stampActuals(t({}), 'done', 12, NOW, {}),
-  { actualEndDay: 12, actualEndDate: NOW, actualStartDay: 4, actualStartDate: NOW });
+  { actualEndDay: 12, actualEndDate: NOW, actualStartDay: 4 });
 expect('→on_hold never stamps',
   stampActuals(t({ status: 'in_progress', actualStartDay: 6 }), 'on_hold', 12, NOW),
   {});
@@ -108,9 +110,11 @@ expect('same-status call is a no-op',
 expect('null basis →in_progress stamps ISO date only',
   stampActuals(t({}), 'in_progress', null, NOW),
   { actualStartDate: NOW });
-expect('null basis →done stamps ISO dates only (no day numbers)',
+// No day basis AND no observed start: the finish date only. The retro start
+// never stamps an ISO "now" for a start nobody saw (audit #141).
+expect('null basis →done stamps the finish ISO date only (no day numbers, no invented start)',
   stampActuals(t({}), 'done', null, NOW),
-  { actualEndDate: NOW, actualStartDate: NOW });
+  { actualEndDate: NOW });
 
 // Leaving done clears the stale stamps so re-completion re-stamps fresh.
 const reopen = stampActuals(t({ status: 'done', actualStartDay: 6, actualEndDay: 9 }), 'in_progress', 12, NOW);

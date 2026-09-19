@@ -27,6 +27,9 @@ import type { ScheduleTask } from '../types';
 import {
   FIELD_TASK_PATCH_KEYS, FIELD_SCHEDULE_RPC,
   applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, scheduleWritePathForRole, sendFieldTaskPatches,
+  classifyFieldSendFailure, captureFieldSendFailure, mergeFieldSendFailure, pendingFieldRetryPatches, fieldAutoRetryDelayMs,
+  taskSheetLocks, TASK_SHEET_FIELD_REASON, TASK_SHEET_VIEWER_REASON,
+  planFieldRetry, fieldRetrySupersededMessage, fieldRetrySupersededNotice,
 } from '../utils/fieldScheduleUpdate';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -406,6 +409,147 @@ ok('Schedule Pro writes add / delete / reflow history only on the row write path
     /if \(!failure && blocked\.length === 0 && !settingsChanged\) \{[\s\S]*?if \(patches\.length > 0\) setFieldNotice\(null\);/.test(save));
   ok('...and the notice is reset when the screen switches project',
     /useEffect\(\(\) => \{ setFieldNotice\(null\); \}, \[projectId\]\);/.test(SP));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #138 — a send that did not land. The padlock card ("Date and task editing is
+// hidden on field access") sat over every RPC failure, a lost connection
+// included, and nothing ever re-sent the tap. Now: a plain alert banner with
+// Retry, an automatic re-send while offline, and the card only for what access
+// really refused. The phone and Schedule Pro are pinned TOGETHER.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n#138 — a failed field send:');
+{
+  const kinds = [
+    ['offline', { message: 'Network request failed' }, true, true],
+    ['fetch failure', { message: 'TypeError: Failed to fetch' }, true, true],
+    ['server hiccup', { message: 'internal error', code: 'XX000' }, false, true],
+    ['access revoked', { message: 'field access required', code: '42501' }, false, false],
+    ['not a field key', { message: 'x', code: '22023' }, false, false],
+    ['not deployed', { message: 'Could not find the function', code: 'PGRST202' }, false, false],
+  ] as const;
+  for (const [label, err, offline, retryable] of kinds) {
+    const k = classifyFieldSendFailure(err);
+    ok(`${label} → offline=${offline}, retryable=${retryable}`, k.offline === offline && k.retryable === retryable, JSON.stringify(k));
+  }
+  const offlineRes = await sendFieldTaskPatches({ rpc: () => Promise.reject(new Error('Network request failed')) }, 'p1', [{ id: 'a', progress: 60 }]);
+  ok('an offline send says so on the result (offline + retryable)', !offlineRes.ok && offlineRes.offline && offlineRes.retryable, JSON.stringify(offlineRes));
+
+  const t = (o: Partial<ScheduleTask>): ScheduleTask => ({
+    id: 'x', title: 'X', phase: 'P', durationDays: 5, startDay: 1, progress: 0, crew: '', dependencies: [], notes: '', status: 'not_started', ...o,
+  } as ScheduleTask);
+  const base = [t({ id: 'a', title: 'Framing', progress: 10 }), t({ id: 'b', title: 'Drywall' })];
+  const sent = { message: 'Not saved — no connection.', offline: true, retryable: true };
+  const f1 = captureFieldSendFailure('p1', base, [{ id: 'a', progress: 60, status: 'in_progress' }], sent);
+  ok('a failure remembers what each key held when it failed', f1.before.a.progress.value === 10 && f1.before.a.status.value === 'not_started', JSON.stringify(f1.before));
+  ok('retry re-sends a key still holding that value',
+    JSON.stringify(pendingFieldRetryPatches(f1, base)) === JSON.stringify([{ id: 'a', progress: 60, status: 'in_progress' }]));
+  const gcMoved = [t({ id: 'a', title: 'Framing', progress: 80, status: 'in_progress', fieldEditedAt: { progress: '2026-09-18T10:00:00Z', status: '2026-09-18T10:00:00Z' } } as Partial<ScheduleTask>), base[1]];
+  ok('...and drops a key someone changed since (never writes a stale value over a newer one)',
+    pendingFieldRetryPatches(f1, gcMoved).length === 0, JSON.stringify(pendingFieldRetryPatches(f1, gcMoved)));
+  const restamped = [t({ id: 'a', title: 'Framing', progress: 10, fieldEditedAt: { progress: '2026-09-18T10:00:00Z' } } as Partial<ScheduleTask>), base[1]];
+  ok('...a key whose stamp moved (same value, newer write) is dropped too',
+    JSON.stringify(pendingFieldRetryPatches(f1, restamped)) === JSON.stringify([{ id: 'a', status: 'in_progress' }]), JSON.stringify(pendingFieldRetryPatches(f1, restamped)));
+  ok('...a task deleted meanwhile is dropped', pendingFieldRetryPatches(f1, [base[1]]).length === 0);
+  const f2 = captureFieldSendFailure('p1', base, [{ id: 'b', notes: 'rained out' }], { message: 'Not saved — no connection (2).', offline: true, retryable: true });
+  const merged = mergeFieldSendFailure(f1, f2);
+  ok('a second failure on the same job folds in — Retry sends both', pendingFieldRetryPatches(merged, base).length === 2 && merged.message.endsWith('(2).'));
+  ok('another job\'s failure replaces it', mergeFieldSendFailure(f1, { ...f2, projectId: 'p2' }).projectId === 'p2' && mergeFieldSendFailure(f1, { ...f2, projectId: 'p2' }).patches.length === 1);
+  // The re-send is decided against a FRESH READ of the row, never this
+  // device's copy (review round 1): a phone with no signal cannot have
+  // received the GC's newer edit, and the RPC stamps what lands with the
+  // server clock — so a retry off the local copy overwrote his 80% at noon
+  // with the foreman's 9:00 60%.
+  {
+    const plan = await planFieldRetry(f1, async () => gcMoved);
+    ok('a retry reads the row first: a newer SERVER value arrived while the send was failing → nothing is sent',
+      plan.read && plan.patches.length === 0, JSON.stringify(plan));
+    ok('...and he is told his change was dropped because it changed elsewhere',
+      plan.read && plan.superseded.length === 1 && plan.superseded[0] === 'Framing'
+        && /not sent: it was changed elsewhere while you had no signal/.test(fieldRetrySupersededMessage(plan.superseded))
+        && fieldRetrySupersededNotice('p1', ['Framing']).retryable === false, JSON.stringify(plan));
+    const stillSame = await planFieldRetry(f1, async () => base);
+    ok('...an unchanged server row gets the held value, diffed against that read',
+      stillSame.read && JSON.stringify(stillSame.patches) === JSON.stringify([{ id: 'a', progress: 60, status: 'in_progress' }])
+        && stillSame.serverTasks === base && stillSame.superseded.length === 0, JSON.stringify(stillSame));
+    const noRead = await planFieldRetry(f1, async () => null);
+    const thrown = await planFieldRetry(f1, () => Promise.reject(new Error('Network request failed')));
+    ok('...no read (still offline, or an error) → nothing is sent, the failure is kept', !noRead.read && !thrown.read);
+    const already = await planFieldRetry(f1, async () => [t({ id: 'a', title: 'Framing', progress: 60, status: 'in_progress' }), base[1]]);
+    ok('...a server already holding his value sends nothing and reports nothing', already.read && already.patches.length === 0 && already.superseded.length === 0);
+  }
+  ok('auto re-send backs off 5 s, doubling, capped at a minute',
+    fieldAutoRetryDelayMs(0) === 5000 && fieldAutoRetryDelayMs(1) === 10000 && fieldAutoRetryDelayMs(3) === 40000 && fieldAutoRetryDelayMs(9) === 60000);
+
+  for (const [label, src, saveStart, saveEnd] of [
+    ['phone', MSS, 'const saveAsField = useCallback(', 'const saveAsRow = useCallback('],
+    ['Schedule Pro', SP, 'const saveAsField = useCallback(', 'const [fieldConflictNotice'],
+  ] as const) {
+    const save = slice(src, saveStart, saveEnd);
+    ok(`${label}: a failed send is captured for Retry, in the failure branch`,
+      /failure = sent\.message;\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*const captured = captureFieldSendFailure\(id, baseTasks, patches, sent\);\s*setFieldFailure\(\(?prev\)? => mergeFieldSendFailure\(prev, captured\)\);/.test(save));
+    ok(`${label}: the padlock notice carries ONLY what access refused, never the send failure`,
+      !/\[\s*failure,/.test(save) && /if \(what\) setFieldNotice\(/.test(save));
+    ok(`${label}: the failure renders in the plain alert banner, with Retry only when a retry can work`,
+      /<FieldSendFailureBanner\s*message=\{fieldFailureShown\.message\}\s*onRetry=\{fieldFailureShown\.retryable \? retryFieldSend : undefined\}\s*onDismiss=\{dismissFieldFailure\}\s*autoRetrying=\{fieldFailureShown\.offline\}/.test(src)
+      && /\{writePath === 'field_rpc' && fieldFailureShown \? \(/.test(src));
+    const retry = slice(src, 'const retryFieldSend = useCallback(', 'const dismissFieldFailure');
+    ok(`${label}: Retry READS the row and plans against it before anything is sent`,
+      /const plan = await planFieldRetry\(f, async \(\) => \{\s*const \{ data, error \} = await supabase\.from\('projects'\)\.select\('schedule'\)\.eq\('id', f\.projectId\)\.maybeSingle\(\);\s*if \(error\) return null;/.test(retry)
+        && retry.indexOf('planFieldRetry(') < retry.indexOf('saveAsField(')
+        && !/pendingFieldRetryPatches\(f, current/.test(retry));
+    ok(`${label}: no read → nothing sent, the failure kept (re-armed); a superseded value is said`,
+      /if \(!plan\.read\) \{ setFieldFailure\(\(?cur\)? => \(cur === f \? \{ \.\.\.f \} : cur\)\); return; \}/.test(retry)
+        && /const notice = plan\.superseded\.length > 0 \? fieldRetrySupersededNotice\(f\.projectId, plan\.superseded\) : null;/.test(retry));
+    ok(`${label}: ...the send goes through saveAsField, diffed against and applied over the READ`,
+      /await saveAsField\(f\.projectId, \{ schedule: \{ \.\.\.current, tasks: applyFieldTaskPatches\(plan\.serverTasks, plan\.patches\) \} \}, plan\.serverTasks\);/.test(retry)
+        && /const baseTasks = serverBase \?\? currentSchedule\.tasks \?\? \[\];/.test(save));
+    ok(`${label}: one retry at a time (the timer and the foreground can both fire)`,
+      /if \(!f \|\| retryInFlightRef\.current\) return;/.test(retry) && /retryInFlightRef\.current = false;/.test(retry));
+    ok(`${label}: an offline failure re-sends by itself (backoff + back to foreground)`,
+      /if \(!fieldFailure\?\.offline\) return;\s*const h = setTimeout\(\(\) => \{ autoRetryAttemptRef\.current \+= 1; retryFieldSend\(\); \}, fieldAutoRetryDelayMs\(autoRetryAttemptRef\.current\)\);/.test(src)
+      && /if \(next === 'active' && fieldFailureRef\.current\?\.offline\) retryFieldSend\(\);/.test(src));
+    ok(`${label}: a superseded retryable failure stops showing`,
+      /if \(!fieldFailure\.retryable\) return fieldFailure;\s*return pendingFieldRetryPatches\(fieldFailure, [^)]+\)\.length > 0 \? fieldFailure : null;/.test(src));
+  }
+  const card = read('components', 'LockedAccessCard.tsx');
+  ok('the banner is an alert, not the padlock card', /export function FieldSendFailureBanner\(/.test(card)
+    && /accessibilityRole="alert"/.test(card) && !/is hidden on field access[\s\S]*export function FieldSendFailureBanner[\s\S]*is hidden on field access/.test(card));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #139 — the phone task sheet says what this access saves BEFORE the tap.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n#139 — the phone task sheet:');
+{
+  const SHEET = read('components', 'schedule', 'mobile', 'TaskDetailSheet.tsx');
+  const f = taskSheetLocks('field_rpc');
+  const v = taskSheetLocks('none');
+  const r = taskSheetLocks('row');
+  ok('field: plan controls locked, progress controls live, with the reason', f.plan && !f.progress && f.reason === TASK_SHEET_FIELD_REASON);
+  ok('viewer: everything locked, with the reason', v.plan && v.progress && v.reason === TASK_SHEET_VIEWER_REASON);
+  ok('owner/editor (and unset): nothing locked', !r.plan && !r.progress && r.reason === null && taskSheetLocks(undefined).reason === null);
+  ok('the field reason names the checklist, the milestone and delete', /checklist/.test(TASK_SHEET_FIELD_REASON) && /milestone/.test(TASK_SHEET_FIELD_REASON) && /deleting/.test(TASK_SHEET_FIELD_REASON));
+  ok('the phone passes its write path into the sheet', /onDeleteTask=\{onDeleteTask\}\s*writePath=\{writePath\}/.test(MSS));
+  ok('the sheet shows the reason inline', /\{locks\.reason \? \(\s*<Text style=\{styles\.lockReason\} testID="task-sheet-access-reason">\{locks\.reason\}<\/Text>/.test(SHEET));
+  ok('start and duration steppers are disabled on plan lock',
+    (SHEET.match(/onInc=\{\(\) => shift(Start|Duration)\(1\)\} disabled=\{locks\.plan\} \/>/g) ?? []).length === 2);
+  ok('the milestone switch is disabled', /onValueChange=\{toggleMilestone\} disabled=\{locks\.plan\}/.test(SHEET));
+  ok('name and crew are not editable', (SHEET.match(/editable=\{!locks\.plan\}/g) ?? []).length === 2);
+  ok('delete is disabled', /onPress=\{handleDelete\} disabled=\{locks\.plan\}/.test(SHEET));
+  ok('the checklist is a read-out (no tick, no "+ add item") on plan lock',
+    /\{locks\.plan\s*\? <ReadOnlyChecklist items=\{checklist\} \/>\s*: <TaskChecklist items=\{checklist\} onToggle=\{toggleChecklist\} onAdd=\{addChecklist\} \/>\}/.test(SHEET));
+  ok('status, % and notes are locked for view-only only',
+    /onPress=\{\(\) => setStatus\(s\)\} disabled=\{locks\.progress\}/.test(SHEET)
+    && /\{locks\.progress \? null : \(\s*<PercentSlider/.test(SHEET)
+    && /editable=\{!locks\.progress\}/.test(SHEET));
+  ok('every locked handler refuses too (a control that slipped through cannot write)',
+    ['shiftStart', 'shiftDuration', 'toggleMilestone', 'commitCrew'].every(h => new RegExp(`const ${h} = \\([^)]*\\) => \\{ if \\(locks\\.plan\\) return;`).test(SHEET))
+    && /const handleDelete = \(\) => \{\s*if \(locks\.plan\) return;/.test(SHEET));
+  ok('the standing hint names the checklist', /const FIELD_SCHEDULE_HINT = '[^']*ticking checklist items[^']*';/.test(MSS));
+  // The checklist-ticks migration is a founder decision; until it ships, the
+  // client must not claim checklist is a field key.
+  ok('checklist is not a field key until its migration ships', !(FIELD_TASK_PATCH_KEYS as readonly string[]).includes('checklist'));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

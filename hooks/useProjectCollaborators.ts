@@ -34,13 +34,37 @@ function mapRow(r: Row): ProjectCollaborator {
   };
 }
 
-/** Throws if the edge function returned a transport error or a `{ error }` body. */
-function unwrap<T>(res: { data: unknown; error: unknown }): T {
-  if (res.error) throw res.error instanceof Error ? res.error : new Error(String(res.error));
+/**
+ * Throws if the edge function returned a transport error or a `{ error }` body.
+ *
+ * supabase.functions.invoke drops the body of a non-2xx reply, so the owner's
+ * "Only the project owner can revoke" (403) or the seat-limit text (402) used
+ * to arrive as "Edge Function returned a non-2xx status code". The server's own
+ * sentence is read back out of the FunctionsHttpError when there is one (#95).
+ */
+async function unwrap<T>(res: { data: unknown; error: unknown }): Promise<T> {
+  if (res.error) {
+    const ctx = (res.error as { context?: { json?: () => Promise<unknown> } }).context;
+    const body = ctx && typeof ctx.json === 'function'
+      ? await ctx.json().catch(() => null) as { error?: unknown } | null
+      : null;
+    if (typeof body?.error === 'string' && body.error.trim()) throw new Error(body.error.trim());
+    throw res.error instanceof Error ? res.error : new Error(String(res.error));
+  }
   const data = res.data as { error?: string } | null;
   if (data?.error) throw new Error(data.error);
   return res.data as T;
 }
+
+/** project-invite `invite`'s reply. emailSent is false when the send failed or
+ *  email is not configured — the screen must then say so (#177). Absent on a
+ *  function deployed before #177: treated as "unknown", never as "sent". */
+export type InviteResult = {
+  link: string;
+  collaborator: Row | null;
+  emailSent?: boolean;
+  emailReason?: 'not_configured' | 'rejected' | 'network' | null;
+};
 
 export function useProjectCollaborators(projectId: string | undefined) {
   const qc = useQueryClient();
@@ -65,7 +89,7 @@ export function useProjectCollaborators(projectId: string | undefined) {
 
   const invite = useMutation({
     mutationFn: async (vars: { email: string; role: 'editor' | 'viewer' | 'field' }) =>
-      unwrap<{ link: string; collaborator: Row | null }>(
+      unwrap<InviteResult>(
         await supabase.functions.invoke('project-invite', {
           body: { action: 'invite', projectId, email: vars.email, role: vars.role },
         }),
@@ -81,6 +105,17 @@ export function useProjectCollaborators(projectId: string | undefined) {
         }),
       ),
     onSuccess: invalidate,
+  });
+
+  // #177: the current link of a still-pending invite, without rotating its
+  // token (re-sending would kill a link the GC may already have texted).
+  const getLink = useMutation({
+    mutationFn: async (collaboratorId: string) =>
+      unwrap<{ link: string }>(
+        await supabase.functions.invoke('project-invite', {
+          body: { action: 'getLink', collaboratorId },
+        }),
+      ),
   });
 
   const changeRole = useMutation({
@@ -109,5 +144,6 @@ export function useProjectCollaborators(projectId: string | undefined) {
     invite,
     revoke,
     changeRole,
+    getLink,
   };
 }

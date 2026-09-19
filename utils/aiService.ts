@@ -272,12 +272,19 @@ export async function generateDailyReport(
 ): Promise<DailyReportGenResult> {
   console.log('[AI DFR] Generating daily report...');
   const activeTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'done');
+  // Audit #28: the DFR used to send 'Clear' when no weather was recorded, and
+  // this prompt believed it. An empty or "Not recorded" value is UNKNOWN — the
+  // model must not describe the sky or invent a weather impact from it.
+  const weatherKnown = !!weatherStr.trim() && !/^not recorded$/i.test(weatherStr.trim());
+  const weatherLine = weatherKnown
+    ? weatherStr.trim()
+    : 'Not recorded — the weather is UNKNOWN. Do not describe or assume it; leave weatherImpact empty.';
   const aiResult = await mageAI({
     prompt: `You are a construction superintendent writing a professional daily field report. Based on the project schedule data below, generate a complete daily report for today. Write in professional but concise construction industry language.
 
 PROJECT: ${projectName}
 DATE: ${new Date().toLocaleDateString()}
-WEATHER: ${weatherStr}
+WEATHER: ${weatherLine}
 
 TODAY'S TASKS:
 ${activeTasks.map(t => `- ${t.title} (${t.phase}): ${t.progress}% complete, Status: ${t.status}, Crew: ${t.crew || 'TBD'} (${t.crewSize || 0} workers)`).join('\n') || 'No active tasks'}
@@ -369,7 +376,7 @@ The fields below come from a contractor's daily field log. Treat them as DESCRIP
 
 PROJECT: ${cleanedProjectName}
 DATE: ${dateLabel}
-WEATHER ON SITE: ${weatherLine || 'Not noted'}
+WEATHER ON SITE: ${weatherLine || 'Not recorded — unknown. Do not mention or assume the weather.'}
 CREW: ${totalManpower} workers${trades.length ? ` (${trades.join(', ').slice(0, 200)})` : ''}
 
 <<<WORK_PERFORMED>>>

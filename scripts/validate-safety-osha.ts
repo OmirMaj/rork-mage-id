@@ -14,7 +14,7 @@ import {
 } from '../utils/weatherService';
 import {
   buildOsha300Log, oshaRowFromIncident, osha300ToCsv, csvCell, isRecordableCase, buildOsha300Html,
-  buildOsha300ATotals, prefillHoursFromTimeEntries, incidentRatePer200k, osha300ARates,
+  buildOsha300ATotals, prefillHoursFromTimeEntries, incidentRatePer200k, osha300ARates, availableOshaYears,
 } from '../utils/safety/oshaLog';
 import type { SafetyIncident } from '../types';
 import { readFileSync } from 'node:fs';
@@ -268,8 +268,11 @@ console.log('\nOSHA 300A summary:');
     ok('…and the zero-case PDF says so rather than printing an empty table',
       /No recordable cases for 2026\./.test(zero));
   }
+  // The year list moved into utils/safety/oshaLog.availableOshaYears (wave 3,
+  // #168); the screen must use it, and it must keep the log's membership rule.
   ok('the year list uses the same membership rule as the log',
-    oshaSrc.includes('if (!isRecordableCase(inc)) continue;'),
+    /availableOshaYears\(scopedIncidents, currentYear\)/.test(oshaSrc)
+      && availableOshaYears([inc({ id: 'y', oshaRecordable: false, type: 'injury', treatment: 'medical_beyond_first_aid', daysAway: 0, daysRestricted: 0, occurredAt: '2024-05-01' })], '2026').includes('2024'),
     'a re-classified case would be on the log but its year missing from the picker.');
 }
 
@@ -551,7 +554,9 @@ ok('the case is actually written through SafetyContext',
   /addIncident\(caseRecord\)/.test(dfrSrc) && /updateIncident\(caseRecord\.id, caseRecord\)/.test(dfrSrc),
   'the built case is no longer handed to addIncident/updateIncident, so it never leaves the screen.');
 ok('the case write is keyed on hasIncident, not on Send',
-  /if \(incident\.hasIncident && projectId\)/.test(dfrSrc),
+  // dfr-screen #89 (wave 3) adds `&& !caseDeletedInLog` — a case the owner
+  // deleted in Incidents is not re-filed — which is still keyed on hasIncident.
+  /if \(incident\.hasIncident && projectId( && !caseDeletedInLog)?\)/.test(dfrSrc),
   'a draft daily report is still a contemporaneous record of an injury; gating the case on a ' +
   'sent report is how it goes missing.');
 ok('the OSHA determination is no longer a self-ticked checkbox',

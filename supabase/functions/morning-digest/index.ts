@@ -48,7 +48,7 @@ import {
   todayOnSite, calendarDayInZone, localHourInZone, digestGreeting, epochDayOf, isoOfEpochDay,
   DEFAULT_DIGEST_TIMEZONE, type TodayOnSite,
 } from './scheduleToday.ts';
-import { sendDigestUnlessUnsubscribed, GC_DIGEST_EVENT_KEY } from './digestGate.ts';
+import { sendDigestUnlessUnsubscribed, digestNotSentReason, GC_DIGEST_EVENT_KEY } from './digestGate.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -514,7 +514,16 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
     if (outboxErr) console.log('[morning-digest] outbox insert failed:', outboxErr.message);
   }
 
-  return { ok: true, sent, pushed: pushStatus === 'sent' };
+  // The reason rides back so the preview button can say why nothing came
+  // (an unsubscribed address, the Email switch off) instead of blaming it on
+  // his projects.
+  const reason = digestNotSentReason({
+    emailChannelOn: channels.email !== false,
+    hasEmail: !!profile.email,
+    nothingToSay: hasNothingToSay,
+    emailStatus,
+  });
+  return { ok: true, sent, pushed: pushStatus === 'sent', ...(reason ? { reason } : {}) };
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {

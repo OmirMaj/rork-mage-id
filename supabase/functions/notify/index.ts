@@ -339,6 +339,121 @@ function badgeFromUnread(unread: number | null): number | null {
 }
 // <<< notify-format
 
+// >>> wave3-notify-text (pure; scripts/validate-invoice-send-pay-notify.ts evaluates this block)
+/**
+ * Push / email / inbox wording for the wave-3 GC events. One function so the
+ * push, the email and the validator agree. Every figure is exact to the cent
+ * (fmtMoneyCents) — a GC reconciles "client paid $77,484.88" against his bank,
+ * not "$77K". Null for an event this block does not own.
+ *
+ *   client_invoice_paid    stripe-webhook, after a credited (non-duplicate) payment (#48)
+ *   client_payment_failed  stripe-webhook, a delayed (ACH) payment that bounced (#48)
+ *   field_report_filed     a collaborator's daily report was filed (dfr-screen trigger)
+ *   pro_response_received  an architect/engineer answered an RFI or submittal (rfi-core)
+ *   punch_marked_ready     a sub marked a punch item ready for review (punch)
+ */
+function wave3NotifyText(event: string, p: Record<string, unknown>, projectName: string): {
+  prefKey: string; pushTitle: string; pushBody: string; emailSubject: string;
+  eyebrow: string; title: string; subtitle: string; rows: [string, string, boolean?][]; ctaLabel: string;
+} | null {
+  const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+  const num = (v: unknown) => {
+    const n = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v.trim()) : NaN;
+    return Number.isInteger(n) && n > 0 ? `#${n}` : '';
+  };
+  switch (event) {
+    case 'client_invoice_paid': {
+      const inv = num(p.number);
+      const paid = fmtMoneyCents(p.amount_paid) ?? 'A payment';
+      const full = p.paid_in_full === true;
+      const bal = fmtMoneyCents(p.balance);
+      const label = inv ? `Invoice ${inv}` : 'an invoice';
+      return {
+        prefKey: 'invoice_paid',
+        pushTitle: `Client paid ${label} · ${projectName}`,
+        pushBody: full ? `${paid} received — paid in full.` : `${paid} received${bal ? ` · ${bal} still due` : ''}.`,
+        emailSubject: `Client paid ${label}: ${paid} · ${projectName}`,
+        eyebrow: 'Payment received',
+        title: `Your client paid ${paid}`,
+        subtitle: full
+          ? `${label[0].toUpperCase()}${label.slice(1)} is paid in full. The money settles to your Stripe account on its payout schedule.`
+          : `${label[0].toUpperCase()}${label.slice(1)} still has a balance. The money settles to your Stripe account on its payout schedule.`,
+        rows: [
+          ['Invoice', inv || '—'],
+          ['Amount received', paid, true],
+          ['Balance remaining', full ? 'Paid in full' : (bal ?? '—')],
+        ],
+        ctaLabel: 'Open the invoice',
+      };
+    }
+    case 'client_payment_failed': {
+      const inv = num(p.number);
+      const amt = fmtMoneyCents(p.amount) ?? 'A payment';
+      const label = inv ? `Invoice ${inv}` : 'an invoice';
+      return {
+        prefKey: 'invoice_paid',
+        pushTitle: `Payment failed · ${label}`,
+        pushBody: `${amt} from your client did not go through. The invoice is still open.`,
+        emailSubject: `Payment failed: ${amt} on ${label} · ${projectName}`,
+        eyebrow: 'Payment failed',
+        title: `A ${amt} payment did not go through`,
+        subtitle: 'Your client started a bank payment that failed after checkout. Nothing was credited — the invoice is still open. Reach out, or send a new pay link.',
+        rows: [['Invoice', inv || '—'], ['Attempted', amt, true]],
+        ctaLabel: 'Open the invoice',
+      };
+    }
+    case 'field_report_filed': {
+      const who = s(p.author_name) || 'Your field team';
+      return {
+        prefKey: 'field_report',
+        pushTitle: `Daily report filed · ${projectName}`,
+        pushBody: `${who} filed today's report. Review it before anything goes to the homeowner.`,
+        emailSubject: `${who} filed a daily report · ${projectName}`,
+        eyebrow: 'Daily report filed',
+        title: `${who} filed a daily report`,
+        subtitle: 'Nothing reaches the homeowner until you decide it should.',
+        rows: [['Filed by', who]],
+        ctaLabel: 'Review the report',
+      };
+    }
+    case 'pro_response_received': {
+      const kind = p.kind === 'submittal' ? 'Submittal' : 'RFI';
+      const n = num(p.number);
+      const who = s(p.responder_name) || (kind === 'RFI' ? 'The design team' : 'The reviewer');
+      const code = s(p.action_code);
+      const label = `${kind}${n ? ` ${n}` : ''}`;
+      return {
+        prefKey: 'pro_response',
+        pushTitle: `${label} answered · ${projectName}`,
+        pushBody: `${who} responded${code ? ` — ${code}` : ''}.`,
+        emailSubject: `${who} responded to ${label} · ${projectName}`,
+        eyebrow: `${kind} response`,
+        title: `${who} responded to ${label}`,
+        subtitle: 'Read the response and update the work that was waiting on it.',
+        rows: code ? [[kind === 'Submittal' ? 'Action' : 'Status', code, true]] : [],
+        ctaLabel: `Open ${label}`,
+      };
+    }
+    case 'punch_marked_ready': {
+      const who = s(p.sub_name) || 'A subcontractor';
+      return {
+        prefKey: 'punch_ready',
+        pushTitle: `Punch item ready · ${projectName}`,
+        pushBody: `${who} marked a punch item ready for your review.`,
+        emailSubject: `${who} marked a punch item ready · ${projectName}`,
+        eyebrow: 'Punch list',
+        title: `${who} says a punch item is done`,
+        subtitle: 'Walk it and close it, or send it back.',
+        rows: [['From', who]],
+        ctaLabel: 'Open the punch list',
+      };
+    }
+    default:
+      return null;
+  }
+}
+// <<< wave3-notify-text
+
 // ─── Supabase REST helpers ────────────────────────────────────────────
 async function sbGet(path: string): Promise<unknown> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -667,7 +782,14 @@ const PORTAL_REPLY_HOURLY_CAP = 60;
  *  GLOBAL_RECIPIENTS_PER_HOUR) — the ceiling if many accounts are abused at once. */
 const PORTAL_REPLY_GLOBAL_HOURLY_CAP = 500;
 
-const SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set(['portal_reply', 'lead_received']);
+// The wave-3 GC events carry money and a named sender, so only a trusted
+// server caller raises them: stripe-webhook (service role) and the database
+// triggers / RPCs (fire_notify, the cron secret). A signed-in JWT forging
+// "your client paid $50,000" or "the architect approved it" is refused.
+const SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set([
+  'portal_reply', 'lead_received',
+  'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready',
+]);
 
 interface DispatchResult {
   ok: boolean;
@@ -859,12 +981,20 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
   // like no portal: every template already omits the CTA / skips the client
   // email when portalUrl is null. A failed read keeps the link (fail open —
   // the page itself refuses an expired token with a clear message).
+  //
+  // A portal that was NEVER published (no portal_snapshots row) is dropped
+  // the same way: the link opens the "not published" fallback page, a dead
+  // end. award_rfp creates the winner's project with client_portal.enabled
+  // and the homeowner already on the invites, so a message he writes before
+  // his first publish would otherwise email the homeowner a dead link.
+  let portalUnpublished = false;
   if (portalUrl) {
     const cpId = ((projectCtx.client_portal ?? {}) as { portalId?: unknown }).portalId;
     if (typeof cpId === 'string' && cpId.trim()) {
       try {
         const snap = await sbGet(`portal_snapshots?portal_id=eq.${encodeURIComponent(cpId.trim())}&select=expires_at&limit=1`) as { expires_at: string | null }[];
-        if (portalLinkEnded(snap[0]?.expires_at ?? null)) portalUrl = null;
+        if (Array.isArray(snap) && snap.length === 0) { portalUnpublished = true; portalUrl = null; }
+        else if (portalLinkEnded(snap[0]?.expires_at ?? null)) portalUrl = null;
       } catch { /* keep the link */ }
     }
   }
@@ -1219,6 +1349,46 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         payload,
         delivered_at: r.ok ? new Date().toISOString() : null,
       }).catch(() => {});
+      break;
+    }
+
+    case 'client_invoice_paid':
+    case 'client_payment_failed':
+    case 'field_report_filed':
+    case 'pro_response_received':
+    case 'punch_marked_ready': {
+      const text = wave3NotifyText(event, payload, projectName);
+      if (!text) break;
+      // Screen ids come from the payload (a trusted caller — see
+      // SERVICE_ONLY_EVENTS) and go through the shared route table.
+      const pushKind = event;
+      await dispatchOne('gc', {
+        prefKey: text.prefKey,
+        pushTitle: text.pushTitle,
+        pushBody: text.pushBody,
+        pushData: {
+          kind: pushKind, projectId,
+          invoiceId: payload.invoice_id ?? undefined,
+          reportId: payload.report_id ?? undefined,
+          itemId: payload.item_id ?? undefined,
+          proKind: payload.kind ?? undefined,
+        },
+        pushToken: gc.push_token,
+        email: gc.email,
+        // Mail TO the GC about his own client / crew: no "Sent by <himself>".
+        sender: null,
+        emailSubject: text.emailSubject,
+        emailWrap: {
+          preheader: text.pushBody,
+          eyebrow: text.eyebrow,
+          title: text.title,
+          subtitle: text.subtitle,
+          bodyHtml: text.rows.length
+            ? emailStatCard(text.rows.map(([k, v, em]) => emailStatRow(k, escapeHtml(v), em ? { emphasize: true } : undefined)).join(''))
+            : '',
+          cta: { label: text.ctaLabel, href: appLink(event, { ...payload, project_id: projectId }) },
+        },
+      });
       break;
     }
 
@@ -1639,8 +1809,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         break;
       }
       // No live portal link, no email: a reply they cannot open is worse than none.
+      // Never-published is logged apart from ended/missing so the outbox says why.
       if (!portalUrl) {
-        await sbInsert('notification_outbox', { ...outboxBase, email_status: 'skipped_portal_unavailable' }).catch(() => {});
+        await sbInsert('notification_outbox', { ...outboxBase, email_status: portalUnpublished ? 'skipped_portal_unpublished' : 'skipped_portal_unavailable' }).catch(() => {});
         break;
       }
       // Neutral wording ("sent you a message"), kept from when system notices
@@ -1730,6 +1901,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const who = strOrNull(payload.name) ?? 'A homeowner';
       const phone = strOrNull(payload.phone);
       const leadEmail = strOrNull(payload.email);
+      const validLeadEmail = leadEmail && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(leadEmail) ? leadEmail : null;
       const kind = strOrNull(payload.project_type) ?? 'a project';
       const saw = widgetBallparkText(payload.scope);
       const stated = [fmtMoneyCents(payload.budget_min), fmtMoneyCents(payload.budget_max)];
@@ -1759,10 +1931,14 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         // The mail is TO him ABOUT the homeowner: the footer names the lead
         // (not "Sent by <his own company>") and Reply reaches the homeowner
         // when they left an email — the daily-digest mistake of 2026-09-08.
-        sender: { name: who, email: leadEmail ?? undefined, phone: phone ?? undefined },
+        // The footer line ends "Replies go to them, not us." — true only when
+        // reply_to is set. With no usable lead email, Reply goes to
+        // noreply@, so the footer drops the sender line entirely (null) —
+        // the stat card above already shows the lead's name and phone.
+        sender: validLeadEmail ? { name: who, email: validLeadEmail, phone: phone ?? undefined } : null,
         // Only a well-formed address: Resend refuses the whole send on a bad
         // reply_to, and a typo'd lead email must not cost him the lead alert.
-        replyTo: leadEmail && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(leadEmail) ? leadEmail : undefined,
+        replyTo: validLeadEmail ?? undefined,
         emailSubject: `New website lead · ${kind} · ${who}`,
         emailWrap: {
           preheader: `${who} asked about ${kind}${saw ? ` after seeing ${saw}` : ''}. Call back tonight.`,

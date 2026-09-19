@@ -30,7 +30,7 @@
 //     successor bars can snap to computed ES on commit. The parent is
 //     expected to re-run runCpm() after each onEdit; we just show what we get.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -56,6 +56,7 @@ import {
   wouldCreateCycle, workingOrdinalToCalendarIndex, calendarIndexToWorkingOrdinal,
   workingDaysInSpan, type CpmResult, type DayScaleOptions,
 } from '@/utils/cpm';
+import { asBuiltVariance, ganttLogFinishPatch, ganttLogStartPatch, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { toCalendarDayString } from '@/utils/calendarDate';
 import { colorForTask as canonicalColorForTask, statusColorForTask, statusColor, statusLabel, STATUS_KEYS, barLabelColorFor, type GanttColorMode } from '@/utils/scheduleColors';
 import { useGanttColorMode } from '@/hooks/useGanttColorMode';
@@ -139,7 +140,31 @@ export interface InteractiveGanttProps {
    */
   workingDaysPerWeek?: number;
   nonWorkingDates?: string[];
+  /**
+   * The schedule's OWN start date (ISO `project.schedule.startDate`) — the day
+   * 1 that Start today / Finish today count from. NOT `projectStartDate`: that
+   * is a display origin and falls back to the project's createdAt on an
+   * undated schedule. Omit it to take the value from <GanttStampBasis>; with
+   * neither, the buttons stamp only the ISO date (no day number).
+   */
+  scheduleStartDate?: string | null;
 }
+
+/**
+ * The as-built stamping basis for every InteractiveGantt below it: the ISO
+ * `project.schedule.startDate`, or undefined when the schedule is undated.
+ *
+ * Why a context: Schedule Pro renders the Gantt through SchedulerTabShell →
+ * GanttTab, and every value those forward (projectStartDate, the scheduler
+ * context's schedule.startDate) has already been back-filled with createdAt
+ * so the axis and the header KPIs have something to draw. Counting a stamp
+ * from that invented day 1 wrote a calendar index that Reflow from actuals
+ * (which reads on the schedule's real, absent anchor) took as a working
+ * ordinal — ~2 days late per weekend since the project was created (audit #50
+ * review). The screen that knows the real anchor provides it here; the
+ * default (no provider) is "no basis", which stamps the date only.
+ */
+export const GanttStampBasis = createContext<string | undefined>(undefined);
 
 // ---------------------------------------------------------------------------
 // Layout constants
@@ -690,40 +715,35 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   }, [pendingLink, tasks, onDependencyCreate, onEdit]);
 
   // --- Phase 5: as-built quick actions ------------------------------------
-  // `todayDayNumber` is a CALENDAR index (days since projectStartDate) but
-  // `actualStartDay`/`actualEndDay` are WORKING ORDINALS — "1-indexed, same
-  // basis as startDay" (types/index.ts), which is also the basis
-  // `baselineStartDay` uses and the one reflowFromActuals subtracts against.
-  // Writing the calendar number straight in made this component store two
-  // different scales in ONE field: logStartToday wrote a calendar index while
-  // logFinishToday's retro-start fallback wrote `task.startDay`, an ordinal.
-  const todayOrdinal = useMemo(() => toOrdinal(Math.max(1, todayDayNumber)), [toOrdinal, todayDayNumber]);
+  // actualStartDay/actualEndDay are CALENDAR indices — the one scale every
+  // stamping sink writes (utils/pace/stampActuals.ts has the decision, audit
+  // #50). These buttons used to convert today into a WORKING ordinal, so a
+  // task the foreman closed from the phone (calendar) and one the GC closed
+  // here (ordinal) held different numbers for the same day, and the badge
+  // below read the phone's as "+10d late". The patches come from the same
+  // module as the status sinks, on the same basis (todayScheduleDay of the
+  // schedule's OWN startDate). On an UNDATED schedule that is null and only the
+  // ISO date is stamped — the same rule as stampActuals. dayScale is NOT the
+  // basis: its start is projectStartDate, which is createdAt on an undated
+  // schedule, a display origin rather than a schedule day 1 (see
+  // GanttStampBasis above).
+  const providedBasis = useContext(GanttStampBasis);
+  const stampBasis = props.scheduleStartDate !== undefined
+    ? (props.scheduleStartDate ?? undefined)
+    : providedBasis;
+  const stampDay = useCallback(
+    () => todayScheduleDay(stampBasis),
+    [stampBasis],
+  );
 
   const logStartToday = useCallback((task: ScheduleTask) => {
-    const now = new Date();
-    onEdit(task.id, {
-      actualStartDay: todayOrdinal,
-      actualStartDate: now.toISOString(),
-      status: task.status === 'not_started' ? 'in_progress' : task.status,
-    });
-  }, [onEdit, todayOrdinal]);
+    onEdit(task.id, ganttLogStartPatch(task, stampDay(), new Date().toISOString()));
+  }, [onEdit, stampDay]);
 
   const logFinishToday = useCallback((task: ScheduleTask) => {
-    const now = new Date();
-    const patch: Partial<ScheduleTask> = {
-      actualEndDay: todayOrdinal,
-      actualEndDate: now.toISOString(),
-      status: 'done',
-      progress: 100,
-    };
-    if (task.actualStartDay == null) {
-      // `task.startDay` is already a working ordinal — the same scale
-      // `todayOrdinal` is on, which is the whole point of the conversion above.
-      patch.actualStartDay = task.startDay;
-      patch.actualStartDate = now.toISOString();
-    }
-    onEdit(task.id, patch);
-  }, [onEdit, todayOrdinal]);
+    // No retro start: an unobserved start stays empty (audit #141).
+    onEdit(task.id, ganttLogFinishPatch(stampDay(), new Date().toISOString()));
+  }, [onEdit, stampDay]);
 
   // One PanResponder for the whole timeline body. We decide move vs resize
   // based on where the gesture started relative to the bar's right edge.
@@ -1486,18 +1506,14 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 
                 {/* --- Actual overlay bars (Phase 5) --- */}
                 {bars.map(bar => {
-                  // Same lift as the baseline ghosts. `actualStartDay` /
-                  // `actualEndDay` are WORKING ORDINALS ("1-indexed, same basis
-                  // as startDay" — types/index.ts), while `todayDayNumber` is a
-                  // raw CALENDAR count off projectStartDate, so the open-ended
-                  // fallback is already on the axis and must NOT be lifted
-                  // again.
-                  const aStartOrd = bar.task.actualStartDay;
-                  if (aStartOrd == null) return null;
-                  const aStart = toCal(aStartOrd);
-                  const aEnd = bar.task.actualEndDay != null
-                    ? toCal(bar.task.actualEndDay)
-                    : todayDayNumber;
+                  // `actualStartDay` / `actualEndDay` are CALENDAR indices —
+                  // already on this axis, like `todayDayNumber` (the open-ended
+                  // fallback). They are NOT lifted through toCal the way the
+                  // baseline ghosts are: that would push an on-time as-built
+                  // bar about two columns right per weekend (audit #50).
+                  const aStart = bar.task.actualStartDay;
+                  if (aStart == null) return null;
+                  const aEnd = bar.task.actualEndDay ?? todayDayNumber;
                   const ax = (aStart - 1) * pxPerDay;
                   const aw = Math.max(MIN_BAR_PX_WIDTH, (aEnd - aStart + 1) * pxPerDay);
                   const finished = bar.task.actualEndDay != null;
@@ -1584,6 +1600,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     isLinkTarget={linkDrag?.hoverTargetId === bar.task.id}
                     linkInvalid={!!linkDrag?.invalid && linkDrag.hoverTargetId === bar.task.id}
                     todayDayNumber={todayDayNumber}
+                    dayScale={dayScale}
                     dimmed={!inPath}
                     isFocusTarget={isFocusedBar}
                     isDownstream={dragSuccessorIds.has(bar.task.id)}
@@ -2027,6 +2044,9 @@ interface BarViewProps {
   isLinkTarget: boolean;
   linkInvalid: boolean;
   todayDayNumber: number;
+  /** The schedule calendar — the as-built badge converts calendar actuals to
+   *  working ordinals through it before comparing them with the plan. */
+  dayScale: DayScaleOptions;
   /** When true, render at reduced opacity — outside current task-path focus. */
   dimmed?: boolean;
   /** When true, this bar is the focused task head (MAGE accent outline). */
@@ -2057,7 +2077,7 @@ interface BarViewProps {
 }
 
 function BarView({
-  bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
+  bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber, dayScale,
   dimmed, isFocusTarget, isLastMilestone, isDownstream, showCrewAvatar,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
@@ -2129,28 +2149,19 @@ function BarView({
 
   // --- Variance calc for as-built badge (Phase 5) ------------------------
   // Compare actual dates to baseline (if present) or planned (as fallback).
-  // +N = late, -N = early.
-  // All four operands are WORKING ORDINALS on the same basis, so the
-  // subtraction below is a working-day count — the unit the label claims.
-  // With no baseline the comparison falls back to the SCHEDULED plan (what the
-  // bar above actually shows), not the authored pin it used to read.
+  // +N = late, -N = early. The plan side is WORKING ordinals (baseline, or the
+  // scheduled CPM row expressed back as ordinals — not the authored pin); the
+  // actuals are CALENDAR indices and asBuiltVariance converts them first, so
+  // the difference is a working-day count, the unit the label claims.
   const baseStart = bar.task.baselineStartDay ?? bar.planStartOrdinal;
   const baseEnd = bar.task.baselineEndDay ?? bar.planEndOrdinal;
-  const aStart = bar.task.actualStartDay;
-  const aEnd = bar.task.actualEndDay;
-  let varianceLabel: string | null = null;
-  let varianceColor = themeColors.textSecondary;
-  if (aEnd != null) {
-    const v = aEnd - baseEnd;
-    if (v > 0) { varianceLabel = `+${v}d late`; varianceColor = themeColors.danger; }
-    else if (v < 0) { varianceLabel = `${v}d early`; varianceColor = themeColors.success; }
-    else varianceLabel = 'on time';
-  } else if (aStart != null) {
-    const v = aStart - baseStart;
-    if (v > 0) { varianceLabel = `started +${v}d`; varianceColor = Colors.warning; }
-    else if (v < 0) { varianceLabel = `started ${v}d early`; varianceColor = themeColors.success; }
-    else varianceLabel = 'started on time';
-  }
+  const variance = asBuiltVariance(bar.task, baseStart, baseEnd, dayScale);
+  const varianceLabel: string | null = variance?.label ?? null;
+  const varianceColor = !variance ? themeColors.textSecondary
+    : variance.tone === 'late' ? themeColors.danger
+    : variance.tone === 'early' ? themeColors.success
+    : variance.tone === 'started_late' ? Colors.warning
+    : themeColors.textSecondary;
 
   // Bar fill: STATUS by default (progress signal), TRADE when the user opts in.
   // Status wins because trade inference collapses generic "General crew" tasks

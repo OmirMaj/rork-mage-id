@@ -85,7 +85,10 @@ ok('plan-extract answers an unreachable sheet with a generic 403',
   /PlanSheetAccessError[\s\S]{0,400}403/.test(read('supabase/functions/plan-extract/index.ts')));
 
 console.log('\n5. the run is reported, not swallowed');
-ok('indexPlanSheets returns a report, not a count', /Promise<PlanIndexResult>/.test(ayp));
+// Wave 3 (#75): the report also carries the title-block numbers it OFFERS
+// (PlanIndexRun = PlanIndexResult + titleBlockSuggestions) — still a report.
+ok('indexPlanSheets returns a report, not a count',
+  /Promise<PlanIndexRun>/.test(ayp) && /export type PlanIndexRun = PlanIndexResult & \{ titleBlockSuggestions: TitleBlockSuggestion\[\] \}/.test(ayp));
 ok('a refusal that would repeat stops the run', /PLAN_EXTRACT_STOP_CODES\.has/.test(ayp) && PLAN_EXTRACT_STOP_CODES.has('monthly_cap_reached'));
 ok('superseded sheets are left out of a run', /sheets\.filter\(s => !s\.superseded\)/.test(ayp));
 const panel = read('components/plans/AskPlansPanel.tsx');

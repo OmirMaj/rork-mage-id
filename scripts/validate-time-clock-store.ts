@@ -63,6 +63,11 @@ interface TestRendererModule {
 
 // ── Stubs ───────────────────────────────────────────────────────────────
 const store = new Map<string, string>();
+// A real project id: clockIn / addManualEntry refuse a non-uuid (#155).
+const HENDERSON = '11111111-1111-4111-8111-111111111111';
+const writes: { table: string; operation: string; data: Record<string, unknown> }[] = [];
+const queue: { table: string; operation: string; data: Record<string, unknown> }[] = [];
+const flushListeners = new Set<(tables: Set<string>) => void>();
 interface OsRequest { identifier: string; content: { title: string; data: Record<string, unknown> }; fireAt: number }
 let osQueue: OsRequest[] = [];
 let osSeq = 0;
@@ -138,7 +143,17 @@ Bun.plugin({
       loader: 'object',
     }));
     build.module('@/utils/offlineQueue', () => ({
-      exports: { supabaseWrite: async () => undefined },
+      exports: {
+        supabaseWrite: async (table: string, operation: string, data: Record<string, unknown>) => {
+          writes.push({ table, operation, data });
+          return undefined;
+        },
+        // #67: the store reads the queue around its pull and re-pulls on a
+        // flush. `queue` / `flushListeners` let validate-time-clock-pull.ts
+        // drive both; here they stay empty.
+        getOfflineQueue: async () => queue.map(q => ({ ...q })),
+        onQueueFlushed: (l: (tables: Set<string>) => void) => { flushListeners.add(l); return () => { flushListeners.delete(l); }; },
+      },
       loader: 'object',
     }));
     build.module('@/contexts/AuthContext', () => ({
@@ -264,7 +279,7 @@ console.log('\n#8 the screen and the mic share one store:');
   const ids: string[] = [];
   await act(async () => {
     for (const n of ['Ana', 'Ben', 'Cal', 'Dee', 'Eli', 'Fay']) {
-      ids.push(seen.screen!.clockIn({ projectId: 'p1', projectName: 'Henderson', workerId: `w-${n}`, workerName: n }).id);
+      ids.push(seen.screen!.clockIn({ projectId: HENDERSON, projectName: 'Henderson', workerId: `w-${n}`, workerName: n })!.id);
     }
   });
   await settle();
@@ -272,7 +287,7 @@ console.log('\n#8 the screen and the mic share one store:');
   await settle();
   const before = invalidations;
   // 3 pm: "put me down for 2 hours punch" into the Brain mic.
-  await act(async () => { seen.mic!.addManualEntry({ projectId: 'p1', projectName: 'Henderson', workerName: 'Me', hours: 2, trade: 'Punch' }); });
+  await act(async () => { seen.mic!.addManualEntry({ projectId: HENDERSON, projectName: 'Henderson', workerName: 'Me', hours: 2, trade: 'Punch' }); });
   await settle();
   ok('the mic sees the screen\'s clock-ins (one array, not a copy)', seen.mic!.entries.length === 7, `mic sees ${seen.mic!.entries.length}`);
   ok('a voice log does not erase the six clock-ins from storage', stored().length === 7, `storage has ${stored().length}`);
@@ -423,6 +438,138 @@ console.log("\nthe team read pages past PostgREST's max_rows instead of dropping
 
 // ── Source-level wiring ────────────────────────────────────────────────
 console.log('\nwiring:');
+// ── Wave 3: offline pull, missed clock-out, owner closing a team row ────
+console.log('\n#67 an offline clock-out survives a pull that beats its flush:');
+{
+  const dbRow = (over: Record<string, unknown>) => ({
+    id: 'jose', user_id: 'u1', project_id: HENDERSON, project_name: 'Henderson', worker_id: 'w-jose', worker_name: 'Jose Ruiz',
+    trade: 'Framing', clock_in: new Date(Date.now() - 9 * 3_600_000).toISOString(), clock_out: null, break_minutes: 0,
+    break_started_at: null, total_hours: 0, overtime_hours: 0, status: 'clocked_in', notes: null, gps_lat: null, gps_lng: null,
+    date: '2026-09-17', ...over,
+  });
+  store.clear(); osQueue = []; writes.length = 0; queue.length = 0;
+  server.projects = [{ id: HENDERSON, user_id: 'u1' }];
+  server.project_collaborators = [];
+  // The server still holds the shift on the clock — the queued UPDATE has not landed.
+  server.time_entries = [dbRow({}), dbRow({ id: 'gone', worker_id: 'w-gone', worker_name: 'Gone' })];
+  const app = await mountApp();
+  const s0 = () => app.seen.screen!;
+  ok('the pull loads the open shift', s0().entries.some(e => e.id === 'jose' && e.status === 'clocked_in'));
+  // Dead zone: clock Jose out (queued) and delete 'gone' (queued).
+  await act(async () => { s0().clockOut('jose'); s0().deleteEntry('gone'); });
+  await settle();
+  queue.push(
+    { table: 'time_entries', operation: 'update', data: { id: 'jose', status: 'clocked_out' } },
+    { table: 'time_entries', operation: 'delete', data: { id: 'gone' } },
+  );
+  const recorded = s0().entries.find(e => e.id === 'jose')?.totalHours;
+  await act(async () => { s0().refresh(); });
+  await settle();
+  const jose = s0().entries.find(e => e.id === 'jose');
+  ok('a queued clock-out keeps the LOCAL row (not put back on the clock at 0 h)',
+    jose?.status === 'clocked_out' && jose.totalHours === recorded && (recorded ?? 0) > 8.9, JSON.stringify(jose));
+  ok('a queued delete does not come back on the same pull', !s0().entries.some(e => e.id === 'gone'));
+  ok('no shift alert is re-posted for the clocked-out shift', alertsFor('jose').length === 0);
+  // Second tap on a stale display: nothing overwrites the recorded hours.
+  writes.length = 0;
+  let second = true as boolean;
+  await act(async () => { second = s0().clockOut('jose'); });
+  ok('clockOut on a shift already clocked out is a no-op', second === false && writes.length === 0);
+  // Flush lands: the listener re-pulls; the server now agrees.
+  queue.length = 0;
+  // A figure only the server has, so the re-pull is visible.
+  server.time_entries = [dbRow({ status: 'clocked_out', clock_out: jose?.clockOut, total_hours: 7.77 })];
+  await act(async () => { for (const l of flushListeners) l(new Set(['time_entries'])); });
+  await settle();
+  ok('a time_entries flush triggers a re-pull (the store subscribes to onQueueFlushed)',
+    flushListeners.size > 0 && s0().entries.find(e => e.id === 'jose')?.totalHours === 7.77);
+  await act(async () => { app.renderer.unmount(); });
+}
+
+console.log('\n#66 a missed clock-out is closed at the real out time:');
+{
+  store.clear(); osQueue = []; writes.length = 0; queue.length = 0;
+  server.time_entries = [];
+  const app = await mountApp();
+  const s0 = () => app.seen.screen!;
+  let made: TimeEntry | null = null;
+  await act(async () => { made = s0().clockIn({ projectId: HENDERSON, projectName: 'Henderson', workerId: 'w-a', workerName: 'Ana' }); });
+  await settle();
+  const id = (made as TimeEntry | null)?.id ?? '';
+  const inMs = Date.parse(s0().entries.find(e => e.id === id)!.clockIn);
+  writes.length = 0;
+  let refused = true as boolean;
+  await act(async () => { refused = s0().clockOut(id, new Date(inMs - 60_000).toISOString()); });
+  ok('an out time before the clock-in is refused, nothing written', refused === false && writes.length === 0);
+  const outIso = new Date(inMs + 30_000).toISOString();
+  await act(async () => { s0().clockOut(id, outIso); });
+  await settle();
+  const closed = s0().entries.find(e => e.id === id);
+  const w = writes.find(x => x.operation === 'update' && x.data.id === id);
+  ok('the entered out time is the saved clock-out stamp, locally and in the queued write',
+    closed?.clockOut === outIso && w?.data.clock_out === outIso && closed?.status === 'clocked_out', JSON.stringify(w));
+  writes.length = 0;
+  await act(async () => { s0().updateEntry(id, { clockOut: outIso, totalHours: 0 }); });
+  ok('updateEntry maps clockOut to clock_out', writes.some(x => x.data.clock_out === outIso));
+
+  console.log('\n#155 no job, no clock-in:');
+  writes.length = 0;
+  let r: TimeEntry | null = {} as TimeEntry;
+  await act(async () => { r = s0().clockIn({ projectId: 'unassigned', projectName: 'Unassigned', workerId: 'w-b', workerName: 'Ben' }); });
+  ok('clockIn refuses a non-uuid project id — no row, no write', r === null && writes.length === 0 && !s0().entries.some(e => e.workerId === 'w-b'));
+  await act(async () => { r = s0().addManualEntry({ projectId: 'unassigned', projectName: 'x', workerName: 'Me', hours: 2 }); });
+  ok('addManualEntry refuses one too', r === null && writes.length === 0);
+  await act(async () => { app.renderer.unmount(); });
+}
+
+console.log("\n#63 the owner closes a shift his foreman clocked — through its own writer:");
+{
+  store.clear(); osQueue = []; writes.length = 0; queue.length = 0;
+  server.projects = [{ id: HENDERSON, user_id: 'u1' }];
+  server.project_collaborators = [
+    { project_id: HENDERSON, user_id: 'foreman', invited_email: 'mike@crew.test', role: 'field', status: 'accepted' },
+    { project_id: 'pE', user_id: 'u1', role: 'editor', status: 'accepted' },
+  ];
+  const t = (id: string, project: string) => ({
+    id, user_id: 'foreman', project_id: project, project_name: 'H', worker_id: `w-${id}`, worker_name: id, trade: 'Framing',
+    clock_in: new Date(Date.now() - 30 * 3_600_000).toISOString(), clock_out: null, break_minutes: 0, break_started_at: null,
+    total_hours: 0, overtime_hours: 0, status: 'clocked_in', date: '2026-09-16',
+  });
+  server.time_entries = [t('owned-open', HENDERSON), t('seat-open', 'pE')];
+  const app = await mountApp();
+  const s0 = () => app.seen.screen!;
+  const owned = s0().teamEntries.find(e => e.id === 'owned-open');
+  ok('a team row on an owned job carries who logged it', owned?.loggedByName === 'mike@crew.test' && TE.teamLoggedByLabel(owned!) === 'Logged by mike@crew.test', JSON.stringify(owned));
+  writes.length = 0;
+  let seatOk = true as boolean;
+  await act(async () => { seatOk = s0().closeTeamShift('seat-open', { totalHours: 8, breakMinutes: 0, clockOut: new Date().toISOString() }); });
+  ok('a team row on someone else\'s job (editor seat) cannot be closed', seatOk === false && writes.length === 0);
+  const out = new Date(Date.now() - 22 * 3_600_000).toISOString();
+  await act(async () => { s0().closeTeamShift('owned-open', { totalHours: 8, breakMinutes: 0, clockOut: out }); });
+  await settle();
+  const w = writes.find(x => x.data.id === 'owned-open');
+  ok('the write updates by id and never sends user_id (the foreman keeps the row)',
+    !!w && w.operation === 'update' && !('user_id' in w.data) && w.data.clock_out === out && w.data.status === 'clocked_out', JSON.stringify(w));
+  // Team rows carry no notes (TEAM_TIME_ENTRY_COLUMNS), so a team correction
+  // must never write one — it would blank the foreman's note on his record.
+  writes.length = 0;
+  await act(async () => {
+    (s0().closeTeamShift as (id: string, p: Record<string, unknown>) => boolean)('owned-open', { totalHours: 7.5, breakMinutes: 30, notes: '' });
+  });
+  await settle();
+  const wn = writes.find(x => x.data.id === 'owned-open');
+  ok('a team correction\'s queued update carries no notes key', !!wn && !('notes' in wn.data), JSON.stringify(wn));
+  ok('…the team copy updates, and nothing lands in his own timesheet',
+    s0().teamEntries.find(e => e.id === 'owned-open')?.status === 'clocked_out' && !s0().entries.some(e => e.id === 'owned-open'));
+  // A pull that beats the flush keeps the owner's correction.
+  queue.push({ table: 'time_entries', operation: 'update', data: { id: 'owned-open' } });
+  await act(async () => { s0().refresh(); });
+  await settle();
+  ok('a team pull keeps a queued owner correction', s0().teamEntries.find(e => e.id === 'owned-open')?.status === 'clocked_out');
+  queue.length = 0;
+  await act(async () => { app.renderer.unmount(); });
+}
+
 const hookSrc = src('hooks/useTimeEntries.ts');
 const layout = src('app/_layout.tsx');
 const screen = src('app/time-tracking.tsx');
@@ -485,10 +632,10 @@ ok('Hours Today and History read the day through timeEntryDay',
   /timeEntryDay\(e\) === today/.test(screen) && (screen.match(/formatCalendarDay\(timeEntryDay\(/g) ?? []).length >= 4);
 
 console.log('\n#2 clock-in checks certifications:');
-ok('time-tracking reads certifications through SafetyContext', /const \{ certifications \} = useSafety\(\)/.test(screen));
+ok('time-tracking reads certifications through SafetyContext (his own; a seat reads the GC job crew certs, #62)', /const \{ certifications: ownCertifications \} = useSafety\(\)/.test(screen));
 ok('each roster row gets certFlagsForWorker by the crew member id (exact join)', /certFlagsForWorker\(certifications, m\.id, today\)/.test(screen));
 ok('the roster row renders the flags as chips', /certFlagsByMember\[member\.id\][\s\S]{0,300}<StatusPill/.test(screen));
-const clockInBody = screen.slice(screen.indexOf('const handleClockIn = useCallback'), screen.indexOf('// Payroll CSV export'));
+const clockInBody = screen.slice(screen.indexOf('const handleClockIn = useCallback'), screen.indexOf('// ── Payroll export (#64'));
 ok('handleClockIn asks before clocking in a lapsed card, naming it',
   /lapsedCertConfirmText\(member\.name, certFlagsByMember\[member\.id\]/.test(clockInBody)
   && /if \(warn\) \{[\s\S]*showAlert\('Certification lapsed', warn[\s\S]*onPress: commit[\s\S]*return;\s*\}\s*commit\(\);/.test(clockInBody),

@@ -45,7 +45,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import type { CompanyBranding, PaymentSplit, ProjectType } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AppSettings, CompanyBranding, PaymentSplit, ProjectType } from '@/types';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
@@ -77,6 +78,22 @@ import {
   coerceWarrantyMonths,
 } from '@/utils/paymentTerms';
 import { PROFILE_LOADING_REASON, profileGateNotice, savedTermsView } from '@/utils/settingsLoadGuard';
+import { portalsDisagreeingWithSplit } from '@/utils/projectContextPure';
+
+/** How old the profile copy may be before a terms / warranty question re-reads
+ *  it (#121). Another device may have answered since this one loaded. */
+export const ASK_SETTINGS_FRESH_MS = 5_000;
+
+/** The line shown when the re-read finds the answer another device saved. */
+export function answeredElsewhereHint(question: 'terms' | 'warranty', fresh: Pick<AppSettings, 'paymentSplit' | 'warrantyMonths'>): string | null {
+  if (question === 'terms') {
+    const s = fresh.paymentSplit;
+    if (!isValidSplit(s)) return null;
+    return `Already saved on another device: ${s.depositPct} / ${s.progressPct} / ${s.finalPct}. Press to use it, or change it here.`;
+  }
+  const m = resolveWarrantyMonths(fresh as AppSettings);
+  return m == null ? null : `Already saved on another device: ${m} months. Press to use it, or change it here.`;
+}
 
 export interface GateNeeds extends AskNeeds {
   purpose: Exclude<AskPurpose, 'edit'>;
@@ -156,6 +173,14 @@ export function useClientDocumentGate() {
   const { settings, settingsLoaded, settingsLoadFailed, sourceFailed, retryRemoteReads, projects, updateSettings, savePaymentTerms, updateProject } = useCoreData();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const queryClient = useQueryClient();
+  // #121: the profile as the re-read below last found it, for this sheet only.
+  // Context `settings` catches up a render later — or never, when a local edit
+  // is newer — and "is this his FIRST set of terms" must not be answered from
+  // a copy that predates the web's answer: that is how a second answer on the
+  // iPhone stamped 30/60/10 over portals the web had already stamped 25/65/10.
+  const freshSettingsRef = useRef<AppSettings | null>(null);
+  const askSeqRef = useRef(0);
 
   // Before his profile has loaded, a gated press says why nothing happened
   // and offers Retry — which invalidates ['settings', userId] and cancels a
@@ -173,6 +198,9 @@ export function useClientDocumentGate() {
   }, [settingsLoadFailed, sourceFailed, retryRemoteReads]);
 
   const [ask, setAsk] = useState<OpenAsk | null>(null);
+  // The open sheet as of the last render, for the #121 re-read's callback.
+  const askRef = useRef<OpenAsk | null>(null);
+  useEffect(() => { askRef.current = ask; }, [ask]);
   const [draft, setDraft] = useState<AskDraft>(EMPTY_DRAFT);
   const [hint, setHint] = useState<string | null>(null);
   // The paused action. A ref, not state: it is a function, it must not render,
@@ -206,6 +234,38 @@ export function useClientDocumentGate() {
       warrantyScope: answered.warrantyScope ?? null,
     };
   }, [settings]);
+
+  // #121: before a terms / warranty question is answered, re-read his profile
+  // if this device's copy is more than a few seconds old — the web may have
+  // answered it since the iPhone loaded (no native focus refetch reached
+  // settings). The sheet still opens in THIS press (the last press of the
+  // sheet must keep the user gesture, see the header), and when the re-read
+  // finds the answer, the step shows it pre-filled with where it came from.
+  const refreshForAsk = useCallback((questions: readonly AskQuestion[]) => {
+    freshSettingsRef.current = null;
+    const seq = ++askSeqRef.current;
+    if (!userId || !questions.some(q => q === 'terms' || q === 'warranty')) return;
+    void queryClient.fetchQuery<AppSettings>({ queryKey: ['settings', userId], staleTime: ASK_SETTINGS_FRESH_MS })
+      .then((fresh) => {
+        if (askSeqRef.current !== seq || !fresh) return;
+        freshSettingsRef.current = fresh;
+        const cur = askRef.current;
+        if (!cur || cur.mode !== 'run' || latchRef.current != null) return;
+        const q = cur.questions[cur.stepIndex];
+        if (q !== 'terms' && q !== 'warranty') return;
+        const line = answeredElsewhereHint(q, fresh);
+        if (!line) return;
+        if (q === 'terms' && isValidSplit(fresh.paymentSplit)) {
+          const sp = fresh.paymentSplit;
+          setDraft((d) => ({ ...d, deposit: String(sp.depositPct), progress: String(sp.progressPct), final: String(sp.finalPct) }));
+        } else if (q === 'warranty') {
+          const m = resolveWarrantyMonths(fresh);
+          if (m != null) setDraft((d) => ({ ...d, months: String(m) }));
+        }
+        setHint(line);
+      })
+      .catch(() => { /* the question stands; the saved copy decides as before */ });
+  }, [queryClient, userId]);
 
   const run = useCallback(<N extends GateNeeds>(
     needs: N,
@@ -241,8 +301,9 @@ export function useClientDocumentGate() {
     });
     setHint(null);
     setAsk({ mode: 'run', questions, stepIndex: 0, needs, purpose: needs.purpose });
+    refreshForAsk(questions);
     return 'asked';
-  }, [settings, settingsLoaded, answersFrom, refuseUntilLoaded]);
+  }, [settings, settingsLoaded, answersFrom, refuseUntilLoaded, refreshForAsk]);
 
   /** Company Profile / Settings: the same sheet, one step, pre-filled, "Save". */
   const edit = useCallback((question: 'terms' | 'warranty') => {
@@ -253,6 +314,8 @@ export function useClientDocumentGate() {
     }
     const split = resolvePaymentSplit({ settings }).split;
     const months = resolveWarrantyMonths(settings);
+    askSeqRef.current += 1;
+    freshSettingsRef.current = null;
     thenRef.current = null;
     afterDismissRef.current = null;
     answersRef.current = {};
@@ -271,6 +334,8 @@ export function useClientDocumentGate() {
 
   const dismiss = useCallback(() => {
     // Closing drops the paused action: nothing is sent.
+    askSeqRef.current += 1;
+    freshSettingsRef.current = null;
     thenRef.current = null;
     afterDismissRef.current = null;
     answersRef.current = {};
@@ -296,9 +361,11 @@ export function useClientDocumentGate() {
     latchRef.current = ask.stepIndex;
 
     // Captured BEFORE anything saves: "first time" is about the profile as the
-    // GC had it when he pressed THIS step.
-    const hadSplit = isValidSplit(settings.paymentSplit);
-    const hadWarranty = resolveWarrantyMonths(settings) != null;
+    // GC had it when he pressed THIS step — as freshly as this device knows it
+    // (#121: the re-read above may have found another device's answer).
+    const fresh = freshSettingsRef.current;
+    const hadSplit = isValidSplit(settings.paymentSplit) || (!!fresh && isValidSplit(fresh.paymentSplit));
+    const hadWarranty = resolveWarrantyMonths(settings) != null || (!!fresh && resolveWarrantyMonths(fresh) != null);
     let unconfirmedPortalCount = 0;
 
     for (const effect of res.effects) {
@@ -317,7 +384,9 @@ export function useClientDocumentGate() {
           // Saved in the same press, merging only the stamp onto the saved
           // portal, so the next background push publishes identical text.
           const needing = portalsNeedingTerms(projects, userId);
-          unconfirmedPortalCount = needing.length;
+          // "…now all say X" only when it is true (#121): a portal already
+          // stamped with DIFFERENT terms keeps them, so it counts against it.
+          unconfirmedPortalCount = needing.length + portalsDisagreeingWithSplit(projects, userId, res.answers.split).length;
           const nowIso = new Date().toISOString();
           for (const p of needing) {
             if (!p.clientPortal) continue;

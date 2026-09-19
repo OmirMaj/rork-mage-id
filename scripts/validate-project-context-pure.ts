@@ -553,7 +553,8 @@ check('B-1 loader: the device copy is read ONCE — per-project stamps come from
   // Integration round 1: the merge now passes through the load guard (a write
   // made while the load was out keeps the device copy); the 2026-09-18 hotfix
   // routes it through planProjectsLoad (pending + fold — validate-session-load-integrity).
-  && /const plan = planProjectsLoad\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\],/.test(ctx));
+  // Wave 3 (#90): minus the jobs he was removed from (revokedCachedProjectIds).
+  && /const plan = planProjectsLoad\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\) && !revoked\.has\(p\.id\)\)\],/.test(ctx));
 check('Project type carries myRole and financialsLoaded', /myRole\?:\s*ProjectCollaborator\['role'\];/.test(types) && /financialsLoaded\?:\s*boolean;/.test(types));
 const classifyAt = ctx.indexOf('classifyProjectForSync(project, userId, userEmail)');
 const baseStart = classifyAt >= 0 ? ctx.indexOf('const base = {', classifyAt) : -1;

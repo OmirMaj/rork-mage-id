@@ -10,8 +10,10 @@
 //
 // So the card states two things and asks for one: how much of the record
 // exists, that a day with nothing on it still counts, and that today is the
-// day to file. It never offers to backfill a gap — a report typed weeks later
-// carries the date it was typed. Gaps are reported as facts.
+// day to file. Gaps are reported as facts; a gap-only row opens a report for
+// its most recent missing day (audit #114 — it used to open a second report
+// for today, which was already filed). The report screen's date picker
+// backdates, so a missed day filed later is dated the day it covers.
 //
 // No score, no badge, no streak flame, no exclamation mark. This is record
 // keeping, not a game.
@@ -38,6 +40,7 @@ import {
 } from '@/utils/dailyLogCompletion';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { formatCalendarDay } from '@/utils/calendarDate';
 
 const MAX_VISIBLE = 3;
 
@@ -113,9 +116,18 @@ export default function DailyLogCard() {
   const visible = rows.slice(0, MAX_VISIBLE);
   const overflow = rows.length - visible.length;
 
-  const open = (projectId: string) => {
+  // Audit #114: every row opened a blank report dated TODAY. For a job that
+  // owes today that is right; for a gap-only row (today already filed) it sent
+  // the GC to a second report for a day that has one — the likeliest way to
+  // put two records on one day. A gap row now opens its most recent missing
+  // day (missedDates is most-recent-first), which is the gap the row names.
+  // The report screen also warns if the day it opens already has a report.
+  const open = (projectId: string, missingDay?: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    router.push({ pathname: '/daily-report', params: { projectId } } as never);
+    router.push({
+      pathname: '/daily-report',
+      params: missingDay ? { projectId, date: missingDay } : { projectId },
+    } as never);
   };
 
   return (
@@ -128,8 +140,8 @@ export default function DailyLogCard() {
       <Text style={styles.headline}>{headline}</Text>
       <Text style={styles.sub}>
         A daily log is worth more for being complete than for being detailed. If nothing happened
-        on site, file the day and say so — that still counts. A day filed later carries the date
-        you filed it, not the day it covers, so the gap stays.
+        on site, file the day and say so — that still counts. Tap a job with a gap to file its
+        most recent missing day, dated the day it covers.
       </Text>
 
       <View style={styles.list}>
@@ -138,20 +150,23 @@ export default function DailyLogCard() {
           const state = needsToday
             ? 'Today not filed'
             : `${r.c.missedDays} ${r.c.missedDays === 1 ? 'day' : 'days'} missing`;
+          const gapDay = needsToday ? undefined : r.c.missedDates[0];
+          const gapLabel = gapDay ? formatCalendarDay(gapDay, { weekday: 'short', month: 'short', day: 'numeric' }) : '';
           return (
             <TouchableOpacity
               key={r.projectId}
               style={styles.row}
-              onPress={() => open(r.projectId)}
+              onPress={() => open(r.projectId, gapDay)}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={`${r.projectName}: ${state}. ${r.c.filedDays} of ${r.c.closedExpectedDays} working days logged. Open daily report.`}
+              accessibilityLabel={`${r.projectName}: ${state}. ${r.c.filedDays} of ${r.c.closedExpectedDays} working days logged. ${gapLabel ? `Open a report for ${gapLabel}.` : 'Open daily report.'}`}
             >
               <View style={styles.rowText}>
                 <Text style={styles.rowName} numberOfLines={1}>{r.projectName}</Text>
                 <Text style={styles.rowMeta} numberOfLines={1}>
                   {r.c.filedDays} of {r.c.closedExpectedDays} working days logged
                   {r.c.emptyDayFilings > 0 ? ` · ${r.c.emptyDayFilings} with no work on site` : ''}
+                  {gapLabel ? ` · opens ${gapLabel}` : ''}
                 </Text>
               </View>
               <Text style={[styles.rowState, needsToday ? styles.rowStateDue : styles.rowStateGap]}>

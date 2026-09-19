@@ -927,8 +927,12 @@ function describePatch(patch: Partial<ScheduleTask>): string {
   const bits: string[] = [];
   if (patch.progress != null) bits.push(`${patch.progress}% progress`);
   if (patch.status) bits.push(patch.status.replace('_', ' '));
-  if (patch.actualStartDay != null) bits.push(`start day ${patch.actualStartDay}`);
-  if (patch.actualEndDay != null) bits.push(`finish day ${patch.actualEndDay}`);
+  // actualStartDay/actualEndDay are CALENDAR indices (day 1 = the schedule's
+  // start date, weekends counted — #50), not the working-day numbers the grid
+  // shows as "Day N", so the preview says which scale it is. No date is printed:
+  // this panel's projectStartDate can be a createdAt fallback, never a fact.
+  if (patch.actualStartDay != null) bits.push(`started calendar day ${patch.actualStartDay}`);
+  if (patch.actualEndDay != null) bits.push(`finished calendar day ${patch.actualEndDay}`);
   return bits.join(' · ') || 'update';
 }
 

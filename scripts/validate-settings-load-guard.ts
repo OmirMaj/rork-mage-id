@@ -534,17 +534,23 @@ console.log('\nsettings load — React Query behaviour the rules depend on');
 }
 
 {
-  // #104: the project-detail LITE portal sync must not publish from an
-  // unloaded (DEFAULT) profile, and must not blank a name/contact the portal
-  // already shows.
+  // #104: the LITE portal sync must not publish from an unloaded (DEFAULT)
+  // profile, and must not blank a name/contact the portal already shows.
+  // Wave 3 (#23): the writer moved to utils/portalLiteSync.ts
+  // (syncPortalSnapshotLite, shared by project-detail and the ProjectContext
+  // provider), which owns the skip; project-detail must still hand it
+  // settingsLoaded and re-run when it flips.
+  const lite = read('utils/portalLiteSync.ts');
   const pd = read('app/project-detail.tsx');
-  check('project-detail lite portal sync waits for settingsLoaded',
-    /if \(!project\) return;\s*if \(!settingsLoaded\) return;/.test(pd)
-    && /project, settings, settingsLoaded, projectInvoices/.test(pd));
+  check('the lite portal sync waits for settingsLoaded',
+    /if \(!input\.settingsLoaded\) return 'settings_not_loaded';/.test(lite)
+    && /syncPortalSnapshotLite\(project\.id, \{[\s\S]{0,200}settingsLoaded/.test(pd)
+    // data-session critic round 2: the server-read gate sits beside `project`.
+    && /\}, \[project, (?:portalListsServerRead, )?authUser\?\.id, settings, settingsLoaded,/.test(pd));
   check('…and carries the published company / contact forward over a blank one',
-    /company: snap\.company\?\.name \? snap\.company : \(prev\.company \?\? snap\.company\)/.test(pd)
-    && /contactEmail: snap\.portalApi\.contactEmail \|\| prev\.portalApi\.contactEmail/.test(pd)
-    && /contactEmail: snap\.submitBudget\.contactEmail \|\| prev\.submitBudget\.contactEmail/.test(pd));
+    /company: snap\.company\?\.name && opts\.hasCompanyName \? snap\.company : \(prev\.company \?\? snap\.company\)/.test(lite)
+    && /contactEmail: snap\.portalApi\.contactEmail \|\| prev\.portalApi\.contactEmail/.test(lite)
+    && /contactEmail: snap\.submitBudget\.contactEmail \|\| prev\.submitBudget\.contactEmail/.test(lite));
 }
 {
   // Digest controls refuse (with the reason + Retry) until the profile loads,

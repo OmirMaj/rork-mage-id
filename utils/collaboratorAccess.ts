@@ -17,10 +17,18 @@
 //
 // ── WHY GRANTING THIS IS SAFE ───────────────────────────────────────────────
 // The tier gate here is MONETISATION, not security. What actually protects
-// data is RLS, which already scopes every project child table to the project
-// owner or an ACCEPTED collaborator (20260803140000_collaborator_rls_field_
-// tables.sql). A collaborator who reaches these screens can only ever see rows
-// for projects they were invited to.
+// data is RLS, which scopes the project child tables to the project owner or
+// an ACCEPTED collaborator (20260803140000_collaborator_rls_field_tables.sql).
+// A collaborator who reaches these screens can only ever see rows for
+// projects they were invited to.
+//
+// SAFETY (#82, 20260919130000_safety_project_rls.sql — apply BEFORE the OTA).
+// 'safety_management' opens incidents AND toolbox talks, JHAs, hazards and
+// inspections. Under that migration a record a field/editor collaborator files
+// reaches the PROJECT OWNER (project-scoped RLS via can_access_project); the
+// collaborator sees only the rows he wrote himself; only the owner deletes;
+// viewers cannot file. Before it is applied the five tables were owner-row-
+// only, so a collaborator's filing stayed his own and never reached the GC.
 //
 // And the owner already paid: collaboration itself requires Pro+
 // (schedule_collaboration), and seats are metered (utils/seatModel). Charging
@@ -57,6 +65,15 @@ export const COLLABORATOR_PROJECT_FEATURES: ReadonlySet<string> = new Set([
   'plan_markup',
   'scan_anything',
   'crew_management',
+  // Clocking the GC's crew in and out on THIS job (#62). Its own key, NOT
+  // 'subcontractor_management': that one also gates the GC's cross-job sub
+  // book, which stays OWNER_ONLY below. Field and editor seats only — see
+  // FEATURE_ROLES (a viewer cannot clock anyone in; RLS on time_entries needs
+  // can_access_project(…, 'field') to insert, so it would fail anyway).
+  // FOUNDER DECISION PENDING (seat pricing, #62): this is the interim — the
+  // GC's Business plan covers his invited foreman clocking HIS crew on HIS
+  // jobs. If seats should be paid instead, this key comes out.
+  'crew_time_tracking',
   // Reading and running the job's schedule.
   'schedule_collaboration',
   'schedule_gantt_pdf',
@@ -97,6 +114,15 @@ export const OWNER_ONLY_FEATURES: ReadonlySet<string> = new Set([
   'ai_code_check',
 ]);
 
+/**
+ * Features a collaborator gets only in SOME roles. A key absent from this map
+ * is open to every collaborator role (editor, viewer, field) once it is in
+ * COLLABORATOR_PROJECT_FEATURES.
+ */
+export const FEATURE_ROLES: Readonly<Record<string, readonly NonNullable<ProjectRole>[]>> = {
+  crew_time_tracking: ['editor', 'field'],
+};
+
 /** Roles that count as an accepted teammate on the project. */
 function isCollaborator(role: ProjectRole): boolean {
   return role === 'editor' || role === 'viewer' || role === 'field';
@@ -113,7 +139,9 @@ function isCollaborator(role: ProjectRole): boolean {
 export function collaboratorMayAccess(role: ProjectRole, feature: string): boolean {
   if (!isCollaborator(role)) return false;
   if (OWNER_ONLY_FEATURES.has(feature)) return false;
-  return COLLABORATOR_PROJECT_FEATURES.has(feature);
+  if (!COLLABORATOR_PROJECT_FEATURES.has(feature)) return false;
+  const roles = FEATURE_ROLES[feature];
+  return !roles || (role !== null && roles.includes(role));
 }
 
 /**
@@ -129,4 +157,48 @@ export function resolveProjectAccess(
   feature: string,
 ): boolean {
   return ownTierAllows || collaboratorMayAccess(role, feature);
+}
+
+export type ClockGate =
+  | { kind: 'ok' }
+  | { kind: 'loading' }
+  | { kind: 'error' }
+  | { kind: 'blocked'; reason: string };
+
+/**
+ * May this user clock crew in on the selected job (Time Tracking, #62)?
+ *
+ * `stampedRole` is the seat ProjectContext stamped on the project when it
+ * loaded (Project.myRole) — undefined on the user's OWN job. `live` is
+ * useProjectRoleState for that job, a network-only read.
+ *
+ * OFFLINE IS THE JOBSITE. Time Tracking is offline-first: the GC clocks his
+ * crew in with no signal, and the live role read on a cold start with no
+ * signal sits loading (the query is paused) and then errors. So:
+ *   • his OWN job never waits on the collaborator read — his tier decides;
+ *   • a job stamped field/editor falls back to that stamp while the live read
+ *     is loading or has failed (the server's RLS still decides whether the
+ *     queued time_entries write lands);
+ *   • only a job stamped viewer (or unstamped-and-unknown) shows the spinner /
+ *     retry, and a RESOLVED null role (a removed collaborator's cached job)
+ *     states why, never spins — the GATING CONTRACT.
+ */
+export function resolveClockGate(args: {
+  hasProject: boolean;
+  stampedRole: ProjectRole | undefined;
+  ownTierAllows: boolean;
+  live: { role: ProjectRole; isLoading: boolean; isError: boolean };
+}): ClockGate {
+  const { hasProject, stampedRole, ownTierAllows, live } = args;
+  if (!hasProject) return { kind: 'ok' };
+  const business: ClockGate = { kind: 'blocked', reason: 'Clocking crew in on your own jobs needs Business.' };
+  const viewer: ClockGate = { kind: 'blocked', reason: 'Clocking crew in on this job needs a field or editor seat. You have view access.' };
+  if (stampedRole == null || stampedRole === 'owner') return ownTierAllows ? { kind: 'ok' } : business;
+  if (live.isLoading || live.isError) {
+    if (stampedRole === 'field' || stampedRole === 'editor') return { kind: 'ok' };
+    return live.isLoading ? { kind: 'loading' } : { kind: 'error' };
+  }
+  if (live.role === null) return { kind: 'blocked', reason: 'You no longer have access to this job, so you cannot clock crew in on it.' };
+  if (resolveProjectAccess(ownTierAllows, live.role, 'crew_time_tracking')) return { kind: 'ok' };
+  return live.role === 'viewer' ? viewer : business;
 }

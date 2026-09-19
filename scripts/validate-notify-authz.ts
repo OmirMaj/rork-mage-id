@@ -139,7 +139,16 @@ ok('legacy per-portal bucket is kept', /exceedsRateLimit\(`portal:\$\{portalId\}
 ok('anon callers without even the anon key get 401', /reason: 'event_not_anon_allowed'/.test(notify) && /error: 'unauthorized' \}, 401\)/.test(notify));
 ok('portal CTA URLs come from portalUrlFor', /import \{ portalUrlFor, portalLinkEnded, subPortalUrlFor, APP_BASE \} from "\.\.\/_shared\/portalLinks\.ts"/.test(notify) && /portalUrlFor\(projectCtx\.client_portal\)/.test(notify));
 // An ENDED link (portal_snapshots.expires_at past) is dropped like no portal.
-ok('notify drops an ended portal link', /if \(portalLinkEnded\(snap\[0\]\?\.expires_at \?\? null\)\) portalUrl = null;/.test(notify));
+ok('notify drops an ended portal link', /else if \(portalLinkEnded\(snap\[0\]\?\.expires_at \?\? null\)\) portalUrl = null;/.test(notify));
+// Leftovers review: award_rfp creates the winner's portal enabled, with the
+// homeowner on the invites, before any snapshot exists — a never-published
+// portal's link is the "not published" page, so it is dropped like an ended
+// one (every CTA omits itself) and portal_reply logs why it sent nothing.
+ok('notify drops a never-published portal link (no portal_snapshots row) — only on a successful read, not a failed one',
+  /if \(Array\.isArray\(snap\) && snap\.length === 0\) \{ portalUnpublished = true; portalUrl = null; \}/.test(notify)
+    && /catch \{ \/\* keep the link \*\/ \}/.test(notify));
+ok('portal_reply sends nothing to an unpublished portal and records skipped_portal_unpublished',
+  /if \(!portalUrl\) \{\s*await sbInsert\('notification_outbox', \{ \.\.\.outboxBase, email_status: portalUnpublished \? 'skipped_portal_unpublished' : 'skipped_portal_unavailable' \}\)[\s\S]{0,40}break;/.test(notify));
 ok('sub-portal CTA URL comes from subPortalUrlFor', /subPortalUrlFor\(link\)/.test(notify));
 ok('no token-less /portal/<id> literal remains', !/mageid\.app\/portal/.test(notify) && !/PORTAL_BASE\}\/\$\{portalId\}/.test(notify));
 ok('project lookup selects client_portal (and user_id for ownership)', /select=id,name,location,user_id,client_portal/.test(notify));
@@ -216,7 +225,7 @@ ok('expiry notice has no /portal/ literal', !/mageid\.app\/portal/.test(expiry))
 const digest = read('supabase/functions/homeowner-weekly-digest/index.ts');
 ok('homeowner-weekly-digest loaded', digest.length > 0);
 ok('digest imports portalUrlFor', /import \{ portalUrlFor \} from '\.\.\/_shared\/portalLinks\.ts'/.test(digest));
-ok('digest builds the link from client_portal via the helper', /const portalUrl = portalUrlFor\(portal\) \?\? undefined/.test(digest) && /const portal = project\.client_portal/.test(digest));
+ok('digest builds the link from client_portal via the helper', /const portalUrl = portalUnpublished \? undefined : \(portalUrlFor\(portal\) \?\? undefined\)/.test(digest) && /const portal = project\.client_portal/.test(digest));
 ok('digest omits the CTA when there is no tokenized URL', /cta: opts\.portalUrl \? \{ label: 'View your portal', href: opts\.portalUrl \} : undefined/.test(digest));
 ok('digest no longer links /portal/<project.id> (or any token-less portal path)', !/\/portal\/\$\{/.test(digest) && !/mageid\.app\/portal\//.test(digest));
 // closed_at joined the select 2026-09-18 (audit #23: the digest stops at handover).

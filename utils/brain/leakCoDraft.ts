@@ -38,6 +38,17 @@ export function isAutoLeakDraft(co: ChangeOrder): boolean {
 
 // ─── Candidate collection ────────────────────────────────────────────────────
 
+/** Is `userId` the project's owner? A cache predating ownerUserId is owned
+ *  exactly when it carries no collaborator role. */
+export function isLeakDraftOwner(
+  project: Pick<Project, 'ownerUserId' | 'myRole'>,
+  userId: string | null | undefined,
+): boolean {
+  if (!userId) return false;
+  if (project.ownerUserId) return project.ownerUserId === userId;
+  return !project.myRole;
+}
+
 export interface DraftCandidate {
   report: DailyFieldReport;
   project: Project;
@@ -67,9 +78,13 @@ export function collectDraftableLeaks(opts: {
   projects: Project[];
   changeOrders: ChangeOrder[];
   processedReportIds: Set<string>;
+  /** The signed-in user. Required (no default) so no caller can forget it:
+   *  only the project OWNER drafts change orders (rule 7). */
+  userId: string | null | undefined;
   now?: Date;
 }): DraftCandidate[] {
-  const { dailyReports, projects, changeOrders, processedReportIds } = opts;
+  const { dailyReports, projects, changeOrders, processedReportIds, userId } = opts;
+  if (!userId) return [];
   const now = opts.now ?? new Date();
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - 14);
@@ -101,6 +116,15 @@ export function collectDraftableLeaks(opts: {
     // 2. Active project check.
     const project = projects.find(p => p.id === report.projectId);
     if (!project || project.status !== 'in_progress') continue;
+
+    // 7. Only the project OWNER drafts a change order (wave 3 #41 — FOUNDER
+    //    interim; change_orders INSERT is owner-only since 20260919110000).
+    //    The context's lists include jobs shared WITH him, so without this a
+    //    collaborator's sweep drafted a CO on the GC's job that RLS then
+    //    refused, leaving a phantom local CO he could not send. Same rule as
+    //    utils/portalLiteSync.isPortalOwner (not imported: that module pulls
+    //    in the whole snapshot builder).
+    if (!isLeakDraftOwner(project, userId)) continue;
 
     const projectCOs = cosByProject.get(project.id) ?? [];
 

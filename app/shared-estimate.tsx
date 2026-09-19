@@ -8,22 +8,29 @@
 // view, so this screen structurally cannot display costs, markups, or margin.
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Linking } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AlertCircle, Check, X as XIcon } from 'lucide-react-native';
+import { AlertCircle, Check, Mail, Phone, X as XIcon } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { decodeClientEstimateToken, type ClientEstimateSharePayload } from '@/utils/clientEstimateShareToken';
+import { cardSurface } from '@/components/ui';
+import { formatCalendarDay } from '@/utils/calendarDate';
+import { decodeClientEstimateToken, shareProceedBlock, type ClientEstimateSharePayload } from '@/utils/clientEstimateShareToken';
 
+// To the cent (#123). Whole dollars rounded every scope, allowance and payment
+// line on its own, so the milestones could fail to add up to the total printed
+// above them — on the one page the homeowner decides from.
 function money(n: number): string {
-  return '$' + Math.round(n).toLocaleString('en-US');
+  return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function SharedEstimateScreen() {
   const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useLocalSearchParams<{ t?: string }>();
 
@@ -31,6 +38,8 @@ export default function SharedEstimateScreen() {
     () => (t ? decodeClientEstimateToken(String(t)) : null),
     [t],
   );
+
+  const proceed = useMemo(() => (payload ? shareProceedBlock(payload) : null), [payload]);
 
   if (!payload) {
     return (
@@ -61,7 +70,7 @@ export default function SharedEstimateScreen() {
 
         <Text style={styles.totalLabel}>PROJECT TOTAL</Text>
         <Text style={styles.total}>{money(payload.total)}</Text>
-        {!!payload.valid && <Text style={styles.valid}>Fixed-price proposal · valid through {payload.valid}</Text>}
+        {!!payload.valid && <Text style={styles.valid}>Fixed-price proposal · valid through {formatCalendarDay(payload.valid)}</Text>}
 
         <Text style={styles.section}>SCOPE OF WORK</Text>
         <View style={styles.card}>
@@ -125,6 +134,41 @@ export default function SharedEstimateScreen() {
           </View>
         )}
 
+        {/* How to say yes (#123). The link used to end here with no phone, no
+            email and no next step. A real Accept needs a backend write, and
+            this link is backendless by design — so it is reply-to-accept, with
+            only the contact details the contractor actually saved. */}
+        {proceed ? (
+          <View style={styles.proceed} testID="shared-estimate-proceed">
+            <Text style={styles.proceedTitle}>TO PROCEED</Text>
+            <Text style={styles.proceedText}>{proceed.sentence}</Text>
+            {proceed.phone ? (
+              <TouchableOpacity
+                style={styles.proceedLink}
+                onPress={() => { void Linking.openURL(proceed.phone!.href); }}
+                accessibilityRole="link"
+                accessibilityLabel={`Call ${proceed.phone.label}`}
+                testID="shared-estimate-call"
+              >
+                <Phone size={14} color={colors.accent} strokeWidth={2} />
+                <Text style={styles.proceedLinkText}>{proceed.phone.label}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {proceed.email ? (
+              <TouchableOpacity
+                style={styles.proceedLink}
+                onPress={() => { void Linking.openURL(proceed.email!.href); }}
+                accessibilityRole="link"
+                accessibilityLabel={`Email ${proceed.email.label}`}
+                testID="shared-estimate-email"
+              >
+                <Mail size={14} color={colors.accent} strokeWidth={2} />
+                <Text style={styles.proceedLinkText}>{proceed.email.label}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+
         <Text style={styles.footer}>{payload.gc ? `${payload.gc} · ` : ''}Powered by MAGE ID</Text>
       </ScrollView>
     </View>
@@ -164,6 +208,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   inclHeadEx: { fontSize: 10.5, letterSpacing: 0.5, color: t.textSecondary, fontWeight: '800', marginBottom: 10 },
   inclRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, paddingVertical: 4 },
   inclText: { fontSize: 12, color: t.textSecondary, flex: 1, lineHeight: 17 },
+
+  proceed: { ...cardSurface(t, { radius: 'card', pad: 15 }), marginTop: 26, gap: 8 },
+  proceedTitle: { fontSize: Type.caption2.fontSize, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800' },
+  proceedText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 20 },
+  proceedLink: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, alignSelf: 'flex-start' },
+  proceedLinkText: { fontSize: Type.subhead.fontSize, color: t.accent, fontWeight: '700' },
 
   footer: { fontSize: 11, color: t.textMuted, textAlign: 'center', marginTop: 32 },
 });

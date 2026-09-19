@@ -89,12 +89,14 @@ const P = '11111111-2222-3333-4444-555555555555';
 const CO = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const FULL: Record<string, unknown> = {
   project_id: P, change_order_id: CO, rfp_id: 'rfp-1', sub_id: 'sub-1', lead_id: 'lead-1',
+  invoice_id: 'inv-1', report_id: 'dr-1', item_id: 'item-1', kind: 'rfi',
 };
 const EVENTS = [
   'portal_message', 'budget_proposal', 'co_approval', 'contract_signed', 'selection_chosen',
   'closeout_binder_sent', 'closeout_binder_sent_confirmation', 'sub_invoice', 'sub_invoice_submitted',
   'sub_invoice_reviewed', 'nearby_rfp_posted', 'bid_question_asked', 'bid_question_answered',
   'rfp_awarded', 'lead_received', 'margin_alert', 'morning_brief', 'week_close',
+  'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready',
 ];
 
 async function main() {
@@ -126,6 +128,15 @@ async function main() {
   ok('the morning brief row opens the brief', at('morning_brief', {}) === '/brief');
   ok('a website lead opens the lead', at('lead_received') === '/lead-detail?leadId=lead-1');
   ok('an unknown event opens nothing', routes.notificationRoute('something_new', FULL) === null);
+  // Wave 3 (#48 + carried events): each opens THE record, never a blank editor.
+  ok('"Client paid" opens that invoice', at('client_invoice_paid') === `/invoice?projectId=${P}&invoiceId=inv-1`, String(at('client_invoice_paid')));
+  ok('a payment-failed push (camelCase) opens the same invoice', at('client_payment_failed', { projectId: P, invoiceId: 'inv-1' }) === `/invoice?projectId=${P}&invoiceId=inv-1`);
+  ok('a paid event with no invoice id opens the project, never a new invoice', at('client_invoice_paid', { project_id: P }) === `/project-detail?id=${P}`);
+  ok('a filed daily report opens that report', at('field_report_filed') === `/daily-report?projectId=${P}&reportId=dr-1`);
+  ok('an RFI response opens that RFI', at('pro_response_received') === `/rfi?projectId=${P}&rfiId=item-1`);
+  ok('a submittal response opens that submittal', at('pro_response_received', { ...FULL, kind: 'submittal' }) === `/submittal?projectId=${P}&submittalId=item-1`);
+  ok('a push carries the pro kind as proKind (its own kind is the event)', at('pro_response_received', { projectId: P, itemId: 'item-1', kind: 'pro_response_received', proKind: 'submittal' }) === `/submittal?projectId=${P}&submittalId=item-1`);
+  ok('a punch item marked ready opens the punch list', at('punch_marked_ready') === `/punch-list?projectId=${P}`);
   ok('param values are URI-encoded', routes.routeHref({ pathname: '/x', params: { a: 'b&c=d' } }) === '/x?a=b%26c%3Dd');
 
   console.log('\n#12 no surface keeps its own table');
@@ -212,7 +223,16 @@ async function main() {
   ok('lock 1: UPDATE cannot re-point a row at another portal (WITH CHECK)', /with check \([\s\S]*client_portal ->> 'portalId' = portal_messages\.portal_id/.test(UPD));
   ok('lock 2: the trigger raises only when the row\'s project owns the portal', /if not exists \(\s+select 1 from public\.projects p\s+where p\.id::text = NEW\.project_id\s+and p\.client_portal ->> 'portalId' = NEW\.portal_id\s+\) then\s+return NEW;/.test(GC_BRANCH));
   ok('system notices (no author_name) raise nothing (#23/#44 snapshot lag)', /elsif NEW\.author_type = 'gc'\s+and nullif\(btrim\(coalesce\(NEW\.author_name, ''\)\), ''\) is not null then/.test(MIG));
-  ok('notify refuses portal_reply / lead_received from anything but a trigger', /SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set\(\['portal_reply', 'lead_received'\]\)/.test(NOTIFY) && /!isService && SERVICE_ONLY_EVENTS\.has\(event\)/.test(NOTIFY));
+  {
+    // Wave 3 widened the set: the money / field / design-team events are
+    // raised only by stripe-webhook and the database triggers, never a JWT.
+    const m = /SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set\(\[([\s\S]*?)\]\)/.exec(NOTIFY);
+    const members = new Set((m?.[1] ?? '').match(/'[a-z_]+'/g)?.map((x) => x.slice(1, -1)) ?? []);
+    const need = ['portal_reply', 'lead_received', 'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready'];
+    ok('notify refuses the trigger-only events (portal_reply, lead_received, wave-3 money/field/design events) from anything but a trusted caller',
+      need.every((e) => members.has(e)) && /!isService && SERVICE_ONLY_EVENTS\.has\(event\)/.test(NOTIFY),
+      `missing: ${need.filter((e) => !members.has(e)).join(',')}`);
+  }
   const REPLY = caseBody(NOTIFY, 'portal_reply');
   ok('the reply honours the homeowner\'s unsubscribe (portal_message key)', /sendIfNotSuppressed\(/.test(REPLY) && /eventKey: 'portal_message'/.test(REPLY));
   ok('lock 3: notify refuses a row whose project does not own the portal', /uuidOrNull\(payload\.project_id\)\?\.toLowerCase\(\) !== projectCtx\.id\.toLowerCase\(\)/.test(REPLY) && /skipped_portal_mismatch/.test(REPLY)

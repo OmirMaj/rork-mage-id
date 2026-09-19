@@ -255,14 +255,13 @@ const REGISTRY = [
   { id: 'construction-ai', title: 'Construction AI', synonyms: ['code check', 'building code', 'permit roadmap', 'plan review', 'ada', 'zoning', 'egress'], route: '/(tabs)/construction-ai', requires: 'ai_code_check', icon: 'MageAIMark', group: 'ai' },
   { id: 'takeoff', title: 'AI Takeoff', synonyms: ['quantity takeoff', 'pdf takeoff', 'count', 'linear'], route: '/takeoff', icon: 'MageTakeoff', group: 'ai' },
   { id: 'area-takeoff', title: 'Visual Takeoff', synonyms: ['floor plan takeoff', 'measure', 'square feet', 'sqft'], route: '/area-takeoff', requires: 'job_costing', icon: 'MageTakeoff', group: 'ai' },
-  // Reads 'ai_estimate_wizard' (Pro) because that is what the screen actually
-  // enforces (app/plan-intelligence.tsx:61), even though the feature is named
-  // after 'ask_your_plans' (Business). It advertised ask_your_plans until
-  // 2026-08-31, which put a BUSINESS lock chip on a screen a Pro subscriber
-  // already owns — so they never opened a feature they were paying for.
-  // NOTE: components/DesktopSidebar.tsx:104 still says 'ask_your_plans' and
-  // needs the same correction (that file is not owned by this change).
-  { id: 'plan-intelligence', title: 'Plan Intelligence', synonyms: ['ask your plans', 'plan search', 'find on plans'], route: '/plan-intelligence', requires: 'ai_estimate_wizard', icon: 'FileSearch', group: 'ai' },
+  // Reads 'ai_estimate_wizard' (Pro) because that is what the screen enforces
+  // (app/plan-intelligence.tsx). Plan Intelligence is the ROOM-ESTIMATING tool;
+  // it used to answer the search "ask your plans", which landed a Pro user on
+  // an estimate picker (tap a sheet = a metered AI run) with the Ask box locked
+  // at Business (#163). Asking now lives on the Plans screen, so those
+  // synonyms moved to the 'plans' row below.
+  { id: 'plan-intelligence', title: 'Plan Intelligence', synonyms: ['estimate rooms', 'room estimate', 'estimate from plans', 'floor plan estimate'], route: '/plan-intelligence', requires: 'ai_estimate_wizard', icon: 'FileSearch', group: 'ai' },
   // ai-punch, punch-list and rfi are the three chipped rows whose ENTRY GATE
   // runs through hooks/useProjectAccess — tier access OR the collaborator grant
   // for that project. All four surfaces that paint the chip (UniversalSearch,
@@ -304,7 +303,9 @@ const REGISTRY = [
   { id: 'schedule', title: 'Schedule', synonyms: ['timeline', 'calendar', 'phases', 'sequence'], route: '/(tabs)/discover/schedule', icon: 'MageSchedule', group: 'project' },
   { id: 'schedule-pro', title: 'Pro Scheduler', synonyms: ['gantt', 'cpm', 'critical path', 'ms project', 'dependencies', 'float'], route: '/schedule-pro', requires: 'schedule_gantt_pdf', icon: 'MageSchedule', group: 'project', projectScoped: true },
   { id: 'last-planner', title: 'Last Planner', synonyms: ['lookahead', 'ppc', 'pull planning', 'weekly commitments'], route: '/last-planner', requires: 'schedule_gantt_pdf', icon: 'ListChecks', group: 'project' },
-  { id: 'plans', title: 'Plans & Drawings', synonyms: ['blueprints', 'sheets', 'drawings', 'markup'], route: '/plans', requires: 'plan_markup', icon: 'MagePlans', group: 'project' },
+  // #163: "ask your plans" opens here — the Ask box is on the Plans screen
+  // (its own Business gate and upgrade button live in AskPlansPanel).
+  { id: 'plans', title: 'Plans & Drawings', synonyms: ['blueprints', 'sheets', 'drawings', 'markup', 'ask your plans', 'plan search', 'find on plans'], route: '/plans', requires: 'plan_markup', icon: 'MagePlans', group: 'project' },
   { id: 'documents', title: 'Documents', synonyms: ['files', 'docs', 'folders', 'attachments'], route: '/documents', icon: 'FileText', group: 'project' },
   { id: 'estimate-calibration', title: 'Estimate Calibration', synonyms: ['bid accuracy', 'high or low', 'calibrate'], route: '/estimate-calibration', requires: 'portfolio_margin', icon: 'SlidersHorizontal', group: 'project' },
 

@@ -93,9 +93,23 @@ function outstandingOf(inv: Invoice): number {
   return invoiceOutstanding(inv);
 }
 
-function daysBetween(a: string, b: string): number {
+/** A payment row as daysBetween reads it (an alias, so the signature has no
+ *  brace for validate-ai-failure-copy's block lifter to stop at). */
+type PaidRow = { date: string; receivedDate?: string };
+// `paid` is a payment row: the day he says the money ARRIVED (#133,
+// `receivedDate`, a bare local day read at LOCAL noon — never `new Date(day)`,
+// which is UTC midnight and the previous evening in the Americas), else the
+// instant it was recorded. A Friday check recorded on Monday is not 3 days
+// late. Self-contained on purpose: validate-ai-failure-copy lifts this function
+// and paymentHistoryForInvoice out of the module and runs them bare (the same
+// rule as billingFlowCore.paymentReceivedAt).
+function daysBetween(a: string, paid: string | PaidRow): number {
   const t1 = new Date(a).getTime();
-  const t2 = new Date(b).getTime();
+  const received = typeof paid === 'string' ? undefined : paid.receivedDate;
+  const day = typeof received === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(received) : null;
+  const t2 = day
+    ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]), 12).getTime()
+    : new Date(typeof paid === 'string' ? paid : paid.date).getTime();
   if (isNaN(t1) || isNaN(t2)) return 0;
   return Math.round((t2 - t1) / 86_400_000);
 }
@@ -145,7 +159,8 @@ export function paymentHistoryForInvoice(inv: Invoice, allInvoices: Invoice[]): 
   }
   const lateDays = priorPaid.map(p => {
     const lastPayment = p.payments[p.payments.length - 1];
-    const days = daysBetween(p.dueDate, lastPayment.date);
+    // The day the money ARRIVED (#133) — see daysBetween.
+    const days = daysBetween(p.dueDate, lastPayment);
     // Floored at 0 on purpose: paying eleven days EARLY is not "minus eleven
     // days late", and letting it net off a genuinely late invoice would report
     // a client as punctual who is not. Known limitation of that floor:
@@ -173,7 +188,7 @@ function describePaymentHistory(inv: Invoice, allInvoices: Invoice[]): string {
   if (paidOnes.length === 0) return 'No prior paid invoices on this project.';
   const gaps = paidOnes.map(p => {
     const firstPayment = p.payments[p.payments.length - 1];
-    return daysBetween(p.issueDate, firstPayment.date);
+    return daysBetween(p.issueDate, firstPayment);
   }).filter(n => n >= 0);
   if (gaps.length === 0) return 'No prior paid invoices on this project.';
   const avg = Math.round(gaps.reduce((s, n) => s + n, 0) / gaps.length);

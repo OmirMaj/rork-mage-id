@@ -1,5 +1,5 @@
 import type { BidPackage, BidPackageBid, Commitment } from '@/types';
-import { awardedCommitmentCost, uncoveredScopeOf } from '@/utils/projectFinancials';
+import { awardedCommitmentCost, openExcludedScope } from '@/utils/projectFinancials';
 
 export interface BulkSavingsLine {
   packageId: string;
@@ -39,7 +39,7 @@ export function computeBulkSavings(
   commitments: Commitment[],
   /** Every bid row the packages could have awarded (the awarded one is found
    *  by pkg.awardedBidId). Required — without it the figure is not leveled. */
-  bids: ReadonlyArray<Pick<BidPackageBid, 'id' | 'normalizedAdjustment'>>,
+  bids: ReadonlyArray<Pick<BidPackageBid, 'id' | 'amount' | 'normalizedAdjustment'>>,
   asOf: string = new Date().toISOString(),
 ): BulkSavingsSummary {
   const byPackage: BulkSavingsLine[] = [];
@@ -74,7 +74,10 @@ export function computeBulkSavings(
     // adjustment, so the two agree to the cent whenever it is ≥ 0.
     const awardedBid = pkg.awardedBidId ? bids.find((b) => b.id === pkg.awardedBidId) : undefined;
     const signed = awardedCommitmentCost(pkg, [commitment]) ?? 0;
-    const awardedAmount = cents(signed + uncoveredScopeOf(awardedBid));
+    // Only the excluded scope the commitment has not already absorbed — a
+    // commitment edited up to take it must not have it subtracted twice
+    // (projectFinancials.openExcludedScope, leftovers review).
+    const awardedAmount = cents(signed + openExcludedScope(awardedBid, commitment.amount));
     const estimateBudget = pkg.estimateBudget ?? 0;
     byPackage.push({
       packageId: pkg.id,

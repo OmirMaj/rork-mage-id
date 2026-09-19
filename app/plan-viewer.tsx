@@ -13,13 +13,14 @@
 //   • Tapping a pin opens the bottom sheet for that pin — link/rename/
 //     delete. No drag-to-move in v1; users delete and re-drop if needed.
 
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef, useSyncExternalStore } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, TextInput, Platform, GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Modal, TextInput, Platform, GestureResponderEvent, ImageLoadEventData, NativeSyntheticEvent, LayoutChangeEvent, ActivityIndicator,
 } from 'react-native';
+import { onlineManager } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHideBrainFab } from '@/components/brain/brainFabState';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import {
   ChevronLeft, ChevronRight, MapPin, Pencil, Eraser, Camera, ClipboardList, X, Check,
@@ -33,8 +34,11 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import Paywall from '@/components/Paywall';
+import { Button } from '@/components/ui';
+import { useLocalPlanSheetUri } from '@/utils/planSheetLocalFiles';
 import type { DrawingPin, DrawingPinKind, PunchItem, PunchItemStatus } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateUUID } from '@/utils/generateId';
@@ -42,7 +46,10 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { planRevisionStatus, staleBannerCopy } from '@/utils/planRevisionCore';
-import { planRenumber, type SheetPatch } from '@/utils/plans/revisionActions';
+import {
+  planRenumber, planScreenGate, planControlBlock, effectivePlanRole, rfiFromPin, attachableSheetUri,
+  type SheetPatch, type PlanRole, type PlanGate,
+} from '@/utils/plans/revisionActions';
 import { containImageRect, imageLoadAspectRatio, planViewerImageRatio } from '@/utils/punchPlanPin';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -78,14 +85,44 @@ function punchStatusColor(status: PunchItemStatus, t: ThemeColors): string {
 }
 
 export default function PlanViewerScreen() {
+  // #73: the gate is PROJECT-scoped. A foreman invited to the job on a free
+  // account opens sheets on the GC's plan ('plan_markup' is in the
+  // collaborator grant) — he used to hit "Plan Viewer requires Pro", including
+  // from a punch item's "On plan" chip. The route only carries sheetId, so the
+  // sheet is resolved first to find its project; every hook runs every render.
+  const params = useLocalSearchParams<{ sheetId?: string }>();
+  const sheetId = typeof params.sheetId === 'string' ? params.sheetId : undefined;
+  const { getPlanSheet } = useProjects();
+  const projectId = (sheetId ? getPlanSheet(sheetId) : null)?.projectId;
+  const { canAccess, role } = useProjectAccess(projectId);
+  const roleState = useProjectRoleState(projectId);
+  const offline = useSyncExternalStore(onlineManager.subscribe, () => !onlineManager.isOnline(), () => false);
+  const planAccess = canAccess('plan_markup');
+  // A sheet this device has not loaded has no project to check; the inner
+  // screen says "Sheet not found" rather than guessing a paywall.
+  if (!planAccess) {
+    return (
+      <PlanViewerGate
+        gate={projectId ? planScreenGate({ canAccess: planAccess, roleLoading: roleState.isLoading, roleError: roleState.isError, role, offline }) : 'open'}
+        role={role}
+        onRetry={roleState.refetch}
+      />
+    );
+  }
+  return <PlanViewerScreenInner role={role} />;
+}
+
+/** #73: what a sheet shows when project access is not (yet) granted: the Pro
+ *  paywall for a free owner, a spinner while the role read is in flight, a
+ *  retry when it failed, "no access" after it resolved to nothing. */
+function PlanViewerGate({ gate, role, onRetry }: { gate: PlanGate; role: PlanRole; onRetry: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { canAccess } = useTierAccess();
-  // Gate MUST match the Plans library gate (plans.tsx uses 'plan_markup' = Pro).
-  // Previously this gated on 'plan_viewer' (Business), so a paying Pro user who
-  // imported drawings hit a Business paywall the instant they opened a sheet.
-  if (!canAccess('plan_markup')) {
+  if (gate === 'open') return <PlanViewerScreenInner role={role} />;
+  if (gate === 'locked') {
+    // Gate MUST match the Plans library gate (plans.tsx uses 'plan_markup' = Pro).
     return (
       <Paywall
         visible={true}
@@ -95,10 +132,32 @@ export default function PlanViewerScreen() {
       />
     );
   }
-  return <PlanViewerScreenInner />;
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>Plan sheet</Text>
+      </View>
+      <View style={styles.gateBox} testID={`plan-viewer-gate-${gate}`}>
+        {gate === 'loading' ? (
+          <ActivityIndicator size="small" color={themeColors.accent} />
+        ) : gate === 'error' ? (
+          <>
+            <Text style={styles.gateText}>Couldn&apos;t check your access to this job. Check your connection and try again.</Text>
+            <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="plan-viewer-role-retry" />
+          </>
+        ) : (
+          <Text style={styles.gateText}>You don&apos;t have access to this project&apos;s plans. Ask the project owner to invite you.</Text>
+        )}
+      </View>
+    </View>
+  );
 }
 
-function PlanViewerScreenInner() {
+function PlanViewerScreenInner({ role }: { role: PlanRole }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -121,12 +180,17 @@ function PlanViewerScreenInner() {
     getMarkupsForPlan, addPlanMarkup, deletePlanMarkup,
     getPhotosForProject, getPunchItemsForProject, addProjectPhoto, addPunchItem,
     upsertPlanCalibration, getCalibrationForPlan,
-    addRFI, getRFIsForProject,
+    addRFI, getRFIsForProject, getProject, refetchPlansFromServer,
   } = useProjects();
+  // #74: re-read the plans (a newer revision, a pin the office moved) each
+  // time the viewer comes into focus. No pull-to-refresh here — the canvas is
+  // a zoom/pan surface and a pull would fight the pan.
+  useFocusEffect(useCallback(() => { void refetchPlansFromServer(); }, [refetchPlansFromServer]));
 
   const { user: authUser } = useAuth();
 
   const sheet = sheetId ? getPlanSheet(sheetId) : null;
+  const sheetUri = useLocalPlanSheetUri();
 
   // Revision control. addPlanSheet has always marked the prior copy
   // `superseded` when a sheet number is re-uploaded, but the viewer used to
@@ -154,6 +218,42 @@ function PlanViewerScreenInner() {
     if (!currentSheetId) return;
     router.replace({ pathname: '/plan-viewer' as never, params: { sheetId: currentSheetId } as never });
   }, [currentSheetId, router]);
+
+  // #76: compare two revisions that are BOTH already in the set — this dead
+  // sheet against the current one, or a live revision against the copy it
+  // replaced. No upload, and Compare knows there is nothing to file.
+  const previousSheet = useMemo(
+    () => (sheet?.previousSheetId ? projectSheets.find(s => s.id === sheet.previousSheetId) ?? null : null),
+    [sheet, projectSheets],
+  );
+  // #73: a field or viewer seat sees these buttons now that the viewer opens
+  // for him; Compare files revisions into the GC's set, so it says why not.
+  // The job's owner keeps his controls through a failed/offline role read
+  // (projects.user_id on the local row); anyone else's null role is refused
+  // with the sentence that is true for why it is null.
+  const innerRoleState = useProjectRoleState(sheet?.projectId);
+  const offline = useSyncExternalStore(onlineManager.subscribe, () => !onlineManager.isOnline(), () => false);
+  const seatRole = effectivePlanRole(role, sheet ? getProject(sheet.projectId) : null, authUser?.id);
+  const roleStatus = { isError: innerRoleState.isError, offline };
+  const compareBlock = planControlBlock(seatRole, 'compare', roleStatus);
+  // #73 follow-up: a VIEWER seat opens the sheet now, but pins, strokes, scale
+  // and sheet numbers insert/update at field tier and up (RLS), so his write
+  // would vanish silently. Every such control is refused with this sentence.
+  const markupBlock = planControlBlock(seatRole, 'markup', roleStatus);
+  // A failed role read's refusal says "tap Try again" — the alert carries it.
+  const retryButtons = useMemo(() => (seatRole === null && innerRoleState.isError
+    ? [{ text: 'Cancel', style: 'cancel' as const }, { text: 'Try again', onPress: innerRoleState.refetch }]
+    : undefined), [seatRole, innerRoleState.isError, innerRoleState.refetch]);
+  const refuseMarkup = useCallback((): boolean => {
+    if (!markupBlock) return false;
+    showAlert(seatRole === null ? 'Not available yet' : 'View only', markupBlock, retryButtons);
+    return true;
+  }, [markupBlock, seatRole, retryButtons]);
+  const compareRevisions = useCallback((oldSheetId: string, newSheetId: string) => {
+    if (!sheet) return;
+    if (compareBlock) { showAlert('Compare not available', compareBlock, retryButtons); return; }
+    router.push({ pathname: '/compare-drawings' as never, params: { projectId: sheet.projectId, oldSheetId, newSheetId } as never });
+  }, [sheet, router, compareBlock, retryButtons]);
 
   // ── Sheet number (audit round 2, #21) ───────────────────────────────
   // Revision control keys on the sheet NUMBER, but a PDF import lands every
@@ -290,30 +390,26 @@ function PlanViewerScreenInner() {
   // Pin → RFI: create an open RFI anchored to this drawing location, link the
   // pin both ways (kind:'rfi' + linkedRfiId), then open the RFI to finish and
   // send. "Pin, ask, done."
+  //
+  // #77: the recipient never saw the pin — the email and the architect portal
+  // carried "the marked location on A-201" and a sheet number in text. The
+  // question now names the spot in words (zone + percentages) and the drawing
+  // itself rides as an attachment (after any linked photo, which app/rfi.tsx
+  // treats as attachment 0). #164: due in 14 CALENDAR days, not an instant.
   const handleRaiseRfi = useCallback(() => {
     if (!sheet || !selectedPin) return;
-    const sheetName = sheet.sheetNumber || sheet.name;
-    const label = selectedPin.label?.trim();
-    const now = new Date().toISOString();
-    const photoUri = selectedPin.linkedPhotoId
-      ? projectPhotos.find(p => p.id === selectedPin.linkedPhotoId)?.uri
+    const linkedPhoto = selectedPin.linkedPhotoId
+      ? projectPhotos.find(p => p.id === selectedPin.linkedPhotoId)
       : undefined;
-    const rfi = addRFI({
-      projectId: sheet.projectId,
-      subject: label ? `${sheetName}: ${label}` : `${sheetName} — RFI`,
-      question: label
-        ? `Regarding the marked location on ${sheetName}: ${label}. Please advise.`
-        : `Please clarify the marked location on ${sheetName}.`,
-      submittedBy: '',
-      assignedTo: '',
-      dateSubmitted: now,
-      dateRequired: new Date(Date.now() + 14 * 86_400_000).toISOString(),
-      status: 'open',
-      priority: 'normal',
-      ballInCourt: 'gc',
-      linkedDrawing: sheetName,
-      attachments: photoUri ? [photoUri] : [],
-    });
+    const rfi = addRFI(rfiFromPin(
+      sheet,
+      { x: selectedPin.x, y: selectedPin.y, label: selectedPin.label },
+      new Date(),
+      {
+        sheetImageUri: attachableSheetUri(sheet.imageUri),
+        photo: linkedPhoto?.uri ? { id: linkedPhoto.id, uri: linkedPhoto.uri } : null,
+      },
+    ));
     updateDrawingPin(selectedPin.id, { linkedRfiId: rfi.id, kind: 'rfi' });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSelectedPinId(null);
@@ -392,6 +488,7 @@ function PlanViewerScreenInner() {
     if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
 
     if (mode === 'pin') {
+      if (refuseMarkup()) return;
       const pin = addDrawingPin({
         planSheetId: sheet.id,
         projectId: sheet.projectId,
@@ -425,16 +522,16 @@ function PlanViewerScreenInner() {
         return [pt]; // restart
       });
     }
-  }, [mode, toNormalized, addDrawingPin, sheet, imgLayout]);
+  }, [mode, toNormalized, addDrawingPin, sheet, imgLayout, refuseMarkup]);
 
   // Drawing handlers
   const handleDrawStart = useCallback((e: GestureResponderEvent) => {
-    if (mode !== 'draw') return;
+    if (mode !== 'draw' || markupBlock) return;
     const pt = toNormalized(e.nativeEvent.locationX, e.nativeEvent.locationY);
     if (!pt) return;
     drawingRef.current = true;
     setActiveStroke([pt]);
-  }, [mode, toNormalized]);
+  }, [mode, toNormalized, markupBlock]);
 
   const handleDrawMove = useCallback((e: GestureResponderEvent) => {
     if (mode !== 'draw' || !drawingRef.current) return;
@@ -536,7 +633,7 @@ function PlanViewerScreenInner() {
           {/* Tap to set or correct the number. An unnumbered sheet says so —
               it is the reason its revisions never chain. */}
           <TouchableOpacity
-            onPress={() => setNumberDraft(sheet.sheetNumber ?? '')}
+            onPress={() => { if (refuseMarkup()) return; setNumberDraft(sheet.sheetNumber ?? ''); }}
             accessibilityRole="button"
             accessibilityLabel={sheet.sheetNumber ? `Sheet number ${sheet.sheetNumber}. Tap to change.` : 'Add a sheet number'}
             testID="plan-viewer-sheet-number"
@@ -561,6 +658,7 @@ function PlanViewerScreenInner() {
               // Same up-front block as the Calibrate button: with the frame
               // unknown he would tap two points and type a distance, only
               // for confirmCalibration to refuse it.
+              if (refuseMarkup()) return;
               if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
               switchMode('calibrate'); showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
             }}
@@ -573,11 +671,11 @@ function PlanViewerScreenInner() {
         <View style={styles.modePill}>
           <Text style={styles.modePillText}>{pins.length} {pins.length === 1 ? 'pin' : 'pins'}</Text>
         </View>
-        {/* Ask Your Plans — cross-link to the plan intelligence Q&A surface.
-            Previously invisible from the plan viewer; tapping opens the chat
-            with this sheet's project pre-selected. */}
+        {/* Ask Your Plans (#163) — opens the Ask box on this job's Plans
+            screen. It used to open Plan Intelligence, the room-estimating
+            tool, where tapping a sheet starts a metered AI estimate. */}
         <TouchableOpacity
-          onPress={() => router.push({ pathname: '/plan-intelligence' as never, params: { projectId: sheet?.projectId ?? '' } as never })}
+          onPress={() => router.push({ pathname: '/plans' as never, params: { projectId: sheet.projectId, ask: '1' } as never })}
           style={styles.headerBtn}
           hitSlop={12}
           accessibilityRole="button"
@@ -618,6 +716,36 @@ function PlanViewerScreenInner() {
               <ArrowRight size={15} color={Colors.textOnAccent} strokeWidth={2} />
             </TouchableOpacity>
           ) : null}
+          {currentSheetId ? (
+            <TouchableOpacity
+              style={[styles.revCompareBtn, compareBlock ? styles.blockedBtn : null]}
+              onPress={() => compareRevisions(sheet.id, currentSheetId)}
+              accessibilityHint={compareBlock ?? undefined}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Compare this sheet with the current revision"
+              testID="plan-viewer-compare-current"
+            >
+              <Text style={styles.revCompareBtnText}>Compare with the current revision</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : !sheet.superseded && previousSheet ? (
+        <View style={styles.revRow} testID="plan-viewer-revision-row">
+          <Text style={styles.revRowText}>
+            Rev {sheet.revision ?? 1}{sheet.sheetNumber ? ` of ${sheet.sheetNumber}` : ''} — replaced Rev {previousSheet.revision ?? 1}
+          </Text>
+          <TouchableOpacity
+            style={[styles.revCompareBtn, compareBlock ? styles.blockedBtn : null]}
+            onPress={() => compareRevisions(previousSheet.id, sheet.id)}
+            accessibilityHint={compareBlock ?? undefined}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Compare with revision ${previousSheet.revision ?? 1}`}
+            testID="plan-viewer-compare-previous"
+          >
+            <Text style={styles.revCompareBtnText}>Compare with Rev {previousSheet.revision ?? 1}</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 
@@ -641,8 +769,11 @@ function PlanViewerScreenInner() {
             onResponderRelease={handleDrawEnd}
             onResponderTerminate={handleDrawEnd}
           >
+            {/* #80: the file the day pack saved on this phone when there is
+                one — it renders with no signal and after a cold start, when
+                imageUri is a bare storage path nothing can fetch. */}
             <Image
-              source={{ uri: sheet.imageUri }}
+              source={{ uri: sheetUri(sheet) }}
               style={styles.image}
               resizeMode="contain"
               onLoad={handleImageLoad}
@@ -843,15 +974,18 @@ function PlanViewerScreenInner() {
       {/* Toolbar */}
       <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <TouchableOpacity
-          style={[styles.toolBtn, mode === 'pin' && styles.toolBtnActive]}
-          onPress={() => switchMode('pin')}
+          style={[styles.toolBtn, mode === 'pin' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null]}
+          onPress={() => { if (refuseMarkup()) return; switchMode('pin'); }}
+          accessibilityHint={markupBlock ?? undefined}
         >
           <MapPin size={18} color={mode === 'pin' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, mode === 'pin' && styles.toolBtnTextActive]}>Pin</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.toolBtn, mode === 'draw' && styles.toolBtnActive]}
-          onPress={() => switchMode('draw')}
+          style={[styles.toolBtn, mode === 'draw' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null]}
+          onPress={() => { if (refuseMarkup()) return; switchMode('draw'); }}
+          accessibilityHint={markupBlock ?? undefined}
+          testID="plan-viewer-tool-draw"
         >
           <Pencil size={18} color={mode === 'draw' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, mode === 'draw' && styles.toolBtnTextActive]}>Draw</Text>
@@ -864,6 +998,9 @@ function PlanViewerScreenInner() {
               // hint the user (mirrors area-takeoff.tsx:472 pattern). Same
               // up-front frame block as Calibrate and the Re-check pill, and
               // an older scale is called a re-check, not "no scale".
+              // No scale yet: Measure would route him into Calibrate, which
+              // writes the sheet's scale — a viewer is told why instead.
+              if (refuseMarkup()) return;
               if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
               switchMode('calibrate');
               if (scaleNeedsRecheck) {
@@ -888,9 +1025,12 @@ function PlanViewerScreenInner() {
           ]}>Measure</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive]}
+          style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null]}
+          accessibilityHint={markupBlock ?? undefined}
+          testID="plan-viewer-tool-calibrate"
           onPress={() => {
-            // Blocked, and says why: see imageFrameKnown.
+            // Blocked, and says why: see markupBlock and imageFrameKnown.
+            if (refuseMarkup()) return;
             if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
             switchMode('calibrate');
           }}
@@ -900,12 +1040,13 @@ function PlanViewerScreenInner() {
             {calibration ? 'Re-cal' : 'Calibrate'}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.toolBtn} onPress={undoLastMarkup} disabled={markups.length === 0}>
+        <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null]} onPress={() => { if (refuseMarkup()) return; undoLastMarkup(); }} disabled={markups.length === 0} accessibilityHint={markupBlock ?? undefined}>
           <Undo2 size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Undo</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.toolBtn} onPress={() => {
+        <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null]} accessibilityHint={markupBlock ?? undefined} onPress={() => {
           if (markups.length === 0) return;
+          if (refuseMarkup()) return;
           showAlert('Clear markup', 'Remove all strokes on this sheet?', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Clear', style: 'destructive', onPress: () => markups.forEach(m => deletePlanMarkup(m.id)) },
@@ -923,21 +1064,24 @@ function PlanViewerScreenInner() {
         photos={projectPhotos}
         punchItems={projectPunch}
         linkedRfi={linkedRfi}
-        onRaiseRfi={handleRaiseRfi}
+        readOnlyReason={markupBlock}
+        onRaiseRfi={() => { if (refuseMarkup()) return; handleRaiseRfi(); }}
         onOpenRfi={openLinkedRfi}
-        onCreatePunch={handleCreatePunchFromPin}
+        onCreatePunch={(d) => { if (refuseMarkup()) return; handleCreatePunchFromPin(d); }}
         onClose={() => setSelectedPinId(null)}
         onUpdate={(updates) => {
+          if (refuseMarkup()) return; // the label field is read-only; link/unlink taps say why
           if (selectedPin) updateDrawingPin(selectedPin.id, updates);
         }}
         onDelete={() => {
+          if (refuseMarkup()) return;
           if (selectedPin) {
             deleteDrawingPin(selectedPin.id);
             setSelectedPinId(null);
           }
         }}
         onAddPhoto={async () => {
-          if (!selectedPin) return;
+          if (!selectedPin || refuseMarkup()) return;
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (perm.status !== 'granted') { showAlert('Permission needed', 'Camera access is required.'); return; }
           const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
@@ -1048,7 +1192,7 @@ function PlanViewerScreenInner() {
 // Pin detail / edit
 
 function PinDetailModal({
-  pin, projectId, photos, punchItems, linkedRfi,
+  pin, projectId, photos, punchItems, linkedRfi, readOnlyReason,
   onClose, onUpdate, onDelete, onAddPhoto, onRaiseRfi, onOpenRfi, onCreatePunch,
 }: {
   pin: DrawingPin | null;
@@ -1056,6 +1200,8 @@ function PinDetailModal({
   photos: { id: string; uri: string; tag?: string }[];
   punchItems: { id: string; description: string; location?: string; status: string }[];
   linkedRfi: { id: string; number: number; subject: string } | null;
+  /** Set for a seat that may not write pins (viewer): shown, and the label is read-only. */
+  readOnlyReason?: string | null;
   onClose: () => void;
   onUpdate: (updates: Partial<DrawingPin>) => void;
   onDelete: () => void;
@@ -1100,8 +1246,12 @@ function PinDetailModal({
 
           {view === 'main' && (
             <>
+              {readOnlyReason ? (
+                <Text style={styles.readOnlyNote} testID="pin-read-only-reason">{readOnlyReason}</Text>
+              ) : null}
               <Text style={styles.label}>Label</Text>
               <TextInput
+                editable={!readOnlyReason}
                 value={draftLabel}
                 onChangeText={setDraftLabel}
                 onBlur={saveLabel}
@@ -1275,6 +1425,11 @@ function PunchPicker({ items, onPick, onBack }: {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: '#1C1C1E' },
+  // #73 access gate (spinner / retry / no access) — centred in the dark root.
+  gateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+  gateText: { ...Type.subhead, color: Colors.textOnAccent, textAlign: 'center' },
+  blockedBtn: { opacity: 0.5 },
+  readOnlyNote: { color: t.textSecondary, fontSize: Type.footnote.fontSize, lineHeight: 18 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, paddingVertical: 10,
@@ -1309,6 +1464,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
   },
   staleBannerBtnText: { color: Colors.textOnAccent, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  revCompareBtn: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line,
+  },
+  revCompareBtnText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '700' },
+  revRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderBottomColor: t.line, borderBottomWidth: 1, backgroundColor: t.surfaceAlt,
+  },
+  revRowText: { flex: 1, color: t.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   canvasWrap: { flex: 1, backgroundColor: '#1C1C1E', overflow: 'hidden' },
   canvasScroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },

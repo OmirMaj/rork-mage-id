@@ -25,7 +25,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import Paywall from '@/components/Paywall';
 import type { PhotoMarkup, ProjectPhoto } from '@/types';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -49,15 +50,107 @@ const CANVAS_SIZE = 380;       // logical canvas — actual size is responsive
 // Photo markup is a paid capability, consistent with plan markup (plans.tsx
 // gates on 'plan_markup', Pro). A saved annotation feeds directly into an RFI
 // or punch item, so the two markup surfaces are gated the same way behind the
-// Pro 'photo_documentation' key rather than one being free and one paid.
+// 'photo_documentation' key rather than one being free and one paid.
+//
+// #149: gated on the PHOTO'S project (useProjectAccess), not the viewer's own
+// plan alone. An invited super on a free account marks up the GC's photos —
+// the work he was invited to do, and RLS already lets a field seat update
+// them — instead of hitting the Pro paywall. The route carries only photoId,
+// so the photo is looked up first; every hook runs unconditionally, and the
+// wall waits for the photo and the role (see annotatorAccessState).
 export default function PhotoAnnotatorScreen() {
-  const goBack = useSafeBack();
-  const { canAccess } = useTierAccess();
+  const { photoId } = useLocalSearchParams<{ photoId: string }>();
+  const { projectPhotos, photosLoaded } = useProjects();
+  const photoProjectId = useMemo(
+    () => projectPhotos.find(p => p.id === photoId)?.projectId,
+    [projectPhotos, photoId],
+  );
+  const { canAccess, requiredTierFor } = useProjectAccess(photoProjectId);
+  const roleState = useProjectRoleState(photoProjectId);
   if (!canAccess('photo_documentation')) {
-    return <Paywall visible feature="Photo Markup" requiredTier="pro" onClose={goBack} />;
+    return (
+      <AnnotatorAccessWall
+        state={annotatorAccessState({
+          canAccess: false,
+          photosLoaded,
+          photoFound: !!photoProjectId,
+          roleLoading: roleState.isLoading,
+          roleError: roleState.isError,
+          role: roleState.role,
+        })}
+        requiredTier={requiredTierFor('photo_documentation')}
+        onRetry={() => { void roleState.refetch(); }}
+      />
+    );
   }
   return <PhotoAnnotatorGate />;
 }
+
+/** Everything short of the editor when neither his plan nor a project grant
+ *  covers markup yet — a wait, a retry, a plain "no access", or the paywall. */
+function AnnotatorAccessWall({ state, requiredTier, onRetry }: {
+  state: ReturnType<typeof annotatorAccessState>;
+  requiredTier: 'free' | 'pro' | 'business' | 'enterprise';
+  onRetry: () => void;
+}) {
+  const goBack = useSafeBack();
+  const styles = useThemedStyles(makeStyles);
+  // The photo isn't here: the editor's own gate says so (and offers a retry)
+  // rather than quoting a price for a photo that isn't on this device.
+  if (state === 'open') return <PhotoAnnotatorGate />;
+  if (state === 'paywall') {
+    // The tier on the wall is read from featureTiers.ts, never typed here.
+    return <Paywall visible feature="Photo Markup" requiredTier={requiredTier} onClose={goBack} />;
+  }
+  return (
+    <View style={styles.empty} testID={`photo-access-${state}`}>
+      <Stack.Screen options={{ title: 'Markup' }} />
+      <Text style={styles.emptyText}>
+        {state === 'loading'
+          ? 'Checking your access to this photo…'
+          : state === 'error'
+            ? "Couldn't check your access to this job. Check your connection and try again."
+            : "You don't have access to this project's photos. Ask the project owner to invite you."}
+      </Text>
+      {state === 'error' && (
+        <Button label="Try again" variant="primary" onPress={onRetry} testID="photo-access-retry" />
+      )}
+      <Button label="Go back" variant="secondary" onPress={goBack} testID="photo-access-back" />
+    </View>
+  );
+}
+
+// >>> annotator-access (pure; scripts/validate-submittals-package.ts evaluates this block)
+/**
+ * What the markup route shows before the editor (#149). The gating contract:
+ *   • his own plan (or the project grant) covers it → 'open' — the editor's own
+ *     gate then waits for the photo exactly as before;
+ *   • the photos have not loaded, or the photo's role is still being read →
+ *     'loading', never the paywall (a free collaborator used to see the wall
+ *     flash up before his grant arrived);
+ *   • the role read failed → 'error', with a retry;
+ *   • the photo is not here once loaded → 'open', so the editor's gate says
+ *     the photo is missing rather than quoting a price for it;
+ *   • a settled null role on a real photo → 'no_access', said plainly;
+ *   • otherwise his own plan is the answer → 'paywall'.
+ */
+export function annotatorAccessState(o: {
+  canAccess: boolean;
+  photosLoaded: boolean;
+  photoFound: boolean;
+  roleLoading: boolean;
+  roleError: boolean;
+  role: string | null;
+}): 'open' | 'loading' | 'error' | 'no_access' | 'paywall' {
+  if (o.canAccess) return 'open';
+  if (!o.photosLoaded) return 'loading';
+  if (!o.photoFound) return 'open';
+  if (o.roleLoading) return 'loading';
+  if (o.roleError) return 'error';
+  if (o.role === null) return 'no_access';
+  return 'paywall';
+}
+// <<< annotator-access
 
 // >>> photo-open-gate (pure; scripts/validate-photo-markup-join.ts evaluates this block)
 /**

@@ -33,6 +33,7 @@ import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
   maskPortalLinkToken, PORTAL_BASE_URL, proposalBlockReason,
   buildPortalDocuments, closeoutIsShared,
+  PORTAL_PROPOSAL_ACCEPTANCE_LIVE, PROPOSAL_ACCEPTANCE_OFF_REASON,
 } from '@/utils/portalSnapshot';
 import { PENDING_CO_STATUSES } from '@/utils/portalOwnerCore';
 import { loadBakedPassport } from '@/utils/passport/passportStore';
@@ -41,9 +42,8 @@ import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
 import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchActiveContract } from '@/utils/contractEngine';
-import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
-import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
+import { loadActiveContract } from '@/utils/contractEngine';
+import { defaultPortalLiteSyncIO } from '@/utils/portalLiteSync';
 import { LANGUAGES } from '@/utils/portalLanguages';
 import {
   linkState, expiresAtFromDuration, expiresAtForPolicy, durationLabel, isHandedOver,
@@ -292,10 +292,10 @@ function ClientPortalSetupScreenInner() {
   // (audit round 2, #16).
   const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: ratesLoading } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
   // Those stores read [] / {} until AsyncStorage answers. The snapshot below
   // auto-publishes to portal_snapshots, and for a GMP / open-book job it
   // discloses cost-to-date — so a push in that beat would hand the homeowner
@@ -336,21 +336,46 @@ function ClientPortalSetupScreenInner() {
   // These are async fetches against Supabase so we wrap them in
   // useQuery — when they resolve the snapshot rebuilds and the URL
   // updates so the homeowner sees fresh data on the next portal load.
+  //
+  // #122: each read REPORTS failure (throws → the query errors and retries)
+  // instead of resolving to "none". fetchActiveContract / fetchSelections /
+  // fetchCloseoutBinder all turned a PostgREST error into null / [], so one
+  // flaky read published a portal with the contract waiting for signature
+  // gone and the proposal back. The persist effect below publishes only once
+  // all three have SUCCEEDED.
   const contractQ = useQuery({
     queryKey: ['portal-contract', id],
-    queryFn: () => id ? fetchActiveContract(id) : Promise.resolve(null),
+    queryFn: async () => {
+      if (!id) return null;
+      const r = await loadActiveContract(id);
+      if (!r.ok) throw new Error(r.error);
+      return r.contract;
+    },
     enabled: !!id,
   });
   const selectionsQ = useQuery({
     queryKey: ['portal-selections', id],
-    queryFn: () => id ? fetchSelectionsForProject(id) : Promise.resolve([]),
+    queryFn: async () => {
+      const io = id ? defaultPortalLiteSyncIO() : null;
+      if (!id || !io) return [];
+      const r = await io.loadSelections(id);
+      if (!r.ok) throw new Error(r.error);
+      return r.value;
+    },
     enabled: !!id,
   });
   const closeoutQ = useQuery({
     queryKey: ['portal-closeout', id],
-    queryFn: () => id ? fetchCloseoutBinder(id) : Promise.resolve(null),
+    queryFn: async () => {
+      const io = id ? defaultPortalLiteSyncIO() : null;
+      if (!id || !io) return null;
+      const r = await io.loadCloseoutBinder(id);
+      if (!r.ok) throw new Error(r.error);
+      return r.value;
+    },
     enabled: !!id,
   });
+  const richReadsReady = contractQ.isSuccess && selectionsQ.isSuccess && closeoutQ.isSuccess;
 
   // Signed proposal decisions the homeowner made from the portal. The
   // acceptance RPC (supabase/migrations/held/…_portal_proposal_acceptance.sql)
@@ -462,6 +487,9 @@ function ClientPortalSetupScreenInner() {
       persistProposalKeys({ proposalApprovalEnabled: false });
       return;
     }
+    // #29: the switch is disabled while acceptance is not live; this is the
+    // belt for any path that reaches the handler anyway.
+    if (!PORTAL_PROPOSAL_ACCEPTANCE_LIVE) return;
     const existing = portal.proposalPaymentTerms;
     // A stamp answers the question; otherwise his saved terms do; otherwise
     // the sheet asks. Dismissing it leaves the switch off.
@@ -895,6 +923,11 @@ function ClientPortalSetupScreenInner() {
   useEffect(() => {
     if (!snapshot || !project?.id || !portal.portalId) return;
     if (!isSupabaseConfigured) return;
+    // #122: this is a FULL replace of the row, so publishing before the
+    // contract / selections / closeout reads have succeeded would drop the
+    // contract card (and bring the proposal back) on a flaky connection — or
+    // simply on the first 200 ms, before the reads land.
+    if (!richReadsReady) return;
     // An open-book / GMP snapshot waits for the cost streams (see
     // costSourcesReady). Other modes disclose no cost-to-date, so they go now.
     const disclosesCost = project.contractMode === 'gmp' || project.contractMode === 'open_book';
@@ -933,7 +966,7 @@ function ClientPortalSetupScreenInner() {
         });
     }, initialDelay);
     return () => clearTimeout(t);
-  }, [snapshot, project?.id, project?.status, project?.closedAt, project?.contractMode, costSourcesReady, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
+  }, [snapshot, project?.id, project?.status, project?.closedAt, project?.contractMode, costSourcesReady, richReadsReady, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
 
   // The hash link carries the snapshot itself and has no ?t= token, so the
   // page never refreshes it from the server. On a GMP / open-book job, one
@@ -1777,8 +1810,14 @@ function ClientPortalSetupScreenInner() {
                   showAlert('Portal link has ended', 'Send your client a new portal link before previewing the weekly update.');
                 } else if (errs.length === 0 || errs.includes('no_invites')) {
                   showAlert('No invites yet', 'Add a portal invite (with their email) before previewing the weekly recap.');
+                } else if (errs.every(e => e === 'unsubscribed')) {
+                  // Every invite unsubscribed from the weekly recap (or from all
+                  // MAGE ID email) with a link in one of these emails. Only they
+                  // can turn it back on.
+                  showAlert('Your client turned these emails off', 'Everyone on this portal unsubscribed from the weekly recap, so nothing was sent. Only they can turn it back on, from "Manage email preferences" at the bottom of any MAGE ID email.');
                 } else {
-                  showAlert('Preview not sent', `The email service refused it: ${errs[0].replace(/^[^:]*:\s*/, '')}`);
+                  const refusal = errs.find(e => e !== 'unsubscribed') ?? errs[0];
+                  showAlert('Preview not sent', `The email service refused it: ${refusal.replace(/^[^:]*:\s*/, '')}`);
                 }
               } catch (err) {
                 showAlert('Preview failed', (err as Error).message ?? 'Could not send preview.');
@@ -1807,16 +1846,24 @@ function ClientPortalSetupScreenInner() {
                 <FileText size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Accept the proposal</Text>
-                  <Text style={styles.toggleDesc}>
+                  <Text style={styles.toggleDesc} testID="proposal-approval-desc">
                     {canProposeToClient
-                      ? 'Owner reviews the scope and price and signs to accept, from the portal'
+                      // #29: until the acceptance RPC is live the portal can
+                      // show the proposal but cannot record a signature, so
+                      // the switch must not promise one. It can still be
+                      // turned OFF; it cannot be turned on.
+                      ? (!PORTAL_PROPOSAL_ACCEPTANCE_LIVE
+                        ? (portal.proposalApprovalEnabled
+                          ? `Your client can read the proposal in the portal but can't accept it there yet. ${PROPOSAL_ACCEPTANCE_OFF_REASON}`
+                          : PROPOSAL_ACCEPTANCE_OFF_REASON)
+                        : 'Owner reviews the scope and price and signs to accept, from the portal')
                       : proposalBlock.gc}
                   </Text>
                 </View>
               </View>
               <Switch
                 value={!!portal.proposalApprovalEnabled && canProposeToClient}
-                disabled={!canProposeToClient}
+                disabled={!canProposeToClient || (!PORTAL_PROPOSAL_ACCEPTANCE_LIVE && !portal.proposalApprovalEnabled)}
                 onValueChange={handleProposalSwitch}
                 testID="proposal-approval-switch"
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}

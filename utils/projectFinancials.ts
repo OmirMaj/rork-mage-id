@@ -418,6 +418,45 @@ export function uncoveredScopeOf(bid: Pick<BidPackageBid, 'normalizedAdjustment'
 }
 
 /**
+ * Excluded scope still OPEN once the commitment exists (leftovers review).
+ * When the sub agrees to take the excluded scope and he edits the commitment
+ * up (Job Costing's CommitmentEditor: $38,000 → $41,200), that increase IS
+ * the excluded scope, bought. Levelling the full award-time adjustment on top
+ * of the raised commitment subtracted it twice — every savings figure,
+ * including the client PDF's "Bulk Savings", fell from $3,800 to $600, while
+ * buying the same scope on a separate PO kept $3,800.
+ *
+ * The simplest provable rule: any rise of the commitment's BASE amount above
+ * the awarded bid absorbs the positive adjustment first:
+ *   open = max(0, adj − max(0, commitment.amount − bid.amount)).
+ * What it gives up: a base-amount rise for some OTHER reason (a price
+ * correction) is also read as absorbing the excluded scope, and scope folded
+ * in through a sub CHANGE ORDER (changeAmount) is not — a CO is kept as extra
+ * cost, as the round-3 fix intended. A negative adjustment is untouched.
+ */
+export function openExcludedScope(
+  bid: Pick<BidPackageBid, 'amount' | 'normalizedAdjustment'> | null | undefined,
+  commitmentAmount: number | null | undefined,
+): number {
+  const adj = uncoveredScopeOf(bid);
+  if (adj <= 0 || !bid) return 0;
+  // No commitment yet, or a bid row without a usable amount: nothing can be
+  // shown absorbed, so the whole adjustment is open (the award-time figure).
+  if (commitmentAmount == null || !Number.isFinite(bid.amount) || !Number.isFinite(commitmentAmount)) return adj;
+  const absorbed = Math.max(0, cents(commitmentAmount - bid.amount));
+  return cents(Math.max(0, adj - absorbed));
+}
+
+/** The package's awarded commitment row, or null. */
+export function awardedCommitmentOf<C extends Pick<Commitment, 'id'>>(
+  pkg: Pick<BidPackage, 'awardedCommitmentId'>,
+  commitments: ReadonlyArray<C> | undefined,
+): C | null {
+  if (!commitments || !pkg.awardedCommitmentId) return null;
+  return commitments.find(x => x.id === pkg.awardedCommitmentId) ?? null;
+}
+
+/**
  * What the awarded sub actually costs him now: the signed commitment plus its
  * change orders. Null when the package's commitment cannot be found. Shared by
  * the buyout screens and utils/bulkSavings so an edited commitment or a sub CO
@@ -446,7 +485,11 @@ export function packageBuyoutSavings(
   const awarded = pkg.awardedBidId ? bids.find(b => b.id === pkg.awardedBidId) : undefined;
   const signed = awardedCommitmentCost(pkg, commitments);
   if (signed != null) {
-    return cents(pkg.estimateBudget - leveledBidTotal({ amount: signed, normalizedAdjustment: awarded?.normalizedAdjustment }));
+    // A positive adjustment levels only the part the commitment has not
+    // already absorbed (openExcludedScope); a negative one keeps its sign.
+    const adj = awarded?.normalizedAdjustment ?? 0;
+    const levelBy = adj > 0 ? openExcludedScope(awarded, awardedCommitmentOf(pkg, commitments)?.amount) : adj;
+    return cents(pkg.estimateBudget - cents(signed + levelBy));
   }
   if (awarded && awarded.amount > 0) return leveledBuyoutSavings(pkg.estimateBudget, awarded);
   return pkg.buyoutSavings ?? null;

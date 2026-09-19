@@ -64,6 +64,9 @@ import {
   mergeEditedSchedule,
   getPhaseColor,
   PHASE_OPTIONS,
+  scheduleReplacementLoss,
+  describeScheduleReplacement,
+  replaceRunningSchedule,
 } from '@/utils/scheduleEngine';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate } from '@/constants/scheduleTemplates';
@@ -81,7 +84,7 @@ import { parseCalendarDay, toCalendarDayString, todayCalendarDay } from '@/utils
 import {
   resolveScheduleAnchor, startDayNumberFor,
   UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_PREVIEW_NOTE, UNDATED_SCHEDULE_TITLE,
-  captureBaseline, applyBaselineToTasks, type NamedBaseline,
+  captureBaseline, applyBaselineToTasks, getActiveBaseline, withActiveBaselineId, type NamedBaseline,
 } from '@/utils/scheduleOps';
 import { useAuth } from '@/contexts/AuthContext';
 import { appendAuditToAsyncStorage, buildAuditEntry } from '@/utils/scheduleAudit';
@@ -243,24 +246,23 @@ function lockTabPlan(
     ok: true,
     snap,
     finishDay: cpm.projectFinish > 0 ? cpm.projectFinish : null,
-    schedule: {
+    // The new lock is named THE yardstick (#137), so an older baseline
+    // activated in Schedule Pro does not stay active over it.
+    schedule: withActiveBaselineId({
       ...schedule,
       projectId,
-      // Always the LIVE plan's tasks — never a What-If scenario being viewed.
+      // Always the LIVE plan's tasks — never a saved plan being viewed.
       tasks: applyBaselineToTasks(schedule.tasks, snap),
       baselines: [...existing, snap],
       updatedAt: nowIso,
-    },
+    }, snap.id),
   };
 }
 
-/** The baseline "behind plan" is measured from: the newest named lock. */
+/** The baseline "behind plan" is measured from: the schedule's named active
+ *  baseline, else the newest lock (#137 — the one resolver every screen uses). */
 function activeNamedBaseline(schedule: ProjectSchedule | null): NamedBaseline | null {
-  const list = schedule?.baselines;
-  if (!list || list.length === 0) return null;
-  // Same structural cast as MobileScheduleScreen: types/index.ts declares
-  // baselines structurally to avoid a circular type import.
-  return list[list.length - 1] as unknown as NamedBaseline;
+  return getActiveBaseline(schedule);
 }
 
 /**
@@ -353,34 +355,38 @@ function rebuildEditedSchedule(
   name: string,
   projectId: string | null,
   nextTasks: ScheduleTask[],
+  opts?: { liveTasks?: boolean },
 ): ProjectSchedule | null {
   // Belt-and-braces for whatIfEditRefusal: the handlers build nextTasks from
-  // what is ON SCREEN, which under What-If is the scenario copy. Merging that
-  // would overwrite the live plan's tasks while the screen keeps showing the
-  // unchanged scenario — so a refused edit produces nothing to save.
-  if (whatIfEditRefusal(existing)) return null;
+  // what is ON SCREEN, which under a saved plan is the snapshot copy. Merging
+  // that would overwrite the live plan's tasks while the screen keeps showing
+  // the unchanged snapshot — so a refused edit produces nothing to save.
+  // `liveTasks`: the caller built nextTasks from the LIVE plan (Today,
+  // Lookahead, field mode — #54), so there is no snapshot to leak.
+  if (!opts?.liveTasks && whatIfEditRefusal(existing)) return null;
   const built = buildScheduleFromTasks(name, projectId, nextTasks, existing?.baseline);
   return existing ? mergeEditedSchedule(existing, built) : built;
 }
 
 /**
  * Why a task edit must not be saved right now, or null when it may. While a
- * What-If scenario is on screen every list, board and Gantt row is the
- * SCENARIO's snapshot, and every edit handler maps over those rows — so
- * saving would replace the live plan's tasks with the hypothetical copy (plus
- * the edit), and the variance chips and verdict would then report a slip that
- * never happened on site. Scenarios are read-only in v1; the way out is to
- * exit What-If. Matches `activeScenarioTasks` exactly: an id that points at a
- * deleted scenario shows the live plan, so it is not refused.
+ * saved plan (a "scenario" in the data) is on screen, the Gantt, board and list
+ * rows are that SNAPSHOT, and every edit handler maps over those rows — so
+ * saving would replace the live plan's tasks with the frozen copy (plus the
+ * edit), and the variance chips and verdict would then report a slip that
+ * never happened on site. Saved plans are read-only snapshots (#53: nothing
+ * can edit one, so the feature is no longer sold as What-If modelling); the way
+ * out is to show the live plan. Matches `activeScenarioTasks`: an id that
+ * points at a deleted snapshot shows the live plan, so it is not refused.
  */
-const WHAT_IF_READ_ONLY_TITLE = 'What-If is read-only';
+const WHAT_IF_READ_ONLY_TITLE = 'Saved plan is read-only';
 function whatIfEditRefusal(schedule: ProjectSchedule | null): { title: string; reason: string } | null {
   const id = schedule?.activeScenarioId;
   if (!schedule || !id) return null;
   if (!(schedule.scenarios ?? []).some((s) => s.id === id)) return null;
   return {
     title: WHAT_IF_READ_ONLY_TITLE,
-    reason: 'You are viewing a What-If scenario, so this change was not saved — it would have overwritten the live plan with the scenario copy. Exit What-If to edit the live plan.',
+    reason: 'You are viewing a saved plan — a frozen snapshot — so this change was not saved: it would have overwritten the live plan with the snapshot. Show the live plan to edit it.',
   };
 }
 // ─── END TAB PLAN LOCK ─────────────────────────────────────────────────────
@@ -443,6 +449,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduleTask | null>(null);
+  // The edit modal was opened from a task that Today or Lookahead showed —
+  // the LIVE plan (#54) — so its save builds from and writes to the live plan
+  // even while a saved plan is on the Gantt. Set by openEditTask.
+  const [editingLive, setEditingLive] = useState(false);
+  useEffect(() => { if (!editingTask) setEditingLive(false); }, [editingTask]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Schedule Pro is a Pro+ feature (schedule_gantt_pdf). Rather than dead-end
@@ -465,6 +476,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const [isShareSheetOpen, setIsShareSheetOpen] = useState(false);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [taskDetailModal, setTaskDetailModal] = useState<ScheduleTask | null>(null);
+  // The task-detail sheet was opened from Today or Lookahead (#54): those show
+  // the LIVE plan, so its progress, photo, edit and delete act on the live
+  // plan — never refused with "you are viewing a saved plan" for a task he
+  // opened from a live view. Cleared whenever the sheet closes, so a later
+  // open from the Gantt/board/list reads as the snapshot again.
+  const [taskDetailLive, setTaskDetailLive] = useState(false);
+  useEffect(() => { if (!taskDetailModal) setTaskDetailLive(false); }, [taskDetailModal]);
+  const openLiveTaskDetail = useCallback((task: ScheduleTask) => {
+    setTaskDetailLive(true);
+    setTaskDetailModal(task);
+  }, []);
   const [isFieldMode, setIsFieldMode] = useState(false);
   const [showBaseline, setShowBaseline] = useState(false);
   const [collapsedPhases, setCollapsedPhases] = useState<Record<string, boolean>>({});
@@ -579,25 +601,41 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [projectStartDate, scheduleAnchor.dated, beforeProjectStart, activeSchedule]);
 
   /**
-   * When a What-If scenario is selected, the Gantt reads from that scenario's
-   * task snapshot instead of the baseline. This is a DISPLAY-only swap for
-   * v1 — task edit handlers still mutate the baseline `schedule.tasks`. The
-   * UX surfaces this via a banner so PMs know they're in a read-only view
-   * of the branch. Future iteration: route edits into the active scenario.
+   * When a saved plan (a "scenario" in the data) is selected, the Gantt, board
+   * and list read that snapshot instead of the live plan. DISPLAY-only: a
+   * snapshot cannot be edited (whatIfEditRefusal), and the banner above every
+   * view mode says what is on screen (#54).
+   *
+   * `viewLiveScenarioId` is a LOCAL override: "show me the live plan" on this
+   * screen without writing the row. activeScenarioId is persisted on the
+   * projects row, so it follows every device — a field or viewer seat cannot
+   * clear it (refuseScheduleWrite) and used to be stuck on the snapshot. Per-
+   * device view state for everyone is a follow-up (ScenariosModal and
+   * schedule-import both write the field).
    */
-  const activeScenarioTasks = useMemo<ScheduleTask[] | null>(() => {
+  const [viewLiveScenarioId, setViewLiveScenarioId] = useState<string | null>(null);
+  const activeScenario = useMemo(() => {
     if (!activeSchedule || !activeSchedule.activeScenarioId) return null;
-    const scenario = (activeSchedule.scenarios ?? []).find(
+    if (viewLiveScenarioId === activeSchedule.activeScenarioId) return null;
+    return (activeSchedule.scenarios ?? []).find(
       (s) => s.id === activeSchedule.activeScenarioId,
-    );
-    return scenario?.tasks ?? null;
-  }, [activeSchedule]);
+    ) ?? null;
+  }, [activeSchedule, viewLiveScenarioId]);
+  const activeScenarioTasks = activeScenario?.tasks ?? null;
 
   const sortedTasks = useMemo<ScheduleTask[]>(() => {
     if (!activeSchedule) return [];
     const source = activeScenarioTasks ?? activeSchedule.tasks;
     return source.slice().sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
   }, [activeSchedule, activeScenarioTasks]);
+  /** The LIVE plan, always (#54). Today, Lookahead and field mode are for
+   *  real work on site: fed from a snapshot they hid the foreman's 60% and
+   *  refused every progress tap, with no banner saying why. */
+  const liveSortedTasks = useMemo<ScheduleTask[]>(() => {
+    if (!activeSchedule) return [];
+    if (!activeScenarioTasks) return sortedTasks;
+    return activeSchedule.tasks.slice().sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
+  }, [activeSchedule, activeScenarioTasks, sortedTasks]);
 
   const [showScenariosModal, setShowScenariosModal] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -620,7 +658,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   // Field access has one server door — field_update_schedule_tasks — and it
   // merges task progress, status, notes and actual start/finish ONLY. Not one
   // of the five writes gated here is that: they set the start date, lock a
-  // baseline, switch What-If scenarios, answer the start-day-basis question, or
+  // baseline, switch saved plans, answer the start-day-basis question, or
   // replace the whole task list after an edit/build (which also reflows
   // dependent dates and re-stamps project.status). So there is nothing to
   // route — the honest move is to refuse before the edit and say why, with the
@@ -653,7 +691,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       if (!selectedProject || !activeSchedule) return;
       // A scenario switch writes `activeScenarioId`/`scenarios` onto the row —
       // refused for field and viewer, so it is refused here out loud.
-      if (refuseScheduleWrite('What-If scenarios')) return;
+      if (refuseScheduleWrite('Saved plans')) return;
       updateProject(selectedProject.id, {
         schedule: { ...activeSchedule, ...patch, updatedAt: new Date().toISOString() },
       });
@@ -663,19 +701,34 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
   /**
    * Gate for every task-edit path. Returns true (and says why, with the way
-   * out) when the edit must not be saved because a What-If is on screen — see
+   * out) when the edit must not be saved because a saved plan is on screen — see
    * whatIfEditRefusal. Called BEFORE any confirm so nobody confirms a delete
    * that is then dropped.
    */
+  /**
+   * Leave the saved plan (#54). An owner/editor clears it for everyone (the
+   * row write, as before). A field or viewer seat cannot write the row, so
+   * the live plan is shown on THIS screen instead — never a refusal that
+   * leaves him stuck on the snapshot.
+   */
+  const exitSavedPlanView = useCallback(() => {
+    const id = activeSchedule?.activeScenarioId ?? null;
+    if (!id) return;
+    if (scheduleWriteBlockedReason) { setViewLiveScenarioId(id); return; }
+    handleScheduleScenariosChange({ activeScenarioId: null });
+  }, [activeSchedule?.activeScenarioId, scheduleWriteBlockedReason, handleScheduleScenariosChange]);
   const refuseWhileWhatIf = useCallback((): boolean => {
+    // Nothing is refused while the rows on screen ARE the live plan (no
+    // snapshot, or this screen's local "show live plan").
+    if (!activeScenarioTasks) return false;
     const refusal = whatIfEditRefusal(activeSchedule);
     if (!refusal) return false;
     showAlert(refusal.title, refusal.reason, [
-      { text: 'Stay in What-If', style: 'cancel' },
-      { text: 'Exit What-If', onPress: () => handleScheduleScenariosChange({ activeScenarioId: null }) },
+      { text: 'Keep viewing', style: 'cancel' },
+      { text: 'Show live plan', onPress: exitSavedPlanView },
     ]);
     return true;
-  }, [activeSchedule, handleScheduleScenariosChange]);
+  }, [activeSchedule, activeScenarioTasks, exitSavedPlanView]);
 
   /**
    * THE forecast for this screen. Drives the Gantt weather badges (horizontal
@@ -766,9 +819,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
    * meant a tab or phone lock never reached a card's variance chip.
    */
   const baselineEndByTaskId = useMemo(() => baselineEndIndex(activeSchedule), [activeSchedule]);
-  // No chips while a What-If is on screen: the rows are the hypothetical
+  // No chips while a saved plan is on screen: the rows are the frozen
   // snapshot, and a "+3d" measured from it against the real lock would read as
-  // an actual slip on the board and list, which carry no What-If banner.
+  // an actual slip on the board and list.
   const liveEndByTaskId = useMemo(
     () => (activeSchedule && baselineEndByTaskId && !activeScenarioTasks
       ? liveEndIndex(activeSchedule, sortedTasks, baselineEndByTaskId.kind)
@@ -814,14 +867,15 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     return map;
   }, [sortedTasks]);
 
+  // Field mode and the voice button's "today" — the LIVE plan (#54).
   const todayTasks = useMemo(() => {
     const now = new Date();
-    return sortedTasks.filter(t => {
+    return liveSortedTasks.filter(t => {
       if (t.status === 'done') return false;
       const { start, end } = getTaskDateRange(t, projectStartDate, activeSchedule?.workingDaysPerWeek ?? 5);
       return start <= now && end >= now;
     });
-  }, [sortedTasks, projectStartDate, activeSchedule]);
+  }, [liveSortedTasks, projectStartDate, activeSchedule]);
 
   const saveSchedule = useCallback((schedule: ProjectSchedule, project: Project | null) => {
     console.log('[Schedule] Saving schedule', { projectId: project?.id, taskCount: schedule.tasks.length });
@@ -1002,9 +1056,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
    * scenarios, baseline, …) are preserved. saveSchedule further guards
    * startDate so the known finish-jump bug cannot reintroduce itself.
    */
-  const persistEditedTasks = useCallback((nextTasks: ScheduleTask[]) => {
+  const persistEditedTasks = useCallback((nextTasks: ScheduleTask[], opts?: { live?: boolean }) => {
     if (!selectedProject || !activeSchedule) return;
-    if (refuseWhileWhatIf()) return;
+    // `live`: nextTasks were built from the LIVE plan (a task opened from
+    // Today/Lookahead), so there is no snapshot to leak into it.
+    if (!opts?.live && refuseWhileWhatIf()) return;
     // Step 1: reflow dependent startDay values via CPM.
     const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions).tasks;
     // Step 2: derive accurate scalar fields via the canonical builder.
@@ -1046,8 +1102,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     persistEditedTasks(producer(sortedTasks));
   }, [selectedProject, activeSchedule, sortedTasks, persistEditedTasks, refuseWhileWhatIf]);
 
-  const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null) => {
-    if (refuseWhileWhatIf()) return;
+  const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null, live = false) => {
+    // `live` (#54): the edit came from a task Today/Lookahead showed — build
+    // from the live plan and save it, never refused as a saved-plan edit.
+    if (!live && refuseWhileWhatIf()) return;
+    const baseTasks = live ? liveSortedTasks : sortedTasks;
     const title = draft.title.trim();
     if (!title) { showAlert('Missing task name'); return; }
     const durationDays = parseInt(draft.durationDays, 10);
@@ -1088,7 +1147,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (editing) {
       const progress = Math.max(0, Math.min(100, parseInt(draft.progress, 10) || 0));
       const startDayOverride = parseInt(draft.startDayOverride, 10);
-      const nextTasks: ScheduleTask[] = sortedTasks.map(item => {
+      const nextTasks: ScheduleTask[] = baseTasks.map(item => {
         if (item.id !== editing.id) return item;
         const updated: ScheduleTask = {
           ...item, title, phase: draft.phase, crew: draft.crew.trim() || 'General crew',
@@ -1119,7 +1178,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         // basis. NOT the screen's projectStartDate memo (noon anchor). Null
         // basis (no startDate) ⇒ ISO dates only, never invented day numbers.
         if (draft.status !== item.status) {
-          const stamp = stampActuals({ ...item, startDay: updated.startDay }, draft.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString());
+          // No retro start (audit #141): a task closed with no recorded start keeps
+          // an EMPTY start — the same rule as the daily report — rather than a planned
+          // day nobody observed. Pace samples need both stamps, so it is skipped there.
+          const stamp = stampActuals({ ...item, startDay: updated.startDay }, draft.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString(), { retroStartFromPlanned: false });
           Object.assign(updated, stamp);
           // Morning-brief ledger: a real capture (stamp set an ISO date) is
           // a did-for-you moment. recordDidForYou is G4-safe by contract.
@@ -1133,11 +1195,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       // If the edit cascades (multiple tasks move, finish shifts, or critical
       // path changes), surface a compact ripple confirm before committing.
       if (activeSchedule && selectedProject) {
-        const before = sortedTasks;
+        const before = baseTasks;
         const d = diffSchedule(before, nextTasks, runCpm(before, cpmOptions), runCpm(nextTasks, cpmOptions));
         const cascades = d.moved.length > 1 || d.finishDeltaDays !== 0 || d.criticalEntered.length > 0;
         const doPersist = () => {
-          persistEditedTasks(nextTasks);
+          persistEditedTasks(nextTasks, { live });
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         };
         if (cascades) {
@@ -1194,7 +1256,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       if (nextSchedule) saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks, beforeProjectStart, refuseWhileWhatIf]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, liveSortedTasks, projectStartDate, cpmOptions, persistEditedTasks, beforeProjectStart, refuseWhileWhatIf]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);
@@ -1203,14 +1265,15 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [handleSaveTask, taskDraft]);
 
   const handleEditSave = useCallback(() => {
-    handleSaveTask(taskDraft, editingTask);
+    handleSaveTask(taskDraft, editingTask, editingLive);
     setIsEditModalOpen(false);
     setEditingTask(null);
     setTaskDraft({ ...EMPTY_DRAFT });
-  }, [handleSaveTask, taskDraft, editingTask]);
+  }, [handleSaveTask, taskDraft, editingTask, editingLive]);
 
-  const openEditTask = useCallback((task: ScheduleTask) => {
+  const openEditTask = useCallback((task: ScheduleTask, live = false) => {
     setEditingTask(task);
+    setEditingLive(live);
     setTaskDraft({
       title: task.title, phase: task.phase, durationDays: String(task.durationDays),
       startDayOverride: String(task.startDay),
@@ -1230,17 +1293,24 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     setTaskDetailModal(null);
   }, []);
 
-  const handleProgressUpdate = useCallback((task: ScheduleTask, nextProgress: number) => {
-    if (refuseWhileWhatIf()) return;
+  // `live`: the tap came from Today, Lookahead, field mode or the voice
+  // button, which always show the LIVE plan (#54) — build from it and save
+  // it even while a saved plan is on the Gantt.
+  const applyProgressUpdate = useCallback((task: ScheduleTask, nextProgress: number, live: boolean) => {
+    if (!live && refuseWhileWhatIf()) return;
+    const base = live ? liveSortedTasks : sortedTasks;
     const clamped = Math.max(0, Math.min(100, nextProgress));
     const nextStatus = clamped >= 100 ? 'done' as const : clamped > 0 ? 'in_progress' as const : 'not_started' as const;
-    const nextTasks = sortedTasks.map(item => {
+    const nextTasks = base.map(item => {
       if (item.id !== task.id) return item;
       // Pace flywheel: quick-progress implies status moves — stamp the
       // as-builts on the transition (no-op when already stamped).
       let stamp: Partial<ScheduleTask> = {};
       if (nextStatus !== item.status) {
-        stamp = stampActuals(item, nextStatus, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString());
+        // No retro start (audit #141): a task closed with no recorded start keeps
+        // an EMPTY start — the same rule as the daily report — rather than a planned
+        // day nobody observed. Pace samples need both stamps, so it is skipped there.
+        stamp = stampActuals(item, nextStatus, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString(), { retroStartFromPlanned: false });
         // Morning-brief ledger: a real capture is a did-for-you moment.
         if (stamp.actualStartDate != null || stamp.actualEndDate != null) {
           recordDidForYou(`Auto-stamped actual dates for ${item.title}`, selectedProject?.id);
@@ -1249,33 +1319,52 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       return { ...item, progress: clamped, status: nextStatus, ...stamp };
     });
     const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-    const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+    const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks, { liveTasks: live || !activeScenarioTasks });
     if (!nextSchedule) return;
     saveSchedule(nextSchedule, selectedProject);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, refuseWhileWhatIf]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, liveSortedTasks, activeScenarioTasks, refuseWhileWhatIf]);
+  const handleProgressUpdate = useCallback(
+    (task: ScheduleTask, nextProgress: number) => applyProgressUpdate(task, nextProgress, false),
+    [applyProgressUpdate],
+  );
+  const handleLiveProgressUpdate = useCallback(
+    (task: ScheduleTask, nextProgress: number) => applyProgressUpdate(task, nextProgress, true),
+    [applyProgressUpdate],
+  );
 
-  const handlePhotoAdded = useCallback((task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => {
-    if (refuseWhileWhatIf()) return;
+  const applyPhotoAdded = useCallback((task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }, live: boolean) => {
+    if (!live && refuseWhileWhatIf()) return;
     console.log('[Schedule] Photo added to task:', task.title);
-    const existingPhotos = task.photos ?? [];
-    const nextTasks = sortedTasks.map(item =>
+    const base = live ? liveSortedTasks : sortedTasks;
+    const existingPhotos = (base.find(item => item.id === task.id) ?? task).photos ?? [];
+    const nextTasks = base.map(item =>
       item.id !== task.id ? item : { ...item, photos: [...existingPhotos, photo] }
     );
     const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-    const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+    const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks, { liveTasks: live || !activeScenarioTasks });
     if (!nextSchedule) return;
     saveSchedule(nextSchedule, selectedProject);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, refuseWhileWhatIf]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, liveSortedTasks, activeScenarioTasks, refuseWhileWhatIf]);
+  const handlePhotoAdded = useCallback(
+    (task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => applyPhotoAdded(task, photo, false),
+    [applyPhotoAdded],
+  );
+  const handleLivePhotoAdded = useCallback(
+    (task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => applyPhotoAdded(task, photo, true),
+    [applyPhotoAdded],
+  );
 
-  const handleDeleteTask = useCallback((taskId: string) => {
-    if (refuseWhileWhatIf()) return;
+  // `live` (#54): the task came from Today/Lookahead, which show the live
+  // plan — delete from it, never refused as a saved-plan edit.
+  const handleDeleteTask = useCallback((taskId: string, live = false) => {
+    if (!live && refuseWhileWhatIf()) return;
     showAlert('Delete Task', 'Remove this task?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: () => {
-          const nextTasks = sortedTasks
+          const nextTasks = (live ? liveSortedTasks : sortedTasks)
             .filter(t => t.id !== taskId)
             .map(t => ({
               ...t,
@@ -1283,12 +1372,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               dependencyLinks: (t.dependencyLinks ?? []).filter(l => l.taskId !== taskId),
             }));
           const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-          const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+          const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks, { liveTasks: live || !activeScenarioTasks });
           if (nextSchedule) saveSchedule(nextSchedule, selectedProject);
         },
       },
     ]);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, refuseWhileWhatIf]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, liveSortedTasks, activeScenarioTasks, refuseWhileWhatIf]);
 
   const latestScheduleRef = useRef<ProjectSchedule | null>(activeSchedule);
   latestScheduleRef.current = activeSchedule;
@@ -1330,7 +1419,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [selectedProject, updateProject, auditUser, refuseScheduleWrite]);
 
   /** The button. Refusals first (with the way out), then a confirm when the
-   *  lock would MOVE the yardstick or when a What-If is on screen. */
+   *  lock would MOVE the yardstick or when a saved plan is on screen. */
   const handleSaveBaseline = useCallback(() => {
     if (!activeSchedule) return;
     // Access first, so nobody confirms "Re-lock the plan?" for a lock that is
@@ -1348,10 +1437,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       return;
     }
     const current = activeNamedBaseline(activeSchedule);
-    // Viewing a What-If shows scenario tasks, but the lock takes the LIVE plan
-    // — say so rather than let him think he locked the branch.
-    const scenarioNote = activeSchedule.activeScenarioId
-      ? ' This locks the live plan, not the What-If scenario on screen.'
+    // Viewing a saved plan shows its snapshot, but the lock takes the LIVE
+    // plan — say so rather than let him think he locked the snapshot.
+    const scenarioNote = activeScenarioTasks
+      ? ' This locks the live plan, not the saved plan on screen.'
       : '';
     if (!current && !scenarioNote) { commitPlanLock(); return; }
     const lockedOn = current
@@ -1367,7 +1456,35 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         { text: current ? 'Re-lock' : 'Lock', onPress: () => commitPlanLock() },
       ],
     );
-  }, [activeSchedule, commitPlanLock, openStartDatePicker, refuseScheduleWrite]);
+  }, [activeSchedule, activeScenarioTasks, commitPlanLock, openStartDatePicker, refuseScheduleWrite]);
+
+  /**
+   * The ONE sink for a brand-new task list on this screen — Quick Build's
+   * template (its FAB shows whenever a schedule exists), the template picker,
+   * the offline build-from-estimate fallback and the example seed. A new build
+   * has brand-new task ids, so on a RUNNING schedule it is the same wholesale
+   * replace as schedule-review's Accept (#52): confirmed with the count of
+   * what goes, then written through replaceRunningSchedule, which carries the
+   * id-independent sidecars (delay log, closures, working week, resources)
+   * and drops the id-keyed ones the confirm named. The anchor stays the
+   * running schedule's — these builds carry no date of their own, and
+   * saveSchedule keeps an existing schedule's anchor anyway. Refused before
+   * the confirm, so nobody confirms a replace that is then dropped.
+   */
+  const saveReplacingSchedule = useCallback((built: ProjectSchedule, after?: () => void) => {
+    if (refuseScheduleWrite('Schedule changes')) return;
+    const running = selectedProject?.schedule;
+    const commit = () => {
+      saveSchedule(replaceRunningSchedule(running, built, { startDate: running?.startDate ?? null }), selectedProject);
+      after?.();
+    };
+    const loss = scheduleReplacementLoss(running);
+    if (!loss) { commit(); return; }
+    showAlert('Replace the running schedule?', describeScheduleReplacement(loss, selectedProject?.name), [
+      { text: 'Keep current schedule', style: 'cancel' },
+      { text: 'Replace', style: 'destructive', onPress: commit },
+    ]);
+  }, [selectedProject, saveSchedule, refuseScheduleWrite]);
 
   const handleTemplateSelect = useCallback((template: ScheduleTemplate, _startDate: Date) => {
     const tasks: ScheduleTask[] = [];
@@ -1396,10 +1513,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
     const scheduleName = selectedProject ? `${selectedProject.name} Schedule` : template.name;
     const schedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, tasks);
-    saveSchedule(schedule, selectedProject);
-    setIsTemplatePickerOpen(false);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [saveSchedule, selectedProject]);
+    saveReplacingSchedule(schedule, () => {
+      setIsTemplatePickerOpen(false);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    });
+  }, [selectedProject, saveReplacingSchedule]);
 
   const handleBuildFromEstimate = useCallback(async () => {
     if (!selectedProject?.estimate && !selectedProject?.linkedEstimate) {
@@ -1506,10 +1624,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (tasks.length > 0) {
       const scheduleName = `${selectedProject.name} Schedule`;
       const schedule = buildScheduleFromTasks(scheduleName, selectedProject.id, tasks);
-      saveSchedule(schedule, selectedProject);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      saveReplacingSchedule(schedule, () => {
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      });
     }
-  }, [selectedProject, saveSchedule, projects, router, refuseScheduleWrite]);
+  }, [selectedProject, saveReplacingSchedule, projects, router, refuseScheduleWrite]);
 
   const handleOnRampPick = useCallback((path: OnRampPath) => {
     switch (path) {
@@ -1533,8 +1652,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         const demoTasks = seedDemoSchedule();
         const demoName = selectedProject ? `${selectedProject.name} Schedule` : 'Example Schedule';
         const demoSchedule = buildScheduleFromTasks(demoName, selectedProject?.id ?? null, demoTasks);
-        saveSchedule(demoSchedule, selectedProject);
-        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        saveReplacingSchedule(demoSchedule, () => {
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        });
         break;
       }
       case 'manual':
@@ -1542,7 +1662,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         setIsQuickAddOpen(true);
         break;
     }
-  }, [handleBuildFromEstimate, router, saveSchedule, selectedProject, selectedProjectId]);
+  }, [handleBuildFromEstimate, router, saveReplacingSchedule, selectedProject, selectedProjectId]);
 
   const togglePhaseCollapse = useCallback((phase: string) => {
     setCollapsedPhases(prev => ({ ...prev, [phase]: !prev[phase] }));
@@ -1871,7 +1991,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               <TouchableOpacity
                 key={val}
                 style={[styles.fieldBtn, task.progress === val && styles.fieldBtnActive]}
-                onPress={() => handleProgressUpdate(task, val)}
+                onPress={() => handleLiveProgressUpdate(task, val)}
               >
                 <Text style={[styles.fieldBtnText, task.progress === val && styles.fieldBtnTextActive]}>
                   {val}%
@@ -1888,7 +2008,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </View>
       ))}
     </View>
-  ), [todayTasks, handleProgressUpdate]);
+  ), [todayTasks, handleLiveProgressUpdate]);
 
   const renderResourceView = useCallback(() => (
     <View style={styles.resourceContainer}>
@@ -2510,7 +2630,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </Pressable>
       </Modal>
 
-      {/* What-If Scenarios */}
+      {/* Saved plans (stored as schedule.scenarios) */}
       {activeSchedule && (
         <ScenariosModal
           visible={showScenariosModal}
@@ -2579,6 +2699,30 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       )}
     </>
   );
+
+  /**
+   * THE saved-plan banner (#54) — above EVERY view mode, on the desktop and the
+   * phone layouts. It used to live inside the Gantt only, so with a snapshot
+   * left switched on (it is stored on the projects row and follows every
+   * device) the board and list showed the frozen copy with nothing saying so.
+   * Today and Lookahead now always show the live plan and the banner says
+   * that too. One tap leaves the snapshot; a field or viewer seat, who cannot
+   * clear it for everyone, gets the live plan on this screen and is told why.
+   */
+  const savedPlanBanner = activeScenario ? (
+    <View style={styles.scenarioBanner} testID="scenario-banner" accessibilityRole="alert">
+      <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
+      <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowScenariosModal(true)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Manage saved plans">
+        <Text style={styles.scenarioBannerText} numberOfLines={3}>
+          {`Showing saved plan "${activeScenario.name}" — a frozen, read-only snapshot on the Gantt, board and list. Today and Lookahead show the live plan.`}
+          {scheduleWriteBlockedReason ? ' Only the project owner or an editor can close it for everyone.' : ''}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={exitSavedPlanView} accessibilityRole="button" accessibilityLabel="Show live plan" hitSlop={8} testID="scenario-banner-exit">
+        <Text style={styles.scenarioBannerExit}>Show live plan</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
 
   if (layout.isDesktop && hasScheduleData && activeSchedule) {
     return (
@@ -2722,6 +2866,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         <View style={desktopStyles.splitContainer}>
           {viewMode === 'gantt' && renderDesktopTaskListPanel()}
           <View style={desktopStyles.mainPanel}>
+            {savedPlanBanner}
             {viewMode === 'board' ? (
               // Board owns the scroll container in board mode. It cannot be a
               // child of the ScrollView below: a FlatList nested in a same-axis
@@ -2747,12 +2892,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             >
               {viewMode === 'today' && (
                 <TodayView
-                  tasks={sortedTasks}
+                  tasks={liveSortedTasks}
                   schedule={activeSchedule}
                   projectStartDate={projectStartDate}
-                  onProgressUpdate={handleProgressUpdate}
-                  onTaskPress={setTaskDetailModal}
-                  onPhotoAdded={handlePhotoAdded}
+                  onProgressUpdate={handleLiveProgressUpdate}
+                  onTaskPress={openLiveTaskDetail}
+                  onPhotoAdded={handleLivePhotoAdded}
                   healthScore={healthScore}
                   daysRemaining={daysRemaining}
                   location={selectedProject?.location}
@@ -2762,29 +2907,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               )}
               {viewMode === 'lookahead' && (
                 <LookaheadView
-                  tasks={sortedTasks}
+                  tasks={liveSortedTasks}
                   schedule={activeSchedule}
                   projectStartDate={projectStartDate}
-                  onProgressUpdate={handleProgressUpdate}
-                  onTaskPress={setTaskDetailModal}
+                  onProgressUpdate={handleLiveProgressUpdate}
+                  onTaskPress={openLiveTaskDetail}
                   location={selectedProject?.location}
                 />
               )}
               {viewMode === 'gantt' && (
                 <View style={styles.ganttWrapper}>
-                  {activeScenarioTasks && (
-                    <TouchableOpacity
-                      style={styles.scenarioBanner}
-                      onPress={() => setShowScenariosModal(true)}
-                      activeOpacity={0.85}
-                      testID="scenario-banner"
-                    >
-                      <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.scenarioBannerText} numberOfLines={1}>
-                        Viewing What-If scenario (read-only). Tap to manage.
-                      </Text>
-                    </TouchableOpacity>
-                  )}
                   <View style={styles.ganttControls}>
                     <TouchableOpacity style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]} onPress={() => setIsVerticalGantt(false)}>
                       <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
@@ -2808,7 +2940,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       testID="scenarios-open-btn"
                     >
                       <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.saveBaselineBtnText}>What-If</Text>
+                      <Text style={styles.saveBaselineBtnText}>Saved plans</Text>
                     </TouchableOpacity>
                   </View>
                   {isVerticalGantt ? (
@@ -3038,7 +3170,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                         <TouchableOpacity
                           key={val}
                           style={[styles.detailProgressBtn, task.progress === val && styles.detailProgressBtnActive]}
-                          onPress={() => { handleProgressUpdate(task, val); setTaskDetailModal({ ...task, progress: val, status: val >= 100 ? 'done' : val > 0 ? 'in_progress' : 'not_started' }); }}
+                          onPress={() => { (taskDetailLive ? handleLiveProgressUpdate : handleProgressUpdate)(task, val); setTaskDetailModal({ ...task, progress: val, status: val >= 100 ? 'done' : val > 0 ? 'in_progress' : 'not_started' }); }}
                         >
                           <Text style={[styles.detailProgressBtnText, task.progress === val && styles.detailProgressBtnTextActive]}>
                             {val === 100 ? 'Done' : `${val}%`}
@@ -3047,10 +3179,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       ))}
                     </View>
                     <View style={styles.detailActions}>
-                      <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task)}>
+                      <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task, taskDetailLive)}>
                         <Text style={styles.detailEditBtnText}>Edit Task</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }} accessibilityRole="button" accessibilityLabel="Delete">
+                      <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { const live = taskDetailLive; setTaskDetailModal(null); handleDeleteTask(task.id, live); }} accessibilityRole="button" accessibilityLabel="Delete">
                         <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
@@ -3325,6 +3457,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             )}
           </>
         )}
+        {!isFieldMode && savedPlanBanner ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 8 }}>{savedPlanBanner}</View>
+        ) : null}
     </>
   );
 
@@ -3337,12 +3472,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               <>
                 {viewMode === 'today' && activeSchedule && (
                   <TodayView
-                    tasks={sortedTasks}
+                    tasks={liveSortedTasks}
                     schedule={activeSchedule}
                     projectStartDate={projectStartDate}
-                    onProgressUpdate={handleProgressUpdate}
-                    onTaskPress={setTaskDetailModal}
-                    onPhotoAdded={handlePhotoAdded}
+                    onProgressUpdate={handleLiveProgressUpdate}
+                    onTaskPress={openLiveTaskDetail}
+                    onPhotoAdded={handleLivePhotoAdded}
                     healthScore={healthScore}
                     daysRemaining={daysRemaining}
                     location={selectedProject?.location}
@@ -3353,11 +3488,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
                 {viewMode === 'lookahead' && activeSchedule && (
                   <LookaheadView
-                    tasks={sortedTasks}
+                    tasks={liveSortedTasks}
                     schedule={activeSchedule}
                     projectStartDate={projectStartDate}
-                    onProgressUpdate={handleProgressUpdate}
-                    onTaskPress={setTaskDetailModal}
+                    onProgressUpdate={handleLiveProgressUpdate}
+                    onTaskPress={openLiveTaskDetail}
                     location={selectedProject?.location}
                   />
                 )}
@@ -3462,21 +3597,21 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
       {hasScheduleData && (viewMode === 'today' || viewMode === 'lookahead') && activeSchedule && selectedProject && (
         <VoiceFieldButton
-          tasks={sortedTasks}
+          tasks={liveSortedTasks}
           projectName={selectedProject.name}
           projectId={selectedProject.id}
           updateFunctions={{
-            handleProgressUpdate,
+            // Shown on Today/Lookahead only, which are the LIVE plan (#54).
+            handleProgressUpdate: handleLiveProgressUpdate,
             onAddNote: (task, note) => {
-              if (refuseWhileWhatIf()) return;
               const updatedNotes = task.notes
                 ? `${task.notes}\n[${new Date().toLocaleDateString()}] ${note}`
                 : `[${new Date().toLocaleDateString()}] ${note}`;
-              const nextTasks = sortedTasks.map(item =>
+              const nextTasks = liveSortedTasks.map(item =>
                 item.id !== task.id ? item : { ...item, notes: updatedNotes }
               );
               const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-              const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks);
+              const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks, { liveTasks: true });
               if (nextSchedule) saveSchedule(nextSchedule, selectedProject);
             },
           }}
@@ -3860,7 +3995,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                       <TouchableOpacity
                         key={val}
                         style={[styles.detailProgressBtn, task.progress === val && styles.detailProgressBtnActive]}
-                        onPress={() => { handleProgressUpdate(task, val); setTaskDetailModal({ ...task, progress: val, status: val >= 100 ? 'done' : val > 0 ? 'in_progress' : 'not_started' }); }}
+                        onPress={() => { (taskDetailLive ? handleLiveProgressUpdate : handleProgressUpdate)(task, val); setTaskDetailModal({ ...task, progress: val, status: val >= 100 ? 'done' : val > 0 ? 'in_progress' : 'not_started' }); }}
                       >
                         <Text style={[styles.detailProgressBtnText, task.progress === val && styles.detailProgressBtnTextActive]}>
                           {val === 100 ? 'Done' : `${val}%`}
@@ -4010,7 +4145,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                               allowsEditing: true,
                             });
                             if (!result.canceled && result.assets[0]) {
-                              handlePhotoAdded(task, {
+                              (taskDetailLive ? handleLivePhotoAdded : handlePhotoAdded)(task, {
                                 uri: result.assets[0].uri,
                                 timestamp: new Date().toISOString(),
                               });
@@ -4048,10 +4183,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   </View>
 
                   <View style={styles.detailActions}>
-                    <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task)}>
+                    <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task, taskDetailLive)}>
                       <Text style={styles.detailEditBtnText}>Edit Task</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }} accessibilityRole="button" accessibilityLabel="Delete">
+                    <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { const live = taskDetailLive; setTaskDetailModal(null); handleDeleteTask(task.id, live); }} accessibilityRole="button" accessibilityLabel="Delete">
                       <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
@@ -4333,6 +4468,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   saveBaselineBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
   scenarioBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: themeColors.accent + '15', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: themeColors.accent + '30' },
   scenarioBannerText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  scenarioBannerExit: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   saveBaselineBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },

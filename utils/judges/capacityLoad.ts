@@ -62,7 +62,10 @@ export function computeCapacityLoad(projects: Project[], windowStartISO: string,
     };
     // On the stored pin, deliberately — same basis and same reasoning as
     // utils/crossProjectLoad.ts (see its header note), so the two capacity
-    // signals cannot disagree with each other.
+    // signals cannot disagree with each other. The pin is NOT kept in step
+    // with the engine: Schedule Pro persists without reflowing, so a task a
+    // longer predecessor pushed still carries its old pin here (audit #51 —
+    // the known limit is written up in crossProjectLoad's header).
     for (const t of sched.tasks) {
       const w = taskWindow(t, sched.startDate, calendar);
       if (!w) continue;

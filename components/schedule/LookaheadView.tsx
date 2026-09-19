@@ -18,13 +18,14 @@ import {
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { parseCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
   getPhaseColor,
-  getTaskDateRange,
   getPredecessors,
 } from '@/utils/scheduleEngine';
+import { runCpm } from '@/utils/cpm';
+import { scheduledPlacements, scheduledTaskRange, type ScheduledPlacement } from '@/utils/scheduleOps';
 import { getForecastWithFallback, getConditionIcon } from '@/utils/weatherService';
 import type { DayForecast } from '@/utils/weatherService';
 import {
@@ -70,6 +71,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
   allTasks,
   schedule,
   projectStartDate,
+  placement,
   onProgressUpdate,
   onTaskPress,
 }: {
@@ -77,6 +79,8 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
   allTasks: ScheduleTask[];
   schedule: ProjectSchedule;
   projectStartDate: Date;
+  /** The engine's es/ef for this task (see LookaheadView's `placements`). */
+  placement: ScheduledPlacement | undefined;
   onProgressUpdate: (task: ScheduleTask, progress: number) => void;
   onTaskPress: (task: ScheduleTask) => void;
 }) {
@@ -85,7 +89,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
   const phaseColor = getPhaseColor(task.phase);
   const preds = getPredecessors(task, allTasks);
   const isBlocked = preds.some(p => p.status !== 'done');
-  const dateRange = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+  const dateRange = scheduledTaskRange(task, placement, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
   const totalDays = task.durationDays;
   const daysPassed = Math.max(
     0,
@@ -211,6 +215,18 @@ function LookaheadView({
   const [weekCount, setWeekCount] = useState<3 | 6>(3);
   const now = useMemo(() => new Date(), []);
 
+  // Where the ENGINE schedules each task, on this view's anchor, working week
+  // AND site closures. Weeks used to be bucketed by the stored startDay (the
+  // pin) walked without closures, so a task pushed by a longer predecessor sat
+  // in the week it was first planned for, and a closure never moved anything
+  // (audit #51). Same basis as the Gantt and grid (CPM es/ef) and as
+  // utils/lastPlanner's lookahead.
+  const placements = useMemo(() => scheduledPlacements(runCpm(tasks, {
+    scheduleStartDate: toCalendarDayString(projectStartDate),
+    workingDaysPerWeek: schedule.workingDaysPerWeek,
+    nonWorkingDates: schedule.nonWorkingDates,
+  }), true), [tasks, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates]);
+
   /**
    * Real forecast for THIS jobsite. This view used to call
    * getSimulatedForecast() unconditionally — it never even attempted the API,
@@ -253,7 +269,7 @@ function LookaheadView({
 
       const weekTasks = tasks.filter(t => {
         if (t.isMilestone && t.durationDays === 0) return false;
-        const { start, end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+        const { start, end } = scheduledTaskRange(t, placements.get(t.id), projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
         return start <= weekEnd && end >= weekStart;
       });
 
@@ -274,7 +290,7 @@ function LookaheadView({
       });
     }
     return groups;
-  }, [tasks, schedule, projectStartDate, now, weekCount, forecast]);
+  }, [tasks, schedule, projectStartDate, now, weekCount, forecast, placements]);
 
   const renderWeekHeader = useCallback((week: WeekGroup) => {
     const taskCount = week.tasks.length;
@@ -365,6 +381,7 @@ function LookaheadView({
                     allTasks={tasks}
                     schedule={schedule}
                     projectStartDate={projectStartDate}
+                    placement={placements.get(task.id)}
                     onProgressUpdate={onProgressUpdate}
                     onTaskPress={onTaskPress}
                   />
@@ -375,7 +392,7 @@ function LookaheadView({
         )}
       </View>
     );
-  }, [tasks, schedule, projectStartDate, onProgressUpdate, onTaskPress, renderWeekHeader]);
+  }, [tasks, schedule, projectStartDate, placements, onProgressUpdate, onTaskPress, renderWeekHeader]);
 
   // Only the days actually on screen count. If a padded/simulated day falls
   // outside every rendered week, there is nothing to warn about.

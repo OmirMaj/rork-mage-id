@@ -13,8 +13,19 @@
 // (utils/scheduleMerge.ts). Realtime does not replay what it missed while the
 // socket was down (a sleeping laptop, iOS background), so `onGap` fires when
 // the channel subscribes again after a drop — the caller re-reads the row.
+//
+// ONE CHANNEL PER MOUNT. realtime-js's `supabase.channel(topic)` returns the
+// EXISTING channel when the topic matches. The phone Schedule tab stays mounted
+// under the stack, so Schedule Pro pushed over it for the same job used to get
+// the tab's already-subscribed channel back (a listener added after subscribe
+// is ignored), and its removeChannel on unmount then tore down the tab's
+// subscription too — the tab went silently stale. Every mount now owns its
+// topic: `project-live:<id>:<scope>`, where scope is the caller's name for
+// itself plus a per-mount id, so even two mounts of the same screen differ.
 
 import { useEffect, useRef } from 'react';
+
+let mountSeq = 0;
 import { supabase } from '@/lib/supabase';
 import type { ScheduleTask } from '@/types';
 
@@ -29,7 +40,13 @@ export function useLiveSchedule(
   projectId: string | undefined,
   onPeerSchedule: (copy: LiveScheduleCopy) => void,
   onGap?: () => void,
+  /** The caller's name for itself in the channel topic ('schedule-pro',
+   *  'schedule-tab'); a per-mount id is appended either way. */
+  scope: string = 'schedule',
 ) {
+  const mountIdRef = useRef<number | null>(null);
+  if (mountIdRef.current == null) { mountSeq += 1; mountIdRef.current = mountSeq; }
+  const topicSuffix = `${scope}-${mountIdRef.current}`;
   const cbRef = useRef(onPeerSchedule);
   cbRef.current = onPeerSchedule;
   const gapRef = useRef(onGap);
@@ -42,7 +59,7 @@ export function useLiveSchedule(
     let joined = false;
     let dropped = false;
     const channel = supabase
-      .channel(`project-live:${projectId}`)
+      .channel(`project-live:${projectId}:${topicSuffix}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'projects', filter: `id=eq.${projectId}` },
@@ -65,5 +82,5 @@ export function useLiveSchedule(
       });
 
     return () => { void supabase.removeChannel(channel); };
-  }, [projectId]);
+  }, [projectId, topicSuffix]);
 }

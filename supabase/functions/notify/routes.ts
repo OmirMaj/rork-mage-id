@@ -96,6 +96,30 @@ export function notificationRoute(event: string, data: Record<string, unknown> |
       return { pathname: '/brief', params: {} };
     case 'week_close':
       return { pathname: '/week-close', params: {} };
+    // Wave 3 (#48 and the carried events). Snake_case from the outbox payload,
+    // camelCase from the push data — pick() reads both.
+    case 'client_invoice_paid':
+    case 'client_payment_failed': {
+      const invoiceId = pick(d, 'invoice_id', 'invoiceId');
+      if (projectId && invoiceId) return { pathname: '/invoice', params: { projectId, invoiceId } };
+      return projectId ? { pathname: '/project-detail', params: { id: projectId } } : null;
+    }
+    case 'field_report_filed': {
+      const reportId = pick(d, 'report_id', 'reportId');
+      if (projectId && reportId) return { pathname: '/daily-report', params: { projectId, reportId } };
+      return projectId ? { pathname: '/project-detail', params: { id: projectId } } : null;
+    }
+    case 'pro_response_received': {
+      // The push's own `kind` is the event name, so the RFI/submittal kind
+      // rides as proKind there; the outbox payload names it `kind`.
+      const kind = pick(d, 'pro_kind', 'proKind') ?? str(d.kind);
+      const itemId = pick(d, 'item_id', 'itemId');
+      if (projectId && itemId && kind === 'rfi') return { pathname: '/rfi', params: { projectId, rfiId: itemId } };
+      if (projectId && itemId && kind === 'submittal') return { pathname: '/submittal', params: { projectId, submittalId: itemId } };
+      return projectId ? { pathname: '/project-detail', params: { id: projectId } } : null;
+    }
+    case 'punch_marked_ready':
+      return projectId ? { pathname: '/punch-list', params: { projectId } } : null;
     default:
       return null;
   }

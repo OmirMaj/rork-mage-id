@@ -10,10 +10,11 @@ import { Plus, X, ClipboardCheck, TriangleAlert, Trash2, ChevronRight } from 'lu
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
-import { useTierAccess } from '@/hooks/useTierAccess';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useAuth } from '@/contexts/AuthContext';
-import Paywall from '@/components/Paywall';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { SafetyAccessBlocked, useSafetySeat } from '@/app/safety';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -25,6 +26,8 @@ import { showAlert } from '@/utils/alert';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason } from '@/utils/safety/osha';
+import { useProjects } from '@/contexts/ProjectContext';
 
 const RESULTS: InspectionItem['result'][] = ['pass', 'fail', 'na'];
 const RESULT_LABEL: Record<InspectionItem['result'], string> = { pass: 'Pass', fail: 'Fail', na: 'N/A' };
@@ -41,16 +44,15 @@ function cycleResult(items: InspectionItem[], id: string, result: InspectionItem
 
 export default function SafetyInspectionsScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project here (not just in Inner) so the gate can ask "was he
+  // invited to THIS job?" before paywalling — the tools a foreman actually
+  // runs (audit #170). Safe because 20260919130000 routes a collaborator's
+  // records to the project owner; before it, they stayed on his own account.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
+  const roleState = useProjectRoleState(gateProjectId);
   if (!canAccess('safety_management')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="Safety Management"
-        requiredTier="business"
-        onClose={() => router.back()}
-      />
-    );
+    return <SafetyAccessBlocked roleState={roleState} onClose={() => router.back()} />;
   }
   return <SafetyInspectionsInner />;
 }
@@ -65,7 +67,11 @@ function SafetyInspectionsInner() {
   const { isDesktop } = useResponsiveLayout();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { getProject } = useProjects();
+  const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  const seat = useSafetySeat(projectId);
   const { getInspectionsForProject, addInspection, updateInspection, deleteInspection, templates, addHazard, hazards } = useSafety();
 
   const inspections = useMemo(() => getInspectionsForProject(projectId ?? ''), [projectId, getInspectionsForProject]);
@@ -158,7 +164,11 @@ function SafetyInspectionsInner() {
   }, [editing, loggedItemIds, addHazard, userId]);
 
   const handleSave = useCallback(() => {
+    const blocked = safetyWriteBlockedReason(seat);
+    if (blocked) { showAlert('View only', blocked); return; }
     if (!title.trim()) { showAlert('Missing title', 'Give the inspection a title.'); return; }
+    const dateProblem = safetyDateProblem(date, 'Inspection date');
+    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
     const cleaned = items.map((it) => ({ ...it, prompt: it.prompt.trim() })).filter((it) => it.prompt);
     const score = scoreInspection(cleaned).score;
     if (editing) {
@@ -174,14 +184,37 @@ function SafetyInspectionsInner() {
     setShowForm(false);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [title, date, inspector, items, templateId, editing, projectId, userId, addInspection, updateInspection, resetForm]);
+  }, [title, date, inspector, items, templateId, editing, projectId, userId, addInspection, updateInspection, resetForm, seat]);
 
   const handleDelete = useCallback((inspection: SafetyInspection) => {
+    const blocked = safetyDeleteBlockedReason(seat);
+    if (blocked) { showAlert('Can\'t delete', blocked); return; }
     showAlert('Delete inspection', `Delete "${inspection.title}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteInspection(inspection.id) },
     ]);
-  }, [deleteInspection]);
+  }, [deleteInspection, seat]);
+
+  // No job, no inspection: a record saved with no project is one the
+  // project-scoped safety policy refuses, so the form never opens without one.
+  if (!project) {
+    return (
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
+        <Stack.Screen options={{ title: 'Inspections' }} />
+        <EmptyState
+          icon={<ClipboardCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
+          title="Open a project first"
+          message="Inspections are tied to a project so each failed line can become a tracked hazard on that job. To run one:"
+          steps={[
+            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
+            'Open Inspections and hit + to start one.',
+          ]}
+          actionLabel="Pick a job"
+          onAction={() => router.replace('/safety' as never)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>

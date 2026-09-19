@@ -371,11 +371,11 @@ console.log('\nthe mobile surfaces adopted it:');
 
   const uses = (file: string, re: RegExp) => re.test(stripComments(read(`components/schedule/mobile/${file}`)));
   for (const [file, re] of [
-    ['MobileScheduleList.tsx', /taskCalendarRange\(t, base, workingDaysPerWeek, nonWorkingDates\)/],
+    ['MobileScheduleList.tsx', /scheduledTaskRange\(t, placement, base, workingDaysPerWeek, nonWorkingDates\)/],
     ['TaskDetailSheet.tsx', /taskCalendarRange\(task, base, workingDaysPerWeek, nonWorkingDates\)/],
     ['ProgressTab.tsx', /taskCalendarRange\(m, base, workingDaysPerWeek, nonWorkingDates\)/],
     ['MonthCalendarSheet.tsx', /addWorkingDays\(base, \(t\.startDay \?\? 1\) - 1, wdpw, nonWorkingDates\)/],
-    ['MobileGantt.tsx', /const x = dayToX\(offsetOfWorkingDay\(n\)\);/],
+    ['MobileGantt.tsx', /startOffset = offsetOfWorkingDay\(n\);/],
     ['MobileGantt.tsx', /return startDayNumberFor\(base, dayAt\(colToDay\(targetCol\)\), wdpw, nonWorkingDates\);/],
     ['MobileGantt.tsx', /const dow = dayAt\(d\)\.getDay\(\);/],
     ['MonthCalendarSheet.tsx', /addCalendarDays\(first, i - startOffset\)/],
@@ -738,8 +738,13 @@ console.log('\nan .ics never carries a date the schedule does not have:');
   ok('the export result carries it', /return \{ icsText, fileUri, eventCount: events\.length, scheduleSkip \};/.test(ics));
   ok('no todayIso\(\) fallback survives anywhere in the module',
     !/todayIso/.test(ics), (ics.match(/.*todayIso.*/g) ?? []).join('\n       '));
-  ok('task dates are walked with taskCalendarRange, not raw addDays',
-    /taskCalendarRange\(t, anchor, schedule\.workingDaysPerWeek, schedule\.nonWorkingDates\)/.test(ics)
+  // #51 (wave 3): the ENGINE's placement (CPM es/ef on the dated calendar),
+  // read through scheduledTaskRange, whose no-placement fallback is the
+  // working-day walk taskCalendarRange — never raw addDays, never the bare pin.
+  ok('task dates are the engine placement walked on the working calendar, not raw addDays',
+    /scheduledTaskRange\(t, placement, anchor, schedule\.workingDaysPerWeek, schedule\.nonWorkingDates\)/.test(ics)
+    && /placements = scheduledPlacements\(runCpm\(schedule\.tasks, \{\s*scheduleStartDate: anchor\.iso \?\? undefined,/.test(ics)
+    && /scheduleTaskToEvent\(project, anchor\.date, schedule, t, placements\.get\(t\.id\)\)/.test(ics)
     && !/addDays\(scheduleStartIso/.test(ics));
 
   // The working-day answer the .ics now writes, computed here from the shared
@@ -871,7 +876,7 @@ console.log('\nthe migrated surfaces call the one rule:');
     ['components/schedule/mobile/MobileScheduleList.tsx',
       /startDate: string \| null;/, 'accepts a null anchor'],
     ['components/schedule/mobile/MobileScheduleList.tsx',
-      /range = taskWorkingDayLabel\(t\)/, 'prints day numbers when undated'],
+      /range = scheduledWorkingDayLabel\(t, placement\)/, 'prints the scheduled day numbers when undated'],
     ['components/schedule/mobile/TaskDetailSheet.tsx',
       /startDate: string \| null;/, 'accepts a null anchor'],
     ['components/schedule/mobile/TaskDetailSheet.tsx',
@@ -895,8 +900,8 @@ console.log('\nthe migrated surfaces call the one rule:');
       /if \(schedule && schedule\.tasks\.length > 0 && anchor\.date\)/,
       'writes no task event without an anchor'],
     ['utils/icsGenerator.ts',
-      /taskCalendarRange\(t, anchor, schedule\.workingDaysPerWeek, schedule\.nonWorkingDates\)/,
-      'walks WORKING days like every other surface'],
+      /scheduledTaskRange\(t, placement, anchor, schedule\.workingDaysPerWeek, schedule\.nonWorkingDates\)/,
+      'walks WORKING days like every other surface (the engine placement, pin as fallback)'],
     ['app/last-planner.tsx',
       /const startDate = resolveScheduleAnchor\(project\?\.schedule\)\.iso/,
       'resolves the anchor through the one rule'],
@@ -1000,7 +1005,9 @@ console.log('\nan empty calendar export says WHY it is empty:');
 // other half — it re-dates the work that is left to start today — and it lives
 // or dies on one unit conversion:
 //
-//   `todayScheduleDay()` and `actualStartDay` are CALENDAR indices.
+//   `todayScheduleDay()` and `actualStartDay`/`actualEndDay` are CALENDAR
+//   indices (day 1 = schedule.startDate, every calendar day counts) — since
+//   wave 3 (#50, utils/pace/stampActuals) the ONE scale actuals are stored in.
 //   `startDay` and `durationDays` are WORKING days.
 //
 // Writing today's CALENDAR index into `startDay` inflates every weekend-

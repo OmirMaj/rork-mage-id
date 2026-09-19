@@ -17,7 +17,7 @@ import { Type } from '@/constants/typography';
 import { neutralInk } from '@/components/ui';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { INVITE_PARAM, postSignInHref, signupHrefForInvite } from '@/utils/deepLinksInvite';
+import { INVITE_PARAM, postSignInHref, signupHrefForInvite, sanitizeInviteToken } from '@/utils/deepLinksInvite';
 
 let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 
@@ -40,7 +40,20 @@ export default function LoginScreen() {
   const goAfterSignIn = useCallback(() => {
     router.replace(postSignInHref(inviteToken, '/(tabs)/summary') as never);
   }, [router, inviteToken]);
-  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink, sessionExpiredReason } = useAuth();
+  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink, sessionExpiredReason, isAuthenticated, isLoading: authLoading } = useAuth();
+  // #93: the root gate no longer routes an authenticated user off an
+  // invite-bearing /login (it raced this screen's own navigation and could
+  // bounce a new account to /persona-select, dropping the token). So the one
+  // case this screen must cover itself: a session that was ALREADY there when
+  // auth finished loading (restored onto /login?invite=…), with no sign-in
+  // here to navigate. Decided once, on the first settled read — a sign-in
+  // started on this screen navigates through goAfterSignIn, not this.
+  const restoredCheckedRef = useRef(false);
+  useEffect(() => {
+    if (authLoading || restoredCheckedRef.current) return;
+    restoredCheckedRef.current = true;
+    if (isAuthenticated && sanitizeInviteToken(inviteToken)) goAfterSignIn();
+  }, [authLoading, isAuthenticated, inviteToken, goAfterSignIn]);
 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
@@ -187,7 +200,11 @@ export default function LoginScreen() {
     setIsGoogleLoading(true);
     setErrorMessage('');
     try {
-      await signInWithGoogle();
+      // #159: false = he closed the Google sheet (or it came back empty).
+      // No session exists, so no success haptic, no USER_LOGGED_IN, no
+      // navigation — he stays on this screen.
+      const signedIn = await signInWithGoogle();
+      if (!signedIn) return;
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -210,7 +227,11 @@ export default function LoginScreen() {
     setIsAppleLoading(true);
     setErrorMessage('');
     try {
-      await signInWithApple();
+      // #159: false = he closed the Apple sheet (or it came back empty).
+      // No session exists, so no success haptic, no USER_LOGGED_IN, no
+      // navigation — he stays on this screen.
+      const signedIn = await signInWithApple();
+      if (!signedIn) return;
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }

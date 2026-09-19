@@ -120,6 +120,24 @@
     white-space: pre-wrap;
   }
 
+  /* #77 — the drawings and photos the RFI was raised with, shown, not counted. */
+  .att-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .att-tile {
+    display: block; width: 148px; border: 1px solid var(--bone-2); border-radius: 10px;
+    overflow: hidden; background: #fff; text-decoration: none; color: var(--text);
+  }
+  .att-tile img { display: block; width: 100%; height: 110px; object-fit: contain; background: var(--cream-2); }
+  .att-tile span { display: block; font-size: 11px; padding: 6px 8px; color: var(--text-muted); }
+  .att-note { font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+  /* #77 — the pin the RFI was raised from, circled on its sheet. The frame
+     keeps the image's own aspect so the percentages land on the drawing. */
+  .att-frame { position: relative; background: var(--cream-2); }
+  .att-frame img { height: auto; object-fit: initial; }
+  .att-pin {
+    position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+    border: 3px solid #D32F2F; border-radius: 50%; box-sizing: border-box; pointer-events: none;
+  }
+
   .section-title {
     font-family: var(--ff-serif);
     font-size: 18px; font-weight: 700; color: var(--text);
@@ -359,13 +377,70 @@
         '<div class="success-icon">✓</div>' +
         '<div class="empty-title">Response sent</div>' +
         '<div class="empty-body">' +
-          'Thanks' + (name ? ', ' + escHtml(name) : '') + '. Your response has been filed against this document and the contractor has been notified.' +
+          // #56: true once 20260919080000 is live — the response is filed on
+          // the contractor's record and a pro_response_received alert is sent.
+          'Thanks' + (name ? ', ' + escHtml(name) : '') + '. Your response is filed on the contractor\'s ' + (DOC_TYPE === 'rfi' ? 'RFI' : 'submittal') + ', and MAGE ID sends them an alert.' +
         '</div>' +
       '</div>';
   }
 
+  // #77: an RFI raised from a pin or from Compare Drawings carries the sheet
+  // itself, and this page used to show only "1 attachment included with the
+  // original" — so the architect answered "the marked location" blind. A
+  // viewable link from OUR storage (https, this project's Supabase host,
+  // /storage/v1/object/) is shown as a tile that opens full size. Links are
+  // short-lived (signed); one that no longer opens says so and points to the
+  // email copy. Anything else (a device-only photo) stays a count.
+  function viewableAttachments(list) {
+    var host = SUPABASE_URL.replace(/\/+$/, '');
+    return (Array.isArray(list) ? list : []).filter(function (u) {
+      return typeof u === 'string' && u.indexOf(host + '/storage/v1/object/') === 0;
+    });
+  }
+
+  // The object key inside a plan-sheets link (or a bare stored path), so a pin's
+  // sheet can be matched to the attachment tile showing it.
+  function sheetKey(u) {
+    var s = String(u || '');
+    var at = s.indexOf('/plan-sheets/');
+    if (at >= 0) s = s.slice(at + '/plan-sheets/'.length);
+    else if (/^https?:/i.test(s)) return '';
+    var q = s.indexOf('?');
+    if (q >= 0) s = s.slice(0, q);
+    try { s = decodeURIComponent(s); } catch (e) { /* keep raw */ }
+    return s.replace(/^\/+/, '');
+  }
+
+  function attachmentBlock(list, pins) {
+    var all = Array.isArray(list) ? list.length : 0;
+    if (all === 0) return '';
+    var shown = viewableAttachments(list);
+    var marks = Array.isArray(pins) ? pins : [];
+    var tiles = shown.map(function (u, i) {
+      var key = sheetKey(u);
+      var circles = key ? marks.filter(function (m) {
+        var x = Number(m && m.x), y = Number(m && m.y);
+        return sheetKey(m && m.sheet_path) === key && x >= 0 && x <= 1 && y >= 0 && y <= 1;
+      }).map(function (m) {
+        return '<i class="att-pin" style="left:' + (Number(m.x) * 100).toFixed(2) + '%;top:' + (Number(m.y) * 100).toFixed(2) + '%"></i>';
+      }).join('') : '';
+      var img = '<img src="' + escHtml(u) + '" alt="Attachment ' + (i + 1) + '" loading="lazy" ' +
+        'onerror="this.closest(\'a\').querySelector(\'span\').textContent=\'Link expired — see the email copy\';this.remove();">';
+      return '<a class="att-tile" href="' + escHtml(u) + '" target="_blank" rel="noopener noreferrer">' +
+        (circles ? '<div class="att-frame">' + img + circles + '</div>' : img) +
+        '<span>' + (circles ? 'Marked location circled · open full size' : 'Open attachment ' + (i + 1)) + '</span></a>';
+    }).join('');
+    var rest = all - shown.length;
+    // ONE line about attachments, never two: with no tile to show, the count
+    // alone; with tiles, only the ones NOT shown are counted ("more").
+    if (!shown.length) {
+      return '<div class="att-note">' + all + ' attachment' + (all === 1 ? ' was' : 's were') + ' sent with the original email.</div>';
+    }
+    return '<div class="att-grid">' + tiles + '</div>' +
+      (rest > 0 ? '<div class="att-note">' + rest + ' more attachment' + (rest === 1 ? ' was' : 's were') + ' sent with the original email.</div>' : '');
+  }
+
   function renderRFI(rfi) {
-    var attCount = Array.isArray(rfi.attachments) ? rfi.attachments.length : 0;
     var priorityClass = 'priority-' + (rfi.priority || 'normal');
     var existingNotice = rfi.has_existing_response
       ? '<div style="margin-top:14px;"><span class="existing-pill">✓ A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still submit a new one. Each response is recorded with a timestamp; the contractor will see all of them in chronological order.</div></div>'
@@ -391,7 +466,7 @@
           '<div class="question-label">Question</div>' +
           '<div class="question-body">' + escHtml(rfi.question || '') + '</div>' +
         '</div>' +
-        (attCount > 0 ? '<div style="font-size:12px;color:var(--text-muted);margin-top:10px;"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg> ' + attCount + ' attachment' + (attCount === 1 ? '' : 's') + ' included with the original</div>' : '') +
+        attachmentBlock(rfi.attachments, rfi.pin_marks) +
       '</div>' +
       buildResponseForm('rfi', rfi);
 
@@ -401,8 +476,7 @@
 
   function renderSubmittal(sub) {
     var attCount = Array.isArray(sub.attachments) ? sub.attachments.length : 0;
-    var cycles = Array.isArray(sub.review_cycles) ? sub.review_cycles : [];
-    var cycleNum = cycles.length + 1;
+    var cycleNum = nextCycleNumber(sub.review_cycles);
 
     var html = '' +
       '<div class="doc-card">' +
@@ -424,6 +498,30 @@
     document.getElementById('content').innerHTML = html;
     wireForm();
   }
+
+  // >>> architect-cycle-rule (scripts/validate-rfi-core-screens.ts runs this)
+  // #147: the cycle this response lands on. When the contractor's last cycle
+  // is still out for review (in_review, no returned date) the response CLOSES
+  // it; otherwise it is recorded as the next cycle. Same rule as
+  // submit_pro_response and hooks/useCollectionSettled nextCycleNumber.
+  function openCycle(cycles) {
+    var list = Array.isArray(cycles) ? cycles : [];
+    var last = list[list.length - 1];
+    return last && last.status === 'in_review' && !last.returnDate ? last : null;
+  }
+  function nextCycleNumber(cycles) {
+    var open = openCycle(cycles);
+    if (open && typeof open.cycleNumber === 'number') return open.cycleNumber;
+    var list = Array.isArray(cycles) ? cycles : [];
+    return list.reduce(function (m, c) { return Math.max(m, c && typeof c.cycleNumber === 'number' ? c.cycleNumber : 0); }, 0) + 1;
+  }
+  function cycleSentence(cycles) {
+    var n = nextCycleNumber(cycles);
+    return openCycle(cycles)
+      ? 'Your action code and comments close Cycle ' + n + ' on this submittal.'
+      : 'Your action code and comments are recorded as Cycle ' + n + ' on this submittal.';
+  }
+  // <<< architect-cycle-rule
 
   function buildResponseForm(docType, doc) {
     var actionBlock = '';
@@ -475,8 +573,8 @@
         '</button>' +
         '<div class="helper-banner">' +
           (docType === 'rfi'
-            ? 'Your response is filed against this RFI in the contractor\'s app the moment you submit. They\'ll get a notification.'
-            : 'Your action code + comments become Cycle ' + escHtml(String((doc.review_cycles && doc.review_cycles.length || 0) + 1)) + ' on this submittal. The contractor will see your response immediately.') +
+            ? 'Your response is filed on this RFI in the contractor\'s app the moment you submit, and MAGE ID sends them an alert.'
+            : escHtml(cycleSentence(doc.review_cycles)) + ' It is filed in the contractor\'s app the moment you submit, and MAGE ID sends them an alert.') +
         '</div>' +
       '</form>';
   }

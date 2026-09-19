@@ -23,7 +23,22 @@
 // values OVER this stamp, and stampActuals no-ops on already-captured tasks.
 //
 // Day-number basis: `todayDayNumber` MUST come from todayScheduleDay(
-// schedule.startDate) — the single shared basis (see below). When it is null
+// schedule.startDate) — the single shared basis (see below).
+//
+// ONE SCALE FOR actualStartDay / actualEndDay: the CALENDAR index (day 1 =
+// schedule.startDate, every calendar day advances it by one — the same unit as
+// runCpm's es/ef and the Gantt axis). Decided 2026-09-18 (audit #50). The field
+// used to carry two scales depending on who wrote it: every status sink and the
+// daily report stamped a calendar index, while the Gantt's Start/Finish-today
+// buttons wrote a WORKING ordinal and its badge read the field as one. A task
+// the foreman finished on its planned day read "+10d late" on the web six weeks
+// in. Calendar won because nearly every writer (the four status sinks, the DFR
+// in ProjectContext, the AI as-built parser) and most readers (paceBook,
+// subScorecard, subNetwork, gradePace, planCatchUpToToday, scheduleHealthScore)
+// already used it; the Gantt, reflowFromActuals and gradeDelayRipple were the
+// outliers and now convert with calendarIndexToWorkingOrdinal where they
+// compare against a working-ordinal plan (asBuiltVariance below).
+// scripts/validate-schedule-scale-actuals.ts pins both writers to this scale. When it is null
 // (schedule has no parseable startDate) there IS no day-number basis: we
 // stamp ONLY the ISO date fields and never invent day numbers. A constant
 // fallback (1) or a createdAt-elapsed fallback would both be poison samples
@@ -31,6 +46,9 @@
 //
 // Pure — no storage, no Date.now() (callers pass todayDayNumber + nowISO).
 import type { ScheduleTask, TaskStatus } from '@/types';
+import {
+  calendarIndexToWorkingOrdinal, workingOrdinalToCalendarIndex, type DayScaleOptions,
+} from '@/utils/cpm';
 
 export interface StampOptions {
   /**
@@ -52,6 +70,14 @@ export interface StampOptions {
    * keeps only what the field actually evidenced.
    */
   retroStartFromPlanned?: boolean;
+  /**
+   * The schedule's calendar. The retro start reads the PLANNED startDay, a
+   * WORKING ordinal, and stamps it into a CALENDAR-index field, so it has to be
+   * converted first — without it a planned day 30 on a 5-day week would be
+   * stamped as calendar day 30 (six weeks in, about two weeks early). Omitted,
+   * the two scales coincide (7-day week, no closures).
+   */
+  calendar?: DayScaleOptions;
 }
 
 export function stampActuals(
@@ -102,9 +128,26 @@ export function stampActuals(
       // the foreman's whole save with a message he cannot act on.
       // A task with no usable planned start falls back to today (NaN would
       // otherwise pass straight through both Math calls).
-      const planned = Number.isFinite(task.startDay) ? task.startDay : todayDayNumber ?? 1;
-      if (todayDayNumber != null) patch.actualStartDay = Math.max(1, Math.min(planned, todayDayNumber));
-      patch.actualStartDate = nowISO;
+      // The planned startDay is a WORKING ordinal; convert it to the calendar
+      // index this field holds before comparing it with today (the old
+      // Math.min(ordinal, calendar) only worked because the calendar value is
+      // always the larger one).
+      //
+      // No actualStartDate here (audit #141): nobody observed this start, and
+      // an ISO "now" beside a planned day number was two different inventions
+      // in one record — the follow-up engine aged its item from today while its
+      // evidence cited the planned day. The day number alone is the documented
+      // Gantt rule; the date stays empty. startCaptured treats either field as
+      // captured, so later stamping is unchanged.
+      // Every app sink now passes retroStartFromPlanned:false, so this branch
+      // is only the documented default for a caller that asks for it.
+      if (todayDayNumber != null) {
+        const plannedOrdinal = Number.isFinite(task.startDay) ? task.startDay : null;
+        const planned = plannedOrdinal != null
+          ? workingOrdinalToCalendarIndex(Math.max(1, plannedOrdinal), opts.calendar)
+          : todayDayNumber;
+        patch.actualStartDay = Math.max(1, Math.min(planned, todayDayNumber));
+      }
     }
     return patch;
   }
@@ -122,8 +165,11 @@ export function stampActuals(
 }
 
 /**
- * Today's 1-indexed schedule day number — THE single stamping basis, shared
- * by every status sink. Matches the day-index semantics of utils/cpm.ts
+ * Today's 1-indexed schedule day number, as a CALENDAR index — THE single
+ * stamping basis for actualStartDay/actualEndDay, shared by every status sink
+ * and the Gantt's Start/Finish-today buttons. It is NOT a working ordinal:
+ * never write it into startDay/durationDays/baseline fields (convert with
+ * calendarIndexToWorkingOrdinal — scheduleOps.planCatchUpToToday shows how). Matches the day-index semantics of utils/cpm.ts
  * (isoToDay: day 1 = schedule.startDate, calendar-day indexing) and the
  * InteractiveGantt today line (daysBetween(projectStartDate, now) + 1),
  * clamped to >= 1.
@@ -144,4 +190,83 @@ export function todayScheduleDay(scheduleStartDate: string | undefined, now: Dat
   const today = new Date(now.getTime());
   today.setHours(0, 0, 0, 0);
   return Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+// ─── The Gantt's manual as-built buttons, as pure patches ───────────────────
+// components/schedule/InteractiveGantt.tsx logStartToday / logFinishToday call
+// these, so the Gantt and every status sink stamp through ONE module on ONE
+// scale (the calendar index above), and the validator can run the real code.
+
+// `todayDayNumber` is todayScheduleDay(schedule.startDate) — null on an
+// UNDATED schedule. Then, exactly like stampActuals with a null basis, only
+// the ISO date and the status are written: there is no day 1 to count from,
+// and a day number counted from a display fallback would be invented.
+
+/** "Start today": the start is observed now. Manual = authoritative. */
+export function ganttLogStartPatch(
+  task: Pick<ScheduleTask, 'status'>,
+  todayDayNumber: number | null,
+  nowISO: string,
+): Partial<ScheduleTask> {
+  const patch: Partial<ScheduleTask> = {
+    actualStartDate: nowISO,
+    status: task.status === 'not_started' ? 'in_progress' : task.status,
+  };
+  if (todayDayNumber != null) patch.actualStartDay = Math.max(1, Math.round(todayDayNumber));
+  return patch;
+}
+
+/**
+ * "Finish today". Stamps the finish only. It used to back-fill a missing start
+ * with the planned startDay (an ordinal, in a calendar field) plus an ISO date
+ * of NOW — a start nobody saw, recorded two different ways (audit #141). An
+ * unobserved start now stays empty, as it does on every status path.
+ */
+export function ganttLogFinishPatch(
+  todayDayNumber: number | null,
+  nowISO: string,
+): Partial<ScheduleTask> {
+  const patch: Partial<ScheduleTask> = {
+    actualEndDate: nowISO,
+    status: 'done',
+    progress: 100,
+  };
+  if (todayDayNumber != null) patch.actualEndDay = Math.max(1, Math.round(todayDayNumber));
+  return patch;
+}
+
+export interface AsBuiltVariance {
+  label: string;
+  /** Working days; +N late, −N early, 0 on time. */
+  days: number;
+  tone: 'late' | 'early' | 'on_time' | 'started_late';
+}
+
+/**
+ * The as-built badge. Actuals are CALENDAR indices; the plan it is compared
+ * with (baseline, or the CPM row expressed back as ordinals) is WORKING
+ * ordinals — so the actual is converted, and the difference is a working-day
+ * count, the unit the label claims. Subtracting the raw calendar actual from
+ * an ordinal plan was the "+10d late on an on-time task" bug (audit #50).
+ */
+export function asBuiltVariance(
+  actual: { actualStartDay?: number; actualEndDay?: number },
+  planStartOrdinal: number,
+  planEndOrdinal: number,
+  calendar: DayScaleOptions,
+): AsBuiltVariance | null {
+  const toOrd = (c: number) => calendarIndexToWorkingOrdinal(c, calendar);
+  if (actual.actualEndDay != null) {
+    const v = toOrd(actual.actualEndDay) - planEndOrdinal;
+    if (v > 0) return { label: `+${v}d late`, days: v, tone: 'late' };
+    if (v < 0) return { label: `${v}d early`, days: v, tone: 'early' };
+    return { label: 'on time', days: 0, tone: 'on_time' };
+  }
+  if (actual.actualStartDay != null) {
+    const v = toOrd(actual.actualStartDay) - planStartOrdinal;
+    if (v > 0) return { label: `started +${v}d`, days: v, tone: 'started_late' };
+    if (v < 0) return { label: `started ${v}d early`, days: v, tone: 'early' };
+    return { label: 'started on time', days: 0, tone: 'on_time' };
+  }
+  return null;
 }

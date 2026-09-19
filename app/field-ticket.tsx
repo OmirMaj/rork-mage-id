@@ -41,6 +41,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
 import SignaturePad from '@/components/SignaturePad';
 import EmptyState from '@/components/EmptyState';
@@ -57,7 +58,7 @@ import {
   checkFieldTicketReadiness, computeFieldTicketTotals, emptyFieldTicket,
   fieldTicketLabel, fieldTicketMoneyHiddenReason, fieldTicketPriceChanges, fieldTicketPricingBlockReason, formatTicketDate, pricingRoleFor,
   isFieldTicketAuthorized, lastPricedAt, nextFieldTicketNumber, pricingActorName,
-  suggestEquipmentRate, suggestLaborRate, ticketConversionPatch,
+  suggestEquipmentRate, suggestLaborRate, ticketConversionPatch, fieldTicketConvertBlockReason, FIELD_TICKET_GC_CREATES_COS,
   type FieldTicketRateSuggestion,
 } from '@/utils/fieldTicketCore';
 import { useLaborRates } from '@/hooks/useLaborRates';
@@ -65,6 +66,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { canViewFinancials } from '@/utils/roleBlinding';
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { pdfFailureMessage } from '@/utils/platformFile';
 import type {
   Equipment, FieldTicket, FieldTicketAuthorizerRole, FieldTicketEquipmentRow,
   FieldTicketLaborRow, FieldTicketMaterialRow, FieldTicketPhoto, FieldTicketStatus,
@@ -76,21 +78,72 @@ import type {
 // capture signed evidence they can never bill, which is a dead end and a
 // worse experience than not shipping the feature to them at all. It is the
 // same money-capture surface as app/change-order.tsx, which is already Pro.
+//
+// PROJECT-SCOPED (#91). The gate used to run on his OWN tier before the job
+// was even chosen, so a foreman on a free account, invited to the GC's job,
+// met "Upgrade to Pro" on the T&M tickets he was invited to write — the GC's
+// plan already covers that work (change_orders_invoicing is in
+// COLLABORATOR_PROJECT_FEATURES). It now runs once the project resolves (the
+// picker or the URL), through useProjectAccess, inside the screen.
 
-export default function FieldTicketScreen() {
-  const router = useRouter();
-  const { canAccess } = useTierAccess();
-  if (!canAccess('change_orders_invoicing')) {
-    return (
-      <Paywall
-        visible
-        feature="T&M Field Tickets"
-        requiredTier="pro"
-        onClose={() => router.back()}
-      />
-    );
+type FieldTicketGate = 'open' | 'loading' | 'error' | 'no_access' | 'paywall';
+
+/**
+ * The gating contract, as one pure decision (scripts/validate-project-hub-
+ * gates.ts runs it). His own plan opens it outright; otherwise a spinner only
+ * while the collaborator read is in flight, a retry when it failed, the grant
+ * when it holds — and a settled NULL role means no access, said plainly,
+ * never a spinner and never a paywall an upgrade would not fix.
+ */
+function fieldTicketGate(a: {
+  ownTier: boolean;
+  projectGrant: boolean;
+  roleLoading: boolean;
+  roleError: boolean;
+  role: string | null;
+}): FieldTicketGate {
+  if (a.ownTier) return 'open';
+  if (a.roleLoading) return 'loading';
+  if (a.roleError) return 'error';
+  if (a.projectGrant) return 'open';
+  if (a.role == null) return 'no_access';
+  return 'paywall';
+}
+
+/** Everything the screen shows instead of the tickets while access is not
+ *  confirmed (#91): the paywall only when his own plan is the answer. */
+function FieldTicketAccessView({ gate, projectName, requiredTier, onRetry, onClose }: {
+  gate: Exclude<FieldTicketGate, 'open'>;
+  projectName: string;
+  requiredTier: 'free' | 'pro' | 'business' | 'enterprise';
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { colors: t } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  if (gate === 'paywall') {
+    return <Paywall visible feature="T&M Field Tickets" requiredTier={requiredTier} onClose={onClose} />;
   }
-  return <FieldTicketInner />;
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top }]} testID={`field-ticket-gate-${gate}`}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ToolHeader eyebrow="T&M TICKET · MAGE ID" title={projectName} />
+      <View style={{ padding: 24, gap: 14, alignItems: 'center' }}>
+        {gate === 'loading' ? <ActivityIndicator color={t.accent} /> : null}
+        <Text style={styles.ticketMeta}>
+          {gate === 'loading'
+            ? 'Checking your access to this job…'
+            : gate === 'error'
+              ? "Couldn't check your access to this job. Check your connection and try again."
+              : "You don't have access to this job's T&M tickets. Ask the project owner to invite you."}
+        </Text>
+        {gate === 'error' ? (
+          <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="field-ticket-gate-retry" />
+        ) : null}
+      </View>
+    </View>
+  );
 }
 
 // ─── Chips ───────────────────────────────────────────────────────────────────
@@ -130,7 +183,7 @@ function money(n: number): string {
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
-function FieldTicketInner() {
+export default function FieldTicketScreen() {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -323,7 +376,20 @@ function FieldTicketInner() {
    * which is exactly the dead end this feature exists to eliminate.
    */
   // Who may put dollars on a sealed ticket — owner or editor only.
-  const { role: projectRole, isError: projectRoleError } = useProjectRoleState(activeProjectId || undefined);
+  const {
+    role: projectRole, isError: projectRoleError, isLoading: projectRoleLoading, refetch: refetchProjectRole,
+  } = useProjectRoleState(activeProjectId || undefined);
+  // #91: the screen gate, on the RESOLVED project (see the Gate header). The
+  // tier LABEL still comes from featureTiers via useTierAccess.
+  const { canAccess, canAccessOwnTier } = useProjectAccess(activeProjectId || undefined);
+  const { requiredTierFor } = useTierAccess();
+  const accessGate = fieldTicketGate({
+    ownTier: canAccessOwnTier('change_orders_invoicing'),
+    projectGrant: canAccess('change_orders_invoicing'),
+    roleLoading: projectRoleLoading,
+    roleError: projectRoleError,
+    role: projectRole,
+  });
   // And who may SEE them (integration round 1). The field role is sold as
   // "Schedule & field work — no costs or margins", and a foreman opens these
   // tickets from Field Ops and the DFR; once the office priced one, he saw its
@@ -342,6 +408,8 @@ function FieldTicketInner() {
   const { user } = useAuth();
   const pricingRole = pricingRoleFor(projectRole, project?.ownerUserId, user?.id);
   const moneyBlinded = !canViewFinancials(pricingRole);
+  // Owner-only conversion (#41 interim): see fieldTicketConvertBlockReason.
+  const convertBlockReason = fieldTicketConvertBlockReason(projectRole, project?.ownerUserId, user?.id, projectRoleError);
   const moneyHiddenReason = fieldTicketMoneyHiddenReason(pricingRole, projectRoleError);
   /** A ticket's amount for a toast — nothing for a blinded role. */
   const amountSuffix = useCallback((n: number) => (moneyBlinded ? '' : ` — ${money(n)}`), [moneyBlinded]);
@@ -449,6 +517,12 @@ function FieldTicketInner() {
   // ── Convert to change order ───────────────────────────────────────────────
 
   const handleConvert = useCallback((ticket: FieldTicket) => {
+    // Never call addChangeOrder / ticketConversionPatch for a non-owner: the
+    // server refuses the CO and the ticket would read "billed" forever.
+    if (convertBlockReason) {
+      showAlert("Can't bill this here", convertBlockReason);
+      return;
+    }
     const gate = checkFieldTicketConversion(ticket, changeOrders);
     if (!gate.canConvert) {
       showAlert("Can't bill this yet", gate.reason ?? 'This ticket cannot be converted.');
@@ -496,7 +570,7 @@ function FieldTicketInner() {
         },
       ],
     );
-  }, [changeOrders, projectCOs, project, addChangeOrder, updateFieldTicket, router]);
+  }, [changeOrders, projectCOs, project, addChangeOrder, updateFieldTicket, router, convertBlockReason]);
 
   // ── Price a signed ticket ─────────────────────────────────────────────────
   // The rep signs for HOURS; the office attaches the money afterwards. Until
@@ -573,7 +647,7 @@ function FieldTicketInner() {
       });
     } catch (err) {
       console.warn('[FieldTicket] pdf error:', err);
-      showAlert('Could not build the PDF', 'Try again in a moment.');
+      showAlert('Could not build the PDF', pdfFailureMessage(err, 'Try again in a moment.'));
     } finally {
       setBusy(false);
     }
@@ -612,6 +686,22 @@ function FieldTicketInner() {
           staleProjectId={staleProjectId}
         />
       </View>
+    );
+  }
+
+  // ── Access (#91) ──────────────────────────────────────────────────────────
+  // canAccess is useProjectAccess's: his own tier OR the grant on THIS job.
+  // It is false exactly when accessGate is not 'open' (fieldTicketGate).
+
+  if (!canAccess('change_orders_invoicing')) {
+    return (
+      <FieldTicketAccessView
+        gate={accessGate === 'open' ? 'paywall' : accessGate}
+        projectName={project.name}
+        requiredTier={requiredTierFor('change_orders_invoicing')}
+        onRetry={refetchProjectRole}
+        onClose={() => (paramProjectId ? router.back() : setPickedProjectId(null))}
+      />
     );
   }
 
@@ -850,13 +940,16 @@ function FieldTicketInner() {
             )}
             {!billedCO && openTicket.status !== 'void' && (
               <Button
-                label={gate.canConvert ? `Bill it — create change order` : "Can't bill yet"}
+                label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? "Your GC bills this ticket" : convertBlockReason ? "Can't bill yet" : gate.canConvert ? `Bill it — create change order` : "Can't bill yet"}
                 onPress={() => handleConvert(openTicket)}
-                disabled={!gate.canConvert}
+                disabled={!gate.canConvert || !!convertBlockReason}
                 fullWidth
                 iconLeft={<Repeat size={16} color="#FFF" strokeWidth={2} />}
                 testID="ticket-convert"
               />
+            )}
+            {!billedCO && openTicket.status !== 'void' && !!convertBlockReason && (
+              <Text style={styles.gateReason} testID="ticket-convert-owner-only">{convertBlockReason}</Text>
             )}
             {!gate.canConvert && !billedCO && !!gate.reason && (
               <Text style={styles.gateReason}>{gate.reason}</Text>

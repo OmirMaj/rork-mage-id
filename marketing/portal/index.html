@@ -3057,7 +3057,11 @@
   }
   function fmtDate(iso) {
     if (!iso) return '—';
-    var d = new Date(iso);
+    // A bare YYYY-MM-DD is a CALENDAR day (a payment's received day, a due
+    // date). new Date('2026-09-11') is UTC midnight — the evening before
+    // anywhere in the Americas — so read it as that local day instead.
+    var bare = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+    var d = bare ? new Date(+bare[1], +bare[2] - 1, +bare[3], 12) : new Date(iso);
     if (isNaN(d)) return iso;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
@@ -4412,12 +4416,14 @@
       var invStatus = i.effectiveStatus || i.status;
       var isPaid = String(invStatus || '').toLowerCase() === 'paid' || balance <= 0;
       var canPay = i.payLinkUrl && !isPaid && balance > 0;
-      var amountDisplay = isPaid ? fmtMoney(i.total) : fmtMoney(balance);
+      // #135: to the cent. A whole-dollar "Pay $77,485" beside Stripe's
+      // $77,484.88 is a different number from the one he will be charged.
+      var amountDisplay = isPaid ? fmtMoney(i.total, {dec:2}) : fmtMoney(balance, {dec:2});
       var amountLabel = isPaid ? 'Paid' : 'Balance due';
       var payHtml = canPay
         ? '<button class="invoice-pay-btn" data-pay="'+esc(i.payLinkUrl)+'">' +
             icn(ICONS.creditCard, 14) +
-            '<span>Pay '+fmtMoney(balance)+'</span>' +
+            '<span>Pay '+fmtMoney(balance, {dec:2})+'</span>' +
           '</button>'
         : '';
       var detailHtml = '<span class="invoice-detail-hint">View details ' + icn(ICONS.chevronR, 12) + '</span>';
@@ -4545,12 +4551,12 @@
               '</div>' +
               '<div>' +
                 '<div class="aia-stat-label">Due this period</div>' +
-                '<div class="aia-stat-value amber num">'+fmtMoney(a.currentPaymentDue)+'</div>' +
+                '<div class="aia-stat-value amber num">'+fmtMoney(a.currentPaymentDue, {dec:2})+'</div>' +
               '</div>' +
             '</div>' +
             (canPay
               ? '<button class="invoice-pay-btn" data-aia-pay="'+esc(a.payLinkUrl)+'">' +
-                  icn(ICONS.dollar, 14) + ' Pay ' + fmtMoney(due) +
+                  icn(ICONS.dollar, 14) + ' Pay ' + fmtMoney(due, {dec:2}) +
                 '</button>'
               : aiaPaid
                 ? '<span class="pill pill-success">' + icn(ICONS.check, 12) +
@@ -4612,13 +4618,23 @@
         '<div class="row co-row" data-item-id="'+esc(c.id)+'">' +
           '<div class="row-main">' +
             '<div class="row-title">CO #'+esc(c.number)+' — '+esc(c.description || '')+'</div>' +
-            '<div class="row-meta">'+fmtDate(c.dateSubmitted)+' · '+sign+fmtMoney(Math.abs(amt))+'</div>' +
+            '<div class="row-meta">'+fmtDate(c.dateSubmitted)+' · '+sign+fmtMoney(Math.abs(amt), {dec:2}) +
+              // #131: the tax-inclusive figure his CO screen says the client
+              // approves. Dollar amounts from the snapshot, never a rate.
+              (coHasTax(c) ? ' + '+fmtMoney(c.taxAmount, {dec:2})+' tax = '+(c.totalWithTax < 0 ? '−' : '')+fmtMoney(Math.abs(c.totalWithTax), {dec:2}) : '') +
+            '</div>' +
             ctaHtml +
           '</div>' +
           '<span class="pill '+statusPillClass(c.status)+'">'+esc(statusLabel(c.status))+'</span>' +
         '</div>'
       );
     }).join('');
+  }
+
+  // A CO carries tax only when the app froze a non-zero amount on it.
+  function coHasTax(c) {
+    return !!c && typeof c.taxAmount === 'number' && isFinite(c.taxAmount) && Math.abs(c.taxAmount) >= 0.005
+      && typeof c.totalWithTax === 'number' && isFinite(c.totalWithTax);
   }
 
   function localCOKey(coId) { return 'mage_portal_co_' + coId; }
@@ -4936,7 +4952,7 @@
     var canPay = inv.payLinkUrl && !isPaid && balance > 0;
     var footerHtml = canPay
       ? '<a class="drawer-btn drawer-btn-primary" href="'+esc(inv.payLinkUrl)+'" target="_blank" rel="noopener">' +
-          icn(ICONS.creditCard, 16) + ' Pay '+fmtMoney(balance)+' now' +
+          icn(ICONS.creditCard, 16) + ' Pay '+fmtMoney(balance, {dec:2})+' now' +
         '</a>'
       : isPaid
         ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
@@ -5077,7 +5093,7 @@
     var footerHtml =
       (aiaCanPayNow
         ? '<a class="drawer-btn drawer-btn-primary" href="'+esc(a.payLinkUrl)+'" target="_blank" rel="noopener">' +
-            icn(ICONS.dollar, 16) + ' Pay ' + fmtMoney(aiaDue) +
+            icn(ICONS.dollar, 16) + ' Pay ' + fmtMoney(aiaDue, {dec:2}) +
           '</a>'
         : aiaPaid
           ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
@@ -5552,6 +5568,13 @@
     if (typeof f.newContractTotal === 'number') {
       lines.push('new_contract_total_usd: ' + f.newContractTotal.toFixed(2));
     }
+    // #131: when the CO carries sales tax, the record the client signs names
+    // the tax and the tax-inclusive total — the figure the CO screen promised.
+    // Absent without tax, so a no-tax record is byte-identical to before.
+    if (typeof f.taxAmount === 'number' && typeof f.totalWithTax === 'number') {
+      lines.push('sales_tax_usd: ' + f.taxAmount.toFixed(2));
+      lines.push('change_amount_incl_tax_usd: ' + f.totalWithTax.toFixed(2));
+    }
     lines.push('signer_name: ' + String(f.signerName == null ? '' : f.signerName).replace(/^\s+|\s+$/g, ''));
     lines.push('signed_at: ' + f.signedAt);
     if (typeof f.timezoneOffsetMinutes === 'number') {
@@ -5846,9 +5869,21 @@
         '<span class="esign-delta-label">' + (amt < 0 ? 'Credit to your contract' : 'Added to your contract') + '</span>' +
         '<span class="esign-delta-value ' + deltaClass + '">' + deltaText + '</span>' +
       '</div>' +
+      // #131: the sales tax and the tax-inclusive figure — the amount this
+      // change will actually be invoiced at — before anything is signable.
+      (coHasTax(c)
+        ? '<div class="esign-delta">' +
+            '<span class="esign-delta-label">Sales tax</span>' +
+            '<span class="esign-delta-value small">' + fmtMoney(c.taxAmount, { dec: 2 }) + '</span>' +
+          '</div>' +
+          '<div class="esign-delta">' +
+            '<span class="esign-delta-label">This change incl. tax</span>' +
+            '<span class="esign-delta-value small">' + (c.totalWithTax < 0 ? '−' : '') + fmtMoney(Math.abs(c.totalWithTax), { dec: 2 }) + '</span>' +
+          '</div>'
+        : '') +
       (typeof c.newContractTotal === 'number' && c.newContractTotal > 0
         ? '<div class="esign-delta">' +
-            '<span class="esign-delta-label">Your new contract total</span>' +
+            '<span class="esign-delta-label">' + (coHasTax(c) ? 'Your new contract total (before tax)' : 'Your new contract total') + '</span>' +
             '<span class="esign-delta-value small">' + fmtMoney(c.newContractTotal, { dec: 2 }) + '</span>' +
           '</div>'
         : '') +
@@ -6169,6 +6204,8 @@
       html += '<div class="prop-note" data-proposal-outdated="1">Your contractor is updating this proposal. You can accept it here once they have.</div>';
     } else if (pending) {
       html += '<div class="prop-note" data-proposal-terms-pending="1">Your contractor is confirming the payment schedule. You can accept here once it is set.</div>';
+    } else if (p.acceptanceLive !== true && !decided) {
+      html += '<div class="prop-note" data-proposal-read-only="1">Your contractor will send your agreement for signature — you can\'t accept this proposal from the page yet. Message them with any questions.</div>';
     }
 
     html += '<div class="prop-note">' + esc(PROPOSAL_NOT_A_CONTRACT_NOTE) + '</div>';
@@ -6954,9 +6991,14 @@
       // Same rule renderProposal draws the buttons on: the current record
       // version with confirmed terms. Otherwise the subtitle must not say
       // "accept to get started" above a proposal nobody can accept.
+      // acceptanceLive (#29): the app publishes it true only once the
+      // acceptance RPC exists. Without it the homeowner typed a name, drew a
+      // signature and THEN heard "not switched on" — so a proposal published
+      // while acceptance is off (or by an app too old to say) is read-only.
       var proposalCanDecide = !!data.portalApi
         && data.proposal.version === PROPOSAL_ESIGN_VERSION
-        && !data.proposal.paymentTermsPending;
+        && !data.proposal.paymentTermsPending
+        && data.proposal.acceptanceLive === true;
       addSection('proposal', 'fileText', 'Your proposal',
         proposalCanDecide
           ? 'Review the scope and the price, then accept to get started.'
@@ -7172,6 +7214,8 @@
                 description: c.description || '',
                 changeAmount: c.changeAmount || 0,
                 newContractTotal: typeof c.newContractTotal === 'number' ? c.newContractTotal : undefined,
+                taxAmount: coHasTax(c) ? c.taxAmount : undefined,
+                totalWithTax: coHasTax(c) ? c.totalWithTax : undefined,
                 signerName: result.signerName,
                 signedAt: signedAt,
                 timezoneOffsetMinutes: typeof tzOffset === 'number' ? tzOffset : undefined,
@@ -7234,9 +7278,14 @@
             }).catch(function (err) {
               console.warn('CO decision failed', err);
               ui.setBusy(false);
-              var msg = /Supabase 4/.test(String(err && err.message))
-                ? 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.'
-                : "We couldn't record your decision. Check your connection and try again, or message your contractor.";
+              var errText = String(err && err.message);
+              // #44: the server refuses a CO the builder recalled or never
+              // sent (co_not_shared). Say that, not "re-send your link".
+              var msg = /co_not_shared/.test(errText)
+                ? 'This change order was withdrawn by your builder, so it can\'t be signed. Message your contractor if you have questions.'
+                : /Supabase 4/.test(errText)
+                  ? 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.'
+                  : "We couldn't record your decision. Check your connection and try again, or message your contractor.";
               ui.setError(msg);
             });
           },

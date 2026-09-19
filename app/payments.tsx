@@ -25,6 +25,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { paymentReceivedAt } from '@/utils/billingFlowCore';
+import { dayOrInstantDate } from '@/utils/calendarDate';
 
 function feeScheduleLabel(tier: string): string {
   return `${platformFeeLabel(tier)} + ${STRIPE_CARD_PROCESSING.percent}% + ${STRIPE_CARD_PROCESSING.fixedCents}¢`;
@@ -102,6 +104,8 @@ export interface LedgerLike {
   /** The app writes `date`; older seeded rows and the webhook also carry `receivedAt`. */
   date?: string;
   receivedAt?: string;
+  /** The bare day he says the money arrived (billing-contract #133). */
+  receivedDate?: string;
   kind?: string;
 }
 
@@ -153,8 +157,11 @@ export function isPendingRow(row: PaymentRow): boolean {
 }
 
 function entryDate(entry: LedgerLike, fallback: string): string {
-  const raw = entry.date ?? entry.receivedAt;
-  return raw && !Number.isNaN(new Date(raw).getTime()) ? raw : fallback;
+  // #133: the day he says the money arrived (a bare day, read at LOCAL noon
+  // by paymentReceivedAt so it never prints as the previous evening), else
+  // the recorded instant, else the webhook's receivedAt.
+  const received = paymentReceivedAt({ date: entry.date ?? entry.receivedAt, receivedDate: entry.receivedDate });
+  return Number.isFinite(received.getTime()) ? received.toISOString() : fallback;
 }
 
 function displayClientName(project: Project, contacts: Contact[]): string {
@@ -265,7 +272,7 @@ export function derivePayments(
   }
 
   const time = (iso: string): number => {
-    const t = new Date(iso).getTime();
+    const t = dayOrInstantDate(iso).getTime();
     return Number.isNaN(t) ? 0 : t;
   };
   rows.sort((a, b) => time(b.createdAt) - time(a.createdAt));
@@ -389,7 +396,7 @@ function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () =>
               <Text style={[styles.providerTagText, { color: providerInfo.color }]}>{providerInfo.label}</Text>
             </View>
             <Text style={styles.payCardDate}>
-              {new Date(payment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {dayOrInstantDate(payment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
           </View>
         </View>

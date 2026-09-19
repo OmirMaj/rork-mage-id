@@ -29,11 +29,22 @@
 // row for framing with no company, and a mixed day would count the trade
 // twice. Stamping the GC's own name keeps self-perform and sub crews apart.
 //
+// ── OVERTIME (#65) ──────────────────────────────────────────────────────────
+// The overtime on each row is the ALLOCATED figure from utils/overtime —
+// worked out per worker across every shift in `entries` (all jobs, so pass
+// the whole mirror, not this job's rows), under the GC's rule (weekly >40 by
+// default, daily >8 optional) — never the per-shift number stored on the row,
+// which counted "past 8 in this one shift" and went stale the moment another
+// shift landed the same day or week. Open shifts count with their hours so far.
+// A DFR row's overtime is therefore "so far this payroll week" until the week
+// ends; the caller that knows the GC's rule passes it (default: federal).
+//
 // Pure — no storage, no network. Pinned by scripts/validate-dfr-field-sources.ts.
 
 import type { TimeEntry } from '@/types';
 import { isEligibleLaborEntry, normalizeTradeKey } from '@/utils/laborSamples';
 import { toCalendarDayString } from '@/utils/calendarDate';
+import { computeOvertime, openShiftHours, overtimeFor, DEFAULT_OVERTIME_RULE, type OvertimeRule } from '@/utils/overtime';
 
 /** Company label for clocked rows when the GC has not set a company name. */
 export const OWN_CREW_FALLBACK_COMPANY = 'Own crew';
@@ -73,19 +84,6 @@ export function clockInLocalDay(entry: Pick<TimeEntry, 'clockIn' | 'date'>): str
   return entry.date;
 }
 
-/** Hours so far on an open shift, net of finished breaks and of the break in
- *  progress. The OT split mirrors computeShiftHours: anything past 8 h/day. */
-function liveShiftHours(e: TimeEntry, nowMs: number): { total: number; overtime: number } {
-  const start = Date.parse(e.clockIn);
-  if (!Number.isFinite(start)) return { total: 0, overtime: 0 };
-  let breakMin = Math.max(0, e.breakMinutes || 0);
-  if (e.status === 'break' && e.breakStartedAt) {
-    const bs = Date.parse(e.breakStartedAt);
-    if (Number.isFinite(bs)) breakMin += Math.max(0, (nowMs - bs) / 60_000);
-  }
-  const total = Math.max(0, (nowMs - start) / 3_600_000 - breakMin / 60);
-  return { total, overtime: Math.max(0, total - 8) };
-}
 
 /**
  * Crew on `projectId` for the calendar day `day` (YYYY-MM-DD), grouped by
@@ -98,9 +96,11 @@ export function clockCrewForDay(
   day: string,
   companyName: string | null | undefined,
   nowMs: number = Date.now(),
+  overtimeRule: OvertimeRule = DEFAULT_OVERTIME_RULE,
 ): ClockCrew | null {
   if (!projectId || projectId === 'unassigned' || !day) return null;
   const company = (companyName ?? '').trim() || OWN_CREW_FALLBACK_COMPANY;
+  const ot = computeOvertime(entries ?? [], overtimeRule, { liveNowMs: nowMs });
 
   interface Group { trade: string; workers: Set<string>; live: Set<string>; total: number; overtime: number }
   const groups = new Map<string, Group>();
@@ -115,13 +115,10 @@ export function clockCrewForDay(
     let overtime: number;
     if (isEligibleLaborEntry(e)) {
       total = e.totalHours;
-      // Same clamp as laborSamples.priceLaborEntry: OT within [0, total].
-      const ot = Number.isFinite(e.overtimeHours) ? e.overtimeHours : 0;
-      overtime = Math.min(total, Math.max(0, ot));
+      overtime = Math.min(total, overtimeFor(ot, e.id));
     } else if (open) {
-      const h = liveShiftHours(e, nowMs);
-      total = h.total;
-      overtime = h.overtime;
+      total = openShiftHours(e, nowMs);
+      overtime = Math.min(total, overtimeFor(ot, e.id));
     } else {
       continue; // a finished shift with no hours is not evidence of anyone
     }

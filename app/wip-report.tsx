@@ -243,7 +243,7 @@ function WipReportScreenInner() {
   const { periods, addPeriod, lockPeriod } = useWip();
   const { getReceiptsForProject } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
   const { user } = useAuth();
   const userId = user?.id;
 
@@ -485,7 +485,7 @@ function WipReportScreenInner() {
     // unfiltered with no project would charge every machine to every job.
     const auto = suggestCostToDateWithSource(commitments, receipts, {
       projectId: project.id,
-      timeEntries, laborRates, overtimeMultiplier, equipment, permits,
+      timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits,
     });
     const override = overrideInForce(costOverrides, project.id);
     const costToDate = override ? override.value : auto.value;
@@ -553,7 +553,7 @@ function WipReportScreenInner() {
       cost,
       etc,
     };
-  }, [costOverrides, etcMap, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject, timeEntries, laborRates, overtimeMultiplier, equipment, permits]);
+  }, [costOverrides, etcMap, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits]);
 
   const buildInput = useCallback(
     (project: Project): WipRowInput => buildRow(project).input,

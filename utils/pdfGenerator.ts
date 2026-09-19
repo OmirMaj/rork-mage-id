@@ -1,12 +1,13 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { CompanyBranding, ContractSignature, PaymentSplit, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal } from '@/types';
+import type { CompanyBranding, ContractSignature, PaymentSplit, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal, PhotoMarkup } from '@/types';
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
 import { netBalanceDue, effectiveRetentionHeld, pendingRetentionHeld } from './invoiceBilling';
-import { calendarDayStart, dayOrInstantDate } from './calendarDate';
+import { calendarDayStart, dayOrInstantDate, formatCalendarDay } from './calendarDate';
 import { contractTimeline, contractTimelineSentence } from './contractTimelineCore';
 import { acceptanceSentence, milestoneDueText, paymentStageRows } from './paymentTerms';
+import { openPrintWindowOrThrow } from './platformFile';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
@@ -86,7 +87,7 @@ function buildQuickEstimateHtml(
   // total, cost-per-sqft, project size, timeline. "Line items: 23" tells
   // the client nothing useful.
   const heroStats: { label: string; value: string; accent?: 'amber' | 'success' | 'error' }[] = [
-    { label: 'Estimated total', value: fmtMoney(result.total), accent: 'amber' },
+    { label: 'Estimated total', value: fmtMoney(result.total, { decimals: 2 }), accent: 'amber' },
   ];
   if (costPerSqft > 0) heroStats.push({ label: 'Cost per sqft', value: fmtMoney(costPerSqft, { decimals: 0 }) });
   if (sizeNum > 0) heroStats.push({ label: 'Project size', value: `${sizeNum.toLocaleString()} sqft` });
@@ -150,7 +151,7 @@ function buildQuickEstimateHtml(
           <div style="margin-bottom:10px">
             <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
               <span style="font-weight:600;color:${PDF_PALETTE.text}">${escHtml(cat)}</span>
-              <span class="num" style="color:${PDF_PALETTE.text2}"><span style="font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(subtotal)}</span> &middot; ${pct.toFixed(1)}%</span>
+              <span class="num" style="color:${PDF_PALETTE.text2}"><span style="font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(subtotal, { decimals: 2 })}</span> &middot; ${pct.toFixed(1)}%</span>
             </div>
             <div style="width:100%;height:6px;background:${PDF_PALETTE.bone2};border-radius:3px;overflow:hidden">
               <div style="width:${Math.max(pct, 0.5).toFixed(2)}%;height:100%;background:${PDF_PALETTE.amber};border-radius:3px"></div>
@@ -165,11 +166,14 @@ function buildQuickEstimateHtml(
     const items = grouped.get(cat)!;
     const subtotal = items.reduce((s, li) => s + li.total, 0);
     const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
+    // #158/#118: every money figure on the proposal prints to the cent. Whole
+    // dollars made lines that do not foot to the total the project, the portal
+    // and the contract carry (estimateMarkup.pricedLine is the one basis).
     const rows = items.map(li => [
       escHtml(li.description),
       `<span class="num">${escHtml(li.quantity)} ${escHtml(li.unit)}</span>`,
       `<span class="num">${fmtMoney(li.unitCost, { decimals: 2 })}</span>`,
-      `<span class="num" style="font-weight:600">${fmtMoney(li.total)}</span>`,
+      `<span class="num" style="font-weight:600">${fmtMoney(li.total, { decimals: 2 })}</span>`,
     ]);
     return `
       <div class="no-break" style="margin-bottom:22px">
@@ -177,7 +181,7 @@ function buildQuickEstimateHtml(
           <div style="font-family:'Fraunces',Georgia,serif;font-size:15px;font-weight:700;color:${PDF_PALETTE.ink}">${escHtml(cat)}</div>
           <div style="display:flex;align-items:baseline;gap:10px">
             <span style="font-size:10px;font-weight:700;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">${pct.toFixed(0)}% &middot; ${items.length} item${items.length === 1 ? '' : 's'}</span>
-            <span class="num" style="font-size:13px;font-weight:800;color:${PDF_PALETTE.ink}">${fmtMoney(subtotal)}</span>
+            <span class="num" style="font-size:13px;font-weight:800;color:${PDF_PALETTE.ink}">${fmtMoney(subtotal, { decimals: 2 })}</span>
           </div>
         </div>
         ${pdfTable(
@@ -199,16 +203,16 @@ function buildQuickEstimateHtml(
   // GC wants to know.)
   const totalsBlock = `
     <div class="no-break" style="margin-top:10px;padding:22px 24px;border-radius:14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Line items subtotal</span><span class="num" style="font-weight:600">${fmtMoney(result.subtotal)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Contingency</span><span class="num" style="font-weight:600">${fmtMoney(result.contingency)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits & fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Line items subtotal</span><span class="num" style="font-weight:600">${fmtMoney(result.subtotal, { decimals: 2 })}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Contingency</span><span class="num" style="font-weight:600">${fmtMoney(result.contingency, { decimals: 2 })}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits & fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits, { decimals: 2 })}</span></div>
       <div style="height:1px;background:${PDF_PALETTE.bone};margin:14px 0"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end">
         <div>
           <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Estimated total</div>
           ${costPerSqft > 0 ? `<div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:4px;font-weight:600">${fmtMoney(costPerSqft, { decimals: 0 })} per sqft &middot; ${sizeNum.toLocaleString()} sqft total</div>` : ''}
         </div>
-        <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:36px;font-weight:800;color:${PDF_PALETTE.amber};letter-spacing:-0.5px;line-height:1">${fmtMoney(result.total)}</div>
+        <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:36px;font-weight:800;color:${PDF_PALETTE.amber};letter-spacing:-0.5px;line-height:1">${fmtMoney(result.total, { decimals: 2 })}</div>
       </div>
     </div>`;
 
@@ -268,7 +272,7 @@ function buildQuickEstimateHtml(
         <tr${shade}>
           <td style="padding:10px 12px;${border}font-weight:600;color:${PDF_PALETTE.text}">${escHtml(r.label)} (${r.pct}%)</td>
           <td style="padding:10px 12px;${border}color:${PDF_PALETTE.text2}">${escHtml(r.detail)}</td>
-          <td class="num" style="padding:10px 12px;${border}text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(r.amount)}</td>
+          <td class="num" style="padding:10px 12px;${border}text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(r.amount, { decimals: 2 })}</td>
         </tr>`;
         }).join('')}
       </table>
@@ -350,12 +354,10 @@ export async function shareQuickEstimatePDF(
   const title = `Quick Estimate — ${answers.projectType || 'Construction'}`;
 
   if (Platform.OS === 'web') {
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-      newWindow.print();
-    }
+    // #124: throws when the browser blocks the window, so the wizard's catch
+    // says why and skips ESTIMATE_SHARED / the onboarding redirect / the push
+    // ask instead of recording a share that never opened.
+    openPrintWindowOrThrow(html);
     return;
   }
 
@@ -792,12 +794,7 @@ export async function generateAndSharePDF(
   const html = buildEstimateHtml(project, branding);
 
   if (Platform.OS === 'web') {
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-      newWindow.print();
-    }
+    openPrintWindowOrThrow(html);
     return;
   }
 
@@ -832,6 +829,16 @@ export async function generateAndSharePDF(
     throw error;
   }
 }
+
+/** The CO numbers frozen at send (change-orders lane, migration 20260919110000).
+ *  A local intersection so this compiles whether or not types/index.ts has
+ *  gained them yet; every field is optional because older COs predate them. */
+type COFrozenPdfFields = {
+  taxRatePct?: number;
+  taxAmount?: number;
+  totalWithTax?: number;
+  priorApprovedChangesTotal?: number;
+};
 
 function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: CompanyBranding): string {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -876,14 +883,41 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
     lineRows,
   );
 
-  const sign = co.changeAmount >= 0 ? '+' : '−';
+  // #129 / #131 — the AIA G701 build-up, from the numbers FROZEN on the CO.
+  // `originalContractValue` has always been the contract sum BEFORE this CO
+  // (estimate + earlier approved COs), and the PDF used to print it as
+  // "Original contract value" on CO #2 onward. A CO saved with the prior-CO
+  // total splits it back into the three G701 rows; an older CO without it
+  // gets the one label its number actually supports.
+  // The tax rows come from the rate frozen on the CO when it went out, never
+  // from today's settings — the PDF, the email and the portal must print the
+  // same figure the client approves.
+  const frozen = co as ChangeOrder & COFrozenPdfFields;
+  const money = (n: number) => D.fmtMoney(n, { decimals: 2 });
+  const signed = (n: number) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n))}`;
+  const row = (label: string, value: string, style = `color:${D.PDF_PALETTE.text2}`) =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="${style}">${label}</span><span class="num">${value}</span></div>`;
+  const prior = typeof frozen.priorApprovedChangesTotal === 'number' && Number.isFinite(frozen.priorApprovedChangesTotal)
+    ? frozen.priorApprovedChangesTotal : null;
+  const buildUp = prior != null
+    ? row('Original contract sum', money(co.originalContractValue - prior))
+      + (prior !== 0 ? row('Net change by prior approved COs', signed(prior)) : '')
+      + row('Contract sum prior to this CO', money(co.originalContractValue))
+    : row('Contract sum prior to this CO', money(co.originalContractValue));
+  const taxAmount = typeof frozen.taxAmount === 'number' && Number.isFinite(frozen.taxAmount) ? frozen.taxAmount : 0;
+  const hasTax = taxAmount !== 0;
+  const taxRows = hasTax
+    ? row(`Sales tax${typeof frozen.taxRatePct === 'number' ? ` (${frozen.taxRatePct}%)` : ''}`, signed(taxAmount))
+      + `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:700"><span>CO total incl. tax</span><span class="num">${signed(frozen.totalWithTax ?? co.changeAmount + taxAmount)}</span></div>`
+    : '';
   const totalsBlock = `<div class="no-break" style="background:${D.PDF_PALETTE.cream2};border:1px solid ${D.PDF_PALETTE.bone2};border-radius:14px;padding:18px 20px;margin-top:18px">
-    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Original contract value</span><span class="num">${D.fmtMoney(co.originalContractValue, { decimals: 2 })}</span></div>
-    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:${co.changeAmount >= 0 ? D.PDF_PALETTE.amberDark : D.PDF_PALETTE.success};font-weight:600"><span>This change order</span><span class="num">${sign}${D.fmtMoney(Math.abs(co.changeAmount), { decimals: 2 })}</span></div>
+    ${buildUp}
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:${co.changeAmount >= 0 ? D.PDF_PALETTE.amberDark : D.PDF_PALETTE.success};font-weight:600"><span>This change order${hasTax ? ' (pre-tax)' : ''}</span><span class="num">${signed(co.changeAmount)}</span></div>
+    ${taxRows}
     <div style="height:1.5px;background:${D.PDF_PALETTE.ink};margin:8px 0"></div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
-      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">New contract total</span>
-      <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;color:${D.PDF_PALETTE.amber};letter-spacing:-0.012em">${D.fmtMoney(co.newContractTotal, { decimals: 2 })}</span>
+      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">New contract total${hasTax ? ' (pre-tax)' : ''}</span>
+      <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;color:${D.PDF_PALETTE.amber};letter-spacing:-0.012em">${money(co.newContractTotal)}</span>
     </div>
   </div>`;
 
@@ -1005,15 +1039,153 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
   });
 }
 
-function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: CompanyBranding): string {
+// ─── Daily field report — the filed record ──────────────────────────────
+//
+// #25: this is THE document for a daily report — the copy saved to project
+// files (the record pulled in a delay or back-charge claim) and the PDF shared
+// from anywhere else. The screen used to file the EMAIL body instead: weather,
+// two totals and two text blocks, with no crew breakdown, no materials, no
+// incident and no photos. The email is now a summary that links here.
+
+/** One photo as the PDF will print it. */
+export interface DfrDocumentPhoto {
+  id: string;
+  /** What the renderer can load NOW: a data: URI read off the device (native —
+   *  a signed URL can expire before printToFileAsync lays the page out) or an
+   *  http(s) URL. null = nothing printable; the tile says why, never blank. */
+  src: string | null;
+  /** True when the photo has no storage copy yet — it exists only on the
+   *  phone that took it. Worded differently from a copy that failed to load. */
+  notUploaded?: boolean;
+  timestamp?: string;
+  caption?: string;
+  /** Markup drawn in the photo annotator (normalized 0..1, square canvas). */
+  markup?: PhotoMarkup[];
+  /** DFRPhoto.incidentPhoto — evidence of an incident, kept off the client
+   *  portal. The filed PDF is linked from the report email a client or owner
+   *  receives, so these are never printed; the report names how many there are. */
+  incident?: boolean;
+  /** Not embedded because the PDF's size budget ran out (see
+   *  DFR_PDF_EMBED_BUDGET_CHARS); counted with the photos not printed. */
+  overBudget?: boolean;
+}
+
+export interface DfrDocumentExtras {
+  /** Resolved photos (utils/projectDocuments.resolveDfrPhotosForDocument).
+   *  Omitted → each report photo prints from a URL it already has, or says why not. */
+  photos?: DfrDocumentPhoto[];
+  /** The OSHA 1904 determination, worded (utils/safety/osha.describeRecordability). */
+  incidentClassification?: string;
+}
+
+/** The most photos one filed PDF embeds; the rest are named, not dropped.
+ *  Each is embedded at full size (there is no image resizer in this build),
+ *  and printToFileAsync holds the whole page in memory — 12 phone photos is
+ *  already tens of MB of HTML. */
+export const DFR_PDF_MAX_PHOTOS = 12;
+
+/** Total base64 characters one filed PDF may embed (~11 MB of image bytes).
+ *  printToFileAsync takes the whole page as one string across the bridge, and
+ *  12 uncompressed phone photos could reach tens of MB — enough to get the app
+ *  killed on an older iPhone mid-Send. Past this, photos are named, not embedded. */
+export const DFR_PDF_EMBED_BUDGET_CHARS = 15_000_000;
+
+/**
+ * The report's photos split into what a document may print and the incident
+ * evidence it must not (DFRPhoto.incidentPhoto — "kept off the client portal").
+ * The filed PDF and the report email both go to people outside the company,
+ * so the count they quote and the photos they carry come from `printable`.
+ */
+export function dfrPrintablePhotoSplit<T extends { incidentPhoto?: boolean; incident?: boolean }>(
+  photos: readonly T[],
+): { printable: T[]; incidentCount: number } {
+  const printable = photos.filter(p => !p.incidentPhoto && !p.incident);
+  return { printable, incidentCount: photos.length - printable.length };
+}
+
+// --- BEGIN dfr photo markup svg ---
+const DFR_MARKUP_HEX: Record<string, string> = { red: '#E5484D', yellow: '#F5A623', green: '#1E8E4A' };
+/**
+ * The annotator's markup as an SVG overlay for a square, cover-fit photo.
+ *
+ * app/photo-annotator.tsx stores points normalized to its SQUARE canvas (x and
+ * y both divided by the canvas width) over a cover-fit image, so a viewBox of
+ * 0 0 1 1 over a square cover-fit <img> lands every stroke where he drew it.
+ */
+export function dfrMarkupSvg(markup: PhotoMarkup[] | undefined): string {
+  if (!markup || markup.length === 0) return '';
+  const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const n = (v: number) => (Number.isFinite(v) ? Math.max(-1, Math.min(2, v)) : 0).toFixed(4);
+  const sw = 'stroke-width="0.012" stroke-linecap="round" stroke-linejoin="round"';
+  const parts = markup.map(m => {
+    const c = DFR_MARKUP_HEX[m.color] ?? DFR_MARKUP_HEX.red;
+    const pts = m.points ?? [];
+    if (m.type === 'arrow' && pts.length >= 2) {
+      const [a, b] = pts;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const ux = dx / len, uy = dy / len, h = 0.045;
+      const l = `${n(b.x - ux * h + uy * h / 2)},${n(b.y - uy * h - ux * h / 2)}`;
+      const r = `${n(b.x - ux * h - uy * h / 2)},${n(b.y - uy * h + ux * h / 2)}`;
+      return `<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}" stroke="${c}" ${sw}/><polygon points="${n(b.x)},${n(b.y)} ${l} ${r}" fill="${c}"/>`;
+    }
+    if ((m.type === 'circle' || m.type === 'rectangle') && pts.length >= 2) {
+      const [a, b] = pts;
+      if (m.type === 'rectangle') {
+        return `<rect x="${n(Math.min(a.x, b.x))}" y="${n(Math.min(a.y, b.y))}" width="${n(Math.abs(b.x - a.x))}" height="${n(Math.abs(b.y - a.y))}" stroke="${c}" fill="none" ${sw}/>`;
+      }
+      const r = Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2) / 2;
+      return `<circle cx="${n((a.x + b.x) / 2)}" cy="${n((a.y + b.y) / 2)}" r="${n(r)}" stroke="${c}" fill="none" ${sw}/>`;
+    }
+    if (m.type === 'freehand' && pts.length >= 2) {
+      const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${n(p.x)},${n(p.y)}`).join(' ');
+      return `<path d="${d}" stroke="${c}" fill="none" ${sw}/>`;
+    }
+    if (m.type === 'text' && m.text && pts.length >= 1) {
+      const p = pts[0];
+      const w = Math.min(0.9, m.text.length * 0.022 + 0.04);
+      return `<rect x="${n(p.x)}" y="${n(p.y - 0.045)}" width="${n(w)}" height="0.0640" fill="${c}" opacity="0.92"/><text x="${n(p.x + 0.02)}" y="${n(p.y + 0.004)}" font-size="0.038" font-weight="700" fill="#FFFFFF" font-family="-apple-system,Helvetica,Arial,sans-serif">${esc(m.text)}</text>`;
+    }
+    return '';
+  }).join('');
+  return parts
+    ? `<svg viewBox="0 0 1 1" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0;width:100%;height:100%">${parts}</svg>`
+    : '';
+}
+// --- END dfr photo markup svg ---
+
+/**
+ * The report's photos without any I/O — for web Print, which must open its
+ * window synchronously inside the tap, and for callers that pass no resolved
+ * photos. Only a URL the page can load as-is prints; a device file (file://,
+ * ph://) is not loadable from a print tab, so its tile says why instead
+ * (native callers embed those via projectDocuments.resolveDfrPhotosForDocument).
+ * Markup comes from the gallery copy, found by the shared id.
+ */
+export function dfrDocumentPhotosSync(
+  photos: { id: string; uri?: string; storagePath?: string; timestamp?: string; locationLabel?: string; incidentPhoto?: boolean }[],
+  gallery: { id: string; markup?: PhotoMarkup[]; storagePath?: string }[] = [],
+): DfrDocumentPhoto[] {
+  const byId = new Map(gallery.map(g => [g.id, g]));
+  return photos.map(p => {
+    const u = p.uri ?? '';
+    const g = byId.get(p.id);
+    return {
+      id: p.id,
+      src: /^(https?:|data:image\/|blob:)/i.test(u) ? u : null,
+      notUploaded: !(p.storagePath ?? g?.storagePath),
+      timestamp: p.timestamp,
+      caption: p.locationLabel,
+      markup: g?.markup,
+      incident: p.incidentPhoto ? true : undefined,
+    };
+  });
+}
+
+export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: CompanyBranding, extras?: DfrDocumentExtras): string {
   // dayOrInstantDate: an older voice report stored a bare day, which `new Date`
   // reads as UTC midnight — the previous weekday on every US owner's PDF.
   const reportDate = dayOrInstantDate(dfr.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const logoBlock = branding.logoUri
-    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
-  const companyBlock = branding.companyName
-    ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div></div>`
-    : `<div class="company-header"><div class="company-name">Daily Field Report</div></div>`;
 
   // Refreshed to the ink+amber+cream design system. Same data, premium look.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -1033,10 +1205,13 @@ function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: Company
     ],
   });
 
+  // #26: a blank reading prints "Not recorded" — never a dash that reads as
+  // "nothing happened" and never an invented number.
+  const nr = (v: string | undefined) => (v && v.trim()) || 'Not recorded';
   const weatherStats = D.pdfStatGrid([
-    { label: 'Temperature', value: dfr.weather.temperature || '—' },
-    { label: 'Conditions', value: dfr.weather.conditions || '—' },
-    { label: 'Wind', value: dfr.weather.wind || '—' },
+    { label: 'Temperature', value: nr(dfr.weather?.temperature) },
+    { label: 'Conditions', value: nr(dfr.weather?.conditions) },
+    { label: 'Wind', value: nr(dfr.weather?.wind) },
   ]);
 
   const manpowerHtml = dfr.manpower.length > 0
@@ -1071,16 +1246,68 @@ function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: Company
     ? D.pdfSectionHeader('Issues & delays') +
       `<div style="${issueStyle}">${D.escHtml(dfr.issuesAndDelays)}</div>`
     : '';
-  const photosHtml = dfr.photos.length > 0
-    ? D.pdfSectionHeader('Photos') +
-      `<div style="${blockStyle}">${dfr.photos.length} photo${dfr.photos.length === 1 ? '' : 's'} attached — see digital copy for full resolution.</div>`
+
+  // #25: the incident as recorded, with the 1904 determination beside it.
+  const inc = dfr.incident;
+  const yesNo = (v: boolean | undefined) => (v ? 'Yes' : 'No');
+  const incidentHtml = inc?.hasIncident
+    ? D.pdfSectionHeader('Incident') + `<div style="${issueStyle}">${[
+        `<strong>Severity:</strong> ${D.escHtml((inc.severity ?? 'not recorded').replace(/_/g, ' '))}`,
+        extras?.incidentClassification ? `<strong>Classification:</strong> ${D.escHtml(extras.incidentClassification)}` : '',
+        `<strong>Injury reported:</strong> ${yesNo(inc.injuriesReported)} &middot; <strong>Medical treatment beyond first aid:</strong> ${yesNo(inc.medicalTreatment)} &middot; <strong>OSHA recordable:</strong> ${yesNo(inc.oshaRecordable)}`,
+        inc.description ? `<strong>What happened:</strong> ${D.escHtml(inc.description)}` : '',
+        // Names stay on the incident case, not this document: the filed PDF is
+        // linked from the report email a client or owner receives, and an
+        // injured worker's name is not theirs to read (OSHA 1904.29 privacy
+        // cases are withheld even from the 300 log).
+        inc.peopleInvolved ? '<strong>People involved:</strong> recorded on the incident case (names are not printed on this report)' : '',
+        inc.correctiveAction ? `<strong>Corrective action:</strong> ${D.escHtml(inc.correctiveAction)}` : '',
+        inc.reportedBy ? `<strong>Reported by:</strong> ${D.escHtml(inc.reportedBy)}` : '',
+      ].filter(Boolean).join('<br/>')}</div>`
+    : '';
+
+  // #25: the photos themselves, with any markup, instead of "N photos attached".
+  // Incident evidence never prints: this PDF is linked from the report email a
+  // client or owner receives (the same reason the injured worker's name is
+  // left off above). It stays on the incident case; the report says how many.
+  const { printable: photos, incidentCount } = dfrPrintablePhotoSplit(
+    extras?.photos ?? dfrDocumentPhotosSync(dfr.photos),
+  );
+  const shown = photos.filter(p => !p.overBudget).slice(0, DFR_PDF_MAX_PHOTOS);
+  const photoTile = (p: DfrDocumentPhoto, i: number) => {
+    const when = p.timestamp && !Number.isNaN(new Date(p.timestamp).getTime())
+      ? new Date(p.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : '';
+    const caption = [`Photo ${i + 1}`, when, p.caption ?? '', p.markup && p.markup.length ? 'marked up' : ''].filter(Boolean).join(' · ');
+    const frame = p.src
+      ? `<div style="position:relative;width:100%;padding-top:100%;border-radius:10px;overflow:hidden;background:${D.PDF_PALETTE.bone2}"><img src="${D.escHtml(p.src)}" alt="" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover"/>${dfrMarkupSvg(p.markup)}</div>`
+      : `<div style="width:100%;padding:28px 12px;border-radius:10px;border:1px dashed ${D.PDF_PALETTE.bone};font-size:11px;color:${D.PDF_PALETTE.textMuted};text-align:center;line-height:1.45">${p.notUploaded
+          ? 'Not uploaded yet — this photo is still only on the phone that took it.'
+          : 'This photo could not be loaded into the PDF. It is on the report in MAGE ID.'}</div>`;
+    return `<td style="width:33.33%;padding:6px;vertical-align:top" class="no-break">${frame}<div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:4px">${D.escHtml(caption)}</div></td>`;
+  };
+  const photoRows: string[] = [];
+  for (let i = 0; i < shown.length; i += 3) {
+    const cells = shown.slice(i, i + 3).map((p, k) => photoTile(p, i + k));
+    while (cells.length < 3) cells.push('<td style="width:33.33%"></td>');
+    photoRows.push(`<tr>${cells.join('')}</tr>`);
+  }
+  const photosHtml = photos.length > 0 || incidentCount > 0
+    ? D.pdfSectionHeader(`Photos (${photos.length})`)
+      + (shown.length > 0 ? `<table style="width:100%;border-collapse:collapse;table-layout:fixed">${photoRows.join('')}</table>` : '')
+      + (photos.length > shown.length
+        ? `<div style="${blockStyle}">${photos.length - shown.length} more photo${photos.length - shown.length === 1 ? '' : 's'} on this report in MAGE ID — not printed here.</div>`
+        : '')
+      + (incidentCount > 0
+        ? `<div style="${blockStyle}">${incidentCount} incident photo${incidentCount === 1 ? ' is' : 's are'} kept on the incident case, not printed on this report.</div>`
+        : '')
     : '';
 
   return D.pdfShell({
     title: `Daily field report — ${project.name} — ${reportDate}`,
     branding,
     bodyHtml:
-      headerHtml + titleHtml + weatherStats + manpowerHtml + workHtml + materialsHtml + issuesHtml + photosHtml +
+      headerHtml + titleHtml + weatherStats + manpowerHtml + workHtml + materialsHtml + issuesHtml + incidentHtml + photosHtml +
       D.pdfFooter(branding, `Daily field report · ${reportDate}`, D.PDF_DISCLAIMERS.dfr),
   });
 }
@@ -1465,11 +1692,11 @@ export async function generateInvoicePDFUri(
 }
 
 export async function generateDFRPDFUri(
-  dfr: DailyFieldReport, project: Project, branding: CompanyBranding,
+  dfr: DailyFieldReport, project: Project, branding: CompanyBranding, extras?: DfrDocumentExtras,
 ): Promise<string | null> {
   if (Platform.OS === 'web') return null;
   try {
-    const html = buildDFRHtml(dfr, project, branding);
+    const html = buildDFRHtml(dfr, project, branding, extras);
     const { uri } = await Print.printToFileAsync({ html, base64: false });
     console.log('[PDF] DFR PDF URI:', uri);
     return uri;
@@ -1496,21 +1723,16 @@ export async function generateInvoicePDF(
 }
 
 export async function generateDFRPDF(
-  dfr: DailyFieldReport, project: Project, branding: CompanyBranding,
+  dfr: DailyFieldReport, project: Project, branding: CompanyBranding, extras?: DfrDocumentExtras,
 ): Promise<void> {
   console.log('[PDF] Generating DFR PDF:', dfr.id);
-  const html = buildDFRHtml(dfr, project, branding);
+  const html = buildDFRHtml(dfr, project, branding, extras);
   await shareHtml(html, `${project.name} - Daily Report`);
 }
 
 async function shareHtml(html: string, title: string, method?: 'share' | 'email', recipient?: string, message?: string): Promise<void> {
   if (Platform.OS === 'web') {
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-      newWindow.print();
-    }
+    openPrintWindowOrThrow(html);
     return;
   }
   try {
@@ -1653,7 +1875,10 @@ function statusLabel(status: string): string {
 function buildSubmittalHtml(s: Submittal, project: Project, branding: CompanyBranding): string {
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const submittedDate = s.submittedDate ? new Date(s.submittedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-  const requiredDate = s.requiredDate ? new Date(s.requiredDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  // #150: requiredDate is a bare 'YYYY-MM-DD' in the common case, and
+  // `new Date()` of that is UTC midnight — 'Required By' printed the day
+  // BEFORE the due day on every document sent west of Greenwich.
+  const requiredDate = s.requiredDate ? (formatCalendarDay(s.requiredDate) || '—') : '—';
 
   const cycleRows = s.reviewCycles.length === 0
     ? `<tr><td colspan="5" style="text-align:center;color:#999;padding:18px;">No review cycles yet.</td></tr>`
@@ -1781,8 +2006,17 @@ export function buildSubmittalEmailHtml(opts: {
    *  the reviewer can pick an action code in-browser and the response
    *  syncs directly into the submittal as a new review cycle. */
   replyPortalUrl?: string;
+  /** How many files actually ride on this email. Only a positive count may say
+   *  "attached" (#57: the blank-message fallback told the architect to review
+   *  "the attached submittal package" on emails that carried nothing). Omitted
+   *  = unknown, which reads as nothing attached. */
+  attachmentCount?: number;
 }): string {
   const { companyName, recipientName, projectName, submittalNumber, submittalTitle, specSection, status, message, contactName, contactEmail, contactPhone, replyPortalUrl } = opts;
+  const attached = (opts.attachmentCount ?? 0) > 0;
+  const fallbackIntro = attached
+    ? 'Please review the attached submittal and reply with your action code when ready.'
+    : 'Please review the submittal details below and reply with your action code when ready.';
   return `
 <!DOCTYPE html>
 <html>
@@ -1792,14 +2026,14 @@ export function buildSubmittalEmailHtml(opts: {
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
         <tr><td style="background:#1a1a2e;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${escapeHtml(companyName || 'MAGE ID')}</h1>
         </td></tr>
         <tr><td style="padding:32px;">
           <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Submittal #${submittalNumber}</p>
           <h2 style="margin:0 0 6px;color:#111827;font-size:20px;">${escapeHtml(submittalTitle)}</h2>
           <p style="margin:0 0 24px;color:#6b7280;font-size:13px;">${escapeHtml(projectName)}${specSection ? ` &middot; Spec ${escapeHtml(specSection)}` : ''}</p>
           ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${escapeHtml(recipientName)},</p>` : ''}
-          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${escapeHtml(message)}</p>` : `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">Please review the attached submittal package and reply with your action code when ready.</p>`}
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${escapeHtml(message)}</p>` : `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${fallbackIntro}</p>`}
           <div style="background:#f9fafb;border-radius:8px;padding:14px 18px;margin:20px 0;">
             <p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Current Status</p>
             <p style="margin:6px 0 0;color:${statusColor(status)};font-size:16px;font-weight:700;">${statusLabel(status)}</p>
@@ -1816,7 +2050,7 @@ export function buildSubmittalEmailHtml(opts: {
           ${replyPortalUrl ? `
           <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 12px;">
             <tr><td align="center">
-              <a href="${replyPortalUrl}" target="_blank" style="display:inline-block;background:#FF6A1A;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 32px;border-radius:12px;box-shadow:0 6px 18px rgba(255,106,26,0.35);letter-spacing:0.2px;">
+              <a href="${escapeHtml(replyPortalUrl)}" target="_blank" style="display:inline-block;background:#FF6A1A;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 32px;border-radius:12px;box-shadow:0 6px 18px rgba(255,106,26,0.35);letter-spacing:0.2px;">
                 Open Review Portal &rarr;
               </a>
             </td></tr>
@@ -1828,7 +2062,7 @@ export function buildSubmittalEmailHtml(opts: {
             <strong>Two ways to respond:</strong> tap the button above for the structured review form, or reply to this email with your action code. Your response is filed as a new cycle against Submittal #${submittalNumber}.
           </p>` : `
           <p style="margin:24px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
-            <strong>How to respond:</strong> reply to this email with your action code (and any markups attached). Your response will be filed against Submittal #${submittalNumber} for this project.
+            <strong>How to respond:</strong> reply to this email with your action code (attach any markups to your reply). Your response will be filed against Submittal #${submittalNumber} for this project.
           </p>`}
           <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
             ${contactName ? `Contact: ${escapeHtml(contactName)}` : ''}

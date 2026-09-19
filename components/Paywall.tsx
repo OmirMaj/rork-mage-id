@@ -248,7 +248,9 @@ const FEATURE_PITCH: Record<string, string> = {
   // Keyed on the raw FeatureKey because that is what the caller passes — see
   // FEATURE_TITLE below.
   schedule_scenarios:
-    'Snapshot the schedule, try the what-if, and switch between it and the baseline without touching the plan you committed to.',
+    // #53: a saved plan is a frozen copy — nothing edits it — so this no
+    // longer sells "try the what-if" modelling the feature cannot do.
+    'Save frozen copies of the schedule to look back at or restore, without touching the plan you are working in.',
 };
 
 /**
@@ -261,7 +263,7 @@ const FEATURE_PITCH: Record<string, string> = {
  * happens to contain an underscore.
  */
 const FEATURE_TITLE: Record<string, string> = {
-  schedule_scenarios: 'Schedule Scenarios',
+  schedule_scenarios: 'Saved Schedule Plans',
 };
 
 export default function Paywall({ visible, onClose, feature, requiredTier }: PaywallProps) {

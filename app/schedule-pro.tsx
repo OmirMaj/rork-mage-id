@@ -29,7 +29,7 @@
 //     Phase 7 — snapshot-URL pattern already proven with the client portal.
 
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal, ActivityIndicator, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -43,12 +43,15 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTierAccess } from '@/hooks/useTierAccess';
-import { useProjectRole } from '@/hooks/useProjectRole';
-import LockedAccessCard from '@/components/LockedAccessCard';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRole, useProjectRoleState } from '@/hooks/useProjectRole';
+import LockedAccessCard, { FieldSendFailureBanner } from '@/components/LockedAccessCard';
 import {
   applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, scheduleWritePathForRole,
   sendFieldTaskPatches, staleFieldEdits, type FieldEditRefusal,
+  captureFieldSendFailure, mergeFieldSendFailure, pendingFieldRetryPatches, fieldAutoRetryDelayMs,
+  planFieldRetry, fieldRetrySupersededNotice,
+  type FieldSendFailure,
 } from '@/utils/fieldScheduleUpdate';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSchedulePresence } from '@/hooks/useSchedulePresence';
@@ -61,8 +64,9 @@ import {
 import { getOwnOfflineQueue, onQueueChanged } from '@/utils/offlineQueue';
 import { PresenceBar } from '@/components/schedule/PresenceBar';
 import Paywall from '@/components/Paywall';
+import { cardSurface } from '@/components/ui';
 import GridPane from '@/components/schedule/GridPane';
-import InteractiveGantt from '@/components/schedule/InteractiveGantt';
+import InteractiveGantt, { GanttStampBasis } from '@/components/schedule/InteractiveGantt';
 import { SchedulerTabShell } from '@/components/schedule/SchedulerTabShell';
 import AIAssistantPanel from '@/components/schedule/AIAssistantPanel';
 import ClosuresModal from '@/components/schedule/ClosuresModal';
@@ -117,7 +121,13 @@ import { buildScheduleFromTasks, mergeEditedSchedule, createId, generateWbsCodes
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
   reflowFromActuals,
-  applyBaselineToTasks,
+  reapplyBaselineToTasks,
+  readActiveBaselineId,
+  resolveActiveBaseline,
+  baselineStampedOnTasks,
+  activeBaselineAfterChange,
+  withActiveBaselineId,
+  scheduleProGate,
   baselineFinishDayWorkingScale,
   exportTasksToCsv,
   downloadCsvInBrowser,
@@ -179,18 +189,57 @@ export default function ScheduleProScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const goBack = useSafeBack();
-  const { canAccess } = useTierAccess();
-  if (!canAccess('schedule_gantt_pdf')) {
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  // Own tier OR the collaborator grant on THIS job (#91): an invited foreman
+  // on a free account opens the GC's plan, not a Pro paywall. Without a
+  // projectId (sidebar, search) it is the viewer's own tier, as before.
+  const { canAccess } = useProjectAccess(gateProjectId || undefined);
+  const roleState = useProjectRoleState(gateProjectId || undefined);
+  const gate = scheduleProGate({
+    canAccess: canAccess('schedule_gantt_pdf'),
+    hasProjectId: !!gateProjectId,
+    roleLoading: roleState.isLoading,
+    roleError: roleState.isError,
+    role: roleState.role,
+  });
+  if (gate === 'open') return <ScheduleProScreenInner />;
+  if (gate === 'loading') {
     return (
-      <Paywall
-        visible={true}
-        feature="Schedule Pro (Gantt + PDF Export)"
-        requiredTier="pro"
-        onClose={goBack}
-      />
+      <View style={styles.gateWrap} testID="schedule-pro-gate-loading">
+        <ActivityIndicator color={themeColors.accent} />
+      </View>
     );
   }
-  return <ScheduleProScreenInner />;
+  if (gate === 'error' || gate === 'no_access') {
+    return (
+      <View style={styles.gateWrap} testID={`schedule-pro-gate-${gate}`}>
+        <Text style={styles.gateTitle}>{gate === 'error' ? 'Couldn’t check your access' : 'You don’t have access to this schedule'}</Text>
+        <Text style={styles.gateBody}>
+          {gate === 'error'
+            ? 'Your access to this project could not be read, so Schedule Pro stays closed rather than guessing. Check your connection and try again.'
+            : 'You are not on this project’s team, so its schedule does not open for you. Ask the project owner to invite you.'}
+        </Text>
+        <View style={styles.gateActions}>
+          {gate === 'error' ? (
+            <TouchableOpacity style={styles.gateBtn} onPress={() => { void roleState.refetch(); }} accessibilityRole="button" accessibilityLabel="Try again">
+              <Text style={styles.gateBtnText}>Try again</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity style={styles.gateBtn} onPress={goBack} accessibilityRole="button" accessibilityLabel="Back">
+            <Text style={styles.gateBtnText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <Paywall
+      visible={true}
+      feature="Schedule Pro (Gantt + PDF Export)"
+      requiredTier="pro"
+      onClose={goBack}
+    />
+  );
 }
 
 function ScheduleProScreenInner() {
@@ -206,11 +255,6 @@ function ScheduleProScreenInner() {
   const goBack = useSafeBack();
   const { width } = useWindowDimensions();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  // Re-read tier access inside the inner so the PDF handler can guard
-  // on the narrower `schedule_gantt_pdf` feature flag directly (the outer
-  // gate covers full Schedule Pro access — this is the export-specific
-  // gate should we split the bundle in the future).
-  const { canAccess } = useTierAccess();
   const { user } = useAuth();
 
   const {
@@ -233,6 +277,12 @@ function ScheduleProScreenInner() {
   // shared link — can't make the picker inert.
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
+  // Re-read access inside the inner so the PDF handler can guard on the
+  // narrower `schedule_gantt_pdf` feature flag directly (the outer gate covers
+  // full Schedule Pro access — this is the export-specific gate should we split
+  // the bundle in the future). Project-scoped (#91): own tier OR the grant on
+  // the project on screen, so the foreman's export is not refused as "Pro".
+  const { canAccess } = useProjectAccess(projectId || undefined);
 
   const project = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
@@ -257,6 +307,12 @@ function ScheduleProScreenInner() {
   // A refusal on one project is not news on the next: the notice belongs to
   // the project it was about (the picker can switch projects in place).
   useEffect(() => { setFieldNotice(null); }, [projectId]);
+  // A field send that did not reach the server (#138): its own plain banner
+  // with Retry — the phone schedule's exact behaviour
+  // (MobileScheduleScreen), pinned together by validate-field-schedule-update.
+  const [fieldFailure, setFieldFailure] = useState<FieldSendFailure | null>(null);
+  const autoRetryAttemptRef = React.useRef(0);
+  useEffect(() => { setFieldFailure(null); autoRetryAttemptRef.current = 0; }, [projectId]);
   // Latest projects for the async field save — the closure that fires can
   // predate the render that holds the edit it is diffing against.
   const projectsRef = React.useRef(projects);
@@ -289,14 +345,16 @@ function ScheduleProScreenInner() {
   const subRollupRef = React.useRef<Map<string, number>>(new Map());
   // Field saves between the persist timer and the RPC's answer: busy.
   const fieldSavesInFlightRef = React.useRef(0);
-  const saveAsField = useCallback(async (id: string, updates: Partial<Project>) => {
+  // `serverBase`: a retry's fresh read of the row (#138) — diffed against and
+  // applied over THAT, not this screen's copy, which may predate it.
+  const saveAsField = useCallback(async (id: string, updates: Partial<Project>, serverBase?: ScheduleTask[]) => {
     fieldSavesInFlightRef.current += 1;
     noteFieldScheduleSave(syncGateRef.current);
     try {
       const current = projectsRef.current.find(p => p.id === id);
       const currentSchedule = current?.schedule;
       if (!currentSchedule) return;
-      const baseTasks = currentSchedule.tasks ?? [];
+      const baseTasks = serverBase ?? currentSchedule.tasks ?? [];
       const { patches, blocked } = updates.schedule?.tasks
         ? fieldTaskDiff(baseTasks, updates.schedule.tasks)
         : { patches: [], blocked: [] };
@@ -336,20 +394,24 @@ function ScheduleProScreenInner() {
           }
         } else {
           failure = sent.message;
+          // Kept in memory for Retry — see captureFieldSendFailure for why
+          // this is not the offline queue.
+          const captured = captureFieldSendFailure(id, baseTasks, patches, sent);
+          setFieldFailure(prev => mergeFieldSendFailure(prev, captured));
         }
       }
       if (!failure && blocked.length === 0 && !settingsChanged) {
         // A clean save clears an earlier refusal — it is no longer true.
         if (patches.length > 0) setFieldNotice(null);
+        if (patches.length > 0) autoRetryAttemptRef.current = 0;
       } else {
         resetWorkingTasksRef.current?.(accepted);
         const what = blocked.length > 0
           ? `changes to ${blocked.slice(0, 3).join(', ')}${blocked.length > 3 ? ` and ${blocked.length - 3} more` : ''}`
           : settingsChanged ? 'schedule settings' : '';
-        setFieldNotice([
-          failure,
-          what ? `Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.` : null,
-        ].filter(Boolean).join(' '));
+        // The padlock card carries ONLY what access refused; a send failure
+        // has its own banner (fieldFailure) — both show when both happened.
+        if (what) setFieldNotice(`Not saved: ${what}. Field access saves progress, status, notes and actual start/finish only — ask the project owner for editor access to move dates or change tasks.`);
       }
     } finally {
       fieldSavesInFlightRef.current -= 1;
@@ -383,6 +445,68 @@ function ScheduleProScreenInner() {
     updateProjectRaw(id, updates);
     if (sentTasks && refused.length > 0) onFieldRefusalsRef.current?.(refused, keptTasks, sentTasks);
   }, [updateProjectRaw]);
+  // Re-send what did not land (#138) — the same rule as the phone: READ the
+  // row first and decide against the server's copy (planFieldRetry), because
+  // a device that had no signal cannot have received the GC's newer edit and
+  // the RPC stamps what it takes with the server clock. A key goes out only
+  // while the server still holds the value and stamp this device had when the
+  // send failed; one changed elsewhere is dropped and he is told so. No read:
+  // nothing is sent, the failure stays for the next try. The send goes through
+  // saveAsField (diffed against and applied over the read, audited, reported).
+  const fieldFailureRef = React.useRef<FieldSendFailure | null>(null);
+  fieldFailureRef.current = fieldFailure;
+  const retryInFlightRef = React.useRef(false);
+  const retryFieldSend = useCallback(() => {
+    const f = fieldFailureRef.current;
+    if (!f || retryInFlightRef.current) return;
+    if (writePath !== 'field_rpc') { setFieldFailure(null); return; }
+    retryInFlightRef.current = true;
+    void (async () => {
+      try {
+        const plan = await planFieldRetry(f, async () => {
+          const { data, error } = await supabase.from('projects').select('schedule').eq('id', f.projectId).maybeSingle();
+          if (error) return null;
+          const fresh = (data as { schedule?: { tasks?: ScheduleTask[] } } | null)?.schedule?.tasks;
+          return Array.isArray(fresh) ? fresh : null;
+        });
+        // A new object re-arms the backoff timer; the same failure, still held.
+        if (!plan.read) { setFieldFailure(cur => (cur === f ? { ...f } : cur)); return; }
+        const notice = plan.superseded.length > 0 ? fieldRetrySupersededNotice(f.projectId, plan.superseded) : null;
+        setFieldFailure(cur => (cur === f ? notice : cur));
+        if (plan.patches.length === 0) {
+          // Nothing to send — take the newer server copy through the screen's
+          // own quiet-time re-read, the path a socket gap uses.
+          noteScheduleSocketGap(syncGateRef.current);
+          settleSyncRef.current();
+          return;
+        }
+        const current = projectsRef.current.find(p => p.id === f.projectId)?.schedule;
+        if (!current) return;
+        await saveAsField(f.projectId, { schedule: { ...current, tasks: applyFieldTaskPatches(plan.serverTasks, plan.patches) } }, plan.serverTasks);
+      } finally {
+        retryInFlightRef.current = false;
+      }
+    })();
+  }, [writePath, saveAsField]);
+  const dismissFieldFailure = useCallback(() => { setFieldFailure(null); autoRetryAttemptRef.current = 0; }, []);
+  // No signal: re-send by itself while the screen is open — on a backoff, and
+  // at once when the app returns to the foreground (no NetInfo in this app).
+  useEffect(() => {
+    if (!fieldFailure?.offline) return;
+    const h = setTimeout(() => { autoRetryAttemptRef.current += 1; retryFieldSend(); }, fieldAutoRetryDelayMs(autoRetryAttemptRef.current));
+    return () => clearTimeout(h);
+  }, [fieldFailure, retryFieldSend]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && fieldFailureRef.current?.offline) retryFieldSend();
+    });
+    return () => sub.remove();
+  }, [retryFieldSend]);
+  const fieldFailureShown = useMemo<FieldSendFailure | null>(() => {
+    if (!fieldFailure) return null;
+    if (!fieldFailure.retryable) return fieldFailure;
+    return pendingFieldRetryPatches(fieldFailure, project?.schedule?.tasks ?? []).length > 0 ? fieldFailure : null;
+  }, [fieldFailure, project?.schedule?.tasks]);
   const updateProject = useMemo<typeof updateProjectRaw>(
     () => (writePath === 'row'
       ? saveAsRow
@@ -487,6 +611,29 @@ function ScheduleProScreenInner() {
   // capture.
   const [namedBaselines, setNamedBaselines] = useState<NamedBaseline[]>(
     () => (project?.schedule?.baselines ?? []) as NamedBaseline[],
+  );
+  // WHICH baseline is the yardstick (#137). Activate on an older baseline
+  // used to re-stamp the Gantt's ghost bars from it while the ACTIVE chip and
+  // the header slip stayed on the newest, so two "late"s showed at once. The
+  // id is persisted on the schedule (activeBaselineId) with the task baselines
+  // in the same save, and every reader resolves it via resolveActiveBaseline.
+  // Ref for the persist closures (like baselinesRef), state for rendering.
+  const activeBaselineIdRef = React.useRef<string | undefined>(readActiveBaselineId(project?.schedule));
+  const [activeBaselineId, setActiveBaselineIdState] = useState<string | undefined>(() => readActiveBaselineId(project?.schedule));
+  const setActiveBaselineId = useCallback((id: string | undefined) => {
+    activeBaselineIdRef.current = id;
+    setActiveBaselineIdState(id);
+  }, []);
+  // Adopt the stored id when IT changes (a project switch, a refetch carrying
+  // the phone's lock) — keyed on the value, so a re-render that carries the
+  // same stale id cannot undo an activation still waiting in the debounce.
+  const storedActiveBaselineId = readActiveBaselineId(project?.schedule);
+  useEffect(() => {
+    setActiveBaselineId(storedActiveBaselineId);
+  }, [project?.id, storedActiveBaselineId, setActiveBaselineId]);
+  const activeBaseline = useMemo(
+    () => resolveActiveBaseline(namedBaselines, activeBaselineId),
+    [namedBaselines, activeBaselineId],
   );
 
   // Resync when the project changes (e.g. user switches projects in classic
@@ -668,9 +815,7 @@ function ScheduleProScreenInner() {
   // ignores the raw endDay's scale, deriving duration from it). Null when no
   // baseline exists.
   const baselineFinishDay = useMemo<number | null>(() => {
-    const active = namedBaselines.length > 0
-      ? namedBaselines[namedBaselines.length - 1]
-      : null;
+    const active = activeBaseline;
     if (!active) return null;
     return baselineFinishDayWorkingScale(active, {
       scheduleStartDate: scheduleStartIso,
@@ -679,7 +824,7 @@ function ScheduleProScreenInner() {
       taskCalendars,
     });
   }, [
-    namedBaselines,
+    activeBaseline,
     scheduleStartIso,
     project?.schedule?.workingDaysPerWeek,
     project?.schedule?.nonWorkingDates,
@@ -931,12 +1076,12 @@ function ScheduleProScreenInner() {
             projectId: project.id,
           })
         : newSchedule;
-      const withBaselines = {
+      const withBaselines = withActiveBaselineId({
         ...merged,
         // The ref is fresher than project.schedule.baselines: a capture and a
         // keystroke can land inside the same debounce window.
         baselines: baselinesRef.current,
-      };
+      }, activeBaselineIdRef.current);
       console.log('[ScheduleProScreen] Persist', {
         tasks: tasks.length,
         baselines: baselinesRef.current.length,
@@ -1001,7 +1146,7 @@ function ScheduleProScreenInner() {
             })
           : newSchedule;
         flushUpdateProjectRef.current(project.id, {
-          schedule: { ...mergedOnUnmount, baselines: baselinesRef.current },
+          schedule: withActiveBaselineId({ ...mergedOnUnmount, baselines: baselinesRef.current }, activeBaselineIdRef.current),
         });
       }
     };
@@ -1051,7 +1196,7 @@ function ScheduleProScreenInner() {
     }
     if (!fromServer) return;
     lastServerTasksRef.current = copy.tasks;
-    if (livePeerProjectId) absorbServerSchedule(livePeerProjectId, copy.tasks, { stamp: copy.stamp });
+    if (livePeerProjectId) absorbServerSchedule(livePeerProjectId, copy.tasks, { stamp: copy.stamp, baselines: copy.baselines });
   }, [livePeerProjectId, absorbServerSchedule]);
   // Re-check for quiet: take a parked copy, or do the re-read the gate owes —
   // once after mount (the copy it opened on may be stale; the channel only
@@ -1169,7 +1314,10 @@ function ScheduleProScreenInner() {
     // debounced persist), so it is the freshest source at call time.
     let effective: Partial<ScheduleTask> = patch;
     if (before && patch.status !== undefined && patch.status !== before.status) {
-      const stamp = stampActuals(before, patch.status, todayScheduleDay(startDateRef.current), new Date().toISOString());
+      // No retro start (audit #141): a task closed with no recorded start keeps
+      // an EMPTY start — the same rule as the daily report — rather than a planned
+      // day nobody observed. Pace samples need both stamps, so it is skipped there.
+      const stamp = stampActuals(before, patch.status, todayScheduleDay(startDateRef.current), new Date().toISOString(), { retroStartFromPlanned: false });
       effective = { ...stamp, ...patch };
       // Morning-brief ledger: a real capture (stamp set an ISO date) is a
       // did-for-you moment. recordDidForYou is G4-safe by contract.
@@ -1329,13 +1477,13 @@ function ScheduleProScreenInner() {
         })
       : rebuilt;
     updateProject(project.id, {
-      schedule: {
+      schedule: withActiveBaselineId({
         ...mergedWeather,
         baselines: baselinesRef.current,
         weatherDelayLog: logEntry
           ? [...(project.schedule?.weatherDelayLog ?? []), logEntry]
           : project.schedule?.weatherDelayLog,
-      },
+      }, activeBaselineIdRef.current),
     });
     setShowWeather(false);
 
@@ -1577,7 +1725,8 @@ function ScheduleProScreenInner() {
       ? 'Replace the current schedule with a 35-task demo project? (You can undo.)'
       : 'Load a 35-task demo project to explore the new features?';
     const go = () => {
-      commit(() => seedDemoSchedule());
+      // The demo's actuals are calendar indices on THIS schedule's calendar (#50).
+      commit(() => seedDemoSchedule(summaryScale));
     };
     if (Platform.OS === 'web') {
       if (typeof window !== 'undefined' && window.confirm(confirmMsg)) go();
@@ -1591,7 +1740,7 @@ function ScheduleProScreenInner() {
         ],
       );
     }
-  }, [commit, workingTasks.length]);
+  }, [commit, workingTasks.length, summaryScale]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
     const deletedTitle = workingTasks.find(t => t.id === taskId)?.title ?? 'Untitled';
@@ -1740,14 +1889,19 @@ function ScheduleProScreenInner() {
   // -------------------------------------------------------------------------
 
   const handleReflow = useCallback(() => {
-    const withActuals = workingTasks.filter(t => t.actualStartDay != null);
+    // A start OR a finish counts: since #141 a task finished without a
+    // recorded start carries actualEndDay alone, and reflowFromActuals
+    // cascades from it (utils/scheduleOps.ts span()).
+    const withActuals = workingTasks.filter(t => t.actualStartDay != null || t.actualEndDay != null);
     if (withActuals.length === 0) {
-      const msg = 'No tasks have actual start dates logged yet. Log an actual on at least one task, then reflow to cascade the delta to downstream work.';
+      const msg = 'No tasks have an actual start or finish logged yet. Log an actual on at least one task, then reflow to cascade the delta to downstream work.';
       if (Platform.OS === 'web') window.alert?.(msg);
       else showAlert('Nothing to reflow', msg);
       return;
     }
-    const next = reflowFromActuals(workingTasks);
+    // Actuals are CALENDAR indices (utils/pace/stampActuals.ts); the reflow
+    // reads them back as working ordinals on this schedule's own calendar.
+    const next = reflowFromActuals(workingTasks, summaryScale);
     const changedCount = next.filter((t, i) => t.startDay !== workingTasks[i].startDay).length;
     commit(() => next);
     const msg = changedCount === 0
@@ -1755,7 +1909,7 @@ function ScheduleProScreenInner() {
       : `Pushed ${changedCount} task${changedCount === 1 ? '' : 's'} based on actuals. Undo if this looks off.`;
     if (Platform.OS === 'web') window.alert?.(msg);
     else showAlert('Reflow complete', msg);
-  }, [workingTasks, commit]);
+  }, [workingTasks, commit, summaryScale]);
 
   // Critical-path / conflict summary — moved out of the toolbar into the
   // "More" overflow menu (Phase 1 front-door). Extracted to a named callback
@@ -2137,23 +2291,38 @@ function ScheduleProScreenInner() {
   // Undo / Redo (Phase 4 preview — works today for grid edits)
   // -------------------------------------------------------------------------
 
+  // History holds task arrays only, so an undo or redo that crosses an
+  // Activate puts the OTHER baseline's dates back on the tasks. The active id
+  // follows the restored tasks (baselineStampedOnTasks, #137) — set before the
+  // persist, which reads the ref — so the chip, the slip and the ghost bars
+  // never measure from two baselines after a Cmd+Z.
+  const followRestoredBaseline = useCallback((tasks: ScheduleTask[]) => {
+    const current = activeBaselineIdRef.current;
+    const stamped = baselineStampedOnTasks(tasks, baselinesRef.current, current);
+    if (stamped === undefined) return;
+    if (resolveActiveBaseline(baselinesRef.current, current)?.id === stamped) return;
+    setActiveBaselineId(stamped);
+  }, [setActiveBaselineId]);
+
   const handleUndo = useCallback(() => {
     setHist(h => {
       const n = histUndo(h);
       if (n === h) return h; // nothing to undo — don't persist a no-op
+      followRestoredBaseline(n.present);
       schedulePersist(n.present);
       return n;
     });
-  }, [schedulePersist]);
+  }, [schedulePersist, followRestoredBaseline]);
 
   const handleRedo = useCallback(() => {
     setHist(h => {
       const n = histRedo(h);
       if (n === h) return h; // nothing to redo — don't persist a no-op
+      followRestoredBaseline(n.present);
       schedulePersist(n.present);
       return n;
     });
-  }, [schedulePersist]);
+  }, [schedulePersist, followRestoredBaseline]);
 
   // -------------------------------------------------------------------------
   // Project start date — anchors the Start/Finish columns
@@ -2494,6 +2663,15 @@ function ScheduleProScreenInner() {
               </Text>
             )
           ) : null}
+          {writePath === 'field_rpc' && fieldFailureShown ? (
+            <FieldSendFailureBanner
+              message={fieldFailureShown.message}
+              onRetry={fieldFailureShown.retryable ? retryFieldSend : undefined}
+              onDismiss={dismissFieldFailure}
+              autoRetrying={fieldFailureShown.offline}
+              style={{ marginHorizontal: 16, marginTop: 8 }}
+            />
+          ) : null}
           {writePath === 'row' && fieldConflictNotice ? (
             <View style={styles.fieldConflict} testID="schedule-field-conflict-notice" accessibilityRole="alert">
               <Text style={styles.fieldConflictText}>{fieldConflictNotice}</Text>
@@ -2508,6 +2686,10 @@ function ScheduleProScreenInner() {
             onAnswer={answerStartDayBasis}
             style={{ marginHorizontal: 16, marginTop: 8 }}
           />
+          {/* The Gantt's Start today / Finish today count from the schedule's
+              REAL start (undefined when undated → date-only stamps). The shell
+              below only carries the createdAt-backfilled display start. */}
+          <GanttStampBasis.Provider value={scheduleStartIso}>
           <SchedulerTabShell
             schedule={{
               ...(project?.schedule ?? {} as import('@/types').ProjectSchedule),
@@ -2608,6 +2790,7 @@ function ScheduleProScreenInner() {
             onBulkSetCrew={handleBulkSetCrew}
             onBulkAskAI={handleBulkAskAI}
           />
+          </GanttStampBasis.Provider>
           {/* Task inspector — right-docked sibling to the tab shell. Appears
               when a task has focus (click a bar). Escape clears focus (handled
               in the keyboard effect above). Modals stay at screen level so they
@@ -2738,23 +2921,40 @@ function ScheduleProScreenInner() {
         baselines={namedBaselines}
         workingTasks={workingTasks}
         dayScale={summaryScale}
-        activeBaselineId={namedBaselines.length > 0 ? namedBaselines[namedBaselines.length - 1].id : null}
+        activeBaselineId={activeBaseline?.id ?? null}
         onBaselinesChange={(next) => {
+          // Deleting the ACTIVE baseline clears the id and makes the newest
+          // remaining one the yardstick — and its dates must go back on the
+          // tasks, or the ghost bars keep measuring from the deleted one.
+          const prevList = baselinesRef.current;
+          const after = activeBaselineAfterChange(activeBaselineIdRef.current, prevList, next);
           baselinesRef.current = next;
           setNamedBaselines(next);
+          setActiveBaselineId(after.activeBaselineId);
+          // A capture (the list grew) is followed by onActivate(snap), which
+          // re-stamps the tasks itself — only a DELETE re-applies here.
+          if (after.reapply && next.length < prevList.length) {
+            // Tasks + baselines + id go out together through the persist.
+            commit(prev => reapplyBaselineToTasks(prev, after.active));
+            return;
+          }
           // No commit here — baselines aren't tasks; the commit happens
           // through the persist debounce that picks up baselinesRef.
           if (project) {
             updateProject(project.id, {
-              schedule: {
+              schedule: withActiveBaselineId({
                 ...(project.schedule as ProjectSchedule),
                 baselines: next,
-              },
+              }, after.activeBaselineId),
             });
           }
         }}
         onActivate={(baseline) => {
-          commit(prev => applyBaselineToTasks(prev, baseline));
+          // ONE save: the id rides the same debounced persist as the task
+          // baselines this commit writes, so the chip, the slip and the ghost
+          // bars can never be left pointing at two baselines.
+          setActiveBaselineId(baseline.id);
+          commit(prev => reapplyBaselineToTasks(prev, baseline));
         }}
       />
 
@@ -2929,6 +3129,14 @@ function HeaderBtn({
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  // The entry gate's non-paywall states (#91): loading, a failed role read,
+  // no access to the job named in the link.
+  gateWrap: { flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 },
+  gateTitle: { fontSize: Type.headline.fontSize, fontWeight: '700', color: t.text, textAlign: 'center' },
+  gateBody: { fontSize: Type.subhead.fontSize, color: t.textSecondary, textAlign: 'center', maxWidth: 420, lineHeight: 20 },
+  gateActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  gateBtn: { ...cardSurface(t, { radius: 'md', pad: 'none' }), paddingHorizontal: 16, paddingVertical: 10 },
+  gateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.accent },
 
   // Top-aligned, not vertically centred: centring four lines on a 900pt-tall
   // phone left the top half of the screen blank, which reads as a screen that

@@ -12,7 +12,7 @@
 // is deliberately not used for any OSHA column.
 
 import type { SafetyIncident, OshaIllnessType } from '@/types';
-import { hasRestriction, isOshaRecordable } from './osha';
+import { hasRestriction, isOshaRecordable, injuredPersonOf } from './osha';
 import { toCalendarDayString } from '@/utils/calendarDate';
 
 export type { OshaIllnessType };
@@ -25,8 +25,14 @@ export interface OshaEstablishment {
 
 export interface Osha300Row {
   caseNo: string;          // sequential 1..N within the log
-  employeeName: string;    // first injured person, or '—'
+  /** The incident this row was built from, so the OSHA screen can open it
+   *  for the fix instead of sending him back through the incidents list. */
+  incidentId: string;
+  employeeName: string;    // the injured person ('Privacy case' when marked), or '—'
   jobTitle: string;        // that person's role, or '—'
+  /** What the 300 still needs on this row ('employee name', 'job title').
+   *  Empty when the row is complete. Screen-only; never printed. */
+  missing: string[];
   dateOfIncident: string;  // 'YYYY-MM-DD'
   location: string;        // "where the event occurred"
   description: string;     // injury description if present, else incident description
@@ -64,13 +70,25 @@ function classificationForOutcome(inc: SafetyIncident): OshaClassification {
   return 'other';
 }
 
-/** Assemble a single OSHA 300 row from an incident and its 1-based case number. */
+/** Assemble a single OSHA 300 row from an incident and its 1-based case number.
+ *
+ *  The employee is the person MARKED injured (audit #88), not blindly
+ *  peopleInvolved[0], which could be the witness. Blank is treated as missing:
+ *  `?? '—'` let an empty string through, so a person row with no name printed
+ *  an empty Employee cell on the screen, the CSV and the PDF alike. */
 export function oshaRowFromIncident(inc: SafetyIncident, caseNumber: number): Osha300Row {
-  const person = inc.peopleInvolved && inc.peopleInvolved.length > 0 ? inc.peopleInvolved[0] : undefined;
+  const person = injuredPersonOf(inc.peopleInvolved);
+  const name = person?.privacyCase ? 'Privacy case' : (person?.name ?? '').trim();
+  const title = (person?.role ?? '').trim();
+  const missing: string[] = [];
+  if (!name) missing.push('employee name');
+  if (!title) missing.push('job title');
   return {
     caseNo: String(caseNumber),
-    employeeName: person?.name ?? '—',
-    jobTitle: person?.role ?? '—',
+    incidentId: inc.id,
+    employeeName: name || '—',
+    jobTitle: title || '—',
+    missing,
     dateOfIncident: (inc.occurredAt ?? '').slice(0, 10),
     location: inc.location ?? '',
     description: person?.injuryDescription || inc.description || '',
@@ -107,14 +125,80 @@ export function isRecordableCase(inc: SafetyIncident): boolean {
   });
 }
 
+/** The log year of an incident, or null when its date is not a readable
+ *  YYYY-MM-DD. A free-text '9/18/26' used to slice to '9/18' — no year's log
+ *  matched it, and the year chips offered '9/18' as a year (audit #168). */
+export function oshaYearOf(inc: Pick<SafetyIncident, 'occurredAt'>): string | null {
+  const m = /^(\d{4})-\d{2}-\d{2}/.exec((inc.occurredAt ?? '').trim());
+  return m ? m[1] : null;
+}
+
+/** The year the 300 log opens on, and the year the Safety hub's tile counts.
+ *  ONE helper, so the tile and the log it opens cannot count different years
+ *  again (audit #169: the tile counted every year, the log showed this one). */
+export function currentOshaYear(now: Date = new Date()): string {
+  return String(now.getFullYear());
+}
+
+/** Every year with a recordable case, plus `currentYear`, newest first. Only
+ *  four-digit years from a readable date become a year. */
+export function availableOshaYears(incidents: SafetyIncident[], currentYear: string): string[] {
+  const years = new Set<string>([currentYear]);
+  for (const inc of incidents) {
+    if (!isRecordableCase(inc)) continue;
+    const y = oshaYearOf(inc);
+    if (y) years.add(y);
+  }
+  return Array.from(years).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+}
+
+/** Recordable cases whose date no year's log can read. They are counted as
+ *  recordable everywhere else, so the OSHA screen names them ("date needs
+ *  fixing") rather than letting them vanish from every year silently. */
+export function recordablesWithUnreadableDates(incidents: SafetyIncident[]): SafetyIncident[] {
+  return incidents.filter((i) => isRecordableCase(i) && !oshaYearOf(i));
+}
+
+/** The slice of a Project the establishment filter reads. */
+export interface OshaProjectLike {
+  id: string;
+  ownerUserId?: string | null;
+  myRole?: string | null;
+}
+
+/**
+ * The incidents that belong on THIS user's OSHA 300: cases on projects he
+ * owns. With project-scoped safety RLS (20260919130000) a foreman who files an
+ * injury on his GC's job keeps a copy of his own row, and without this filter
+ * that case would also land on the foreman's own establishment log. The 300 is
+ * per-employer; the GC's job is the GC's record.
+ *
+ * A project this device doesn't know (deleted, or not loaded) keeps its cases
+ * — they were filed from this account and there is no evidence they are
+ * someone else's.
+ */
+export function incidentsForOwnEstablishment(
+  incidents: SafetyIncident[],
+  projects: readonly OshaProjectLike[],
+  userId: string | null | undefined,
+): SafetyIncident[] {
+  const shared = new Set(
+    projects
+      .filter((p) => (p.ownerUserId && userId ? p.ownerUserId !== userId : !!p.myRole))
+      .map((p) => p.id),
+  );
+  return incidents.filter((i) => !shared.has(i.projectId));
+}
+
 /** Build the full OSHA 300 log: recordable incidents only, scoped to a single
  *  calendar `year` (the OSHA 300 is a per-year, per-establishment form), sorted
  *  oldest→newest, numbered 1..N. Omit `year` to include every year (used by the
- *  pure-function validator). */
+ *  pure-function validator). With a year, only a READABLE date in that year
+ *  counts — see oshaYearOf. */
 export function buildOsha300Log(incidents: SafetyIncident[], year?: string): Osha300Row[] {
   const recordable = incidents
     .filter(isRecordableCase)
-    .filter((i) => !year || (i.occurredAt ?? '').slice(0, 4) === year)
+    .filter((i) => !year || oshaYearOf(i) === year)
     .sort((a, b) => (a.occurredAt < b.occurredAt ? -1 : a.occurredAt > b.occurredAt ? 1 : 0));
   return recordable.map((inc, idx) => oshaRowFromIncident(inc, idx + 1));
 }

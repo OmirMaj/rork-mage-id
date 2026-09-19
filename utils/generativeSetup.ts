@@ -225,20 +225,20 @@ export function packagePlanToBidPackage(
 }
 
 /** Map a plan submittal to the shape ProjectContext.addSubmittal expects.
- *  requiredDate defaults to +30 days; the GC adjusts on the submittal screen. */
+ *  requiredDate starts BLANK (#60): "+30 days from setup" was a deadline nobody
+ *  set, which the chase list then enforced against the reviewer. He sets it on
+ *  the submittal screen, where the Required Date says when it is empty. */
 export function submittalPlanToSubmittal(
   plan: SubmittalPlan,
   projectId: string,
 ): Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'> {
-  const required = new Date();
-  required.setDate(required.getDate() + 30);
   return {
     projectId,
     title: plan.title,
     specSection: plan.specSection,
     submittedBy: '',
     submittedDate: '',
-    requiredDate: required.toISOString(),
+    requiredDate: '',
     reviewCycles: [],
     currentStatus: 'pending',
     attachments: [],

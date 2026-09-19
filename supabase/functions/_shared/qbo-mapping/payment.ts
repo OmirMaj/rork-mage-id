@@ -8,6 +8,11 @@ interface InvoicePaymentBlob {
    *  unapplied customer credit. Recorded so the shortfall is a fact on the row
    *  rather than something an accountant has to find. */
   qboApplied?: number;
+  /** The LOCAL calendar day the money arrived ('YYYY-MM-DD'), picked on
+   *  Record Payment (audit #133). `date` stays the instant it was recorded. */
+  receivedDate?: string;
+  /** Check number / reference he typed. */
+  reference?: string;
 }
 
 // --- BEGIN qboDay (twin in ./invoice.ts) ---
@@ -141,11 +146,27 @@ export async function upsertPaymentForInvoice(conn: QboConnectionRow, encodedId:
   if (Math.round(balance * 100) <= 0) throw new Error(alreadyPaidRefusal(inv.number));
   const applied = Math.min(amount, balance);
 
+  // THE DAY HE RECEIVED IT (audit #133). A check that arrived Friday and was
+  // recorded Monday night was booked on Monday — or Tuesday, as the UTC slice
+  // did before #98 — and his bookkeeper could not match it to Friday's
+  // deposit. Record Payment now stores the day he picks as a bare calendar
+  // day, which qboDay passes through untouched; rows without one (Pay-link
+  // payments, older entries) keep #98's company-zone day of the instant.
+  const receivedDay = typeof pay.receivedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pay.receivedDate)
+    ? pay.receivedDate
+    : null;
   const body: Record<string, unknown> = {
     CustomerRef: { value: customerId },
     TotalAmt: amount,
-    TxnDate: qboDay(pay.date, (conn as { timezone?: unknown }).timezone),
+    TxnDate: qboDay(receivedDay ?? pay.date, (conn as { timezone?: unknown }).timezone),
   };
+  // The check number, where a bookkeeper looks for it. QuickBooks caps
+  // PaymentRefNum at 21 characters; the whole reference also goes into the
+  // PrivateNote below, AFTER the matching tag, so nothing is lost and the tag
+  // stays first (brackets are stripped so a typed reference can never read as
+  // a second tag).
+  const reference = typeof pay.reference === 'string' ? pay.reference.replace(/[[\]]/g, '').trim() : '';
+  if (reference) body.PaymentRefNum = reference.slice(0, 21);
   if (applied > 0) {
     body.Line = [{ Amount: applied, LinkedTxn: [{ TxnId: inv.qbo_id, TxnType: 'Invoice' }] }];
   }
@@ -160,6 +181,7 @@ export async function upsertPaymentForInvoice(conn: QboConnectionRow, encodedId:
       ` MAGE recorded $${amount.toFixed(2)} against invoice #${inv.number}, which was open for $${balance.toFixed(2)}. ` +
       `$${(amount - applied).toFixed(2)} is unapplied customer credit.`;
   }
+  if (reference) body.PrivateNote += ` ${!pay.method || pay.method === 'check' ? 'Check #' : 'Ref '}${reference}`;
   const r = await qboFetch(conn, '/payment', { method: 'POST', body: JSON.stringify(body) }) as { Payment?: { Id?: string } };
   const qboPaymentId = r?.Payment?.Id;
   if (!qboPaymentId) throw new Error('QBO did not return a Payment.Id');

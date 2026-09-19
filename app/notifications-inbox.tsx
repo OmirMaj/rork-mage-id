@@ -9,6 +9,7 @@ import {
   ChevronLeft, Bell, MessageSquare, HandCoins, CheckCircle2, Inbox,
   Trash2, X, CheckCheck, Settings,
   PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package, Sunrise, CalendarCheck, UserPlus,
+  Banknote, AlertTriangle, FileText, ListChecks,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -39,6 +40,15 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
   // Sub → GC
   sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Sub invoice' },
   sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Invoice update' },
+
+  // Money in (#48) — a client paying through Stripe, or a bank payment bouncing.
+  client_invoice_paid:   { icon: <Banknote    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Client paid' },
+  client_payment_failed: { icon: <AlertTriangle size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Payment failed' },
+
+  // Field / design team → GC
+  field_report_filed:    { icon: <FileText    size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Daily report' },
+  pro_response_received: { icon: <HelpCircle  size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Design response' },
+  punch_marked_ready:    { icon: <ListChecks  size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Punch ready' },
 
   // Website → GC
   lead_received:         { icon: <UserPlus    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Website lead' },
@@ -226,6 +236,39 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         title: `${who} asked for a price`,
         body: [kind, phone].filter(Boolean).join(' · '),
       };
+    }
+    case 'client_invoice_paid': {
+      // Exact to the cent: he reconciles this against his bank.
+      const num = /^\d+$/.test(String(p.number ?? '')) ? `#${p.number}` : '';
+      const paid = fmtMoneyExact(p.amount_paid);
+      const bal = fmtMoneyExact(p.balance);
+      return {
+        title: `Client paid ${paid || 'an invoice'}${num ? ` on Invoice ${num}` : ''}`,
+        body: [p.paid_in_full === true ? 'Paid in full' : bal ? `${bal} still due` : '', projectName].filter(Boolean).join(' · '),
+      };
+    }
+    case 'client_payment_failed': {
+      const num = /^\d+$/.test(String(p.number ?? '')) ? `#${p.number}` : '';
+      const amt = fmtMoneyExact(p.amount);
+      return {
+        title: `${amt ? `A ${amt} payment` : 'A payment'} failed${num ? ` on Invoice ${num}` : ''}`,
+        body: `Nothing was credited — the invoice is still open. ${projectName}`,
+      };
+    }
+    case 'field_report_filed': {
+      const who = (p.author_name as string) || 'Your field team';
+      return { title: `${who} filed a daily report`, body: `${projectName} · review it before the homeowner sees anything.` };
+    }
+    case 'pro_response_received': {
+      const kind = p.kind === 'submittal' ? 'Submittal' : 'RFI';
+      const num = /^\d+$/.test(String(p.number ?? '')) ? ` #${p.number}` : '';
+      const who = (p.responder_name as string) || 'The design team';
+      const code = typeof p.action_code === 'string' && p.action_code.trim() ? ` — ${p.action_code.trim()}` : '';
+      return { title: `${who} responded to ${kind}${num}`, body: `${projectName}${code}` };
+    }
+    case 'punch_marked_ready': {
+      const who = (p.sub_name as string) || 'A subcontractor';
+      return { title: `${who} marked a punch item ready`, body: projectName };
     }
     case 'morning_brief':
     case 'week_close':

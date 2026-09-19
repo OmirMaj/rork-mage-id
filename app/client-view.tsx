@@ -30,7 +30,7 @@ import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/type
 import { punchListTypeOf } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
 import { documentTypeInfo } from '@/mocks/documents';
-import { fetchActiveContract } from '@/utils/contractEngine';
+import { loadActiveContract } from '@/utils/contractEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import type { ProjectDocument } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
@@ -43,7 +43,7 @@ import { linkState } from '@/utils/portalLinkExpiry';
 import { resolveContractSum, getPaidToDate, getInvoicedToDate } from '@/utils/projectFinancials';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import {
-  buildOwnerDecisions, summarizeOwnerDecisions, buildCOConsentRecord, buildCOAuditDetail,
+  buildOwnerDecisions, summarizeOwnerDecisions, buildCOConsentRecord, coCarriesTax, buildCOAuditDetail,
   ESIGN_DISCLOSURE_TEXT, ESIGN_DISCLOSURE_VERSION,
 } from '@/utils/portalOwnerCore';
 import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
@@ -320,7 +320,17 @@ export default function ClientViewScreen() {
   // comes pre-flattened in the snapshot instead.
   const contractQ = useQuery({
     queryKey: ['portal-contract', localProject?.id],
-    queryFn: () => localProject ? fetchActiveContract(localProject.id) : Promise.resolve(null),
+    // #122: a FAILED read must not look like "no contract" — fetchActiveContract
+    // returned null on a PostgREST error, so a flaky connection built a
+    // proposal (buildPortalProposal only suppresses it once a contract exists)
+    // and said "no contract yet". loadActiveContract reports the failure; the
+    // query then errors and retries instead of resolving to null.
+    queryFn: async () => {
+      if (!localProject) return null;
+      const r = await loadActiveContract(localProject.id);
+      if (!r.ok) throw new Error(r.error);
+      return r.contract;
+    },
     enabled: !!localProject?.id,
   });
   const closeoutQ = useQuery({
@@ -715,6 +725,9 @@ export default function ClientViewScreen() {
       description: approvalCO.description ?? '',
       changeAmount: approvalCO.changeAmount ?? 0,
       newContractTotal: approvalCO.newContractTotal,
+      // #131: the frozen tax lines, exactly when the portal page adds them.
+      taxAmount: coCarriesTax(approvalCO) ? approvalCO.taxAmount : undefined,
+      totalWithTax: coCarriesTax(approvalCO) ? approvalCO.totalWithTax : undefined,
       decision: approvalMode === 'approve' ? 'approved' : 'declined',
       signerName: approverName.trim(),
       signatureHash: approvalMode === 'approve' ? signatureHash : undefined,
@@ -847,18 +860,23 @@ export default function ClientViewScreen() {
   const proposalBlock: PortalProposal | undefined = useMemo(() => {
     if (isSnapshotMode) return remote.snapshot?.proposal;
     if (!localProject || !localPortalSettings) return undefined;
+    // Only once the contract read has SUCCEEDED: the proposal is suppressed
+    // when a contract exists, so building it off a failed read would preview
+    // a proposal the portal is not showing (#122).
+    if (!contractQ.isSuccess) return undefined;
     return buildPortalProposal({
       project: localProject,
       portal: localPortalSettings,
       contractorName: settings?.branding?.companyName ?? 'MAGE ID',
       contract: contractQ.data ?? undefined,
     });
-  }, [isSnapshotMode, remote.snapshot, localProject, localPortalSettings, settings, contractQ.data]);
+  }, [isSnapshotMode, remote.snapshot, localProject, localPortalSettings, settings, contractQ.data, contractQ.isSuccess]);
 
   const contractSum = resolveContractSum(project, contractQ.data);
   const contractValue = contractSum.value;
   /** True when this render COULD have seen a contract and found none. */
-  const contractWasChecked = !isSnapshotMode && !!localProject?.id && !contractQ.isPending;
+  // isSuccess, not !isPending: a read that FAILED checked nothing (#122).
+  const contractWasChecked = !isSnapshotMode && !!localProject?.id && contractQ.isSuccess;
   // MONEY-PAID-DRAFT-1: through the shared definitions, not re-derived here.
   // These two reduces used to be inline and unfiltered, so this screen counted
   // payments logged against DRAFT invoices as money collected while

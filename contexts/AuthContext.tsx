@@ -7,7 +7,7 @@ import { supabase, onSessionExpired } from '@/lib/supabase';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { PENDING_DEEPLINK_KEY } from '@/utils/pendingDeepLink';
 import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
-import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
+import { OWNER_STAMPED_PENDING_KEYS, selectTenantKeysToWipe } from '@/utils/localCacheKeys';
 import { processOfflineQueue, getOfflineQueue, clearOfflineQueue, retainOfflineQueueForUser } from '@/utils/offlineQueue';
 import { runPreSignOutFlushes } from '@/utils/preSignOutFlush';
 import { processPhotoUploadQueue, clearPhotoUploadQueue, retainPhotoUploadQueueForUser } from '@/utils/photoUploadQueue';
@@ -21,6 +21,7 @@ import * as Crypto from 'expo-crypto';
 import { makeRedirectUri } from 'expo-auth-session';
 import type { Session, User } from '@supabase/supabase-js';
 import { showAlert } from '@/utils/alert';
+import { createAuthEventHold, holdAuthEvents, offerAuthEvent, releaseAuthEvents, type AuthEventHold } from '@/utils/authEventHold';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -311,6 +312,15 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean; keepLastU
     } catch (err) {
       console.log('[Auth] Failed to clear offline queue:', err);
     }
+    // Owed-to-the-server records with no flush of their own (the CO audit
+    // entries whose UPDATE rode the queue just emptied). The sweep below keeps
+    // them for a same-user re-auth; a deliberate sign-out drops them with the
+    // queue they belong to.
+    try {
+      await AsyncStorage.multiRemove([...OWNER_STAMPED_PENDING_KEYS]);
+    } catch (err) {
+      console.log('[Auth] Failed to clear pending CO audit entries:', err);
+    }
   }
   try {
     await AsyncStorage.multiRemove(LOCAL_USER_CACHE_KEYS as unknown as string[]);
@@ -583,12 +593,58 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // sign-out instead of starting another flush + signOut + wipe underneath it.
   const [signingOut, setSigningOut] = useState(false);
   const logoutInFlight = useRef<Promise<void> | null>(null);
+  // Auth events held back from React while a handoff runs (utils/authEventHold):
+  // the mount's marker check and signup() hold them, so no provider hydrates
+  // the arriving account over the previous tenant's cache.
+  const authHoldRef = useRef<AuthEventHold<Session>>(createAuthEventHold<Session>());
+  const applyAuthSessionRef = useRef<(s: Session | null) => void>(() => {});
+  // onNewSessionEstablished is declared below the mount effect; the effect
+  // reaches it through this ref (assigned on every render, before effects run).
+  const onNewSessionRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     console.log('[Auth] Initializing Supabase auth listener');
+    const applyAuthSession = (newSession: Session | null) => {
+      if (newSession?.user) {
+        setSession(newSession);
+        setUser(mapSupabaseUser(newSession.user));
+        setIsAuthenticated(true);
+        setSessionExpiredReason(null);
+      } else {
+        setSession(null);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    };
+    applyAuthSessionRef.current = applyAuthSession;
+    // Held until the mount has checked the session against the last-user
+    // marker (below) — the INITIAL_SESSION event must not hand the account to
+    // the app first.
+    const mountHold = authHoldRef.current;
+    holdAuthEvents(mountHold);
 
-    void supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+    void supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
       console.log('[Auth] Initial session:', currentSession ? 'found' : 'none');
+      // data-session critic: on the WEB a session can change hands before any
+      // app code runs — detectSessionInUrl redeems a sign-up confirmation (or
+      // recovery) link at client construction. When the marker names someone
+      // else (e.g. the previous user's session expired, A4 kept their caches,
+      // and a new account was confirmed in the same browser), run the full
+      // tenant handoff BEFORE the app sees the new account. The early return
+      // below for "a marker exists" used to skip it entirely. Web only: on
+      // native every sign-in path runs its own handoff before the session, and
+      // a mismatch there would drop a queue the handoff cannot inspect.
+      if (Platform.OS === 'web' && currentSession?.user) {
+        const last = await readLastUser().catch(() => null);
+        if (last && last.id !== currentSession.user.id) {
+          console.log('[Auth] Session at mount is not the last user on this browser — running the tenant handoff first');
+          try {
+            await onNewSessionRef.current?.();
+          } catch (err) {
+            console.log('[Auth] Tenant handoff at mount failed:', err);
+          }
+        }
+      }
       if (currentSession?.user) {
         setSession(currentSession);
         setUser(mapSupabaseUser(currentSession.user));
@@ -676,20 +732,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }).catch((err) => {
       console.log('[Auth] Failed to get initial session (network error):', err);
       setIsLoading(false);
+    }).finally(() => {
+      releaseAuthEvents(mountHold, applyAuthSession);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       console.log('[Auth] Auth state changed:', _event);
-      if (newSession?.user) {
-        setSession(newSession);
-        setUser(mapSupabaseUser(newSession.user));
-        setIsAuthenticated(true);
-        setSessionExpiredReason(null);
-      } else {
-        setSession(null);
-        setUser(null);
-        setIsAuthenticated(false);
-      }
+      offerAuthEvent(authHoldRef.current, newSession, applyAuthSession);
     });
 
     void getStoredCredentials().then(creds => {
@@ -968,6 +1017,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       keepQueue ? 'preserved' : 'dropped',
     );
   }, [queryClient]);
+  onNewSessionRef.current = () => onNewSessionEstablished();
 
   const login = useCallback(async (email: string, password: string, rememberMe: boolean = true) => {
     console.log('[Auth] Logging in');
@@ -1014,33 +1064,68 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     const emailRedirectTo = Platform.OS === 'web'
       ? 'https://app.mageid.app/'
       : PRIMARY_SCHEME;
-    // SYNC-F13: a new account is (almost always) a different tenant — wipe the
-    // previous user's caches BEFORE the session exists.
-    const handoff = await beginSignIn({ email: email.toLowerCase().trim() });
-    if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.toLowerCase().trim(),
-      password,
-      options: {
-        data: { name },
-        emailRedirectTo,
-      },
-    });
+    // #72: nothing local is touched until signUp has SUCCEEDED for a real new
+    // account. The tenant wipe used to run here, before the call — so a
+    // sign-up that errored, or the obfuscated "already registered" reply
+    // below, still cleared the previous user's caches.
+    //
+    // data-session critic: but supabase-js fires SIGNED_IN INSIDE signUp,
+    // before it resolves — so with the wipe after the call, the app saw the
+    // new account and started hydrating it over the previous tenant's caches
+    // (SYNC-F13). Hold auth events from here until the handoff below is done;
+    // the held session is applied on release (the finally), whatever happens.
+    let signedUpUser: User;
+    holdAuthEvents(authHoldRef.current);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.toLowerCase().trim(),
+        password,
+        options: {
+          data: { name },
+          emailRedirectTo,
+        },
+      });
 
-    if (error) {
-      console.log('[Auth] Signup error:', error.message);
-      throw new Error(error.message);
+      if (error) {
+        console.log('[Auth] Signup error:', error.message);
+        throw new Error(error.message);
+      }
+
+      if (!data.user) {
+        throw new Error('Signup succeeded but no user returned. Check your email for verification.');
+      }
+
+      // #72: with email confirmation on, Supabase answers signUp for an address
+      // that ALREADY has an account with no error and an obfuscated user — a
+      // random id and `identities: []` — and sends no email. Treating that as
+      // success showed "Confirm your email" for an account that is already
+      // confirmed, and completeSignIn then saw the email match the last-user
+      // marker with a different id and ran the FULL wipe: offline queue, photo
+      // and audio queues, every local-only mageid_*/mage_* record — and wrote the
+      // random id into the marker, poisoning the next real sign-in into a second
+      // full wipe. Say what happened and touch nothing.
+      if ((data.user.identities?.length ?? 0) === 0) {
+        throw new Error('An account with this email already exists — sign in instead.');
+      }
+
+      // #72: only a sign-up that returned a SESSION hands the device over here.
+      // An unconfirmed sign-up has no session, so there is no tenant switch yet:
+      // the confirmation link's session arrives through beginSessionFromToken /
+      // onNewSessionEstablished, which make that decision themselves.
+      if (data.session) {
+        // SYNC-F13: a new account is (almost always) a different tenant — wipe
+        // the previous user's re-fetchable caches, then the shared-device guard
+        // drops the previous tenant's offline queues (SYNC-F2). The app has not
+        // seen the new session yet (held above).
+        const handoff = await beginSignIn({ id: data.user.id, email: email.toLowerCase().trim() });
+        if (!handoff.sameUser) await wipeLocalUserCache(PRE_SESSION_WIPE);
+        await completeSignIn(data.user, handoff);
+      }
+      signedUpUser = data.user;
+    } finally {
+      releaseAuthEvents(authHoldRef.current, applyAuthSessionRef.current);
     }
-
-    if (!data.user) {
-      throw new Error('Signup succeeded but no user returned. Check your email for verification.');
-    }
-
-    // Same shared-device guard as login — the previous tenant's offline queues
-    // are dropped now that a different user's session exists.
-    await completeSignIn(data.user, handoff);
-
-    const authUser = mapSupabaseUser(data.user);
+    const authUser = mapSupabaseUser(signedUpUser);
     console.log('[Auth] Signup successful');
     // Funnel entry — distinct from user_logged_in so signup→activation is
     // measurable (login.tsx only ever emitted logged_in, even for new users).
@@ -1185,7 +1270,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       tableErrors?: string[];
     }>('delete-account', { method: 'POST' });
     if (error) {
-      throw new Error(`Could not delete account: ${error.message}`);
+      // #175: supabase.functions.invoke drops the body of a non-2xx reply, so
+      // every server abort surfaced as "Edge Function returned a non-2xx
+      // status code" — at the moment he most needs to know whether his account
+      // is gone. The function's own `error` text is the only source of truth
+      // (it says "Nothing was deleted" only on the paths where that is so; its
+      // catch-all can follow partial deletes), so pass it through verbatim and
+      // never add a reassurance of our own. The status codes stay the server's.
+      const ctx = (error as { context?: { json?: () => Promise<unknown> } }).context;
+      const body = ctx && typeof ctx.json === 'function'
+        ? await ctx.json().catch(() => null) as { error?: unknown } | null
+        : null;
+      const serverText = typeof body?.error === 'string' && body.error.trim() ? body.error.trim() : null;
+      throw new Error(serverText ?? `Could not delete account: ${error.message}`);
     }
     if (!data?.success) {
       throw new Error(data?.error ?? 'Account deletion failed.');
@@ -1321,7 +1418,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Magic link sent');
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
+  // #159: resolves TRUE only once a session exists (completeSignIn ran).
+  // Every quiet exit — the native chooser dismissed, an empty GIS token, the
+  // redirect sheet closed, a callback with no access token — resolves FALSE,
+  // so the calling screen stays put instead of firing a success haptic, a
+  // false USER_LOGGED_IN and a navigation the root gate then bounces to /login
+  // (stashing that destination as a pending link to replay later).
+  const signInWithGoogle = useCallback(async (): Promise<boolean> => {
     console.log('[Auth] Starting Google sign-in');
     try {
       // ─── Native iOS / Android flow ───
@@ -1374,14 +1477,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (native flow)');
           await completeSignIn(data.user ?? data.session?.user, handoff);
-          return;
+          return true;
         } catch (gErr) {
           const code = (gErr as { code?: string | number })?.code;
           const msg = String((gErr as Error)?.message || gErr || '');
           // User cancellation — silent return, NOT an error to surface.
           if (code === 'SIGN_IN_CANCELLED' || code === '-5' || code === 12501) {
             console.log('[Auth] Google sign-in cancelled');
-            return;
+            return false;
           }
           // Native module missing (older binary on top of newer JS bundle).
           // Logged once at info level — falls through to web OAuth which
@@ -1420,7 +1523,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           const idToken = await promptGoogleIdentityServices();
           if (!idToken) {
             console.log('[Auth] GIS sign-in cancelled or empty token');
-            return;
+            return false;
           }
           // SYNC-F13: wipe the previous tenant BEFORE the session switches.
           const handoff = await beginSignIn({ email: decodeJwtClaims(idToken)?.email });
@@ -1432,7 +1535,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (web GIS flow)');
           await completeSignIn(data.user ?? data.session?.user, handoff);
-          return;
+          return true;
         } catch (gisErr) {
           // Fall through to the legacy redirect flow if GIS isn't
           // available (script blocked, popup blocker, GCP misconfig).
@@ -1475,11 +1578,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             if (sessionError) throw sessionError;
             console.log('[Auth] Google sign-in session set successfully');
             await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
+            return true;
           } else {
             console.log('[Auth] No access token found in Google callback URL');
           }
         }
       }
+      // The redirect sheet was dismissed or came back without a token.
+      return false;
     } catch (err) {
       console.error('[Auth] Google sign-in error:', err);
       showAlert('Sign In Failed', 'Could not sign in with Google. Please try again.');
@@ -1487,7 +1593,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
   }, [beginSignIn, completeSignIn]);
 
-  const signInWithApple = useCallback(async () => {
+  // #159: same contract as signInWithGoogle — true only after completeSignIn.
+  const signInWithApple = useCallback(async (): Promise<boolean> => {
     console.log('[Auth] Starting Apple sign-in');
     try {
       // ─── iOS native flow ───
@@ -1547,7 +1654,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         }
         console.log('[Auth] Apple sign-in session set (native iOS flow)');
         await completeSignIn(data.user ?? data.session?.user, handoff);
-        return;
+        return true;
       }
 
       // ─── Android / web fallback ───
@@ -1585,17 +1692,20 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             if (sessionError) throw sessionError;
             console.log('[Auth] Apple sign-in session set successfully');
             await completeSignIn(sessionData.user ?? sessionData.session?.user, handoff);
+            return true;
           } else {
             console.log('[Auth] No access token found in Apple callback URL');
           }
         }
       }
+      // The redirect sheet was dismissed or came back without a token.
+      return false;
     } catch (err) {
       // User-cancelled is a normal path on iOS — don't show an error.
       const code = (err as { code?: string })?.code;
       if (code === 'ERR_REQUEST_CANCELED' || code === 'ERR_CANCELED') {
         console.log('[Auth] Apple sign-in cancelled by user');
-        return;
+        return false;
       }
       console.error('[Auth] Apple sign-in error:', err);
       showAlert('Sign In Failed', 'Could not sign in with Apple. Please try again.');

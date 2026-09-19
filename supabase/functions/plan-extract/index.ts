@@ -20,11 +20,21 @@
 // indexed nothing. `imageBase64` stays for device-only sheets (a photo that was
 // never uploaded) and for one release of older clients.
 //
+// OWNER SCOPE (audit #161). A storagePath read is a read of a PROJECT's
+// sheet, so it is metered on the project OWNER's plan: after the caller is
+// confirmed as the owner or an accepted collaborator, the Business gate and the
+// monthly plan_extract cap are the owner's, and the unit is charged to him.
+// Only the owner or an editor may spend it (a viewer or field seat asks the
+// index, it does not build it). The hourly limit stays on the caller. A bare
+// imageBase64 has no project and stays on the caller's own plan.
+//
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { loadPlanSheetImageParts, planSheetProjectId, PlanSheetAccessError } from "../_shared/planSheetBytes.ts";
+import { mayWritePlanIndex, tierMeets, ownerPlanRefusal, type Tier } from "../project-memory-embed/planScope.ts";
+import { resolvePlanScope, tierOfUser } from "../project-memory-embed/planScopeIo.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MAX_PAGE_BYTES = 8 * 1024 * 1024;
@@ -192,8 +202,12 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return jsonResponse({ success: false, error: "Method not allowed" }, 405);
 
-  const auth = await requireTier(req, ["business", "enterprise"], "plan_extract");
+  // Identity first; the Business gate runs below against whoever is metered.
+  const auth = await requireTier(req, ["free", "pro", "business", "enterprise"], "plan_extract");
   if (!auth.ok) return jsonResponse(auth.body, auth.status);
+  // Charged after the model answers — to the caller, or for a project sheet to
+  // the project owner (set below, before any spend).
+  let meter: { userId: string; tier: Tier } = { userId: auth.userId, tier: auth.tier };
 
   try {
     const body = await req.json() as PlanExtractRequest;
@@ -202,6 +216,28 @@ serve(async (req) => {
     const byPath = !!body && typeof body.storagePath === "string" && planSheetProjectId(body.storagePath) !== "";
     if (!body || (!byPath && (typeof body.imageBase64 !== "string" || !body.imageBase64))) {
       return jsonResponse({ success: false, error: "Missing imageBase64" }, 400);
+    }
+    let collaborator = false;
+    if (byPath) {
+      const scope = await resolvePlanScope(auth.userId, planSheetProjectId(body.storagePath));
+      // Same generic 403 as an unreachable path (DB-F11): never say which.
+      if (!scope) return jsonResponse({ success: false, error: "This plan sheet is not available on this account.", code: "sheet_unavailable" }, 403);
+      if (!mayWritePlanIndex(scope.role)) {
+        return jsonResponse({ success: false, error: "The project owner indexes the plan set — you can ask questions of the sheets they indexed.", code: "index_owner_only" }, 403);
+      }
+      if (scope.meterUserId !== auth.userId) {
+        meter = { userId: scope.meterUserId, tier: await tierOfUser(scope.meterUserId) };
+        collaborator = true;
+      }
+    }
+    if (!tierMeets(meter.tier, "business")) {
+      return jsonResponse({
+        success: false,
+        error: collaborator
+          ? ownerPlanRefusal("Reading plan sheets", "business")
+          : `This feature requires business or enterprise or higher. You're currently on ${meter.tier}.`,
+        code: "tier_required",
+      }, 403);
     }
     if (!byPath && approxBase64Bytes(body.imageBase64) > MAX_PAGE_BYTES) {
       return jsonResponse({ success: false, error: "Image too large (max 8MB). Try a lower-resolution export." }, 413);
@@ -225,12 +261,12 @@ serve(async (req) => {
     // fails CLOSED. Accepted window: N requests racing at cap-1 all pass this
     // read and each charges after, so one user's counter can overshoot the cap
     // by N-1 — never more.
-    const cap = MONTHLY_CAPS[auth.tier].plan_extract;
-    const used = await aiUsageGet(auth.userId, "plan_extract");
+    const cap = MONTHLY_CAPS[meter.tier].plan_extract;
+    const used = await aiUsageGet(meter.userId, "plan_extract");
     if (used >= cap) {
       return jsonResponse({
         success: false,
-        error: `Monthly plan-extract limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+        error: `Monthly plan-extract limit reached (${cap} on ${meter.tier}). Resets on the 1st.`,
         code: "monthly_cap_reached",
         used,
         cap,
@@ -244,7 +280,7 @@ serve(async (req) => {
     }
 
     const { text, titleBlock } = await callGemini(body);
-    const newUsed = await aiUsageIncrement(auth.userId, "plan_extract");
+    const newUsed = await aiUsageIncrement(meter.userId, "plan_extract");
     // `text` keeps its old position and meaning — Ask Your Plans embeds it
     // unchanged. `titleBlock` is additive, for the PDF importer.
     return jsonResponse({ success: true, text, titleBlock, usage: { used: newUsed, cap } });
@@ -257,7 +293,7 @@ serve(async (req) => {
     if (e instanceof UpstreamError) {
       // Charge only when the model actually answered (the spend is real even
       // if the answer was unusable); an upstream 5xx / timeout is free.
-      if (e.spent) await aiUsageIncrement(auth.userId, "plan_extract");
+      if (e.spent) await aiUsageIncrement(meter.userId, "plan_extract");
       console.error("[plan-extract] upstream failure", e.message);
       return jsonResponse({ success: false, error: e.status === 504 ? 'The AI service timed out — please try again.' : 'The AI service returned an error — please try again.', code: e.status === 504 ? 'upstream_timeout' : 'upstream_error' }, e.status);
     }

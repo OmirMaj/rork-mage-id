@@ -96,10 +96,10 @@ function MarginAlertsInner() {
   // self-perform job's labor and material overruns never reached this inbox.
   const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: ratesLoading } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
   // "Mark all read" stamps the CURRENT reading as the acknowledged baseline,
   // so it must never stamp a subs-only reading taken before the local stores
   // loaded — that would bury a real overrun as already-seen. No alerts (and so
@@ -231,7 +231,12 @@ function MarginAlertsInner() {
               <TouchableOpacity
                 key={a.id}
                 style={styles.card}
-                onPress={() => router.push({ pathname: '/margin-risk', params: { projectId: a.projectId } } as any)}
+                // An unpriced-labor alert is fixed by pricing the crew's trade on
+                // Time Tracking (where the labor rates live), not by reading the
+                // margin breakdown, which cannot price hours that have no rate.
+                onPress={() => router.push(a.kind === 'unpriced_labor'
+                  ? { pathname: '/time-tracking', params: { projectId: a.projectId } } as any
+                  : { pathname: '/margin-risk', params: { projectId: a.projectId } } as any)}
                 activeOpacity={0.7}
                 testID={`margin-alert-${a.projectId}`}
               >

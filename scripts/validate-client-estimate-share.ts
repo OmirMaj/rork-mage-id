@@ -34,7 +34,9 @@ import { toClientEstimateView } from '@/utils/clientEstimateView';
 import { proposalPaymentLines } from '@/utils/paymentTerms';
 import {
   buildClientEstimateSharePayload, encodeClientEstimateToken, decodeClientEstimateToken,
+  shareProceedBlock, SHARE_REPLY_FALLBACK,
 } from '@/utils/clientEstimateShareToken';
+import { acceptanceSentence } from '@/utils/paymentTerms';
 import type { LinkedEstimate, PaymentSplit } from '@/types';
 
 let failed = 0;
@@ -225,6 +227,62 @@ const setNowBody = setNowDecl ? balanced(review, setNowDecl.index + setNowDecl[0
 assert(/gate\.run\(\s*\{\s*terms:\s*true[^}]*\}\s*,\s*\(\)\s*=>\s*\{\s*\}\s*\)/.test(setNowBody),
   'Set now opens the same gate with a no-op continuation (nothing paused behind it)');
 assert((review.match(/<ClientDocumentAskSheet\b/g) ?? []).length === 1, 'review.tsx renders the ask sheet exactly once');
+
+// 8. How the homeowner says yes (audit 2026-09-18, #123). The link ended at
+// "Powered by MAGE ID": no phone, no email, no next step.
+{
+  const withContact = buildClientEstimateSharePayload(view, {
+    projectName: 'Kitchen', gcName: 'Acme Builders',
+    paymentSchedule: proposalPaymentLines(view.projectTotal, SPLIT_25_65_10),
+    gcPhone: ' (512) 555-0142 ', gcEmail: 'bids@acme.test', acceptance: acceptanceSentence(SPLIT_25_65_10),
+  });
+  assert(withContact.v === 1, 'the contact fields are additive — the token stays v:1');
+  assert(withContact.ph === '(512) 555-0142' && withContact.em === 'bids@acme.test', 'phone and email ride on the link, trimmed');
+  assert(withContact.acc === acceptanceSentence(SPLIT_25_65_10), 'the closing sentence is acceptanceSentence for his split — the PDF’s words');
+  const rt = decodeClientEstimateToken(encodeClientEstimateToken(withContact));
+  assert(JSON.stringify(rt) === JSON.stringify(withContact), 'a link with contact fields round-trips exactly');
+  const blank = buildClientEstimateSharePayload(view, { projectName: 'Kitchen', gcPhone: '', gcEmail: '   ' });
+  assert(!('ph' in JSON.parse(JSON.stringify(blank))) && !('em' in JSON.parse(JSON.stringify(blank))),
+    'an unsaved phone / email is left OFF the link, never sent blank');
+  // A link minted before this change carries none of the three and must still open.
+  const old = decodeClientEstimateToken(encodeClientEstimateToken({ v: 1, n: 'Old', total: 100, scope: [] }));
+  assert(!!old, 'a link sent before the contact fields existed still decodes');
+
+  const b1 = shareProceedBlock(withContact);
+  assert(b1.phone?.href === 'tel:5125550142' && b1.phone?.label === '(512) 555-0142',
+    `the phone becomes a tel: link of its digits (${b1.phone?.href})`);
+  assert(b1.email?.href === 'mailto:bids@acme.test', `the email becomes a mailto: link (${b1.email?.href})`);
+  assert(!/reply to this estimate/.test(b1.sentence) && /contact details below/.test(b1.sentence),
+    `a web page cannot be replied to — the sentence points at the links (“${b1.sentence}”)`);
+  assert(/deposit received/.test(b1.sentence), '…and keeps the rest of his acceptance sentence');
+  const b2 = shareProceedBlock({});
+  assert(b2.sentence === SHARE_REPLY_FALLBACK && !b2.phone && !b2.email,
+    'no contact saved (or an old link): one honest line, no invented phone or email');
+  const b3 = shareProceedBlock({ acc: acceptanceSentence(null) });
+  assert(/reply to the message this link came in/.test(b3.sentence), 'a sentence with no contact points at the message the link came in');
+  const b4 = shareProceedBlock({ ph: 'javascript:alert(1)', em: 'not an email' });
+  assert(!b4.phone && !b4.email, 'a crafted token cannot make a contact link out of junk');
+  const b5 = shareProceedBlock({ ph: '+1 512 555 0142' });
+  assert(b5.phone?.href === 'tel:+15125550142', `only digits and + reach the tel: target (${b5.phone?.href})`);
+
+  // The screen renders it, to the cent.
+  const shared = stripComments(readFileSync(join(ROOT, 'app', 'shared-estimate.tsx'), 'utf8'));
+  assert(/shareProceedBlock\(payload\)/.test(shared) && /testID="shared-estimate-proceed"/.test(shared),
+    'shared-estimate renders the To proceed block from shareProceedBlock');
+  assert(/Linking\.openURL\(proceed\.phone!\.href\)/.test(shared) && /Linking\.openURL\(proceed\.email!\.href\)/.test(shared),
+    '…whose links open the tel: / mailto: targets it built');
+  assert(/minimumFractionDigits: 2, maximumFractionDigits: 2/.test(shared) && !/Math\.round\(n\)/.test(shared),
+    'shared-estimate prints money to the cent, not Math.round whole dollars');
+
+  // Review fills them from his saved branding and the gate's split.
+  assert(new RegExp(`gcPhone:\\s*settings\\?\\.branding\\?\\.phone`).test(linkBody)
+    && new RegExp(`gcEmail:\\s*settings\\?\\.branding\\?\\.email`).test(linkBody),
+    'copyProposalLink passes his saved phone and email');
+  assert(new RegExp(`acceptance:\\s*acceptanceSentence\\(\\s*${linkParam}\\s*\\)`).test(linkBody),
+    'copyProposalLink passes acceptanceSentence(<its split argument>) — the same split the schedule uses');
+  assert(/validThrough:\s*toCalendarDayString\(addCalendarDays\(new Date\(\), 30\)\)/.test(linkBody),
+    'copyProposalLink states the 30-day validity as a calendar day');
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

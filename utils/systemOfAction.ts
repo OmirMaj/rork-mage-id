@@ -48,6 +48,9 @@ export interface ChaseItem {
   severity: ChaseSeverity;
   /** Ready-to-send follow-up the app can fire on the user's behalf. */
   nudge: string;
+  /** True when the item has never been sent (the ball is his, not the other
+   *  party's). Set on submittals, which share kind 'submittal' either way. */
+  unsent?: boolean;
   /** Route to open the underlying record. */
   route: { pathname: string; params: Record<string, string> };
 }
@@ -165,6 +168,35 @@ export function buildChaseList(opts: {
     if (!keep(d)) continue;
 
     const label = `Submittal #${s.number}: ${s.title}`;
+
+    // NEVER SENT (#60) — the same rule as the RFI branch above. A submittal
+    // with no review round on record and still 'pending' has not reached any
+    // reviewer (a send opens an in_review cycle; a portal answer adds one), so
+    // "the reviewer" cannot be the one holding it. submittedDate is NOT the
+    // test: until #60 every create path stamped it on the day the row was made
+    // (the spec-book import did it for all 38 at once), so it proves nothing.
+    // Kept under kind 'submittal' so app/waiting-on.tsx's per-kind icon table
+    // still covers it; `unsent` carries the difference.
+    const cycles = Array.isArray(s.reviewCycles) ? s.reviewCycles : [];
+    if (cycles.length === 0 && status === 'pending') {
+      items.push({
+        id: s.id,
+        kind: 'submittal',
+        unsent: true,
+        projectId: s.projectId,
+        projectName: nameById.get(s.projectId) ?? 'Project',
+        title: label,
+        waitingOn: 'you — not sent yet',
+        daysOverdue: d,
+        severity: severityFor(d),
+        nudge:
+          `${label} has not been sent for review yet, and it was needed ${d} day${d === 1 ? '' : 's'} ago. ` +
+          `Nobody is late but you — attach the product data and send it.`,
+        route: { pathname: '/submittal', params: { projectId: s.projectId, submittalId: s.id } },
+      });
+      continue;
+    }
+
     items.push({
       id: s.id,
       kind: 'submittal',

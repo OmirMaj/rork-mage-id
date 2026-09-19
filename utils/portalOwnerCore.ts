@@ -700,6 +700,12 @@ export interface COConsentRecordInput {
   description: string;
   changeAmount: number;
   newContractTotal?: number;
+  /** #131 · The CO's FROZEN sales tax and tax-inclusive total (never
+   *  recomputed). Pass both only when the CO carries non-zero tax
+   *  (coCarriesTax) — the portal page's coHasTax rule — so a no-tax record
+   *  stays byte-identical to before. */
+  taxAmount?: number;
+  totalWithTax?: number;
   decision: 'approved' | 'declined';
   signerName: string;
   /** SHA-256 of the drawn signature stroke data. Approvals only. */
@@ -713,6 +719,13 @@ export interface COConsentRecordInput {
   userAgent?: string;
   /** Minutes offset from UTC, as reported by the signer's browser. */
   timezoneOffsetMinutes?: number;
+}
+
+/** The portal page's coHasTax, for the in-app signing path: a CO carries tax
+ *  only when the app froze a non-zero amount AND a tax-inclusive total on it. */
+export function coCarriesTax(c: { taxAmount?: number | null; totalWithTax?: number | null } | null | undefined): boolean {
+  return !!c && typeof c.taxAmount === 'number' && Number.isFinite(c.taxAmount) && Math.abs(c.taxAmount) >= 0.005
+    && typeof c.totalWithTax === 'number' && Number.isFinite(c.totalWithTax);
 }
 
 /**
@@ -733,6 +746,11 @@ export function buildCOConsentRecord(input: COConsentRecordInput): string {
   ];
   if (typeof input.newContractTotal === 'number') {
     lines.push(`new_contract_total_usd: ${input.newContractTotal.toFixed(2)}`);
+  }
+  // Same two lines, same place, as the portal page's buildCOConsentRecord.
+  if (typeof input.taxAmount === 'number' && typeof input.totalWithTax === 'number') {
+    lines.push(`sales_tax_usd: ${input.taxAmount.toFixed(2)}`);
+    lines.push(`change_amount_incl_tax_usd: ${input.totalWithTax.toFixed(2)}`);
   }
   lines.push(`signer_name: ${String(input.signerName ?? '').trim()}`);
   lines.push(`signed_at: ${input.signedAt}`);

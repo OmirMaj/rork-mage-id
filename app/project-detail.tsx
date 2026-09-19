@@ -40,6 +40,12 @@ import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useSafeBack } from '@/hooks/useSafeBack';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
+import { useQueryClient } from '@tanstack/react-query';
+import Paywall from '@/components/Paywall';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import { generateUUID } from '@/utils/generateId';
@@ -47,6 +53,8 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
+import { getOfflineQueue } from '@/utils/offlineQueue';
+import { pendingIdsForTable } from '@/utils/projectContextPure';
 import { computeBulkSavings } from '@/utils/bulkSavings';
 import {
   buildPhotoSharePayload,
@@ -68,7 +76,7 @@ import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
 import { formatMoney, displayText, parseLenientNumber } from '@/utils/formatters';
-import { canViewFinancials, isFinancialsBlinded } from '@/utils/roleBlinding';
+import { canViewFinancials, isFinancialsBlinded, ROLE_LABELS } from '@/utils/roleBlinding';
 import { pricingRoleFor } from '@/utils/fieldTicketCore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
@@ -79,20 +87,21 @@ import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { buildPortalSnapshot, portalShareUrl, maskPortalLinkToken, proposalBlockReason } from '@/utils/portalSnapshot';
+import { supabase } from '@/lib/supabase';
+import { portalShareUrl, maskPortalLinkToken, proposalBlockReason } from '@/utils/portalSnapshot';
 import { Button } from '@/components/ui';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
 import { toClientEstimateView } from '@/utils/clientEstimateView';
 import { nextProposalStamp, proposalTermsState, splitLabel } from '@/utils/paymentTerms';
-import { loadBakedPassport } from '@/utils/passport/passportStore';
+import { syncPortalSnapshotLite } from '@/utils/portalLiteSync';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
-import { daysUntilCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
+import { daysUntilCalendarDay, dayOrInstantDate, calendarDayOf } from '@/utils/calendarDate';
+import { pdfFailureMessage } from '@/utils/platformFile';
 import {
   computeDailyLogCompletion, calendarOfSchedule,
   dailyLogHeadline, dailyLogEmptyDayLine, dailyLogGapLine, dailyLogTodayLine,
@@ -113,13 +122,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// Same constants as in app/client-portal-setup.tsx — kept in sync with that
-// file so the snapshot rebuilt from project-detail matches the one rebuilt
-// from the dedicated Client Portal screen.
-const PROJECT_DETAIL_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
-const PROJECT_DETAIL_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries' | 'safety';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -168,34 +172,189 @@ const STAGE_TO_STATUS: Record<LifecycleStage, 'estimated' | 'in_progress' | 'com
   closeout: 'closed',
 };
 
-type PortalOpenBook = ReturnType<typeof buildPortalSnapshot>['openBook'];
+// ── Pure hub rules ───────────────────────────────────────────────────────
+// Module-level and free of React so scripts/validate-project-hub-rules.ts can
+// lift each function out of this file and RUN it (the carriedOpenBook
+// pattern). Keep them self-contained: no imports referenced inside.
 
 /**
- * The open-book / GMP block the LITE portal writer may carry forward from the
- * last RICH snapshot (it builds none itself — it passes no commitments).
- * Nothing while the job is not open-book / GMP: the portal renders any block
- * it finds. And the contract TERMS are re-stamped from the project as it is
- * now — the portal titles the block from `mode` and prints the cap and fee, so
- * carrying the old ones kept telling the homeowner "GMP, $480,000 cap" after
- * the GC switched the job to open book or edited the cap, until he happened to
- * reopen Client Portal setup (integration round 3). The cost figures stay as
- * last published (with their asOf); they are the rich writer's to refresh.
- * scripts/validate-portal-owner.ts runs this function.
+ * A change order still waiting on someone (#39). ONE predicate for both the
+ * "Pending" chip's count and the list it filters: the two were separate
+ * copies, neither had 'submitted', so every CO he had SENT was in no chip but
+ * "All" — while its orphan "Approve CO #N" row still showed under the list.
  */
-function carriedOpenBook(
-  prev: PortalOpenBook | undefined,
-  project: Pick<Project, 'contractMode' | 'gmpCap' | 'contractorFeePercent' | 'contractorFeeAmount'>,
-): PortalOpenBook | undefined {
-  const mode = project.contractMode;
-  if (mode !== 'gmp' && mode !== 'open_book') return undefined;
-  if (!prev) return undefined;
+function isPendingCO(c: { status: string }): boolean {
+  return c.status === 'submitted' || c.status === 'under_review' || c.status === 'revised' || c.status === 'draft';
+}
+
+/**
+ * Which tiles wear a lock (#171, #91, #71, #81). The lock must say what the
+ * screen behind it will do, so it asks the SAME question the screen asks:
+ * project-scoped work goes through the collaborator grant (useProjectAccess),
+ * OWNER-ONLY features (Permits = job_costing, the Client Portal) through his
+ * own tier. While the collaborator read is in flight the project-scoped locks
+ * are withheld rather than guessed — a free foreman saw "upgrade required"
+ * flash on the very tiles he was invited to use.
+ */
+function hubLockedTileKeys(args: {
+  canAccessProject: (feature: string) => boolean;
+  canAccessOwnTier: (feature: string) => boolean;
+  roleLoading: boolean;
+}): Set<string> {
+  const s = new Set<string>();
+  const { canAccessProject, canAccessOwnTier, roleLoading } = args;
+  if (!roleLoading) {
+    if (!canAccessProject('punch_list_closeout')) s.add('punchList');
+    if (!canAccessProject('rfis_submittals')) { s.add('rfis'); s.add('submittals'); }
+    if (!canAccessProject('change_orders_invoicing')) { s.add('changeOrders'); s.add('fieldTickets'); }
+    // Plans tile routes to /plans, which gates on 'plan_markup' (Pro).
+    if (!canAccessProject('plan_markup')) s.add('plans');
+    if (!canAccessProject('safety_management')) s.add('safety');
+    // Time Tracking (#62): Business on his own jobs, or a field/editor seat on
+    // the GC's job clocking the GC's crew on the GC's plan (crew_time_tracking,
+    // the same two-way rule app/time-tracking.tsx's clock gate applies).
+    if (!canAccessOwnTier('subcontractor_management') && !canAccessProject('crew_time_tracking')) s.add('timeTracking');
+  }
+  if (!canAccessOwnTier('job_costing')) s.add('permits');
+  if (!canAccessOwnTier('client_portal')) s.add('clientPortal');
+  return s;
+}
+
+/**
+ * What this person may do to the JOB itself, by role (#92). Every write here
+ * that RLS refuses matches 0 rows with no error, which the offline queue
+ * counts as done — so a control the server will refuse must not be offered
+ * as if it worked:
+ *  - Delete: only the owner (projects_delete is `auth.uid() = user_id`); an
+ *    editor's delete is refused too. A collaborator gets "Leave project".
+ *  - Edit: owner or editor (projects_update); field and viewer see it
+ *    disabled with the reason.
+ *  - Money group / Financial Health: hidden unless the role may see money —
+ *    FAIL CLOSED while it is unknown (canViewFinancials(null) is false).
+ *  - Client Portal: owner only (its credentials are stripped for anyone else).
+ * `role` is the resolved role; the owner is recognised offline from the
+ * cached row by the caller (pricingRoleFor), never guessed here.
+ */
+function hubPermissions(role: 'owner' | 'editor' | 'viewer' | 'field' | null): {
+  showMoney: boolean;
+  showClientPortal: boolean;
+  canDelete: boolean;
+  canLeave: boolean;
+  editBlockedReason: string | null;
+} {
+  const isOwner = role === 'owner';
   return {
-    ...prev,
-    mode,
-    gmpCap: project.gmpCap,
-    feePercent: project.contractorFeePercent,
-    feeAmount: project.contractorFeeAmount,
+    showMoney: role === 'owner' || role === 'editor' || role === 'viewer',
+    showClientPortal: isOwner,
+    canDelete: isOwner,
+    canLeave: role === 'editor' || role === 'viewer' || role === 'field',
+    editBlockedReason:
+      role === 'owner' || role === 'editor' ? null
+      : role === 'viewer' ? 'You have view-only access to this job — only the project owner or an editor can change its details.'
+      : role === 'field' ? 'Field access runs the work on this job — only the project owner or an editor can change its details.'
+      : "Your access to this job hasn't been confirmed on this device yet, so its details can't be changed here. Check your signal and reopen the job.",
   };
+}
+
+/**
+ * The Team count (#173). It comes from the same collaborator rows the Team
+ * list draws (useProjectCollaborators — pending invites included, because the
+ * list shows them as "Invited"), plus the owner. While that read is loading or
+ * has failed there is NO number: "Team (1)" was a guess printed as fact.
+ */
+function teamCountLabel(args: { isLoading: boolean; isError: boolean; viewerIsOwner: boolean; rows: { status: string }[] }): string | null {
+  if (args.isLoading || args.isError) return null;
+  // A collaborator's read returns only his OWN row (RLS), so any number he
+  // could print would undercount the team. No number, not a wrong one.
+  if (!args.viewerIsOwner) return null;
+  const accepted = args.rows.filter(r => r.status === 'accepted').length;
+  const pending = args.rows.filter(r => r.status === 'pending').length;
+  const members = accepted + 1;
+  return pending > 0 ? `${members} + ${pending} pending` : String(members);
+}
+
+/**
+ * The project's RFI list order (#143). Under "Open", the one with the
+ * earliest due DAY first — overdue ones at the top, undated ones last —
+ * instead of newest number first, which pushed the oldest (most likely
+ * overdue) RFIs below a 5-row cap. `dueDay` is calendarDayOf(dateRequired):
+ * the field holds a bare day from some writers and an instant from others,
+ * and a bare day compares as a string only once both are days.
+ */
+function sortRFIsForHub<T extends { number: number; status: string; dateRequired?: string | null }>(
+  rows: T[],
+  filter: string,
+  dueDay: (value: string | null | undefined) => string | null,
+): T[] {
+  if (filter !== 'open') return rows;
+  return [...rows].sort((a, b) => {
+    const da = dueDay(a.dateRequired);
+    const db = dueDay(b.dateRequired);
+    if (da && db && da !== db) return da < db ? -1 : 1;
+    if (da && !db) return -1;
+    if (!da && db) return 1;
+    return b.number - a.number;
+  });
+}
+
+/** Submittals that need HIS action first (#143): revise & resubmit, then
+ *  rejected, then waiting on review, approved last. Stable within a rank. */
+function sortSubmittalsForHub<T extends { currentStatus: string }>(rows: T[]): T[] {
+  const RANK: Record<string, number> = {
+    revise_resubmit: 0, rejected: 1, pending: 2, in_review: 3, approved_as_noted: 4, approved: 5,
+  };
+  return rows
+    .map((row, i) => ({ row, i }))
+    .sort((a, b) => ((RANK[a.row.currentStatus] ?? 3) - (RANK[b.row.currentStatus] ?? 3)) || a.i - b.i)
+    .map(x => x.row);
+}
+
+/** The Money group's tiles — hidden together from a role that may not see money (#92). */
+const HUB_MONEY_TILE_KEYS: readonly string[] = ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'];
+
+/** Whether a tile (or a ?tile= deep link to its section) is shown to this role. */
+function hubTileVisible(key: string, perms: { showMoney: boolean; showClientPortal: boolean }): boolean {
+  if (!perms.showMoney && HUB_MONEY_TILE_KEYS.includes(key)) return false;
+  if (!perms.showClientPortal && key === 'clientPortal') return false;
+  return true;
+}
+
+/** The feature behind each locked tile — for the reason printed on it. */
+const TILE_LOCK_FEATURE: Record<string, string> = {
+  punchList: 'punch_list_closeout', rfis: 'rfis_submittals', submittals: 'rfis_submittals',
+  changeOrders: 'change_orders_invoicing', fieldTickets: 'change_orders_invoicing',
+  plans: 'plan_markup', safety: 'safety_management', permits: 'job_costing', clientPortal: 'client_portal',
+  timeTracking: 'subcontractor_management',
+};
+
+/**
+ * Why a tile is locked, in words (a blocked control says why). Permits are
+ * OWNER-ONLY (job_costing): a collaborator's upgrade would not open the GC's
+ * permits, so he is told whose they are, not sold a plan (#91, FOUNDER #91).
+ */
+function tileLockReason(key: string, role: 'owner' | 'editor' | 'viewer' | 'field' | null, requiredTier: string | null): string {
+  if (key === 'permits' && role != null && role !== 'owner') return 'Permits are managed by the project owner';
+  // A viewer seat is not locked out by a plan — a Business upsell would be a lie.
+  if (key === 'timeTracking' && role === 'viewer') return 'Clocking crew in needs a field or editor seat';
+  if (!requiredTier) return 'Upgrade required';
+  return `Needs ${requiredTier.charAt(0).toUpperCase()}${requiredTier.slice(1)}`;
+}
+
+/**
+ * What to tell a collaborator whose "Leave project" did not go through (#92),
+ * or null when it did. The server half (project-invite {action:'leave'}) ships
+ * with team-invites; until it is deployed the function answers "Unknown
+ * action", and that must read as "not available yet", never as done — the
+ * job reappearing on the next load is exactly the silent failure #92 is about.
+ */
+function leaveFailureMessage(r: { reached: boolean; serverError: string | null; ok: boolean }): string | null {
+  if (!r.reached) return "Couldn't reach the server, so you're still on this job. Check your signal and try again.";
+  if (r.serverError && /unknown action/i.test(r.serverError)) {
+    return "Leaving a project isn't available on the server yet, so you're still on this job. Ask the project owner to remove you from the Team list.";
+  }
+  if (r.serverError) return `The server didn't let you leave, so you're still on this job: ${r.serverError}`;
+  if (!r.ok) return "The server didn't confirm you left, so you're still on this job. Try again in a moment.";
+  return null;
 }
 
 function statusToStage(s: string | undefined): LifecycleStage {
@@ -230,30 +389,35 @@ export default function ProjectDetailScreen() {
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
   const { user: authUser } = useAuth();
-  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject, settingsLoaded, bidPackageBids } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject, settingsLoaded, bidPackageBids, forgetSharedProject, portalListsServerRead } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
-  const { canAccess } = useTierAccess();
+  const { canAccess, requiredTierFor } = useTierAccess();
+  // Project-scoped access (#171/#91): the tile locks ask the same question
+  // the screens behind them ask, so an invited foreman is not told "upgrade"
+  // on the Punch List he was invited to run. Call shapes kept exactly
+  // (validate-field-schedule-update pins them).
+  const { canAccess: canAccessProject } = useProjectAccess(id);
+  const roleState = useProjectRoleState(id);
   // Tiles whose screens hard-gate behind a paywall. Pre-fix a free user
   // tapped Punch List / RFIs / Change Orders and hit a full-screen wall
   // with no warning; a small lock on the tile sets the expectation.
-  const lockedTileKeys = useMemo(() => {
-    const s = new Set<SectionKey>();
-    if (!canAccess('punch_list_closeout')) s.add('punchList');
-    if (!canAccess('rfis_submittals')) { s.add('rfis'); s.add('submittals'); }
-    if (!canAccess('change_orders_invoicing')) s.add('changeOrders');
-    // Plans tile routes to /plans, which hard-gates on 'plan_markup' (Pro).
-    // Without this a free user tapped Plans and hit a full-screen wall with
-    // no warning — the same surprise the lock hint exists to prevent.
-    if (!canAccess('plan_markup')) s.add('plans');
-    return s;
-  }, [canAccess]);
+  const lockedTileKeys = useMemo(
+    () => hubLockedTileKeys({
+      canAccessProject: f => canAccessProject(f as Parameters<typeof canAccessProject>[0]),
+      canAccessOwnTier: f => canAccess(f as Parameters<typeof canAccess>[0]),
+      roleLoading: roleState.isLoading,
+    }) as Set<SectionKey>,
+    [canAccessProject, canAccess, roleState.isLoading],
+  );
 
   // Inline gate flags for the Financial Health sub-buttons and the AI
   // spec-book extract. These route into hard paywalls; a small trailing lock
   // sets the expectation instead of dropping the user onto a wall. Most of
   // these destinations gate on 'job_costing' (Pro); the Full Budget Dashboard
   // is Business, and Extract-from-spec-book is a Pro AI feature.
+  // These stay on his OWN tier: job_costing and full_budget_dashboard are
+  // OWNER_ONLY_FEATURES — the GC's book, never inherited by a collaborator.
   const lockJobCosting = !canAccess('job_costing');
   const lockBudgetDashboard = !canAccess('full_budget_dashboard');
   const lockSpecExtract = !canAccess('job_costing'); // Pro AI feature (spec book vision spend)
@@ -358,6 +522,23 @@ export default function ProjectDetailScreen() {
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
 
+  // The role that decides what this person may do to the JOB (#92, #174): the
+  // live collaborator read, else — offline, or before it lands — the role
+  // stamped on the cached project, with the owner recognised from its row
+  // (pricingRoleFor, as field-ticket does). Null means unconfirmed: every
+  // permission below fails closed on it.
+  const hubRole = roleState.role ?? pricingRoleFor(project?.myRole ?? null, project?.ownerUserId, authUser?.id);
+  const hubPerms = useMemo(() => hubPermissions(hubRole), [hubRole]);
+  // #173: the Team count reads the same rows (same react-query key) the Team
+  // list below draws, so the two can never disagree — no extra fetch.
+  const teamRoster = useProjectCollaborators(project?.id);
+  const teamCount = teamCountLabel({
+    isLoading: teamRoster.isLoading,
+    isError: teamRoster.isError,
+    viewerIsOwner: hubRole === 'owner',
+    rows: teamRoster.collaborators,
+  });
+
   // How complete the daily log is over THIS project's working days. The number
   // is coverage, not content — a day filed as "no work on site" counts exactly
   // as much as a busy one, and non-working days are never misses. Pure math
@@ -388,148 +569,32 @@ export default function ProjectDetailScreen() {
   }, [project?.scope]);
 
   // ── Portal snapshot background sync ──────────────────────────────────
-  // Pushes the homeowner-portal snapshot to Supabase any time a project
-  // with the portal enabled is viewed. Without this, the cache only
-  // refreshes when the GC opens the dedicated Client Portal setup screen
-  // — which they may rarely revisit once setup is complete, leaving
-  // shared links pointing at a missing snapshot ("link expired").
-  //
-  // The snapshot built here is "lite" — it omits sections that aren't in
-  // scope on this screen (AIA pay apps, commitments, message thread).
-  // The full rich snapshot still gets written from client-portal-setup
-  // when the GC visits that screen. Either way, the homeowner sees a
-  // working portal — the lite version covers ~90% of the data.
-  //
+  // The homeowner portal reads only portal_snapshots, so opening a job with
+  // the portal on re-publishes the LITE snapshot. The body lives in
+  // utils/portalLiteSync (shared with the provider-level sync in
+  // ProjectContext): owner-only, never from a DEFAULT (unloaded) profile, any
+  // failed rich read skips the push, only allowlisted sections are carried
+  // from the published row, and one run per project. Don't re-inline a copy
+  // of the merge here — two copies drifted before (hotfix #104, audit #44).
   // Debounced 2s so rapid edits / re-renders don't hammer the table.
+  // #23 round 2: and only while every list the snapshot is rebuilt from was
+  // read from the server since the latest return to the foreground — the
+  // provider's own gate (portalListsServerRead). A section missing from a
+  // publish is gone (#44), so publishing a failed read's empty invoices, or
+  // this morning's photos, would take them off the homeowner's page. It runs
+  // again when the flag turns true (it is a dependency).
   useEffect(() => {
-    if (!project) return;
-    // Never publish from a profile that has not loaded: `settings` is the
-    // DEFAULT (no company name, no contact email) until then, and this write
-    // would put "MAGE ID" and a blank mailto on the client's live portal.
-    if (!settingsLoaded) return;
-    const portal = project.clientPortal;
-    if (!portal?.enabled || !portal.portalId) return;
-    if (!isSupabaseConfigured) return;
-
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        const [contract, selections, closeoutBinder, homePassport] = await Promise.all([
-          fetchActiveContract(project.id).catch(() => undefined),
-          fetchSelectionsForProject(project.id).catch(() => undefined),
-          fetchCloseoutBinder(project.id).catch(() => undefined),
-          loadBakedPassport(project.id).catch(() => null),
-        ]);
-        if (cancelled) return;
-
-        const snap = buildPortalSnapshot({
-          project,
-          portal,
-          settings,
-          invoices: projectInvoices,
-          changeOrders,
-          dailyReports,
-          punchItems,
-          photos: projectPhotos,
-          rfis: projectRFIs,
-          warranties: projectWarranties,
-          // Optional rich data — fetched async, omitted on failure.
-          contract: contract ?? undefined,
-          selections: selections ?? undefined,
-          closeoutBinder: closeoutBinder ?? undefined,
-          homePassport: homePassport ?? undefined,
-          // Not in scope on project-detail. Filled by client-portal-setup.
-          aiaPayApps: [],
-          commitments: [],
-          messages: [],
-          supabaseUrl: PROJECT_DETAIL_SUPABASE_URL,
-          supabaseAnonKey: PROJECT_DETAIL_SUPABASE_ANON_KEY,
-          contactEmail: settings?.branding?.email,
-          contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
-        });
-
-        // Non-destructive merge (Audit HIGH): this "lite" writer omits the
-        // aiaPayApps / commitments / messages sections, but client-portal-setup
-        // writes the RICH snapshot to the SAME row. A blind full-replace blanked
-        // those homeowner-facing sections every time the GC merely opened the
-        // project (this is the default path). Read the existing row and carry
-        // forward any sections this lite build didn't produce; fresh lite
-        // sections still win for the ones it did. Falls back to lite on read error.
-        let snapshotToWrite: typeof snap = snap;
-        try {
-          const { data: existing } = await supabase
-            .from('portal_snapshots')
-            .select('snapshot')
-            .eq('portal_id', portal.portalId)
-            .maybeSingle();
-          const prev = existing?.snapshot as typeof snap | undefined;
-          if (prev?.sections) {
-            snapshotToWrite = {
-              ...snap,
-              messages: prev.messages?.length ? prev.messages : snap.messages,
-              // openBook is TOP-LEVEL, not under `sections`, so the spread above
-              // overwrote it with undefined on every lite write: this writer
-              // passes `commitments: []`, the builder omits the block, and
-              // merely opening the project blanked the open-book / GMP
-              // breakdown that client-portal-setup had published. The section
-              // SWITCH survived (it lives in `sections`), so the portal showed
-              // the heading with nothing under it. Carry the rich block forward
-              // exactly as `messages` is carried — but ONLY while the project is
-              // still open-book / GMP. The portal renders any openBook it finds,
-              // so carrying it after the GC moved the job to fixed price would
-              // keep publishing his cost breakdown until he next opened setup.
-              // carriedOpenBook also re-stamps mode / cap / fee from the
-              // project, so a GMP ↔ open-book switch or a cap edit shows now.
-              openBook: snap.openBook ?? carriedOpenBook(prev.openBook, project),
-              sections: { ...prev.sections, ...snap.sections },
-              // Belt and braces for the profile gate above: a blank company
-              // name or contact on THIS build never overwrites the one the
-              // portal already shows — the client keeps a real name and a
-              // working "email your contractor" link.
-              company: snap.company?.name ? snap.company : (prev.company ?? snap.company),
-              submitBudget: snap.submitBudget && prev.submitBudget
-                ? { ...snap.submitBudget, contactEmail: snap.submitBudget.contactEmail || prev.submitBudget.contactEmail, contactName: snap.submitBudget.contactName || prev.submitBudget.contactName }
-                : snap.submitBudget,
-              portalApi: snap.portalApi && prev.portalApi
-                ? { ...snap.portalApi, contactEmail: snap.portalApi.contactEmail || prev.portalApi.contactEmail, contactName: snap.portalApi.contactName || prev.portalApi.contactName }
-                : snap.portalApi,
-            };
-          }
-        } catch (mergeErr) {
-          console.warn('[portal-snapshot] merge read failed, writing lite:', mergeErr);
-        }
-
-        // DO NOT add expires_at / link_duration_days to this payload.
-        //
-        // This is a background LITE sync that fires on project open. The link's
-        // lifetime is owned solely by app/client-portal-setup.tsx, where the GC
-        // actually chooses it. PostgREST writes only the columns present in the
-        // payload, so omitting them leaves the chosen expiry untouched on
-        // conflict — including `expires_at IS NULL`, which means "never
-        // expires" and must not be re-derived from a default here.
-        //
-        // Adding them "for completeness" would silently reset every portal's
-        // expiry every time someone opened the project screen.
-        const { error } = await supabase
-          .from('portal_snapshots')
-          .upsert({
-            portal_id: portal.portalId,
-            project_id: project.id,
-            snapshot: snapshotToWrite as unknown as Record<string, unknown>,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'portal_id' });
-        if (error) console.warn('[portal-snapshot] background sync failed:', error.message);
-        else console.log('[portal-snapshot] synced for portalId', portal.portalId);
-      } catch (err) {
-        console.warn('[portal-snapshot] background sync threw:', err);
-      }
+    if (!project || !portalListsServerRead) return;
+    const t = setTimeout(() => {
+      void syncPortalSnapshotLite(project.id, {
+        project, userId: authUser?.id, settings, settingsLoaded,
+        invoices: projectInvoices, changeOrders, dailyReports, punchItems,
+        photos: projectPhotos, rfis: projectRFIs, warranties: projectWarranties,
+        permits: projectPermits,
+      });
     }, 2000);
-
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [
-    project, settings, settingsLoaded, projectInvoices, changeOrders, dailyReports,
-    punchItems, projectPhotos, projectRFIs, projectWarranties,
-  ]);
+    return () => clearTimeout(t);
+  }, [project, portalListsServerRead, authUser?.id, settings, settingsLoaded, projectInvoices, changeOrders, dailyReports, punchItems, projectPhotos, projectRFIs, projectWarranties, projectPermits]);
 
 
   // `estimate` is nullable until the project loads (or if it has no estimate
@@ -603,6 +668,8 @@ export default function ProjectDetailScreen() {
     fieldTickets: true,
     // PRODUCT-F4: routes out to /deliveries the same way — flag never read.
     deliveries: true,
+    // #81: routes out to /safety — flag never read.
+    safety: true,
     punchList: true,
     rfis: true,
     submittals: true,
@@ -818,6 +885,18 @@ export default function ProjectDetailScreen() {
     setShowEditModal(true);
   }, [project]);
 
+  // Edit is offered only where the save would land (#92): projects_update
+  // admits the owner or an editor; a field / viewer PATCH matched 0 rows and
+  // his edit vanished with no error. Every entry point — header pencil,
+  // bottom button, the ?edit=1 deep link — comes through here.
+  const requestEdit = useCallback(() => {
+    if (hubPerms.editBlockedReason) {
+      showAlert("You can't edit this job", hubPerms.editBlockedReason);
+      return;
+    }
+    openEditModal();
+  }, [hubPerms.editBlockedReason, openEditModal]);
+
   // Consume the tile/edit deep-link params exactly once, after the
   // project has loaded. NextStepHero (and any future caller) can drop
   // the user directly into the relevant section or the edit modal
@@ -828,15 +907,24 @@ export default function ProjectDetailScreen() {
     if (deepLinkConsumed.current) return;
     if (!project) return;
     if (editParam === '1' || editParam === 'true') {
+      // Wait for the role while it is still being read, so a collaborator is
+      // not told "unconfirmed" a second before it resolves.
+      if (roleState.isLoading && hubRole == null) return;
       deepLinkConsumed.current = true;
-      openEditModal();
+      requestEdit();
       return;
     }
     if (tileParam) {
+      // A link into a section this role doesn't get (#92) lands on the grid.
+      if (!hubTileVisible(tileParam, hubPerms)) {
+        if (roleState.isLoading && hubRole == null) return;
+        deepLinkConsumed.current = true;
+        return;
+      }
       deepLinkConsumed.current = true;
       setActiveTile(tileParam as SectionKey);
     }
-  }, [project, editParam, tileParam, openEditModal]);
+  }, [project, editParam, tileParam, requestEdit, roleState.isLoading, hubRole, hubPerms]);
 
   const currentStage: LifecycleStage = useMemo(
     () => statusToStage(project?.status),
@@ -996,7 +1084,7 @@ export default function ProjectDetailScreen() {
       await generateAndSharePDF(projectForPdf, branding, 'share');
     } catch (e) {
       console.error('[ProjectDetail] PDF share error:', e);
-      showAlert('Error', 'Failed to generate PDF. Please try again.');
+      showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));
     }
   }, [project, branding, showBulkSavings, totalBulkSavings]);
 
@@ -1019,11 +1107,32 @@ export default function ProjectDetailScreen() {
     [project?.clientPortal],
   );
 
+  // #71: the Client Portal is a Pro feature (client-portal-setup gates on the
+  // same key). This screen used to write enabled=true for a free account and
+  // then land him on that paywall, leaving a half-enabled portal whose link
+  // pill pointed him back to it. Nothing portal-related writes or hands out a
+  // link here without the entitlement; the locked control says why and opens
+  // the paywall instead. NOTE: this is the only enforcement — the token RPCs
+  // and trg_portal_access_token do no tier check (founder decision #71).
+  const portalEntitled = canAccess('client_portal');
+  const [portalPaywallOpen, setPortalPaywallOpen] = useState(false);
+  const openPortalPaywall = useCallback(() => {
+    // Close the tile sheet first: a modal opened from inside the iOS
+    // pageSheet mounts behind it (same reason as navigateFromTile).
+    setActiveTile(null);
+    setTimeout(() => setPortalPaywallOpen(true), Platform.OS === 'ios' ? 350 : 0);
+  }, []);
+
   const handleCopyPortalLink = useCallback(async () => {
+    if (!portalEntitled) { openPortalPaywall(); return; }
     if (!portalLink) {
+      // The key is minted by the server (trg_portal_access_token) on the
+      // write that turns the portal on — not by the setup screen's Save,
+      // which this used to send him to. It reaches this device once that
+      // write has synced and the job is re-read.
       showAlert(
-        'Secure link not ready',
-        'This portal has no signing key yet, so there is no link to share. Open Client Portal and tap Save — the key that lets your client approve and sign is created there.',
+        'Secure link on its way',
+        "The key that lets your client approve and sign is created on the server when the portal is turned on. It reaches this device once that change has synced — reopen this job in a moment and copy again. If you're offline, it arrives when you're back online.",
       );
       return;
     }
@@ -1033,7 +1142,7 @@ export default function ProjectDetailScreen() {
       ok ? 'Copied' : 'Copy failed',
       ok ? 'Portal link copied to clipboard.' : 'Could not copy the link. Long-press the URL above to select it manually.',
     );
-  }, [portalLink]);
+  }, [portalLink, portalEntitled, openPortalPaywall]);
 
   const handleShareEmail = useCallback(async () => {
     if (!project) return;
@@ -1109,7 +1218,7 @@ export default function ProjectDetailScreen() {
       await generateAndSharePDF(projectForPdf, branding, 'share');
     } catch (e) {
       console.error('[ProjectDetail] Schedule PDF share error:', e);
-      showAlert('Error', 'Failed to generate schedule PDF.');
+      showAlert('Error', pdfFailureMessage(e, 'Failed to generate schedule PDF.'));
     }
   }, [project, branding, showBulkSavings, totalBulkSavings]);
 
@@ -1124,13 +1233,27 @@ export default function ProjectDetailScreen() {
       showAlert('No RFIs', 'There are no RFIs to export on this project yet.');
       return;
     }
+    // #148: RFI numbers are assigned by the server when an RFI lands, so an
+    // RFI still in the offline queue carries a provisional number — a log
+    // printed now could hand the architect a number the server later changes.
+    try {
+      const queued = pendingIdsForTable(await getOfflineQueue(), 'rfis');
+      const waiting = projectRFIs.filter(r => queued.has(r.id)).length;
+      if (waiting > 0) {
+        showAlert(
+          'RFI log not ready',
+          `RFI numbers are assigned when an RFI reaches the server — ${waiting} RFI${waiting === 1 ? ' is' : 's are'} still waiting to sync. Try again once you're back online.`,
+        );
+        return;
+      }
+    } catch { /* an unreadable queue does not block the export; the server copy is what prints */ }
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await generateRFILogPDF(projectRFIs, project, branding);
       nailIt(`RFI log exported · ${projectRFIs.length} ${projectRFIs.length === 1 ? 'RFI' : 'RFIs'}`);
     } catch (e) {
       console.error('[ProjectDetail] RFI log PDF error:', e);
-      showAlert('Error', 'Failed to generate RFI log PDF.');
+      showAlert('Error', pdfFailureMessage(e, 'Failed to generate RFI log PDF.'));
     }
   }, [project, projectRFIs, branding]);
 
@@ -1348,6 +1471,18 @@ export default function ProjectDetailScreen() {
   // shows the loading state, not a "Project not found" flash.
   const deletingRef = useRef(false);
   const handleDelete = useCallback(() => {
+    // #92: only the owner's delete reaches the server. Anyone else's matched
+    // 0 rows under RLS while this device wiped the job and every cached child
+    // record — and the job came back on the next load.
+    if (!hubPerms.canDelete) {
+      showAlert(
+        "You can't delete this job",
+        hubPerms.canLeave
+          ? 'Only the project owner can delete it. You can leave it instead.'
+          : "Your access to this job hasn't been confirmed on this device yet. Check your signal and reopen the job.",
+      );
+      return;
+    }
     // NAME THE JOB. This is the most destructive action in the product — no
     // undo, no trash — and until 2026-09-07 it read "Delete this project and
     // everything in it?" to a GC running eight of them, on a modal that hides
@@ -1375,7 +1510,78 @@ export default function ProjectDetailScreen() {
         },
       ]
     );
-  }, [id, project?.name, deleteProject, router]);
+  }, [id, project?.name, deleteProject, router, hubPerms.canDelete, hubPerms.canLeave]);
+
+  // #92 — a collaborator's way off a job. Delete is the owner's alone (RLS
+  // refuses anyone else's delete with 0 rows and no error, which the queue
+  // counts as done, so the job came back on the next load). Leave revokes his
+  // OWN project_collaborators row on the server and only then lets the
+  // project drop from this device; the job's records are the owner's and are
+  // not touched here.
+  const queryClient = useQueryClient();
+  const safeBack = useSafeBack();
+  const [leaving, setLeaving] = useState(false);
+  const handleLeave = useCallback(() => {
+    if (!id || leaving) return;
+    const name = project?.name?.trim() || 'this project';
+    showAlert(
+      `Leave ${name}?`,
+      `You'll lose access to ${name} on every device. Nothing on the job is deleted — its records stay with the project owner. To come back, the owner has to invite you again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setLeaving(true);
+              let reached = true;
+              let serverError: string | null = null;
+              let ok = false;
+              try {
+                const res = await supabase.functions.invoke('project-invite', { body: { action: 'leave', projectId: id } });
+                if (res.error) {
+                  const err = res.error as { name?: string; message?: string; context?: { json?: () => Promise<unknown> } };
+                  if (err.name === 'FunctionsFetchError' || err.name === 'FunctionsRelayError') reached = false;
+                  else {
+                    const body = await err.context?.json?.().catch(() => null) as { error?: string } | null | undefined;
+                    serverError = body?.error ?? err.message ?? 'unknown error';
+                  }
+                } else {
+                  const data = res.data as { error?: string } | null;
+                  if (data?.error) serverError = data.error;
+                  else ok = true;
+                }
+              } catch {
+                reached = false;
+              }
+              const failure = leaveFailureMessage({ reached, serverError, ok });
+              if (failure) {
+                setLeaving(false);
+                showAlert("Couldn't leave this project", failure);
+                return;
+              }
+              // Confirmed by the server. Take the job off this device AS ONE HE
+              // LEFT (forgetSharedProject records it) before anything re-reads
+              // the list — otherwise the reload finds it gone with a foreign
+              // owner, reads that as the owner removing him (#90), and tells
+              // him so: a guess shown as fact, on top of "You left".
+              const forgot = forgetSharedProject(id);
+              void queryClient.invalidateQueries({ queryKey: ['project_collaborators', id] });
+              void queryClient.invalidateQueries({ queryKey: ['projects'] });
+              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setLeaving(false);
+              showAlert('You left the project', forgot.ok
+                ? `You're no longer on ${name}, and it has left this device.`
+                : `You're no longer on ${name}. It leaves your job list when your projects next reload.`);
+              safeBack();
+            })();
+          },
+        },
+      ],
+    );
+  }, [id, leaving, project?.name, queryClient, safeBack, forgetSharedProject]);
+
 
   // --- Estimate-dependent hooks ---
   // These must live ABOVE the `if (!project)` early return so they run on
@@ -1696,14 +1902,33 @@ export default function ProjectDetailScreen() {
     () => (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <TouchableOpacity onPress={() => router.push({ pathname: '/scan' as any, params: { projectId: id } })} style={{ padding: 6 }} activeOpacity={0.7} testID="project-scan-btn" accessibilityRole="button" accessibilityLabel="Scan a document"><ScanLine size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
-        <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
+        <TouchableOpacity onPress={requestEdit} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel={hubPerms.editBlockedReason ? `Edit, unavailable. ${hubPerms.editBlockedReason}` : 'Edit'}><Pencil size={20} color={hubPerms.editBlockedReason ? themeColors.textMuted : themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
       </View>
     ),
-    [openEditModal, router, id, themeColors.accent],
+    [requestEdit, hubPerms.editBlockedReason, router, id, themeColors.accent, themeColors.textMuted],
+  );
+  // #70/#94: opened cold from a push, a link or a reload there is nothing to
+  // pop, and the stack drew no back arrow — the job was a dead end. Offer a
+  // way to the Projects list only then; a normal push keeps the native back.
+  const canGoBack = router.canGoBack();
+  const headerLeft = useCallback(
+    () => (
+      <TouchableOpacity
+        onPress={() => router.replace('/(tabs)/(home)')}
+        style={{ padding: 6, flexDirection: 'row', alignItems: 'center' }}
+        activeOpacity={0.7}
+        testID="project-header-home"
+        accessibilityRole="button"
+        accessibilityLabel="Back to your projects"
+      >
+        <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
+      </TouchableOpacity>
+    ),
+    [router, themeColors.accent],
   );
   const stackScreenOptions = useMemo(
-    () => ({ title: project?.name || 'Project Details', headerRight }),
-    [project?.name, headerRight],
+    () => ({ title: project?.name || 'Project Details', headerRight, ...(canGoBack ? {} : { headerLeft }) }),
+    [project?.name, headerRight, canGoBack, headerLeft],
   );
 
   if (!project) {
@@ -1737,7 +1962,6 @@ export default function ProjectDetailScreen() {
   // crashes the whole screen. Treat missing/non-array items as empty.
   const linkedItems = Array.isArray(linkedEstimate?.items) ? linkedEstimate!.items : [];
   const hasAnyEstimate = !!(linkedEstimate && linkedItems.length > 0) || !!estimate;
-  const collaborators = project.collaborators ?? [];
 
   const heroTotal = effectiveEstimateTotal(project);
   const heroProgress = computeProjectProgress(project);
@@ -2108,7 +2332,7 @@ export default function ProjectDetailScreen() {
           const PEOPLE_COLOR = themeColors.info;     // blue (same as docs)
           const GROUP_BY_KEY: Partial<Record<SectionKey, string>> = {
             // field
-            dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR, deliveries: FIELD_COLOR,
+            dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR, deliveries: FIELD_COLOR, safety: FIELD_COLOR,
             punchList: FIELD_COLOR, photos: FIELD_COLOR,
             plans: FIELD_COLOR, schedule: FIELD_COLOR,
             // money
@@ -2128,7 +2352,9 @@ export default function ProjectDetailScreen() {
           const allTiles: Tile[] = [
             ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: MageEstimate, color: colorFor('linkedEstimate'), count: linkedItems.length || estimate?.materials.length || 0 }] : []),
             ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: MageSchedule, color: colorFor('schedule'), count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
-            { key: 'collaborators', label: 'Team', icon: Users, color: colorFor('collaborators'), count: collaborators.length + 1 },
+            // #173: no number while the roster is loading / failed, or for a
+            // collaborator (who can read only his own row) — never a guessed 1.
+            { key: 'collaborators', label: teamCount ? `Team (${teamCount})` : 'Team', icon: Users, color: colorFor('collaborators'), count: null as number | null },
             { key: 'contract', label: 'Contract', icon: MageContract, color: colorFor('contract'), count: null as number | null },
             { key: 'selections', label: 'Selections', icon: PenTool, color: colorFor('selections'), count: null as number | null },
             { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: colorFor('lienWaivers'), count: null as number | null },
@@ -2144,6 +2370,9 @@ export default function ProjectDetailScreen() {
             // PRODUCT-F4 / UX-F16: Deliveries had no entry point on iPhone at all.
             { key: 'deliveries', label: 'Deliveries', icon: Truck, color: colorFor('deliveries'), count: null as number | null },
             { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
+            // #81: Safety had no way in from the job. The hub and its project
+            // picker are app/safety.tsx's; this only opens it on this job.
+            { key: 'safety', label: 'Safety', icon: HardHat, color: colorFor('safety'), count: null as number | null },
             { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
             { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
             { key: 'submittals', label: 'Submittals', icon: MageSubmittal, color: colorFor('submittals'), count: projectSubmittals.length },
@@ -2161,25 +2390,35 @@ export default function ProjectDetailScreen() {
           ];
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
-            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
+            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
             { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
             { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
           ];
 
-          const tileByKey = new Map<SectionKey, Tile>(allTiles.map(t => [t.key, t]));
+          // #92: the tiles follow the role. Money (and Financial Health) only
+          // for a role that may see money — hidden, not zeroed: "Invoices (0)"
+          // to a foreman is a guess shown as fact. The Client Portal is the
+          // owner's alone. Anyone else reaching these tiles met screens that
+          // either blinded him or silently failed his writes.
+          const visibleTiles = allTiles.filter(t => hubTileVisible(t.key, hubPerms));
+          const tileByKey = new Map<SectionKey, Tile>(visibleTiles.map(t => [t.key, t]));
 
           const renderTile = (tile: Tile) => {
             // Desktop lays the tiles out as a wrapping grid; phone keeps the
             // one-per-row stack.
             const TileIcon = tile.icon;
             const isLocked = lockedTileKeys.has(tile.key);
+            const lockFeature = TILE_LOCK_FEATURE[tile.key];
+            const lockReason = isLocked
+              ? tileLockReason(tile.key, hubRole, lockFeature ? requiredTierFor(lockFeature as Parameters<typeof requiredTierFor>[0]) : null)
+              : null;
             // VoiceOver label: name + item count + locked state, so a
             // screen-reader user hears the tile is a button, how many items
             // it holds, and whether it's gated before opening it.
             const a11yLabel = `${tile.label}`
               + (tile.count != null ? `, ${tile.count} ${tile.count === 1 ? 'item' : 'items'}` : '')
-              + (isLocked ? ', locked, upgrade required' : '');
+              + (lockReason ? `, locked, ${lockReason}` : '');
             return (
               <HardHatTap
                 key={tile.key}
@@ -2200,6 +2439,7 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'safety') { router.push({ pathname: '/safety' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'fieldTickets') { router.push({ pathname: '/field-ticket' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'deliveries') { router.push({ pathname: '/deliveries', params: { projectId: id } }); return; }
@@ -2214,14 +2454,18 @@ export default function ProjectDetailScreen() {
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
-                  {tileBadges[tile.key] && (
+                  {tileBadges[tile.key] ? (
                     <Text
                       style={[styles.sectionTileStatus, { color: STATUS_TONES[tileBadges[tile.key]!.tone].color }]}
                       numberOfLines={1}
                     >
                       {tileBadges[tile.key]!.label}
                     </Text>
-                  )}
+                  ) : lockReason ? (
+                    <Text style={[styles.sectionTileStatus, { color: themeColors.textMuted }]} numberOfLines={1} testID={`section-tile-lock-reason-${tile.key}`}>
+                      {lockReason}
+                    </Text>
+                  ) : null}
                 </View>
                 {tile.count !== null && tile.count !== undefined && (
                   <View style={styles.sectionTileBadge}>
@@ -2875,7 +3119,7 @@ export default function ProjectDetailScreen() {
           >
             <Users size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
-              Team ({collaborators.length + 1})
+              {teamCount ? `Team (${teamCount})` : 'Team'}
             </Text>
             {expanded.collaborators ? (
               <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -2886,20 +3130,63 @@ export default function ProjectDetailScreen() {
 
           {expanded.collaborators && (
             <View style={styles.collabCard}>
-              <View style={styles.collabMember}>
-                <View style={[styles.collabAvatar, { backgroundColor: themeColors.accent }]}>
-                  <Crown size={14} color={"#FFFFFF"} strokeWidth={1.75} />
+              {/* #174: "You (Owner)" only for the owner. A collaborator was
+                  shown as the owner, with HIS OWN email under it. He sees a
+                  neutral owner row — the owner's name is not readable from
+                  his account, so none is guessed — and his own role. */}
+              {hubRole === 'owner' ? (
+                <View style={styles.collabMember} testID="team-owner-row-self">
+                  <View style={[styles.collabAvatar, { backgroundColor: themeColors.accent }]}>
+                    <Crown size={14} color={"#FFFFFF"} strokeWidth={1.75} />
+                  </View>
+                  <View style={styles.collabInfo}>
+                    <Text style={styles.collabName}>You (Owner)</Text>
+                    <Text style={styles.collabEmail}>{branding.email || 'Set email in settings'}</Text>
+                  </View>
+                  <View style={[styles.collabRoleBadge, { backgroundColor: themeColors.accent + '15' }]}>
+                    <Text style={[styles.collabRoleText, { color: themeColors.accent }]}>Owner</Text>
+                  </View>
                 </View>
-                <View style={styles.collabInfo}>
-                  <Text style={styles.collabName}>You (Owner)</Text>
-                  <Text style={styles.collabEmail}>{branding.email || 'Set email in settings'}</Text>
-                </View>
-                <View style={[styles.collabRoleBadge, { backgroundColor: themeColors.accent + '15' }]}>
-                  <Text style={[styles.collabRoleText, { color: themeColors.accent }]}>Owner</Text>
-                </View>
-              </View>
+              ) : (
+                <>
+                  <View style={styles.collabMember} testID="team-owner-row-other">
+                    <View style={[styles.collabAvatar, { backgroundColor: themeColors.textMuted }]}>
+                      <Crown size={14} color={"#FFFFFF"} strokeWidth={1.75} />
+                    </View>
+                    <View style={styles.collabInfo}>
+                      <Text style={styles.collabName}>Project owner</Text>
+                    </View>
+                    <View style={[styles.collabRoleBadge, { backgroundColor: themeColors.line }]}>
+                      <Text style={[styles.collabRoleText, { color: themeColors.textSecondary }]}>Owner</Text>
+                    </View>
+                  </View>
+                  <View style={styles.collabMember} testID="team-you-row">
+                    <View style={[styles.collabAvatar, { backgroundColor: themeColors.info }]}>
+                      <Users size={14} color={"#FFFFFF"} strokeWidth={1.75} />
+                    </View>
+                    <View style={styles.collabInfo}>
+                      <Text style={styles.collabName}>
+                        {hubRole ? `You · ${ROLE_LABELS[hubRole]}` : 'You'}
+                      </Text>
+                      {!hubRole && (
+                        <Text style={styles.collabEmail}>
+                          {roleState.isError ? "Couldn't confirm your role on this job." : 'Checking your role on this job…'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </>
+              )}
 
-              <CollaboratorsManager projectId={project.id} />
+              {hubPerms.canLeave ? (
+                // His account can read only his own collaborator row (RLS), so
+                // the roster would be one line repeating the row above.
+                <Text style={styles.collabEmail} testID="team-collaborator-note">
+                  The project owner manages who else is on this job.
+                </Text>
+              ) : (
+                <CollaboratorsManager projectId={project.id} />
+              )}
             </View>
           )}
         </View>
@@ -2931,7 +3218,7 @@ export default function ProjectDetailScreen() {
               )}
               {changeOrders.length > 0 && (() => {
                 const counts = {
-                  pending: changeOrders.filter(c => c.status === 'under_review' || c.status === 'draft' || c.status === 'revised').length,
+                  pending: changeOrders.filter(isPendingCO).length,
                   approved: changeOrders.filter(c => c.status === 'approved').length,
                 };
                 const chips: FilterChip<'pending' | 'approved' | 'all'>[] = [
@@ -2949,100 +3236,104 @@ export default function ProjectDetailScreen() {
                   />
                 );
               })()}
+              {/* #39: the list and the Pending count read ONE predicate, and a
+                  submitted CO's Approve / Reject row sits directly under ITS
+                  row — so it can never show for a CO the filter is hiding. */}
               {(coFilter === 'all' ? changeOrders : changeOrders.filter(c => {
-                if (coFilter === 'pending') return c.status === 'under_review' || c.status === 'draft' || c.status === 'revised';
+                if (coFilter === 'pending') return isPendingCO(c);
                 if (coFilter === 'approved') return c.status === 'approved';
                 return true;
               })).map(co => (
-                <TouchableOpacity
-                  key={co.id}
-                  style={styles.coRow}
-                  onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id, coId: co.id } })}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.coInfo}>
-                    <Text style={styles.coNumber}>CO #{co.number}</Text>
-                    <Text style={styles.coDesc} numberOfLines={1}>{co.description}</Text>
-                  </View>
-                  <View style={styles.coRight}>
-                    <Text style={[styles.coAmount, { color: (co.changeAmount ?? 0) >= 0 ? themeColors.accent : themeColors.success }]}>
-                      {(co.changeAmount ?? 0) >= 0 ? '+' : ''}{formatMoney(co.changeAmount, 2)}
-                    </Text>
-                    <View style={[styles.coBadge, {
-                      backgroundColor: co.status === 'approved' ? themeColors.successSoft : co.status === 'rejected' ? themeColors.danger : co.status === 'submitted' ? themeColors.info : themeColors.line
-                    }]}>
-                      <Text style={[styles.coBadgeText, {
-                        color: co.status === 'approved' ? themeColors.success : co.status === 'rejected' ? themeColors.danger : co.status === 'submitted' ? themeColors.info : themeColors.textSecondary
-                      }]}>
-                        {co.status.charAt(0).toUpperCase() + co.status.slice(1)}
-                      </Text>
+                <React.Fragment key={co.id}>
+                  <TouchableOpacity
+                    style={styles.coRow}
+                    onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id, coId: co.id } })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.coInfo}>
+                      <Text style={styles.coNumber}>CO #{co.number}</Text>
+                      <Text style={styles.coDesc} numberOfLines={1}>{co.description}</Text>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {changeOrders.filter(co => co.status === 'submitted').map(co => (
-                <View key={`approve-${co.id}`} style={styles.coApproveRow}>
-                  <TouchableOpacity
-                    style={styles.coApproveBtn}
-                    onPress={() => {
-                      const impactDays = co.scheduleImpactDays ?? 0;
-                      // A CO with schedule days now genuinely reflows the Gantt
-                      // (anchor task extended → CPM re-run → successors shift →
-                      // float + critical path recomputed). That is not something
-                      // to do behind a one-handed jobsite tap, so it goes through
-                      // the same preview-then-apply gesture resource leveling
-                      // uses. The money-only case keeps the plain confirm.
-                      if (impactDays > 0 && !co.scheduleImpactApplied && project?.schedule) {
-                        setCoReflowPreview(co);
-                        return;
-                      }
-                      showAlert(
-                        `Approve CO #${co.number}?`,
-                        `This commits ${formatMoney(co.changeAmount)} to the contract. This can't be undone with a tap.`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Approve',
-                            onPress: () => {
-                              updateChangeOrder(co.id, { status: 'approved' });
-                              // Burst — change orders are real money/scope
-                              // events; the GC celebrates each approval.
-                              fireConfetti({ count: 35 });
-                              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                              showAlert('Approved', `CO #${co.number} has been approved.`);
-                            },
-                          },
-                        ],
-                      );
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.coApproveBtnText}>Approve CO #{co.number}</Text>
+                    <View style={styles.coRight}>
+                      <Text style={[styles.coAmount, { color: (co.changeAmount ?? 0) >= 0 ? themeColors.accent : themeColors.success }]}>
+                        {(co.changeAmount ?? 0) >= 0 ? '+' : ''}{formatMoney(co.changeAmount, 2)}
+                      </Text>
+                      <View style={[styles.coBadge, {
+                        backgroundColor: co.status === 'approved' ? themeColors.successSoft : co.status === 'rejected' ? themeColors.danger : co.status === 'submitted' ? themeColors.info : themeColors.line
+                      }]}>
+                        <Text style={[styles.coBadgeText, {
+                          color: co.status === 'approved' ? themeColors.success : co.status === 'rejected' ? themeColors.danger : co.status === 'submitted' ? themeColors.info : themeColors.textSecondary
+                        }]}>
+                          {co.status.charAt(0).toUpperCase() + co.status.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.coRejectBtn}
-                    onPress={() => {
-                      showAlert(
-                        `Reject CO #${co.number}?`,
-                        'This marks the change order rejected. You can reopen it later from the change-order screen.',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Reject',
-                            style: 'destructive',
-                            onPress: () => {
-                              updateChangeOrder(co.id, { status: 'rejected' });
-                              if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                            },
-                          },
-                        ],
-                      );
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.coRejectBtnText}>Reject</Text>
-                  </TouchableOpacity>
-                </View>
+                  {co.status === 'submitted' && (
+                    <View style={styles.coApproveRow} testID={`co-approve-row-${co.id}`}>
+                      <TouchableOpacity
+                        style={styles.coApproveBtn}
+                        onPress={() => {
+                          const impactDays = co.scheduleImpactDays ?? 0;
+                          // A CO with schedule days now genuinely reflows the Gantt
+                          // (anchor task extended → CPM re-run → successors shift →
+                          // float + critical path recomputed). That is not something
+                          // to do behind a one-handed jobsite tap, so it goes through
+                          // the same preview-then-apply gesture resource leveling
+                          // uses. The money-only case keeps the plain confirm.
+                          if (impactDays > 0 && !co.scheduleImpactApplied && project?.schedule) {
+                            setCoReflowPreview(co);
+                            return;
+                          }
+                          showAlert(
+                            `Approve CO #${co.number}?`,
+                            `This commits ${formatMoney(co.changeAmount)} to the contract. This can't be undone with a tap.`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Approve',
+                                onPress: () => {
+                                  updateChangeOrder(co.id, { status: 'approved' });
+                                  // Burst — change orders are real money/scope
+                                  // events; the GC celebrates each approval.
+                                  fireConfetti({ count: 35 });
+                                  if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                  showAlert('Approved', `CO #${co.number} has been approved.`);
+                                },
+                              },
+                            ],
+                          );
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.coApproveBtnText}>Approve CO #{co.number}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.coRejectBtn}
+                        onPress={() => {
+                          showAlert(
+                            `Reject CO #${co.number}?`,
+                            'This marks the change order rejected. You can reopen it later from the change-order screen.',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Reject',
+                                style: 'destructive',
+                                onPress: () => {
+                                  updateChangeOrder(co.id, { status: 'rejected' });
+                                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                                },
+                              },
+                            ],
+                          );
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.coRejectBtnText}>Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </React.Fragment>
               ))}
               {/* Approved, with real schedule days, that never landed on a task
                   — the client-portal case, where the CO is approved remotely and
@@ -3570,15 +3861,20 @@ export default function ProjectDetailScreen() {
                   />
                 );
               })()}
-              {(rfiFilter === 'all' ? projectRFIs : projectRFIs.filter(r => {
+              {/* #143: every RFI in the chip, not the newest 5 — the sheet
+                  scrolls — and under "Open" the earliest due day first, so the
+                  overdue ones are the ones he sees. */}
+              {sortRFIsForHub(rfiFilter === 'all' ? projectRFIs : projectRFIs.filter(r => {
                 if (rfiFilter === 'open') return r.status === 'open';
                 if (rfiFilter === 'answered') return r.status === 'answered';
                 if (rfiFilter === 'closed') return r.status === 'closed' || r.status === 'void';
                 return true;
-              })).slice(0, 5).map(rfi => {
+              }), rfiFilter, calendarDayOf).map(rfi => {
                 // B4 review A2: dateRequired is a calendar day — overdue once the
                 // due DAY is past (see app/report-inbox.tsx).
-                const isOverdue = rfi.status === 'open' && (daysUntilCalendarDay(rfi.dateRequired) ?? 0) < 0;
+                // calendarDayOf first: dateRequired is a bare day from some
+                // writers and a noon-UTC instant from DatePickerModal (#164).
+                const isOverdue = rfi.status === 'open' && (daysUntilCalendarDay(calendarDayOf(rfi.dateRequired)) ?? 0) < 0;
                 return (
                   <TouchableOpacity
                     key={rfi.id}
@@ -3680,7 +3976,9 @@ export default function ProjectDetailScreen() {
               {projectSubmittals.length === 0 && (
                 <Text style={styles.coEmptyText}>No submittals yet.</Text>
               )}
-              {projectSubmittals.slice(0, 5).map(sub => (
+              {/* #143: all of them (a spec-book log is 30+), the ones that
+                  need his action first. */}
+              {sortSubmittalsForHub(projectSubmittals).map(sub => (
                 <TouchableOpacity
                   key={sub.id}
                   style={styles.coRow}
@@ -4121,15 +4419,32 @@ export default function ProjectDetailScreen() {
                           included so the bare URL is never mistaken for it,
                           middle elided so a screenshot does not leak the key. */}
                       <Text style={styles.portalLinkText} numberOfLines={1}>
-                        {portalLink
-                          ? maskPortalLinkToken(portalLink.replace(/^https:\/\//, ''))
-                          : 'Secure link not ready — open Client Portal and Save'}
+                        {!portalEntitled
+                          ? 'Client portal is a Pro feature — upgrade to share the link'
+                          : portalLink
+                            ? maskPortalLinkToken(portalLink.replace(/^https:\/\//, ''))
+                            : 'Secure link on its way — syncing'}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.portalCopyBtn} onPress={handleCopyPortalLink} accessibilityRole="button" accessibilityLabel="Copy">
-                      <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
+                    <TouchableOpacity style={styles.portalCopyBtn} onPress={handleCopyPortalLink} accessibilityRole="button" accessibilityLabel={portalEntitled ? 'Copy' : 'Copy, locked, Client portal is a Pro feature'}>
+                      {portalEntitled
+                        ? <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
+                        : <Lock size={14} color={themeColors.textMuted} strokeWidth={2} />}
                     </TouchableOpacity>
                   </View>
+                  {!portalEntitled && (
+                    // Enabled on a plan without the portal (switched on before
+                    // this gate, or since downgraded). Honest about both sides:
+                    // the link already handed out still opens for the client —
+                    // nothing on the server withdraws it — but sharing, messages
+                    // and settings are Pro.
+                    <View style={styles.portalTermsRow} testID="portal-locked-note">
+                      <Text style={styles.portalDesc}>
+                        Client portal is a Pro feature. A link you already sent still opens for your client, but sharing it, messages and portal settings need Pro.
+                      </Text>
+                      <Button label="See Pro" variant="secondary" size="sm" onPress={openPortalPaywall} testID="portal-locked-upgrade" />
+                    </View>
+                  )}
                   <View style={styles.portalInviteCount}>
                     <Users size={13} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.portalInviteCountText}>
@@ -4173,8 +4488,9 @@ export default function ProjectDetailScreen() {
                           <Text style={styles.portalToggleLabel}>{row.label}</Text>
                           <Switch
                             value={!!current}
+                            disabled={!portalEntitled}
                             onValueChange={val => {
-                              if (!id) return;
+                              if (!id || !portalEntitled) return;
                               const cp = project.clientPortal!;
                               updateProject(id, { clientPortal: { ...cp, [row.key]: val } });
                             }}
@@ -4209,14 +4525,16 @@ export default function ProjectDetailScreen() {
                       the sheet (only visible after Back). */}
                   <TouchableOpacity
                     style={styles.portalMessagesRow}
-                    onPress={() => navigateFromTile({ pathname: '/client-messages', params: { id } })}
+                    onPress={() => (portalEntitled ? navigateFromTile({ pathname: '/client-messages', params: { id } }) : openPortalPaywall())}
                     activeOpacity={0.8}
                     accessibilityRole="button"
-                    accessibilityLabel="Open messages"
+                    accessibilityLabel={portalEntitled ? 'Open messages' : 'Messages, locked, Client portal is a Pro feature'}
                   >
-                    <MessageSquare size={14} color={themeColors.accent} strokeWidth={1.75} />
+                    <MessageSquare size={14} color={portalEntitled ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.portalMessagesText}>Messages</Text>
-                    <Text style={styles.portalMessagesOpen}>Open ›</Text>
+                    {portalEntitled
+                      ? <Text style={styles.portalMessagesOpen}>Open ›</Text>
+                      : <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} />}
                   </TouchableOpacity>
 
                   {/* Less-common options (passcode, welcome msg, homeowner
@@ -4225,16 +4543,36 @@ export default function ProjectDetailScreen() {
                       lighter "Advanced settings" link. */}
                   <TouchableOpacity
                     style={styles.portalAdvancedLink}
-                    onPress={() => navigateFromTile({ pathname: '/client-portal-setup', params: { id } })}
+                    onPress={() => (portalEntitled ? navigateFromTile({ pathname: '/client-portal-setup', params: { id } }) : openPortalPaywall())}
                     activeOpacity={0.7}
                     testID="portal-advanced-link"
                   >
-                    <Text style={styles.portalAdvancedLinkText}>Advanced settings (passcode, language, welcome) ›</Text>
+                    <Text style={styles.portalAdvancedLinkText}>
+                      {portalEntitled ? 'Advanced settings (passcode, language, welcome) ›' : 'Advanced settings — Pro'}
+                    </Text>
                   </TouchableOpacity>
                 </>
               ) : (
+                !portalEntitled ? (
+                  // #71: locked BEFORE any write — no half-enabled portal.
+                  <TouchableOpacity
+                    style={styles.portalEnableBtn}
+                    onPress={openPortalPaywall}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Enable Client Portal, locked, Client portal is a Pro feature"
+                    testID="portal-enable-locked"
+                  >
+                    <Lock size={16} color={themeColors.textMuted} strokeWidth={2} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.portalEnableBtnText}>Enable Client Portal</Text>
+                      <Text style={styles.portalDesc}>Client portal is a Pro feature</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
                 <TouchableOpacity
                   style={styles.portalEnableBtn}
+                  testID="portal-enable-btn"
                   onPress={() => {
                     updateProject(id ?? '', {
                       clientPortal: {
@@ -4260,6 +4598,7 @@ export default function ProjectDetailScreen() {
                   <Globe size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={styles.portalEnableBtnText}>Enable Client Portal</Text>
                 </TouchableOpacity>
+                )
               )}
             </View>
           )}
@@ -4388,16 +4727,49 @@ export default function ProjectDetailScreen() {
           </View>
         )}
 
-        <TouchableOpacity style={styles.editButton} onPress={openEditModal} activeOpacity={0.7} testID="edit-project-bottom-btn">
+        <TouchableOpacity
+          style={[styles.editButton, hubPerms.editBlockedReason ? { opacity: 0.55 } : null]}
+          onPress={requestEdit}
+          activeOpacity={0.7}
+          testID="edit-project-bottom-btn"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !!hubPerms.editBlockedReason }}
+        >
           <Pencil size={18} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.editButtonText}>Edit Project</Text>
         </TouchableOpacity>
+        {hubPerms.editBlockedReason ? (
+          <Text style={[styles.contractHint, { marginHorizontal: 20, marginTop: 6 }]} testID="edit-project-blocked-reason">
+            {hubPerms.editBlockedReason}
+          </Text>
+        ) : null}
 
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.7}>
-          <Trash2 size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
-          <Text style={styles.deleteButtonText}>Delete Project</Text>
-        </TouchableOpacity>
+        {hubPerms.canDelete ? (
+          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.7} testID="delete-project-btn">
+            <Trash2 size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.deleteButtonText}>Delete Project</Text>
+          </TouchableOpacity>
+        ) : hubPerms.canLeave ? (
+          <TouchableOpacity
+            style={[styles.deleteButton, leaving ? { opacity: 0.55 } : null]}
+            onPress={handleLeave}
+            disabled={leaving}
+            activeOpacity={0.7}
+            testID="leave-project-btn"
+            accessibilityRole="button"
+          >
+            <ArrowDownRight size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.deleteButtonText}>{leaving ? 'Leaving…' : 'Leave project'}</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
+
+      <Paywall
+        visible={portalPaywallOpen}
+        feature="Client Portal"
+        requiredTier={requiredTierFor('client_portal')}
+        onClose={() => setPortalPaywallOpen(false)}
+      />
 
       <Modal
         visible={detailModal !== null}

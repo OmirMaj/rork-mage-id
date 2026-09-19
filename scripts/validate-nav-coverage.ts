@@ -587,6 +587,33 @@ const registryById = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
       while (j < end && lines[j].trim() === '') j++;
       if (j < end && /^\s+return\b/.test(lines[j])) return a.key;
     }
+    // THE SEAT-OR-TIER SHAPE (wave 3, #62 app/time-tracking.tsx): the tier
+    // alias is the FIRST operand of an AND with a seat test —
+    //     const ownTier = canAccess('subcontractor_management');
+    //     if (!ownTier && !hasSeat) { return <Paywall …/> }
+    // For everyone without a seat that is exactly the old wall; an invited
+    // field/editor seat is let through by design. Only `!alias && …` with a
+    // Paywall return counts — `!alias && loading` returning a spinner does not.
+    for (let i = start + 1; i < end; i++) {
+      const m = lines[i].match(/^  if \(\s*!\s*(\w+)\s*&&[^{]*\)\s*\{\s*$/);
+      if (!m) continue;
+      const a = alias.get(m[1]);
+      if (!a || a.deniedWhenTrue) continue;
+      let j = i + 1;
+      while (j < end && lines[j].trim() === '') j++;
+      if (j < end && /^\s+return\b/.test(lines[j]) && /<Paywall\b/.test(lines.slice(j, j + 3).join('\n'))) return a.key;
+    }
+    // THE RESOLVER SHAPE (wave 3, #91 app/schedule-pro.tsx): the tier check is
+    // handed to a pure gate resolver whose 'open' branch renders the screen and
+    // whose fall-through renders the Paywall —
+    //     const gate = scheduleProGate({ canAccess: canAccess('schedule_gantt_pdf'), … });
+    //     if (gate === 'open') return <Inner />;   …   return (<Paywall …/>);
+    for (let i = start + 1; i < end; i++) {
+      const m = lines[i].match(/^    canAccess: canAccess\w*\(\s*['"]([a-z0-9_]+)['"]\s*\),\s*$/);
+      if (!m) continue;
+      const rest = lines.slice(i, end).join('\n');
+      if (/^  if \(gate === 'open'\) return\b/m.test(rest) && /^  return \(\s*\n\s*<Paywall\b/m.test(rest)) return m[1];
+    }
     return undefined;
   }
 

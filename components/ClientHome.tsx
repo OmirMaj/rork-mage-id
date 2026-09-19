@@ -47,6 +47,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatMoney } from '@/utils/formatters';
+import PendingInvitesCard from '@/components/collaborators/PendingInvitesCard';
 
 interface ClientRfpRow {
   id: string;
@@ -277,6 +278,13 @@ export default function ClientHome() {
             <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
           </View>
         </FadeRise>
+
+        {/* #93: a homeowner a GC invited to a project lands HERE, not on the
+            contractor Home — which was the only place this card lived, so an
+            invite that lost its link (Safari vs the app, an email sign-up with
+            no session yet) was unreachable for him. Renders nothing when no
+            invite is waiting for his verified email. */}
+        <PendingInvitesCard />
 
         {/* Hero CTA — flat amber fill, decorative Building silhouette in
             the bottom-right. The single most-tapped affordance on this

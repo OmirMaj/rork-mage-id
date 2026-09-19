@@ -39,6 +39,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { invoiceOutstanding, pendingRetentionHeld } from '../utils/invoiceBilling';
 import { estimateNetAfterFees } from '../utils/platformFees';
+import { paymentReceivedAt } from '../utils/billingFlowCore';
+import { dayOrInstantDate } from '../utils/calendarDate';
 
 // Declared locally rather than pulled from `bun-types`: this repo has no bun
 // type package installed, and without this `npx tsc --noEmit` fails with
@@ -109,10 +111,12 @@ if (from < 0 || to < 0) {
 }
 const js = new Bun.Transpiler({ loader: 'ts' })
   .transformSync(screenSrc.slice(from, to).replace(/^export /gm, ''));
+// #133 (post-chain): the feed dates an entry by the day he says the money
+// arrived (paymentReceivedAt) and sorts through dayOrInstantDate.
 const feed = new Function(
-  'invoiceOutstanding', 'pendingRetentionHeld', 'estimateNetAfterFees',
+  'invoiceOutstanding', 'pendingRetentionHeld', 'estimateNetAfterFees', 'paymentReceivedAt', 'dayOrInstantDate',
   `${js}\nreturn { derivePayments, summarizePayments, isSettledRow, isPendingRow, isMageProcessed, feedProviderFor };`,
-)(invoiceOutstanding, pendingRetentionHeld, estimateNetAfterFees) as Feed;
+)(invoiceOutstanding, pendingRetentionHeld, estimateNetAfterFees, paymentReceivedAt, dayOrInstantDate) as Feed;
 
 const {
   derivePayments, summarizePayments, isSettledRow, isPendingRow, isMageProcessed, feedProviderFor,
@@ -308,6 +312,17 @@ const invoice = (over: Record<string, unknown>) => ({
     /case\s*'credit_card'\s*:\s*return\s*'stripe'/.test(stripped), false);
   eq('the hero no longer sums netAmount',
     /received[\s\S]{0,120}netAmount/.test(stripped), false);
+}
+
+// ── #133 the day he says the money arrived ──────────────────────────────────
+{
+  // A cheque keyed on the 18th that he says arrived on the 5th sorts and
+  // prints on the 5th (his day, read at local noon), not the 18th.
+  const backdated = { id: 'bd1', amount: 500, method: 'check', date: '2026-09-18T15:00:00.000Z', receivedDate: '2026-09-05' };
+  const rows = derivePayments(projects, [invoice({ id: 'i9', payments: [backdated] })], contacts, 'pro');
+  const r = rows.find(x => x.id === 'bd1');
+  const d = r ? dayOrInstantDate(r.createdAt) : null;
+  ok('a backdated payment is dated by its received day', !!d && d.getFullYear() === 2026 && d.getMonth() === 8 && d.getDate() === 5, r?.createdAt ?? 'no row');
 }
 
 console.log(`\nvalidate-payments-feed: ${pass} passed, ${fail} failed`);

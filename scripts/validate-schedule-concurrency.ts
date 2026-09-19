@@ -292,8 +292,12 @@ console.log('\nthe GC sees field progress before he edits (foreground refetch):'
     ok('after the window does', should('background', 'active', 1_000_000 - 60_000, 1_000_000));
   }
   ok('the hook listens to AppState', /AppState\.addEventListener\('change'/.test(HOOK) && /sub\.remove\(\)/.test(HOOK));
-  const body = slice(CTX, 'const refetchProjectsOnForeground = useCallback(', 'useProjectsFocusRefetch(canSync, refetchProjectsOnForeground);');
-  ok('ProjectContext mounts it for a syncing account', CTX.includes('useProjectsFocusRefetch(canSync, refetchProjectsOnForeground);'));
+  // data-session critic round 2: every foreground re-read runs from ONE
+  // binding (refetchAllOnForeground), which starts the portal read epoch first.
+  const body = slice(CTX, 'const refetchProjectsOnForeground = useCallback(', '// (Bound once, with the other foreground re-reads');
+  const all = slice(CTX, 'const refetchAllOnForeground = useCallback(', 'useProjectsFocusRefetch(canSync, refetchAllOnForeground);');
+  ok('ProjectContext mounts it for a syncing account',
+    CTX.includes('useProjectsFocusRefetch(canSync, refetchAllOnForeground);') && /refetchProjectsOnForeground, refetchMoneyAndProfileOnForeground,/.test(all));
   // Executed: the callback's own arrow function, with the flush, the queue and
   // the query client stubbed. A write already on the wire stays in the map
   // (A-8) and is in neither the flush's list nor the queue.
@@ -436,11 +440,11 @@ console.log('\nrealtime reaches the stamping base, not only the screen (integrat
 
   const adoptFn = slice(PRO, 'const adoptServerCopy = useCallback(', '}, [livePeerProjectId, absorbServerSchedule]);');
   ok('every server copy the screen adopts reaches ProjectContext (with its stamp), so owner saves are stamped against it',
-    /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{ stamp: copy\.stamp \}\)/.test(adoptFn));
+    /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{ stamp: copy\.stamp, baselines: copy\.baselines \}\)/.test(adoptFn));
   const peer = slice(PRO, 'const onPeerSchedule = useCallback(', 'useLiveSchedule(project?.id, onPeerSchedule, onLiveGap);');
   ok('a realtime echo is taken only through the gate — never merged into a save still waiting (it is busy then)',
     /takeScheduleCopy\(syncGateRef\.current, incoming, 'echo', syncBusy\(\)\)/.test(peer) && !/schedulePersist/.test(peer));
-  const abs = slice(CTX, 'const absorbServerSchedule = useCallback(', 'const saveChangeOrdersMutation = useMutation(');
+  const abs = slice(CTX, 'const absorbServerSchedule = useCallback(', 'const saveChangeOrdersMutationRaw = useMutation(');
   ok('ProjectContext.absorbServerSchedule merges with absorbServerScheduleTasks into projectsRef, locally only',
     /absorbServerScheduleTasks\(prevServer, tasks, localTasks\)/.test(abs) && /projectsRef\.current = updated;/.test(abs)
       && !/syncProjectToSupabase/.test(abs) && !/\.\.\.x, updatedAt|updatedAt: nowISO/.test(abs));
@@ -478,10 +482,11 @@ console.log('\na load in flight does not undo a write made meanwhile (integratio
     qf.indexOf('const writeSeqAtStart = projectWriteLogRef.current.seq;') >= 0
       && qf.indexOf('const writeSeqAtStart = projectWriteLogRef.current.seq;') < qf.indexOf(".from('projects')"));
   ok('...and guards the result BEFORE caching it',
-    /const plan = planProjectsLoad\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\)\)\],\s*planLocal, projectWriteLogRef\.current, writeSeqAtStart,\s*\{ pending: pendingAtStart, fold: foldServerSchedule<Project>\(baseAtStart\) \},\s*\);\s*const merged = plan\.projects;/.test(qf)
+    // Wave 3 (#90): the removed-job filter rides the same guard.
+    /const plan = planProjectsLoad\(\s*\[\.\.\.mapped, \.\.\.localForMerge\.filter\(\(p\) => !remoteIds\.has\(p\.id\) && !revoked\.has\(p\.id\)\)\],\s*planLocal, projectWriteLogRef\.current, writeSeqAtStart,\s*\{ pending: pendingAtStart, fold: foldServerSchedule<Project>\(baseAtStart\) \},\s*\);\s*const merged = revoked\.size > 0 \? plan\.projects\.filter\(\(p\) => !revoked\.has\(p\.id\)\) : plan\.projects;/.test(qf)
       && qf.indexOf('planProjectsLoad(') < qf.indexOf('await saveLocal(PROJECTS_KEY, merged);'));
   ok('`projects` takes the result through the same guard',
-    /const plan = planProjectsLoad\(projectsQuery\.data, local, projectWriteLogRef\.current, projectsLoadSinceRef\.current, \{\s*pending: projectsLoadPendingRef\.current,[\s\S]{0,200}?\}\);\s*setProjects\(plan\.projects\);/.test(CTX)
+    /const plan = planProjectsLoad\(projectsQuery\.data, local, projectWriteLogRef\.current, projectsLoadSinceRef\.current, \{\s*pending: projectsLoadPendingRef\.current,[\s\S]{0,200}?\}\);[\s\S]{0,300}?setProjects\(revoked\.size > 0 \? plan\.projects\.filter\(p => !revoked\.has\(p\.id\)\) : plan\.projects\);/.test(CTX)
       && !/if \(projectsQuery\.data\) setProjects\(projectsQuery\.data\);/.test(CTX));
   const sync = slice(CTX, 'const syncProjectToSupabase = useCallback(', 'const existing = syncDebounceMap.current.get(project.id);');
   ok('every synced project write records itself', /noteProjectWrite\(projectWriteLogRef\.current, project\.id\);\s*if \(!canSync\) return;/.test(sync));

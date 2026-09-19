@@ -125,6 +125,25 @@ export const OFFLINE_WRITE_QUEUE_KEYS: readonly string[] = [
   'mageid_audio_transcribe_queue',
 ];
 
+/**
+ * Pending records OWED TO THE SERVER that are not a queue with a flush of
+ * their own — kept on a same-user re-auth exactly like OFFLINE_WRITE_QUEUE_KEYS,
+ * emptied on a deliberate sign-out (AuthContext's dropOfflineQueue branch).
+ *
+ * `mageid_co_audit_pending` (#40): change-order audit entries — an in-person
+ * signature seal, a price change — whose CO UPDATE is still in the offline
+ * queue. The queue survives a magic-link / password-reset re-auth; swept, this
+ * store did not, so the UPDATE later landed WITHOUT its entries. It is not in
+ * OFFLINE_WRITE_QUEUE_KEYS because that list is for queues whose owning module
+ * clears them under the flush lock (scripts/validate-storage-hygiene.ts); this
+ * one has no flush — ProjectContext rewrites it whole. Tenant-safe to keep:
+ * every copy is stamped with its owner and read back only for that owner
+ * (utils/projectContextPure.coAuditPendingFromStore).
+ */
+export const OWNER_STAMPED_PENDING_KEYS: readonly string[] = [
+  'mageid_co_audit_pending',
+];
+
 /** True if `key` is one this app wrote (under any current or legacy prefix). */
 export function isAppStorageKey(key: string): boolean {
   return APP_STORAGE_PREFIXES.some((p) => key.startsWith(p));
@@ -191,6 +210,6 @@ export function selectTenantKeysToWipe(
 ): string[] {
   const dropOfflineQueue = opts?.dropOfflineQueue ?? true;
   const keep = new Set<string>(DEVICE_SCOPED_KEYS);
-  if (!dropOfflineQueue) for (const k of OFFLINE_WRITE_QUEUE_KEYS) keep.add(k);
+  if (!dropOfflineQueue) for (const k of [...OFFLINE_WRITE_QUEUE_KEYS, ...OWNER_STAMPED_PENDING_KEYS]) keep.add(k);
   return allKeys.filter((k) => isAppStorageKey(k) && !keep.has(k));
 }

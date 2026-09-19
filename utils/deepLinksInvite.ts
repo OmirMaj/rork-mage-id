@@ -52,8 +52,9 @@ export function signupHrefForInvite(token: unknown): string {
  * Where a successful sign-in (or sign-up with a live session) lands: back on
  * the invite when one came along, otherwise the screen's usual destination.
  * accept-invite is exempt from the persona / onboarding gates, so a brand-new
- * account accepts FIRST and is walked through onboarding after — the project
- * is already in his list when he gets to Home.
+ * account accepts FIRST. Since #93 an invite-first account still answers the
+ * persona question but SKIPS the GC onboarding, and the pending deep link
+ * replays him onto the project he was invited to.
  */
 export function postSignInHref(token: unknown, fallback: string): string {
   const t = sanitizeInviteToken(token);

@@ -61,8 +61,10 @@
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 
 /** Cents. Every money figure this module emits is rounded to this grid so the
- *  Σ-lineTotal === grandTotal invariant survives float arithmetic. */
-const round2 = (n: number): number => Math.round(n * 100) / 100;
+ *  Σ-lineTotal === grandTotal invariant survives float arithmetic. Exported so
+ *  app/estimate-wizard.tsx rounds the model's cost lines on the SAME grid —
+ *  it used to round them to whole dollars, which is a second price basis. */
+export const round2 = (n: number): number => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
 
 /** "He has not made the markup decision yet." Distinct from 0, which is the
  *  legitimate decision to quote at cost. */
@@ -248,15 +250,37 @@ function addOns(data: CostBreakdown): { contingency: number; permits: number } {
 export function priceCostBreakdown<T extends CostBreakdown>(data: T, pct: MarkupPct): T {
   const f = markupFactor(pct);
   const { contingency: c, permits: p } = addOns(data);
-  const lineItems = data.lineItems.map((li) => ({
-    ...li,
-    unitCost: round2(li.unitCost * f),
-    total: round2(li.total * f),
-  }));
-  const subtotal = round2(data.subtotal * f);
-  const contingency = round2(c * f);
-  const permits = round2(p * f);
+  // ONE PRICE BASIS (audit 2026-09-18, #118/#158). Each line is priced from its
+  // PRICED UNIT — the unit the PDF prints — so qty × printed unit === printed
+  // line total, and the subtotal is the sum of those lines rather than the
+  // cost subtotal scaled once (which could miss its own lines by cents).
+  // buildQuickLinkedEstimate prices every row through the same pricedLine, so
+  // the PDF total, the project's grandTotal, the portal proposal and the
+  // contract value are one number. The old `round2(li.total * f)` scaled a
+  // whole-dollar-rounded cost, and the three documents printed three totals.
+  const lineItems = data.lineItems.map((li) => {
+    const { unit, total } = pricedLine(li.unitCost, li.quantity, f);
+    return { ...li, unitCost: unit, total };
+  });
+  const subtotal = round2(lineItems.reduce((s, li) => s + li.total, 0));
+  const contingency = pricedLine(c, 1, f).total;
+  const permits = pricedLine(p, 1, f).total;
   return { ...data, lineItems, subtotal, contingency, permits, total: round2(subtotal + contingency + permits) };
+}
+
+/**
+ * One priced line: the sell UNIT on the cent grid, and the line total as
+ * quantity × that printed unit. The single place a quick-estimate line is
+ * priced — priceCostBreakdown (the PDF, the hero, the payment preview) and
+ * buildQuickLinkedEstimate (the project, the portal, the contract) both call
+ * it, so they cannot disagree about a line by even a cent.
+ *
+ * `factor` is the markup factor (1 + pct/100), not the percent.
+ */
+export function pricedLine(unitCost: number, quantity: number, factor: number): { unit: number; total: number } {
+  const unit = round2((Number.isFinite(unitCost) ? unitCost : 0) * factor);
+  const qty = Number.isFinite(quantity) ? quantity : 0;
+  return { unit, total: round2(qty * unit) };
 }
 
 /**
@@ -305,7 +329,18 @@ export function buildQuickLinkedEstimate(
   // assertions green, which is exactly how I know the claim. It stays because
   // the day `row()` learns to seed a per-line markup from the AI category, the
   // global pass must still win, and that day should not need a bug first.
-  return withMarkup(est, pct, { force: true });
+  const marked = withMarkup(est, pct, { force: true });
+  // Re-price each row's SELL through pricedLine — the same arithmetic the PDF
+  // prints (qty × the priced unit on the cent grid). applyMarkupToItems' own
+  // `round2(cost × qty × f)` is correct for the estimator, but here it is a
+  // second basis: 125 SF at $3.33 +20% is $500.00 on the PDF (125 × $4.00) and
+  // $499.50 by cost × qty × f, and the deposit invoice bills the second. The
+  // COST side (unitPrice, baseTotal) is untouched — only the sell is re-footed.
+  const f = markupFactor(pct);
+  return retotal({
+    ...marked,
+    items: marked.items.map((it) => ({ ...it, lineTotal: pricedLine(it.unitPrice, it.quantity, f).total })),
+  });
 }
 
 

@@ -48,7 +48,12 @@ import * as Notifications from 'expo-notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabaseWrite } from '@/utils/offlineQueue';
+import { supabaseWrite, getOfflineQueue, onQueueFlushed } from '@/utils/offlineQueue';
+import { pendingIdsForTable } from '@/utils/projectContextPure';
+import {
+  computeShiftHours as computeShiftHoursPure, mergeServerPull, queuedDeleteIds, isUuid, breakMinutesAt,
+  formatClockForCsv as formatClockForCsvPure, buildTimeEntriesCSV as buildTimeEntriesCSVPure,
+} from '@/utils/timeClockPayroll';
 import { generateUUID } from '@/utils/generateId';
 import { scheduleLocalNotificationAt, cancelScheduledNotification } from '@/utils/notifications';
 import { toCalendarDayString, todayCalendarDay } from '@/utils/calendarDate';
@@ -63,8 +68,9 @@ export const TIME_ENTRIES_STORAGE_KEY = 'mageid_time_entries';
  *  of the copy they cached when they mounted. Must equal useLaborRates'
  *  ENTRIES_MIRROR_QUERY (scripts/validate-time-clock-store.ts pins it). */
 export const TIME_ENTRIES_MIRROR_QUERY_KEY = ['time-entries-mirror'] as const;
-/** Crew hours OTHER people logged on this user's jobs (#28). Read-only here:
- *  never written back to the server, never merged into `entries`. `mageid_`
+/** Crew hours OTHER people logged on this user's jobs (#28). Never merged
+ *  into `entries`; written back only by closeTeamShift, the owner's explicit,
+ *  confirmed correction of a shift on a job he owns (#63). `mageid_`
  *  prefix, so the tenant-switch sweep removes it with everything else. */
 export const TIME_ENTRIES_TEAM_STORAGE_KEY = 'mageid_time_entries_team';
 const STORAGE_KEY = TIME_ENTRIES_STORAGE_KEY;
@@ -143,20 +149,19 @@ function toDB(e: TimeEntry, userId: string): Omit<DBRow, 'created_at' | 'updated
 }
 
 /**
- * Compute total + overtime hours from a clock-in/clock-out pair minus
- * break minutes. Standard "anything over 8 hours/day is OT" rule —
- * adjust here when the GC sets a custom OT policy.
+ * Compute total hours from a clock-in/clock-out pair minus break minutes.
+ *
+ * The `overtimeHours` it also returns is ONLY "this one shift past 8 h" — the
+ * legacy per-shift figure still written to `time_entries.overtime_hours` so
+ * installs on an older build keep reading something. NOTHING in this build
+ * reads it (#65): a worker's overtime depends on his other shifts that day and
+ * week, so it is worked out at read time by utils/overtime.computeOvertime
+ * under the GC's rule (hooks/useLaborRates overtimeRule — weekly >40 by
+ * default, daily >8 optional). Do not price, export or display the stored one.
  */
-export function computeShiftHours(clockIn: string, clockOut: string, breakMinutes: number): { totalHours: number; overtimeHours: number } {
-  const ms = new Date(clockOut).getTime() - new Date(clockIn).getTime();
-  const grossHours = Math.max(0, ms / 3_600_000);
-  const totalHours = Math.max(0, grossHours - breakMinutes / 60);
-  const overtimeHours = Math.max(0, totalHours - 8);
-  return {
-    totalHours: Math.round(totalHours * 100) / 100,
-    overtimeHours: Math.round(overtimeHours * 100) / 100,
-  };
-}
+// The arithmetic lives in utils/timeClockPayroll (pure, so the payroll
+// validators can run it under bun); this name stays for every caller.
+export const computeShiftHours = computeShiftHoursPure;
 
 /**
  * The LOCAL calendar day a shift was worked (field-ops #9).
@@ -178,15 +183,9 @@ export function timeEntryDay(entry: Pick<TimeEntry, 'clockIn' | 'date'>): string
 }
 
 /** Clock time for the payroll CSV: the LOCAL wall clock, 'YYYY-MM-DD HH:MM'
- *  (24h). The raw ISO instant pasted a 6:30 am punch into QuickBooks as
- *  '…T13:30:00.000Z'. An unparseable value passes through unchanged — showing
- *  the bookkeeper the raw value beats hiding a data bug. */
-export function formatClockForCsv(iso: string | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${toCalendarDayString(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
+ *  (24h). The raw ISO instant pasted a 6:30 am punch into a spreadsheet as
+ *  '…T13:30:00.000Z'. Lives in utils/timeClockPayroll; re-exported here. */
+export const formatClockForCsv = formatClockForCsvPure;
 
 // ── Shift alerts: identified by entry, not by whichever mount posted them ──
 //
@@ -279,7 +278,19 @@ function mergeById(base: TimeEntry[], winner: TimeEntry[]): TimeEntry[] {
 /** A shift someone else logged on one of this user's jobs, with its author.
  *  `onOwnedProject` is stamped at fetch time: true only when the job is one
  *  this user OWNS (not an editor/viewer seat on another contractor's job). */
-export type TeamTimeEntry = TimeEntry & { loggedByUserId: string; onOwnedProject?: boolean };
+export type TeamTimeEntry = TimeEntry & {
+  loggedByUserId: string;
+  onOwnedProject?: boolean;
+  /** Who clocked the shift, as the owner's collaborator list names them (the
+   *  invite email) — stamped only on OWNED projects, where the owner can read
+   *  that list. Missing = the list could not be read; screens say "a teammate". */
+  loggedByName?: string;
+};
+
+/** "Logged by …" for a team row (#63). */
+export function teamLoggedByLabel(e: Pick<TeamTimeEntry, 'loggedByName'>): string {
+  return `Logged by ${e.loggedByName?.trim() || 'a teammate'}`;
+}
 
 /**
  * The team rows that may reach this user's COSTING mirror: those on projects
@@ -381,6 +392,18 @@ const TEAM_PAGE = 1000;
 /** Safety stop for a server that ignores the range and repeats a page. */
 const TEAM_MAX_PAGES = 200;
 
+/** Ids with a queued time_entries write, and ids with a queued delete (#67).
+ *  A queue that can't be read counts as empty: the pull then behaves as it
+ *  always did, rather than not running. */
+async function readTimeEntryQueue(): Promise<{ pending: Set<string>; deleted: Set<string> }> {
+  try {
+    const q = await getOfflineQueue();
+    return { pending: pendingIdsForTable(q, 'time_entries'), deleted: queuedDeleteIds(q, 'time_entries') };
+  } catch {
+    return { pending: new Set(), deleted: new Set() };
+  }
+}
+
 /**
  * The time-entry store. Mount it ONCE — contexts/TimeEntriesContext's
  * TimeEntriesProvider does — and read it with useTimeEntries(). A second
@@ -397,6 +420,8 @@ export function useTimeEntriesStore() {
   // Other people's shifts on this user's jobs (#28) — see the header.
   const [teamEntries, setTeamEntries] = useState<TeamTimeEntry[]>([]);
   const [teamHydrated, setTeamHydrated] = useState<boolean>(false);
+  const teamEntriesRef = useRef<TeamTimeEntry[]>(teamEntries);
+  teamEntriesRef.current = teamEntries;
   // Latest committed entries, for side effects (notifications, queued writes)
   // that must not run inside a setState updater — React may call an updater
   // twice, and each call would queue a second write and a second alert.
@@ -559,11 +584,19 @@ export function useTimeEntriesStore() {
     });
     return () => sub.remove();
   }, []);
+  // #67: once a time_entries write lands, re-pull right away, so the device
+  // agrees with the server the moment the flush does — not up to five minutes
+  // later on the next foreground.
+  useEffect(() => onQueueFlushed(tables => {
+    if (tables.has('time_entries')) setPullNonce(n => n + 1);
+  }), []);
   useEffect(() => {
     if (!hydrated || !userId || !isSupabaseConfigured) return;
     let cancelled = false;
     (async () => {
       try {
+        const queueBefore = await readTimeEntryQueue();
+        if (cancelled) return;
         const { data, error } = await supabase
           .from('time_entries')
           .select('*')
@@ -575,10 +608,19 @@ export function useTimeEntriesStore() {
           return;
         }
         const fromServer = (data as DBRow[] | null ?? []).map(fromDB);
-        // Server wins on conflict — entries that exist server-side
-        // override local-only versions of the same id. Local-only
-        // entries (offline clock-ins not yet flushed) are preserved.
-        setEntries(prev => mergeById(prev, fromServer));
+        // #67: the queue read AFTER the SELECT, unioned with the one BEFORE it
+        // — before alone misses a write queued mid-request, after alone misses
+        // one that flushed after the SELECT's snapshot was taken.
+        const queueAfter = await readTimeEntryQueue();
+        if (cancelled) return;
+        const pending = new Set([...queueBefore.pending, ...queueAfter.pending]);
+        const deleted = new Set([...queueBefore.deleted, ...queueAfter.deleted]);
+        // Server wins on conflict EXCEPT for an id with a queued write: its
+        // local row is newer than the server's (an offline clock-out, a
+        // correction) and must not be put back "on the clock". An id with a
+        // queued delete stays gone. Local-only entries (offline clock-ins not
+        // yet flushed) are preserved. (utils/timeClockPayroll.mergeServerPull)
+        setEntries(prev => mergeServerPull(prev, fromServer, pending, deleted));
         // A shift clocked out on another device is clocked out here now;
         // its alert on this device must go.
         setAlertReconcileNonce(n => n + 1);
@@ -616,6 +658,23 @@ export function useTimeEntriesStore() {
         );
         // Owned vs. seat, per row — see costingTeamRows.
         const ownedIds = new Set(((ownedRes.data ?? []) as { id: string }[]).map(p => String(p.id)));
+        // Who clocked a shift on HIS jobs (#63 "Logged by <name>"): the owner
+        // reads his own jobs' collaborator list (RLS: the owner sees every row).
+        // Best effort — a failed read only loses the name, never the hours.
+        const nameByUser = new Map<string, string>();
+        const ownedList = [...ownedIds];
+        for (let i = 0; i < ownedList.length; i += TEAM_IN_CHUNK) {
+          const { data: collabs, error: collabErr } = await supabase
+            .from('project_collaborators')
+            .select('user_id, invited_email')
+            .in('project_id', ownedList.slice(i, i + TEAM_IN_CHUNK))
+            .eq('status', 'accepted');
+          if (cancelled) return;
+          if (collabErr) break;
+          for (const c of (collabs ?? []) as { user_id: string | null; invited_email: string | null }[]) {
+            if (c.user_id && c.invited_email && !nameByUser.has(c.user_id)) nameByUser.set(c.user_id, c.invited_email);
+          }
+        }
         const team: TeamTimeEntry[] = [];
         // Paged (integration round 1): one unpaged read per chunk returned at
         // most max_rows, newest first, and REPLACED the team copy — once a
@@ -648,12 +707,26 @@ export function useTimeEntriesStore() {
               const id = String(r.id);
               if (seenIds.has(id)) continue;
               seenIds.add(id);
-              team.push(teamRowForDevice({ ...fromDB(r), loggedByUserId: r.user_id, onOwnedProject: ownedIds.has(String(r.project_id)) }));
+              const owned = ownedIds.has(String(r.project_id));
+              team.push(teamRowForDevice({
+                ...fromDB(r),
+                loggedByUserId: r.user_id,
+                onOwnedProject: owned,
+                ...(owned && nameByUser.has(r.user_id) ? { loggedByName: nameByUser.get(r.user_id) } : {}),
+              }));
             }
             from += rows.length;
           }
         }
-        setTeamEntries(team);
+        // An owner's correction to a team row (closeTeamShift) may still be
+        // queued: keep the local copy of those ids, as the own-timesheet pull
+        // does (#67), so the fix doesn't flicker back to "on the clock".
+        const q = await readTimeEntryQueue();
+        if (cancelled) return;
+        setTeamEntries(prev => mergeServerPull(
+          prev.filter(e => q.pending.has(e.id) && team.some(t => t.id === e.id)),
+          team, q.pending, q.deleted,
+        ));
       } catch (err) {
         console.warn('[useTimeEntries] Team hours fetch threw:', err);
       }
@@ -717,7 +790,15 @@ export function useTimeEntriesStore() {
     notes?: string;
     gpsLat?: number;
     gpsLng?: number;
-  }): TimeEntry => {
+  }): TimeEntry | null => {
+    // #155: hours are filed against a JOB. A non-uuid project id (the old
+    // 'unassigned' fallback) fails RLS can_access_project, so the row — and
+    // every break / clock-out update on it — never left the phone. Refuse it
+    // here so no caller can make that row again; the screen says why first.
+    if (!isUuid(args.projectId)) {
+      console.warn('[useTimeEntries] clockIn refused: not a project id', args.projectId);
+      return null;
+    }
     const now = new Date();
     const entry: TimeEntry = {
       id: generateUUID(),
@@ -805,28 +886,92 @@ export function useTimeEntriesStore() {
     rescheduleShiftAlert(updated, shiftAlertFireAtMs(updated, shiftAlertHoursRef.current));
   }, [userId, rescheduleShiftAlert]);
 
-  const clockOut = useCallback((entryId: string) => {
-    const now = new Date();
+  /**
+   * End a shift. `outAt` is the real out time for a missed clock-out (#66) —
+   * default now. Returns false, writing nothing, when the shift is already
+   * clocked out (#67: a stale re-display must never overwrite recorded hours
+   * with a later second tap) or when outAt is before the clock-in or after now.
+   */
+  const clockOut = useCallback((entryId: string, outAt?: string): boolean => {
+    const nowMs = Date.now();
     const e = entriesRef.current.find(x => x.id === entryId);
-    if (e) {
-      const { totalHours, overtimeHours } = computeShiftHours(e.clockIn, now.toISOString(), e.breakMinutes);
-      setEntries(prev => prev.map(x => x.id === entryId
-        ? { ...x, status: 'clocked_out' as const, clockOut: now.toISOString(), totalHours, overtimeHours }
-        : x));
-      if (userId && isSupabaseConfigured) {
-        void supabaseWrite('time_entries', 'update', {
-          id: e.id,
-          status: 'clocked_out',
-          clock_out: now.toISOString(),
-          total_hours: totalHours,
-          overtime_hours: overtimeHours,
-        });
+    let wrote = false;
+    if (e && e.status !== 'clocked_out' && !e.clockOut) {
+      const outMs = outAt ? Date.parse(outAt) : nowMs;
+      const inMs = Date.parse(e.clockIn);
+      if (Number.isFinite(outMs) && !(Number.isFinite(inMs) && outMs < inMs) && outMs <= nowMs + 60_000) {
+        const outIso = new Date(outMs).toISOString();
+        // A clock-out straight from 'break' takes the running break off too
+        // (#152) — it used to be paid as work.
+        const breakMinutes = breakMinutesAt(e, outMs);
+        const { totalHours, overtimeHours } = computeShiftHours(e.clockIn, outIso, breakMinutes);
+        setEntries(prev => prev.map(x => x.id === entryId
+          ? { ...x, status: 'clocked_out' as const, clockOut: outIso, breakMinutes, breakStartedAt: undefined, totalHours, overtimeHours }
+          : x));
+        if (userId && isSupabaseConfigured) {
+          void supabaseWrite('time_entries', 'update', {
+            id: e.id,
+            status: 'clocked_out',
+            clock_out: outIso,
+            break_minutes: breakMinutes,
+            break_started_at: null,
+            total_hours: totalHours,
+            overtime_hours: overtimeHours,
+          });
+        }
+        wrote = true;
       }
     }
-    // Already clocked out — cancel any pending shift-end alert, whichever
-    // mount or launch posted it.
-    cancelShiftAlert(entryId);
+    // Clocked out (now or earlier) — cancel any pending shift-end alert,
+    // whichever mount or launch posted it.
+    if (wrote || (e && e.status === 'clocked_out')) cancelShiftAlert(entryId);
+    return wrote;
   }, [userId, cancelShiftAlert]);
+
+  /**
+   * The OWNER's correction of a shift someone else clocked on HIS job (#63) —
+   * the foreman forgot to clock Jose out, or the hours need fixing. Separate
+   * from clockOut / updateEntry on purpose: those act on `entries`, his own
+   * timesheet, and team rows must never land there (header, #28). Limited to
+   * team rows on projects he OWNS; updates by id and never sends user_id, so
+   * the foreman stays the row's owner (RLS time_entries_collab_update admits
+   * the project owner). The screen confirms first — the foreman's own copy
+   * changes under him. It never writes `notes`: the team read doesn't carry
+   * them (TEAM_TIME_ENTRY_COLUMNS), so any value sent from here would blank or
+   * overwrite the foreman's own note on his record. Notes belong to whoever
+   * logged the shift.
+   */
+  const closeTeamShift = useCallback((entryId: string, patch: {
+    clockOut?: string; totalHours: number; breakMinutes: number;
+  }): boolean => {
+    const t = teamEntriesRef.current.find(x => x.id === entryId);
+    if (!t || t.onOwnedProject !== true) return false;
+    const next: TeamTimeEntry = {
+      ...t,
+      status: 'clocked_out',
+      clockOut: patch.clockOut ?? t.clockOut,
+      breakMinutes: patch.breakMinutes,
+      breakStartedAt: undefined,
+      totalHours: patch.totalHours,
+    };
+    if (!next.clockOut) return false;
+    setTeamEntries(prev => prev.map(x => (x.id === entryId ? next : x)));
+    if (userId && isSupabaseConfigured) {
+      const dbPatch: Record<string, unknown> = {
+        id: entryId,
+        status: 'clocked_out',
+        clock_out: next.clockOut,
+        break_minutes: patch.breakMinutes,
+        break_started_at: null,
+        total_hours: patch.totalHours,
+        // The legacy per-shift column, kept filled for older builds (nothing
+        // here reads it — overtime is allocated at read time, #65).
+        overtime_hours: Math.round(Math.max(0, patch.totalHours - 8) * 100) / 100,
+      };
+      void supabaseWrite('time_entries', 'update', dbPatch);
+    }
+    return true;
+  }, [userId]);
 
   const updateEntry = useCallback((entryId: string, patch: Partial<TimeEntry>) => {
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...patch } : e));
@@ -838,6 +983,8 @@ export function useTimeEntriesStore() {
       if (patch.totalHours !== undefined) dbPatch.total_hours = patch.totalHours;
       if (patch.overtimeHours !== undefined) dbPatch.overtime_hours = patch.overtimeHours;
       if (patch.status !== undefined) dbPatch.status = patch.status;
+      // #66: a missed clock-out's real out time is saved as the stamp.
+      if (patch.clockOut !== undefined) dbPatch.clock_out = patch.clockOut ?? null;
       void supabaseWrite('time_entries', 'update', dbPatch);
     }
   }, [userId]);
@@ -871,7 +1018,12 @@ export function useTimeEntriesStore() {
     hours: number;
     notes?: string;
     date?: string;
-  }): TimeEntry => {
+  }): TimeEntry | null => {
+    // #155: same rule as clockIn — a row with no real job never syncs.
+    if (!isUuid(args.projectId)) {
+      console.warn('[useTimeEntries] addManualEntry refused: not a project id', args.projectId);
+      return null;
+    }
     // Local day (field-ops #9): the UTC day turned "2 hours punch" said at
     // 6 pm Friday into a Saturday 8 am shift.
     const day = args.date ?? todayCalendarDay();
@@ -916,13 +1068,14 @@ export function useTimeEntriesStore() {
     startBreak,
     resumeFromBreak,
     clockOut,
+    closeTeamShift,
     updateEntry,
     deleteEntry,
     shiftAlertHours,
     setShiftAlertHours,
   }), [
     entries, teamEntries, liveEntries, historyEntries, hydrated, refresh, clockIn, addManualEntry, startBreak,
-    resumeFromBreak, clockOut, updateEntry, deleteEntry, shiftAlertHours, setShiftAlertHours,
+    resumeFromBreak, clockOut, closeTeamShift, updateEntry, deleteEntry, shiftAlertHours, setShiftAlertHours,
   ]);
 }
 
@@ -947,38 +1100,11 @@ export function useTimeEntries(): TimeEntriesStore {
 }
 
 /**
- * Build a CSV payload of time entries for payroll export. Columns match
- * what QuickBooks and Sage payroll modules typically expect:
- *   Date, Worker, Trade, Project, Clock In, Clock Out, Break (min),
- *   Hours, Overtime, Notes
- *
- * Date is the local day the shift was worked (timeEntryDay) and the clock
- * columns are local wall-clock times — the device's time zone, which is the
- * jobsite's for the foreman who punched them.
- *
- * Returns the CSV string ready to be written to disk or copied to
- * clipboard. Caller decides delivery (Share sheet, email attachment).
+ * The payroll CSV builder. It lives in utils/timeClockPayroll (pure — the
+ * validators run it under bun) and is re-exported here for existing callers:
+ * `buildTimeEntriesCSV(entries, overtimeRule, allEntries)` — overtime is
+ * allocated under the GC's rule across `allEntries` (#65), the column header
+ * names the rule, and it adds OT status / Adjusted / Logged by columns
+ * (#151, #63).
  */
-export function buildTimeEntriesCSV(entries: TimeEntry[]): string {
-  const escape = (v: string | undefined): string => {
-    if (!v) return '';
-    if (v.includes(',') || v.includes('"') || v.includes('\n')) {
-      return '"' + v.replace(/"/g, '""') + '"';
-    }
-    return v;
-  };
-  const header = ['Date', 'Worker', 'Trade', 'Project', 'Clock In', 'Clock Out', 'Break (min)', 'Hours', 'Overtime', 'Notes'].join(',');
-  const rows = entries.map(e => [
-    escape(timeEntryDay(e)),
-    escape(e.workerName),
-    escape(e.trade),
-    escape(e.projectName),
-    escape(formatClockForCsv(e.clockIn)),
-    escape(formatClockForCsv(e.clockOut)),
-    String(e.breakMinutes),
-    e.totalHours.toFixed(2),
-    e.overtimeHours.toFixed(2),
-    escape(e.notes),
-  ].join(','));
-  return [header, ...rows].join('\n');
-}
+export const buildTimeEntriesCSV = buildTimeEntriesCSVPure;

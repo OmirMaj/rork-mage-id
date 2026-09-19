@@ -49,7 +49,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // dunning reminders match sub-portal invites, contract sends, payment
 // receipts, the morning brief, the homeowner weekly digest, and COI
 // warnings.
-import { wrapEmailHtml, resendSend, emailButton, fmtMoney, isEmailUnsubscribed } from '../_shared/email.ts';
+import { wrapEmailHtml, resendSend, emailButton, isEmailUnsubscribed } from '../_shared/email.ts';
 // EDGE-F6: the ONE place a customer-facing portal URL is built (minted id + ?t= token).
 import { portalUrlFor, portalLinkEnded } from '../_shared/portalLinks.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
@@ -113,7 +113,59 @@ interface InvoiceRow {
   /** Set by qbo-reconciler when QuickBooks shows the invoice closed by
    *  something other than a payment (see isClosedWithoutPaymentNote). */
   qbo_error?: string | null;
+  /** Where the GC emailed the invoice (20260919 bill_to migration). Undefined
+   *  on a server that has not run that migration — see selectInvoices. */
+  bill_to_email?: string | null;
+  bill_to_name?: string | null;
+  /** The portal shows the invoice only when this is null or status 'sent'. */
+  portal_state?: { status?: string } | null;
+  /** The invoice's own Stripe link and the amount it charges (MONEY-F2). */
+  pay_link_url?: string | null;
+  pay_link_amount?: number | string | null;
 }
+
+// >>> dunning-recipient
+// Pure: executed by scripts/validate-invoice-send-pay-dunning.ts.
+
+/**
+ * Who the reminder goes to (#47). The address the GC actually emailed the
+ * invoice to wins; the project's first portal invitee is only the fallback.
+ * It used to be the first invite alone — never the AP address the invoice went to,
+ * and nobody at all when the project had no portal.
+ */
+export function resolveDunningRecipient(
+  invoice: { bill_to_email?: string | null; bill_to_name?: string | null },
+  invites: ReadonlyArray<{ email?: string | null; name?: string | null }> | null | undefined,
+): { email: string; name: string | null; source: 'bill_to' | 'portal_invite' } | null {
+  const bill = (invoice.bill_to_email ?? '').trim();
+  if (bill.includes('@')) return { email: bill, name: (invoice.bill_to_name ?? '').trim() || null, source: 'bill_to' };
+  const invite = (invites ?? []).find(i => (i.email ?? '').includes('@'));
+  if (!invite) return null;
+  return { email: (invite.email ?? '').trim(), name: (invite.name ?? '').trim() || null, source: 'portal_invite' };
+}
+
+/**
+ * The two buttons a reminder may carry (#45). 'View invoice' opens the portal,
+ * so it is offered only when the portal SHOWS this invoice (no portal state =
+ * legacy/shown, or 'sent') — a portal that hides it was a dead end on a final
+ * notice. 'Pay now' is the invoice's own link, and only while that link still
+ * charges exactly what is owed (MONEY-F2): a link minted for an older balance
+ * charges the wrong amount every time it is opened.
+ */
+export function dunningLinks(
+  invoice: { portal_state?: { status?: string } | null; pay_link_url?: string | null; pay_link_amount?: number | string | null },
+  portalUrl: string | null,
+  outstanding: number,
+): { viewUrl: string | null; payUrl: string | null } {
+  const shown = invoice.portal_state == null || invoice.portal_state.status === 'sent';
+  const url = (invoice.pay_link_url ?? '').trim();
+  const amt = invoice.pay_link_amount == null || invoice.pay_link_amount === '' ? NaN : Number(invoice.pay_link_amount);
+  // Compared in whole cents: 77484.87 vs 77484.88 is a one-cent float gap
+  // (0.0100000…05) that a dollar tolerance would wrongly reject.
+  const payMatches = !!url && Number.isFinite(amt) && Math.abs(Math.round(amt * 100) - Math.round(outstanding * 100)) <= 1;
+  return { viewUrl: shown ? portalUrl : null, payUrl: payMatches ? url : null };
+}
+// <<< dunning-recipient
 
 interface ProjectRow {
   id: string;
@@ -199,6 +251,12 @@ function skipReason(invoice: InvoiceRow, targetStage: number, manual: boolean): 
 
 // ── Email builder ────────────────────────────────────────────────────
 
+/** "$77,484.88" — never rounded; the amount a reminder demands is the amount the link charges. */
+function fmtMoneyCents(n: number): string {
+  const v = Number.isFinite(n) ? n : 0;
+  return `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function buildDunningHtml(opts: {
   companyName: string;
   projectName: string;
@@ -209,6 +267,8 @@ function buildDunningHtml(opts: {
   stage: number;
   /** Tokenized portal URL from portalUrlFor(), or null → no button (never a dead link). */
   portalUrl: string | null;
+  /** The invoice's own Stripe link, only when it charges the outstanding amount. */
+  payUrl?: string | null;
   recipientEmail: string;
 }): string {
   const dueDateLabel = (() => {
@@ -239,7 +299,10 @@ function buildDunningHtml(opts: {
       ? `We haven't received payment yet for the invoice below. Please take a moment to review and arrange payment at your earliest convenience.`
       : `Just a friendly reminder that the invoice below is now past due. If you've already sent payment, please disregard this notice.`;
 
-  const amountFormatted = fmtMoney(opts.outstanding);
+  // Exact to the cent (#135 family): the shared fmtMoney rounds to whole
+  // dollars, so the notice demanded "$77,485" while the Pay button beside it
+  // charges $77,484.88.
+  const amountFormatted = fmtMoneyCents(opts.outstanding);
 
   const bodyHtml = `
     <p style="margin:0 0 16px 0;font-family:${FONT_STACK};font-size:14px;line-height:22px;color:${STONE};">
@@ -268,6 +331,7 @@ function buildDunningHtml(opts: {
         </table>
       </td></tr>
     </table>
+    ${opts.payUrl ? emailButton(`Pay ${amountFormatted} now`, opts.payUrl) : ''}
     ${opts.portalUrl ? emailButton('View invoice', opts.portalUrl) : ''}
     <p style="margin:18px 0 0;font-family:${FONT_STACK};font-size:13px;color:${FOG};line-height:19px;">
       Questions about this invoice? Reply to this email${opts.portalUrl ? ' or visit your project portal' : ''}.
@@ -385,19 +449,19 @@ async function processInvoice(
   }
 
   const project = projRes.data as ProjectRow;
-  const portal = project.client_portal;
-  const invites = (portal?.invites ?? []).filter(i => (i.email ?? '').includes('@'));
+  // #47: the address the invoice was emailed to first; the first portal
+  // invitee only when none was stored (resolveDunningRecipient above).
+  const recipient = resolveDunningRecipient(invoice, project.client_portal?.invites);
 
-  if (invites.length === 0) {
-    // No client email on file — log and skip (no send, no marker).
+  if (!recipient) {
+    // No client email on file — log and skip (no send, no marker). The app's
+    // reminder card says the same thing up front (billingFlowCore 'no_recipient').
     console.warn('[invoice-dunning] no client email, skipping invoice', invoice.id);
     return skip('no_recipient');
   }
 
-  // Take the first invite (consistent with how the digest handles the
-  // single-homeowner case; if there are multiple, we email the first).
-  const invite = invites[0];
-  const recipientEmail = invite.email!;
+  // The unsubscribe check below runs on THIS address, whichever source won.
+  const recipientEmail = recipient.email;
 
   // Pre-send suppression: if this address unsubscribed from payment
   // reminders (or globally), skip WITHOUT advancing dunning_stage /
@@ -456,6 +520,9 @@ async function processInvoice(
       ? `Second notice — Invoice #${invoice.number} is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue`
       : `Friendly reminder — Invoice #${invoice.number} is past due`;
 
+  // #45: 'View invoice' only when the portal shows this invoice; the pay
+  // link only while it charges exactly the outstanding amount.
+  const links = dunningLinks(invoice, portalUrl, outstanding);
   const html = buildDunningHtml({
     companyName,
     projectName: project.name,
@@ -464,7 +531,8 @@ async function processInvoice(
     dueDate: invoice.due_date,
     daysOverdue,
     stage: target,
-    portalUrl,
+    portalUrl: links.viewUrl,
+    payUrl: links.payUrl,
     recipientEmail,
   });
 
@@ -515,6 +583,35 @@ async function processInvoice(
   return { outcome: 'sent', stage: nextStage, sentAt, recipient: recipientEmail };
 }
 
+// ── Invoice reads ────────────────────────────────────────────────────
+//
+// The columns every reminder needs, plus the wave-3 ones. bill_to_email /
+// bill_to_name arrive with migration 20260919010000; if this function is
+// deployed before it, PostgREST refuses the whole select (42703 / PGRST204)
+// and EVERY reminder would stop. So a missing-column error retries once with
+// the pre-migration list — reminders then fall back to the portal invitee,
+// exactly as before.
+// >>> dunning-select (pure; scripts/validate-invoice-send-pay-dunning.ts executes it)
+//
+// DEPLOY SAFETY. The two invoice selects below read bill_to_email /
+// bill_to_name, which arrive with migration 20260919010000. If this function
+// is deployed before it, PostgREST refuses the WHOLE select (42703) and every
+// reminder would stop. So a missing-column error re-runs the same query once
+// without those two columns — reminders then fall back to the portal invitee,
+// exactly as before. Any other error is returned as-is.
+function isMissingColumn(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  return err.code === '42703' || err.code === 'PGRST204' || /column .* does not exist/i.test(err.message ?? '');
+}
+/** The same column list without the bill_to pair (the pre-migration shape). */
+function withoutBillTo(cols: string): string {
+  return cols.split(',').filter(c => c !== 'bill_to_email' && c !== 'bill_to_name').join(',');
+}
+// <<< dunning-select
+
+/** Must equal the two literal selects below (the validator compares them). */
+const INVOICE_SELECT_COLS = 'id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,portal_state,pay_link_url,pay_link_amount,bill_to_email,bill_to_name,dunning_stage,dunning_last_sent_at,qbo_error';
+
 // ── Entry point ──────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -543,11 +640,18 @@ Deno.serve(async (req: Request) => {
 
   // ── Single-invoice mode ─────────────────────────────────────────
   if (body.invoiceId) {
-    const invRes = await client
+    const single = (cols: string) => client.from('invoices').select(cols).eq('id', body.invoiceId!).maybeSingle();
+    // Loosely typed: the fallback's column list is not a literal, so the
+    // client cannot infer a row type for it; the row is cast below anyway.
+    let invRes: { data: unknown; error: { code?: string; message?: string } | null } = await client
       .from('invoices')
-      .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at,qbo_error')
+      .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,portal_state,pay_link_url,pay_link_amount,bill_to_email,bill_to_name,dunning_stage,dunning_last_sent_at,qbo_error')
       .eq('id', body.invoiceId)
       .maybeSingle();
+    if (isMissingColumn(invRes.error)) {
+      console.warn('[invoice-dunning] bill_to columns missing — apply migration 20260919010000; using the portal invitee');
+      invRes = await single(withoutBillTo(INVOICE_SELECT_COLS));
+    }
 
     if (invRes.error || !invRes.data) {
       return jsonResponse({ success: false, error: 'invoice not found' }, 404);
@@ -596,15 +700,23 @@ Deno.serve(async (req: Request) => {
   // Eligibility (outstanding, days-overdue, stage) is re-evaluated in
   // processInvoice() in JS so we cast a wide net here and let the per-row
   // logic filter.
-  const invRes = await client
+  let invRes: { data: unknown; error: { code?: string; message?: string } | null } = await client
     .from('invoices')
-    .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,dunning_stage,dunning_last_sent_at,qbo_error')
+    .select('id,number,project_id,due_date,total_due,amount_paid,subtotal,retention_percent,retention_amount,retention_released,status,user_id,portal_state,pay_link_url,pay_link_amount,bill_to_email,bill_to_name,dunning_stage,dunning_last_sent_at,qbo_error')
     .not('status', 'in', '("paid","draft")')
     .not('due_date', 'is', null);
+  if (isMissingColumn(invRes.error)) {
+    console.warn('[invoice-dunning] bill_to columns missing — apply migration 20260919010000; using the portal invitee');
+    invRes = await client
+      .from('invoices')
+      .select(withoutBillTo(INVOICE_SELECT_COLS))
+      .not('status', 'in', '("paid","draft")')
+      .not('due_date', 'is', null);
+  }
 
   if (invRes.error) {
     console.error('[invoice-dunning] invoices query failed', invRes.error);
-    return jsonResponse({ success: false, error: invRes.error.message }, 500);
+    return jsonResponse({ success: false, error: invRes.error.message ?? 'invoices query failed' }, 500);
   }
 
   const invoices = (invRes.data ?? []) as InvoiceRow[];

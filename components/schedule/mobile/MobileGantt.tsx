@@ -14,7 +14,7 @@ import type { ScheduleTask } from '@/types';
 import { getPhaseColor, addWorkingDays } from '@/utils/scheduleEngine';
 import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
 import { parseCalendarDay, addCalendarDays } from '@/utils/calendarDate';
-import { startDayNumberFor } from '@/utils/scheduleOps';
+import { startDayNumberFor, placementDayOffsets, type ScheduledPlacement } from '@/utils/scheduleOps';
 
 interface MobileGanttProps {
   tasks: ScheduleTask[];
@@ -25,6 +25,14 @@ interface MobileGanttProps {
    *  app-wide 5-day week. */
   workingDaysPerWeek?: number;
   nonWorkingDates?: string[];
+  /**
+   * Where the ENGINE scheduled each task (runCpm es/ef; each placement
+   * carries its scale — calendar when dated, working counts when undated).
+   * Bars are drawn here, not at the stored startDay: that is the pin, and a
+   * longer predecessor pushes the task without rewriting it (audit #51). The
+   * pin stays the drag input — a drag moves the pin by the columns dragged.
+   */
+  placements?: ReadonlyMap<string, ScheduledPlacement>;
   selectedDate: Date;
   collapsedPhases: Record<string, boolean>;
   onTogglePhase: (phase: string) => void;
@@ -104,10 +112,12 @@ function toIsoDay(d: Date): string {
 // the schedule calendar); onReschedule still takes a delta in *working days*
 // so its contract (and onUpdateTask) is unchanged. This keeps drag correct
 // under weekday-only mode and every zoom level.
-function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, dragToStartDay, onDragChange }: {
+function GanttBar({ task, x, w, top, dayW, color, done, startOffset, onPress, onReschedule, dragToStartDay, onDragChange }: {
   task: ScheduleTask; x: number; w: number; top: number; dayW: number; color: string; done: boolean;
+  /** Calendar day-offset of the bar's left edge (where it is DRAWN). */
+  startOffset: number;
   onPress: (t: ScheduleTask) => void; onReschedule: (t: ScheduleTask, deltaDays: number) => void;
-  dragToStartDay: (currentStartDay: number, translationX: number) => number;
+  dragToStartDay: (startOffset: number, translationX: number) => number;
   onDragChange: (id: string | null) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
@@ -127,10 +137,16 @@ function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, d
         if (c !== stepRef.current) { stepRef.current = c; if (Platform.OS !== 'web') void Haptics.selectionAsync(); }
         setDragCols(c);
       })
-      .onEnd((e) => { onReschedule(task, dragToStartDay(task.startDay ?? 1, e.translationX) - (task.startDay ?? 1)); })
+      .onEnd((e) => {
+        // A hold-and-release that moved no column changes nothing — without
+        // this, a pushed task (drawn at its CPM start, pinned earlier) would
+        // have its derived date written back as a new pin.
+        if (Math.round(e.translationX / dayW) === 0) return;
+        onReschedule(task, dragToStartDay(startOffset, e.translationX) - (task.startDay ?? 1));
+      })
       .onFinalize(() => { setDragCols(null); onDragChange(null); });
     return Gesture.Race(pan, tap);
-  }, [task, dayW, onPress, onReschedule, dragToStartDay, onDragChange]);
+  }, [task, dayW, startOffset, onPress, onReschedule, dragToStartDay, onDragChange]);
 
   const dragging = dragCols !== null;
   const left = Math.max(0, x + (dragging ? (dragCols ?? 0) * dayW : 0));
@@ -154,7 +170,7 @@ function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, d
 }
 
 export function MobileGantt({
-  tasks, startDate, workingDaysPerWeek, nonWorkingDates, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onLongPressEmpty, onUpdateTask,
+  tasks, startDate, workingDaysPerWeek, nonWorkingDates, placements, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onLongPressEmpty, onUpdateTask,
 }: MobileGanttProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -241,7 +257,10 @@ export function MobileGantt({
   // other surface uses. barById then reads it O(1) per task — the same
   // "index it once" shape as the weekday-only column index below.
   const workingDayOffset = useMemo(() => {
-    const maxN = tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 0);
+    let maxN = tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 0);
+    // Undated placements are working counts walked through this index too, and
+    // a pushed chain can finish past every pin — index far enough to cover it.
+    placements?.forEach((p) => { if (p.scale === 'working' && p.ef > maxN) maxN = p.ef; });
     const out: number[] = [0];
     let cur = base;
     for (let n = 1; n <= maxN; n++) {
@@ -249,7 +268,7 @@ export function MobileGantt({
       out.push(offsetOf(cur));
     }
     return out;
-  }, [tasks, base, wdpw, nonWorkingDates, offsetOf]);
+  }, [tasks, placements, base, wdpw, nonWorkingDates, offsetOf]);
   // Calendar day-offset of working day n; past the indexed horizon (only a
   // drag can get there) it walks the same calendar.
   const offsetOfWorkingDay = useCallback((n: number): number => {
@@ -258,7 +277,18 @@ export function MobileGantt({
   }, [workingDayOffset, offsetOf, base, wdpw, nonWorkingDates]);
   // The column just past the last bar (working day maxN is the day AFTER the
   // last task day, so its offset is the exclusive end), floored at a week.
-  const maxDay = Math.max(7, workingDayOffset[workingDayOffset.length - 1] ?? 0);
+  // Engine placements can sit past every pin (a pushed chain), so the horizon
+  // also covers the latest scheduled finish.
+  // (Exclusive end offset, on the drawn calendar, whatever the placement scale.)
+  const maxPlacedEf = useMemo(() => {
+    let m = 0;
+    placements?.forEach((p) => {
+      const end = placementDayOffsets(p, offsetOfWorkingDay).endOffset + 1;
+      if (end > m) m = end;
+    });
+    return m;
+  }, [placements, offsetOfWorkingDay]);
+  const maxDay = Math.max(7, workingDayOffset[workingDayOffset.length - 1] ?? 0, maxPlacedEf);
   const numDays = maxDay + 2;
 
   // --- COLUMN ABSTRACTION ---------------------------------------------------
@@ -332,13 +362,15 @@ export function MobileGantt({
   const dayToX = useCallback((dayOffset: number): number => colOf(dayOffset) * dayW, [colOf, dayW]);
 
   // Convert a live pixel drag into a new 1-indexed startDay: the bar's current
-  // column comes from its working day, the drop column resolves to a calendar
-  // day, and startDayNumberFor turns that back into a working-day number
-  // (a drop on a closed day starts the next working day).
-  const dragToStartDay = useCallback((currentStartDay: number, translationX: number): number => {
-    const targetCol = Math.max(0, colOf(offsetOfWorkingDay(currentStartDay - 1)) + Math.round(translationX / dayW));
+  // column is where it is DRAWN (its engine start), the drop column resolves
+  // to a calendar day, and startDayNumberFor turns that back into a working-day
+  // number (a drop on a closed day starts the next working day). If the drop
+  // is earlier than the predecessors allow, the engine puts the bar back and
+  // MobileScheduleScreen says why (startDaySnapBack).
+  const dragToStartDay = useCallback((startOffset: number, translationX: number): number => {
+    const targetCol = Math.max(0, colOf(startOffset) + Math.round(translationX / dayW));
     return startDayNumberFor(base, dayAt(colToDay(targetCol)), wdpw, nonWorkingDates);
-  }, [colOf, colToDay, dayW, offsetOfWorkingDay, base, dayAt, wdpw, nonWorkingDates]);
+  }, [colOf, colToDay, dayW, base, dayAt, wdpw, nonWorkingDates]);
 
   const timelineW = totalCols * dayW;
   const contentH = HEADER_H + rows.length * ROW_H;
@@ -359,21 +391,34 @@ export function MobileGantt({
   // Bar geometry per task id (for arrows). x/width both go through dayToX so the
   // span stays correct when weekend columns are hidden.
   const barById = useMemo(() => {
-    const m = new Map<string, { x: number; w: number; yMid: number }>();
+    const m = new Map<string, { x: number; w: number; yMid: number; startOffset: number }>();
     rows.forEach((r, i) => {
       if (r.kind !== 'task') return;
-      // startDay is a 1-indexed WORKING day; dayToX/colOf take a 0-indexed
-      // CALENDAR day-offset from baseMs, so both ends go through the index.
-      // The bar covers its last working day's column, so the right edge is
-      // the column after it.
-      const n = (r.task.startDay ?? 1) - 1;
-      const x = dayToX(offsetOfWorkingDay(n));
-      const endX = dayToX(offsetOfWorkingDay(n + Math.max(1, r.task.durationDays || 1) - 1) + 1);
+      // Engine placement first. Dated, es/ef are 1-indexed CALENDAR indices
+      // (offset = es - 1, no walk); undated, they are WORKING counts and are
+      // walked through the index like a pin — placementDayOffsets decides from
+      // the placement's own scale. The bar covers its last day's column, so
+      // the right edge is the column after it. startOffset is also where a
+      // drag starts, so a drop resolves against the column the bar is drawn in.
+      const placed = placements?.get(r.task.id);
+      let startOffset: number;
+      let endOffset: number;
+      if (placed) {
+        ({ startOffset, endOffset } = placementDayOffsets(placed, offsetOfWorkingDay));
+      } else {
+        // No placement (the engine could not place it) — the pin, walked as a
+        // 1-indexed WORKING day through the index.
+        const n = (r.task.startDay ?? 1) - 1;
+        startOffset = offsetOfWorkingDay(n);
+        endOffset = offsetOfWorkingDay(n + Math.max(1, r.task.durationDays || 1) - 1);
+      }
+      const x = dayToX(startOffset);
+      const endX = dayToX(endOffset + 1);
       const w = Math.max(dayW * 0.6, endX - x - 3);
-      m.set(r.task.id, { x, w, yMid: HEADER_H + i * ROW_H + ROW_H / 2 });
+      m.set(r.task.id, { x, w, yMid: HEADER_H + i * ROW_H + ROW_H / 2, startOffset });
     });
     return m;
-  }, [rows, dayToX, dayW, offsetOfWorkingDay]);
+  }, [rows, dayToX, dayW, offsetOfWorkingDay, placements]);
 
   // y0/y1 are the arrow's vertical extent in timeline-content coordinates. They
   // are carried on the arrow so the render pass can drop the ones that cannot
@@ -618,6 +663,7 @@ export function MobileGantt({
                   dayW={dayW}
                   color={color}
                   done={done}
+                  startOffset={g.startOffset}
                   onPress={onPressTask}
                   onReschedule={handleReschedule}
                   dragToStartDay={dragToStartDay}

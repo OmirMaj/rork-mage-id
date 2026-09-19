@@ -193,23 +193,66 @@ describe('last-user backfill — NATIVE keeps the untagged field work', () => {
 });
 
 describe('last-user backfill — a marker that already exists is never re-stamped', () => {
-  test('the queues are left exactly as they are', async () => {
-    setPlatform('web');
-    await AsyncStorage.setItem(LAST_USER_ID_KEY, USER_B);
-    await seedQueues([{ id: 'legacy', table: 'rfis', operation: 'insert' }]);
-
-    await mountAuth();
-    // The backfill short-circuits, so there is no write to wait for. Wait for
-    // proof that it RAN (readLastUser's multiGet) and then let the continuation
-    // that would have narrowed the queue have its turn. A marker of B over a
-    // session of A is the tenant switch's business, not the backfill's.
+  /** The backfill short-circuits, so there is no write to wait for. Wait for
+   *  proof that it RAN (readLastUser's multiGet) and then let the continuation
+   *  that would have narrowed the queue have its turn. */
+  async function waitForBackfillToPass(): Promise<void> {
     await waitFor(() => {
       expect(AsyncStorage.multiGet).toHaveBeenCalledWith([LAST_USER_ID_KEY, 'mageid_last_user_email']);
     });
     await new Promise((r) => setTimeout(r, 50));
+  }
+
+  test('NATIVE: a marker naming someone else is left exactly as it is, queue and all', async () => {
+    // A marker of B over a session of A is the tenant switch's business, not
+    // the backfill's. On native no mount-time handoff runs (a session present
+    // at mount is whoever last signed in through the app), so nothing here may
+    // touch either the marker or the queue.
+    setPlatform('ios');
+    await AsyncStorage.setItem(LAST_USER_ID_KEY, USER_B);
+    await seedQueues([{ id: 'legacy', table: 'rfis', operation: 'insert' }]);
+
+    await mountAuth();
+    await waitForBackfillToPass();
 
     expect(await AsyncStorage.getItem(LAST_USER_ID_KEY)).toBe(USER_B);
     expect(await queueIds()).toEqual(['legacy']);
+  });
+
+  test('WEB: a marker naming the session user is left exactly as it is, queue and all', async () => {
+    // Same short-circuit on the web: the marker already vouches for this
+    // user, so the backfill must not narrow the untagged entry away.
+    setPlatform('web');
+    await AsyncStorage.setItem(LAST_USER_ID_KEY, USER_A);
+    await seedQueues([{ id: 'legacy', table: 'rfis', operation: 'insert' }]);
+
+    await mountAuth();
+    await waitForBackfillToPass();
+
+    expect(await AsyncStorage.getItem(LAST_USER_ID_KEY)).toBe(USER_A);
+    expect(await queueIds()).toEqual(['legacy']);
+  });
+});
+
+describe('WEB mount handoff — a session that changed hands before the app ran', () => {
+  test('a marker naming someone else runs the full tenant handoff at mount', async () => {
+    // Wave 3 (data-session critic, SYNC-F13): on the web detectSessionInUrl can
+    // swap the browser to a different account (a confirmation or recovery
+    // link) before any app code runs. The previous account's session is gone,
+    // so its queued writes can never flush under this JWT — the mount runs the
+    // same handoff a sign-in by a different user gets: the previous tenant's
+    // queue is dropped and the marker is handed over to the session user.
+    setPlatform('web');
+    await AsyncStorage.setItem(LAST_USER_ID_KEY, USER_B);
+    await seedQueues([
+      { id: 'legacy', table: 'rfis', operation: 'insert' },
+      { id: 'theirs', table: 'rfis', operation: 'insert', userId: USER_B },
+    ]);
+
+    await mountAuth();
+    await waitForMarker(USER_A);
+
+    expect(await AsyncStorage.getItem(QUEUE_KEY)).toBeNull();
   });
 });
 

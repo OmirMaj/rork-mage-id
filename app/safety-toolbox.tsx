@@ -19,8 +19,9 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
-import { useTierAccess } from '@/hooks/useTierAccess';
-import Paywall from '@/components/Paywall';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { SafetyAccessBlocked, useSafetySeat } from '@/app/safety';
 import EmptyState from '@/components/EmptyState';
 import type { ToolboxTalk, SafetyAttendee } from '@/types';
 import { Type } from '@/constants/typography';
@@ -30,19 +31,19 @@ import { showAlert } from '@/utils/alert';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason } from '@/utils/safety/osha';
 
 export default function SafetyToolboxScreen() {
   const router = useRouter();
-  const { canAccess } = useTierAccess();
+  // Read the project here (not just in Inner) so the gate can ask "was he
+  // invited to THIS job?" before paywalling — the tools a foreman actually
+  // runs (audit #170). Safe because 20260919130000 routes a collaborator's
+  // records to the project owner; before it, they stayed on his own account.
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { canAccess } = useProjectAccess(gateProjectId);
+  const roleState = useProjectRoleState(gateProjectId);
   if (!canAccess('safety_management')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="Safety Management"
-        requiredTier="business"
-        onClose={() => router.back()}
-      />
-    );
+    return <SafetyAccessBlocked roleState={roleState} onClose={() => router.back()} />;
   }
   return <SafetyToolboxInner />;
 }
@@ -60,6 +61,7 @@ function SafetyToolboxInner() {
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
+  const seat = useSafetySeat(projectId);
   const { getToolboxTalksForProject, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk, certifications } = useSafety();
   // Read-only: who is assigned to this job (CrewMember.projectIds, written by
   // app/crew.tsx). Pre-fills the sign-in sheet — audit round 2 #5b.
@@ -178,8 +180,14 @@ function SafetyToolboxInner() {
   }, []);
 
   const handleSave = useCallback(() => {
+    const blocked = safetyWriteBlockedReason(seat);
+    if (blocked) { showAlert('View only', blocked); return; }
     const tp = topic.trim();
     if (!tp) { showAlert('Missing topic', 'What was the talk about?'); return; }
+    // A typed '9/18' used to save as-is (audit #168); a sign-in sheet's date
+    // is evidence, so only a real day is filed.
+    const dateProblem = safetyDateProblem(date, 'Talk date');
+    if (dateProblem) { showAlert('Check the date', dateProblem); return; }
     const now = new Date().toISOString();
     if (editingTalk) {
       updateToolboxTalk(editingTalk.id, { topic: tp, date, presenter: presenter.trim(), notes: notes.trim(), attendees });
@@ -192,9 +200,11 @@ function SafetyToolboxInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [topic, date, presenter, notes, attendees, editingTalk, projectId, addToolboxTalk, updateToolboxTalk, resetForm, author]);
+  }, [topic, date, presenter, notes, attendees, editingTalk, projectId, addToolboxTalk, updateToolboxTalk, resetForm, author, seat]);
 
   const handleDelete = useCallback((id: string) => {
+    const blocked = safetyDeleteBlockedReason(seat);
+    if (blocked) { showAlert('Can\'t delete', blocked); return; }
     const talk = items.find(x => x.id === id);
     if (talk && talk.attendees.some(a => !!a.signedAt)) {
       showAlert('Signed — locked', 'A toolbox talk with signed attendees is part of the safety record and can\'t be deleted.');
@@ -204,7 +214,7 @@ function SafetyToolboxInner() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteToolboxTalk(id) },
     ]);
-  }, [deleteToolboxTalk, items]);
+  }, [deleteToolboxTalk, items, seat]);
 
   if (!project) {
     return (
@@ -215,12 +225,14 @@ function SafetyToolboxInner() {
           title="Open a project first"
           message="Toolbox talks are tied to a project so each one carries its topic, presenter, and attendee sign-ins. To start one:"
           steps={[
-            'Open or create a project from the Projects tab.',
-            'Tap Safety inside the project tile grid.',
+            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
             'Open Toolbox Talks and hit + to add one.',
           ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
+          // Safety's own project picker, not Home: the "Safety tile inside the
+          // project tile grid" these steps used to promise did not exist, so
+          // this door led nowhere (audit #81).
+          actionLabel="Pick a job"
+          onAction={() => router.replace('/safety' as never)}
         />
       </View>
     );

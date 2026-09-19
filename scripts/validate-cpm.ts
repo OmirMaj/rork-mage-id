@@ -744,12 +744,16 @@ console.log('\n10. renderers are wired to cpm.es/ef');
   ok('the Gantt baseline ghost is lifted from the WORKING scale onto the axis',
     /const bStart = toCal\(bStartOrd\)/.test(ganttLayers)
     && !/const bx = \(bar\.task\.baselineStartDay - 1\)/.test(ganttLayers));
-  ok('the Gantt actual overlay is lifted the same way',
-    /const aStart = toCal\(aStartOrd\)/.test(ganttLayers));
-  ok('logStartToday and logFinishToday write ONE scale into actualStartDay',
-    /actualStartDay: todayOrdinal,/.test(ganttLayers)
-    && /actualEndDay: todayOrdinal,/.test(ganttLayers)
-    && !/actualStartDay: todayDayNumber,/.test(ganttLayers));
+  // Actuals are CALENDAR indices (utils/pace/stampActuals.ts — audit #50), the
+  // axis's own unit, so the overlay is NOT lifted and the buttons stamp the same
+  // calendar day every status sink stamps.
+  ok('the Gantt actual overlay is drawn on the axis directly (calendar actuals, no toCal)',
+    /const aStart = bar\.task\.actualStartDay;/.test(ganttLayers)
+    && !/toCal\(aStartOrd\)|toCal\(bar\.task\.actualEndDay\)/.test(ganttLayers));
+  ok('logStartToday and logFinishToday stamp through stampActuals on the calendar scale',
+    /ganttLogStartPatch\(task, stampDay\(\)/.test(ganttLayers)
+    && /ganttLogFinishPatch\(stampDay\(\)/.test(ganttLayers)
+    && !/actualStartDay: todayOrdinal,|actualEndDay: todayOrdinal,/.test(ganttLayers));
 
   const gantt = src('components/schedule/InteractiveGantt.tsx');
   ok('the Gantt bar is positioned from the CPM early start',
@@ -1106,14 +1110,11 @@ console.log('\n15. Gantt baseline ghost + actual overlay');
     (cRow.es - 1) - (cTask.baselineStartDay! - 1) === 6,
     { barX: cRow.es - 1, rawGhostX: cTask.baselineStartDay! - 1 });
 
-  // The actual overlay shares the scale. logStartToday writes a WORKING ordinal
-  // (types/index.ts: "1-indexed, same basis as startDay"); logFinishToday's
-  // retro-start fallback writes task.startDay, also an ordinal. Before the fix
-  // the first of those wrote a CALENDAR index, so ONE field carried two scales.
-  const actual = { ...withBl[2], actualStartDay: 16, actualEndDay: 20 };  // C ran exactly to plan
-  const aX = workingOrdinalToCalendarIndex(actual.actualStartDay, SCALE) - 1;
-  const aW = workingOrdinalToCalendarIndex(actual.actualEndDay, SCALE)
-    - workingOrdinalToCalendarIndex(actual.actualStartDay, SCALE) + 1;
+  // The actual overlay shares the AXIS: actuals are calendar indices, so an
+  // actual that ran exactly to plan (C's CPM es/ef) draws exactly over its bar.
+  const actual = { ...withBl[2], actualStartDay: cRow.es, actualEndDay: cRow.ef };  // C ran exactly to plan
+  const aX = actual.actualStartDay - 1;
+  const aW = actual.actualEndDay - actual.actualStartDay + 1;
   eq('an actual that matches the plan draws exactly over its own bar',
     [aX, aW], [cRow.es - 1, cRow.ef - cRow.es + 1]);
 }

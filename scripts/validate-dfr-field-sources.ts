@@ -80,15 +80,20 @@ console.log('\n#10 crew roster from the time clock:');
   const labor = crew?.rows.find(r => r.trade === 'General labor');
   ok('REPRO: 3 framers at 9 h, not the plan\'s 4 × 8', framing?.headcount === 3 && framing.hoursWorked === 9, JSON.stringify(framing));
   ok('REPRO: the laborer is on the report', labor?.headcount === 1 && labor.hoursWorked === 9, JSON.stringify(crew?.rows));
-  ok('4 people, 36 h, 4 h overtime; other projects and unassigned excluded',
-    crew?.people === 4 && crew.totalHours === 36 && crew.overtimeHours === 4, JSON.stringify(crew));
+  ok('4 people, 36 h, no overtime under the federal weekly rule (one 9 h day is not OT, #65); other projects and unassigned excluded',
+    crew?.people === 4 && crew.totalHours === 36 && crew.overtimeHours === 0, JSON.stringify(crew));
   ok('rows carry the GC\'s company, so crewPresence never folds them into a sub\'s row',
     !!crew && crew.rows.every(r => r.company === 'Ortiz Builders'));
   ok('no company name set → a labelled fallback, never empty',
     clockCrewForDay(entries, P, '2026-09-17', '  ')?.rows.every(r => r.company === OWN_CREW_FALLBACK_COMPANY) === true);
-  ok('the chip names the clock, people, hours and overtime',
-    !!crew && /^From the time clock: 4 people, 36 h \(4 h overtime\)/.test(clockCrewSourceLine(crew, 0)),
+  ok('the chip names the clock, people and hours (no overtime under the weekly rule)',
+    !!crew && /^From the time clock: 4 people, 36 h\. Tap a row/.test(clockCrewSourceLine(crew, 0)),
     crew ? clockCrewSourceLine(crew, 0) : 'null');
+  // #65 · The GC's optional daily >8 rule: each 9 h day carries 1 h of OT.
+  const d8 = clockCrewForDay(entries, P, '2026-09-17', 'Ortiz Builders', undefined, { weeklyThreshold: 40, dailyThreshold: 8, weekStartsOn: 1 });
+  ok('under a daily >8 rule the same crew carries 4 h of overtime',
+    d8?.overtimeHours === 4 && /36 h \(4 h overtime\)/.test(clockCrewSourceLine(d8, 0)),
+    d8 ? `${d8.overtimeHours} / ${clockCrewSourceLine(d8, 0)}` : 'null');
   ok('nobody clocked in → null (the screen falls back to the plan)', clockCrewForDay(entries, P, '2026-09-16', 'X') === null);
   ok('an unassigned report never collects the unassigned clock-ins', clockCrewForDay(entries, 'unassigned', '2026-09-17', 'X') === null);
 
@@ -126,7 +131,7 @@ console.log('\n#10 crew roster from the time clock:');
     && /if \(!silent && liveHoursWarning\) showAlert\('Saved with hours so far', liveHoursWarning\);/.test(DFR)
     && /if \(liveHoursWarning\) \{\s*showAlert\('Crew still on the clock'/.test(DFR));
   ok('open-shift hours keep counting while the screen is open',
-    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs\)/.test(DFR)
+    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule\)/.test(DFR)
     && /setInterval\(\(\) => setLiveNowMs\(Date\.now\(\)\), 60_000\)/.test(DFR));
   ok('a finished shift with zero hours is not evidence of anyone',
     clockCrewForDay([shift({ workerId: 'w9', clockIn: inAt, clockOut: inAt, totalHours: 0, overtimeHours: 0 })], P, '2026-09-17', 'X') === null);
@@ -134,8 +139,8 @@ console.log('\n#10 crew roster from the time clock:');
   const selfA = shift({ workerId: 'self', workerName: 'Luis', clockIn: inAt, clockOut: outAt });
   const selfB = shift({ workerId: 'self', workerName: 'Dana', clockIn: inAt, clockOut: outAt });
   ok("'self' entries are told apart by name", clockCrewForDay([selfA, selfB], P, '2026-09-17', 'X')?.people === 2);
-  ok('overtime is clamped to the shift (a corrupt row cannot report more OT than hours)',
-    clockCrewForDay([shift({ workerId: 'wx', clockIn: inAt, clockOut: outAt, totalHours: 2, overtimeHours: 9 })], P, '2026-09-17', 'X')?.overtimeHours === 2);
+  ok('stored per-shift overtime is not trusted (#65): OT comes from the rule, not the row',
+    clockCrewForDay([shift({ workerId: 'wx', clockIn: inAt, clockOut: outAt, totalHours: 2, overtimeHours: 9 })], P, '2026-09-17', 'X')?.overtimeHours === 0);
 
   // crewPresence sees GC framers and a sub's framers as two companies on one trade.
   const presence = buildCrewPresence([{
@@ -155,7 +160,7 @@ console.log('\n#10 crew roster from the time clock:');
   ok('…and the roster counts the crew\'s shifts, not only the signed-in user\'s',
     /const timeEntries = useMemo\(\(\) => mergeTimeEntriesMirror\(ownTimeEntries, teamEntries\), \[ownTimeEntries, teamEntries\]\);/.test(DFR));
   ok('the roster is built from clockCrewForDay on the report\'s calendar day',
-    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs\)/.test(DFR));
+    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule\)/.test(DFR));
   ok('clock rows keep their measured hours (no hardcoded 8 on them)',
     /clockCrew\.rows\.map\(\(r, i\) => \(\{\s*id: clockIds\[i\], trade: r\.trade, company: r\.company, headcount: r\.headcount, hoursWorked: r\.hoursWorked,/.test(DFR));
   ok('only the plan\'s SUB rows (a company other than the GC) join the clocked crew',

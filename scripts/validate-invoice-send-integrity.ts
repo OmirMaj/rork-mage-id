@@ -29,6 +29,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Invoice, ChangeOrder, ProjectPhoto, Project, ClientPortalSettings } from '../types';
 import { mergeInvoiceUpdate, invoiceUpdatePayload, invoiceInsertStillQueued, writeBehindQueuedInsert, sharedDraftIssuePatch } from '../utils/invoiceWrites';
+import { invoiceBillToColumns } from '../utils/projectContextPure';
 import { freezeForPortal, MAX_PORTAL_SNAPSHOT_BYTES } from '../utils/portalFreeze';
 import { buildPortalSnapshot } from '../utils/portalSnapshot';
 
@@ -107,6 +108,14 @@ function buildContext(src: string, opts: { online: boolean; insertDelayMs: numbe
   const invoiceInsertsRef = { current: new Map<string, Promise<Outcome>>() };
   const scope: Record<string, unknown> = {
     invoices, invoicesRef, invoiceInsertsRef,
+    // Wave 3 (context-money-portal): the bill-to columns (#47), the in-flight
+    // update counter the foreground re-read waits on (#48), and the insert
+    // outcomes awaitInvoiceInsert answers from.
+    invoiceBillToColumns, invoiceWritesInFlightRef: { current: 0 },
+    // data-session critic round 2: an owed foreground invoices re-read is
+    // paid when the last write reports (not under test here).
+    payInvoicesReloadIfOwed: () => {},
+    invoiceInsertOutcomesRef: { current: new Map<string, Outcome>() },
     setInvoices: (l: Invoice[]) => { world.state = l; },
     saveInvoicesMutation: { mutate: (l: Invoice[]) => { world.saved = l; } },
     canSync: true, userId: 'u1',
@@ -141,6 +150,9 @@ function buildContext(src: string, opts: { online: boolean; insertDelayMs: numbe
       for (const u of list) invoicesRef.current = invoicesRef.current.map(i => (i.id === u.itemId ? { ...i, portalState: u.next } as Invoice : i));
     },
     captureSnapshot: (_k: string, item: unknown) => JSON.stringify(item),
+    // #116: the owner of these fixtures is the sender — the refusal itself is
+    // run by scripts/validate-context-money-portal-access.ts.
+    portalWriteRefusalFor: async () => null,
     writePortalMessage: async () => {},
     commitments: commitmentsList,
     setCommitments: () => {}, saveCommitmentsMutation: { mutate: () => {} },
@@ -151,10 +163,10 @@ function buildContext(src: string, opts: { online: boolean; insertDelayMs: numbe
     scope.updateBehindQueuedInsert = helper;
     return {
       send: compile(extractCallback(src, 'const sendToClientPortal = useCallback(',
-        '}, [canSync, userId, projects, findItemByKindAndId, updateItemPortalState, writePortalMessage, updateBehindQueuedInsert, updateInvoice]);')) as
+        '}, [canSync, userId, projects, findItemByKindAndId, updateItemPortalState, writePortalMessage, updateBehindQueuedInsert, updateInvoice, portalWriteRefusalFor, queryClient]);')) as
         (a: { kind: string; itemId: string; projectId: string }) => Promise<void>,
       batch: compile(extractCallback(src, 'const batchSendToClientPortal = useCallback(',
-        '}, [canSync, userId, projects, findItemByKindAndId, applyPortalStates, writePortalMessage, updateBehindQueuedInsert, updateInvoice]);')) as
+        '}, [canSync, userId, projects, findItemByKindAndId, applyPortalStates, writePortalMessage, updateBehindQueuedInsert, updateInvoice, portalWriteRefusalFor, queryClient]);')) as
         (a: { items: { kind: string; itemId: string }[]; projectId: string }) => Promise<{ sent: number }>,
       updateCommitment: compile(extractCallback(src, 'const updateCommitment = useCallback(',
         '}, [commitments, saveCommitmentsMutation, canSync, userId, commitmentToRow, updateBehindQueuedInsert]);')) as
@@ -362,7 +374,7 @@ async function runPortalScenarios(src: string, prefix = ''): Promise<boolean[]> 
     net.online = true;
     // recallFromClientPortal is the same write path; exercised via its source.
     r('P4. recall orders its write behind a queued insert too',
-      /status: 'recalled',[\s\S]{0,400}void updateBehindQueuedInsert\(tableForKind\[kind\], \{/.test(src));
+      /status: 'recalled',[\s\S]{0,400}(?:void|const portalWrite =) updateBehindQueuedInsert\(tableForKind\[kind\], \{/.test(src));
     void world;
   }
   // C1. A commitment awarded offline (insert queued) then edited in Job
@@ -395,7 +407,9 @@ async function main() {
   const guardScreen = (s: string) => {
     const created = /workingInvoice = buildNewInvoice\('draft'\);\s*addInvoice\(workingInvoice\);/.test(s);
     const failAt = s.indexOf('if (!result.success) {');
-    const flipAt = s.indexOf("updateInvoice(workingInvoice.id, { status: 'sent', dueDate });");
+    // Wave 3 (#47) adds the billing contact to the same flip (`...billTo`);
+    // the status + send-day due date must still be in THIS call.
+    const flipAt = s.search(/updateInvoice\(workingInvoice\.id, \{ status: 'sent', dueDate(, \.\.\.billTo)? \}\);/);
     const noRollback = !/updateInvoice\(workingInvoice\.id, \{ status: 'draft' \}\)/.test(s);
     const retargets = /if \(createdNew\) router\.setParams\(\{ invoiceId: workingInvoice\.id \}\);/.test(s);
     return { created, flipAfterFail: failAt >= 0 && flipAt > failAt, noRollback, retargets };
@@ -514,7 +528,8 @@ async function main() {
     { name: 'a new draft is queued for QuickBooks again',
       src: ctxSrc.replace("qbo_sync_status: isDraft ? null : 'pending'", "qbo_sync_status: 'pending'") },
     { name: 'a queued insert no longer holds the update behind it',
-      src: ctxSrc.replace('if (!stillQueued) return send();', 'return send();') },
+      // `await`: the in-flight counter (#48) is released in a finally.
+      src: ctxSrc.replace('if (!stillQueued) return await send();', 'return await send();') },
     // The real round-2 code: the queue was only consulted while the insert
     // promise was still in invoiceInsertsRef — C′ must catch it.
     { name: 'round-2 shape: the queue is checked only while the insert promise is pending',
@@ -537,17 +552,17 @@ async function main() {
   // Round 4 mutants: the REAL pre-fix code for each write.
   const portalMutants: { name: string; src: string }[] = [
     { name: 'sendToClientPortal writes portal_state directly again (the old code)',
-      src: ctxSrc.replace(/(const sendToClientPortal[\s\S]*?)void updateBehindQueuedInsert\(tableForKind\[kind\], \{/, "$1void supabaseWrite(tableForKind[kind], 'update', {") },
+      src: ctxSrc.replace(/(const sendToClientPortal[\s\S]*?)(void|const portalWrite =) updateBehindQueuedInsert\(tableForKind\[kind\], \{/, "$1$2 supabaseWrite(tableForKind[kind], 'update', {") },
     { name: 'sharing a draft no longer issues it',
       src: ctxSrc.replace('    if (issue) updateInvoice(itemId, issue);\n', '') },
     { name: 'batch share writes portal_state directly again (the old code)',
-      src: ctxSrc.replace(/(const batchSendToClientPortal[\s\S]*?)void updateBehindQueuedInsert\(tableForKind\[kind\], \{/, "$1void supabaseWrite(tableForKind[kind], 'update', {") },
+      src: ctxSrc.replace(/(const batchSendToClientPortal[\s\S]*?)(void|const portalWrite =) updateBehindQueuedInsert\(tableForKind\[kind\], \{/, "$1$2 supabaseWrite(tableForKind[kind], 'update', {") },
     { name: 'batch share no longer issues a draft',
       src: ctxSrc.replace('      if (issue) updateInvoice(itemId, issue);\n', '') },
     { name: 'updateCommitment writes directly again (the old code)',
       src: ctxSrc.replace("void updateBehindQueuedInsert('commitments', commitmentToRow(next));", "void supabaseWrite('commitments', 'update', commitmentToRow(next));") },
     { name: 'recall writes directly again (the old code)',
-      src: ctxSrc.replace(/(status: 'recalled',[\s\S]*?)void updateBehindQueuedInsert\(tableForKind\[kind\], \{/, "$1void supabaseWrite(tableForKind[kind], 'update', {") },
+      src: ctxSrc.replace(/(status: 'recalled',[\s\S]*?)(void|const portalWrite =) updateBehindQueuedInsert\(tableForKind\[kind\], \{/, "$1$2 supabaseWrite(tableForKind[kind], 'update', {") },
   ];
   for (const m of portalMutants) {
     if (m.src === ctxSrc) { check(`mutant applies: ${m.name}`, false, 'anchor drifted — update the mutant'); continue; }

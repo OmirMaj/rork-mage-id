@@ -395,6 +395,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
   if (req.method !== 'POST') return json({ success: false, error: 'method not allowed' }, 405);
 
+  // #175: the client now shows this function's `error` text verbatim, so the
+  // catch-all below must not read as "nothing happened" when a write has
+  // already run. Flipped just before the first write (step 2-0).
+  let writesStarted = false;
   try {
     const auth = await requireTier(req, ['free', 'pro', 'business', 'enterprise'], 'delete_account');
     if (!auth.ok) return json(auth.body, auth.status);
@@ -704,6 +708,7 @@ serve(async (req) => {
       }, 500);
     }
     const { projectIds, subcontractorIds, portalIds, portalCollisions, subPortalIds, malformedIds, explicitObjects, handedOver } = collected;
+    writesStarted = true;
 
     // ── 2-0. Hand the caller's field work on OTHER owners' jobs to those
     //    owners, before a single row is deleted (audit round 2 #26).
@@ -1086,9 +1091,16 @@ serve(async (req) => {
     });
   } catch (err) {
     console.error('[delete-account] fatal:', err);
+    const reason = err instanceof Error ? err.message : String(err);
+    // #175: honest about what may already be gone. Before step 2-0 nothing
+    // had been written; after it, some rows may have been handed over or
+    // deleted, and the login still exists (auth.users goes last) so a retry
+    // can finish the job.
     return json({
       success: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: writesStarted
+        ? `Account deletion stopped partway (${reason}). Some of your data may already have been removed, and your login still exists — try again, or contact support to finish removal.`
+        : `Could not delete your account (${reason}). Nothing was deleted — please try again in a moment.`,
     }, 500);
   }
 });

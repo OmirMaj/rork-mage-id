@@ -1280,7 +1280,9 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   ok('the accept + decline buttons exist',
     portalHtml.includes('data-proposal-accept=') && portalHtml.includes('data-proposal-decline='));
   ok('the section subtitle promises "accept to get started" only under the same rule the buttons use',
-    /var proposalCanDecide = !!data\.portalApi\s*\n\s*&& data\.proposal\.version === PROPOSAL_ESIGN_VERSION\s*\n\s*&& !data\.proposal\.paymentTermsPending;/.test(portalHtml));
+    /var proposalCanDecide = !!data\.portalApi\s*\n\s*&& data\.proposal\.version === PROPOSAL_ESIGN_VERSION\s*\n\s*&& !data\.proposal\.paymentTermsPending\s*\n\s*&& data\.proposal\.acceptanceLive === true;/.test(portalHtml));
+  // #29 interim: the held acceptance migration is not applied, so a published
+  // proposal carries no acceptanceLive and the page stays read-only.
   ok('the proposal signs through the SAME modal as a change order',
     /function showProposalSignModal\(/.test(portalHtml)
     && /return showDocSignModal\(\{[\s\S]{0,900}consentText: PROPOSAL_DISCLOSURE_TEXT/.test(portalHtml));
@@ -1542,16 +1544,26 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     /grant execute on function public\.portal_submit_proposal_approval_signed\([\s\S]{0,200}to anon, authenticated/.test(mig));
   ok('the table is not readable by anon', /revoke all on public\.proposal_approvals from anon/.test(mig));
 
-  // The hole the same audit found on the change-order path, closed in the
-  // same file: a portal token could file an approval for ANY change-order id,
-  // and hooks/usePortalApprovalReconciler.ts matches approvals to change
-  // orders by id alone.
-  const coOwnership = mig.match(/if not exists \(select 1 from public\.change_orders c\s*\n\s*where c\.id::text = btrim\(p_change_order_id\)\s*\n\s*and c\.project_id = v_pid\)/g) ?? [];
-  expect('BOTH change-order RPCs now confirm the CO belongs to the token\'s project',
+  // The hole the same audit found on the change-order path: a portal token
+  // could file an approval for ANY change-order id, and
+  // hooks/usePortalApprovalReconciler.ts matches approvals by id alone. The
+  // held file's Section 3 fixed it, but 20260919030000 (applied before the
+  // OTA) re-creates the same two RPCs with that ownership check PLUS
+  // co_not_shared (#44). Wave 3 post-chain: the held Section 3 was emptied —
+  // re-creating the two functions there, WITHOUT co_not_shared, would re-open
+  // #44 whichever order the two files were applied in.
+  const overlay = read('supabase/migrations/20260919030000_client_portal_live_overlay.sql');
+  const coOwnership = overlay.match(/select c\.portal_state into v_ps from public\.change_orders c\s*\n\s*where c\.id::text = btrim\(p_change_order_id\) and c\.project_id = v_pid;\s*\n\s*if not found then raise exception 'portal_denied'; end if;/g) ?? [];
+  expect('BOTH change-order RPCs confirm the CO belongs to the token\'s project (20260919030000)',
     coOwnership.length, 2);
-  ok('…and the fix keeps their signatures, so no caller has to change',
-    /create or replace function public\.portal_submit_co_approval\(\s*\n\s*p_portal_id text, p_access_token text, p_change_order_id text,/.test(mig)
-    && /create or replace function public\.portal_submit_co_approval_signed\(/.test(mig));
+  expect('…and BOTH refuse a CO that is no longer shared (co_not_shared)',
+    (overlay.match(/raise exception 'co_not_shared';/g) ?? []).length, 2);
+  ok('…with their signatures kept, so no caller has to change',
+    /create or replace function public\.portal_submit_co_approval\(\s*\n?\s*p_portal_id text, p_access_token text, p_change_order_id text,/.test(overlay)
+    && /create or replace function public\.portal_submit_co_approval_signed\(/.test(overlay));
+  ok('the held proposal migration no longer re-creates either CO RPC (it would drop co_not_shared)',
+    !/create or replace function public\.portal_submit_co_approval(_signed)?\(/.test(mig)
+    && !/grant execute on function public\.portal_submit_co_approval/.test(mig));
   ok('the file tells the operator to look for rows the bug may already have made',
     /left join public\.change_orders c/.test(mig) && /Expect zero/.test(mig));
 
@@ -1781,7 +1793,8 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   // for a project with a contract already sent, whose proposal
   // buildPortalProposal then refused to emit, with no explanation anywhere.
   ok('…is disabled on exactly the conditions buildPortalProposal refuses on',
-    /disabled=\{!canProposeToClient\}/.test(setup)
+    // #29 interim: also off while proposal acceptance is not live on the server.
+    /disabled=\{!canProposeToClient \|\| \(!PORTAL_PROPOSAL_ACCEPTANCE_LIVE && !portal\.proposalApprovalEnabled\)\}/.test(setup)
     && /proposalBlockReason\(project, contractQ\.data \?\? undefined\)/.test(setup));
   ok('…and says WHY rather than sitting there dead',
     /: proposalBlock\.gc\}/.test(setup));
@@ -2681,7 +2694,7 @@ console.log('\nno portal URL is built by string-concatenating a portalId:');
   ok('…prints that same link (token masked), not a bare URL',
     /maskPortalLinkToken\(portalLink\.replace\(\/\^https:\\\/\\\/\/, ''\)\)/.test(detail));
   ok('…and refuses to copy when there is no key',
-    /'Secure link not ready'/.test(detail));
+    /'Secure link on its way'/.test(detail) && /if \(!portalEntitled\) \{ openPortalPaywall\(\); return; \}/.test(detail));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2891,14 +2904,17 @@ console.log('\nportal owner — a chat reply is not a signed change order:');
 // It also re-stamps the contract terms (mode, GMP cap, fee) from the project
 // as it is NOW: the portal titles the block from `mode`, so a carried GMP block
 // told the homeowner "GMP" after the GC switched the job to open book.
-// carriedOpenBook is lifted out of the screen and RUN, not pattern-matched.
+// carriedOpenBook is lifted out of the writer and RUN, not pattern-matched.
+// Wave 3 (#23): the lite writer moved from app/project-detail.tsx to
+// utils/portalLiteSync.ts (syncPortalSnapshotLite), which project-detail and
+// the ProjectContext provider both call — so the pin reads it there.
 {
-  const pdRaw = read('app/project-detail.tsx');
+  const pdRaw = read('utils/portalLiteSync.ts');
   const pd = pdRaw.replace(/\s+/g, ' ');
   ok('the lite writer carries the block through carriedOpenBook(prev.openBook, project)',
     /openBook: snap\.openBook \?\? carriedOpenBook\(prev\.openBook, project\)/.test(pd)
       && !/openBook: snap\.openBook \?\? prev\.openBook/.test(pd),
-    'app/project-detail.tsx lite portal writer');
+    'utils/portalLiteSync.ts lite portal writer');
   const fnStart = pdRaw.indexOf('function carriedOpenBook(');
   const fnEnd = pdRaw.indexOf('\n}\n', fnStart) + 3;
   type OB = { mode: string; gmpCap?: number; feePercent?: number; feeAmount?: number; actual: number; budget: number };
@@ -2910,7 +2926,7 @@ console.log('\nportal owner — a chat reply is not a signed change order:');
       `type PortalOpenBook = any; type Project = any;\n${pdRaw.slice(fnStart, fnEnd)}\nexport { carriedOpenBook };`);
     carry = new Function(`${js.replace(/export \{[^}]*\};?/, '')}\nreturn carriedOpenBook;`)();
   } catch (err) {
-    ok('carriedOpenBook could be lifted out of project-detail', false, String(err));
+    ok('carriedOpenBook could be lifted out of utils/portalLiteSync', false, String(err));
   }
   if (carry) {
     const prevGmp: OB = { mode: 'gmp', gmpCap: 480_000, feePercent: 10, feeAmount: undefined, actual: 212_000, budget: 450_000 };

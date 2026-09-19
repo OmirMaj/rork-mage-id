@@ -91,6 +91,96 @@ export async function deliverTextFile(
 
 
 /**
+ * Web only: open the document in a new tab and print it there, or THROW.
+ *
+ * The four `if (newWindow) { … } return;` sites in utils/pdfGenerator.ts
+ * returned normally when a pop-up blocker handed back null, so the caller
+ * recorded a proposal as shared (analytics, the onboarding redirect, the push
+ * ask) when nothing had opened at all (audit 2026-09-18 #124). A null window is
+ * the ONLY failure: once the tab is open the document has reached him, and a
+ * print dialog he cancels is his call, not a failed share.
+ *
+ * No Blob-URL second attempt (printHtmlDocument below still has one): a blocker
+ * that refused the first window.open usually refuses the second, and that path
+ * reports success either way. The caller must call this synchronously inside
+ * the tap handler — after an `await`, browsers treat window.open as unprompted.
+ */
+/** The one sentence a blocked print window reads as (web, #124). Screens pass
+ *  any thrown error through pdfFailureMessage so THIS reaches the user, while a
+ *  generic failure keeps the screen's own wording. */
+export const PRINT_WINDOW_BLOCKED_MESSAGE = 'Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and tap Share again.';
+export function pdfFailureMessage(err: unknown, fallback: string): string {
+  // Both blocked-window throws (Share / Print) start with the same sentence.
+  return err instanceof Error && err.message.startsWith('Your browser blocked the PDF window.') ? err.message : fallback;
+}
+
+export function openPrintWindowOrThrow(html: string): void {
+  const w = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+  if (!w) throw new Error(PRINT_WINDOW_BLOCKED_MESSAGE);
+  w.document.write(html);
+  w.document.close();
+  printWhenImagesSettle(w);
+}
+
+/** How long print waits for the document's images before printing anyway. */
+export const PRINT_IMAGE_WAIT_CAP_MS = 10_000;
+
+/**
+ * Print once every <img> in the window has finished (loaded OR failed —
+ * `complete` is true for both), capped at PRINT_IMAGE_WAIT_CAP_MS.
+ *
+ * A fixed delay printed the photo frames empty: Safari does not hold print()
+ * until remote images load, and a daily report carries up to 12 signed-URL
+ * photos. An image that errors shows the browser's broken-image mark, not a
+ * blank frame, and the cap keeps a stalled request from holding print forever.
+ */
+export function printWhenImagesSettle(
+  w: Pick<Window, 'focus' | 'print'> & { document: { images: ArrayLike<{ complete: boolean }> } },
+  opts: { capMs?: number; pollMs?: number; firstDelayMs?: number } = {},
+): void {
+  const capMs = opts.capMs ?? PRINT_IMAGE_WAIT_CAP_MS;
+  const pollMs = opts.pollMs ?? 150;
+  const started = Date.now();
+  const tick = () => {
+    let settled = true;
+    try { settled = Array.from(w.document.images).every(img => img.complete); } catch { /* closed — print() below is a no-op */ }
+    if (settled || Date.now() - started >= capMs) {
+      try { w.focus(); w.print(); } catch { /* the window is open; printing is the viewer's */ }
+      return;
+    }
+    setTimeout(tick, pollMs);
+  };
+  // Chrome can print a blank page if print() runs straight after close().
+  setTimeout(tick, opts.firstDelayMs ?? 250);
+}
+
+/**
+ * openPrintWindowOrThrow for a document that needs an await first (fresh
+ * signed photo URLs): the window is opened SYNCHRONOUSLY — the caller must
+ * still call this inside the tap — shows a holding line, and gets the document
+ * once `build` resolves. A null window throws before anything is awaited; a
+ * failed build closes the tab and rethrows so the caller can say why.
+ */
+export async function openPrintWindowAfterOrThrow(build: () => Promise<string>): Promise<void> {
+  const w = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+  if (!w) throw new Error('Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and tap Print again.');
+  try {
+    w.document.write('<p style="font:15px -apple-system,Helvetica,Arial,sans-serif;padding:24px">Preparing the report…</p>');
+  } catch { /* the holding line is cosmetic */ }
+  let html: string;
+  try {
+    html = await build();
+  } catch (e) {
+    try { w.close(); } catch { /* already gone */ }
+    throw e;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  printWhenImagesSettle(w);
+}
+
+/**
  * Render HTML as a printable document the user can save as PDF.
  *
  * expo-print's ENTIRE web module is:

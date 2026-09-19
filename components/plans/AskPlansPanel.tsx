@@ -4,44 +4,96 @@
 // get a grounded, cited answer with a tap-to-jump to the relevant sheet.
 // Also exposes Index / re-index to extract + embed sheets into project memory.
 //
-// Tier gate: Business+ (uses 'ask_your_plans' FeatureKey). If locked, an
-// inline upsell card is shown instead of the panel.
+// Gate: 'ask_your_plans' (Business) through useProjectAccess — own tier OR the
+// collaborator grant for THIS project (#73/#161). A collaborator's questions
+// run against the index the project owner built, metered on the owner's plan
+// (project-memory-search resolves the owner server-side), so the grant is no
+// longer an honest upsell turned into a 403. Only the owner builds the index;
+// a collaborator sees why Index is not offered. If locked, an upsell card with
+// a way to upgrade is shown instead.
+//
+// #78: answers come only from CURRENT sheets. On open, and whenever the sheet
+// list changes, a free manifest check says how many sheets changed since the
+// last index; opening the panel never prunes anything.
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ActivityIndicator, ScrollView,
 } from 'react-native';
+import { onlineManager } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
-  Search, RefreshCw, BookOpen, Lock, ArrowRight, AlertTriangle,
+  Search, RefreshCw, BookOpen, Lock, ArrowRight, AlertTriangle, Square, CheckSquare,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
+import { Button } from '@/components/ui';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { askPlans, indexPlanSheets, type PlanIndexResult } from '@/utils/plans/askYourPlans';
+import { askPlans, indexPlanSheets, readPlanIndexManifest, type PlanIndexResult } from '@/utils/plans/askYourPlans';
 import { summarizePlanIndex, type IndexTone } from '@/utils/plans/memoryIndexCore';
+import {
+  planBatchRenumber, chainColumnsPatch, planControlBlock, effectivePlanRole, type PlanRoleStatus, staleMatchesNote, changedSinceIndexLabel,
+  type TitleBlockSuggestion, type PlanRole,
+} from '@/utils/plans/revisionActions';
 import type { PlanSheet } from '@/types';
 
 interface Props {
   projectId: string;
   sheets: PlanSheet[];
+  /** Where "See Business plan" goes. Defaults to the paywall screen. */
+  onUpgrade?: () => void;
 }
 
-export default function AskPlansPanel({ projectId, sheets }: Props) {
+export default function AskPlansPanel({ projectId, sheets, onUpgrade }: Props) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { canAccess } = useTierAccess();
+  const router = useRouter();
+  const { canAccess, role } = useProjectAccess(projectId);
+  const roleState = useProjectRoleState(projectId);
+  // Web react-query pauses the role read offline — neither loading nor errored.
+  const offline = useSyncExternalStore(onlineManager.subscribe, () => !onlineManager.isOnline(), () => false);
+  const { getProject } = useProjects();
+  const { user } = useAuth();
+  // The job's owner keeps Index through a failed/offline role read.
+  const seatRole = effectivePlanRole(role, getProject(projectId), user?.id);
 
   if (!canAccess('ask_your_plans')) {
-    return <UpsellCard t={t} styles={styles} />;
+    // The gating contract: never an upsell while the role is still resolving
+    // (a collaborator would see a paywall flash), a retry on a failed read.
+    if (roleState.isLoading) {
+      return <View style={styles.upsellCard}><ActivityIndicator size="small" color={t.accent} /></View>;
+    }
+    if (roleState.isError || (offline && role === null)) {
+      return (
+        <View style={styles.upsellCard}>
+          <View style={{ flex: 1, gap: 8 }}>
+            <Text style={styles.upsellSub}>Couldn&apos;t check your access to this job&apos;s plans.</Text>
+            <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} />
+          </View>
+        </View>
+      );
+    }
+    if (role === null) {
+      return (
+        <View style={styles.upsellCard}>
+          <Text style={[styles.upsellSub, { flex: 1 }]}>You don&apos;t have access to this project&apos;s plans.</Text>
+        </View>
+      );
+    }
+    return <UpsellCard t={t} styles={styles} onUpgrade={onUpgrade ?? (() => router.push('/paywall' as never))} />;
   }
 
-  return <AskPlansPanelInner projectId={projectId} sheets={sheets} t={t} styles={styles} />;
+  return <AskPlansPanelInner projectId={projectId} sheets={sheets} role={seatRole} roleStatus={{ isError: roleState.isError, offline }} onRetryRole={roleState.refetch} t={t} styles={styles} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,10 +104,15 @@ type AskState = 'idle' | 'asking' | 'answered' | 'error';
 type IndexState = 'idle' | 'indexing' | 'done' | 'error';
 
 function AskPlansPanelInner({
-  projectId, sheets, t, styles,
-}: Props & { t: ThemeColors; styles: ReturnType<typeof makeStyles> }) {
+  projectId, sheets, role, roleStatus, onRetryRole, t, styles,
+}: Props & { role: PlanRole; roleStatus: PlanRoleStatus; onRetryRole?: () => void; t: ThemeColors; styles: ReturnType<typeof makeStyles> }) {
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
+  const { updatePlanSheet } = useProjects();
+  const { user } = useAuth();
+  const canSyncSheets = !!user?.id && isSupabaseConfigured;
+  // Only the owner builds the index (it spends the owner's plan reads).
+  const indexBlock = planControlBlock(role, 'index', roleStatus);
 
   const [question, setQuestion] = useState('');
   const [askState, setAskState] = useState<AskState>('idle');
@@ -70,6 +127,30 @@ function AskPlansPanelInner({
   const [indexState, setIndexState] = useState<IndexState>('idle');
   const [indexResult, setIndexResult] = useState<PlanIndexResult | null>(null);
   const [indexProgress, setIndexProgress] = useState<{ done: number; total: number } | null>(null);
+  const [staleDropped, setStaleDropped] = useState(0);
+  // #78: sheets changed since the last index, from a free manifest read.
+  // null = unknown (never claim "up to date" on a failed read).
+  const [changedCount, setChangedCount] = useState<number | null>(null);
+  // Plans-revisions handoff (#75): numbers the index run read off title blocks,
+  // offered for his yes — never written silently.
+  const [titleReview, setTitleReview] = useState<(TitleBlockSuggestion & { use: boolean })[] | null>(null);
+
+  // Keyed on what the manifest depends on — the current sheets' identity and
+  // fingerprint inputs — so a re-render with the same set does not re-ask.
+  const currentKey = useMemo(
+    () => sheets.filter(s => !s.superseded).map(s => `${s.id}:${s.storagePath ?? ''}:${s.sheetNumber ?? ''}:${s.name}`).join('|'),
+    [sheets],
+  );
+  const sheetsRef = useRef(sheets);
+  sheetsRef.current = sheets;
+  useEffect(() => {
+    let live = true;
+    if (!currentKey) { setChangedCount(0); return; }
+    void readPlanIndexManifest(projectId, sheetsRef.current, false).then((man) => {
+      if (live) setChangedCount(man ? man.staleIds.size : null);
+    });
+    return () => { live = false; };
+  }, [projectId, currentKey]);
 
   const handleAsk = useCallback(async () => {
     const q = question.trim();
@@ -80,8 +161,10 @@ function AskPlansPanelInner({
     setNoneFound(false);
     setWeakGrounding(false);
     setSearchFailed(null);
+    setStaleDropped(0);
     try {
-      const result = await askPlans(projectId, q);
+      const result = await askPlans(projectId, q, sheets);
+      setStaleDropped(result.staleDropped);
       setAnswer(result.answer);
       setCitations(result.citations);
       setNoneFound(result.noneFound);
@@ -96,10 +179,10 @@ function AskPlansPanelInner({
       setSearchFailed("the plan search could not be reached");
       setAskState('error');
     }
-  }, [projectId, question, askState]);
+  }, [projectId, question, askState, sheets]);
 
   const handleIndex = useCallback(async () => {
-    if (indexState === 'indexing') return;
+    if (indexState === 'indexing' || indexBlock) return;
     setIndexState('indexing');
     setIndexResult(null);
     setIndexProgress(null);
@@ -107,12 +190,34 @@ function AskPlansPanelInner({
       const result = await indexPlanSheets(projectId, sheets, (done, total) => setIndexProgress({ done, total }));
       setIndexResult(result);
       setIndexState('done');
+      setChangedCount(result.skipped.length);
+      // Duplicates are offered but not pre-ticked: two pages can't both be A-201.
+      if (result.titleBlockSuggestions.length > 0) {
+        setTitleReview(result.titleBlockSuggestions.map(sg => ({ ...sg, use: !sg.duplicate })));
+      }
     } catch {
       setIndexState('error');
     } finally {
       setIndexProgress(null);
     }
-  }, [projectId, sheets, indexState]);
+  }, [projectId, sheets, indexState, indexBlock]);
+
+  // Apply the confirmed numbers exactly as app/plans.tsx applyTitleNumbers
+  // does: one ordered plan against the set as it is now, chain columns through
+  // the offline queue.
+  const applyTitleNumbers = useCallback(() => {
+    if (!titleReview) return;
+    const accepted = titleReview.filter(i => i.use).map(i => ({ sheetId: i.sheetId, sheetNumber: i.sheetNumber }));
+    setTitleReview(null);
+    if (accepted.length === 0) return;
+    const plan = planBatchRenumber(accepted, sheetsRef.current.filter(s => s.projectId === projectId));
+    const now = new Date().toISOString();
+    for (const p of plan.patches) {
+      updatePlanSheet(p.id, p.updates);
+      const chain = chainColumnsPatch(p.updates);
+      if (canSyncSheets && chain) void supabaseWrite('plan_sheets', 'update', { id: p.id, ...chain, updated_at: now });
+    }
+  }, [titleReview, projectId, updatePlanSheet, canSyncSheets]);
 
   const jumpToSheet = useCallback((sheetId: string) => {
     router.push({ pathname: '/plan-viewer', params: { sheetId } });
@@ -133,16 +238,21 @@ function AskPlansPanelInner({
     }
     if (summary) return summary.label;
     if (indexState === 'error') return 'Indexing failed — try again';
+    const changed = changedSinceIndexLabel(changedCount);
+    if (changed) return changed;
     return currentCount > 0 ? `Index ${currentCount} sheet${currentCount === 1 ? '' : 's'}` : 'Index plans';
   })();
+  const changedWarning = !summary && indexState !== 'indexing' && indexState !== 'error' && (changedCount ?? 0) > 0;
   const toneColor = (tone: IndexTone | undefined): string =>
     tone === 'success' ? t.successLabel
       : tone === 'warning' ? t.warningLabel
         : tone === 'danger' ? t.dangerLabel
           : t.textMuted;
-  const indexColor = indexState === 'error' ? t.dangerLabel : toneColor(summary?.tone);
-  // A citation can only open a sheet this device still has.
-  const liveCitations = citations.filter(c => sheets.some(s => s.id === c.sheetId));
+  const indexColor = indexState === 'error' ? t.dangerLabel : changedWarning ? t.warningLabel : toneColor(summary?.tone);
+  // A citation can only open a CURRENT sheet this device has — a chip on a
+  // superseded copy would open the drawing the answer must not come from.
+  const liveCitations = citations.filter(c => sheets.some(s => s.id === c.sheetId && !s.superseded));
+  const staleNote = staleMatchesNote(staleDropped, !!answer);
 
   return (
     <View style={styles.panel}>
@@ -228,11 +338,20 @@ function AskPlansPanelInner({
           )}
 
           {/* None-found message */}
-          {noneFound && (
+          {noneFound && staleDropped === 0 && (
             <Text style={styles.noneFoundText}>
               I couldn't find that in the indexed plans — try rephrasing, or index new sheets below.
             </Text>
           )}
+        </View>
+      ) : null}
+
+      {/* #78: older-revision matches were left out — said, never silently
+          answered from, and never worded as "not in your plans". */}
+      {(askState === 'answered' || askState === 'error') && staleNote ? (
+        <View style={styles.weakRow} testID="ask-plans-stale-note">
+          <AlertTriangle size={12} color={t.warningLabel} strokeWidth={2} />
+          <Text style={styles.weakText}>{staleNote}</Text>
         </View>
       ) : null}
 
@@ -248,7 +367,15 @@ function AskPlansPanelInner({
         </View>
       ) : null}
 
-      {/* Index / re-index action */}
+      {/* Index / re-index action — the owner's; a collaborator is told why. */}
+      {indexBlock ? (
+        <View style={{ gap: 6 }}>
+          <Text style={styles.skipText} testID="ask-plans-index-blocked">{indexBlock}</Text>
+          {roleStatus.isError && onRetryRole ? (
+            <Button label="Try again" variant="secondary" size="sm" onPress={onRetryRole} testID="ask-plans-role-retry" />
+          ) : null}
+        </View>
+      ) : (
       <TouchableOpacity
         style={[styles.indexBtn, indexState === 'indexing' && styles.indexBtnActive]}
         onPress={() => void handleIndex()}
@@ -266,6 +393,41 @@ function AskPlansPanelInner({
           {indexLabel}
         </Text>
       </TouchableOpacity>
+      )}
+
+      {/* Title-block numbers the run read, offered for his yes (#75). A
+          misread number would supersede the wrong sheet, so each is shown as
+          a reading and only the ticked ones are saved. */}
+      {titleReview && titleReview.length > 0 ? (
+        <View style={styles.skipList} testID="ask-plans-title-review">
+          <Text style={styles.skipText}>Read by AI from the title blocks — check each against the sheet.</Text>
+          {titleReview.map(item => (
+            <TouchableOpacity
+              key={item.sheetId}
+              style={styles.titleRow}
+              onPress={() => setTitleReview(r => r ? r.map(i => i.sheetId === item.sheetId ? { ...i, use: !i.use } : i) : r)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: item.use }}
+            >
+              {item.use
+                ? <CheckSquare size={14} color={t.accent} strokeWidth={1.75} />
+                : <Square size={14} color={t.textMuted} strokeWidth={1.75} />}
+              <Text style={[styles.skipText, { flex: 1 }]} numberOfLines={2}>
+                Title block reads {item.sheetNumber} — use it? · {item.label}{item.duplicate ? ` · another page also reads ${item.sheetNumber}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button
+              label={titleReview.some(i => i.use) ? `Use ${titleReview.filter(i => i.use).length} number${titleReview.filter(i => i.use).length === 1 ? '' : 's'}` : 'Tick a number to use it'}
+              size="sm"
+              onPress={applyTitleNumbers}
+              disabled={!titleReview.some(i => i.use)}
+            />
+            <Button label="Not now" size="sm" variant="ghost" onPress={() => setTitleReview(null)} />
+          </View>
+        </View>
+      ) : null}
 
       {/* Why sheets are not searchable — the plan-extract refusal in its own
           words (monthly cap, hourly limit, unreadable sheet), grouped. Without
@@ -288,15 +450,19 @@ function AskPlansPanelInner({
 // Upsell card (shown when not Business+)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function UpsellCard({ t, styles }: { t: ThemeColors; styles: ReturnType<typeof makeStyles> }) {
+function UpsellCard({ t, styles, onUpgrade }: { t: ThemeColors; styles: ReturnType<typeof makeStyles>; onUpgrade: () => void }) {
   return (
     <View style={styles.upsellCard}>
       <Lock size={15} color={t.accent} strokeWidth={1.75} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.upsellTitle}>Ask your plans in plain English</Text>
-        <Text style={styles.upsellSub}>
-          Type a question, get a cited answer with a tap-to-jump to the sheet — Business plan.
-        </Text>
+      <View style={{ flex: 1, gap: 8 }}>
+        <View>
+          <Text style={styles.upsellTitle}>Ask your plans in plain English</Text>
+          <Text style={styles.upsellSub}>
+            Type a question, get a cited answer with a tap-to-jump to the sheet — Business plan.
+          </Text>
+        </View>
+        {/* #163: the lock used to have no way through it. */}
+        <Button label="See Business plan" size="sm" variant="secondary" onPress={onUpgrade} testID="ask-plans-upgrade" />
       </View>
     </View>
   );
@@ -437,6 +603,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   skipList: {
     gap: 3,
+  },
+  titleRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingVertical: 4,
   },
   skipText: {
     ...Type.caption1,

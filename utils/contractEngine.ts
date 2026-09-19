@@ -505,8 +505,18 @@ export async function markMilestoneInvoiced(
  * Same read-verify-write discipline as its sibling: read the live row rather
  * than patching a caller's snapshot, so a milestone that changed while the GC
  * was in the invoice editor is not clobbered. Idempotent — re-running on an
- * already-paid milestone reports success, because the caller retries after a
- * dropped write.
+ * already-paid milestone reports success.
+ *
+ * WHO RETRIES (audit #136). A direct write, outside utils/offlineQueue on
+ * purpose: queueing the whole payment_schedule array built from this read
+ * would, on replay, overwrite any milestone edited in between — and offline
+ * there is no live read to build it from. app/invoice.tsx's Record Payment
+ * call is fire-and-forget and only TELLS him when it did not land. The retry
+ * is app/contract.tsx: on open it derives PAID from the linked invoices
+ * (billingFlowCore.milestonePaidFromInvoices, which also covers Pay-link
+ * payments that never reach this function) and re-runs this for every row
+ * the invoices say is paid and the stored status does not
+ * (milestonePaidRepairs).
  */
 export async function markMilestonePaidByInvoice(
   contractId: string,

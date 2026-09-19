@@ -14,8 +14,10 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectDeletion } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { supabaseWrite } from '@/utils/offlineQueue';
+import { supabaseWrite, getOfflineQueue, onQueueFlushed } from '@/utils/offlineQueue';
+import { mergeLocalOnly, pendingIdsForTable } from '@/utils/projectContextPure';
 import { certStatus } from '@/utils/safety/certStatus';
+import { isRecordableCase } from '@/utils/safety/oshaLog';
 import { pruneCollection } from '@/utils/safety/pruneDeletedProject';
 import type {
   JobHazardAnalysis,
@@ -52,6 +54,12 @@ const HAZARDS_KEY = 'mageid_hazards';
 const INSPECTIONS_KEY = 'mageid_safety_inspections';
 const CERTIFICATIONS_KEY = 'mageid_certifications';
 const TEMPLATES_KEY = 'mageid_safety_templates';
+// Ids of incidents deleted on this device (audit #89). The daily report derives
+// its case id from the report, so a case deleted in Incidents came straight
+// back on the report's next save. The DFR reads isIncidentDeleted() before it
+// files, and addIncident refuses a tombstoned id. Per-user, mageid_ prefix, so
+// the tenant wipe sweeps it.
+const INCIDENT_TOMBSTONES_KEY = 'mageid_safety_incident_tombstones';
 
 async function loadLocal<T>(key: string, fallback: T): Promise<T> {
   try {
@@ -223,6 +231,16 @@ function mapTemplate(r: Row): SafetyFormTemplate {
 // cache key is per-user, an empty server result correctly yields an empty
 // list — it never leaks a prior account's records the way a shared global
 // key would.
+//
+// The server list is MERGED with the device copy before it replaces it (audit
+// #85). On a relaunch with signal the read runs before OfflineSyncManager has
+// flushed, so a case reported offline in the basement is not on the server
+// yet: replacing state (and the cache) with the server list made it vanish
+// from the app, and if the queued insert was later dropped, the only copy had
+// already been overwritten. mergeLocalOnly (the helper ProjectContext's
+// loaders use) keeps a local row the server lacks ONLY while its write is
+// still queued; a row neither on the server nor queued was deleted elsewhere
+// and goes.
 async function hydrateCollection<T extends { id: string }>(
   table: string,
   key: string,
@@ -234,8 +252,15 @@ async function hydrateCollection<T extends { id: string }>(
       const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false });
       if (!error && Array.isArray(data)) {
         const mapped = data.map(map).filter(x => x && typeof x.id === 'string');
-        await saveLocal(key, mapped);
-        return mapped;
+        const prior = await loadLocal<T[]>(key, []);
+        const queue = await getOfflineQueue().catch(() => []);
+        const merged = mergeLocalOnly(
+          mapped,
+          Array.isArray(prior) ? prior.filter(x => x && typeof x.id === 'string') : [],
+          pendingIdsForTable(queue, table),
+        );
+        await saveLocal(key, merged);
+        return merged;
       }
     } catch { /* fall through to local cache */ }
   }
@@ -308,6 +333,64 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     })();
     return () => { cancelled = true; };
   }, [userId, canSync, keys]);
+
+  // Re-read a safety table once its queued writes have flushed (audit #85).
+  // The first hydrate ran before the flush, so the row it kept was the local
+  // copy; after the flush the server copy is the one to show, and a write the
+  // queue discarded must drop out now rather than at the next cold start.
+  // Only the tables that flushed are re-read, only after the first hydrate,
+  // and a result that arrives after an account switch is thrown away.
+  useEffect(() => {
+    if (!canSync) return;
+    let live = true;
+    const targets: { table: string; run: () => Promise<void> }[] = [
+      { table: JHAS_TABLE, run: async () => { const r = await hydrateCollection(JHAS_TABLE, keys.jhas, true, mapJha); if (live) setJhas(r); } },
+      { table: TOOLBOX_TABLE, run: async () => { const r = await hydrateCollection(TOOLBOX_TABLE, keys.toolbox, true, mapToolbox); if (live) setToolboxTalks(r); } },
+      { table: INCIDENTS_TABLE, run: async () => { const r = await hydrateCollection(INCIDENTS_TABLE, keys.incidents, true, mapIncident); if (live) setIncidents(r); } },
+      { table: HAZARDS_TABLE, run: async () => { const r = await hydrateCollection(HAZARDS_TABLE, keys.hazards, true, mapHazard); if (live) setHazards(r); } },
+      { table: INSPECTIONS_TABLE, run: async () => { const r = await hydrateCollection(INSPECTIONS_TABLE, keys.inspections, true, mapInspection); if (live) setInspections(r); } },
+      { table: CERTIFICATIONS_TABLE, run: async () => { const r = await hydrateCollection(CERTIFICATIONS_TABLE, keys.certifications, true, mapCertification); if (live) setCertifications(r); } },
+      { table: TEMPLATES_TABLE, run: async () => { const r = await hydrateCollection(TEMPLATES_TABLE, keys.templates, true, mapTemplate); if (live) setTemplates(r); } },
+    ];
+    const unsubscribe = onQueueFlushed((tables) => {
+      if (!hydratedRef.current) return;
+      for (const target of targets) {
+        if (tables.has(target.table)) void target.run().catch(() => { /* the next flush or launch re-reads */ });
+      }
+    });
+    return () => { live = false; unsubscribe(); };
+  }, [canSync, keys]);
+
+  // ── Deleted-incident tombstones (audit #89) ──────────────────────────
+  const tombstoneKey = `${INCIDENT_TOMBSTONES_KEY}_${userId ?? 'anon'}`;
+  const [incidentTombstones, setIncidentTombstones] = useState<string[]>([]);
+  const tombstonesRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    tombstonesRef.current = new Set();
+    setIncidentTombstones([]);
+    void loadLocal<string[]>(tombstoneKey, []).then((ids) => {
+      if (cancelled || !Array.isArray(ids)) return;
+      tombstonesRef.current = new Set(ids.filter(x => typeof x === 'string'));
+      setIncidentTombstones([...tombstonesRef.current]);
+    });
+    return () => { cancelled = true; };
+  }, [tombstoneKey]);
+
+  /** True when this incident id was deleted in Incidents on this device. The
+   *  daily report checks it before filing its derived case, so a case the
+   *  owner deleted does not come back on the report's next save. */
+  const isIncidentDeleted = useCallback((id: string) => incidentTombstones.includes(id), [incidentTombstones]);
+
+  /** Lift the tombstone — for a report whose writer deliberately files the
+   *  case again (the DFR offers this with its own confirmation). */
+  const clearIncidentTombstone = useCallback((id: string) => {
+    if (!tombstonesRef.current.has(id)) return;
+    tombstonesRef.current.delete(id);
+    const next = [...tombstonesRef.current];
+    setIncidentTombstones(next);
+    void saveLocal(tombstoneKey, next);
+  }, [tombstoneKey]);
 
   // ── Cascade prune on project delete ──────────────────────────────────────
   // ProjectContext.deleteProject cascades ITS collections and the server
@@ -470,7 +553,10 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   );
 
   // ── Incidents ────────────────────────────────────────────────────────
-  const addIncident = useCallback((input: SafetyIncident) => {
+  /** Files a case. Returns false (and writes nothing) for an id deleted on
+   *  this device — see isIncidentDeleted. */
+  const addIncident = useCallback((input: SafetyIncident): boolean => {
+    if (tombstonesRef.current.has(input.id)) return false;
     const incident: SafetyIncident = {
       ...input,
       createdBy: input.createdBy || authorName,
@@ -496,7 +582,8 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
         created_at: incident.createdAt, updated_at: incident.updatedAt,
       });
     }
-  }, [incidents, canSync, userId, keys]);
+    return true;
+  }, [incidents, canSync, userId, keys, authorName]);
 
   const updateIncident = useCallback((id: string, updates: Partial<SafetyIncident>) => {
     const now = new Date().toISOString();
@@ -521,12 +608,29 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     }
   }, [incidents, canSync, keys]);
 
-  const deleteIncident = useCallback((id: string) => {
+  /**
+   * Deletes a case and returns true — EXCEPT an OSHA-recordable case, which is
+   * refused (returns false, writes nothing). 29 CFR 1904.33 requires the 300
+   * log to be kept five years; deleting a row renumbers the log and drops the
+   * 300A totals with no trace. The screen blocks it with the reason; this is
+   * the second lock, so the web or any future caller cannot get around it.
+   * A case recorded by mistake is un-recorded by editing its classification.
+   */
+  const deleteIncident = useCallback((id: string): boolean => {
+    const target = incidents.find(x => x.id === id);
+    if (target && isRecordableCase(target)) return false;
     const updated = incidents.filter(x => x.id !== id);
     setIncidents(updated);
     void saveLocal(keys.incidents, updated);
+    if (!tombstonesRef.current.has(id)) {
+      tombstonesRef.current.add(id);
+      const next = [...tombstonesRef.current];
+      setIncidentTombstones(next);
+      void saveLocal(tombstoneKey, next);
+    }
     if (canSync) void supabaseWrite('safety_incidents', 'delete', { id });
-  }, [incidents, canSync, keys]);
+    return true;
+  }, [incidents, canSync, keys, tombstoneKey]);
 
   const getIncidentsForProject = useCallback(
     (projectId: string) => incidents.filter(x => x.projectId === projectId)
@@ -735,6 +839,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     jhas, addJha, updateJha, deleteJha, getJhasForProject,
     toolboxTalks, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk, getToolboxTalksForProject,
     incidents, addIncident, updateIncident, deleteIncident, getIncidentsForProject,
+    isIncidentDeleted, clearIncidentTombstone,
     hazards, addHazard, updateHazard, deleteHazard, getHazardsForProject,
     // Wave B — inspections (project-scoped)
     inspections, getInspectionsForProject, addInspection, updateInspection, deleteInspection,

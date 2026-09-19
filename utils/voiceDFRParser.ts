@@ -126,7 +126,7 @@ export async function generateDFRFromPhotos(
 WEATHER: ${weatherStr || 'Not specified'}
 ${photoCtx}
 
-Produce a draft DFR. The "workPerformed" field should read like a professional super's narrative ("North wall framing complete on 2nd floor; window subcontractor staged Marvin units in the garage"). For manpower, only include trades you can clearly infer were on site from the photos.`,
+Produce a draft DFR. The "workPerformed" field should read like a professional super's narrative ("North wall framing complete on 2nd floor; window subcontractor staged Marvin units in the garage"). For manpower, only include trades you can clearly infer were on site from the photos. If WEATHER is "Not recorded" or "Not specified", do not return a weather reading.`,
     schema: DFRSchema,
     tier: 'fast',
   });
@@ -135,7 +135,11 @@ Produce a draft DFR. The "workPerformed" field should read like a professional s
   }
   const result = aiResult.data;
   const partial: Partial<DailyFieldReport> = {};
-  if (result.weather) {
+  // No weather was logged → the model has nothing to read one from; a
+  // temperature it "inferred" from a photo is a guess and must not land in the
+  // report as the day's conditions (the prompt asks; this enforces it).
+  const weatherKnown = !!weatherStr && !/^\s*not (recorded|specified)\s*$/i.test(weatherStr);
+  if (result.weather && weatherKnown) {
     partial.weather = {
       temperature: result.weather.temperature ?? '',
       conditions: result.weather.conditions ?? '',

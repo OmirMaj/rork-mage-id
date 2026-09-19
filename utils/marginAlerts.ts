@@ -20,11 +20,11 @@
 import type { Project, ChangeOrder, Commitment, Invoice } from '@/types';
 import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
 import { computeMarginRisk, type RiskBand, riskBandLabel } from '@/utils/marginRiskScore';
-import type { JobCostActualSources } from '@/utils/jobCostEngine';
+import { unpricedLaborFor, unpricedLaborLine, type JobCostActualSources } from '@/utils/jobCostEngine';
 
 export type AlertSeverity = 'critical' | 'high' | 'warning' | 'info';
 export type AlertDirection = 'worsened' | 'recovered';
-export type AlertKind = 'margin_negative' | 'risk_band' | 'health' | 'erosion';
+export type AlertKind = 'margin_negative' | 'risk_band' | 'health' | 'erosion' | 'unpriced_labor';
 
 export interface MarginAlert {
   /** Stable per crossing (`projectId:kind:step`) so a given transition notifies
@@ -82,6 +82,13 @@ export interface MarginBaseline {
    * the measurement changed. It is treated as first sight instead.
    */
   costBasis?: MarginCostBasis;
+  /**
+   * Finished crew hours on this job with no labor rate (#61). They price at
+   * $0, so every margin number above is missing that labor — a job reading
+   * "healthy" may simply be one whose crew cost is not in it. Absent on
+   * baselines stored before this field (read as 0).
+   */
+  unpricedLaborHours?: number;
   asOf: string;
 }
 
@@ -163,6 +170,7 @@ export function computeCurrentBaselines(input: PortfolioInput): {
       erosionStep: erosionStepOf(le.marginErosionPoints),
       bidAtCost: le.bidAtCost,
       costBasis: costSources ? 'all_sources' : 'committed_only',
+      unpricedLaborHours: unpricedLaborFor(project.id, costSources?.timeEntries, costSources?.laborRates).hours,
       asOf: le.asOf,
     };
     names[project.id] = project.name;
@@ -298,6 +306,7 @@ function rankAlert(a: MarginAlert): number {
 // Kind priority for picking the single representative alert per job: a job going
 // underwater shouldn't also spam a separate "health → critical" card.
 const KIND_PRIORITY: Record<AlertKind, number> = {
+  unpriced_labor: -1,
   margin_negative: 3,
   health: 2,
   erosion: 1,
@@ -318,6 +327,19 @@ export function computeAlerts(
     // A baseline measured on another cost basis is not a before-picture of
     // this job (see MarginBaseline.costBasis) — compare as first sight.
     const prev = previous[id] && basisOf(previous[id]) === basisOf(current[id]) ? previous[id] : undefined;
+    // #61: a job with crew hours nobody priced is not "all clear" — its margin
+    // is missing that labor. Raised as its OWN card (it does not compete with
+    // the margin transition for the one-per-job slot), whenever the unpriced
+    // hours have grown since he last acknowledged. A warning, never a push:
+    // selectNotifiable only sends high / critical.
+    const unpricedNow = current[id].unpricedLaborHours ?? 0;
+    const unpricedSeen = prev?.unpricedLaborHours ?? 0;
+    if (unpricedNow > 0 && unpricedNow > unpricedSeen + 0.005) {
+      const name = names[id] ?? 'Project';
+      alerts.push(makeAlert(current[id], name, 'unpriced_labor', 'open', 'worsened', 'warning',
+        unpricedLaborLine(unpricedNow, name),
+        'Their labor is not in this job\'s margin. Set labor rates in Time Tracking so these hours are priced.'));
+    }
     const cands = candidatesFor(prev, current[id], names[id] ?? 'Project');
     if (cands.length === 0) continue;
     cands.sort(

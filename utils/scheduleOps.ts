@@ -6,7 +6,7 @@
 
 import type { ScheduleTask, ScheduleBaseline, DependencyLink } from '@/types';
 import {
-  runCpm, calendarIndexToWorkingOrdinal, isWorkingDayOfWeek,
+  runCpm, calendarIndexToWorkingOrdinal, isWorkingDayOfWeek, calendarDayToDate, workingOrdinalToCalendarIndex,
   type RunCpmOptions, type CpmResult, type DayScaleOptions,
 } from '@/utils/cpm';
 import { addWorkingDays } from '@/utils/scheduleEngine';
@@ -246,6 +246,171 @@ export function taskWorkingDayLabel(
   return end <= start ? `Day ${start}` : `Day ${start} – ${end}`;
 }
 
+// ---------------------------------------------------------------------------
+// 0d) Where the ENGINE put a task — the phone list/timeline and the Lookahead
+// ---------------------------------------------------------------------------
+// `startDay` is the task's PIN — a minimum the user authored — not where it
+// sits. runCpm pushes it later when a predecessor grows, and Schedule Pro
+// (web and mobile) persists only the edit, never the pushed dates (writing
+// them back would turn every derived date into a start-no-earlier-than
+// constraint that a later shortening could not undo). The web grid and Gantt
+// print CPM es/ef; the phone list, the phone timeline and the Lookahead used to
+// print the pin, so after the GC stretched Framing 10d → 15d the foreman's
+// phone kept Drywall on last week's dates while its own finish line moved
+// (audit #51). These helpers are the one reader: CPM row when there is one,
+// the pin only as a fallback (a task the engine could not place, e.g. a cycle).
+
+/**
+ * The engine's placement for one task (runCpm perTask es/ef). The SCALE of
+ * es/ef depends on how runCpm was called, so it travels with the numbers:
+ *  - 'calendar': runCpm had a scheduleStartDate — es/ef are 1-indexed
+ *    CALENDAR indices (every calendar day counts; day 1 = the anchor).
+ *  - 'working': an UNDATED schedule — runCpm stays in raw-day mode and es/ef
+ *    are 1-indexed WORKING-day counts, the same basis as startDay.
+ * A reader that drew a working count as a calendar offset put undated bars on
+ * weekend columns, drifting ~2 columns a week down the plan (the B4-A9 bug,
+ * reintroduced once by #51 and caught in review); 2 of the 3 real production
+ * schedules are undated, so the scale is carried, never assumed.
+ */
+export interface ScheduledPlacement { es: number; ef: number; scale: 'calendar' | 'working' }
+
+/**
+ * es/ef per task id, from a runCpm result. `dated` must say whether that
+ * runCpm call had a scheduleStartDate (the placement scale above).
+ */
+export function scheduledPlacements(cpm: Pick<CpmResult, 'perTask'>, dated: boolean): Map<string, ScheduledPlacement> {
+  const out = new Map<string, ScheduledPlacement>();
+  const scale: ScheduledPlacement['scale'] = dated ? 'calendar' : 'working';
+  cpm.perTask.forEach((r, id) => out.set(id, { es: r.es, ef: r.ef, scale }));
+  return out;
+}
+
+/**
+ * The 0-indexed calendar day-offsets (from the drawn anchor) of a placement's
+ * first and last day. `offsetOfWorkingDay(n)` is the caller's walk of working
+ * day n (0-indexed) on the calendar it draws — a calendar placement is already
+ * an offset, a working one must be walked. The phone timeline (MobileGantt)
+ * places bars AND starts drags from this, so both land on the same column.
+ */
+export function placementDayOffsets(
+  placement: ScheduledPlacement,
+  offsetOfWorkingDay: (n: number) => number,
+): { startOffset: number; endOffset: number } {
+  if (placement.scale === 'working') {
+    const startOffset = offsetOfWorkingDay(Math.max(0, placement.es - 1));
+    const endOffset = Math.max(startOffset, offsetOfWorkingDay(Math.max(0, placement.ef - 1)));
+    return { startOffset, endOffset };
+  }
+  const startOffset = Math.max(0, placement.es - 1);
+  return { startOffset, endOffset: Math.max(startOffset, placement.ef - 1) };
+}
+
+/**
+ * The task's calendar dates as the engine scheduled them. `base` is local
+ * midnight of the schedule's day 1. Falls back to walking the pin
+ * (taskCalendarRange) only when there is no placement.
+ */
+export function scheduledTaskRange(
+  task: Pick<ScheduleTask, 'startDay' | 'durationDays'>,
+  placement: ScheduledPlacement | undefined,
+  base: Date,
+  workingDaysPerWeek?: number,
+  nonWorkingDates?: string[],
+): { start: Date; end: Date } {
+  if (!placement) return taskCalendarRange(task, base, workingDaysPerWeek, nonWorkingDates);
+  // A working-day placement (undated engine run) is walked like a pin, from
+  // the engine's es for the engine's span.
+  if (placement.scale === 'working') {
+    return taskCalendarRange(
+      { startDay: placement.es, durationDays: Math.max(1, placement.ef - placement.es + 1) },
+      base, workingDaysPerWeek, nonWorkingDates,
+    );
+  }
+  const start = calendarDayToDate(base, placement.es);
+  const end = calendarDayToDate(base, Math.max(placement.es, placement.ef));
+  return { start, end };
+}
+
+/**
+ * Undated schedule: the engine runs in raw-day mode (no anchor, so a calendar
+ * index IS a day count), and the row prints the scheduled 'Day es – ef'.
+ */
+export function scheduledWorkingDayLabel(
+  task: Pick<ScheduleTask, 'startDay' | 'durationDays'>,
+  placement: ScheduledPlacement | undefined,
+): string {
+  if (!placement) return taskWorkingDayLabel(task);
+  const start = Math.max(1, Math.round(placement.es));
+  const end = Math.max(start, Math.round(placement.ef));
+  return end <= start ? `Day ${start}` : `Day ${start} – ${end}`;
+}
+
+/**
+ * A drag or stepper moved a task's pin earlier than its predecessors allow:
+ * the bar will snap back to the engine's date. Returns why, so the screen can
+ * say so instead of looking like it ignored him (a blocked control says why),
+ * or null when the task landed where he put it.
+ */
+export function startDaySnapBack(
+  tasks: ScheduleTask[],
+  taskId: string,
+  cpm: Pick<CpmResult, 'perTask'>,
+  calendar: DayScaleOptions = {},
+): { requestedCalendarDay: number; scheduledCalendarDay: number; waitsOn: string | null } | null {
+  const t = tasks.find(x => x.id === taskId);
+  const row = cpm.perTask.get(taskId);
+  if (!t || !row) return null;
+  const requested = workingOrdinalToCalendarIndex(Math.max(1, t.startDay ?? 1), calendar);
+  if (row.es <= requested) return null;
+  // The predecessor that finishes (or starts, for SS/SF) latest is the one
+  // holding it — named so he knows which link to change.
+  let waitsOn: string | null = null;
+  let latest = -Infinity;
+  for (const link of typedLinks(t)) {
+    const pr = cpm.perTask.get(link.taskId);
+    const pt = tasks.find(x => x.id === link.taskId);
+    if (!pr || !pt) continue;
+    const edge = (link.type === 'SS' || link.type === 'SF') ? pr.es : pr.ef;
+    if (edge > latest) { latest = edge; waitsOn = pt.title || null; }
+  }
+  return { requestedCalendarDay: requested, scheduledCalendarDay: row.es, waitsOn };
+}
+
+/**
+ * Keep an open task sheet in step with the stored task (audit #140). The
+ * sheet holds its own copy; when the stored copy changes under it — a peer's
+ * realtime save, a refetch, his own save landing — every field the sheet has
+ * NOT changed since the previous stored copy takes the new stored value, and a
+ * field he changed (a save still in flight) keeps his. Returns the same object
+ * when nothing moved, so a setState with it is a no-op; null keys are kept
+ * absent rather than written as undefined.
+ */
+export function followStoredTask(
+  sheet: ScheduleTask,
+  prevStored: ScheduleTask | undefined,
+  nextStored: ScheduleTask | undefined,
+): { task: ScheduleTask; peerChangedKeys: string[] } {
+  if (!prevStored || !nextStored || prevStored === nextStored || sheet.id !== nextStored.id) {
+    return { task: sheet, peerChangedKeys: [] };
+  }
+  const sr = sheet as unknown as Record<string, unknown>;
+  const pr = prevStored as unknown as Record<string, unknown>;
+  const nr = nextStored as unknown as Record<string, unknown>;
+  const eqv = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const next: Record<string, unknown> = { ...sr };
+  const changed: string[] = [];
+  const keys = new Set([...Object.keys(pr), ...Object.keys(nr), ...Object.keys(sr)]);
+  for (const k of keys) {
+    if (eqv(pr[k], nr[k])) continue;          // the stored copy did not move here
+    if (!eqv(sr[k], pr[k])) continue;         // his own change — keep it
+    if (eqv(sr[k], nr[k])) continue;
+    if (k in nr) next[k] = nr[k]; else delete next[k];
+    changed.push(k);
+  }
+  if (changed.length === 0) return { task: sheet, peerChangedKeys: [] };
+  return { task: next as unknown as ScheduleTask, peerChangedKeys: changed };
+}
+
 /**
  * Is `task` on site on schedule day `dayNumber` (1-indexed WORKING days)?
  *
@@ -292,8 +457,12 @@ export function isMilestoneOnScheduleDay(
 // it to downstream successors.
 //
 // Algorithm — a small forward pass in WORKING-ORDINAL space:
-//   • A task that has actuals is PINNED to them. Its effective start is
-//     `actualStartDay`; its effective end is `actualEndDay` when captured, and
+//   • A task that has actuals (a start, a finish, or both) is PINNED to them.
+//     A finish-only record keeps its planned start and ends on the observed
+//     finish (never before the planned start). Otherwise its effective start is
+//     `actualStartDay` (a CALENDAR index — utils/pace/stampActuals.ts — read
+//     back as a working ordinal through `calendar`, exactly as
+//     planCatchUpToToday does); its effective end is `actualEndDay` when captured, and
 //     otherwise `actualStartDay + durationDays - 1` (still running, so the best
 //     estimate is that it takes as long as planned from where it really began).
 //   • Every other task moves FORWARD to the earliest day its predecessors now
@@ -367,7 +536,10 @@ function dependencyOrder(tasks: ScheduleTask[]): string[] | null {
   return order.length === tasks.length ? order : null;
 }
 
-export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
+export function reflowFromActuals(tasks: ScheduleTask[], calendar: DayScaleOptions = {}): ScheduleTask[] {
+  /** A calendar-indexed actual read back as a working ordinal. Omitting the
+   *  calendar is only honest on a 7-day, closure-free schedule. */
+  const ordinalOf = (calendarDay: number) => calendarIndexToWorkingOrdinal(calendarDay, calendar);
   const byId = new Map<string, ScheduleTask>();
   for (const t of tasks) byId.set(t.id, { ...t });
 
@@ -378,8 +550,22 @@ export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
   const span = (t: ScheduleTask): { start: number; end: number } => {
     const dur = Math.max(0, t.durationDays ?? 0);
     if (t.actualStartDay != null) {
-      const start = t.actualStartDay;
-      return { start, end: t.actualEndDay ?? start + Math.max(0, dur - 1) };
+      const start = ordinalOf(t.actualStartDay);
+      return {
+        start,
+        end: t.actualEndDay != null ? Math.max(start, ordinalOf(t.actualEndDay)) : start + Math.max(0, dur - 1),
+      };
+    }
+    // FINISH-ONLY actual. Since #141 no status path invents a start it never
+    // saw (Gantt Finish today, the phone/Pro status sinks and the DFR all
+    // stamp the end alone on an unstarted task), so an end without a start is
+    // now the NORMAL shape of "finished late". It is still grounded: the
+    // finish is observed, the start is left on the plan (never earlier), the
+    // same reading planCatchUpToToday gives it. Ignoring it here made the
+    // Gantt's Finish today → Reflow from actuals report "nothing to reflow"
+    // and leave every successor on its old date.
+    if (t.actualEndDay != null) {
+      return { start: t.startDay, end: Math.max(t.startDay, ordinalOf(t.actualEndDay)) };
     }
     return { start: t.startDay, end: t.startDay + Math.max(0, dur - 1) };
   };
@@ -388,7 +574,8 @@ export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
     const t = byId.get(id)!;
     // Started or finished work is grounded in reality — the cascade never
     // overrides it. (It still PROPAGATES from it: `span` reads the actuals.)
-    if (t.actualStartDay != null) continue;
+    // EITHER actual pins it: a finish-only record is finished work too.
+    if (t.actualStartDay != null || t.actualEndDay != null) continue;
 
     const dur = Math.max(0, t.durationDays ?? 0);
     let required = t.startDay;                       // never pull work earlier
@@ -423,8 +610,8 @@ export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
 // ---------------------------------------------------------------------------
 // 1c) Bring the plan up to date — a reflow with TODAY as the data date
 // ---------------------------------------------------------------------------
-// WHY THIS EXISTS. `reflowFromActuals` above cascades from actual STARTS only,
-// and it gives a started-but-unfinished task `actualStartDay + durationDays - 1`
+// WHY THIS EXISTS. `reflowFromActuals` above cascades from recorded actuals only
+// (a start, a finish, or both), and it gives a started-but-unfinished task `actualStartDay + durationDays - 1`
 // — its full planned duration, whatever the progress says. So a task that began
 // on day 1, is 30% done, and should have finished ten days ago produces exactly
 // zero downstream movement: the Gantt keeps printing the kickoff plan's finish
@@ -463,6 +650,9 @@ export function reflowFromActuals(tasks: ScheduleTask[]): ScheduleTask[] {
 //   • `actualStartDay` / `actualEndDay` and `todayScheduleDay()` — CALENDAR
 //     indices from the anchor (utils/pace/stampActuals.ts: "day 1 =
 //     schedule.startDate, calendar-day indexing"), so a weekend consumes two.
+//     This is the ONE scale for actuals — every sink, the Gantt buttons
+//     included, writes it (audit #50) — so reading them through `ordinalOf`
+//     below is right for every task, not only the ones a phone closed.
 //   • `runCpm`'s es/ef/projectFinish — CALENDAR indices as well.
 // Writing `startDay = todayScheduleDay(...)` would therefore inflate every
 // weekend-crossing task by about two days per weekend — the exact mistake
@@ -927,6 +1117,164 @@ export function applyBaselineToTasks(tasks: ScheduleTask[], baseline: NamedBasel
   });
 }
 
+/**
+ * Put ONE baseline's dates onto the tasks — and take every other baseline's off.
+ * applyBaselineToTasks leaves a task the baseline does not name untouched, which
+ * is right for a capture of the current tasks but wrong when the yardstick
+ * CHANGES: after deleting the active baseline, a task added since the fallback
+ * was captured would keep ghost bars from the deleted one. `null` clears them.
+ */
+export function reapplyBaselineToTasks(tasks: ScheduleTask[], baseline: NamedBaseline | null): ScheduleTask[] {
+  const byId = new Map((baseline?.tasks ?? []).map(b => [b.id, b]));
+  return tasks.map(t => {
+    const b = byId.get(t.id);
+    if (b) {
+      return t.baselineStartDay === b.startDay && t.baselineEndDay === b.endDay
+        ? t
+        : { ...t, baselineStartDay: b.startDay, baselineEndDay: b.endDay };
+    }
+    if (t.baselineStartDay === undefined && t.baselineEndDay === undefined) return t;
+    const next = { ...t };
+    delete next.baselineStartDay;
+    delete next.baselineEndDay;
+    return next;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The ACTIVE baseline (#137)
+// ---------------------------------------------------------------------------
+// "Behind plan" has one yardstick. It used to be implied — the last entry of
+// baselines[] — while the web Baseline manager's Activate re-stamped the task
+// ghost bars from an OLDER entry: the Gantt then measured from v1 while the
+// ACTIVE chip, the Pro slip and the phone's verdict still measured from v2.
+// The schedule now names its yardstick (`activeBaselineId`), and every reader
+// resolves it through getActiveBaseline, so they cannot disagree again.
+//
+// The field is declared optional on ProjectSchedule (types/index.ts). Read and
+// written through these helpers so the call sites stay correct whether or not
+// a given build's type carries it.
+
+type BaselineHolder = { baselines?: readonly unknown[] | null } | null | undefined;
+
+/** The id the schedule names as active, or undefined when it names none. */
+export function readActiveBaselineId(schedule: BaselineHolder): string | undefined {
+  const id = (schedule as { activeBaselineId?: unknown } | null | undefined)?.activeBaselineId;
+  return typeof id === 'string' && id.length > 0 ? id : undefined;
+}
+
+/**
+ * The baseline slip is measured from: the one `activeBaselineId` names, else —
+ * no id, or an id whose baseline was deleted — the newest capture (the rule
+ * every schedule followed before the id existed, so old schedules read the same).
+ */
+export function resolveActiveBaseline(
+  baselines: readonly unknown[] | null | undefined,
+  activeBaselineId: string | null | undefined,
+): NamedBaseline | null {
+  const list = (baselines ?? []) as readonly NamedBaseline[];
+  if (list.length === 0) return null;
+  if (activeBaselineId) {
+    const named = list.find(b => b.id === activeBaselineId);
+    if (named) return named;
+  }
+  return list[list.length - 1];
+}
+
+/** resolveActiveBaseline over a schedule. */
+export function getActiveBaseline(schedule: BaselineHolder): NamedBaseline | null {
+  return resolveActiveBaseline(schedule?.baselines, readActiveBaselineId(schedule));
+}
+
+/** The schedule with `activeBaselineId` set (a string) or cleared (undefined —
+ *  the key then drops out of the stored JSON and the newest capture is active). */
+export function withActiveBaselineId<T extends object>(schedule: T, activeBaselineId: string | undefined): T {
+  const next = { ...schedule } as T & { activeBaselineId?: string };
+  if (activeBaselineId) next.activeBaselineId = activeBaselineId;
+  else delete next.activeBaselineId;
+  return next;
+}
+
+/**
+ * What deleting baselines leaves active. The id survives only when its baseline
+ * does; otherwise it is cleared, the fallback (newest remaining) becomes the
+ * yardstick, and `reapply` says the tasks' ghost-bar dates must be re-stamped
+ * from it — they still hold the deleted baseline's.
+ */
+export function activeBaselineAfterChange(
+  prevActiveId: string | undefined,
+  prevBaselines: readonly unknown[] | null | undefined,
+  nextBaselines: readonly unknown[] | null | undefined,
+): { activeBaselineId: string | undefined; active: NamedBaseline | null; reapply: boolean } {
+  const before = resolveActiveBaseline(prevBaselines, prevActiveId);
+  const keepId = prevActiveId && (nextBaselines ?? []).some(b => (b as NamedBaseline).id === prevActiveId)
+    ? prevActiveId
+    : undefined;
+  const active = resolveActiveBaseline(nextBaselines, keepId);
+  return { activeBaselineId: keepId, active, reapply: (before?.id ?? null) !== (active?.id ?? null) };
+}
+
+/**
+ * Which named baseline the tasks' ghost-bar dates came from — for Undo/Redo
+ * (#137). Schedule Pro's history holds task arrays only, so undoing an
+ * Activate put v2's dates back on the tasks while the ACTIVE chip, the slip
+ * and the stored id stayed on v1: the two-yardstick state again. After an
+ * undo or redo the screen asks this and follows the tasks.
+ *
+ * A baseline matches when every task it names that still exists carries
+ * exactly its start/end, and it names at least one such task. The current
+ * active one wins a tie (identical captures); otherwise the newest match.
+ * Undefined = no baseline matches (a hand-edited or partial stamp): the
+ * caller leaves the active id as it is rather than guess.
+ */
+export function baselineStampedOnTasks(
+  tasks: readonly ScheduleTask[],
+  baselines: readonly unknown[] | null | undefined,
+  currentActiveId: string | undefined,
+): string | undefined {
+  const list = (baselines ?? []) as readonly NamedBaseline[];
+  const byId = new Map(tasks.map(t => [t.id, t] as const));
+  const matches = list.filter(b => {
+    let seen = 0;
+    for (const e of b.tasks) {
+      const t = byId.get(e.id);
+      if (!t) continue;
+      if (t.baselineStartDay !== e.startDay || t.baselineEndDay !== e.endDay) return false;
+      seen += 1;
+    }
+    return seen > 0;
+  });
+  if (matches.length === 0) return undefined;
+  if (currentActiveId && matches.some(b => b.id === currentActiveId)) return currentActiveId;
+  return matches[matches.length - 1].id;
+}
+
+/**
+ * Schedule Pro's entry gate (#91, the GATING CONTRACT). `canAccess` is
+ * useProjectAccess(projectId).canAccess('schedule_gantt_pdf') — own tier OR
+ * the collaborator grant — so a foreman invited to the GC's job opens the GC's
+ * plan instead of a Pro paywall on his free account. When that says no:
+ *   role still loading → spinner (never a paywall flash for a seat about to
+ *   be granted); role read failed → retry; a project named but no role once
+ *   loaded → no access to that job, said plainly (a paywall would sell him Pro
+ *   for a project he is not on); otherwise → the paywall.
+ */
+export type ScheduleProGate = 'open' | 'loading' | 'error' | 'no_access' | 'paywall';
+export function scheduleProGate(o: {
+  canAccess: boolean;
+  hasProjectId: boolean;
+  roleLoading: boolean;
+  roleError: boolean;
+  role: string | null;
+}): ScheduleProGate {
+  if (o.canAccess) return 'open';
+  if (!o.hasProjectId) return 'paywall';
+  if (o.roleLoading) return 'loading';
+  if (o.roleError) return 'error';
+  if (o.role == null) return 'no_access';
+  return 'paywall';
+}
+
 export interface BaselineDiff {
   taskId: string;
   title: string;
@@ -1074,8 +1422,26 @@ export function exportTasksToCsv(
   const headers = [
     'WBS', 'Task', 'Phase', 'Duration (d)', 'Start day', 'Start date',
     'Finish day', 'Finish date', 'Crew', 'Progress %', 'Status',
-    'Dependencies', 'Baseline start', 'Baseline end', 'Actual start', 'Actual end',
+    'Dependencies', 'Baseline start', 'Baseline end',
+    'Actual start (calendar day)', 'Actual start date', 'Actual end (calendar day)', 'Actual end date',
   ];
+  // actualStartDay/actualEndDay are CALENDAR indices (day 1 = the anchor,
+  // every calendar day counts — utils/pace/stampActuals.ts, audit #50), NOT
+  // the working-day basis of 'Start day'/'Finish day' beside them. Printed as
+  // bare 'Actual start' numbers they read as working days and disagree with
+  // the plan columns, so the header names the scale and a date column says
+  // when. An undated schedule stamps only the ISO timestamp (no day 1 to
+  // count from): its date is shown from that, on the LOCAL day it was taken.
+  const actualDate = (dayIdx: number | undefined, iso: string | undefined): string => {
+    if (typeof dayIdx === 'number' && Number.isFinite(dayIdx) && dayIdx >= 1) {
+      return toCalendarDayString(calendarDayToDate(projectStartDate, dayIdx));
+    }
+    if (iso) {
+      const d = new Date(iso);
+      if (!Number.isNaN(d.getTime())) return toCalendarDayString(d);
+    }
+    return '';
+  };
   const rows: string[] = [headers.join(',')];
   const byId = new Map(tasks.map(t => [t.id, t]));
   for (const t of tasks) {
@@ -1099,7 +1465,9 @@ export function exportTasksToCsv(
       t.baselineStartDay ?? '',
       t.baselineEndDay ?? '',
       t.actualStartDay ?? '',
+      actualDate(t.actualStartDay, t.actualStartDate),
       t.actualEndDay ?? '',
+      actualDate(t.actualEndDay, t.actualEndDate),
     ];
     rows.push(row.join(','));
   }

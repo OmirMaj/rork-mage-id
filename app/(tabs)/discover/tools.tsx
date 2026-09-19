@@ -125,14 +125,12 @@ const TOOL_ROWS: ToolRow[] = [
   // tile, so it shipped dark on iOS (the primary target). It renders its own
   // Paywall for non-Business.
   //
-  // This comment used to claim "/safety handles a missing projectId
-  // (company-scoped tiles + picker)". It does not: app/safety.tsx has no
-  // ToolProjectPicker, and with no projectId it shows the company-wide tiles
-  // over an "Open a project for on-site tools" card whose only button bounces
-  // to Home — so a GC with a live job is sent away to fetch the thing he
-  // already has. The row stays (the company-wide half is genuinely useful with
-  // no project); the claim is gone until app/safety.tsx actually grows a
-  // picker. Documents lie, code doesn't.
+  // Opened from here it has no projectId, and app/safety.tsx now handles that
+  // with a ToolProjectPicker (audit #81): picking a job sets ?projectId= on the
+  // hub, so JHAs, toolbox talks, the hazard log, incidents and inspections are
+  // one tap away. The company-wide tiles (certifications, forms, OSHA 300)
+  // need no project and stay under the picker. An invited foreman on a free
+  // plan also gets in, and the picker lists only the jobs he was invited to.
   { feature: 'safety', route: '/safety', Icon: HardHat, title: 'Safety', subtitle: 'JHAs, toolbox talks, incidents, inspections & OSHA logs', tone: 'warning', testID: 'tools-safety', section: 'FIELD', needsProjects: true },
   // PRODUCT-F4 / UX-F16: the 09-02 Deliveries batch shipped with no iOS entry
   // point at all (sidebar ≥1024pt + search only).

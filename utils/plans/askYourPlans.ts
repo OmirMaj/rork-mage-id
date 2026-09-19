@@ -22,44 +22,49 @@
 import { supabase } from '@/lib/supabase';
 import { mageAI } from '@/utils/mageAI';
 import { imageUriToBase64 } from '@/utils/planCodeReviewer';
+// The function's own `{ error, code }` — a monthly cap stops the run, a single
+// unreadable sheet does not. Shared with Compare and PDF import (audit #79).
+import { readEdgeError } from '@/utils/edgeError';
 import { sheetToDocs, PLAN_SOURCE } from './planChunk';
 import { buildAskPrompt, citedSheetRefs, type PlanMatch } from './planAnswer';
 import {
   batchGroups, confidentMatches, planSheetFingerprint, PLAN_DOC_PREFIX, PLAN_EXTRACT_STOP_CODES,
   type PlanIndexResult,
 } from './memoryIndexCore';
+import { titleBlockSuggestions, splitMatchesByCurrentSheet, type TitleBlockSuggestion } from './revisionActions';
 import type { PlanSheet } from '@/types';
 
 export type { PlanIndexResult, PlanIndexSkip } from './memoryIndexCore';
 
-/**
- * The function's own `{ error, code }` from a supabase-js FunctionsHttpError.
- * Same idea as planCodeReviewer.edgeFunctionErrorMessage, but this caller also
- * needs the CODE — a monthly cap stops the run, a single unreadable sheet does
- * not. The body can be read once, so read it here and nowhere else.
- */
-async function readEdgeError(error: unknown, fallback: string): Promise<{ message: string; code: string }> {
-  const err = error as { message?: unknown; context?: { status?: unknown; json?: () => Promise<unknown> } } | null;
-  const ctx = err?.context;
-  if (ctx && typeof ctx.json === 'function') {
-    try {
-      const body = await ctx.json() as { error?: unknown; code?: unknown } | null;
-      const code = typeof body?.code === 'string' ? body.code : '';
-      const message = typeof body?.error === 'string' && body.error.trim() ? body.error.trim() : '';
-      if (message || code) return { message: message || code, code };
-    } catch {
-      // Not JSON — fall through to the status.
-    }
-    if (typeof ctx.status === 'number' && ctx.status > 0) return { message: `${fallback} (HTTP ${ctx.status})`, code: `http_${ctx.status}` };
-  }
-  return { message: typeof err?.message === 'string' && err.message.trim() ? err.message : fallback, code: '' };
-}
-
 const sheetLabel = (s: PlanSheet) => s.sheetNumber || s.name || 'Sheet';
 
-type ExtractOutcome = { ok: true; text: string } | { ok: false; code: string; reason: string };
+/** What plan-extract read off the title block (#75). Every field optional:
+ *  the function drops what it could not read rather than guess. */
+export interface ExtractedTitleBlock { sheetNumber?: string; sheetTitle?: string; revisionMark?: string }
 
-async function extractSheet(s: PlanSheet): Promise<ExtractOutcome> {
+export type ExtractOutcome =
+  | { ok: true; text: string; titleBlock: ExtractedTitleBlock | null }
+  | { ok: false; code: string; reason: string };
+
+/** The title block as the function returned it, or null. Defensive: a function
+ *  deployed before the field existed sends none. */
+function readTitleBlock(data: unknown): ExtractedTitleBlock | null {
+  const tb = (data as { titleBlock?: unknown } | null)?.titleBlock as Record<string, unknown> | undefined;
+  if (!tb || typeof tb !== 'object') return null;
+  const field = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const out: ExtractedTitleBlock = {
+    sheetNumber: field(tb.sheetNumber), sheetTitle: field(tb.sheetTitle), revisionMark: field(tb.revisionMark),
+  };
+  return out.sheetNumber || out.sheetTitle || out.revisionMark ? out : null;
+}
+
+/**
+ * One metered plan-extract read of one sheet: its text, and — #75 — the title
+ * block, which this used to throw away. Exported for the Plans import's
+ * optional "read the sheet numbers" pass; each call counts against the
+ * caller's plan_extract allowance.
+ */
+export async function extractSheet(s: PlanSheet): Promise<ExtractOutcome> {
   // Storage-backed sheet: let the function download it (DB-F11 pattern). The
   // client never touches the bytes, so web and native take the same path.
   if (s.storagePath) {
@@ -67,7 +72,7 @@ async function extractSheet(s: PlanSheet): Promise<ExtractOutcome> {
       body: { storagePath: s.storagePath, sheetNumber: s.sheetNumber },
     });
     if (!error) {
-      if (data?.success && typeof data.text === 'string') return { ok: true, text: data.text };
+      if (data?.success && typeof data.text === 'string') return { ok: true, text: data.text, titleBlock: readTitleBlock(data) };
       return { ok: false, code: 'empty', reason: data?.error ?? 'The AI read nothing legible on this sheet.' };
     }
     const e = await readEdgeError(error, 'Plan extract failed');
@@ -94,7 +99,45 @@ async function extractSheet(s: PlanSheet): Promise<ExtractOutcome> {
   if (!data?.success || typeof data.text !== 'string') {
     return { ok: false, code: 'empty', reason: data?.error ?? 'The AI read nothing legible on this sheet.' };
   }
-  return { ok: true, text: data.text };
+  return { ok: true, text: data.text, titleBlock: readTitleBlock(data) };
+}
+
+/** An indexing run's report, plus the sheet numbers its title-block reads
+ *  OFFER for unnumbered sheets (#75). The caller shows them as "Title block
+ *  reads A-201 — use it?" and applies the accepted ones with planBatchRenumber
+ *  through the offlineQueue patch path; nothing here writes a number. */
+export type PlanIndexRun = PlanIndexResult & { titleBlockSuggestions: TitleBlockSuggestion[] };
+
+/**
+ * Which current sheets the index does NOT hold with this drawing + number
+ * (#78). One helper for the indexing run and the panel's on-open check, so the
+ * fingerprint rule lives in one place (planSheetFingerprint). A manifest spends
+ * no embedding call and no monthly cap. `prune` deletes rows for superseded and
+ * deleted sheets — only the explicit Index tap passes it, so opening the panel
+ * never deletes anything. Resolves null when the manifest could not be read
+ * (offline, function not redeployed, a refusal): the caller must then not
+ * claim the index is up to date.
+ */
+export async function readPlanIndexManifest(
+  projectId: string,
+  sheets: PlanSheet[],
+  prune: boolean,
+): Promise<{ staleIds: Set<string>; pruneRefused: boolean } | null> {
+  const current = sheets.filter(s => !s.superseded);
+  const { data: man, error: manErr } = await supabase.functions.invoke('project-memory-embed', {
+    body: {
+      projectId,
+      action: 'manifest',
+      manifest: current.map(s => ({ doc_id: `${PLAN_DOC_PREFIX}${s.id}`, hash: planSheetFingerprint(s) })),
+      scopePrefixes: [PLAN_DOC_PREFIX],
+      prune,
+    },
+  });
+  if (manErr || !man?.success || !Array.isArray(man.stale)) return null;
+  return {
+    staleIds: new Set((man.stale as string[]).map(id => id.slice(PLAN_DOC_PREFIX.length))),
+    pruneRefused: man.pruneNotAllowed === true,
+  };
 }
 
 /** Index (or re-index) a project's plan sheets. Extract text per sheet (vision),
@@ -104,9 +147,11 @@ export async function indexPlanSheets(
   projectId: string,
   sheets: PlanSheet[],
   onProgress?: (done: number, total: number) => void,
-): Promise<PlanIndexResult> {
+): Promise<PlanIndexRun> {
   const current = sheets.filter(s => !s.superseded);
-  const result: PlanIndexResult = {
+  const titleReads: { sheetId: string; sheetNumber?: string }[] = [];
+  const result: PlanIndexRun = {
+    titleBlockSuggestions: [],
     total: current.length,
     alreadyIndexed: 0,
     newlyIndexed: 0,
@@ -122,17 +167,9 @@ export async function indexPlanSheets(
   //    redeployed, offline), treat every sheet as stale and prune nothing.
   const hashById = new Map(current.map(s => [s.id, planSheetFingerprint(s)]));
   let staleIds = new Set(current.map(s => s.id));
-  const { data: man, error: manErr } = await supabase.functions.invoke('project-memory-embed', {
-    body: {
-      projectId,
-      action: 'manifest',
-      manifest: current.map(s => ({ doc_id: `${PLAN_DOC_PREFIX}${s.id}`, hash: hashById.get(s.id) })),
-      scopePrefixes: [PLAN_DOC_PREFIX],
-      prune: true,
-    },
-  });
-  if (!manErr && man?.success && Array.isArray(man.stale)) {
-    staleIds = new Set((man.stale as string[]).map(id => id.slice(PLAN_DOC_PREFIX.length)));
+  const man = await readPlanIndexManifest(projectId, sheets, true);
+  if (man) {
+    staleIds = man.staleIds;
     result.alreadyIndexed = current.length - current.filter(s => staleIds.has(s.id)).length;
   }
 
@@ -145,6 +182,7 @@ export async function indexPlanSheets(
     const s = stale[i];
     const out = await extractSheet(s);
     onProgress?.(i + 1, stale.length);
+    if (out.ok && out.titleBlock?.sheetNumber) titleReads.push({ sheetId: s.id, sheetNumber: out.titleBlock.sheetNumber });
     if (out.ok && out.text.trim()) { extracted.push({ sheet: s, text: out.text }); continue; }
     if (out.ok) {
       result.skipped.push({ sheetId: s.id, label: sheetLabel(s), code: 'empty', reason: 'The AI read nothing legible on this sheet.' });
@@ -177,6 +215,8 @@ export async function indexPlanSheets(
       result.skipped.push({ sheetId: id, label: s ? sheetLabel(s) : 'Sheet', code: e.code, reason: e.message });
     }
   }
+  // Offered only for sheets that still have no number; one he typed wins.
+  result.titleBlockSuggestions = titleBlockSuggestions(current, titleReads);
   return result;
 }
 
@@ -192,6 +232,10 @@ export interface PlanAnswer {
    *  full stop. Not the same thing as "your plans don't say": the panel must
    *  never turn a server error into #19's headline sentence. */
   searchFailed: string | null;
+  /** #78: matches on a superseded or deleted sheet, left out BEFORE the model
+   *  read anything. The panel says so; > 0 with noneFound means only older
+   *  revisions matched — the current set is not indexed, not "not in the plans". */
+  staleDropped: number;
 }
 
 /** How many below-floor neighbours are worth showing the model when nothing
@@ -199,8 +243,9 @@ export interface PlanAnswer {
  *  few enough that the prompt is not padded with noise. */
 const WEAK_FALLBACK_MATCHES = 3;
 
-/** Answer a question about the project's plans. */
-export async function askPlans(projectId: string, question: string): Promise<PlanAnswer> {
+/** Answer a question about the project's plans. `sheets` is the plan set as
+ *  it is NOW: only matches on its current sheets reach the prompt (#78). */
+export async function askPlans(projectId: string, question: string, sheets: PlanSheet[]): Promise<PlanAnswer> {
   // `sources` scopes the vector search to plan sheets INSIDE the top-K. Without
   // it the 8 nearest were usually daily reports, which the filter below then
   // discarded, and the prompt got "(no matching plan sheets found)".
@@ -224,14 +269,20 @@ export async function askPlans(projectId: string, question: string): Promise<Pla
       citations: [],
       noneFound: false,
       weakGrounding: false,
+      staleDropped: 0,
       // Trailing full stop stripped: the panel sets this reason inside its own
       // sentence, and "…upgrade.. Your plans may still hold it" reads broken.
       searchFailed: e.message.replace(/\s*[.!]+\s*$/, ''),
     };
   }
   // Keep the source filter: a function not yet redeployed ignores `sources`.
-  const planMatches: PlanMatch[] = ((sr?.matches ?? []) as PlanMatch[])
+  const sourced: PlanMatch[] = ((sr?.matches ?? []) as PlanMatch[])
     .filter(m => m.source === PLAN_SOURCE);
+  // #78: the index still holds a superseded sheet until the next Index tap, so
+  // "header over door 104" was answered from Rev 1 after Rev 2 was filed. Drop
+  // every match whose sheet is superseded or gone BEFORE the floor and the
+  // prompt — filtering only the chips is too late, the model has read it.
+  const { current: planMatches, staleDropped } = splitMatchesByCurrentSheet(sourced, sheets);
   // The floor DEGRADES, it never empties the prompt. Project Memory can drop
   // weak matches because it falls through to TF-IDF keyword search; askPlans
   // has no such path, so dropping everything here would reproduce the exact
@@ -244,11 +295,16 @@ export async function askPlans(projectId: string, question: string): Promise<Pla
   const confident = confidentMatches(planMatches);
   const weakGrounding = confident.length === 0 && planMatches.length > 0;
   const matches: PlanMatch[] = weakGrounding ? planMatches.slice(0, WEAK_FALLBACK_MATCHES) : confident;
+  if (matches.length === 0 && staleDropped > 0) {
+    // Only older revisions matched. Paying the model to say "I couldn't find
+    // that in your plans" would be false — the current set is not indexed.
+    return { answer: '', citations: [], noneFound: true, weakGrounding: false, searchFailed: null, staleDropped };
+  }
   const res = await mageAI({ prompt: buildAskPrompt(question, matches), tier: 'smart', maxTokens: 400, feature: 'planAsk' });
   // For non-schema mageAI calls the ai relay returns { data: rawText, raw: rawText }.
   // res.data holds the text string directly (not res.data?.text).
   const answer = (res.success ? (typeof res.data === 'string' ? res.data : res.raw ?? '') : '').trim()
     || "I couldn't reach the plan brain just now — try again.";
   const citations = citedSheetRefs(answer, matches);
-  return { answer, citations, noneFound: matches.length === 0, weakGrounding, searchFailed: null };
+  return { answer, citations, noneFound: matches.length === 0, weakGrounding, searchFailed: null, staleDropped };
 }

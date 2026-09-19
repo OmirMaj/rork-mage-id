@@ -284,9 +284,12 @@ console.log('\nlocking a plan on the tablet / web Schedule tab:');
       `${src.slice(start, end)}\nglobalThis.__tab = { tabLockRefusal, lockTabPlan, activeNamedBaseline, baselineEndIndex, liveEndIndex, scheduleForGanttBaseline, rebuildEditedSchedule };`);
     new Function(
       'resolveScheduleAnchor', 'UNDATED_SCHEDULE_TITLE', 'runCpm', 'captureBaseline', 'applyBaselineToTasks', 'calendarIndexToWorkingOrdinal',
-      'buildScheduleFromTasks', 'mergeEditedSchedule', js,
+      'buildScheduleFromTasks', 'mergeEditedSchedule',
+      // #137: the block resolves the ACTIVE baseline and names a new lock
+      // through these two scheduleOps helpers.
+      'getActiveBaseline', 'withActiveBaselineId', js,
     )(ops.resolveScheduleAnchor, ops.UNDATED_SCHEDULE_TITLE, cpmMod.runCpm, ops.captureBaseline, ops.applyBaselineToTasks, cpmMod.calendarIndexToWorkingOrdinal,
-      engine.buildScheduleFromTasks, engine.mergeEditedSchedule);
+      engine.buildScheduleFromTasks, engine.mergeEditedSchedule, ops.getActiveBaseline, ops.withActiveBaselineId);
     type Sched = ProjectSchedule;
     type Lock = { ok: true; schedule: Sched; snap: { name: string }; finishDay: number | null } | { ok: false; title: string; reason: string };
     type EndIdx = { kind: 'named' | 'legacy'; ends: Map<string, number> } | null;
@@ -328,6 +331,10 @@ console.log('\nlocking a plan on the tablet / web Schedule tab:');
     expect('a dated plan locks', locked.ok, true);
     if (locked.ok) {
       const s = locked.schedule;
+      // #137: the new lock is named the active baseline, so an older one
+      // activated in Schedule Pro cannot stay the yardstick over it.
+      expect('the tab lock names itself the active baseline',
+        (s as unknown as { activeBaselineId?: string }).activeBaselineId === (s.baselines ?? [])[(s.baselines ?? []).length - 1]?.id, true);
       expect('the lock appends to baselines[] (what the verdict reads)', (s.baselines ?? []).map((b) => b.name), ['v1']);
       expect('the lock never writes the legacy singular baseline', s.baseline, undefined);
       expect('every task carries the per-task baseline the health checks filter on',

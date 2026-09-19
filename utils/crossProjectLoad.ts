@@ -42,10 +42,18 @@ import { isWorkingDay } from '@/utils/cpm';
 // that touch only on a closed day NOT clashing. Re-dating every task through
 // the engine floors the fractional key and slides every fixture, so honouring
 // it means re-authoring those cases on a new basis, inside a feature this
-// change is not about. The pin is also the only thing this detector can see of
-// another project, and every persist path in Schedule Pro reflows before
-// writing, so the two agree on real data. Revisit together with
-// utils/judges/capacityLoad.ts, which is on the same basis for the same reason.
+// change is not about.
+//
+// KNOWN LIMIT — corrected 2026-09-18 (audit #51). An earlier note here said
+// "every persist path in Schedule Pro reflows before writing, so the two agree
+// on real data". That is false: Schedule Pro (web and mobile) persists with
+// criticalPathDays, which SKIPS the reflow, so a successor pushed by a longer
+// predecessor keeps its old pin in storage while every screen draws it later.
+// On such a plan this detector (and utils/judges/capacityLoad.ts, on the same
+// basis for the same reason) can place a task earlier than the engine does and
+// report a clash — or miss one — on the old dates. The honest fix is to move
+// both onto CPM es together with the cross-project-load fixtures; until then
+// read their answers as "on the authored pins".
 import { taskWindow, type TaskWindowCalendar } from '@/utils/lastPlanner';
 // The repo's single answer to "does this task put anyone on site at all" —
 // it is false for a done task and for a 0-day milestone (an event, not work).

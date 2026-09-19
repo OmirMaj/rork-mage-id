@@ -146,9 +146,9 @@ ok('the Calibrate button is blocked with the reason while the frame is unknown',
   const fn = ctx.slice(ctx.indexOf('const upsertPlanCalibration = useCallback('));
   const existingBranch = fn.slice(fn.indexOf('if (existing) {'), fn.indexOf('const fresh: PlanCalibration'));
   ok('re-calibrating an existing sheet sends an upsert (ON CONFLICT (id)), never a plain insert',
-    /supabaseWrite\('plan_calibrations', 'upsert', \{\s*id: next\.id,/.test(existingBranch) && !/'plan_calibrations', 'insert'/.test(existingBranch));
+    /(?:supabaseWrite\(|trackedWrite\(planWriteTouchRef, )'plan_calibrations', 'upsert', \{\s*id: next\.id,/.test(existingBranch) && !/'plan_calibrations', 'insert'/.test(existingBranch));
   ok('a first calibration is still a plain insert of a fresh id',
-    /supabaseWrite\('plan_calibrations', 'insert', \{\s*id: fresh\.id,/.test(fn));
+    /(?:supabaseWrite\(|trackedWrite\(planWriteTouchRef, )'plan_calibrations', 'insert', \{\s*id: fresh\.id,/.test(fn));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

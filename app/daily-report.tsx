@@ -12,7 +12,7 @@ import {
   Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
   ScanSearch,
-  CalendarClock, ChevronDown, Link2, Minus, ShieldAlert,
+  CalendarClock, ChevronDown, Link2, Minus, ShieldAlert, PenLine,
 } from 'lucide-react-native';
 import { MageAIMark, MageDailyReport } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -23,12 +23,15 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
+import { cardSurface } from '@/components/ui';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import ContactPickerModal from '@/components/ContactPickerModal';
-import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
+import { saveDailyReportToProjectFiles, resolveDfrPhotosForDocument, DFR_FILED_PDF_LINK_DAYS } from '@/utils/projectDocuments';
+import { buildDFRHtml, dfrPrintablePhotoSplit } from '@/utils/pdfGenerator';
+import { openPrintWindowAfterOrThrow } from '@/utils/platformFile';
 import { FolderOpen, FileSignature, ChevronRight } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
@@ -78,12 +81,17 @@ import { mergeTimeEntriesMirror } from '@/hooks/useTimeEntries';
 import { addClockRowsToRoster, carryForwardManpower, clockCrewForDay, clockCrewSourceLine, clockRosterGapLine, clockRowsMissingFromRoster, liveClockHoursWarning, seedRowIds } from '@/utils/dfrClockCrew';
 import { receiptLinesForDay, mergeReceiptLines, carryIssuesText } from '@/utils/deliverySchedule';
 import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, photoExtFromUri } from '@/utils/photoUploadCore';
+import { queuePhotoUpload } from '@/utils/photoUploadQueue';
 import {
   buildSafetyIncidentFromDfr, describeRecordability, hasRestriction, safetyIncidentIdForReport,
   DFR_INCIDENT_TYPE_LABEL, DFR_TREATMENT_LABEL,
   type IncidentClassInput, type IncidentType, type Treatment,
 } from '@/utils/safety/osha';
 import { isRecordableCase } from '@/utils/safety/oshaLog';
+import { useLaborRates } from '@/hooks/useLaborRates';
 import {
   backfilledWeatherNotice, canReadLiveWeatherFor, weatherProvenanceLine,
 } from '@/utils/weatherService';
@@ -291,7 +299,25 @@ interface DfrDraftContent {
    *  determination inputs yet, which is the same as not having answered them. */
   incidentClass?: DfrIncidentClass;
   homeownerSummary: string;
+  /** #22: the publish flag is unsaved work too — toggling it and backing out
+   *  used to leave nothing on disk and ask nothing. OPTIONAL so a draft
+   *  written before it existed still restores (as not published). */
+  hsPublished?: boolean;
 }
+
+/**
+ * A DFR photo with the #87 incident mark. The mark rides on the photo object
+ * (the photos column is jsonb and both ProjectContext mappers spread the
+ * object through), so it survives the local store and the server round trip.
+ * DFRPhoto.incidentPhoto is a pending additive field in types/index.ts; this
+ * alias keeps the screen compiling without it.
+ */
+type DfrPhotoWithFlag = DFRPhoto & { incidentPhoto?: boolean };
+function withIncidentMark(p: DFRPhoto, on: boolean): DFRPhoto {
+  return Object.assign({}, p, { incidentPhoto: on }) as DFRPhoto;
+}
+/** app/safety-incidents.tsx's own MAX_INCIDENT_PHOTOS (not exported there). */
+const MAX_INCIDENT_PHOTOS = 8;
 
 /** A persisted draft. `v` is checked on read so a future shape change discards
  *  old drafts instead of restoring half a report. */
@@ -338,7 +364,8 @@ function dfrDraftSignature(c: DfrDraftContent): string {
     (c.workProgress ?? []).map(w => [w.taskId, w.pct]),
     c.materialsDelivered ?? [],
     (c.issuesAndDelays ?? '').trim(),
-    (c.photos ?? []).map(p => [p.id, p.uri]),
+    // The incident-photo mark (#87) is his answer about the photo, so it counts.
+    (c.photos ?? []).map(p => [p.id, p.uri, (p as DfrPhotoWithFlag).incidentPhoto ? 1 : 0]),
     [
       c.incident?.hasIncident ?? false,
       c.incident?.severity ?? '',
@@ -363,6 +390,7 @@ function dfrDraftSignature(c: DfrDraftContent): string {
       c.incidentClass?.fatality ?? false,
     ],
     (c.homeownerSummary ?? '').trim(),
+    c.hsPublished ?? false,
   ]);
 }
 
@@ -516,6 +544,217 @@ export function dfrOpenState(o: {
 }
 // <<< dfr-open-gate
 
+// >>> dfr-screen-pure (pure; scripts/validate-dfr-screen-wave3.ts evaluates this block — no imports in here)
+/**
+ * What the AI generators are told about the weather when none was recorded.
+ *
+ * #28: both generator call sites used to send `|| 'Clear'`, so a report with no
+ * weather told the model it was a clear day, and the draft it wrote said so.
+ * An empty weather card is a fact about the record ("nobody wrote it down"),
+ * not about the sky. utils/aiService's prompt reads this exact phrase as
+ * "unknown — don't describe it".
+ */
+export const DFR_WEATHER_NOT_RECORDED = 'Not recorded';
+export function dfrAiWeatherStr(parts: (string | null | undefined)[]): string {
+  const s = parts.map(p => (p ?? '').trim()).filter(Boolean).join(' · ');
+  return s || DFR_WEATHER_NOT_RECORDED;
+}
+
+/** The divider the schedule generator writes under, so what came from the
+ *  schedule is visibly separate from what he typed. */
+export const DFR_FROM_SCHEDULE_DIVIDER = '— From schedule —';
+/**
+ * #28: the schedule "generate report" button REPLACED work performed and
+ * issues with '[Completed] …' lines — on a new, unsaved report, with no undo,
+ * so two typed paragraphs were gone for good. Now it never replaces: an empty
+ * field takes the generated lines; a field with text keeps every character he
+ * typed and gets the generated lines appended under a divider. (Skipping a
+ * non-empty field instead would make the button do nothing without saying why.)
+ */
+export function dfrAppendGenerated(typed: string, generated: string): string {
+  const gen = (generated ?? '').trim();
+  if (!gen) return typed;
+  if (!(typed ?? '').trim()) return gen;
+  return `${typed.replace(/\s+$/, '')}\n\n${DFR_FROM_SCHEDULE_DIVIDER}\n${gen}`;
+}
+
+/**
+ * The homeowner-update publish control, stated against what is SAVED.
+ *
+ * #22: tapping "Publish to portal" flipped local state only — the pill read
+ * PUBLISHED and the button "Showing in portal" while nothing was written, and
+ * backing out asked nothing. The flag is now unsaved work like any field (see
+ * dfrDraftSignature), and this names the pending change in both directions:
+ * unpublishing is where the homeowner keeps reading something the GC thinks
+ * he pulled.
+ */
+export function dfrPublishControl(saved: boolean, local: boolean): {
+  label: string; pill: boolean; pending: 'publish' | 'remove' | null;
+} {
+  if (saved && local) return { label: 'Published — tap to take it down', pill: true, pending: null };
+  if (!saved && local) return { label: 'Publishes when you save', pill: false, pending: 'publish' };
+  // The homeowner still sees it until the save lands, so the pill stays.
+  if (saved && !local) return { label: 'Removed when you save', pill: true, pending: 'remove' };
+  return { label: 'Publish to portal', pill: false, pending: null };
+}
+
+/**
+ * The owner test every seat rule on this screen uses, offline-safe: the
+ * loader's ownerUserId stamp first (it survives an offline launch), then the
+ * collaborator read's role. Same rule as change-order.tsx's coOwnedLocally.
+ */
+export function dfrIsProjectOwner(ownerUserId: string | null | undefined, userId: string | null | undefined, role: string | null | undefined): boolean {
+  if (ownerUserId && userId && ownerUserId === userId) return true;
+  return role === 'owner';
+}
+
+/** #41 (founder decision pending — interim): only the project owner writes
+ *  change orders. */
+export const DFR_GC_CREATES_COS = 'Your GC creates change orders \u2014 this goes to them as a field issue in this report.';
+export const DFR_OWNER_DECIDES_HOMEOWNER = 'The project owner decides what the homeowner sees.';
+/**
+ * #116 (founder decision pending — interim): only the owner or an editor may
+ * publish a homeowner update or send this report to the client portal. Field
+ * and viewer seats see the controls disabled with the reason. The server
+ * enforces the same tier (migration 20260919140000, daily_reports_portal_owner).
+ * `role` is the live collaborator read, `myRole` the loader's stamp (kept
+ * offline); a collaborator whose role is still unknown is held, not let through.
+ */
+export function dfrPublishAccess(o: {
+  ownerUserId?: string | null; userId?: string | null; role?: string | null; myRole?: string | null; roleLoading?: boolean;
+}): { allowed: boolean; reason: string | null } {
+  if (dfrIsProjectOwner(o.ownerUserId, o.userId, o.role)) return { allowed: true, reason: null };
+  const r = o.role ?? o.myRole ?? null;
+  if (r === 'editor') return { allowed: true, reason: null };
+  if (r === 'field' || r === 'viewer') return { allowed: false, reason: DFR_OWNER_DECIDES_HOMEOWNER };
+  // No stamp on either side: an owned project from a cache that predates the
+  // ownerUserId stamp — the owner's own job.
+  if (!o.ownerUserId && !o.myRole && !o.roleLoading) return { allowed: true, reason: null };
+  return { allowed: false, reason: o.roleLoading ? 'Checking your role on this job…' : DFR_OWNER_DECIDES_HOMEOWNER };
+}
+
+/**
+ * #114: another report already on this calendar day. Several reports a day are
+ * legitimate (one per crew or shift), so the screen offers — never redirects.
+ * Days compare through the caller's calendarDayOf on BOTH sides: reportDate is
+ * an ISO instant and a raw prefix names tomorrow after ~5-8 pm in the US.
+ */
+export function dfrSameDayReports<T extends { id: string; date: string }>(
+  reports: T[], day: string | null, excludeId: string | null, dayOf: (v: string) => string | null,
+): T[] {
+  if (!day) return [];
+  return reports.filter(r => r.id !== excludeId && dayOf(r.date) === day);
+}
+
+/**
+ * #87: which DFR photos go on the incident, and as what.
+ *
+ * Only photos he marked as incident photos — a delivery or progress shot is not
+ * injury evidence. Each resolves to a DURABLE value: the storage path it
+ * already has, else the path staging gives it (deterministic per photo id, the
+ * same object the report's own staging uploads), else — signed out, no cloud —
+ * the device URI, which is what SafetyContext keeps locally anyway. Capped at
+ * the incident form's own limit.
+ */
+export function dfrIncidentPhotoUrls(
+  photos: { id: string; uri: string; storagePath?: string; incidentPhoto?: boolean }[],
+  stage: (p: { id: string; uri: string }) => string | null,
+  cap: number,
+): string[] {
+  const out: string[] = [];
+  for (const p of photos) {
+    if (!p.incidentPhoto) continue;
+    const v = p.storagePath || stage(p) || p.uri;
+    if (v && !out.includes(v)) out.push(v);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+/**
+ * #115: a homeowner summary names the day it was written for. After a re-date
+ * that day is wrong, so the summary is flagged stale and can't be published
+ * until it is re-generated or edited.
+ */
+export function dfrSummaryIsStale(summary: string, writtenForDay: string | null, reportDay: string | null): boolean {
+  return !!summary.trim() && !!writtenForDay && !!reportDay && writtenForDay !== reportDay;
+}
+
+/** #82: where an incident filed from this report ends up, said truthfully to
+ *  a collaborator — his report is not "your safety record" and he does not
+ *  keep the OSHA 300 (migration 20260919130000: he and the owner see it). */
+export function dfrIncidentFileNote(isOwner: boolean): string {
+  return isOwner
+    ? 'Saving this report files it on the safety record too, so it reaches the OSHA 300 without you typing it a second time.'
+    : 'Filed with this report. Only you and the job’s owner can see it; the owner keeps the OSHA 300.';
+}
+// <<< dfr-screen-pure
+
+// >>> dfr-document-pure (pure; scripts/validate-dfr-document-wave3.ts evaluates this block — no imports in here)
+/** Why the project-files switch is off on web (#27). Kept word-for-word with
+ *  utils/projectDocuments.PROJECT_FILES_NEEDS_APP; the validator pins both. */
+export const DFR_FILES_NEEDS_APP = 'Saving a PDF to project files needs the mobile app — use Print to keep a copy.';
+
+/**
+ * #27: the project-files copy needs PDF BYTES, and on web expo-print has none
+ * to give (its web module is `window.print()` and returns undefined). The
+ * switch used to default ON everywhere, so every web Submit either failed to
+ * file or popped a print tab plus a failure alert. Web starts it off and
+ * disabled; the send path ignores it there regardless of state.
+ */
+export function dfrProjectFilesAvailable(os: string): boolean {
+  return os !== 'web';
+}
+
+/** What a tap on Send will do, decided before anything is written. */
+export function dfrSendPlan(o: { email: string; saveToggle: boolean; os: string }): {
+  wantsEmail: boolean;
+  fileCopy: boolean;
+  blocker: { title: string; message: string } | null;
+} {
+  const wantsEmail = o.email.trim().length > 0;
+  const filesAvailable = dfrProjectFilesAvailable(o.os);
+  const fileCopy = filesAvailable && o.saveToggle;
+  if (!wantsEmail && !fileCopy) {
+    return {
+      wantsEmail, fileCopy,
+      blocker: filesAvailable
+        ? { title: 'Pick a destination', message: 'Enter a recipient email, turn on "Save copy to project files", or both.' }
+        : { title: 'Enter an email', message: 'Saving a PDF to project files needs the mobile app, so on the web a report goes out by email. Enter a recipient, or use Print to keep a copy.' },
+    };
+  }
+  return { wantsEmail, fileCopy, blocker: null };
+}
+
+/**
+ * Whether the report may be stamped 'sent'. Only on something that actually
+ * left the device: the email when he asked for one (a filed copy alone is not
+ * the delivery he asked for), otherwise the project-files upload.
+ */
+export function dfrDelivered(o: { wantsEmail: boolean; emailSent: boolean; fileSaved: boolean }): boolean {
+  return o.wantsEmail ? o.emailSent : o.fileSaved;
+}
+
+/**
+ * #25 — what tapping a DFR photo does. The annotator draws on the GALLERY copy
+ * of a photo, found by id, and the report mirrors each photo into the gallery
+ * under the SAME id when it saves. Before that first save there is nothing for
+ * the annotator to open (it would say "this photo isn't on this device"), so
+ * the tap says why instead of opening a dead screen.
+ */
+export const DFR_SENT_MARKUP_NOTE =
+  'Markup you draw now changes the project copy of this photo, not the report that went out. A re-print of this report would show it.';
+export function dfrPhotoMarkupTarget(o: { photoId: string; galleryIds: readonly string[]; reportSent?: boolean }):
+  { action: 'annotate'; photoId: string; lockedNote?: string } | { action: 'blocked'; reason: string } {
+  if (!o.galleryIds.includes(o.photoId)) {
+    return { action: 'blocked', reason: 'Save the report first. Markup is drawn on the project copy of this photo, which saving the report creates.' };
+  }
+  return o.reportSent
+    ? { action: 'annotate', photoId: o.photoId, lockedNote: DFR_SENT_MARKUP_NOTE }
+    : { action: 'annotate', photoId: o.photoId };
+}
+// <<< dfr-document-pure
+
 export default function DailyReportScreen() {
   // Safe back, not router.back(): this gate is exactly what a push cold start
   // or a fresh web tab lands on, where there is nothing to pop (UX-F18).
@@ -592,7 +831,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const dcStyles = useThemedStyles(makeDcStyles);
   // reportId comes from the gate above (which also accepts the `id` alias):
   // this editor only mounts for a named report once that report is loaded.
-  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
+  // `date` (a bare YYYY-MM-DD) starts a NEW report on that day — Home's
+  // daily-log card sends the missing day it lists (#114). `fieldIssue` is the
+  // scope a collaborator tried to write as a change order; the CO screen sends
+  // it here so it reaches the owner in this report instead of vanishing.
+  const { projectId: paramProjectId, date: paramDate, fieldIssue: paramFieldIssue } =
+    useLocalSearchParams<{ projectId: string; date?: string; fieldIssue?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
     getPhotosForProject, projects, commitments, getChangeOrdersForProject, updateProject,
@@ -615,7 +859,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // DFR-OSHA-BRIDGE — an injury written on the daily report has to land on the
   // safety register, or it never reaches the OSHA 300 that gets pulled months
   // later for an insurance renewal or a prequal.
-  const { incidents: safetyIncidents, addIncident, updateIncident } = useSafety();
+  const { incidents: safetyIncidents, addIncident, updateIncident, isIncidentDeleted, clearIncidentTombstone } = useSafety();
   const { user } = useAuth();
   /** Who filed it. The register requires a reporter; SafetyContext defaults
    *  this on insert but not on update, so resolve it here for both paths. */
@@ -636,11 +880,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // every flagged item and the leak-CO draft goes out with blanks.
   const { seeds } = useCostSeeds();
   const { tier } = useSubscription();
-  // `canAccess` as well as `isFree`: the Incidents log and the OSHA 300 are
-  // Business surfaces, but the case a super files from this screen is written at
-  // ANY tier (SafetyContext is not gated). So the chip below has to tell the
-  // truth in both directions — the record is safe, the VIEW of it is not free.
-  const { isFree, canAccess } = useTierAccess();
+  // The Incidents log and the OSHA 300 are Business surfaces, but the case a
+  // super files from this screen is written at ANY tier (SafetyContext is not
+  // gated). So the chip below has to tell the truth in both directions — the
+  // record is safe, the VIEW of it is not free (canAccessOnProject, below).
+  const { isFree } = useTierAccess();
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [showVoiceBanner, setShowVoiceBanner] = useState(false);
   const [voiceLimit, setVoiceLimit] = useState<LimitCheck | null>(null);
@@ -669,6 +913,19 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
+  // Seat rules (#116, #41, #82). The collaborator read is the live answer; the
+  // loader's ownerUserId / myRole stamps keep an offline launch honest.
+  const roleState = useProjectRoleState(projectId || undefined);
+  const isProjectOwner = dfrIsProjectOwner(project?.ownerUserId, user?.id, roleState.role);
+  // The Incidents register is opened through the SAME project-aware gate the
+  // Incidents screen uses (tier OR the collaborator grant on this job). The
+  // chip below only links the OWNER there — a collaborator's case reaches the
+  // owner (20260919130000) but is not his record, so he gets the #82 note.
+  const { canAccess: canAccessOnProject } = useProjectAccess(projectId || undefined);
+  const publishAccess = useMemo(() => dfrPublishAccess({
+    ownerUserId: project?.ownerUserId, userId: user?.id, role: roleState.role,
+    myRole: project?.myRole, roleLoading: roleState.isLoading,
+  }), [project?.ownerUserId, project?.myRole, user?.id, roleState.role, roleState.isLoading]);
   const existingReports = useMemo(() => getDailyReportsForProject(projectId ?? ''), [projectId, getDailyReportsForProject]);
 
   // Photos taken on the same calendar day this DFR is for (or today if new).
@@ -724,13 +981,28 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     existingReport?.materialsDelivered ?? []
   );
   const [newMaterial, setNewMaterial] = useState('');
-  const [issuesAndDelays, setIssuesAndDelays] = useState(existingReport?.issuesAndDelays ?? '');
+  const [issuesAndDelays, setIssuesAndDelays] = useState(() => {
+    if (existingReport) return existingReport.issuesAndDelays ?? '';
+    // Change-order handoff: a collaborator can't write a CO on the GC's job, so
+    // the scope he tried to write arrives here as a field issue for the GC.
+    const fi = typeof paramFieldIssue === 'string' ? paramFieldIssue.trim() : '';
+    return fi ? `For the GC \u2014 possible change order: ${fi}` : '';
+  });
   // Homeowner-friendly summary — AI-generated from the technical fields,
   // GC reviews / edits, then publishes to the portal as the "Latest update".
   const [homeownerSummary, setHomeownerSummary] = useState<string>(existingReport?.homeownerSummary ?? '');
   const [hsHighlights, setHsHighlights] = useState<string[]>([]);
   const [hsLookingAhead, setHsLookingAhead] = useState<string>('');
   const [hsPublished, setHsPublished] = useState<boolean>(existingReport?.homeownerSummaryPublished ?? false);
+  /** What the homeowner portal holds right now for this report (#22) — the
+   *  label and pill read this, not the local toggle. */
+  const hsPublishedSaved = existingReport?.homeownerSummaryPublished ?? false;
+  /** The calendar day the summary text was written for (#115). A saved summary
+   *  was written for the report's saved day; a generated one for the day it
+   *  was generated on. */
+  const [hsWrittenForDay, setHsWrittenForDay] = useState<string | null>(
+    existingReport?.homeownerSummary ? calendarDayOf(existingReport.date) : null,
+  );
   const [hsGenerating, setHsGenerating] = useState<boolean>(false);
   const [hsGeneratedAt, setHsGeneratedAt] = useState<string | undefined>(existingReport?.homeownerSummaryGeneratedAt);
   const [leakScan, setLeakScan] = useState<LeakScanRecord | null>(existingReport?.leakScan ?? null);
@@ -784,7 +1056,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // every render, making it impossible to log a report for yesterday
   // (the most common GC backfill case after a long Saturday). Tap
   // the date in the top bar to open DatePickerModal.
-  const [reportDate, setReportDate] = useState<string>(() => new Date().toISOString());
+  const [reportDate, setReportDate] = useState<string>(() => {
+    // A new report asked for a specific day (#114: the daily-log card's gap
+    // row). Local noon of that day, so the instant can't read as the day
+    // before or after in any US zone. Anything unparseable falls back to now.
+    const asked = !reportId && typeof paramDate === 'string' ? parseCalendarDay(paramDate) : null;
+    if (asked) { asked.setHours(12, 0, 0, 0); return asked.toISOString(); }
+    return new Date().toISOString();
+  });
   // The date a BRAND-NEW report starts on. The unsaved-work baseline below
   // needs it: `reportDate` is seeded from the clock, so without a fixed
   // reference a new report would compare its own mount-time date against
@@ -885,6 +1164,37 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     () => safetyIncidents.find(i => i.id === dfrCaseId) ?? null,
     [safetyIncidents, dfrCaseId],
   );
+  /** #89: the owner deleted this report's case in Incidents (tombstoned). */
+  const caseDeletedInLog = !linkedIncident && isIncidentDeleted(dfrCaseId);
+  /**
+   * #87: the storage path a DFR photo will have, staged now. Same helper
+   * inputs as ProjectContext's stageDfrPhotos (signed-in user, project, photo
+   * id → one deterministic object), and the upload queue dedupes on that path,
+   * so the bytes still upload once and the report and the incident name the
+   * same object. Null when there is nothing to stage (signed out, or already
+   * remote).
+   */
+  const stageIncidentPhoto = useCallback((p: { id: string; uri: string }): string | null => {
+    const uid = user?.id;
+    if (!uid || !projectId || !p.id || !p.uri || !isDeviceLocalUri(p.uri)) return null;
+    const ext = photoExtFromUri(p.uri);
+    const storagePath = buildPhotoStoragePath(uid, projectId, p.id, ext);
+    void queuePhotoUpload({ photoId: p.id, userId: uid, projectId, localUri: p.uri, storagePath, contentType: contentTypeForExt(ext) });
+    return storagePath;
+  }, [user?.id, projectId]);
+  const toggleIncidentPhoto = useCallback((id: string) => {
+    setPhotos(prev => prev.map(p => (p.id === id ? withIncidentMark(p, !(p as DfrPhotoWithFlag).incidentPhoto) : p)));
+  }, []);
+  const refileDeletedCase = useCallback(() => {
+    showAlert(
+      'File the case again?',
+      'The owner deleted this case in Incidents. Filing it again puts it back on the safety record when you save this report.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'File it again', onPress: () => clearIncidentTombstone(dfrCaseId) },
+      ],
+    );
+  }, [clearIncidentTombstone, dfrCaseId]);
   // Seed the determination inputs from the case this report already filed.
   // Guarded by a ref rather than by a dependency list because SafetyContext
   // re-renders on every write in the app, and without the guard a save would
@@ -942,7 +1252,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // "Save copy to project files" toggle in the Send modal — when on,
   // the rendered HTML report is uploaded as a PDF to the project's
   // documents bucket so it shows up in the shared-drive view.
-  const [saveToProjectFiles, setSaveToProjectFiles] = useState(true);
+  // #27: off (and disabled in the modal) on web, where there are no PDF bytes
+  // to upload — see dfrProjectFilesAvailable.
+  const [saveToProjectFiles, setSaveToProjectFiles] = useState(() => dfrProjectFilesAvailable(Platform.OS));
 
   // The hero card date must reflect the report being viewed/edited — i.e.
   // the user-picked `reportDate` (which hydrates from an existing draft and
@@ -1257,11 +1569,17 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // signs at 16:00.
   useEffect(() => { refreshTimeEntries(); }, [projectId, refreshTimeEntries]);
   const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  // #65 · Overtime is computed from the whole week under the GC's rule (federal
+  // weekly >40 by default, optional daily >8) — the same rule Job Costing and
+  // the payroll CSV use, so the DFR chip never names overtime the ledger won't.
+  // gc_labor_settings is owner-only, so an invited foreman's phone reads its own
+  // (default weekly-40) rule; the GC's own report carries his setting.
+  const { overtimeRule } = useLaborRates();
   const clockCrew = useMemo(
     () => (project && reportCalendarDay
-      ? clockCrewForDay(timeEntries, project.id, reportCalendarDay, settings?.branding?.companyName, liveNowMs)
+      ? clockCrewForDay(timeEntries, project.id, reportCalendarDay, settings?.branding?.companyName, liveNowMs, overtimeRule)
       : null),
-    [timeEntries, project, reportCalendarDay, settings?.branding?.companyName, liveNowMs],
+    [timeEntries, project, reportCalendarDay, settings?.branding?.companyName, liveNowMs, overtimeRule],
   );
   const hasLiveShifts = (clockCrew?.liveCount ?? 0) > 0;
   useEffect(() => {
@@ -1637,7 +1955,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       const result = await generateHomeownerSummary({
         id: existingReport?.id ?? 'draft',
         projectId: project.id,
-        date: existingReport?.date ?? new Date().toISOString(),
+        // #115: the day this report is FOR (he may have re-dated it), not the
+        // saved date or "now" — the prompt prints it as the update's day.
+        date: reportDate,
         weather, manpower,
         workPerformed,
         materialsDelivered,
@@ -1656,7 +1976,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       setHsHighlights(result.highlights ?? []);
       setHsLookingAhead(result.lookingAhead ?? '');
       setHsGeneratedAt(new Date().toISOString());
+      setHsWrittenForDay(calendarDayOf(reportDate));
       // Generating overrides any prior published flag — GC must re-review.
+      // (#22: that is an unsaved change like any other — the flag is in the
+      // draft signature, so leaving now asks first.)
       setHsPublished(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (e) {
@@ -1664,7 +1987,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     } finally {
       setHsGenerating(false);
     }
-  }, [project, workPerformed, manpower, materialsDelivered, issuesAndDelays, photos, weather, existingReport, settings]);
+  }, [project, workPerformed, manpower, materialsDelivered, issuesAndDelays, photos, weather, existingReport, settings, reportDate]);
 
   // ─── Profit Leak scan ───
   // Hash all three inputs the prompt scans so a materials-only change correctly
@@ -1746,6 +2069,8 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
   const handleDraftLeakCO = useCallback(() => {
     if (!projectId || !leakScan || leakScan.items.length === 0) return;
+    // Guarded here too, not just on the button (#41): only the owner writes COs.
+    if (!isProjectOwner) { showAlert('Change orders', DFR_GC_CREATES_COS); return; }
 
     const pricedItems = leakScan.items.filter(it => it.estimatedPrice !== null && it.estimatedPrice !== undefined);
     const unpricedItems = leakScan.items.filter(it => it.estimatedPrice === null || it.estimatedPrice === undefined);
@@ -1785,7 +2110,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     } else {
       doNavigate();
     }
-  }, [projectId, leakScan, reportDate, router]);
+  }, [projectId, leakScan, reportDate, router, isProjectOwner]);
   // ─── Delay cascade scan ───
   const scheduleTasks = useMemo<ScheduleTask[]>(() => project?.schedule?.tasks ?? [], [project]);
 
@@ -2158,6 +2483,16 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     }
 
     const now = new Date().toISOString();
+    // #116: a field or viewer seat never changes what the homeowner sees. The
+    // controls are disabled for him; this is the write-side half, and it is
+    // exactly what the server trigger (20260919140000) keeps: the saved flag,
+    // and the saved text while it is published. His own unpublished draft of a
+    // summary is still saved for the GC to review.
+    const savedPublished = savedRecord?.homeownerSummaryPublished ?? false;
+    const hsPublishedOut = publishAccess.allowed ? hsPublished : savedPublished;
+    const hsSummaryOut = !publishAccess.allowed && savedPublished
+      ? savedRecord?.homeownerSummary
+      : (homeownerSummary.trim() || undefined);
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
 
     const incidentPayload: IncidentReport | undefined = incident.hasIncident
@@ -2192,7 +2527,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // SafetyContext (and therefore through supabaseWrite / the offline queue),
     // which is not tier-gated — the record he typed is his at any tier, even
     // though the Incidents log and the OSHA 300 export are Business surfaces.
-    if (incident.hasIncident && projectId) {
+    // #89: the owner deleted this report's case in Incidents. Re-saving the
+    // report must not quietly file it again (addIncident refuses a tombstoned
+    // id anyway); the Safety block says so and offers "File it again".
+    if (incident.hasIncident && projectId && !caseDeletedInLog) {
       const caseRecord = buildSafetyIncidentFromDfr({
         reportId: stableReportId,
         projectId,
@@ -2209,7 +2547,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         // The project's own site address stands in; an empty one stays empty
         // rather than being invented.
         location: project?.location ?? '',
-        photoUrls: photos.map(p => p.uri),
+        // #87: only the photos he marked as incident photos, each as a DURABLE
+        // storage path (never a file:// the office can't open). The builder
+        // merges them into what the case already holds (#83).
+        photoUrls: dfrIncidentPhotoUrls(photos as DfrPhotoWithFlag[], stageIncidentPhoto, MAX_INCIDENT_PHOTOS),
         classification: incidentClassInput,
         daysRestricted: Math.max(0, parseInt(incidentClass.daysRestricted, 10) || 0),
         author: incidentAuthor,
@@ -2218,7 +2559,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         // A case the safety manager has already moved to 'investigating' must
         // not snap back to 'open' because the super fixed a typo in the report.
         existingStatus: linkedIncident?.status,
-      });
+      // #83: merge INTO the case the log already holds — people, actions,
+      // photos and the illness column the safety manager added survive a
+      // re-save of the report.
+      }, linkedIncident);
       if (linkedIncident) updateIncident(caseRecord.id, caseRecord);
       else addIncident(caseRecord);
     }
@@ -2235,9 +2579,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         photos,
         status,
         incident: incidentPayload,
-        homeownerSummary: homeownerSummary.trim() || undefined,
+        homeownerSummary: hsSummaryOut,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
-        homeownerSummaryPublished: hsPublished,
+        homeownerSummaryPublished: hsPublishedOut,
         leakScan: leakScan ?? undefined,
       });
       // Mirror NEW photos into the project gallery on edit too — previously
@@ -2280,9 +2624,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         photos,
         status,
         incident: incidentPayload,
-        homeownerSummary: homeownerSummary.trim() || undefined,
+        homeownerSummary: hsSummaryOut,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
-        homeownerSummaryPublished: hsPublished,
+        homeownerSummaryPublished: hsPublishedOut,
         leakScan: leakScan ?? undefined,
         createdAt: now,
         updatedAt: now,
@@ -2311,9 +2655,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // whose timer is cancelled by the navigation on the next line.
     void AsyncStorage.removeItem(draftKey).catch(() => {});
     if (!silent) goBack();
-  }, [projectId, reportId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, goBack, reportDate, stableReportId, draftKey,
+  }, [projectId, reportId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, publishAccess.allowed, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, goBack, reportDate, stableReportId, draftKey,
       incidentClassInput, incidentClass.daysRestricted, recordability.recordable, linkedIncident,
-      addIncident, updateIncident, incidentAuthor, project?.location, liveHoursWarning]);
+      addIncident, updateIncident, incidentAuthor, project?.location, liveHoursWarning,
+      caseDeletedInLog, stageIncidentPhoto]);
 
   /**
    * "Log this as a delay event" — hand the register what this screen already
@@ -2502,20 +2847,102 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     setShowSendRecipient(true);
   }, [liveHoursWarning]);
 
-  const handleConfirmSend = useCallback(async () => {
-    // Pre-fix the only "send" target was email and a blank email
-    // hard-blocked the modal. Now: email is optional when "Save to
-    // project files" is on — a GC who just wants the PDF in the
-    // shared drive without emailing it should be able to skip the
-    // recipient.
-    const wantsEmail = sendRecipientEmail.trim().length > 0;
-    if (!wantsEmail && !saveToProjectFiles) {
-      showAlert(
-        'Pick a destination',
-        'Either enter a recipient email, toggle "Save to project files", or both.',
-      );
+  // #25: the gallery copies of this project's photos — where the annotator
+  // draws markup, keyed by the same id the report's photos carry.
+  const galleryPhotos = useMemo(
+    () => (projectId ? getPhotosForProject(projectId) : []),
+    [projectId, getPhotosForProject],
+  );
+  const galleryPhotoIds = useMemo(() => galleryPhotos.map(g => g.id), [galleryPhotos]);
+  const markedUpPhotoIds = useMemo(
+    () => new Set(galleryPhotos.filter(g => (g.markup?.length ?? 0) > 0).map(g => g.id)),
+    [galleryPhotos],
+  );
+  // Same test as isLocked below (declared later in this component).
+  const reportIsSent = existingReport?.status === 'sent';
+  const handlePhotoTap = useCallback((photoId: string) => {
+    const target = dfrPhotoMarkupTarget({ photoId, galleryIds: galleryPhotoIds, reportSent: reportIsSent });
+    if (target.action === 'blocked') {
+      showAlert('Mark up this photo', target.reason);
       return;
     }
+    const open = () => router.push({ pathname: '/photo-annotator', params: { photoId: target.photoId } });
+    // A sent report is locked, but its photos' markup lives on the gallery
+    // copy — drawing now would show up on a later re-print of a report the
+    // recipient already has. Say so before opening, rather than silently.
+    if (target.lockedNote) {
+      showAlert('This report was already sent', target.lockedNote, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Mark up anyway', onPress: open },
+      ]);
+      return;
+    }
+    open();
+  }, [galleryPhotoIds, router, reportIsSent]);
+
+  /** #25 — the report as it stands on screen, for the filed PDF / Print.
+   *  The incident flags are the classifier's outputs, the same ones handleSave
+   *  writes, so the document never shows a self-certified determination. */
+  const documentReport = useCallback((): DailyFieldReport => {
+    const now = new Date().toISOString();
+    return {
+      id: stableReportId,
+      projectId: projectId ?? '',
+      date: reportDate,
+      weather,
+      manpower,
+      workPerformed: workPerformed.trim(),
+      workProgress: workProgress.length > 0 ? workProgress : undefined,
+      materialsDelivered,
+      issuesAndDelays: issuesAndDelays.trim(),
+      photos,
+      status: 'draft',
+      incident: incident.hasIncident
+        ? {
+            ...incident,
+            injuriesReported: incidentClassInput.type === 'injury',
+            medicalTreatment: incidentClassInput.treatment === 'medical_beyond_first_aid',
+            oshaRecordable: recordability.recordable,
+          }
+        : undefined,
+      createdAt: existingReport?.createdAt ?? now,
+      updatedAt: now,
+    };
+  }, [stableReportId, projectId, reportDate, weather, manpower, workPerformed, workProgress, materialsDelivered,
+      issuesAndDelays, photos, incident, incidentClassInput, recordability.recordable, existingReport?.createdAt]);
+
+  const brandingOrBlank = useCallback(
+    () => settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' },
+    [settings],
+  );
+
+  /** #27 — on web the only way to keep a PDF: the document in a print tab,
+   *  opened synchronously inside this tap (after an await the browser would
+   *  block it), and a blocked window says so instead of doing nothing. */
+  const handlePrintCopy = useCallback(() => {
+    if (!project) return;
+    const doc = documentReport();
+    // The tab opens NOW (inside the tap); the photo URLs are signed fresh from
+    // storage afterwards, so a screen left open past a URL's lifetime still
+    // prints its photos.
+    openPrintWindowAfterOrThrow(async () => buildDFRHtml(doc, project, brandingOrBlank(), {
+      photos: await resolveDfrPhotosForDocument(doc.photos, galleryPhotos),
+      incidentClassification: incident.hasIncident ? recordability.reason : undefined,
+    })).catch((e: unknown) => {
+      showAlert('Print did not open', (e as Error).message);
+    });
+  }, [project, documentReport, brandingOrBlank, galleryPhotos, incident.hasIncident, recordability.reason]);
+
+  const handleConfirmSend = useCallback(async () => {
+    // Email is optional when the project-files copy is on — a GC who just
+    // wants the PDF in the shared drive can skip the recipient. On web there
+    // is no project-files copy (#27), so there an email is the destination.
+    const plan = dfrSendPlan({ email: sendRecipientEmail, saveToggle: saveToProjectFiles, os: Platform.OS });
+    if (plan.blocker) {
+      showAlert(plan.blocker.title, plan.blocker.message);
+      return;
+    }
+    const { wantsEmail, fileCopy } = plan;
     setShowSendRecipient(false);
 
     // Persist FIRST — see "The record lands before anything is delivered"
@@ -2525,24 +2952,69 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     const recipientInfo = sendRecipientName
       ? ` to ${sendRecipientName}${sendRecipientEmail.trim() ? ` (${sendRecipientEmail.trim()})` : ''}`
       : '';
+    const branding = brandingOrBlank();
+    const doc = documentReport();
+    const incidentClassification = incident.hasIncident ? recordability.reason : undefined;
 
+    // The project-files copy goes FIRST, so the email can link the filed
+    // record (#25) — the full document with the crew table, materials, the
+    // incident and the photos. A copy lives at
+    // project-documents/<projectId>/daily-reports/<reportId>.pdf; stableReportId
+    // (not existingReport.id) lets a brand-new DFR file on its first send.
+    let fileSaved = false;
+    let fileError: string | null = null;
+    let filedLink: string | null = null;
+    if (fileCopy && projectId) {
+      try {
+        if (!project) throw new Error('This project is not loaded on this device.');
+        const docPhotos = await resolveDfrPhotosForDocument(doc.photos, galleryPhotos);
+        const html = buildDFRHtml(doc, project, branding, { photos: docPhotos, incidentClassification });
+        const dateLabel = calendarDayOf(reportDate) ?? todayCalendarDay(); // the LOCAL day, not the UTC one
+        const saved = await saveDailyReportToProjectFiles({
+          projectId,
+          reportId: stableReportId,
+          html,
+          fileName: `Daily Report — ${dateLabel}.pdf`,
+        });
+        fileSaved = true;
+        filedLink = saved.linkUrl;
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (err) {
+        // Not fatal — the structured DFR record is already saved (above).
+        console.warn('[DailyReport] Save to project files failed:', err);
+        fileError = (err as Error).message;
+      }
+    }
+
+    let emailSent = false;
     if (wantsEmail) {
-      const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
-      const weatherForEmail = {
-        condition: typeof weather.conditions === 'string' ? weather.conditions : 'N/A',
-        tempHigh: parseInt(String(weather.temperature)) || 0,
-        tempLow: parseInt(String(weather.temperature)) || 0,
-      };
+      // #25: a summary — crew, materials and the incident inline, a link to the
+      // filed PDF for the photos. #26: the weather strings as recorded.
       const html = buildDailyReportEmailHtml({
         companyName: branding.companyName,
         recipientName: sendRecipientName,
         projectName: project?.name ?? 'Project',
         date: reportDate,  // honor the user-picked date in the email body
-        weather: weatherForEmail,
+        weather: { conditions: String(weather.conditions ?? ''), temperature: String(weather.temperature ?? ''), wind: String(weather.wind ?? '') },
         totalManpower,
         totalManHours,
         workPerformed: workPerformed.trim(),
         issuesAndDelays: issuesAndDelays.trim(),
+        manpower,
+        materialsDelivered,
+        incident: doc.incident?.hasIncident
+          ? {
+              severity: doc.incident.severity,
+              description: doc.incident.description,
+              classification: incidentClassification,
+              injuriesReported: doc.incident.injuriesReported,
+              correctiveAction: doc.incident.correctiveAction,
+            }
+          : undefined,
+        // Incident evidence is not in the filed PDF, so the email doesn't count it.
+        photoCount: dfrPrintablePhotoSplit(photos as DfrPhotoWithFlag[]).printable.length,
+        filedPdfUrl: filedLink ?? undefined,
+        filedPdfLinkDays: filedLink ? DFR_FILED_PDF_LINK_DAYS : undefined,
         contactName: branding.contactName,
         contactEmail: branding.email,
         growthBadge: isFree,
@@ -2558,12 +3030,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       });
 
       if (!result.success) {
-        // Both exits below are honest now: the report IS saved, as a draft,
-        // and the screen says where to find it and how to try again.
+        // Both exits below are honest: the report IS saved, as a draft, and
+        // the screen says where to find it and how to try again.
+        const filedNote = fileSaved ? ' A PDF copy is in project files.' : '';
         if (result.error === 'cancelled') {
           showAlert(
             'Saved as a draft',
-            'You backed out of the mail composer, so nothing was emailed. The report is saved on this project — open it from Daily Reports to send it again.',
+            `You backed out of the mail composer, so nothing was emailed. The report is saved on this project — open it from Daily Reports to send it again.${filedNote}`,
           );
           goBack();
           return;
@@ -2571,80 +3044,32 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         console.warn('[DailyReport] Email send failed:', result.error);
         showAlert(
           'Saved — the email did not send',
-          `The report is saved on this project as a draft. The email failed: ${result.error}`,
+          `The report is saved on this project as a draft. The email failed: ${result.error}${filedNote}`,
         );
         goBack();
         return;
-      } else {
-        console.log('[DailyReport] Email sent successfully');
       }
+      emailSent = true;
     }
 
-    // `true` once something has actually left this device. With no email
-    // requested, the shared-drive copy IS the delivery — so if it throws, the
-    // report stays the draft it already is instead of being stamped "sent" on
-    // the strength of a write that failed.
-    let delivered = wantsEmail;
-
-    // Save the rendered report to the project's shared-drive folder
-    // when the toggle is on. Pre-fix the only persistence beyond the
-    // structured DailyFieldReport record was the ephemeral email — if
-    // the recipient lost it or the GC needed to forward it later, it
-    // didn't exist anywhere accessible. Now: a copy lives at
-    // project-documents/<projectId>/daily-reports/<reportId>.pdf.
-    // We use stableReportId (not existingReport.id) so even a brand-
-    // new DFR can be saved to project files on the very first send.
-    if (saveToProjectFiles && projectId) {
-      try {
-        const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
-        const weatherForFile = {
-          condition: typeof weather.conditions === 'string' ? weather.conditions : 'N/A',
-          tempHigh: parseInt(String(weather.temperature)) || 0,
-          tempLow: parseInt(String(weather.temperature)) || 0,
-        };
-        const html = buildDailyReportEmailHtml({
-          companyName: branding.companyName,
-          recipientName: '',
-          projectName: project?.name ?? 'Project',
-          date: reportDate,
-          weather: weatherForFile,
-          totalManpower,
-          totalManHours,
-          workPerformed: workPerformed.trim(),
-          issuesAndDelays: issuesAndDelays.trim(),
-          contactName: branding.contactName,
-          contactEmail: branding.email,
-        });
-        const dateLabel = calendarDayOf(reportDate) ?? todayCalendarDay(); // the LOCAL day, not the UTC one
-        await saveDailyReportToProjectFiles({
-          projectId,
-          reportId: stableReportId,
-          html,
-          fileName: `Daily Report — ${dateLabel}.pdf`,
-        });
-        delivered = true;
-        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch (err) {
-        // Log but don't block — the structured DFR record is already saved
-        // (above, before any delivery ran). The user gets a non-fatal alert so
-        // they know the shared-drive copy didn't land and can retry.
-        console.warn('[DailyReport] Save to project files failed:', err);
-        showAlert(
-          'Project files notice',
-          `${wantsEmail ? 'Emailed' : 'Saved'}, but the project-files copy didn't land: ${(err as Error).message}`,
-        );
-      }
+    if (fileError) {
+      showAlert(
+        'Project files notice',
+        `${emailSent ? 'Emailed' : 'Saved as a draft'}, but the project-files copy didn't land: ${fileError}`,
+      );
     }
 
-    if (!delivered) {
-      // Nothing left the device: the record stays the draft it already is.
+    // Stamped 'sent' only on what actually left the device (dfrDelivered).
+    if (!dfrDelivered({ wantsEmail, emailSent, fileSaved })) {
       goBack();
       return;
     }
     setSentFlip({ reportId: stableReportId, toast: `Daily report sent${recipientInfo}` });
   // `existingReport` is not listed: this handler never reads it (handleSave,
-  // which does, is the dep that carries it).
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, isFree, goBack, stableReportId]);
+  // which does, is the dep that carries it; documentReport carries createdAt).
+  }, [handleSave, sendRecipientName, sendRecipientEmail, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays,
+      manpower, materialsDelivered, photos, reportDate, saveToProjectFiles, projectId, isFree, goBack, stableReportId,
+      brandingOrBlank, documentReport, galleryPhotos, incident.hasIncident, recordability.reason]);
 
 
   // ─── Unsaved-work guard: a dirty check and a debounced draft ──────────────
@@ -2662,9 +3087,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   /** The report as it exists RIGHT NOW in the form. */
   const draftContent = useMemo<DfrDraftContent>(() => ({
     reportDate, weather, manpower, workPerformed, workProgress,
-    materialsDelivered, issuesAndDelays, photos, incident, incidentClass, homeownerSummary,
+    materialsDelivered, issuesAndDelays, photos, incident, incidentClass, homeownerSummary, hsPublished,
   }), [reportDate, weather, manpower, workPerformed, workProgress,
-    materialsDelivered, issuesAndDelays, photos, incident, incidentClass, homeownerSummary]);
+    materialsDelivered, issuesAndDelays, photos, incident, incidentClass, homeownerSummary, hsPublished]);
 
   /**
    * The report as it exists on disk. Derived from `existingReport` rather than
@@ -2703,12 +3128,58 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       fatality: linkedIncident.fatality,
     } : EMPTY_DFR_INCIDENT_CLASS,
     homeownerSummary: existingReport?.homeownerSummary ?? '',
+    // #22: what the portal holds. A toggle either way is an unsaved edit.
+    hsPublished: existingReport?.homeownerSummaryPublished ?? false,
   }), [existingReport, autoFilled, linkedIncident]);
 
   const isDirty = useMemo(
     () => isDfrDirty(draftContent, savedSignature),
     [draftContent, savedSignature],
   );
+
+  // ─── Same-day report (#114) ───
+  // A new report (no reportId) on a day that already has one — the foreman
+  // filed it, or a morning draft was saved. Offered, never forced: two crews
+  // filing separate reports for one day is legitimate. Re-evaluated whenever
+  // the date picker moves this report, and on the report list landing late.
+  const sameDayReports = useMemo(
+    () => (reportId ? [] : dfrSameDayReports(existingReports, reportCalendarDay, stableReportId, v => calendarDayOf(v))),
+    [reportId, existingReports, reportCalendarDay, stableReportId],
+  );
+  const openSameDayReport = useCallback((otherId: string) => {
+    const go = () => router.replace({ pathname: '/daily-report', params: { projectId, reportId: otherId } } as never);
+    if (!isDirty) { go(); return; }
+    // No leave guard catches a replace, so keep what he typed as this job's
+    // new-report draft (restorable next time he starts one) before going.
+    showAlert(
+      'Open the other report?',
+      'What you typed here is kept as a draft — start a new report on this job to pick it back up.',
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        {
+          text: 'Open it',
+          onPress: () => {
+            const draft: DfrDraft = { v: 1, savedAt: new Date().toISOString(), ...draftContent };
+            void AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(() => {}).finally(go);
+          },
+        },
+      ],
+    );
+  }, [router, projectId, isDirty, draftContent, draftKey]);
+
+  // ─── Homeowner-update control state (#22, #115, #116) ───
+  const hsControl = dfrPublishControl(hsPublishedSaved, hsPublished);
+  const hsStale = dfrSummaryIsStale(homeownerSummary, hsWrittenForDay, reportCalendarDay);
+  /** Why the publish toggle is disabled, or null. Taking a stale update DOWN
+   *  stays allowed; putting one up is not. */
+  const hsPublishBlockedReason: string | null = !publishAccess.allowed
+    ? publishAccess.reason
+    : (hsStale && !hsPublished ? 'Written for a different day \u2014 re-generate or edit it first.' : null);
+  /** A field/viewer seat may draft a summary for the GC, but not touch one the
+   *  owner already put in front of the homeowner (the server keeps it too). */
+  const hsTextLockedReason: string | null = !publishAccess.allowed && hsPublishedSaved
+    ? `This update is live in the homeowner\u2019s portal. ${DFR_OWNER_DECIDES_HOMEOWNER}`
+    : null;
 
   /**
    * Whether the screen knows enough about what is SAVED to judge what is
@@ -2795,6 +3266,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 incidentClassSeededRef.current = true;
                 setIncidentClass(draft.incidentClass ?? EMPTY_DFR_INCIDENT_CLASS);
                 setHomeownerSummary(draft.homeownerSummary ?? '');
+                // #22: an older draft has no flag — it restores as not published.
+                setHsPublished(draft.hsPublished ?? false);
+                setHsWrittenForDay(draft.homeownerSummary ? calendarDayOf(draft.reportDate) : null);
                 nailIt('Restored your unsaved report.');
               },
             },
@@ -3063,7 +3537,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
               <AIDFRFromPhotos
                 projectName={project.name}
-                weatherStr={[weather.conditions, weather.temperature].filter(Boolean).join(' · ') || 'Clear'}
+                weatherStr={dfrAiWeatherStr([weather.conditions, weather.temperature])}
                 photos={todaysProjectPhotos}
                 isLocked={voiceBlocked}
                 onLockedPress={openVoiceUpgrade}
@@ -3087,19 +3561,23 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               <AIDailyReportGen
                 projectName={project.name}
                 tasks={project.schedule.tasks}
-                weatherStr={weather.conditions || 'Clear'}
+                weatherStr={dfrAiWeatherStr([weather.conditions, weather.temperature])}
                 isLocked={voiceBlocked}
                 onLockedPress={openVoiceUpgrade}
                 onGenerated={(result: DailyReportGenResult) => {
+                  // #28: never replace what he typed — an empty field takes the
+                  // generated lines, a filled one gets them appended under
+                  // "— From schedule —" (functional updates, so a keystroke that
+                  // lands while the AI call is in flight is kept too).
                   if (result.workCompleted.length > 0 || result.workInProgress.length > 0) {
                     const workText = [
                       ...result.workCompleted.map(w => `[Completed] ${w}`),
                       ...result.workInProgress.map(w => `[In Progress] ${w}`),
                     ].join('\n');
-                    setWorkPerformed(workText);
+                    setWorkPerformed(prev => dfrAppendGenerated(prev, workText));
                   }
                   if (result.issuesAndDelays.length > 0) {
-                    setIssuesAndDelays(result.issuesAndDelays.join('\n'));
+                    setIssuesAndDelays(prev => dfrAppendGenerated(prev, result.issuesAndDelays.join('\n')));
                   }
                   if (result.crewsOnSite.length > 0 && manpower.length === 0) {
                     const entries: ManpowerEntry[] = result.crewsOnSite.map((c, idx) => ({
@@ -3114,6 +3592,24 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   setShowVoiceBanner(true);
                 }}
               />
+            </View>
+          )}
+
+          {sameDayReports.length > 0 && (
+            <View style={styles.sameDayBanner} testID="dfr-same-day-banner">
+              <Text style={styles.sameDayText}>
+                This day already has {sameDayReports.length === 1 ? 'a report' : `${sameDayReports.length} reports`} (
+                {sameDayReports[0].status === 'sent' ? 'submitted' : 'draft'}, last saved{' '}
+                {dayOrInstantDate(sameDayReports[0].updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}).
+                {' '}Several reports a day are fine — one per crew or shift.
+              </Text>
+              <TouchableOpacity
+                onPress={() => openSameDayReport(sameDayReports[0].id)}
+                accessibilityRole="button"
+                testID="dfr-same-day-open"
+              >
+                <Text style={styles.sameDayLink}>Open it</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -3700,19 +4196,29 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     </View>
                   </View>
                 ))}
-                {/* Disable Draft-CO when scan is stale — text has changed since scan. */}
+                {/* Disable Draft-CO when scan is stale — text has changed since scan.
+                    And for anyone but the owner (#41, interim): migration
+                    20260919110000 refuses a CO insert from a collaborator, so
+                    the draft could never reach the server — the scope stays in
+                    this report, which goes to the GC as a field issue. */}
+                {!isProjectOwner && (
+                  <Text style={leakStyles.draftCoBlockedNote} testID="leak-draft-co-blocked">
+                    {DFR_GC_CREATES_COS}
+                  </Text>
+                )}
                 <TouchableOpacity
-                  style={[leakStyles.draftCoBtn, leakIsStale && leakStyles.draftCoBtnDisabled]}
-                  onPress={leakIsStale ? undefined : handleDraftLeakCO}
-                  disabled={leakIsStale}
+                  style={[leakStyles.draftCoBtn, (leakIsStale || !isProjectOwner) && leakStyles.draftCoBtnDisabled]}
+                  onPress={leakIsStale || !isProjectOwner ? undefined : handleDraftLeakCO}
+                  disabled={leakIsStale || !isProjectOwner}
                   testID="leak-draft-co"
                   accessibilityRole="button"
                   accessibilityLabel={(() => {
+                    if (!isProjectOwner) return DFR_GC_CREATES_COS;
                     if (leakIsStale) return 'Re-scan first — notes changed';
                     const t = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
                     return t > 0 ? `Draft change order for approximately $${t.toLocaleString('en-US')}` : 'Draft change order';
                   })()}
-                  accessibilityState={{ disabled: leakIsStale }}
+                  accessibilityState={{ disabled: leakIsStale || !isProjectOwner }}
                 >
                   <Text style={[leakStyles.draftCoBtnText, leakIsStale && leakStyles.draftCoBtnTextDisabled]}>
                     {leakIsStale ? 'Re-scan first — notes changed' : (() => {
@@ -3907,7 +4413,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={styles.sectionHeader}>
               <HomeIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Homeowner update</Text>
-              {hsPublished && (
+              {/* #22: the pill says what the portal HOLDS (the saved flag), not
+                  what the local toggle hopes. */}
+              {hsControl.pill && (
                 <View style={hsStyles.publishedPill}>
                   <Text style={hsStyles.publishedPillText}>PUBLISHED</Text>
                 </View>
@@ -3917,7 +4425,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               A short, jargon-free summary of today for the homeowner&apos;s portal. AI writes a draft from your notes above — review, edit, then publish.
             </Text>
 
-            {!isLocked && (
+            {!isLocked && hsTextLockedReason && (
+              <Text style={hsStyles.blockedNote} testID="hs-text-locked">{hsTextLockedReason}</Text>
+            )}
+
+            {!isLocked && !hsTextLockedReason && (
               <TouchableOpacity
                 style={[hsStyles.aiBtn, hsGenerating && hsStyles.aiBtnDisabled]}
                 onPress={handleGenerateHomeownerSummary}
@@ -3938,12 +4450,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </TouchableOpacity>
             )}
 
-            {!isLocked ? (
+            {!isLocked && !hsTextLockedReason ? (
               <TextInput
                 style={[styles.textArea, { marginTop: 10 }]}
                 value={homeownerSummary}
                 onChangeText={(v) => {
                   setHomeownerSummary(v);
+                  // An edit written for the report's current day is no longer stale (#115).
+                  setHsWrittenForDay(v.trim() ? reportCalendarDay : null);
                   if (hsPublished) setHsPublished(false);  // edit invalidates the published copy
                 }}
                 placeholder='AI draft will appear here. Or write your own — "Hi Sarah, big day on site today…"'
@@ -3974,22 +4488,49 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </Text>
             )}
 
+            {hsStale && (
+              <Text style={hsStyles.staleNote} testID="hs-stale">
+                Written for {formatCalendarDay(hsWrittenForDay ?? '', { weekday: 'short', month: 'short', day: 'numeric' })}, but this report is now dated {formatCalendarDay(reportCalendarDay ?? '', { weekday: 'short', month: 'short', day: 'numeric' })}. Re-generate or edit it before it goes to the homeowner.
+              </Text>
+            )}
+
             {!isLocked && homeownerSummary.trim().length > 0 && (
-              <TouchableOpacity
-                style={[hsStyles.publishBtn, hsPublished && hsStyles.publishBtnPublished]}
-                onPress={() => {
-                  setHsPublished(p => !p);
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
-                }}
-                testID="hs-publish-toggle"
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  {hsPublished && <CheckCircle2 size={Type.footnote.fontSize} color={themeColors.success} strokeWidth={2} />}
-                  <Text style={[hsStyles.publishBtnText, hsPublished && hsStyles.publishBtnTextPublished]}>
-                    {hsPublished ? 'Showing in portal' : 'Publish to portal'}
+              <>
+                <TouchableOpacity
+                  style={[
+                    hsStyles.publishBtn,
+                    hsControl.pill && !hsControl.pending && hsStyles.publishBtnPublished,
+                    hsPublishBlockedReason && hsStyles.publishBtnDisabled,
+                  ]}
+                  onPress={() => {
+                    if (hsPublishBlockedReason) return;
+                    setHsPublished(p => !p);
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+                  }}
+                  disabled={!!hsPublishBlockedReason}
+                  accessibilityRole="button"
+                  accessibilityLabel={hsPublishBlockedReason ?? hsControl.label}
+                  accessibilityState={{ disabled: !!hsPublishBlockedReason }}
+                  testID="hs-publish-toggle"
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    {hsControl.pill && !hsControl.pending && <CheckCircle2 size={Type.footnote.fontSize} color={themeColors.success} strokeWidth={2} />}
+                    <Text style={[hsStyles.publishBtnText, hsControl.pill && !hsControl.pending && hsStyles.publishBtnTextPublished]}>
+                      {hsControl.label}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                {hsPublishBlockedReason ? (
+                  <Text style={hsStyles.blockedNote} testID="hs-publish-blocked">{hsPublishBlockedReason}</Text>
+                ) : hsControl.pill && !hsControl.pending ? (
+                  // #23: only what the paths actually do — the portal reads the
+                  // newest published update from this report once it has synced
+                  // (the server overlay), whoever's phone is open.
+                  <Text style={hsStyles.blockedNote} testID="hs-published-note">
+                    The homeowner&apos;s portal shows this update once the report has synced.
                   </Text>
-                </View>
-              </TouchableOpacity>
+                ) : null}
+              </>
             )}
           </View>
 
@@ -4244,11 +4785,59 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       placeholderTextColor={themeColors.textMuted}
                     />
 
+                    {/* #87: which photos are evidence of THIS incident. None by
+                        default — a delivery or progress shot is not injury
+                        evidence — and each one marked goes on the case as a
+                        synced storage path, never a phone-only file. */}
+                    {photos.length > 0 && (
+                      <>
+                        <Text style={styles.incidentLabel}>Incident photos</Text>
+                        <View style={styles.incidentPhotoRow}>
+                          {photos.map((photo, i) => {
+                            const on = !!(photo as DfrPhotoWithFlag).incidentPhoto;
+                            return (
+                              <TouchableOpacity
+                                key={photo.id}
+                                style={[styles.incidentPhotoThumb, on && styles.incidentPhotoThumbOn]}
+                                onPress={() => toggleIncidentPhoto(photo.id)}
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: on }}
+                                accessibilityLabel={`Photo ${i + 1}: ${on ? 'attached to the incident' : 'not attached to the incident'}`}
+                                testID={`dfr-incident-photo-${photo.id}`}
+                              >
+                                <Image source={{ uri: photo.uri }} style={styles.incidentPhotoImg} />
+                                {on && (
+                                  <View style={styles.incidentPhotoCheck}>
+                                    <CheckCircle2 size={14} color={themeColors.success} strokeWidth={2} />
+                                  </View>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                        <Text style={styles.incidentRegisterNote}>
+                          Tap the photos that show the incident — only those go on the case (up to {MAX_INCIDENT_PHOTOS}). Unmarking one here doesn&apos;t take it off a case already filed; remove it in Incidents.
+                        </Text>
+                      </>
+                    )}
+
+                    {/* #89: the owner deleted this report's case in Incidents. */}
+                    {caseDeletedInLog && (
+                      <View testID="dfr-incident-case-deleted">
+                        <Text style={styles.incidentRegisterNote}>
+                          The case from this report was deleted in Incidents, so saving will not file it again.
+                        </Text>
+                        <TouchableOpacity onPress={refileDeletedCase} accessibilityRole="button" testID="dfr-incident-refile">
+                          <Text style={styles.incidentRefileText}>File it again</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
                     {/* Where this ends up. Two states, both honest: filed
                         already, or filed on save. Neither claims the OSHA 300
                         will list it — only a recordable case reaches the 300,
                         and the verdict above says whether this one is. */}
-                    {linkedIncident && canAccess('safety_management') ? (
+                    {caseDeletedInLog ? null : linkedIncident && isProjectOwner && canAccessOnProject('safety_management') ? (
                       <TouchableOpacity
                         style={styles.incidentRegisterChip}
                         onPress={() => router.push({ pathname: '/safety-incidents', params: { projectId } })}
@@ -4258,10 +4847,18 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       >
                         <ShieldAlert size={14} color={themeColors.accent} strokeWidth={1.75} />
                         <Text style={styles.incidentRegisterChipText}>
-                          On the safety record{isRecordableCase(linkedIncident) ? ' · counted on the OSHA 300' : ''}
+                          {/* #83: the case is the record now; the report only
+                              adds to it on re-save. */}
+                          Case filed — edit people, actions and photos in Incidents{isRecordableCase(linkedIncident) ? ' · counted on the OSHA 300' : ''}
                         </Text>
                         <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                       </TouchableOpacity>
+                    ) : linkedIncident && !isProjectOwner ? (
+                      // #82: a collaborator's case reaches the owner (20260919130000)
+                      // but is not "his" safety record, and he keeps no OSHA 300.
+                      <Text style={styles.incidentRegisterNote} testID="dfr-incident-case-collab">
+                        {dfrIncidentFileNote(false)}
+                      </Text>
                     ) : linkedIncident ? (
                       // Don't send him into a paywall from a chip that reads like
                       // a link. The case IS filed — that is the part that matters
@@ -4273,8 +4870,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                       </Text>
                     ) : (
                       <Text style={styles.incidentRegisterNote} testID="dfr-incident-will-file">
-                        Saving this report files it on the safety record too, so it reaches the OSHA 300 without you
-                        typing it a second time.
+                        {dfrIncidentFileNote(isProjectOwner)}
                       </Text>
                     )}
                   </View>
@@ -4326,13 +4922,28 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     {/* Render the actual captured/library photo. photoCard is a
                         fixed 80x80 with overflow:hidden, so cover-fit fills the
                         tile. The capture time sits in a small overlay caption
-                        at the bottom so the GC can still read it at a glance. */}
-                    <Image
-                      source={{ uri: photo.uri }}
-                      style={styles.photoImage}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.photoTimestampOverlay}>
+                        at the bottom so the GC can still read it at a glance.
+                        #25: a tap opens the markup tool on the photo's project
+                        copy (same id); the filed PDF prints what he draws. */}
+                    <TouchableOpacity
+                      onPress={() => handlePhotoTap(photo.id)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={markedUpPhotoIds.has(photo.id) ? 'Edit markup on this photo' : 'Mark up this photo'}
+                      testID={`dfr-photo-markup-${photo.id}`}
+                    >
+                      <Image
+                        source={{ uri: photo.uri }}
+                        style={styles.photoImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                    {markedUpPhotoIds.has(photo.id) && (
+                      <View style={{ position: 'absolute', top: 4, left: 4, borderRadius: Tokens.radius.full, backgroundColor: themeColors.surface, padding: 3 }} pointerEvents="none">
+                        <PenLine size={11} color={themeColors.accent} strokeWidth={2} />
+                      </View>
+                    )}
+                    <View style={styles.photoTimestampOverlay} pointerEvents="none">
                       <Text style={styles.photoTimestampOverlayText} numberOfLines={1}>
                         {new Date(photo.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                       </Text>
@@ -4351,7 +4962,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             )}
           </View>
 
-          {existingReport && (
+          {existingReport && publishAccess.allowed && (
             <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
               <SendToClientButton
                 kind="daily_report"
@@ -4362,6 +4973,21 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 canSend={workPerformed.trim().length > 0 || manpower.length > 0}
                 canSendReason={workPerformed.trim().length === 0 && manpower.length === 0 ? 'Add work performed or crew before sending.' : undefined}
               />
+            </View>
+          )}
+          {/* #116: a field or viewer seat does not decide what reaches the
+              homeowner. Not a disabled SendToClientButton — its Recall ignores
+              canSend — but a plain statement of where the report stands: with
+              the owner's auto-share on it is already shared, with it off,
+              sending is the owner's call (the server keeps portal_state too). */}
+          {existingReport && !publishAccess.allowed && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+              <Text style={hsStyles.blockedNote} testID="dfr-portal-owner-decides">
+                {existingReport.portalState?.status === 'sent'
+                  ? 'Shared in the homeowner\u2019s portal. '
+                  : 'Not in the homeowner\u2019s portal. '}
+                {publishAccess.reason ?? DFR_OWNER_DECIDES_HOMEOWNER}
+              </Text>
             </View>
           )}
         </ScrollView>
@@ -4426,32 +5052,56 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               )}
 
               {/* Save-to-project-files toggle — Procore-style "drop a
-                  copy in the project drive" path. Defaults to on so a
-                  GC who hits Send always has a project-side copy
-                  regardless of whether the email lands. Tapping the
-                  whole row flips the toggle (bigger touch target than
-                  the switch alone). */}
-              <TouchableOpacity
-                style={styles.toggleRow}
-                onPress={() => setSaveToProjectFiles(v => !v)}
-                activeOpacity={0.7}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: saveToProjectFiles }}
-              >
-                <View style={styles.toggleIconWrap}>
-                  <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  copy in the project drive" path. On by default on the phone
+                  so a GC who hits Send always has a project-side copy
+                  regardless of whether the email lands. Tapping the whole
+                  row flips the toggle (bigger touch target than the switch
+                  alone). #27: on web there are no PDF bytes to upload, so the
+                  row is disabled with the reason, and Print is the copy. */}
+              {dfrProjectFilesAvailable(Platform.OS) ? (
+                <TouchableOpacity
+                  style={styles.toggleRow}
+                  onPress={() => setSaveToProjectFiles(v => !v)}
+                  activeOpacity={0.7}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: saveToProjectFiles }}
+                >
+                  <View style={styles.toggleIconWrap}>
+                    <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleTitle}>Save copy to project files</Text>
+                    <Text style={styles.toggleSub}>
+                      Drops a PDF into {project?.name ?? 'this project'}&apos;s shared drive at
+                      {' '}<Text style={{ fontWeight: '600' as const }}>Daily Reports / {(calendarDayOf(reportDate) ?? todayCalendarDay())}.pdf</Text>
+                    </Text>
+                  </View>
+                  <View style={[styles.toggleSwitch, saveToProjectFiles && styles.toggleSwitchOn]}>
+                    <View style={[styles.toggleKnob, saveToProjectFiles && styles.toggleKnobOn]} />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View
+                  style={[styles.toggleRow, { opacity: 0.85 }]}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: false, disabled: true }}
+                  testID="dfr-project-files-web-disabled"
+                >
+                  <View style={styles.toggleIconWrap}>
+                    <FolderOpen size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.toggleTitle, { color: themeColors.textMuted }]}>Save copy to project files</Text>
+                    <Text style={styles.toggleSub}>{DFR_FILES_NEEDS_APP}</Text>
+                    <View style={{ alignSelf: 'flex-start', marginTop: 8 }}>
+                      <Button label="Print a copy" variant="secondary" size="sm" onPress={handlePrintCopy} testID="dfr-print-copy" />
+                    </View>
+                  </View>
+                  <View style={styles.toggleSwitch}>
+                    <View style={styles.toggleKnob} />
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleTitle}>Save copy to project files</Text>
-                  <Text style={styles.toggleSub}>
-                    Drops a PDF into {project?.name ?? 'this project'}&apos;s shared drive at
-                    {' '}<Text style={{ fontWeight: '600' as const }}>Daily Reports / {(calendarDayOf(reportDate) ?? todayCalendarDay())}.pdf</Text>
-                  </Text>
-                </View>
-                <View style={[styles.toggleSwitch, saveToProjectFiles && styles.toggleSwitchOn]}>
-                  <View style={[styles.toggleKnob, saveToProjectFiles && styles.toggleKnobOn]} />
-                </View>
-              </TouchableOpacity>
+              )}
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
                 <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
@@ -4460,7 +5110,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
                   <Send size={16} color={"#FFFFFF"} strokeWidth={1.75} />
                   <Text style={styles.sendBtnText}>
-                    {sendRecipientEmail.trim() ? 'Send' : (saveToProjectFiles ? 'Save' : 'Send')}
+                    {sendRecipientEmail.trim() ? 'Send' : (saveToProjectFiles && dfrProjectFilesAvailable(Platform.OS) ? 'Save' : 'Send')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -4831,6 +5481,7 @@ const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({
   itemDesc: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   itemQuote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, fontStyle: 'italic' as const, marginTop: 2 },
   itemMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  draftCoBlockedNote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 4, lineHeight: 17 },
   draftCoBtn: { marginTop: 4, paddingVertical: 11, borderRadius: 11, alignItems: 'center' as const, backgroundColor: themeColors.accentFill },
   draftCoBtnDisabled: { backgroundColor: themeColors.textMuted, opacity: 0.6 },
   draftCoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
@@ -4901,6 +5552,9 @@ const makeDcStyles = (themeColors: ThemeColors) => StyleSheet.create({
 });
 
 const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  publishBtnDisabled: { opacity: 0.55 },
+  blockedNote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 6, lineHeight: 17 },
+  staleNote: { fontSize: Type.caption1.fontSize, color: themeColors.warningLabel, marginTop: 8, lineHeight: 17 },
   helperText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
   publishedPill: {
     backgroundColor: 'rgba(30,142,74,0.12)', paddingHorizontal: 8, paddingVertical: 3,
@@ -5122,6 +5776,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   oshaVerdictTextHot: { color: themeColors.danger },
   oshaVerdictSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 3 },
   incidentRegisterNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17, marginTop: 10 },
+  sameDayBanner: { ...cardSurface(themeColors, { radius: 'md', pad: 12 }), marginHorizontal: 16, marginBottom: 8, gap: 6 },
+  sameDayText: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  sameDayLink: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  incidentRefileText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent, marginTop: 6 },
+  incidentPhotoRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 4 },
+  incidentPhotoThumb: { width: 56, height: 56, borderRadius: Tokens.radius.sm, overflow: 'hidden' as const, borderWidth: 2, borderColor: 'transparent' },
+  incidentPhotoThumbOn: { borderColor: themeColors.accent },
+  incidentPhotoImg: { width: '100%' as const, height: '100%' as const },
+  incidentPhotoCheck: { position: 'absolute' as const, top: 2, right: 2, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.full },
   incidentRegisterChip: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
     marginTop: 12, paddingVertical: 10, paddingHorizontal: 12,

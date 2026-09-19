@@ -21,9 +21,9 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Pressable, TextInput, KeyboardAvoidingView,
-  useWindowDimensions,
+  useWindowDimensions, ActivityIndicator,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -53,6 +53,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { parseCalendarDay, formatCalendarDay, todayCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { Button } from '@/components/ui';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -344,9 +346,42 @@ const EMPTY_FORM: PermitFormState = {
   notes: '',
 };
 
+/**
+ * Who sees what instead of the permits log (#91, FOUNDER #91 interim).
+ * job_costing is OWNER_ONLY — the GC's book, never inherited through an
+ * invite — so a collaborator is told whose permits these are rather than sold
+ * a plan that would not open them. Pure; scripts/validate-project-hub-gates.ts
+ * runs it.
+ */
+function permitsGate(a: {
+  ownTier: boolean;
+  hasProject: boolean;
+  role: string | null;
+  roleLoading: boolean;
+  roleError: boolean;
+}): 'open' | 'loading' | 'error' | 'owner_only' | 'no_access' | 'paywall' {
+  if (a.ownTier) return 'open';
+  if (!a.hasProject) return 'paywall';
+  if (a.roleLoading) return 'loading';
+  if (a.roleError) return 'error';
+  if (a.role === 'editor' || a.role === 'viewer' || a.role === 'field') return 'owner_only';
+  // A settled null role on a named job is no access — said, never spun.
+  if (a.role == null) return 'no_access';
+  return 'paywall';
+}
+
 export default function PermitsScreen() {
-  const { canAccess } = useTierAccess();
+  const { canAccess, requiredTierFor } = useTierAccess();
   const goBack = useSafeBack(); // UX-F18: cold-start safe
+  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  const roleState = useProjectRoleState(projectId || undefined);
+  const gate = permitsGate({
+    ownTier: canAccess('job_costing'),
+    hasProject: !!projectId,
+    role: roleState.role,
+    roleLoading: roleState.isLoading,
+    roleError: roleState.isError,
+  });
   // Permit + inspection tracking is a Pro-tier field-PM capability — it rolls
   // up fees and drives the inspection countdown, matching the paid siblings in
   // this cluster (material-receipt is also 'job_costing'/Pro). Pre-fix the
@@ -355,16 +390,42 @@ export default function PermitsScreen() {
   // see FLAG note — a dedicated 'permits_inspections' key would be cleaner but
   // lives in the shared useTierAccess hook.
   if (!canAccess('job_costing')) {
-    return (
+    return gate === 'paywall' || gate === 'open' ? (
       <Paywall
         visible
         feature="Permits & Inspections"
-        requiredTier="pro"
+        requiredTier={requiredTierFor('job_costing')}
         onClose={goBack}
       />
-    );
+    ) : <PermitsAccessNote gate={gate} onRetry={roleState.refetch} onClose={goBack} />;
   }
   return <PermitsScreenInner />;
+}
+
+function PermitsAccessNote({ gate, onRetry, onClose }: {
+  gate: 'loading' | 'error' | 'owner_only' | 'no_access';
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1, backgroundColor: themeColors.bg, paddingTop: insets.top + 24, paddingHorizontal: 24, gap: 14 }} testID={`permits-gate-${gate}`}>
+      <Stack.Screen options={{ title: 'Permits' }} />
+      {gate === 'loading' ? <ActivityIndicator color={themeColors.accent} /> : null}
+      <Text style={{ fontSize: Type.callout.fontSize, color: themeColors.text, lineHeight: 22 }}>
+        {gate === 'loading'
+          ? 'Checking your access to this job…'
+          : gate === 'error'
+            ? "Couldn't check your access to this job. Check your connection and try again."
+            : gate === 'no_access'
+              ? "You don't have access to this job. Ask the project owner to invite you."
+              : 'Permits are managed by the project owner. Ask them for a permit’s status or an inspection date — permits are kept with the job’s costs, on the owner’s account.'}
+      </Text>
+      {gate === 'error' ? <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="permits-gate-retry" /> : null}
+      {gate === 'owner_only' || gate === 'no_access' ? <Button label="Back" variant="secondary" size="sm" onPress={onClose} testID="permits-gate-back" /> : null}
+    </View>
+  );
 }
 
 function PermitsScreenInner() {

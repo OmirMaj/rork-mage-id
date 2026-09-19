@@ -26,6 +26,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
+import { useProjects } from '@/contexts/ProjectContext';
 
 /**
  * Onboarding-style paywall — single-screen, trial-narrative, big-CTA
@@ -121,6 +122,7 @@ export default function OnboardingPaywallScreen() {
   // projects yet" — the app forgetting the thing he just built, two taps after
   // charging him for it.
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { hasSeenOnboarding, completeOnboarding } = useProjects();
   const {
     purchasePro,
     purchaseBusiness,
@@ -218,19 +220,34 @@ export default function OnboardingPaywallScreen() {
    * declines, and routing only the decline would have dropped the buyer on
    * Summary — which reads "No projects yet" until the context rehydrates.
    */
-  const leaveToNextScreen = useCallback(() => {
+  const leaveToNextScreen = useCallback(async () => {
+    // #70: this screen is exempt from the root gate, but the screens it opens
+    // are not. The wizard hand-off already set the flag; if anything reached
+    // here without it, set it BEFORE leaving so the onboarding gate cannot
+    // fire on the way out and throw him back to the start of the funnel.
+    if (hasSeenOnboarding !== true) {
+      try { await completeOnboarding(); } catch (err) { console.warn('[onboarding-paywall] completeOnboarding failed', err); }
+    }
     if (projectId) {
-      router.replace({ pathname: '/project-detail', params: { id: projectId } } as any);
+      // #70: REPLACE onto the tab shell, then PUSH the project — the same
+      // sequence as onboarding.tsx's sample tour (UX-F18). Every hop into this
+      // screen (login → persona → onboarding → wizard → here) was a replace,
+      // so the root stack held ONE entry; a bare replace onto /project-detail
+      // left a stack of one outside (tabs): no back chevron, no tab bar, no
+      // way to Home without killing the app — for the buyer as much as the
+      // decliner, since all three exits share this function.
+      router.replace('/(tabs)/(home)' as never);
+      router.push({ pathname: '/project-detail', params: { id: projectId } } as never);
       return;
     }
-    router.replace('/(tabs)/summary' as any);
-  }, [router, projectId]);
+    router.replace('/(tabs)/summary' as never);
+  }, [router, projectId, hasSeenOnboarding, completeOnboarding]);
 
   const handleClose = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Stamp last-seen so today's gate doesn't immediately re-show on next boot.
     void AsyncStorage.setItem(STORAGE_KEY_LAST_SEEN, new Date().toISOString());
-    leaveToNextScreen();
+    void leaveToNextScreen();
   }, [leaveToNextScreen]);
 
   const handlePurchase = useCallback(async () => {
@@ -248,7 +265,7 @@ export default function OnboardingPaywallScreen() {
         'Welcome to MAGE ID ' + (selectedPlan === 'pro' ? 'Pro' : 'Business') + '!',
         'Your subscription is active.',
       );
-      leaveToNextScreen();
+      void leaveToNextScreen();
     } catch (err: unknown) {
       const cancelled =
         err &&
@@ -268,7 +285,7 @@ export default function OnboardingPaywallScreen() {
     try {
       await restorePurchases();
       showAlert('Restored', 'Your purchases have been restored.');
-      leaveToNextScreen();
+      void leaveToNextScreen();
     } catch (err) {
       console.log('[OnboardingPaywall] restore failed', err);
       showAlert('Nothing to Restore', 'We couldn\'t find an active subscription.');

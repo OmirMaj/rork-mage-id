@@ -2,7 +2,7 @@ import * as MailComposer from 'expo-mail-composer';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { calendarDayStart } from '@/utils/calendarDate';
+import { calendarDayStart, calendarDayOf, dayOrInstantDate, todayCalendarDay } from '@/utils/calendarDate';
 import {
   wrapEmailHtml,
   emailStatRow,
@@ -65,19 +65,37 @@ export interface SendEmailResponse {
   attachmentsDropped?: number;
 }
 
-// Read a local file URI and return { filename, content (base64), contentType }.
+// --- BEGIN attachment naming ---
+/**
+ * The filename and MIME type an attachment URI should travel under.
+ *
+ * #146: taken from the URI WITHOUT its query string. A signed Storage URL ends
+ * `photo.jpg?token=…`, so the old `uri.split('/').pop()` named the file
+ * `photo.jpg?token=…`, the `.jpg` check failed and the image went out with no
+ * content type. Pure — scripts/validate-dfr-document-wave3.ts runs it.
+ */
+export function attachmentNameAndType(uri: string): { filename: string; contentType?: string } {
+  const path = uri.split('?')[0].split('#')[0];
+  let filename = path.split('/').pop() || 'attachment';
+  try { filename = decodeURIComponent(filename); } catch { /* keep the raw segment */ }
+  const lower = filename.toLowerCase();
+  const contentType =
+    lower.endsWith('.pdf') ? 'application/pdf' :
+    lower.endsWith('.png') ? 'image/png' :
+    lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'image/jpeg' :
+    lower.endsWith('.heic') ? 'image/heic' :
+    lower.endsWith('.csv') ? 'text/csv' :
+    lower.endsWith('.txt') ? 'text/plain' :
+    undefined;
+  return { filename: filename || 'attachment', contentType };
+}
+// --- END attachment naming ---
+
+// Read a file URI and return { filename, content (base64), contentType }.
 // The send-email edge function expects attachments in this shape.
 async function fileUriToAttachment(uri: string): Promise<{ filename: string; content: string; contentType?: string } | null> {
   try {
-    const filename = decodeURIComponent(uri.split('/').pop() || 'attachment');
-    const lower = filename.toLowerCase();
-    const contentType =
-      lower.endsWith('.pdf') ? 'application/pdf' :
-      lower.endsWith('.png') ? 'image/png' :
-      lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'image/jpeg' :
-      lower.endsWith('.csv') ? 'text/csv' :
-      lower.endsWith('.txt') ? 'text/plain' :
-      undefined;
+    const { filename, contentType } = attachmentNameAndType(uri);
 
     // On web, expo-file-system isn't available, so read the URI with
     // fetch + FileReader instead. (This comment used to say web attachments
@@ -101,7 +119,20 @@ async function fileUriToAttachment(uri: string): Promise<{ filename: string; con
       return { filename, content: base64, contentType };
     }
 
-    const content = await FileSystem.readAsStringAsync(uri, {
+    // #146: an http(s) URI — the signed URL a synced photo resolves to on any
+    // phone that did not take it, including the one that did once the synced
+    // copy replaced its preview — is not a file readAsStringAsync can open, so
+    // every such photo was dropped from the email. Download it first.
+    let localUri = uri;
+    if (/^https?:/i.test(uri)) {
+      const dir = FileSystem.cacheDirectory;
+      if (!dir) throw new Error('No cache directory to download the attachment into.');
+      const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'attachment';
+      const dl = await FileSystem.downloadAsync(uri, `${dir}mail-${Date.now()}-${safe}`);
+      if (dl.status < 200 || dl.status >= 300) throw new Error(`Download failed (${dl.status}).`);
+      localUri = dl.uri;
+    }
+    const content = await FileSystem.readAsStringAsync(localUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
     return { filename, content, contentType };
@@ -562,42 +593,90 @@ export function buildChangeOrderEmailHtml(opts: {
   projectName: string;
   coNumber: number;
   description: string;
+  /** This CO's change, PRE-tax. */
   changeAmount: number;
+  /** Contract sum after this CO, PRE-tax (G701 "new contract sum"). */
   newContractTotal: number;
   message?: string;
   contactName?: string;
   contactEmail?: string;
+  /** #35 — the client portal link, passed ONLY when the portal is on, shows
+   *  change orders and will carry this CO (change-order.tsx coPortalShare).
+   *  Without it the email never mentions a portal. */
+  portalUrl?: string;
+  /** The portal asks for a passcode — the email says so beside the link. */
+  portalNeedsPasscode?: boolean;
+  /** #131 — the tax FROZEN on the CO at send; a zero/absent amount = no tax rows. */
+  taxRatePct?: number;
+  taxAmount?: number;
+  totalWithTax?: number;
+  /** #129 — the G701 build-up. originalContractSum is the estimate alone;
+   *  priorApprovedChangesTotal the approved COs numbered before this one. */
+  originalContractSum?: number;
+  priorApprovedChangesTotal?: number;
 }): string {
   const {
     companyName, recipientName, projectName, coNumber,
     description, changeAmount, newContractTotal, message,
-    contactName, contactEmail,
+    contactName, contactEmail, portalUrl, portalNeedsPasscode,
   } = opts;
 
-  const amountColor = changeAmount >= 0 ? '#C2410C' : '#1E8E4A';
-  const amountPrefix = changeAmount >= 0 ? '+' : '';
-  const formattedChange = `${amountPrefix}${fmtMoney(Math.abs(changeAmount))}`;
+  const finite = (n: number | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
+  // To the cent: emailLayout.fmtMoney rounds to whole dollars, which printed a
+  // $82.50 tax as "$83" beside a PDF and portal that say $82.50.
+  const money = (n: number) => `$${(Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const signed = (n: number) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n))}`;
+  const taxAmount = finite(opts.taxAmount) ? opts.taxAmount : 0;
+  const hasTax = taxAmount !== 0;
+  const totalWithTax = hasTax ? (finite(opts.totalWithTax) ? opts.totalWithTax : changeAmount + taxAmount) : changeAmount;
+  // #131: the headline is what the client approves — incl. tax when a tax
+  // rate applies. The body lists the pre-tax change and the tax beneath it.
+  const headline = hasTax ? totalWithTax : changeAmount;
+  const amountColor = headline >= 0 ? '#C2410C' : '#1E8E4A';
+  const formattedHeadline = signed(headline);
+
+  const rows: string[] = [
+    emailStatRow('Change order', `#${escapeHtml(coNumber)}`),
+    emailStatRow('Project', escapeHtml(projectName)),
+  ];
+  // #129: AIA G701 order. Only when the caller knows the original sum — an
+  // older caller that passes just the totals gets no build-up rather than a
+  // mislabelled one.
+  if (finite(opts.originalContractSum)) {
+    const prior = finite(opts.priorApprovedChangesTotal) ? opts.priorApprovedChangesTotal : 0;
+    rows.push(emailStatRow('Original contract sum', money(opts.originalContractSum)));
+    if (prior !== 0) rows.push(emailStatRow('Net change by prior approved COs', signed(prior)));
+    rows.push(emailStatRow('Contract sum prior to this CO', money(opts.originalContractSum + prior)));
+  }
+  rows.push(emailStatRow(hasTax ? 'This change (pre-tax)' : 'Change amount', signed(changeAmount), hasTax ? undefined : { emphasize: true, valueColor: amountColor }));
+  if (hasTax) {
+    rows.push(emailStatRow(`Sales tax${finite(opts.taxRatePct) ? ` (${escapeHtml(opts.taxRatePct)}%)` : ''}`, signed(taxAmount)));
+    rows.push(emailStatRow('CO total incl. tax', signed(totalWithTax), { emphasize: true, valueColor: amountColor }));
+  }
+  rows.push(emailStatRow(hasTax ? 'New contract total (pre-tax)' : 'New contract total', money(newContractTotal), { emphasize: !hasTax }));
+
+  // #35: never "approve in one tap" — the portal signs through an e-sign
+  // consent step, and without a link there is no portal to point at at all.
+  const howTo = portalUrl
+    ? `Review and sign it in your project portal with the button below${portalNeedsPasscode ? ' — the portal asks for the passcode we gave you' : ''}, or reply to this email with your decision.`
+    : 'Reply to this email with your decision.';
 
   const bodyHtml = `
-    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${escapeHtml(recipientName)},</p>` : ''}
     ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">A change order is up for your review and approval.</p>'}
     <p style="margin:14px 0 6px;font-weight:700;color:#0B0D10;">What's changing</p>
-    <p style="margin:0 0 4px;color:#4A5159;line-height:1.55;">${description}</p>
-    ${emailStatCard(`
-      ${emailStatRow('Change order', `#${coNumber}`)}
-      ${emailStatRow('Project', projectName)}
-      ${emailStatRow('Change amount', formattedChange, { emphasize: true, valueColor: amountColor })}
-      ${emailStatRow('New contract total', fmtMoney(newContractTotal), { emphasize: true })}
-    `)}
-    <p style="margin:0;color:#4A5159;font-size:13px;">Reply to this email with your decision, or open the project portal to approve in one tap.</p>
+    <p style="margin:0 0 4px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${escapeHtml(description)}</p>
+    ${emailStatCard(rows.join(''))}
+    <p style="margin:0;color:#4A5159;font-size:13px;">${escapeHtml(howTo)}</p>
   `;
 
   return wrapEmailHtml({
-    preheader: `Change order #${coNumber} for ${projectName}: ${formattedChange}.`,
+    preheader: `Change order #${coNumber} for ${projectName}: ${formattedHeadline}${hasTax ? ' incl. tax' : ''}.`,
     eyebrow: `Change Order #${coNumber}`,
-    title: `${formattedChange} change request`,
+    title: `${formattedHeadline} change request`,
     subtitle: `Change order #${coNumber} for ${projectName}.`,
     bodyHtml,
+    cta: portalUrl ? { label: 'Review & sign change order', href: portalUrl } : undefined,
     companyName,
     project: { name: projectName },
     contactName, contactEmail,
@@ -694,12 +773,54 @@ export function buildPortalInviteEmailHtml(opts: {
   });
 }
 
+// --- BEGIN dfr document wording ---
+/** What a blank weather reading prints. Never a number: a hard "0° / 0°F" on
+ *  a filed report is a fact the other side can check against public weather
+ *  records (#26). */
+export const DFR_WEATHER_NOT_RECORDED = 'Not recorded';
+
+/**
+ * The weather line of a daily report, from what the form actually recorded.
+ *
+ * #26: the report captures ONE temperature string (e.g. "72°F / 22°C"), a
+ * conditions string and wind. Both call sites used to parseInt the temperature
+ * into a "high" and a "low", printing the same number twice ("72° / 72°F") or
+ * "0° / 0°F" on a backfilled day with no weather at all. The strings now pass
+ * through unchanged, joined; all blank → "Not recorded".
+ */
+export function dfrWeatherLine(w: { conditions?: string | null; temperature?: string | null; wind?: string | null } | null | undefined): string {
+  const parts = [w?.conditions, w?.temperature, w?.wind]
+    .map(v => (typeof v === 'string' ? v.trim() : ''))
+    .filter(v => v.length > 0);
+  return parts.length > 0 ? parts.join(' · ') : DFR_WEATHER_NOT_RECORDED;
+}
+
+/**
+ * How the report's own day is worded. "Today's" only when the report IS for
+ * today (#26 — a backfilled Friday report sent on Monday said "Today's report").
+ * Both arguments are compared as calendar days by the caller's helper.
+ */
+export function dfrDayWording(reportDay: string | null, today: string): { isToday: boolean } {
+  return { isToday: !!reportDay && reportDay === today };
+}
+// --- END dfr document wording ---
+
+export interface DailyReportEmailIncident {
+  severity?: string;
+  description?: string;
+  /** The OSHA 1904 determination sentence, e.g. "Recordable — days away from work." */
+  classification?: string;
+  injuriesReported?: boolean;
+  correctiveAction?: string;
+}
+
 export function buildDailyReportEmailHtml(opts: {
   companyName: string;
   recipientName: string;
   projectName: string;
   date: string;
-  weather: { condition: string; tempHigh: number; tempLow: number };
+  /** The strings the form recorded, unchanged. See dfrWeatherLine. */
+  weather: { conditions: string; temperature: string; wind?: string };
   totalManpower: number;
   totalManHours: number;
   workPerformed: string;
@@ -709,38 +830,88 @@ export function buildDailyReportEmailHtml(opts: {
   contactEmail?: string;
   /** Free-tier "Built with MAGE ID" growth footer — homeowner-facing report. */
   growthBadge?: boolean;
+  /** #25 — the per-trade / per-company crew. */
+  manpower?: { trade: string; company: string; headcount: number; hoursWorked: number }[];
+  materialsDelivered?: string[];
+  /** Present only when the report records an incident. */
+  incident?: DailyReportEmailIncident;
+  /** Photos on the report. The email carries none (they bloat inboxes and
+   *  device-local files cannot be mailed) — it links the filed PDF instead. */
+  photoCount?: number;
+  /** A working link to the filed PDF (with the photos), when one was saved. */
+  filedPdfUrl?: string;
+  /** How long filedPdfUrl works, for the line under the button. */
+  filedPdfLinkDays?: number;
+  /** The calendar day to treat as today (tests pin it; default: this device's). */
+  today?: string;
 }): string {
   const {
     companyName, recipientName, projectName, date,
     weather, totalManpower, totalManHours, workPerformed,
     issuesAndDelays, message, contactName, contactEmail, growthBadge,
+    manpower = [], materialsDelivered = [], incident, photoCount = 0, filedPdfUrl, filedPdfLinkDays,
   } = opts;
 
-  const formatted = new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  // calendarDayStart: `date` is a bare 'YYYY-MM-DD', and `new Date()` of that
+  // is UTC midnight — the title named the day BEFORE the report west of
+  // Greenwich. An instant falls back to its own local day.
+  const reportDay = calendarDayOf(date);
+  const dayDate = calendarDayStart(date) ?? dayOrInstantDate(date);
+  const formatted = dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const { isToday } = dfrDayWording(reportDay, opts.today ?? todayCalendarDay());
+  const weatherLine = dfrWeatherLine(weather);
+  const text = (v: string) => `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${escapeHtml(v)}</p>`;
+  const heading = (v: string, color = '#0B0D10') => `<p style="margin:18px 0 6px;font-weight:700;color:${color};">${escapeHtml(v)}</p>`;
+
+  const crewRows = manpower.filter(m => (m.trade || m.company) && m.headcount > 0);
+  const crewHtml = crewRows.length > 0
+    ? heading('Crew on site') + emailStatCard(crewRows.map(m => emailStatRow(
+        [m.trade, m.company].map(v => (v || '').trim()).filter(Boolean).join(' — ') || 'Crew',
+        escapeHtml(`${m.headcount} × ${m.hoursWorked} h = ${m.headcount * m.hoursWorked} h`),
+      )).join(''))
+    : '';
+  const materials = materialsDelivered.map(m => (m || '').trim()).filter(Boolean);
+  const materialsHtml = materials.length > 0
+    ? heading('Materials delivered') + `<ul style="margin:0 0 14px;padding-left:18px;color:#4A5159;line-height:1.55;">${materials.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`
+    : '';
+  const incidentHtml = incident
+    ? heading('Incident', '#C2410C') + emailStatCard([
+        incident.severity ? emailStatRow('Severity', escapeHtml(incident.severity.replace(/_/g, ' '))) : '',
+        incident.classification ? emailStatRow('Classification', escapeHtml(incident.classification)) : '',
+        emailStatRow('Injury reported', incident.injuriesReported ? 'Yes' : 'No'),
+      ].join('')) + (incident.description ? text(incident.description) : '')
+        + (incident.correctiveAction ? `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;"><strong>Corrective action:</strong> ${escapeHtml(incident.correctiveAction)}</p>` : '')
+    : '';
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const photosLine = photoCount > 0
+    ? `<p style="margin:0 0 6px;color:#4A5159;font-size:13px;">${escapeHtml(filedPdfUrl
+        ? `${plural(photoCount, 'photo')} ${photoCount === 1 ? 'is' : 'are'} in the full report — open it with the button below${filedPdfLinkDays ? ` (the link works for ${filedPdfLinkDays} days)` : ''}.`
+        : `${plural(photoCount, 'photo')} ${photoCount === 1 ? 'is' : 'are'} on this report. Reply if you need ${photoCount === 1 ? 'it' : 'them'} sent over.`)}</p>`
+    : '';
+
   const bodyHtml = `
-    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
-    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">Today\'s field report is below.</p>'}
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${escapeHtml(recipientName)},</p>` : ''}
+    ${message ? emailQuote(message) : `<p style="margin:0 0 6px;">${escapeHtml(isToday ? "Today's field report is below." : `The field report for ${formatted} is below.`)}</p>`}
     ${emailStatCard(`
-      ${emailStatRow('Weather', `${weather.condition} · ${weather.tempHigh}° / ${weather.tempLow}°F`)}
-      ${emailStatRow('Manpower', `${totalManpower} workers`)}
-      ${emailStatRow('Man-hours', `${totalManHours} hrs`, { emphasize: true })}
+      ${emailStatRow('Weather', escapeHtml(weatherLine))}
+      ${emailStatRow('Manpower', escapeHtml(plural(totalManpower, 'worker')))}
+      ${emailStatRow('Man-hours', escapeHtml(`${totalManHours} hrs`), { emphasize: true })}
     `)}
-    ${workPerformed ? `
-      <p style="margin:18px 0 6px;font-weight:700;color:#0B0D10;">Work performed</p>
-      <p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${workPerformed}</p>
-    ` : ''}
-    ${issuesAndDelays ? `
-      <p style="margin:18px 0 6px;font-weight:700;color:#C2410C;">Issues &amp; delays</p>
-      <p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${issuesAndDelays}</p>
-    ` : ''}
+    ${crewHtml}
+    ${workPerformed ? heading('Work performed') + text(workPerformed) : ''}
+    ${materialsHtml}
+    ${issuesAndDelays ? heading('Issues & delays', '#C2410C') + text(issuesAndDelays) : ''}
+    ${incidentHtml}
+    ${photosLine}
   `;
 
   return wrapEmailHtml({
-    preheader: `${formatted} · ${weather.condition} · ${totalManpower} workers · ${totalManHours} man-hours.`,
+    preheader: `${formatted} · ${weatherLine} · ${plural(totalManpower, 'worker')} · ${totalManHours} man-hours.`,
     eyebrow: 'Daily Field Report',
     title: formatted,
-    subtitle: `Today's report for ${projectName}.`,
+    subtitle: isToday ? `Today's report for ${projectName}.` : `Field report for ${projectName}.`,
     bodyHtml,
+    cta: filedPdfUrl ? { label: 'Open the full report (PDF)', href: filedPdfUrl } : undefined,
     companyName,
     project: { name: projectName },
     contactName, contactEmail,

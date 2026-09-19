@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Switch, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Layers, Minus, Plus, Trash2 } from 'lucide-react-native';
+import { X, Layers, Minus, Plus, Trash2, CheckCircle2, Circle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -19,11 +19,13 @@ import { getPhaseColor, getStatusLabel, createId } from '@/utils/scheduleEngine'
 import { taskStatusInk, CHIP_TINT_SUFFIX } from '@/components/ui/ink';
 import { statusInkFor } from '@/utils/scheduleColors';
 import { Tokens } from '@/constants/designTokens';
+import { Type } from '@/constants/typography';
 import { TaskChecklist } from './TaskChecklist';
 import { PercentSlider } from './PercentSlider';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
 import { taskCalendarRange } from '@/utils/scheduleOps';
+import { taskSheetLocks, type ScheduleWritePath } from '@/utils/fieldScheduleUpdate';
 
 interface TaskDetailSheetProps {
   visible: boolean;
@@ -39,6 +41,8 @@ interface TaskDetailSheetProps {
   onClose: () => void;
   onUpdateTask: (next: ScheduleTask) => void;
   onDeleteTask: (id: string) => void;
+  /** The caller's write path (scheduleWritePathForRole). Omitted = 'row'. */
+  writePath?: ScheduleWritePath;
 }
 
 type DetailTab = 'overview' | 'resources' | 'docs' | 'activity';
@@ -53,20 +57,45 @@ function haptic(kind: 'sel' | 'warn' = 'sel') {
 }
 
 // Small ±stepper used for start-day and duration (no native date picker — OTA-safe).
-function Stepper({ value, onDec, onInc }: { value: string; onDec: () => void; onInc: () => void }) {
+function Stepper({ value, onDec, onInc, disabled }: { value: string; onDec: () => void; onInc: () => void; disabled?: boolean }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const ink = disabled ? colors.textMuted : colors.text;
   return (
-    <View style={styles.stepper}>
-      <TouchableOpacity style={styles.stepBtn} onPress={onDec} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Minus size={15} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
+    <View style={[styles.stepper, disabled ? styles.lockedControl : null]}>
+      <TouchableOpacity style={styles.stepBtn} onPress={onDec} disabled={disabled} accessibilityState={{ disabled: !!disabled }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Minus size={15} color={ink} strokeWidth={1.75} /></TouchableOpacity>
       <Text style={styles.stepVal} numberOfLines={1}>{value}</Text>
-      <TouchableOpacity style={styles.stepBtn} onPress={onInc} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Plus size={15} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
+      <TouchableOpacity style={styles.stepBtn} onPress={onInc} disabled={disabled} accessibilityState={{ disabled: !!disabled }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Plus size={15} color={ink} strokeWidth={1.75} /></TouchableOpacity>
     </View>
   );
 }
 
-export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask }: TaskDetailSheetProps) {
+/** The checklist as a read-out, for access that cannot save a tick (#139). */
+function ReadOnlyChecklist({ items }: { items: { id: string; label: string; done: boolean }[] }) {
   const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const doneCount = items.filter((i) => i.done).length;
+  return (
+    <View style={[styles.card, { marginTop: 12 }]} testID="task-checklist-readonly">
+      <View style={styles.pctHeaderRow}>
+        <Text style={styles.gLbl}>TASK CHECKLIST</Text>
+        <Text style={styles.gVal}>{doneCount}/{items.length}</Text>
+      </View>
+      {items.length === 0 ? <Text style={styles.gLbl}>No checklist items.</Text> : null}
+      {items.map((it) => (
+        <View key={it.id} style={styles.roRow}>
+          {it.done ? <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} /> : <Circle size={18} color={colors.textMuted} strokeWidth={1.75} />}
+          <Text style={[styles.roLabel, it.done ? styles.roLabelDone : null]} numberOfLines={2}>{it.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask, writePath }: TaskDetailSheetProps) {
+  const { colors } = useTheme();
+  // What this access can save here (#139) — see taskSheetLocks for why.
+  const locks = taskSheetLocks(writePath);
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   // Resolved once per theme change rather than per chip: `colors` is memoised
@@ -87,6 +116,17 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
       setPctDraft(task.progress ?? 0);
     }
   }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A peer's (or the live schedule's) progress change on the SAME task used to
+  // leave the slider on the old figure until the sheet was closed and reopened.
+  // Follow task.progress while the slider is idle; never while his finger is on
+  // it, or the incoming value would yank the thumb out from under him.
+  const sliderActiveRef = useRef(false);
+  const onSliderChange = (p: number) => { sliderActiveRef.current = true; setPctDraft(p); };
+  useEffect(() => {
+    if (!task || sliderActiveRef.current) return;
+    setPctDraft(task.progress ?? 0);
+  }, [task?.progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // baseMs is LOCAL midnight of schedule day 1. It used to be
   // `new Date(startDate)` + setHours(0,0,0,0), and `startDate` is a bare
@@ -140,21 +180,24 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
   const checklist = task.checklist ?? [];
 
   const setStatus = (s: TaskStatus) => {
+    if (locks.progress) return;
     haptic();
     const progress = s === 'done' ? 100 : s === 'not_started' ? 0 : (task.progress ?? 0);
     setPctDraft(progress);
     onUpdateTask({ ...task, status: s, progress });
   };
   const commitProgress = (p: number) => {
+    sliderActiveRef.current = false;
+    if (locks.progress) return;
     const status: TaskStatus = p >= 100 ? 'done' : p <= 0 ? 'not_started' : 'in_progress';
     onUpdateTask({ ...task, progress: p, status });
   };
-  const shiftStart = (delta: number) => { haptic(); onUpdateTask({ ...task, startDay: Math.max(1, (task.startDay ?? 1) + delta) }); };
-  const shiftDuration = (delta: number) => { haptic(); onUpdateTask({ ...task, durationDays: Math.max(1, (task.durationDays || 1) + delta) }); };
-  const toggleMilestone = (v: boolean) => { haptic(); onUpdateTask({ ...task, isMilestone: v }); };
-  const commitTitle = () => { const v = title.trim(); if (v && v !== task.title) onUpdateTask({ ...task, title: v }); else if (!v) setTitle(task.title); };
-  const commitCrew = () => { const seed = (task.crew || task.assignedSubName || '').trim(); if (crew.trim() !== seed) onUpdateTask({ ...task, crew: crew.trim() }); };
-  const commitNotes = () => { if (notes !== (task.notes || '')) onUpdateTask({ ...task, notes }); };
+  const shiftStart = (delta: number) => { if (locks.plan) return; haptic(); onUpdateTask({ ...task, startDay: Math.max(1, (task.startDay ?? 1) + delta) }); };
+  const shiftDuration = (delta: number) => { if (locks.plan) return; haptic(); onUpdateTask({ ...task, durationDays: Math.max(1, (task.durationDays || 1) + delta) }); };
+  const toggleMilestone = (v: boolean) => { if (locks.plan) return; haptic(); onUpdateTask({ ...task, isMilestone: v }); };
+  const commitTitle = () => { if (locks.plan) { setTitle(task.title); return; } const v = title.trim(); if (v && v !== task.title) onUpdateTask({ ...task, title: v }); else if (!v) setTitle(task.title); };
+  const commitCrew = () => { if (locks.plan) return; const seed = (task.crew || task.assignedSubName || '').trim(); if (crew.trim() !== seed) onUpdateTask({ ...task, crew: crew.trim() }); };
+  const commitNotes = () => { if (locks.progress) return; if (notes !== (task.notes || '')) onUpdateTask({ ...task, notes }); };
 
   const toggleChecklist = (id: string) =>
     onUpdateTask({ ...task, checklist: checklist.map((c) => (c.id === id ? { ...c, done: !c.done } : c)) });
@@ -162,6 +205,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
     onUpdateTask({ ...task, checklist: [...checklist, { id: createId('chk'), label, done: false }] });
 
   const handleDelete = () => {
+    if (locks.plan) return;
     showAlert('Delete task?', `"${task.title}" will be removed from the schedule.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => { haptic('warn'); onDeleteTask(task.id); } },
@@ -185,6 +229,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                 onChangeText={setTitle}
                 onEndEditing={commitTitle}
                 onBlur={commitTitle}
+                editable={!locks.plan}
                 style={styles.titleInput}
                 placeholder="Task title"
                 placeholderTextColor={colors.textMuted}
@@ -214,16 +259,19 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
           </View>
 
           <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {locks.reason ? (
+              <Text style={styles.lockReason} testID="task-sheet-access-reason">{locks.reason}</Text>
+            ) : null}
             {tab === 'overview' && (
               <>
                 <View style={styles.card}>
                   <View style={styles.editRow}>
                     <Text style={styles.gLbl}>Start</Text>
-                    <Stepper value={startLabel} onDec={() => shiftStart(-1)} onInc={() => shiftStart(1)} />
+                    <Stepper value={startLabel} onDec={() => shiftStart(-1)} onInc={() => shiftStart(1)} disabled={locks.plan} />
                   </View>
                   <View style={styles.editRow}>
                     <Text style={styles.gLbl}>Duration</Text>
-                    <Stepper value={`${dur} day${dur === 1 ? '' : 's'}`} onDec={() => shiftDuration(-1)} onInc={() => shiftDuration(1)} />
+                    <Stepper value={`${dur} day${dur === 1 ? '' : 's'}`} onDec={() => shiftDuration(-1)} onInc={() => shiftDuration(1)} disabled={locks.plan} />
                   </View>
                   <Text style={styles.endHint}>{endLabel}</Text>
 
@@ -232,7 +280,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                     {STATUSES.map((s) => {
                       const ink = statusInkFor(statusInks, s);
                       return (
-                        <TouchableOpacity key={s} onPress={() => setStatus(s)}
+                        <TouchableOpacity key={s} onPress={() => setStatus(s)} disabled={locks.progress} accessibilityState={{ disabled: locks.progress, selected: task.status === s }}
                           /* CHIP_TINT_SUFFIX, not the '22' this shipped with —
                              13% deepens the wash enough to drop the on_hold ink
                              to 4.32:1 under its own label. Same fix as
@@ -245,11 +293,13 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                   </View>
 
                   <View style={[styles.pctHeaderRow, { marginTop: 14 }]}><Text style={styles.gLbl}>% Complete</Text><Text style={styles.gVal}>{pctDraft}%</Text></View>
-                  <PercentSlider value={pctDraft} onChange={setPctDraft} onCommit={commitProgress} color={colors.accent} />
+                  {locks.progress ? null : (
+                    <PercentSlider value={pctDraft} onChange={onSliderChange} onCommit={commitProgress} color={colors.accent} />
+                  )}
 
                   <View style={styles.toggleRow}>
                     <Text style={styles.gLbl}>Milestone</Text>
-                    <Switch value={!!task.isMilestone} onValueChange={toggleMilestone} trackColor={{ true: colors.accent, false: colors.line }} />
+                    <Switch value={!!task.isMilestone} onValueChange={toggleMilestone} disabled={locks.plan} trackColor={{ true: colors.accent, false: colors.line }} />
                   </View>
 
                   <View style={{ marginTop: 12 }}>
@@ -258,9 +308,11 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                   </View>
                 </View>
 
-                <TaskChecklist items={checklist} onToggle={toggleChecklist} onAdd={addChecklist} />
+                {locks.plan
+                  ? <ReadOnlyChecklist items={checklist} />
+                  : <TaskChecklist items={checklist} onToggle={toggleChecklist} onAdd={addChecklist} />}
 
-                <TouchableOpacity style={styles.deleteBtn} activeOpacity={0.8} onPress={handleDelete} testID="task-delete">
+                <TouchableOpacity style={[styles.deleteBtn, locks.plan ? styles.lockedControl : null]} activeOpacity={0.8} onPress={handleDelete} disabled={locks.plan} accessibilityState={{ disabled: locks.plan }} testID="task-delete">
                   <Trash2 size={16} color={colors.danger} strokeWidth={1.75} />
                   <Text style={styles.deleteText}>Delete task</Text>
                 </TouchableOpacity>
@@ -289,6 +341,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                   onChangeText={setCrew}
                   onEndEditing={commitCrew}
                   onBlur={commitCrew}
+                  editable={!locks.plan}
                   placeholder="Unassigned"
                   placeholderTextColor={colors.textMuted}
                   style={styles.input}
@@ -311,6 +364,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                   onChangeText={setNotes}
                   onEndEditing={commitNotes}
                   onBlur={commitNotes}
+                  editable={!locks.progress}
                   placeholder="Add notes…"
                   placeholderTextColor={colors.textMuted}
                   style={[styles.input, styles.notesInput]}
@@ -358,4 +412,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   notesInput: { minHeight: 90, textAlignVertical: 'top' as const, marginTop: 2 },
   deleteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginTop: 14, paddingVertical: 12, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.danger + '55', backgroundColor: t.danger + '12' },
   deleteText: { fontSize: 14, fontWeight: '800' as const, color: t.danger },
+  lockedControl: { opacity: 0.45 },
+  lockReason: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textMuted, lineHeight: 17, marginBottom: 12 },
+  roRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 7, borderTopWidth: 1, borderTopColor: t.line },
+  roLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  roLabelDone: { color: t.textMuted, textDecorationLine: 'line-through' as const },
 });

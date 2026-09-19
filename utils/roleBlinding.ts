@@ -60,5 +60,19 @@ export const ROLE_DESCRIPTIONS: Record<NonNullable<ProjectRole>, string> = {
   owner: 'Full access',
   editor: 'Can edit everything',
   viewer: 'Read-only, sees financials',
-  field: 'Schedule & field work — no costs or margins',
+  // #176: "no costs or margins" was a flat promise the server does not keep
+  // yet — the legacy estimate columns on `projects` are still readable by any
+  // accepted collaborator until the phase-2 drop runs (it waits on an OTA that
+  // stops ProjectContext dual-writing them). The picker states what is true.
+  field: 'Schedule & field work — costs and margins hidden in the app',
 };
+
+/**
+ * #176 (founder decision pending: when the phase-2 legacy-money drop runs).
+ * Shown under the Field choice in the invite form. Honest about the boundary:
+ * the app hides the money; the database does not yet withhold every copy of
+ * it. Replace with a flat promise only once the drop has run and a raw
+ * PostgREST read with a field user's token returns no estimate.
+ */
+export const FIELD_ROLE_SCOPE_NOTE =
+  'Costs are hidden in the app, not yet withheld by the server — someone reading the database directly could still see an older copy of the estimate.';

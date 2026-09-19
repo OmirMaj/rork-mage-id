@@ -27,7 +27,9 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
+import {
+  buildScheduleFromTasks, scheduleReplacementLoss, describeScheduleReplacement, replaceRunningSchedule,
+} from '@/utils/scheduleEngine';
 import { SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -271,75 +273,100 @@ export default function ScheduleReviewScreen() {
       showAlert('Schedule not saved', scheduleWriteBlockedReason);
       return;
     }
-    // F4 capture timing (D4, G9): pre-applied predictions are recorded HERE,
-    // not at pre-apply — only tasks STILL holding the pace value when the
-    // user accepts become ledger rows. Reverted pre-applies never pollute
-    // the gate. Manual chip taps keep their immediate capture in applyPace;
-    // the preApplied flag distinguishes provenances in the payload.
-    try {
-      const survivors: PreApplyDecision[] = [];
-      for (const d of preApplied.values()) {
-        const task = tasks.find(x => x.id === d.taskId);
-        if (!task || !pacedIds.has(d.taskId)) continue;
-        if (task.durationDays !== d.paceDays) continue; // edited away → not a pace trial
-        survivors.push(d);
-        recordPrediction(
-          'pace_suggestion_applied',
-          d.taskId,
-          {
-            taskId: d.taskId,
-            trade: d.trade,
-            aiOriginalDays: d.aiOriginalDays,
-            paceDays: d.paceDays,
-            jobCount: d.jobCount,
-            confidence: d.confidence,
-            preApplied: true,
-          },
-          project.id,
-        );
+    // A RUNNING schedule is replaced only after he has read what goes (#52).
+    // Every AI route lands on this Accept — copilot, generative setup,
+    // AutoScheduleReviewSheet, ScheduleBuilderInterview, the tab on-ramp and
+    // the tab's build-from-estimate — so the guard lives here, not on any one
+    // button. Nothing is recorded or written until he confirms.
+    const loss = scheduleReplacementLoss(project.schedule);
+    if (loss) {
+      showAlert('Replace the running schedule?', describeScheduleReplacement(loss, project.name), [
+        { text: 'Keep current schedule', style: 'cancel' },
+        { text: 'Replace', style: 'destructive', onPress: () => commitAccept() },
+      ]);
+      return;
+    }
+    commitAccept();
+    function commitAccept() {
+      if (!project || !draft) return;
+      // F4 capture timing (D4, G9): pre-applied predictions are recorded HERE,
+      // not at pre-apply — only tasks STILL holding the pace value when the
+      // user accepts become ledger rows. Reverted pre-applies never pollute
+      // the gate. Manual chip taps keep their immediate capture in applyPace;
+      // the preApplied flag distinguishes provenances in the payload.
+      try {
+        const survivors: PreApplyDecision[] = [];
+        for (const d of preApplied.values()) {
+          const task = tasks.find(x => x.id === d.taskId);
+          if (!task || !pacedIds.has(d.taskId)) continue;
+          if (task.durationDays !== d.paceDays) continue; // edited away → not a pace trial
+          survivors.push(d);
+          recordPrediction(
+            'pace_suggestion_applied',
+            d.taskId,
+            {
+              taskId: d.taskId,
+              trade: d.trade,
+              aiOriginalDays: d.aiOriginalDays,
+              paceDays: d.paceDays,
+              jobCount: d.jobCount,
+              confidence: d.confidence,
+              preApplied: true,
+            },
+            project.id,
+          );
+        }
+        if (survivors.length > 0) {
+          const trades = [...new Set(survivors.map(s => s.trade))];
+          recordDidForYou(
+            `Pre-set ${survivors.length} duration${survivors.length === 1 ? '' : 's'} from your measured pace (${trades.slice(0, 3).join(', ')})`,
+            project.id,
+          );
+        }
+      } catch { /* G4 — capture must never break the accept */ }
+      // Rebuild so the persisted schedule's cached task-derived fields
+      // (criticalPathDays, healthScore, phases, …) reflect the accepted tasks
+      // rather than draft.schedule's values computed from the original draft.
+      const rebuilt = buildScheduleFromTasks(
+        draft.schedule.name ?? 'Schedule',
+        project.id,
+        tasks,
+        draft.schedule.baseline ?? null,
+      );
+      // rebuilt.tasks are the REFLOWED tasks (recalculateStartDays ran inside
+      // buildScheduleFromTasks) — do NOT override them with this screen's
+      // un-reflowed `tasks` state, or an applied pace duration persists without
+      // its dependents' startDays moving.
+      // replaceRunningSchedule carries the id-independent sidecars of a running
+      // schedule (delay log, closures, working week, resources) and drops the
+      // id-keyed ones (baselines, saved plans) the confirm above named. The new
+      // plan's own start date, never the old anchor.
+      updateProject(project.id, {
+        schedule: replaceRunningSchedule(project.schedule, { ...draft.schedule, ...rebuilt }, {
+          startDate: draft.schedule.startDate ?? rebuilt.startDate ?? null,
+        }),
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // The schedule is committed above regardless; only the destination differs.
+      // Schedule Pro needs both a wide viewport and Pro — otherwise land the GC in
+      // the classic schedule instead of a paywall/empty grid.
+      // Window-width comparison is CORRECT here even though this screen renders
+      // inside the desktop sidebar shell: schedule-pro is in DESKTOP_SHELL_EXEMPT
+      // (app/_layout.tsx) and renders full-bleed, so the width its grid will
+      // actually get IS the window width — not window − 240. If schedule-pro is
+      // ever un-exempted, this gate must switch to effective content width.
+      const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
+      if (wideEnoughForPro) {
+        router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
+      } else {
+        // `focus` nonce: the classic schedule only re-applies a routed projectId
+        // when the nonce is new, so a second visit to the same project without
+        // one silently keeps whatever was manually selected there before.
+        router.replace({
+          pathname: '/(tabs)/schedule',
+          params: { projectId: project.id, focus: String(Date.now()) },
+        } as any);
       }
-      if (survivors.length > 0) {
-        const trades = [...new Set(survivors.map(s => s.trade))];
-        recordDidForYou(
-          `Pre-set ${survivors.length} duration${survivors.length === 1 ? '' : 's'} from your measured pace (${trades.slice(0, 3).join(', ')})`,
-          project.id,
-        );
-      }
-    } catch { /* G4 — capture must never break the accept */ }
-    // Rebuild so the persisted schedule's cached task-derived fields
-    // (criticalPathDays, healthScore, phases, …) reflect the accepted tasks
-    // rather than draft.schedule's values computed from the original draft.
-    const rebuilt = buildScheduleFromTasks(
-      draft.schedule.name ?? 'Schedule',
-      project.id,
-      tasks,
-      draft.schedule.baseline ?? null,
-    );
-    // rebuilt.tasks are the REFLOWED tasks (recalculateStartDays ran inside
-    // buildScheduleFromTasks) — do NOT override them with this screen's
-    // un-reflowed `tasks` state, or an applied pace duration persists without
-    // its dependents' startDays moving.
-    updateProject(project.id, { schedule: { ...draft.schedule, ...rebuilt } });
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // The schedule is committed above regardless; only the destination differs.
-    // Schedule Pro needs both a wide viewport and Pro — otherwise land the GC in
-    // the classic schedule instead of a paywall/empty grid.
-    // Window-width comparison is CORRECT here even though this screen renders
-    // inside the desktop sidebar shell: schedule-pro is in DESKTOP_SHELL_EXEMPT
-    // (app/_layout.tsx) and renders full-bleed, so the width its grid will
-    // actually get IS the window width — not window − 240. If schedule-pro is
-    // ever un-exempted, this gate must switch to effective content width.
-    const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
-    if (wideEnoughForPro) {
-      router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
-    } else {
-      // `focus` nonce: the classic schedule only re-applies a routed projectId
-      // when the nonce is new, so a second visit to the same project without
-      // one silently keeps whatever was manually selected there before.
-      router.replace({
-        pathname: '/(tabs)/schedule',
-        params: { projectId: project.id, focus: String(Date.now()) },
-      } as any);
     }
   }, [project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds, scheduleWriteBlockedReason]);
 

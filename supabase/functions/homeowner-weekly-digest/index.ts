@@ -501,6 +501,10 @@ async function fetchWeekDataForProject(client: SupabaseClient, projectId: string
   return { dfrs, photos, cos };
 }
 
+/** Error code for an invite skipped because it unsubscribed. A bare code (no
+ *  "id: message" prefix) so client-portal-setup can tell it from a refusal. */
+const DIGEST_RECIPIENT_UNSUBSCRIBED = 'unsubscribed';
+
 // ── Compose + send for one (project, recipient) pair ───────────────
 async function sendForProject(
   client: SupabaseClient,
@@ -515,6 +519,9 @@ async function sendForProject(
   // Handover and link expiry decide whether anything goes out — for the cron
   // AND the GC's preview, which e-mails the homeowner for real.
   let linkExpiresAt: string | null = null;
+  // Never published (a successful read with no snapshot row): the portal link
+  // opens the "not published" page, so the email carries no portal button.
+  let portalUnpublished = false;
   if (portal?.portalId) {
     const snapRes = await client
       .from('portal_snapshots')
@@ -522,6 +529,7 @@ async function sendForProject(
       .eq('portal_id', portal.portalId)
       .maybeSingle();
     linkExpiresAt = (snapRes.data as { expires_at?: string | null } | null)?.expires_at ?? null;
+    portalUnpublished = !snapRes.error && snapRes.data == null;
   }
   const plan = planHomeownerDigest({
     status: project.status,
@@ -578,7 +586,7 @@ async function sendForProject(
   // Built by the shared helper (portal id + access token); null when the portal
   // is disabled or has no minted link — then the CTA is omitted entirely rather
   // than pointing at a dead page (audit EDGE-F6 / AUTH-F4).
-  const portalUrl = portalUrlFor(portal) ?? undefined;
+  const portalUrl = portalUnpublished ? undefined : (portalUrlFor(portal) ?? undefined);
 
   const today = new Date();
   const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -594,6 +602,10 @@ async function sendForProject(
     if (await isEmailUnsubscribed(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, invite.email, 'weekly_digest')) {
       // Log the invite id, never the homeowner's address (audit AUTH-F16).
       console.log('[homeowner-weekly-digest] recipient unsubscribed — skipping', project.id, invite.id ?? `invite#${idx}`);
+      // Reported (a bare code, no address) so the GC's preview can say WHY
+      // nothing went out — "your client turned these emails off" — instead
+      // of reading an empty error list as "No invites yet".
+      errors.push(DIGEST_RECIPIENT_UNSUBSCRIBED);
       continue;
     }
     const html = buildEmailHtml({

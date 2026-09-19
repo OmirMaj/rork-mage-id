@@ -17,7 +17,7 @@
 // Risk engines over active jobs only, synchronously, the same work the Margin
 // Board already does in a memo. For real portfolios that's negligible.
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -42,7 +42,22 @@ export default function MarginAlertManager() {
   const {
     projects, changeOrders, commitments, invoices, equipment, permits, subcontractors,
   } = useProjects();
+  // One evaluation at a time. A change that lands while one is in flight is
+  // not dropped (#154): it sets `pending`, and when the running pass ends it
+  // bumps `rerunTick`, which re-runs the effect from a FRESH render — with the
+  // current projects / costSources, not the ones the finished pass captured
+  // (re-calling that closure would just re-evaluate the stale inputs). The
+  // rerun re-reads the notified set the first pass persisted, so it cannot
+  // push the same crossing twice. `mounted` stops the bump after unmount (the
+  // provider tree unmounts on sign-out).
   const running = useRef(false);
+  const pending = useRef(false);
+  const mounted = useRef(true);
+  const [rerunTick, setRerunTick] = useState(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   // The same cost streams app/job-costing.tsx prices (audit round 2, #16).
   // Without them every self-perform job read 'healthy' here and this push —
@@ -51,16 +66,17 @@ export default function MarginAlertManager() {
   // root QueryClientProvider, so a root-mounted component reaches them fine.
   const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: ratesLoading } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
   // Hold evaluation until those local stores have loaded. Evaluating on the
   // empty defaults would read the job subs-only for one pass, and that pass is
   // not harmless: it prunes a still-standing alert out of the notified set, so
-  // the next (full) pass pushes the same crossing a second time — and the
-  // `running` guard below can drop that full pass entirely if it lands while
-  // the partial one is in flight. The mirror hook exposes no loading flag, so
+  // the next (full) pass pushes the same crossing a second time. (The
+  // `running` guard below no longer drops a pass that lands mid-flight — it
+  // queues a rerun — but a pass on empty inputs is still wrong on its own.)
+  // The mirror hook exposes no loading flag, so
   // read its cache entry — by the EXPORTED key, not a copied literal, so a
   // rename in hooks/useTimeEntries.ts cannot leave this gate reading an entry
   // that never fills (which would hold the push forever); this component
@@ -74,7 +90,7 @@ export default function MarginAlertManager() {
 
   useEffect(() => {
     if (!enabled || !costSourcesReady) return;
-    if (running.current) return;
+    if (running.current) { pending.current = true; return; }
     running.current = true;
 
     void (async () => {
@@ -145,9 +161,13 @@ export default function MarginAlertManager() {
         console.warn('[MarginAlerts] evaluation failed:', err);
       } finally {
         running.current = false;
+        if (pending.current && mounted.current) {
+          pending.current = false;
+          setRerunTick(t => t + 1);
+        }
       }
     })();
-  }, [enabled, costSourcesReady, projects, changeOrders, commitments, invoices, costSources]);
+  }, [enabled, costSourcesReady, projects, changeOrders, commitments, invoices, costSources, rerunTick]);
 
   return null;
 }

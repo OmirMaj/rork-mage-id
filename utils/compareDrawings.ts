@@ -8,6 +8,7 @@
 // user; never silently returns an empty list.
 
 import { supabase } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 
 export type CompareModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
 export type ChangeType = 'added' | 'removed' | 'modified' | 'renote';
@@ -65,8 +66,12 @@ export async function compareDrawings(opts: CompareDrawingsOpts): Promise<{
   modelUsed: CompareModel;
   usage?: { used: number; cap: number };
 }> {
-  if (!opts.oldPageUrl || !opts.newPageUrl) {
-    throw new Error('Both old and new page URLs are required.');
+  // Each side needs SOMETHING the function can read: a storage path (the
+  // function downloads it itself) or, for a legacy row, a URL. Two sheets that
+  // are both already in the plan set (#76) can arrive with a path and no signed
+  // URL yet, and that is a complete request.
+  if (!(opts.oldPagePath || opts.oldPageUrl) || !(opts.newPagePath || opts.newPageUrl)) {
+    throw new Error('Both the old and the new sheet are needed to compare.');
   }
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;
@@ -75,7 +80,11 @@ export async function compareDrawings(opts: CompareDrawingsOpts): Promise<{
     usage?: { used: number; cap: number };
     error?: string;
   }>('compare-drawings', { body: opts });
-  if (error) throw new Error(`Compare drawings call failed: ${error.message}`);
+  // #79: the function's own sentence ("Monthly … limit reached… Resets on the
+  // 1st.", "Hourly limit reached…") with its code, never supabase-js's
+  // "Edge Function returned a non-2xx status code". No prefix: the server text
+  // is already written for him.
+  if (error) throw await edgeFunctionError(error, 'Compare drawings failed');
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Compare drawings returned empty.');
   }

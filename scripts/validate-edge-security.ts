@@ -123,7 +123,7 @@ ok('og-image no longer uses redirect:"follow"', !/redirect:\s*"follow"/.test(og)
 for (const fn of ['project-memory-embed', 'project-memory-search']) {
   const src = read(`supabase/functions/${fn}/index.ts`);
   ok(`${fn} loaded`, src.length > 0);
-  ok(`${fn} prechecks the monthly cap`, /aiUsageGet\(auth\.userId,\s*"project_memory"\)/.test(src) && /MONTHLY_CAPS\[auth\.tier\]/.test(src));
+  ok(`${fn} prechecks the monthly cap`, /aiUsageGet\(meter\.userId,\s*"project_memory"\)/.test(src) && /MONTHLY_CAPS\[meter\.tier\]/.test(src));
   ok(`${fn} enforces the hourly rate limit`, /rateLimitCount\(`pm:\$\{auth\.userId\}`\)/.test(src) && /PM_HOURLY_LIMIT/.test(src));
   // Review 2026-09-05: the pm: bucket was the last fail-OPEN limiter in the tree.
   // It now fails CLOSED with the exact post-increment `>=` shape every other
@@ -132,11 +132,14 @@ for (const fn of ['project-memory-embed', 'project-memory-search']) {
     /if \(rl < 0\) return json\(\{[^}]*code: "rate_limiter_unavailable" \}, 503\);/.test(src) && /if \(rl - 1 >= PM_HOURLY_LIMIT\) \{/.test(src) && !/if \(rl > PM_HOURLY_LIMIT\)/.test(src));
 }
 // embed charges PER DOC (docs.length); search charges 1 (single query).
+// #161 · Plan-sheet requests are metered on the PROJECT OWNER (`meter`), so an
+// invited collaborator's Ask Your Plans draws on the GC's Business caps; the
+// caller's own hourly `pm:` bucket (auth.userId) is unchanged.
 const embedSrc = read('supabase/functions/project-memory-embed/index.ts');
-ok('embed charges per-doc (docs.length)', /aiUsageIncrement\(auth\.userId,\s*"project_memory",\s*docs\.length\)/.test(embedSrc));
-ok('embed charges before the DB upsert', embedSrc.indexOf('aiUsageIncrement(auth.userId, "project_memory", docs.length)') < embedSrc.indexOf('memory_embeddings?on_conflict'));
+ok('embed charges per-doc (docs.length)', /aiUsageIncrement\(meter\.userId,\s*"project_memory",\s*docs\.length\)/.test(embedSrc));
+ok('embed charges before the DB upsert', embedSrc.indexOf('aiUsageIncrement(meter.userId, "project_memory", docs.length)') < embedSrc.indexOf('memory_embeddings?on_conflict'));
 const searchSrc = read('supabase/functions/project-memory-search/index.ts');
-ok('search charges per-call (1)', /aiUsageIncrement\(auth\.userId,\s*"project_memory",\s*1\)/.test(searchSrc));
+ok('search charges per-call (1)', /aiUsageIncrement\(meter\.userId,\s*"project_memory",\s*1\)/.test(searchSrc));
 
 // ── 4. public-lead-intake: per-IP + per-slug rate limit ───────────────────────
 const lead = read('supabase/functions/public-lead-intake/index.ts');
@@ -449,7 +452,7 @@ ok('the Gemini sweep reaches the helper-based callers (project-memory-embed, pro
 ok('every Gemini caller (direct or via _shared/embeddings.ts) is bounded', geminiCallers.every((fn) => timedNames.has(fn) || !directGeminiCallers.includes(fn)), geminiCallers.filter((fn) => !(timedNames.has(fn) || !directGeminiCallers.includes(fn))).join(', '));
 for (const fn of ['plan-extract', 'analyze-plan-code']) {
   const src = read(`supabase/functions/${fn}/index.ts`);
-  ok(`${fn} never echoes upstream status text or raw model output (AI-F16)`, !/error: String\(\(e as Error\)\.message \?\? e\)/.test(src) && !/Raw: \$\{raw/.test(src) && /Internal error — please try again\./.test(src) && /if \(e\.spent\) await aiUsageIncrement\(auth\.userId/.test(src));
+  ok(`${fn} never echoes upstream status text or raw model output (AI-F16)`, !/error: String\(\(e as Error\)\.message \?\? e\)/.test(src) && !/Raw: \$\{raw/.test(src) && /Internal error — please try again\./.test(src) && /if \(e\.spent\) await aiUsageIncrement\((auth|meter)\.userId/.test(src));
 }
 ok('_shared/embeddings.ts bounds its upstream fetch', /new AbortController\(\)/.test(read('supabase/functions/_shared/embeddings.ts')) && /signal: ac\.signal/.test(read('supabase/functions/_shared/embeddings.ts')));
 const pah = read('supabase/functions/portal-ask-home/index.ts');

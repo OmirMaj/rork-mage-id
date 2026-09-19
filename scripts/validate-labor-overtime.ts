@@ -19,6 +19,14 @@
 //   • the per-GC multiplier lives in hooks/useLaborRates under a mageid_ key
 //     (so it is tenant-wiped) and reaches useLaborCostSamples (source-level)
 //
+// #65 (wave 3): WHICH hours are overtime is no longer the per-shift number
+// stored on the row — utils/overtime allocates it per worker per day / week
+// under the GC's rule (default federal weekly >40). A lone 10-hour day is NOT
+// overtime under that default, so the pricing assertions below run under a
+// daily >8 rule (DAILY8) where the same 10h day carries 2h OT — the pricing
+// arithmetic MONEY-F19 pins is unchanged. validate-labor-cost-overtime pins
+// the allocation itself.
+//
 // Run via: bun run scripts/validate-labor-overtime.ts
 
 import {
@@ -28,6 +36,7 @@ import {
 import { computeJobCost } from '../utils/jobCostEngine';
 import { buildCostDatabase, lookupRate } from '../utils/costDatabase';
 import type { Project, TimeEntry } from '../types';
+import type { OvertimeRule } from '../utils/overtime';
 // fileURLToPath + join because the repo path contains a space.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +65,7 @@ function entry(over: Partial<TimeEntry>): TimeEntry {
   };
 }
 const RATE = 50;
+const DAILY8: OvertimeRule = { weeklyThreshold: 40, dailyThreshold: 8, weekStartsOn: 1 };
 const tenHourDay = entry({});
 const eightHourDay = entry({ id: 'e2', clockOut: '2026-07-20T16:00:00.000Z', totalHours: 8, overtimeHours: 0 });
 
@@ -86,7 +96,7 @@ expect('priceLaborEntry applies the same sanity', priceLaborEntry(tenHourDay, RA
 // ── 3. the job-cost engine books the priced cost ───────────────────────────
 {
   const project = { id: 'p1', name: 'Henderson Remodel' } as unknown as Project;
-  const base = { project, commitments: [], invoices: [], changeOrders: [], laborRates: { framing: RATE } };
+  const base = { project, commitments: [], invoices: [], changeOrders: [], laborRates: { framing: RATE }, overtimeRule: DAILY8 };
   const labor = (s: ReturnType<typeof computeJobCost>) => s.byPhase.find(l => l.phase === 'Self-perform labor');
 
   expect('Job Costing books a 10h day at $550 (audit worked example)',
@@ -96,24 +106,30 @@ expect('priceLaborEntry applies the same sanity', priceLaborEntry(tenHourDay, RA
     labor(computeJobCost({ ...base, timeEntries: [tenHourDay], overtimeMultiplier: 1 }))?.actual, 500);
   expect('an 8h day is byte-identical to the pre-fix engine',
     labor(computeJobCost({ ...base, timeEntries: [eightHourDay] }))?.actual, 400);
-  expect('a week of 8h + 10h books $950', computeJobCost({ ...base, timeEntries: [eightHourDay, tenHourDay] }).actual, 950);
+  const monday = entry({ id: 'e3', clockIn: '2026-07-21T08:00:00.000Z', clockOut: '2026-07-21T16:00:00.000Z', totalHours: 8, overtimeHours: 0, date: '2026-07-21' });
+  expect('a week of 8h + 10h books $950', computeJobCost({ ...base, timeEntries: [monday, tenHourDay] }).actual, 950);
+  expect('under the federal default a lone 10h day is straight time ($500)',
+    computeJobCost({ ...base, overtimeRule: undefined, timeEntries: [tenHourDay] }).actual, 500);
 }
 
 // ── 4. the learned labor sample is the priced cost ─────────────────────────
 {
-  const [s] = buildLaborSamples([tenHourDay], { framing: RATE });
+  const [s] = buildLaborSamples([tenHourDay], { framing: RATE }, undefined, DAILY8);
   expect('a 10h OT day learns quantity = 10 hours', s.quantity, 10);
   expect('…and actualUnit = $55/hr — the rate the crew actually cost', s.actualUnit, 55);
   expect('a straight-time day still learns exactly the configured rate',
-    buildLaborSamples([eightHourDay], { framing: RATE })[0].actualUnit, RATE);
-  const [wk] = buildLaborSamples([eightHourDay, tenHourDay], { framing: RATE });
+    buildLaborSamples([eightHourDay], { framing: RATE }, undefined, DAILY8)[0].actualUnit, RATE);
+  // Different days, so the daily rule sees 8h then 10h (the pre-#65 fixture
+  // put both on the 20th, where they are ONE 18-hour day under a daily rule).
+  const monday = entry({ id: 'e3', clockIn: '2026-07-21T08:00:00.000Z', clockOut: '2026-07-21T16:00:00.000Z', totalHours: 8, overtimeHours: 0, date: '2026-07-21' });
+  const [wk] = buildLaborSamples([monday, tenHourDay], { framing: RATE }, undefined, DAILY8);
   expect('a week of 8h + 10h aggregates 18 hours', wk.quantity, 18);
   ok('…at an effective rate whose hours × rate reproduces the $950 priced cost',
     Math.abs(wk.quantity * wk.actualUnit - 950) < 0.01, `got ${wk.quantity * wk.actualUnit}`);
   expect('a 1× GC learns the configured rate even on OT days',
-    buildLaborSamples([tenHourDay], { framing: RATE }, 1)[0].actualUnit, RATE);
+    buildLaborSamples([tenHourDay], { framing: RATE }, 1, DAILY8)[0].actualUnit, RATE);
 
-  const db = buildCostDatabase([], [], [], buildLaborSamples([eightHourDay, tenHourDay], { framing: RATE }));
+  const db = buildCostDatabase([], [], [], buildLaborSamples([monday, tenHourDay], { framing: RATE }, undefined, DAILY8));
   const e = lookupRate(db, 'Labor — Framing', 'hour');
   ok('the cost book totals the priced $950, not $900',
     e != null && Math.abs(e.totalActual - 950) < 0.01, `got ${e?.totalActual}`);
@@ -126,8 +142,8 @@ expect('priceLaborEntry applies the same sanity', priceLaborEntry(tenHourDay, RA
     /mageid_labor_overtime/.test(hook));
   ok('useLaborRates exposes overtimeMultiplier + setOvertimeMultiplier',
     /overtimeMultiplier/.test(hook) && /setOvertimeMultiplier/.test(hook));
-  ok('useLaborCostSamples threads the multiplier into buildLaborSamples',
-    /buildLaborSamples\(entries, rates, overtimeMultiplier\)/.test(hook));
+  ok('useLaborCostSamples threads the multiplier AND the rule into buildLaborSamples',
+    /buildLaborSamples\(entries, rates, overtimeMultiplier, overtimeRule\)/.test(hook));
   const engine = src('utils/jobCostEngine.ts');
   ok('the engine prices through priceLaborEntry, never totalHours × rate',
     /priceLaborEntry\(/.test(engine) && !/e\.totalHours \* rate/.test(engine));

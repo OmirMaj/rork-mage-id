@@ -11,11 +11,22 @@
  * `await supabase.from('x').select('*')` and
  * `await supabase.from('x').select('*').eq('id', 1).single()` resolve.
  *
- * Everything resolves EMPTY. The populated state comes from the fixture
- * hydrating AsyncStorage, not from here — the app is offline-first (see
- * utils/offlineQueue.ts) and reads local cache first, so seeding storage is
- * both simpler and closer to how a real cold start behaves.
+ * Almost everything resolves EMPTY. The populated state is seeded by the
+ * fixture into AsyncStorage (the device cache every context hydrates from).
+ *
+ * The exception is SERVER_MIRROR below. Wave 3 (#112/#90/#23) made a successful
+ * zero-row SELECT answered to the user's live bearer the server's answer: it
+ * replaces the device cache, keeping only rows still in the offline queue. So a
+ * mock that says "the server holds nothing" while the fixture says "the device
+ * holds a synced RFI" is no longer a populated account — it is an account whose
+ * rows were all deleted elsewhere, and the loaders (correctly) clear them. For
+ * the child lists the fixture seeds, an unfiltered list SELECT therefore answers
+ * with what the synced device cache holds, as a real cold start would: the
+ * server and the cache agree. Read at query time, so a test that overrides a
+ * key after primeWorld (or the empty world, which seeds none) carries through.
  */
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type QueryResult = { data: unknown; error: null; count: number | null; status: number; statusText: string };
 
@@ -30,12 +41,54 @@ const emptyResult = (): QueryResult => ({
 const emptyListResult = (): QueryResult => ({ ...emptyResult(), data: [] });
 
 /**
+ * Tables whose unfiltered list SELECT mirrors the device cache key the fixture
+ * seeds. `projects` is left out on purpose: its loader has its own two-read
+ * revocation guard and already keeps the cache on an empty answer.
+ */
+const SERVER_MIRROR: Record<string, string> = {
+  commitments: 'mageid_commitments',
+  rfis: 'mageid_rfis',
+  permits: 'mageid_permits',
+  punch_items: 'mageid_punch_items',
+  daily_reports: 'mageid_daily_reports',
+};
+
+/** Shallow camelCase -> snake_case key rename: the server shape of a cached row. */
+const toServerRow = (row: unknown): unknown => {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
+    out[k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)] = v;
+  }
+  return out;
+};
+
+async function mirroredRows(table: string): Promise<unknown[]> {
+  const key = SERVER_MIRROR[table];
+  if (!key) return [];
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(toServerRow) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * A postgrest-like builder. Every unknown method returns `this` so arbitrary
  * chains work; the terminal shape is decided by which of select/insert/... was
  * called and whether `.single()`/`.maybeSingle()` narrowed it.
  */
-function makeBuilder(): any {
+function makeBuilder(table?: string): any {
   let resolvesToList = true;
+  // Only a plain `.select(...)` list read (ordering allowed) mirrors the cache;
+  // a write or any filter keeps the empty answer.
+  let isSelect = false;
+  let isWrite = false;
+  let filtered = false;
+  const READ_ONLY_CHAIN = new Set(['select', 'order', 'limit', 'range', 'returns']);
+  const WRITES = new Set(['insert', 'update', 'upsert', 'delete']);
   // Forward-declared so every chainable method can return the PROXY, not the
   // bare target. Returning the target was a real bug caught by the Stage-2
   // probe: `.from('projects').select('*')` worked but `.order(...)` on the
@@ -45,6 +98,11 @@ function makeBuilder(): any {
 
   const builder: any = {
     then(onFulfilled: (v: QueryResult) => unknown, onRejected?: (e: unknown) => unknown) {
+      if (resolvesToList && isSelect && !isWrite && !filtered && table && SERVER_MIRROR[table]) {
+        return mirroredRows(table)
+          .then((rows): QueryResult => ({ ...emptyListResult(), data: rows, count: rows.length }))
+          .then(onFulfilled, onRejected);
+      }
       const result = resolvesToList ? emptyListResult() : emptyResult();
       return Promise.resolve(result).then(onFulfilled, onRejected);
     },
@@ -80,6 +138,9 @@ function makeBuilder(): any {
     get(target, prop: string) {
       if (prop in target) return target[prop];
       if (typeof prop === 'symbol') return undefined;
+      if (prop === 'select') isSelect = true;
+      else if (WRITES.has(prop)) isWrite = true;
+      else if (!READ_ONLY_CHAIN.has(prop)) filtered = true;
       return () => proxy;
     },
   });
@@ -181,7 +242,7 @@ export const SUPABASE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
 export const isSupabaseConfigured = true;
 
 export const supabase: any = {
-  from: () => makeBuilder(),
+  from: (table?: string) => makeBuilder(table),
   rpc: () => makeBuilder(),
   schema: () => ({ from: () => makeBuilder(), rpc: () => makeBuilder() }),
   auth: authMock,

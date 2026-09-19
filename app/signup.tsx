@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { INVITE_PARAM, postSignInHref } from '@/utils/deepLinksInvite';
+import { INVITE_PARAM, postSignInHref, sanitizeInviteToken } from '@/utils/deepLinksInvite';
 
 export default function SignupScreen() {
   const { colors: themeColors } = useTheme();
@@ -39,7 +39,15 @@ export default function SignupScreen() {
   // card picks the invite up then.
   const inviteParams = useLocalSearchParams<{ [INVITE_PARAM]?: string }>();
   const inviteToken = inviteParams[INVITE_PARAM];
-  const { signup, signInWithGoogle, signInWithApple } = useAuth();
+  const { signup, signInWithGoogle, signInWithApple, isAuthenticated, isLoading: authLoading } = useAuth();
+  // #93: same restored-session check as login.tsx — the root gate leaves an
+  // authenticated user on an invite-bearing /signup to this screen.
+  const restoredCheckedRef = useRef(false);
+  useEffect(() => {
+    if (authLoading || restoredCheckedRef.current) return;
+    restoredCheckedRef.current = true;
+    if (isAuthenticated && sanitizeInviteToken(inviteToken)) router.replace(postSignInHref(inviteToken, '/(tabs)/(home)') as never);
+  }, [authLoading, isAuthenticated, inviteToken, router]);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -71,7 +79,10 @@ export default function SignupScreen() {
     setIsGoogleLoading(true);
     setErrorMessage('');
     try {
-      await signInWithGoogle();
+      // #159: false = he closed the Google sheet. Stay on Sign-up — a
+      // navigation with no session was bounced to Login by the root gate.
+      const signedIn = await signInWithGoogle();
+      if (!signedIn) return;
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -87,7 +98,10 @@ export default function SignupScreen() {
     setIsAppleLoading(true);
     setErrorMessage('');
     try {
-      await signInWithApple();
+      // #159: false = he closed the Apple sheet. Stay on Sign-up — a
+      // navigation with no session was bounced to Login by the root gate.
+      const signedIn = await signInWithApple();
+      if (!signedIn) return;
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }

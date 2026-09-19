@@ -46,11 +46,11 @@ const MS_DAY = 24 * 60 * 60 * 1000;
 /**
  * Whether a day pack means anything on this platform.
  *
- * expo-image's WEB prefetch creates an <img> and relies on the browser HTTP
- * cache; there is no disk guarantee to stand behind the words "Saved for
- * offline". Rather than hold a weaker claim for the same eight hours, the web
- * build warms nothing and states nothing — an absent line is honest, a
- * borrowed one is not.
+ * The pack saves sheets as files in the app's documents directory
+ * (utils/planSheetLocalFiles, audit #80); the web build has no such directory
+ * and no disk guarantee to stand behind the words "Saved for offline". Rather
+ * than hold a weaker claim, the web build warms nothing and states nothing —
+ * an absent line is honest, a borrowed one is not.
  */
 export const DAY_PACK_PLATFORM_SUPPORTED = Platform.OS !== 'web';
 
@@ -85,7 +85,9 @@ export function buildDayPackCandidates(
     const p = byId.get(id);
     if (!p) return [];
     const sheets = planSheets
-      .filter((s) => s.projectId === id)
+      // A superseded revision is not what he builds from today — spending the
+      // pack's budget on it would leave a current sheet unsaved.
+      .filter((s) => s.projectId === id && !s.superseded)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     if (sheets.length === 0) return [];
     return [{ projectId: id, projectName: p.name, sheetUris: sheets.map((s) => s.imageUri) }];
@@ -102,12 +104,8 @@ export function buildDayPackCandidates(
  * why the spacing is three hours.
  *
  * NATIVE ONLY — see DAY_PACK_PLATFORM_SUPPORTED. The copy this warm produces
- * says "Saved for offline", and on web expo-image's prefetch
- * (node_modules/expo-image/src/ImageModule.web.ts) only constructs an <img> and
- * leaves the bytes to the browser's own HTTP cache: evictable at any moment, no
- * disk guarantee, and dependent on response headers we do not control. That is
- * a materially weaker thing than the native disk cache the sentence was written
- * for, so we neither warm nor claim it.
+ * says "Saved for offline", which is true only where the sheets land as files
+ * the viewer renders; the web has nowhere to put them.
  */
 export function useFieldDayPackWarmer(projects: Project[], planSheets: PlanSheet[]): void {
   // Read through refs so a re-render of ProjectContext (which happens on every

@@ -348,7 +348,11 @@ ok('handleTourSample completes onboarding so the user is not looped back',
 // picked the sample tour could see the sample and nothing else, ever. Replace
 // onto the tab shell FIRST, then push the job on top of it.
 const replaceIdx = tour.indexOf("router.replace('/(tabs)/(home)'");
-const pushIdx = tour.indexOf('router.push({ pathname: \'/project-detail\'');
+// team-invites #93: a stashed invite deep link replayed after onboarding wins
+// over the sample job, but it is still PUSHED on top of the tab shell — the
+// ordering invariant is unchanged, only the push target gained a `replayTarget ??`.
+const pushMatch = /router\.push\(\(?(?:replayTarget \?\? )?\{ pathname: '\/project-detail'/.exec(tour);
+const pushIdx = pushMatch ? pushMatch.index : -1;
 ok('the sample tour lands on the tab shell, not on a stack of one',
   replaceIdx >= 0, 'replace onto /(tabs)/(home) is what gives Back something to pop to');
 ok('…and opens the sample job on top of it',
@@ -851,7 +855,7 @@ console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he ch
   const quickHtmlCode = stripComments(quickHtml);
   ok('…its rows come from paymentStageRows on the estimate total',
     /paymentStageRows\(result\.total, split\)/.test(quickHtmlCode)
-    && /stageRows\.map\(/.test(quickHtmlCode) && /\$\{fmtMoney\(r\.amount\)\}/.test(quickHtmlCode),
+    && /stageRows\.map\(/.test(quickHtmlCode) && /\$\{fmtMoney\(r\.amount(, \{ decimals: 2 \})?\)\}/.test(quickHtmlCode),
     'a second amount function on the PDF is how the printed deposit and the billed deposit drift apart');
   ok('…and its closing sentence from acceptanceSentence(split)',
     /acceptanceSentence\(split\)/.test(quickHtmlCode));
@@ -872,7 +876,7 @@ console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he ch
   // The wizard preview.
   ok('the preview reads his split through useSavedPaymentTerms and prints paymentStageRows',
     /const savedTerms = useSavedPaymentTerms\(\);/.test(wizardCode)
-    && /const previewSplit = savedTerms\.split;/.test(wizardCode)
+    && /const previewSplit = jobStamp \?\? savedTerms\.split;/.test(wizardCode) && /const jobStamp = useMemo<PaymentSplit \| null>\(\s*\(\) => \(projectId \? resolvePaymentSplit\(\{ record: scopedProject\?\.clientPortal\?\.proposalPaymentTerms \}\)\.split : null\)/.test(wizardCode)
     && /previewSplit \? paymentStageRows\(result\.total, previewSplit\) : \[\]/.test(wizardCode));
   const cardStart = wizardCode.indexOf('testID="wizard-payment-terms"');
   const cardEnd = wizardCode.indexOf('testID="wizard-payment-terms-set"', cardStart);

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -44,11 +45,72 @@ interface ApprovalRow {
   project_id: string | null;
 }
 
-// The audit entry id doubles as the idempotence key for an approval row, so it
-// has to be derived from the row and nothing else. Kept as a named helper so
-// the writer and the "have we already applied this?" reader cannot drift.
-function portalAuditEntryId(approvalId: string): string {
-  return `audit-portal-${approvalId.slice(0, 8)}`;
+/**
+ * Merge the server's audit trail with this device's, by entry id (#40).
+ * Server entries first, in their order — the sealed e-signature entry the
+ * portal RPC appended lives only there — then any local entry the server has
+ * not got yet. Before this, the reconciler built the trail from the stale
+ * LOCAL copy and updateChangeOrder wrote the whole column back, so the client's
+ * sealed signature entry was deleted within 90 seconds of them signing.
+ * Pure; scripts/validate-client-portal-lane.ts lifts and runs it.
+ */
+export function mergeAuditTrails(server: COAuditEntry[], local: COAuditEntry[]): COAuditEntry[] {
+  const out: COAuditEntry[] = [];
+  const seen = new Set<string>();
+  for (const e of [...server, ...local]) {
+    if (!e || typeof e.id !== 'string' || seen.has(e.id)) continue;
+    seen.add(e.id);
+    out.push(e);
+  }
+  return out;
+}
+
+/**
+ * What one approval row does to its change order. Pure; the validator runs it.
+ *
+ *  - ONE key says "this row has been folded in": our entry, audit-portal-<id8>.
+ *    It is written on the FIRST pass for the row, whatever the CO's status —
+ *    so a GC who reverted a client-approved CO is not re-flipped 90 s later,
+ *    and a client's decline reason reaches the CO even when he had already
+ *    marked it rejected himself (#125: that case used to write nothing).
+ *  - The SEALED entry the signed RPC appended (id === the approval row's id)
+ *    already records the client's decision, signer and record hash. Beside it,
+ *    our entry records only what the app did — "status set" / "already" — not
+ *    a second copy of the decision (#40).
+ *  - Status flips only on that first pass, and only if it differs.
+ */
+export function planPortalApproval(
+  row: { id: string; decision: 'approved' | 'declined'; signer_name: string | null; signer_email: string | null; note: string | null; created_at: string },
+  coStatus: string | undefined,
+  trail: COAuditEntry[],
+): { entry: COAuditEntry | null; status: 'approved' | 'rejected' | null } {
+  // The idempotence key, derived from the approval row and nothing else.
+  const key = `audit-portal-${row.id.slice(0, 8)}`;
+  const alreadyApplied = trail.some(e => e.id === key);
+  if (alreadyApplied) return { entry: null, status: null };
+  const wanted = row.decision === 'approved' ? 'approved' : 'rejected';
+  const flips = coStatus !== wanted;
+  const sealed = trail.some(e => e.id === row.id);
+  const actor = row.signer_name || row.signer_email || 'client';
+  const statusWord = wanted === 'approved' ? 'Approved' : 'Rejected';
+  const entry: COAuditEntry = sealed
+    ? {
+        id: key,
+        action: 'portal_decision_applied',
+        actor: 'MAGE ID',
+        timestamp: row.created_at,
+        detail: flips
+          ? `Status set to ${statusWord} from the client's signed portal decision.`
+          : `Client's signed portal decision recorded; status was already ${statusWord}.`,
+      }
+    : {
+        id: key,
+        action: row.decision === 'approved' ? 'approved_via_portal' : 'declined_via_portal',
+        actor,
+        timestamp: row.created_at,
+        detail: row.note ? `Note: ${row.note}` : undefined,
+      };
+  return { entry, status: flips ? wanted : null };
 }
 
 // `.select('id')` is load-bearing, not decoration. Without a returning clause
@@ -78,6 +140,7 @@ async function stampSynced(approvalId: string): Promise<boolean> {
 export function usePortalApprovalReconciler(): void {
   const { user } = useAuth();
   const { changeOrders, updateChangeOrder } = useProjects();
+  const queryClient = useQueryClient();
   const reconcilingRef = useRef(false);
 
   useEffect(() => {
@@ -96,72 +159,75 @@ export function usePortalApprovalReconciler(): void {
           .limit(50);
         if (cancelled || error || !data || data.length === 0) return;
 
-        // updateChangeOrder replaces auditTrail wholesale and `changeOrders` is
-        // a stale closure for the rest of this pass, so two approvals for the
-        // same CO in one batch used to build the second trail from the pre-flip
-        // array and silently drop the first entry. Carry the merged trail
-        // forward instead.
+        // `changeOrders` is a stale closure for the rest of this pass, so the
+        // trail each CO ends the pass with is carried forward here — two
+        // approvals for one CO in a batch must not build the second from the
+        // pre-pass copy.
         const pendingTrails = new Map<string, COAuditEntry[]>();
+        const pendingStatus = new Map<string, string | undefined>();
+        let touched = false;
 
         for (const row of data as ApprovalRow[]) {
-          // OWNERSHIP (2026-09-13). `changeOrders` is the TENANT-WIDE list from
-          // ProjectContext, so matching on change_order_id alone flipped a
-          // change order to `approved` on the strength of an approval row
-          // recorded against a DIFFERENT project. That is exploitable: until
-          // the held migration lands, portal_submit_co_approval(_signed) insert
-          // a row for whatever p_change_order_id the caller sends, having
-          // verified only that the token is good for SOME project — so a
-          // link-holder for one small job, holding a change-order id from a
-          // bigger job at the same contractor, could get it approved here.
-          //
-          // The server side is closed in
-          // supabase/migrations/held/20260913120000_portal_proposal_acceptance.sql
-          // (section 3), but this is the layer that DECIDES, it is unfixed by
-          // that migration, and rows written before it is applied are still
-          // sitting in the table waiting for this loop. So compare the project
-          // too. `project_id` is nullable for historical rows: a null is
-          // tolerated (there is nothing to compare), a MISMATCH is not.
+          // OWNERSHIP (2026-09-13). `changeOrders` is the TENANT-WIDE list, so
+          // matching on change_order_id alone flipped a CO on the strength of
+          // an approval recorded against a DIFFERENT project. `project_id` is
+          // nullable for historical rows: null is tolerated, a MISMATCH is not.
+          // (Migration 20260919030000 also refuses the foreign id server-side.)
           const co = changeOrders.find(c =>
             c.id === row.change_order_id
             && (!row.project_id || c.projectId === row.project_id));
           if (!co) continue;
-          const trail = pendingTrails.get(co.id) ?? co.auditTrail ?? [];
-          const auditEntryId = portalAuditEntryId(row.id);
-          // Idempotence key, derived from the approval row rather than from the
-          // stamp, so it still holds when the stamp fails or the device is
-          // offline and the row comes back on the next poll. Without it a GC
-          // who deliberately reverted a client-approved CO (the client phoned
-          // and changed their mind) had it re-flipped to 'approved' within 90
-          // seconds with another copy of the same audit entry appended each
-          // time, and could not undo a portal approval at all.
-          const alreadyApplied = trail.some(e => e.id === auditEntryId);
-          // Only reconcile if the local status is something we'd flip from. If
-          // the GC already changed it (e.g. revoked), don't clobber that — but
-          // still stamp the approval so we don't keep retrying.
-          const wantedStatus = row.decision === 'approved' ? 'approved' : 'rejected';
-          if (!alreadyApplied && co.status !== wantedStatus) {
-            const auditEntry: COAuditEntry = {
-              id: auditEntryId,
-              action: row.decision === 'approved' ? 'approved_via_portal' : 'declined_via_portal',
-              actor: row.signer_name || row.signer_email || 'client',
-              timestamp: row.created_at,
-              detail: row.note ? `Note: ${row.note}` : undefined,
-            };
-            const auditTrail = [...trail, auditEntry];
+
+          // #40: read the CO's trail from the SERVER before
+          // writing. The signed RPC appends its sealed entry there and nowhere
+          // else; building from the local copy erased it. A failed read skips
+          // the row WITHOUT stamping it, so the next poll retries.
+          let trail = pendingTrails.get(co.id);
+          let status = pendingStatus.get(co.id);
+          if (!trail) {
+            const { data: fresh, error: freshErr } = await supabase
+              .from('change_orders')
+              .select('audit_trail')
+              .eq('id', co.id)
+              .maybeSingle();
+            if (cancelled) return;
+            if (freshErr || !fresh) {
+              console.log('[usePortalApprovalReconciler] fresh CO read failed; retrying next poll', co.id, freshErr?.message);
+              continue;
+            }
+            const serverTrail = Array.isArray(fresh.audit_trail) ? (fresh.audit_trail as COAuditEntry[]) : [];
+            trail = mergeAuditTrails(serverTrail, co.auditTrail ?? []);
+            // Status stays the APP's: an edit he made a moment ago may still
+            // be in the offline queue, and the server would not know it yet.
+            status = co.status;
+          }
+
+          const plan = planPortalApproval(row, status, trail);
+          if (plan.entry) {
+            const auditTrail = [...trail, plan.entry];
             pendingTrails.set(co.id, auditTrail);
+            if (plan.status) pendingStatus.set(co.id, plan.status);
+            else pendingStatus.set(co.id, status);
+            touched = true;
             // deferReflow: this loop runs from the root, often while he is
             // editing the job in Schedule Pro. A client's approval must not
-            // rewrite the schedule behind that screen (its next drag could
-            // overwrite the days while the CO says "applied"), and the CO
-            // screen promises nothing moves until he applies it. The CO gets
+            // rewrite the schedule behind that screen, and the CO screen
+            // promises nothing moves until he applies it (#37). The CO gets
             // the "place these days" marker; the project screen places them.
-            updateChangeOrder(co.id, { status: wantedStatus, auditTrail }, { deferReflow: true });
+            const wantedStatus = plan.status;
+            if (wantedStatus) updateChangeOrder(co.id, { status: wantedStatus, auditTrail }, { deferReflow: true });
+            else updateChangeOrder(co.id, { auditTrail }, { deferReflow: true });
+          } else {
+            pendingTrails.set(co.id, trail);
+            pendingStatus.set(co.id, status);
           }
-          // Mark synced regardless of whether we patched (idempotent). A false
-          // return means the row will come back next poll; the audit-entry
-          // check above is what keeps that retry from re-applying anything.
+          // Mark synced (idempotent). A false return means the row comes back
+          // next poll; the audit-portal key above keeps that retry a no-op.
           await stampSynced(row.id);
         }
+        // Pull the server's copy (the sealed entries, the status) into the
+        // app's list — the realtime listener only refetches on status.
+        if (touched) void queryClient.invalidateQueries({ queryKey: ['changeOrders'] });
       } catch (err) {
         console.log('[usePortalApprovalReconciler] reconcile failed', err);
       } finally {
@@ -172,5 +238,5 @@ export function usePortalApprovalReconciler(): void {
     void reconcileOnce();
     const interval = setInterval(reconcileOnce, POLL_INTERVAL_MS);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [user, changeOrders, updateChangeOrder]);
+  }, [user, changeOrders, updateChangeOrder, queryClient]);
 }

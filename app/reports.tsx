@@ -80,7 +80,7 @@ export default function ReportsScreen() {
   } = useProjects();
   const { receipts } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
   const { user } = useAuth();
   const userId = user?.id;
 
@@ -104,8 +104,8 @@ export default function ReportsScreen() {
   // screen cannot end up measuring against different costs — the failure this
   // module's header spends forty lines on, one level up.
   const costSources = useMemo(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits]);
   // THE COST TO COMPLETE THE GC TYPED ON /wip-report (axis 8, adversarial
   // review 2026-09-11). It is the input that stops an overrun job reporting
   // 100% complete, and for one day it reached the /wip-report engine ONLY: the

@@ -18,6 +18,7 @@ import { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ChangeOrder } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAutonomy } from '@/hooks/useAutonomy';
 import {
   collectDraftableLeaks,
@@ -50,6 +51,7 @@ export function useLeakCoDrafts(): void {
     projects, invoices, dailyReports, changeOrders, addChangeOrders,
   } = useProjects();
   const { leakGate, prefs, loading: autonomyLoading } = useAutonomy();
+  const { user } = useAuth();
 
   useEffect(() => {
     // Skip if autonomy hook is still loading (we'd gate on stale data).
@@ -77,6 +79,8 @@ export function useLeakCoDrafts(): void {
           projects,
           changeOrders,
           processedReportIds: processedSet,
+          // Owner-only drafting (rule 7 in collectDraftableLeaks).
+          userId: user?.id,
         });
 
         if (candidates.length === 0) return;

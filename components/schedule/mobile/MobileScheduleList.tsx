@@ -13,7 +13,7 @@ import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
-import { taskCalendarRange, taskWorkingDayLabel } from '@/utils/scheduleOps';
+import { scheduledTaskRange, scheduledWorkingDayLabel, type ScheduledPlacement } from '@/utils/scheduleOps';
 
 interface MobileScheduleListProps {
   tasks: ScheduleTask[];
@@ -32,6 +32,14 @@ interface MobileScheduleListProps {
    *  nonWorkingDates). Defaults to the app-wide 5-day week. */
   workingDaysPerWeek?: number;
   nonWorkingDates?: string[];
+  /**
+   * Where the ENGINE scheduled each task (runCpm es/ef on the scale each
+   * placement carries — MobileScheduleScreen's reportCpm). The row prints these, not the stored
+   * startDay: that is only the pin, and a predecessor that grew on the web
+   * pushes the task later without rewriting it (audit #51). A task with no
+   * placement falls back to its pin.
+   */
+  placements?: ReadonlyMap<string, ScheduledPlacement>;
   collapsedPhases: Record<string, boolean>;
   onTogglePhase: (phase: string) => void;
   onPressTask: (task: ScheduleTask) => void;
@@ -123,7 +131,7 @@ function SwipeRow({ done, onDone, onDelete, children }: { done: boolean; onDone:
 // ScrollView does not help, because RN hands it unbounded height and it mounts
 // every row anyway.
 export function MobileScheduleList({
-  tasks, startDate, workingDaysPerWeek, nonWorkingDates, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onUpdateTask, onDeleteTask,
+  tasks, startDate, workingDaysPerWeek, nonWorkingDates, placements, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onUpdateTask, onDeleteTask,
 }: MobileScheduleListProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -220,22 +228,23 @@ export function MobileScheduleList({
     // here made the two surfaces contradict (sim-audit #2).
     const isMilestone = !!t.isMilestone || (t.durationDays || 0) === 0;
     const dur = Math.max(1, t.durationDays || 1);
-    // startDay is 1-indexed (day 1 = schedule start) and counts WORKING days,
-    // matching the desktop + CPM engine — so the dates are walked with
-    // taskCalendarRange (addWorkingDays + site closures), the same resolver
-    // the desktop grid and CSV use. This used to be `baseMs + offset * MS_DAY`
-    // (B4 review A9 / item 2): a startDay-6 task on a Monday anchor printed
-    // the Saturday, and after the 2026-11-01 fall-back every label sat a
-    // day early because the 25-hour day floors to 23:00 the day before.
+    // The dates are the ENGINE's (CPM es/ef on the schedule calendar, the
+    // same numbers the web grid's Start column prints — GridPane renders
+    // cpmRow.es). Printing the stored startDay (the pin) kept Drywall on last
+    // week's dates after the GC lengthened Framing on the web, while the
+    // verdict above already showed the later finish (audit #51). With no
+    // placement the pin is walked with taskCalendarRange (addWorkingDays +
+    // site closures), never `baseMs + offset * MS_DAY` (B4 review A9).
     const done = t.status === 'done';
     const crit = !!t.isCriticalPath && !done;
     const pct = Math.min(100, t.progress ?? 0);
     let range: string;
+    const placement = placements?.get(t.id);
     if (base) {
-      const { start, end } = taskCalendarRange(t, base, workingDaysPerWeek, nonWorkingDates);
+      const { start, end } = scheduledTaskRange(t, placement, base, workingDaysPerWeek, nonWorkingDates);
       range = fmt(start) === fmt(end) ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
     } else {
-      range = taskWorkingDayLabel(t);
+      range = scheduledWorkingDayLabel(t, placement);
     }
     const crew = (t.crew || t.assignedSubName || '').trim();
     return (
@@ -263,7 +272,7 @@ export function MobileScheduleList({
         </SwipeRow>
       </View>
     );
-  }, [styles, colors, base, workingDaysPerWeek, nonWorkingDates, onTogglePhase, onPressTask, markDone, confirmDelete]);
+  }, [styles, colors, base, workingDaysPerWeek, nonWorkingDates, placements, onTogglePhase, onPressTask, markDone, confirmDelete]);
 
   const footer = (
     <TouchableOpacity

@@ -17,9 +17,14 @@ export interface LedgerEntry {
   /** Dollars. Negative for refunds and lost disputes. */
   amount: number;
   method?: string;
-  /** What app/invoice.tsx renders in the payment history (`new Date(p.date)`). */
+  /** The instant the entry was recorded (legacy display field). */
   date?: string;
   receivedAt?: string;
+  /** The bare local 'YYYY-MM-DD' day the GC says the money arrived
+   *  (utils/billingFlowCore paymentReceivedDay, billing-contract #133). A
+   *  backdated cheque carries its real day here while `date` is when it was
+   *  keyed in. */
+  receivedDate?: string;
   reference?: string;
   notes?: string;
   /** Lets charge.refunded / charge.dispute.* find the invoice by PaymentIntent. */

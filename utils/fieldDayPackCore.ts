@@ -40,14 +40,25 @@
 // 1–3 MB, so the ceiling is roughly 16–48 MB per warm, and a warm is allowed at
 // most once every WARM_MIN_INTERVAL_MS.
 //
+// ── Where the bytes live (audit #80) ────────────────────────────────────────
+// The pack used to warm expo-image's disk cache while the plan viewer and the
+// Plans list render with react-native's <Image>, which never reads that cache
+// — so "Saved for offline: 8 sheets" covered nothing the super could open in
+// the basement, and after a cold start offline a sheet's imageUri is a bare
+// storage path that nothing can fetch. Now the warm DOWNLOADS each sheet into
+// a per-user folder in the app's documents directory (utils/planSheetLocalFiles)
+// and records storagePath → file in a `mageid_`-prefixed map; the viewer and
+// the list render that file when it exists. A sheet counts only when its file
+// landed with bytes in it.
+//
 // ── Eviction, stated honestly ───────────────────────────────────────────────
-// We do NOT evict bytes. expo-image owns the disk cache and exposes only an
-// all-or-nothing `clearDiskCache()`; there is no per-URL removal. What is
-// bounded is INTAKE (the budget above) and the RECORD (one entry, overwritten
-// each warm). Beyond that we rely on expo-image's own LRU. `evictDayPackRecord`
-// below prunes the record's project list to what is still in scope so the UI
-// never claims coverage for a job that has left the horizon — that is a claim
-// being retracted, not bytes being freed, and the naming says so.
+// Each warm keeps the files for the sheets it allocated and deletes the rest of
+// this user's folder, and deletes any OTHER user's folder outright (a tenant
+// switch on a shared phone). What is bounded is INTAKE (the budget above), the
+// FILES (one pack's worth) and the RECORD (one entry, overwritten each warm).
+// `evictDayPackRecord` below prunes the record's project list to what is still
+// in scope so the UI never claims coverage for a job that has left the
+// horizon.
 
 /** Projects considered for a pack. Today + tomorrow: a super who loses signal
  *  in a basement this afternoon is often still out there tomorrow morning, and
@@ -72,15 +83,14 @@ export const WARM_MIN_INTERVAL_MS = 3 * 60 * 60 * 1000;
 export const DAY_PACK_STALE_AFTER_MS = 8 * 60 * 60 * 1000;
 
 /**
- * Past this age the WARMED BYTES ARE UNREACHABLE, not merely old.
+ * Past this age the pack no longer claims coverage.
  *
- * A Storage-backed plan sheet's `imageUri` is a SIGNED url with a 24 h TTL
- * (utils/planSheetUrls.PLAN_SHEET_URL_TTL_SECONDS), and expo-image's cache is
- * keyed by URL. When ProjectContext re-mints those urls on the next app open,
- * the token changes, the cache key changes, and every byte this pack warmed
- * becomes an orphan nobody will ever request again. Saying "ready offline"
- * about that is a lie, so past this age the pack reports `expired` and the UI
- * must not claim coverage.
+ * The files themselves outlive it (they are keyed by storage path, not by a
+ * 24 h signed url, so a re-mint no longer orphans them), but a day-old copy of
+ * a drawing set is one an ASI may have replaced, and a pack that has not been
+ * refreshed in a day means the phone has not had signal to check. Past this
+ * age the pack reports `expired` and the UI says "reconnect to refresh" rather
+ * than "ready" — the conservative side of the claim.
  */
 export const DAY_PACK_EXPIRES_AFTER_MS = 24 * 60 * 60 * 1000;
 
@@ -476,4 +486,72 @@ export function parseDayPackRecord(raw: string | null | undefined): DayPackRecor
     sheetsWarmed: projects.reduce((n, p) => n + p.sheetsWarmed, 0),
     truncated: v.truncated === true,
   };
+}
+
+
+// ── #80 The on-device sheet files ───────────────────────────────────────────
+
+/** storagePath → the file the warm downloaded, for ONE user. Persisted under a
+ *  `mageid_` key so AuthContext's tenant sweep drops it on an account switch. */
+export interface PlanSheetFileMap {
+  userId: string;
+  files: Record<string, { uri: string; savedAt: number }>;
+}
+
+/** Tolerant parse: an unrecognised shape is treated as no files, never as
+ *  coverage. */
+export function parsePlanSheetFileMap(raw: string | null | undefined): PlanSheetFileMap | null {
+  if (!raw) return null;
+  let v: unknown;
+  try { v = JSON.parse(raw); } catch { return null; }
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  if (typeof r.userId !== 'string' || !r.userId) return null;
+  const files: PlanSheetFileMap['files'] = {};
+  if (r.files && typeof r.files === 'object') {
+    for (const [path, entry] of Object.entries(r.files as Record<string, unknown>)) {
+      const e = entry as { uri?: unknown; savedAt?: unknown } | null;
+      if (!path || !e || typeof e.uri !== 'string' || !/^file:\/\//i.test(e.uri)) continue;
+      files[path] = { uri: e.uri, savedAt: typeof e.savedAt === 'number' && Number.isFinite(e.savedAt) ? e.savedAt : 0 };
+    }
+  }
+  return { userId: r.userId, files };
+}
+
+/**
+ * The local file to render for a sheet, or null. Only THIS session's map
+ * answers: a map another account wrote on this phone is never used, even for
+ * the moment between a tenant switch and the sweep.
+ */
+export function localSheetFileFor(
+  map: PlanSheetFileMap | null | undefined,
+  sessionUserId: string | null | undefined,
+  storagePath: string | null | undefined,
+): string | null {
+  if (!map || !sessionUserId || map.userId !== sessionUserId) return null;
+  const key = (storagePath ?? '').trim();
+  if (!key) return null;
+  return map.files[key]?.uri ?? null;
+}
+
+/** A stable, filesystem-safe name for a storage path (the path itself has
+ *  slashes and a project uuid). The extension is kept so the image decoder
+ *  gets a hint. */
+export function planSheetFileName(storagePath: string, hash: (s: string) => string): string {
+  const ext = /\.(png|jpe?g|webp)$/i.exec(storagePath)?.[1]?.toLowerCase() ?? 'png';
+  return `${hash(storagePath)}.${ext}`;
+}
+
+/** Which of this user's files survive a warm: the sheets this pack allocated
+ *  (landed now, or kept from an earlier warm whose file still exists). Anything
+ *  else is deleted, so the folder never grows past one pack. */
+export function filesToKeep(
+  map: PlanSheetFileMap | null,
+  userId: string,
+  allocatedPaths: readonly string[],
+): PlanSheetFileMap {
+  const keep: PlanSheetFileMap['files'] = {};
+  const prior = map && map.userId === userId ? map.files : {};
+  for (const p of allocatedPaths) if (prior[p]) keep[p] = prior[p];
+  return { userId, files: keep };
 }

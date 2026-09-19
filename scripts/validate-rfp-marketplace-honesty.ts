@@ -295,6 +295,15 @@ const OVERCLAIMS: [RegExp, string][] = [
   [/street address stays private|address kept private|full address shared after/i, 'a private street address'],
   [/real bids in\s*days|days, not\s*months/i, 'bids within days'],
   [/see exactly who your post reached/i, 'seeing who the post reached (it shows a count)'],
+  // Leftovers review: the post screen requires a photo (post-rfp.tsx
+  // finalValidate) — that is the anti-troll rule. Address verification is an
+  // optional Verify button that never runs on web, and posting proceeds
+  // without it, so the page may not call the address "auto-verified".
+  [/address is auto-verified|auto-verified to keep/i, 'an auto-verified address'],
+  // Pay-per-post and the homeowner tiers are built and only switched off for
+  // 1.0 (ClientPaywall RFP_PAID_POST_ENABLED / CLIENT_SUBS_ENABLED), so "no
+  // fees to homeowners, ever" is a promise the code already plans to break.
+  [/no fees to homeowners,?\s*ever|free to post[^.]{0,40}\bever\b/i, 'no homeowner fees, ever'],
 ];
 for (const page of ['marketing/features/post-a-project.html', 'marketing/features/vs-competitors.html']) {
   const txt = pageText(page);

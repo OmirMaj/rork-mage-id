@@ -56,7 +56,9 @@ interface BaselineManagerModalProps {
    * fall back to the authored `startDay`.
    */
   dayScale?: DayScaleOptions;
-  /** The currently-active baseline's id (drives the ghost-stripe overlay). */
+  /** The currently-active baseline's id — the schedule's named
+   *  `activeBaselineId`, resolved by the parent via resolveActiveBaseline
+   *  (#137), so the ACTIVE chip is the yardstick the slip measures from. */
   activeBaselineId?: string | null;
   /** Persist a new baselines list. Called when the user captures, renames,
    *  or deletes. The parent updates ProjectSchedule.baselines. */
@@ -170,11 +172,14 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
   // ── Compare ────────────────────────────────────────────────────
   const startCompare = useCallback(() => {
     if (baselines.length === 0) return;
-    setCompareA(baselines[baselines.length - 1].id);
+    // Start from the ACTIVE yardstick (#137), not simply the newest capture —
+    // after Activate on an older one they differ.
+    const active = (activeBaselineId && baselines.find(b => b.id === activeBaselineId)) || baselines[baselines.length - 1];
+    setCompareA(active.id);
     setCompareB(null);
     setComparePickerSlot('b');
     setMode({ kind: 'compare-pick' });
-  }, [baselines]);
+  }, [baselines, activeBaselineId]);
 
   const compareDiff = useMemo<BaselineDiff[]>(() => {
     if (mode.kind !== 'compare-result') return [];

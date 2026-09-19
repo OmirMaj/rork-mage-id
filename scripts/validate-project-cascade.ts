@@ -56,9 +56,18 @@ const declared = [...src.matchAll(/const (save[A-Za-z]+Mutation)\s*=\s*useMutati
 // unambiguous here and cannot drift silently — if it did, `covered` would come
 // back empty and every collection would report, which fails loudly rather than
 // passing vacuously.
-const start = src.indexOf('const deleteProject = useCallback(');
-if (start === -1) {
-  console.error('✗ validate-project-cascade: could not find deleteProject — the guard needs updating, not disabling.');
+// Wave 3 (#90): the cascade lives in forgetProjectsLocally, shared by
+// deleteProject and the "removed from a job" cleanup — so both drop exactly
+// the same collections. deleteProject must still call it.
+const start = src.indexOf('const forgetProjectsLocally = useCallback(');
+const deleteAt = src.indexOf('const deleteProject = useCallback(');
+if (start === -1 || deleteAt === -1) {
+  console.error('✗ validate-project-cascade: could not find forgetProjectsLocally / deleteProject — the guard needs updating, not disabling.');
+  process.exit(1);
+}
+const deleteBody = src.slice(deleteAt, src.indexOf('\n  }, [', deleteAt));
+if (!/forgetProjectsLocally\(new Set\(\[id\]\)\);/.test(deleteBody)) {
+  console.error('✗ validate-project-cascade: deleteProject no longer cascades through forgetProjectsLocally(new Set([id])).');
   process.exit(1);
 }
 const end = src.indexOf('\n  }, [', start);
@@ -86,7 +95,7 @@ if (missing.length > 0 || staleExcuses.length > 0) {
   console.error('\n✗ validate-project-cascade\n');
   for (const m of missing) {
     const collection = m.replace(/^save|Mutation$/g, '');
-    console.error(`  ${m} is never cascaded in deleteProject().`);
+    console.error(`  ${m} is never cascaded in forgetProjectsLocally() (deleteProject).`);
     console.error(`    Deleting a project orphans every ${collection} record on disk.`);
     console.error('    Either add:  cascadeMutation(x, setX, ' + m + ');');
     console.error('    or add it to INTENTIONALLY_GLOBAL in this file with a reason.\n');

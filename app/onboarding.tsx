@@ -54,6 +54,30 @@ import { Type } from '@/constants/typography';
 import { parseSeedBlob, draftsToSeeds, type SeedParseResult } from '@/utils/costSeedCore';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { takePendingDeepLink } from '@/utils/pendingDeepLink';
+
+// Funnel screens are never a replay destination — a stash of one is left over
+// from a bounce, and replaying it would loop him back into first-run.
+const FUNNEL_ROUTES = new Set(['onboarding', 'persona-select', 'onboarding-paywall', 'login', 'signup', 'estimate-wizard']);
+
+/**
+ * #93: the stashed deep link, TAKEN (cleared) before completeOnboarding flips
+ * the last gate flag. app/_layout.tsx replays a stash the moment that flag
+ * flips, and every exit below also navigates — two navigations raced, and the
+ * one that landed last won (an invitee could land in the estimate wizard
+ * instead of the job he joined). Taking it first leaves the replay nothing;
+ * the exit then goes to the stashed destination itself, or its own.
+ */
+async function takeReplayTarget(): Promise<string | null> {
+  try {
+    const pending = await takePendingDeepLink();
+    if (!pending) return null;
+    const route = pending.replace(/^\//, '').split('?')[0];
+    return FUNNEL_ROUTES.has(route) ? null : pending;
+  } catch {
+    return null;
+  }
+}
 
 // ── Brand palette local to onboarding — kept hardcoded so the splash
 // looks identical regardless of any custom-primary the user has set
@@ -297,6 +321,7 @@ export default function OnboardingScreen() {
     // root gate in app/_layout.tsx no longer sends this user to /onboarding, so
     // a relaunch lands them on the home tab with the sample sitting there.
     // Mark onboarding done so the user is never looped back through the splash.
+    const replayTarget = await takeReplayTarget();
     try {
       await completeOnboarding();
     } catch (err) {
@@ -316,7 +341,7 @@ export default function OnboardingScreen() {
     // Replacing with the tab shell and pushing on top gives Back something to
     // pop to and puts the tab bar underneath.
     router.replace('/(tabs)/(home)' as never);
-    router.push({ pathname: '/project-detail', params: { id: projectId } } as never);
+    router.push((replayTarget ?? { pathname: '/project-detail', params: { id: projectId } }) as never);
   }, [addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, completeOnboarding, router]);
 
   // NO SIGN-IN LINK ON THIS SCREEN, deliberately. app/_layout.tsx:563 only
@@ -340,7 +365,15 @@ export default function OnboardingScreen() {
     if (typedName) {
       updateSettings({ branding: mergedBidBranding(settings?.branding, { companyName: typedName }) });
     }
+    const replayTarget = await takeReplayTarget();
     await completeOnboarding();
+    if (replayTarget) {
+      // He came here for a specific screen (an invite's project, a shared
+      // link); open it over the tab shell instead of the first-bid wizard.
+      router.replace('/(tabs)/(home)' as never);
+      router.push(replayTarget as never);
+      return;
+    }
     router.replace('/estimate-wizard?onboarding=1' as never);
   }, [completeOnboarding, router, companyName, settings?.branding, updateSettings]);
 
@@ -387,8 +420,10 @@ export default function OnboardingScreen() {
   // every path that follows a real result.
   const handleSkip = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const replayTarget = await takeReplayTarget();
     await completeOnboarding();
     router.replace('/(tabs)/(home)' as never);
+    if (replayTarget) router.push(replayTarget as never);
   }, [router, completeOnboarding]);
 
   return (

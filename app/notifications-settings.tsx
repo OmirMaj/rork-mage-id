@@ -11,6 +11,7 @@ import {
   ChevronLeft, MessageSquare, HandCoins, CheckCircle2, Inbox, Bell,
   PenTool, ShoppingCart, HelpCircle, Hammer, Sunrise, MapPin, Clock,
   Mail, Smartphone, Send, CalendarCheck, History, Lock, FileWarning, Globe,
+  Banknote, ClipboardList, FileCheck, ListChecks,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
@@ -22,6 +23,7 @@ import { useProjects, useCoreData } from '@/contexts/ProjectContext';
 import { PROFILE_FAILED_REASON, PROFILE_FAILED_TITLE, PROFILE_LOADING_REASON } from '@/utils/settingsLoadGuard';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase } from '@/lib/supabase';
+import { resumeDigestErrorKind, resumeRefusedCopy, RESUME_NETWORK_COPY, morningPreviewCopy, type RpcErrorLike } from '@/utils/digestSettingsCopy';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { armDailyBriefNudge, disarmDailyBriefNudge } from '@/utils/brief/nudge';
@@ -33,8 +35,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 
-// Notification preferences mirror the four event-types the notify edge
-// function dispatches today. Defaults flip everything ON until the user
+// Notification preferences mirror the prefKeys the notify edge function
+// dispatches under (every prefKey notify uses needs a row here, or the GC
+// cannot mute it — validate-invoice-send-pay-notify pins the wave-3 ones). Defaults flip everything ON until the user
 // opts out. Stored on profiles.notification_preferences as a flat jsonb
 // object keyed by category × channel.
 
@@ -42,12 +45,13 @@ interface CategoryDef {
   key:
     | 'portal_message' | 'budget_proposal' | 'co_approval' | 'sub_invoice'
     | 'contract_signed' | 'selection_chosen'
-    | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted' | 'lead_received';
+    | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted' | 'lead_received'
+    | 'invoice_paid' | 'field_report' | 'pro_response' | 'punch_ready';
   label: string;
   description: string;
   icon: React.ReactNode;
   /** Group label for the section header. */
-  group: 'leads' | 'client' | 'sub' | 'marketplace';
+  group: 'leads' | 'client' | 'team' | 'sub' | 'marketplace';
   /** When true, the toggle defaults OFF instead of ON. Used for opt-in
    *  channels like the daily digest where users must actively subscribe. */
   defaultOff?: boolean;
@@ -102,12 +106,46 @@ const CATEGORIES: CategoryDef[] = [
     icon: <CheckCircle2 size={18} color={"#2E7D44"} strokeWidth={1.75} />,
     group: 'client',
   },
+  // The wave-3 notify events (wave3NotifyText in supabase/functions/notify)
+  // send push + email under these four prefKeys. Without a row here the GC's
+  // only way to stop them was the email's unsubscribe link — and nothing at
+  // all for the push. One key covers both client_invoice_paid and
+  // client_payment_failed, exactly as notify files them.
+  {
+    key: 'invoice_paid',
+    label: 'Client payments',
+    description: 'Your client pays an invoice through the portal, or a bank payment fails after checkout.',
+    icon: <Banknote size={18} color={Colors.successDark} strokeWidth={1.75} />,
+    group: 'client',
+  },
+  // ─── Your team → GC ───
+  {
+    key: 'field_report',
+    label: 'Field daily reports',
+    description: 'Someone on your team files a daily report on one of your projects.',
+    icon: <ClipboardList size={18} color={Colors.accent} strokeWidth={1.75} />,
+    group: 'team',
+  },
+  {
+    key: 'pro_response',
+    label: 'RFI & submittal responses',
+    description: 'An architect, engineer, or reviewer answers an RFI or submittal you sent.',
+    icon: <FileCheck size={18} color={Colors.accent} strokeWidth={1.75} />,
+    group: 'team',
+  },
   // ─── Sub → GC ───
   {
     key: 'sub_invoice',
     label: 'Sub invoices',
     description: 'A subcontractor submits an invoice through their portal.',
     icon: <Inbox size={18} color="#AF52DE" strokeWidth={1.75} />,
+    group: 'sub',
+  },
+  {
+    key: 'punch_ready',
+    label: 'Punch items ready',
+    description: 'A subcontractor marks a punch item ready for your review.',
+    icon: <ListChecks size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
   },
   // ─── Marketplace ───
@@ -140,6 +178,7 @@ const CATEGORIES: CategoryDef[] = [
 const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: string }> = {
   leads:       { title: 'Website → You',        subtitle: 'When a homeowner asks for a price on your website.' },
   client:      { title: 'Client → You',         subtitle: 'When the homeowner does something on the portal.' },
+  team:        { title: 'Your team → You',      subtitle: 'When your field crew or a design pro sends something back.' },
   sub:         { title: 'Subcontractor → You',  subtitle: 'When a sub does something through their portal link.' },
   marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
 };
@@ -391,7 +430,16 @@ export default function NotificationsSettingsScreen() {
     try {
       const { data, error } = await supabase.rpc('resume_my_digest_email');
       if (error) {
-        showAlert("Couldn't turn email back on", 'We could not reach the server. Check your connection and try again.');
+        const kind = resumeDigestErrorKind(error as RpcErrorLike);
+        if (kind === 'missing_function') {
+          // The server predates migration 20260918170000 (the OTA landed
+          // first). Fall back to the pre-migration behaviour — write the
+          // setting — rather than leave a switch that can never turn on.
+          updateDigest({ channels: { email: true, in_app: digestInAppOn } });
+          return;
+        }
+        const copy = kind === 'network' ? RESUME_NETWORK_COPY : resumeRefusedCopy(error as RpcErrorLike);
+        showAlert(copy.title, copy.message);
         return;
       }
       const state = data === 'none' || data === 'digest' || data === 'all' ? data : 'unknown';
@@ -418,13 +466,10 @@ export default function NotificationsSettingsScreen() {
         body: { userId: user.id, preview: true },
       });
       if (error) throw error;
-      const sent = data?.sent === true;
-      showAlert(
-        sent ? 'Preview sent' : 'No projects to digest',
-        sent
-          ? 'Check your inbox in a few seconds. The digest reads what you have right now — set up a project with a location to see weather and tasks.'
-          : 'Add an active project with a location to preview the digest. We use the lat/lng of each project to pull a hyperlocal weather forecast.',
-      );
+      // Names the real reason nothing was emailed (unsubscribed, Email off,
+      // no projects) — utils/digestSettingsCopy.ts.
+      const copy = morningPreviewCopy(data as { sent?: unknown; reason?: unknown } | null);
+      showAlert(copy.title, copy.message);
     } catch (err) {
       console.log('[NotificationsSettings] preview failed', err);
       showAlert(
@@ -935,7 +980,7 @@ export default function NotificationsSettingsScreen() {
             <ActivityIndicator size="small" color={themeColors.accent} />
           </View>
         ) : (
-          (['leads', 'client', 'sub', 'marketplace'] as CategoryDef['group'][]).map(group => {
+          (['leads', 'client', 'team', 'sub', 'marketplace'] as CategoryDef['group'][]).map(group => {
             const groupCats = CATEGORIES.filter(c => c.group === group);
             if (groupCats.length === 0) return null;
             const meta = GROUP_LABELS[group];

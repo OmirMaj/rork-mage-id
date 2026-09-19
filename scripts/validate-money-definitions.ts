@@ -1621,7 +1621,7 @@ console.log('\nwhat the homeowner is shown (MONEY-PAID-DRAFT-1, MONEY-CONTRACT-1
   expect('a portal visitor who cannot fetch a contract still gets the estimate figure',
     resolveContractSum(proj, undefined).source, 'estimate');
   ok('…and the screen only asserts an ABSENCE when it could actually check',
-    /const contractWasChecked = !isSnapshotMode && !!localProject\?\.id && !contractQ\.isPending;/.test(portal)
+    /const contractWasChecked = !isSnapshotMode && !!localProject\?\.id && contractQ\.isSuccess;/.test(portal)
     && /contractWasChecked\s*\n?\s*\?\s*'Original Contract is the accepted estimate total — no signed agreement is on file/
       .test(portal),
     'the "no signed agreement" sentence must be behind contractWasChecked');

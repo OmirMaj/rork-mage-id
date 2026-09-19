@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Pressable,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Pressable, ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, ChevronDown, Link2, X, CheckCircle2, Send, CalendarDays, RefreshCw, AlertTriangle } from 'lucide-react-native';
+import { Save, ChevronDown, Link2, X, CheckCircle2, Send, CalendarDays, RefreshCw, AlertTriangle, ImagePlus } from 'lucide-react-native';
 import { MageRFI, MageAIMark } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import DatePickerModal from '@/components/DatePickerModal';
@@ -22,15 +23,22 @@ import { FeatureHeader } from '@/components/FeatureHeader';
 // utils/collaboratorAccess.
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import {
+  useCollectionSettled, useRefetchCollectionOnOpen, useServerRecordNumber,
+  recordGate, changedFields, rfiBallAfterSave, rfiRegressionReason, recordNumberLabel, numberHoldReason, sendBlockReason,
+  rebaseFormOnLive,
+} from '@/hooks/useCollectionSettled';
+import { planSheetStoragePath, resolvePlanSheetUrl } from '@/utils/planSheetUrls';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
-import type { RFIStatus, RFIPriority, RFIBallInCourt, RFIHandoff } from '@/types';
+import type { RFI, RFIStatus, RFIPriority, RFIBallInCourt, RFIHandoff } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, Button } from '@/components/ui';
 import { PhotoMarkupOverlay, markupForSource, sourcePhotoIdOf } from '@/components/PhotoMarkupOverlay';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
@@ -38,9 +46,10 @@ import { extractMemoryDocs, answerFromMemorySemantic } from '@/utils/projectMemo
 import { rfiBlockStatus, overdueCalendarDays } from '@/utils/delayScan/rfiBlocking';
 import { computeRfiHoldTime } from '@/utils/rfiHoldTime';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
-import { parseCalendarDay, formatCalendarDay, toCalendarDayString, addCalendarDays } from '@/utils/calendarDate';
+import { parseCalendarDay, formatCalendarDay, toCalendarDayString, addCalendarDays, calendarDayOf } from '@/utils/calendarDate';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -82,6 +91,25 @@ function getBallColor(p: RFIBallInCourt): string {
   }
 }
 
+/** The form's fields as a stored RFI seeds them — the SAME defaults the
+ *  useState initializers use, so an untouched form diffs to nothing. */
+function rfiFormValuesOf(r: RFI) {
+  return {
+    subject: r.subject ?? '',
+    question: r.question ?? '',
+    assignedTo: r.assignedTo ?? '',
+    assignedSubId: r.assignedSubId ?? '',
+    submittedBy: r.submittedBy ?? '',
+    dateRequired: r.dateRequired ?? '',
+    priority: r.priority ?? 'normal',
+    status: r.status ?? 'open',
+    linkedDrawing: r.linkedDrawing ?? '',
+    linkedTaskId: r.linkedTaskId ?? '',
+    response: r.response ?? '',
+    attachments: r.attachments ?? [],
+  };
+}
+
 // Pipeline stages for the StatusPipeline visualization at the top of an
 // existing RFI. We omit 'void' from the visual flow — it's a side branch
 // (an RFI was raised then withdrawn), not the next normal step. Users can
@@ -97,13 +125,32 @@ export default function RFIScreen() {
   // Read the project from params here (not just in Inner) so the gate can
   // ask 'were they invited to THIS project?' before paywalling.
   const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { canAccess } = useProjectAccess(gateProjectId);
+  const { canAccess, canAccessOwnTier } = useProjectAccess(gateProjectId);
+  const roleState = useProjectRoleState(gateProjectId);
   // useProjectAccess wraps the collaborator check; the tier LABEL still comes
   // from useTierAccess, which is the one that reads featureTiers.ts.
   const { requiredTierFor } = useTierAccess();
-  const { colors: themeColors } = useTheme();
+  // Gating contract: an invited collaborator on a free account is not
+  // paywalled while his grant is still being read — he waits, or retries a
+  // failed read. A settled null role on a named project is "no access", said
+  // plainly; the paywall is for someone whose own plan is the answer.
+  const collaboratorWait = gateProjectId && !canAccessOwnTier('rfis_submittals')
+    ? (roleState.isLoading
+      ? <RecordGateView title="RFIs" state="loading" />
+      : roleState.isError
+        ? (
+          <RecordGateView
+            title="RFIs" state="error"
+            message="Couldn't check your access to this job. Check your connection and try again."
+            onRetry={() => { void roleState.refetch(); }}
+          />
+        )
+        : roleState.role === null
+          ? <RecordGateView title="RFIs" state="missing" message="You don't have access to this project's RFIs. Ask the project owner to invite you." />
+          : null)
+    : null;
   if (!canAccess('rfis_submittals')) {
-    return (
+    return collaboratorWait ?? (
       <Paywall
         visible={true}
         feature="RFIs & Submittals"
@@ -120,7 +167,65 @@ export default function RFIScreen() {
   return <RFIScreenInner />;
 }
 
+/** Loader / gone / couldn't-load states for the record screen (#142) and the
+ *  access gate. Never a blank, saveable form. */
+function RecordGateView({ title, state, message, onRetry }: {
+  title: string;
+  state: 'loading' | 'missing' | 'error';
+  message?: string;
+  onRetry?: () => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={{ flex: 1, backgroundColor: themeColors.bg, padding: 24, justifyContent: 'center' }} testID={`rfi-gate-${state}`}>
+      <Stack.Screen options={{ title }} />
+      {state === 'loading' ? (
+        <ActivityIndicator size="small" color={themeColors.accent} />
+      ) : (
+        <View style={styles.gateCard}>
+          <Text style={styles.gateText}>{message}</Text>
+          {onRetry ? <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="rfi-gate-retry" /> : null}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/**
+ * #142: the record must be IN HAND before the form mounts. Opened by link on a
+ * browser that has never cached it, the rfis fetch was still in flight, every
+ * useState initializer ran against null, and Update then wrote '' / NULL over
+ * the real record (and reopened an answered one). Wait for the collection to
+ * settle, then mount the form keyed on the record id so its initializers run
+ * on the real record; settled without it, say why.
+ */
 function RFIScreenInner() {
+  const { projectId, rfiId } = useLocalSearchParams<{ projectId?: string; rfiId?: string }>();
+  const { rfis } = useProjects();
+  const qc = useQueryClient();
+  // #55: fresh copy on open and on every return to the foreground.
+  useRefetchCollectionOnOpen('rfis');
+  const settled = useCollectionSettled('rfis', rfiId);
+  const found = rfiId ? rfis.find(r => r.id === rfiId && (!projectId || r.projectId === projectId)) : undefined;
+  const gate = recordGate({
+    wantsRecord: !!rfiId,
+    foundInContext: !!found,
+    foundInQuery: settled.hasRecord,
+    settled: settled.settled,
+    failed: settled.failed,
+  });
+  if (gate === 'loading') return <RecordGateView title="RFI" state="loading" />;
+  if (gate === 'missing') {
+    return <RecordGateView title="RFI" state="missing" message="This RFI no longer exists, or it isn't shared with you. Ask the project owner if you expected to see it." />;
+  }
+  if (gate === 'error') {
+    return <RecordGateView title="RFI" state="error" message="Couldn't load this RFI. Check your connection and try again." onRetry={() => { void qc.invalidateQueries({ queryKey: ['rfis'] }); }} />;
+  }
+  return <RFIForm key={found?.id ?? 'new'} />;
+}
+
+function RFIForm() {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -137,7 +242,7 @@ function RFIScreenInner() {
   const {
     projects, getProject, getRFIsForProject, addRFI, updateRFI, settings, subcontractors,
     getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject,
-    projectPhotos,
+    projectPhotos, drawingPins, planSheets,
   } = ctx;
   const { tier } = useSubscription();
 
@@ -188,6 +293,63 @@ function RFIScreenInner() {
   const [attachments, setAttachments] = useState<string[]>(
     existingRFI?.attachments ?? (prefillPhotoUri ? [prefillPhotoUri] : []),
   );
+
+  // #55 / #58: the record the form OPENED with. A save sends only the fields
+  // that differ from it (never the whole form), then re-bases on what it
+  // saved — so a copy the architect has since answered through the portal is
+  // never written back over his answer, and Send can save first.
+  const [opened, setOpened] = useState<RFI | null>(() => existingRFI ?? null);
+  const formValues = useMemo(() => ({
+    subject, question, assignedTo, assignedSubId: assignedSubId ?? '', submittedBy, dateRequired,
+    priority, status, linkedDrawing, linkedTaskId, response, attachments,
+  }), [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, linkedTaskId, response, attachments]);
+  const pendingChanges = useMemo(
+    () => (opened ? changedFields(rfiFormValuesOf(opened), formValues) : {}),
+    [opened, formValues],
+  );
+  const isDirty = existingRFI
+    ? Object.keys(pendingChanges).length > 0
+    : subject.trim() !== '' || question.trim() !== '';
+
+  /** Put a record's values into every form field (the inverse of rfiFormValuesOf). */
+  const applyFormValues = useCallback((v: ReturnType<typeof rfiFormValuesOf>) => {
+    setSubject(v.subject); setQuestion(v.question); setAssignedTo(v.assignedTo);
+    setAssignedSubId(v.assignedSubId || undefined); setSubmittedBy(v.submittedBy);
+    setDateRequired(v.dateRequired); setPriority(v.priority); setStatus(v.status);
+    setLinkedDrawing(v.linkedDrawing); setLinkedTaskId(v.linkedTaskId);
+    setResponse(v.response); setAttachments(v.attachments);
+  }, []);
+
+  // #55 / #56 (review round 3): adopt a newer copy of the record. The form
+  // seeded once — often from the cached copy — and the open / foreground
+  // refetch (or a save) lands after. Fields he hasn't touched take the live
+  // value, his edits stay, and the live row becomes the baseline; so the
+  // architect's portal answer shows here, and a saved form reads clean.
+  // Keyed on the record's identity only: a baseline change alone (a save)
+  // never re-bases against the pre-save list.
+  const openedRef = useRef(opened);
+  openedRef.current = opened;
+  const formRef = useRef(formValues);
+  formRef.current = formValues;
+  const lastLiveRef = useRef(existingRFI);
+  useEffect(() => {
+    if (!existingRFI || existingRFI === lastLiveRef.current) return;
+    lastLiveRef.current = existingRFI;
+    const base = rfiFormValuesOf(openedRef.current ?? existingRFI);
+    applyFormValues(rebaseFormOnLive(base, formRef.current, rfiFormValuesOf(existingRFI)));
+    setOpened(existingRFI);
+  }, [existingRFI, applyFormValues]);
+
+  // #148: the number is the SERVER's. Until it has been read back the header
+  // says "(pending #)" and nothing that prints a number goes out.
+  const numberInfo = useServerRecordNumber('rfis', existingRFI?.id, existingRFI?.number);
+  const numberLabel = existingRFI
+    ? recordNumberLabel('RFI', numberInfo.state, numberInfo.number, existingRFI.number)
+    : 'Ask the Architect';
+  const numberHold = existingRFI ? numberHoldReason('RFI', numberInfo.state) : null;
+  // #58: every send (architect email, client portal) is off while there are
+  // unsaved edits — Send never saves; see sendBlockReason.
+  const sendBlock = existingRFI ? sendBlockReason({ isDirty, numberHold }) : null;
   // The state initializers above run on the FIRST render only, and the photo
   // cache can hydrate a beat after this screen opens — so a prefill that
   // arrives late would be dropped on the floor. Latched so it fills each field
@@ -287,63 +449,103 @@ function RFIScreenInner() {
   );
   const dayWord = useCallback((n: number) => (n === 1 ? 'day' : 'days'), []);
 
-  const handleSave = useCallback(() => {
+  /**
+   * The update half of Save, without leaving the screen (#58). Validates,
+   * refuses a change the server would refuse anyway (#55), writes only the
+   * fields he changed plus the ball hand-off, and returns the record as it now
+   * stands so a send can be built from it. Null = nothing may be sent.
+   */
+  const persistForm = useCallback((): RFI | null => {
+    if (!existingRFI) return null;
     if (!subject.trim()) {
       showAlert('Missing Subject', 'Please enter a subject for this RFI.');
-      return;
+      return null;
     }
     if (!question.trim()) {
       showAlert('Missing Question', 'Please enter the RFI question.');
-      return;
+      return null;
     }
-
+    const base = opened ?? existingRFI;
+    const blocked = rfiRegressionReason(base, { status, response });
+    if (blocked) {
+      showAlert("Can't save that change", blocked);
+      return null;
+    }
     const now = new Date().toISOString();
+    const changed = changedFields(rfiFormValuesOf(base), formValues);
+    const updates: Partial<RFI> = {};
+    if ('subject' in changed) updates.subject = subject.trim();
+    if ('question' in changed) updates.question = question.trim();
+    if ('assignedTo' in changed) updates.assignedTo = assignedTo.trim();
+    if ('assignedSubId' in changed) updates.assignedSubId = assignedSubId || undefined;
+    if ('submittedBy' in changed) updates.submittedBy = submittedBy.trim();
+    if ('dateRequired' in changed) updates.dateRequired = dateRequired;
+    if ('priority' in changed) updates.priority = priority;
+    if ('status' in changed) updates.status = status;
+    if ('linkedDrawing' in changed) updates.linkedDrawing = linkedDrawing.trim();
+    if ('linkedTaskId' in changed) updates.linkedTaskId = linkedTaskId || undefined;
+    if ('attachments' in changed) updates.attachments = attachments;
+    const responseTyped = 'response' in changed && response.trim().length > 0;
+    if ('response' in changed) updates.response = response.trim() || undefined;
+    // `existingRFI` is the LIVE copy (refetched on open / foreground), so the
+    // stamp and the hand-off build on what the server holds now.
+    if (responseTyped && !existingRFI.dateResponded) updates.dateResponded = now;
+    // Auto-shift the ball: closing sends it to 'closed'; an answer (typed
+    // here, or one the portal filed after the send) hands it back to the GC.
+    const ball = rfiBallAfterSave({
+      prevBall: existingRFI.ballInCourt,
+      handoffs: existingRFI.handoffs,
+      status,
+      responseTyped,
+      dateResponded: updates.dateResponded ?? existingRFI.dateResponded,
+      now,
+    });
+    if (ball.added.length > 0) {
+      updates.ballInCourt = ball.ball as RFIBallInCourt;
+      updates.handoffs = [...(existingRFI.handoffs ?? []), ...(ball.added as RFIHandoff[])];
+    }
+    if (Object.keys(updates).length > 0) updateRFI(existingRFI.id, updates);
+    const saved: RFI = { ...existingRFI, ...updates };
+    // Form and baseline both become the saved record (review round 3): fields
+    // he didn't change take the live values `existingRFI` carries, so a save
+    // over a copy the portal answered leaves nothing "unsaved" behind.
+    applyFormValues(rfiFormValuesOf(saved));
+    setOpened(saved);
+    return saved;
+  }, [existingRFI, opened, subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, linkedTaskId, response, attachments, formValues, updateRFI, applyFormValues]);
 
+  // Leaving with edits on screen asks first (#58): backing out used to drop
+  // the rewrite silently. A save that navigates away opens the gate itself.
+  const navigation = useNavigation();
+  const allowLeave = useRef(false);
+  const dirtyRef = useRef(isDirty);
+  dirtyRef.current = isDirty;
+  useEffect(() => navigation.addListener('beforeRemove', (e) => {
+    if (allowLeave.current || !dirtyRef.current) return;
+    e.preventDefault();
+    showAlert(
+      'Discard your changes?',
+      "Your edits to this RFI aren't saved yet.",
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => { allowLeave.current = true; navigation.dispatch(e.data.action); } },
+      ],
+    );
+  }), [navigation]);
+
+  const handleSave = useCallback(() => {
     if (existingRFI) {
-      // Auto-shift the ball when the GC fills in a response or marks
-      // the RFI closed. Status 'answered' OR a typed response → ball
-      // back to GC (they need to review + close). Status 'closed' →
-      // ballInCourt 'closed' so it drops out of the live filter.
-      const prevBall = existingRFI.ballInCourt ?? 'gc';
-      let nextBall = prevBall;
-      const newHandoffs: typeof existingRFI.handoffs = [];
-      const newResponseTyped = response.trim() && response.trim() !== (existingRFI.response ?? '');
-      if (status === 'closed' && prevBall !== 'closed') {
-        nextBall = 'closed';
-        newHandoffs.push({
-          at: now,
-          fromParty: prevBall,
-          toParty: 'closed',
-          note: 'RFI closed by GC',
-        });
-      } else if (newResponseTyped && prevBall !== 'gc') {
-        // Architect typed a response in the form (or pasted from email).
-        // Flip ball back to GC for review.
-        nextBall = 'gc';
-        newHandoffs.push({
-          at: now,
-          fromParty: prevBall,
-          toParty: 'gc',
-          note: 'Response received',
-        });
-      }
-      updateRFI(existingRFI.id, {
-        subject: subject.trim(),
-        question: question.trim(),
-        assignedTo: assignedTo.trim(),
-        assignedSubId,
-        submittedBy: submittedBy.trim(),
-        dateRequired,
-        priority,
-        status,
-        linkedDrawing: linkedDrawing.trim(),
-        linkedTaskId: linkedTaskId || undefined,
-        response: response.trim() || undefined,
-        dateResponded: response.trim() && !existingRFI.dateResponded ? now : existingRFI.dateResponded,
-        ballInCourt: nextBall,
-        handoffs: newHandoffs.length > 0 ? [...(existingRFI.handoffs ?? []), ...newHandoffs] : existingRFI.handoffs,
-      });
+      if (!persistForm()) return;
     } else {
+      if (!subject.trim()) {
+        showAlert('Missing Subject', 'Please enter a subject for this RFI.');
+        return;
+      }
+      if (!question.trim()) {
+        showAlert('Missing Question', 'Please enter the RFI question.');
+        return;
+      }
+      const now = new Date().toISOString();
       addRFI({
         projectId: projectId ?? '',
         subject: subject.trim(),
@@ -380,8 +582,36 @@ function RFIScreenInner() {
     }
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    allowLeave.current = true;
     router.back();
-  }, [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, response, linkedTaskId, existingRFI, projectId, addRFI, updateRFI, router, attachments, sourcePhotoId]);
+  }, [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, linkedDrawing, linkedTaskId, existingRFI, projectId, addRFI, router, attachments, sourcePhotoId, persistForm]);
+
+  // #58: "Save changes" — the save half of Update, staying on the screen so
+  // he can send next. The send runs in a LATER render, whose context closures
+  // already hold the saved record.
+  const handleSaveInPlace = useCallback(() => {
+    if (!persistForm()) return;
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [persistForm]);
+
+  // (c) Attach a photo from this device. It is emailed from this device; the
+  // architect's reply page lists it as sent with the email.
+  const handleAttachPhoto = useCallback(async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      showAlert('Permission needed', 'Allow photo library access to attach a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: false,
+      exif: false,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const uri = result.assets[0].uri;
+    setAttachments(prev => (prev.includes(uri) ? prev : [...prev, uri]));
+  }, []);
 
   const priorityColor = priority === 'urgent' ? themeColors.danger : priority === 'normal' ? themeColors.accent : themeColors.textSecondary;
 
@@ -403,45 +633,75 @@ function RFIScreenInner() {
       showAlert('Invalid email', 'Enter a valid recipient email address.');
       return;
     }
+    // #148: the email prints the RFI number, so it waits for the server's.
+    if (numberInfo.state !== 'confirmed' || typeof numberInfo.number !== 'number') {
+      showAlert('Not sent yet', numberHold ?? 'This RFI has no confirmed number yet.');
+      return;
+    }
+    const rfiNumber = numberInfo.number;
+    // #58: the email is built from the SAVED record, and the reply link has
+    // the architect read the stored row — so an unsaved rewrite must never go
+    // out as the placeholder. Send does not save (a save and a send in one tap
+    // share this render's stale closures); it refuses while edits are unsaved.
+    if (isDirty) {
+      showAlert('Save first', sendBlockReason({ isDirty, numberHold: null }) ?? '');
+      return;
+    }
     setSending(true);
     try {
+      // #77 (a): plan-sheet links are signed and expire. Re-mint them now; the
+      // fresh ones are stored in the ONE write after the email goes (below),
+      // so the reply page opens the sheet too.
+      const stored = existingRFI.attachments ?? [];
+      const minted = await Promise.all(stored.map(u => (planSheetStoragePath(u) ? resolvePlanSheetUrl(u) : Promise.resolve(u))));
+      const mintedChanged = minted.some((u, i) => u !== stored[i]);
+      const sent: RFI = mintedChanged ? { ...existingRFI, attachments: minted } : existingRFI;
       // Build the architect reply portal URL — embeds the RFI's
       // share_token so the portal can fetch + respond via SECURITY
       // DEFINER RPCs without an account. Falls back to email-only
       // reply if the token isn't available yet (older RFIs).
       // Portal lives on the marketing site (mageid.app/architect/), not the
       // app domain — it's a static HTML page that hits Supabase RPCs directly.
-      const replyPortalUrl = existingRFI.shareToken
-        ? `https://mageid.app/architect/?token=${existingRFI.shareToken}&type=rfi`
+      const replyPortalUrl = sent.shareToken
+        ? `https://mageid.app/architect/?token=${sent.shareToken}&type=rfi`
         : undefined;
+      // #77 (b): where the pin is. The reply page circles it on the sheet; the
+      // emailed sheet is the plain drawing, so the email says where to look.
+      const pin = drawingPins.find(p => p.linkedRfiId === sent.id);
+      const pinSheet = pin ? planSheets.find(ps => ps.id === pin.planSheetId) : undefined;
+      const pinLine = pin && pinSheet
+        ? `Marked location: ${(pinSheet.sheetNumber ?? '').trim() || pinSheet.name}, ${Math.round(pin.x * 100)}% across and ${Math.round(pin.y * 100)}% down the sheet${replyPortalUrl ? ' — circled on the sheet at the reply link' : ''}.`
+        : '';
+      const note = [sendEmail_Note.trim(), pinLine].filter(Boolean).join('\n\n');
       const html = buildRFIEmailHtml({
         companyName: settings?.branding?.companyName ?? 'MAGE ID',
         recipientName: sendEmail_Name.trim(),
         projectName: project.name,
-        rfiNumber: existingRFI.number,
-        subject: existingRFI.subject,
-        question: existingRFI.question,
-        priority: existingRFI.priority,
-        dateRequired: existingRFI.dateRequired,
-        submittedBy: existingRFI.submittedBy,
-        linkedDrawing: existingRFI.linkedDrawing,
-        message: sendEmail_Note.trim() || undefined,
+        rfiNumber,
+        subject: sent.subject,
+        question: sent.question,
+        priority: sent.priority,
+        dateRequired: sent.dateRequired,
+        submittedBy: sent.submittedBy,
+        linkedDrawing: sent.linkedDrawing,
+        message: note || undefined,
         contactName: settings?.branding?.contactName,
         contactEmail: settings?.branding?.email,
         contactPhone: settings?.branding?.phone,
         replyPortalUrl,
       });
-      const subject = `RFI #${existingRFI.number}: ${existingRFI.subject} — ${project.name}`;
+      const subject = `RFI #${rfiNumber}: ${sent.subject} — ${project.name}`;
+      // The source photo's current uri where there is one — the stored copy
+      // may be another device's file:// or an expired signed URL.
+      const sendUris = sent.attachments?.length
+        ? sent.attachments.map((stored, index) => attachmentView(stored, index).uri)
+        : undefined;
       const result = await sendEmail({
         to,
         subject,
         html,
         replyTo: settings?.branding?.email,
-        // The source photo's current uri where there is one — the stored copy
-        // may be another device's file:// or an expired signed URL.
-        attachments: existingRFI.attachments?.length
-          ? existingRFI.attachments.map((stored, index) => attachmentView(stored, index).uri)
-          : undefined,
+        attachments: sendUris,
       });
       if (!result.success) {
         showAlert('Send failed', result.error || 'Could not send the RFI. Try again.');
@@ -459,19 +719,42 @@ function RFIScreenInner() {
       // let RFIBallInCourt grow a landlord without anything here noticing.
       const newHandoff: RFIHandoff = {
         at: now,
-        fromParty: existingRFI.ballInCourt ?? 'gc',
+        fromParty: sent.ballInCourt ?? 'gc',
         toParty: 'architect',
         note: `Sent to ${sendEmail_Name.trim() || to}`,
       };
-      updateRFI(existingRFI.id, {
+      // ONE write per send (#58 review): the fresh plan-sheet links ride with
+      // the hand-off. Two updateRFI calls from one closure would each rebuild
+      // the record from the same pre-send list, the second undoing the first.
+      const handedOff: Partial<RFI> = {
         ballInCourt: 'architect',
-        handoffs: [...(existingRFI.handoffs ?? []), newHandoff],
-      });
+        handoffs: [...(sent.handoffs ?? []), newHandoff],
+        ...(mintedChanged ? { attachments: minted } : {}),
+      };
+      updateRFI(sent.id, handedOff);
+      const afterSend: RFI = { ...sent, ...handedOff };
+      applyFormValues(rfiFormValuesOf(afterSend));
+      setOpened(afterSend);
       // Status stays 'open' — the RFI is still open until the
       // architect responds. ballInCourt is the live signal of "who's
       // holding it right now."
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('RFI Sent', `Sent to ${to}. Their reply will come to your email${settings?.branding?.email ? ` (${settings.branding.email})` : ''}.`);
+      // #56: say where the answer comes back — the reply link files it on this
+      // RFI and MAGE ID alerts him; only an email-only RFI (no link) means pasting.
+      const whereBack = replyPortalUrl
+        ? 'Their answer is filed on this RFI when they submit it through the reply link, and MAGE ID alerts you.'
+        : `Their reply will come to your email${settings?.branding?.email ? ` (${settings.branding.email})` : ''} — paste it into the Response field.`;
+      // #146: an attachment this device could not read was left off. Never
+      // "RFI Sent" as if the architect has the photo.
+      const dropped = result.attachmentsDropped ?? 0;
+      if (dropped > 0) {
+        showAlert(
+          `RFI sent without ${dropped} attachment${dropped === 1 ? '' : 's'}`,
+          `Sent to ${to}, but ${dropped === 1 ? 'one photo' : `${dropped} photos`} could not be read on this device and ${dropped === 1 ? 'was' : 'were'} left off. Attach ${dropped === 1 ? 'it' : 'them'} from this device and send again, or send ${dropped === 1 ? 'it' : 'them'} to the architect yourself. ${whereBack}`,
+        );
+      } else {
+        showAlert('RFI Sent', `Sent to ${to}. ${whereBack}`);
+      }
       setShowSendModal(false);
     } catch (err) {
       console.error('[RFI] Send failed:', err);
@@ -479,7 +762,7 @@ function RFIScreenInner() {
     } finally {
       setSending(false);
     }
-  }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings, updateRFI, attachmentView]);
+  }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings, updateRFI, attachmentView, numberInfo.state, numberInfo.number, numberHold, isDirty, drawingPins, planSheets, applyFormValues]);
 
   // ─── MAGE suggests an answer ───
   // Same machinery as app/project-memory.tsx: extract this project's records,
@@ -565,7 +848,7 @@ function RFIScreenInner() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: themeColors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <Stack.Screen options={{ title: existingRFI ? `RFI #${existingRFI.number}` : 'Ask the Architect' }} />
+      <Stack.Screen options={{ title: numberLabel }} />
       <ScrollView
         {...fabScroll}
         style={styles.container}
@@ -873,7 +1156,9 @@ function RFIScreenInner() {
             {/* B4 review A2: a calendar day — bare from photo-triage / the voice
                 parsers, noon-UTC from DatePickerModal; formatCalendarDay resolves
                 both. new Date(bareDay) printed the day before, west of Greenwich. */}
-            {dateRequired ? formatCalendarDay(dateRequired) : 'Select a date'}
+            {/* #164: a full instant is read as the LOCAL day it names
+                (calendarDayOf), a bare day as itself. */}
+            {dateRequired ? formatCalendarDay(calendarDayOf(dateRequired) ?? dateRequired) : 'Select a date'}
           </Text>
         </TouchableOpacity>
         <DatePickerModal
@@ -881,7 +1166,7 @@ function RFIScreenInner() {
           // The picker parses `value` with new Date(); hand it LOCAL midnight of
           // the day as an instant (same as app/permits.tsx) or a bare day opens
           // on the previous day west of Greenwich.
-          value={dateRequired ? (parseCalendarDay(dateRequired)?.toISOString() ?? dateRequired) : ''}
+          value={dateRequired ? (parseCalendarDay(calendarDayOf(dateRequired))?.toISOString() ?? dateRequired) : ''}
           allowFuture
           title="Response required by"
           onClose={() => setShowDatePicker(false)}
@@ -927,17 +1212,29 @@ function RFIScreenInner() {
             </TouchableOpacity>
             {showStatusPicker && (
               <View style={styles.pickerOptions}>
-                {STATUS_OPTIONS.map(s => (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.pickerOption, status === s && styles.pickerOptionActive]}
-                    onPress={() => { setStatus(s); setShowStatusPicker(false); }}
-                  >
-                    <Text style={[styles.pickerOptionText, status === s && styles.pickerOptionTextActive]}>
-                      {s.charAt(0).toUpperCase() + s.replace('_', ' ').slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {STATUS_OPTIONS.map(s => {
+                  // #55: an answered RFI does not go back to Open — the server
+                  // keeps the answer either way, so the option says why.
+                  const locked = s === 'open' && !!rfiRegressionReason(opened ?? existingRFI, { status: 'open', response: 'kept' });
+                  return (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.pickerOption, status === s && styles.pickerOptionActive, locked && { opacity: 0.45 }]}
+                      onPress={() => { if (locked) return; setStatus(s); setShowStatusPicker(false); }}
+                      disabled={locked}
+                      accessibilityState={{ disabled: locked }}
+                    >
+                      <Text style={[styles.pickerOptionText, status === s && styles.pickerOptionTextActive]}>
+                        {s.charAt(0).toUpperCase() + s.replace('_', ' ').slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {!!rfiRegressionReason(opened ?? existingRFI, { status: 'open', response: 'kept' }) && (
+                  <Text style={styles.attachmentNote}>
+                    {rfiRegressionReason(opened ?? existingRFI, { status: 'open', response: 'kept' })}
+                  </Text>
+                )}
               </View>
             )}
           </>
@@ -957,6 +1254,18 @@ function RFIScreenInner() {
             and the markup he drew on it (the circle around the clash, the
             "conflict here" label) was invisible everywhere outside the
             project-detail lightbox. The markup IS the question. */}
+        {/* (c) Attach from this device — any RFI, with or without photos yet. */}
+        <TouchableOpacity
+          style={styles.attachBtn}
+          onPress={() => { void handleAttachPhoto(); }}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Attach a photo"
+          testID="rfi-attach-photo"
+        >
+          <ImagePlus size={15} color={themeColors.accent} strokeWidth={1.75} />
+          <Text style={styles.attachBtnText}>Attach a photo</Text>
+        </TouchableOpacity>
         {attachments.length > 0 && (
           <>
             <Text style={styles.fieldLabel}>Photos</Text>
@@ -979,6 +1288,20 @@ function RFIScreenInner() {
               <Text style={styles.attachmentNote}>
                 Your markup shows here. An emailed copy of the photo is the plain shot — describe
                 the mark in the question too.
+              </Text>
+            )}
+            {existingRFI && drawingPins.some(p => p.linkedRfiId === existingRFI.id) && (
+              // #77 (b): the pin is circled on the architect's reply page; the
+              // emailed sheet is the plain drawing, and the email names the spot.
+              <Text style={styles.attachmentNote}>
+                The pin is circled on the sheet at the architect&apos;s reply link. The emailed sheet
+                is the plain drawing — the email says where the pin is.
+              </Text>
+            )}
+            {attachments.some(u => /^(file|content|ph|assets-library|blob):/i.test(u)) && (
+              <Text style={styles.attachmentNote}>
+                Photos attached from this device are emailed from this device. The architect&apos;s
+                reply page lists them as sent with the email.
               </Text>
             )}
           </>
@@ -1067,9 +1390,20 @@ function RFIScreenInner() {
             projectId={existingRFI.projectId}
             portalState={existingRFI.portalState}
             itemUpdatedAt={existingRFI.updatedAt}
-            canSend={existingRFI.question.trim().length > 0}
-            canSendReason={existingRFI.question.trim().length === 0 ? 'Add a question before sending.' : undefined}
+            // #58: the portal snapshots the SAVED row, so it is off while
+            // there are unsaved edits (sendBlock says so). #148: it carries
+            // the number. Not dirty ⇒ the screen IS the saved record.
+            canSend={!sendBlock && (existingRFI.question ?? '').trim().length > 0}
+            canSendReason={sendBlock ?? ((existingRFI.question ?? '').trim().length === 0 ? 'Add a question before sending.' : undefined)}
           />
+        )}
+
+        {/* #58: save and stay, so the sends below can go. */}
+        {existingRFI && isDirty && (
+          <TouchableOpacity style={styles.sendToProBtn} onPress={handleSaveInPlace} activeOpacity={0.85} testID="rfi-save-in-place">
+            <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.sendToProBtnText}>Save changes</Text>
+          </TouchableOpacity>
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="rfi-save">
@@ -1082,15 +1416,21 @@ function RFIScreenInner() {
             sends a formatted RFI email via the existing email service.
             The architect's reply lands in the GC's inbox (replyTo). */}
         {existingRFI && (
-          <TouchableOpacity
-            style={styles.sendToProBtn}
-            onPress={openSendModal}
-            activeOpacity={0.85}
-            testID="rfi-send-to-pro"
-          >
-            <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.sendToProBtnText}>Send to Architect / Engineer</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[styles.sendToProBtn, !!sendBlock && { opacity: 0.5 }]}
+              onPress={openSendModal}
+              disabled={!!sendBlock}
+              activeOpacity={0.85}
+              testID="rfi-send-to-pro"
+              accessibilityState={{ disabled: !!sendBlock }}
+            >
+              <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.sendToProBtnText}>Send to Architect / Engineer</Text>
+            </TouchableOpacity>
+            {/* #58 / #148: says why, never a dead button. */}
+            {!!sendBlock && <Text style={styles.attachmentNote} testID="rfi-send-block">{sendBlock}</Text>}
+          </>
         )}
       </ScrollView>
 
@@ -1099,14 +1439,17 @@ function RFIScreenInner() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowSendModal(false)}>
           <Pressable style={styles.sendCard} onPress={() => undefined}>
             <View style={styles.sendCardHeader}>
-              <Text style={styles.sendCardTitle}>Send RFI #{existingRFI?.number}</Text>
+              <Text style={styles.sendCardTitle}>Send {numberLabel}</Text>
               <TouchableOpacity onPress={() => setShowSendModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sendCardHelper}>
-              They'll get a formatted email with the question. Their reply
-              comes back to your inbox — paste it into the Response field.
+              {/* #56: the reply link files the answer on this RFI; pasting is
+                  only for an RFI with no link (older records). */}
+              {existingRFI?.shareToken
+                ? "They'll get a formatted email with the question and a reply link. Their answer is filed on this RFI when they submit it, and MAGE ID alerts you."
+                : "They'll get a formatted email with the question. Their reply comes back to your inbox — paste it into the Response field."}
             </Text>
             <Text style={styles.sendFieldLabel}>Their email *</Text>
             <TextInput
@@ -1214,6 +1557,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 104, height: 104, overflow: 'hidden',
   },
   attachmentThumb: { width: '100%', height: '100%' },
+  attachBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: 12, paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: themeColors.line,
+  },
+  attachBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  gateCard: { ...cardSurface(themeColors, { radius: 'md', pad: 16 }), gap: 12, alignItems: 'flex-start' },
+  gateText: { fontSize: Type.callout.fontSize, color: themeColors.text, lineHeight: 21 },
   attachmentNote: {
     fontSize: Type.caption1.fontSize, color: themeColors.textMuted,
     lineHeight: 17, marginTop: 8,

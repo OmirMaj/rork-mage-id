@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
-  Link2, Copy, Share2, FileText, Receipt, BellRing,
+  Link2, Copy, Share2, FileText, Receipt, BellRing, Square, SquareCheck,
 } from 'lucide-react-native';
 import { MageAIMark, MageInvoice } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -85,12 +85,22 @@ import { formatMoney } from '@/utils/formatters';
 import { markMilestoneInvoiced, markMilestonePaidByInvoice } from '@/utils/contractEngine';
 import {
   reminderEligibility, reminderBlockMessage, reminderSentLabel, dunningStageLabel,
+  payLinkAmountBlock, payLinkFailureReason, sentWithoutPayButtonMessage,
+  nextInvoiceNumberFrom, sessionIssuedInvoiceMax, noteIssuedInvoiceNumber, invoiceShownInPortal, reminderRecipient,
+  milestoneContractTermsCaption, recordPaymentDecision, parsePositiveMoney, parsePercentInput,
+  paymentReceivedDay, type RecordedPaymentFields,
 } from '@/utils/billingFlowCore';
+import { parseMoneyInput } from '@/utils/cashFlowEngine';
+import { formatCalendarDay, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
+import DatePickerModal from '@/components/DatePickerModal';
+import { getOfflineQueue } from '@/utils/offlineQueue';
+import { pendingIdsForTable } from '@/utils/projectContextPure';
 import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
 import { qboClosedFlagOf, qboClosedFlagAlertReason } from '@/utils/qboClosedFlag';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { pdfFailureMessage } from '@/utils/platformFile';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -98,6 +108,16 @@ function createId(_prefix: string): string {
 
 // HEALTH-F5: sign-correct money — one formatter (utils/formatters), no local Math.abs copy.
 const formatCurrency = (n: number): string => formatMoney(n, 2);
+
+// The per-device session invoice-number max (#3 part c) lives in
+// utils/billingFlowCore so app/bill-from-estimate.tsx shares it.
+
+/**
+ * The billing contact a send stores on the invoice (#47), so reminders go to
+ * the address the invoice actually went to. Optional fields the shared types
+ * gain in wave 3; declared here so this screen compiles either way.
+ */
+type InvoiceBillTo = { billToEmail?: string; billToName?: string };
 
 const PAYMENT_TERMS_OPTIONS: { value: PaymentTerms; label: string }[] = [
   { value: 'due_on_receipt', label: 'Due on Receipt' },
@@ -134,7 +154,10 @@ const PAYMENT_TERMS_OPTIONS: { value: PaymentTerms; label: string }[] = [
 // text.
 type InvoiceTermsDefault = {
   terms: 'net_15' | 'net_30' | 'net_45' | 'due_on_receipt';
-  origin: 'cash_flow_setup' | 'fallback' | 'unconfirmed';
+  // 'contract' never comes out of this block: app/invoice.tsx sets it when a
+  // signed contract row already fixed the terms (utils/billingFlowCore
+  // milestoneContractTerms), and nothing in cash-flow setup may overwrite it.
+  origin: 'cash_flow_setup' | 'fallback' | 'unconfirmed' | 'contract';
 };
 type CashFlowTermsSettings = { data?: { defaultPaymentTerms?: unknown } | null; setupComplete?: boolean; source?: string } | null | undefined;
 function invoiceTermsDefaultFromCashFlow(settings: CashFlowTermsSettings): InvoiceTermsDefault {
@@ -270,15 +293,33 @@ function InvoiceInner() {
   // "Create invoice" on a payment milestone. They are carried through the
   // editor and only acted on once the invoice is ACTUALLY created — opening
   // this screen and backing out must leave the milestone billable.
-  const { projectId: paramProjectId, invoiceId, type: invoiceType, prefillLines, prefillNotes, milestoneId, contractId, termsOrigin: termsOriginParam } = useLocalSearchParams<{
+  // contractTerms / milestoneTrigger / depositNoRetainage come with them when
+  // the signed contract already decided this row's terms or retainage
+  // (billingFlowCore.milestoneBillEffect, audits #31/#32).
+  const {
+    projectId: paramProjectId, invoiceId, type: invoiceType, prefillLines, prefillNotes, milestoneId, contractId,
+    termsOrigin: termsOriginParam, contractTerms: contractTermsParam, milestoneTrigger, depositNoRetainage: depositParam,
+  } = useLocalSearchParams<{
     projectId: string; invoiceId?: string; type?: string; termsOrigin?: string;
     prefillLines?: string; prefillNotes?: string;
     milestoneId?: string; contractId?: string;
+    contractTerms?: string; milestoneTrigger?: string; depositNoRetainage?: string;
   }>();
+  // Only for a NEW invoice billing a milestone: an existing invoice's terms and
+  // rate are facts about a document, never re-derived from a route param.
+  const contractTerms: PaymentTerms | null =
+    !invoiceId && milestoneId && contractTermsParam === 'due_on_receipt' ? 'due_on_receipt' : null;
+  const isDepositInvoice = !invoiceId && !!milestoneId && depositParam === '1';
   const {
     projects, getProject, getInvoicesForProject, addInvoice, updateInvoice, settings, updateSettings,
     getChangeOrdersForProject, contacts, invoices: allInvoices, updateProject, getAIAPayAppsForProject,
+    sendToClientPortal, awaitInvoiceInsert,
   } = useProjects();
+  // Latest-callback ref (#45): the Send awaits an email between creating the
+  // invoice and posting it, and the callback captured at tap time may predate
+  // the render that knows about the new invoice.
+  const sendToClientPortalRef = useRef(sendToClientPortal);
+  useEffect(() => { sendToClientPortalRef.current = sendToClientPortal; }, [sendToClientPortal]);
   const { tier } = useSubscription();
   const { user } = useAuth();
   const { ensureReferral } = useFinancingReferrals(user?.id);
@@ -291,6 +332,8 @@ function InvoiceInner() {
   const projectId = pickedProjectId ?? paramProjectId ?? '';
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  /** Whether this project has a client portal to post the invoice to (#45). */
+  const portalEnabled = !!project?.clientPortal?.enabled;
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
@@ -310,9 +353,10 @@ function InvoiceInner() {
     if (existingInvoice) return existingInvoice.number;
     // Max+1, not length+1: a deleted invoice (or a just-added one from
     // the synchronous create-then-edit send) would otherwise reuse a
-    // number that's already on a client-facing invoice.
-    return existingInvoices.reduce((max, i) => Math.max(max, i.number ?? 0), 0) + 1;
-  }, [existingInvoices, existingInvoice]);
+    // number that's already on a client-facing invoice. Also past every
+    // number this device issued this session (nextInvoiceNumberFrom).
+    return nextInvoiceNumberFrom(existingInvoices, sessionIssuedInvoiceMax.get(projectId ?? '') ?? 0);
+  }, [existingInvoices, existingInvoice, projectId]);
 
   const isProgressType = (invoiceType === 'progress') || (existingInvoice?.type === 'progress');
 
@@ -396,7 +440,7 @@ function InvoiceInner() {
   }, [existingInvoice, project, invoiceType, prefillLines]);
 
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialLineItems);
-  const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>(existingInvoice?.paymentTerms ?? 'net_30');
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>(existingInvoice?.paymentTerms ?? contractTerms ?? 'net_30');
   // Where the terms on screen came from, so the picker can say it. `loading`
   // only exists for a NEW invoice (no invoiceId) while his cash-flow setup is
   // read; a draft handed over by /bill-from-estimate arrives with the origin it
@@ -405,13 +449,17 @@ function InvoiceInner() {
   const [termsOrigin, setTermsOrigin] = useState<'loading' | InvoiceTermsDefault['origin'] | null>(
     invoiceId
       ? (termsOriginParam === 'cash_flow_setup' || termsOriginParam === 'fallback' || termsOriginParam === 'unconfirmed' ? termsOriginParam : null)
-      : 'loading',
+      : contractTerms ? 'contract' : 'loading',
   );
   const termsTouchedRef = useRef(false);
   useEffect(() => {
     // NEVER for an existing invoice: its terms are a fact about a document
     // that already exists, not a preference to refresh from settings.
     if (invoiceId) return;
+    // NOR when the signed contract fixed them (#31). Seeding the state is not
+    // enough: settle() overwrites anything he has not touched, so a late
+    // cash-flow answer would put Net 30 back under a "Due on signing" line.
+    if (contractTerms) return;
     let cancelled = false;
     let cache: InvoiceTermsDefault | null = null;
     let server: ServerInvoiceTerms = user?.id ? 'pending' : 'not_signed_in';
@@ -437,7 +485,7 @@ function InvoiceInner() {
       })();
     }
     return () => { cancelled = true; };
-  }, [invoiceId, user?.id]);
+  }, [invoiceId, user?.id, contractTerms]);
   const pickPaymentTerms = useCallback((terms: PaymentTerms) => {
     termsTouchedRef.current = true;
     setPaymentTerms(terms);
@@ -462,11 +510,20 @@ function InvoiceInner() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('check');
+  // #133: the day the money ARRIVED (a local calendar day he picks; today by
+  // default) and the check number — what his bookkeeper matches the deposit on.
+  const [paymentReceivedDate, setPaymentReceivedDate] = useState(() => todayCalendarDay());
+  const [paymentReference, setPaymentReference] = useState('');
+  const [showReceivedDatePicker, setShowReceivedDatePicker] = useState(false);
   const [showTermsDropdown, setShowTermsDropdown] = useState(false);
   const [showPDFPreSend, setShowPDFPreSend] = useState(false);
   const [showSendRecipient, setShowSendRecipient] = useState(false);
   const [sendRecipientName, setSendRecipientName] = useState('');
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
+  // #45: an emailed invoice is also posted to the client portal unless he
+  // unticks it — otherwise the portal (and the reminder's "View invoice")
+  // showed nothing for an invoice the client had in their inbox.
+  const [postToPortal, setPostToPortal] = useState(true);
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
   /**
@@ -511,7 +568,10 @@ function InvoiceInner() {
     payApps: projectPayApps,
   }), [existingInvoices, invoiceId, project, projectPayApps]);
 
-  const [retentionPercent, setRetentionPercent] = useState<string>(String(retainageSeed.percent));
+  // A deposit opens at 0% (#32): the contract prints the deposit as the amount
+  // due on signing. Still editable — some commercial contracts do withhold on
+  // mobilization — and never written back to the job from here.
+  const [retentionPercent, setRetentionPercent] = useState<string>(isDepositInvoice ? '0' : String(retainageSeed.percent));
   // True until he changes it — so the screen can say where the number came from
   // rather than presenting a seeded figure as if he had chosen it.
   const [retentionSeedUntouched, setRetentionSeedUntouched] = useState(true);
@@ -596,6 +656,9 @@ function InvoiceInner() {
   const balanceDue = roundCents(netBalanceDue({
     totalDue, amountPaid, subtotal, retentionPercent: retentionPctValue, retentionAmount, retentionReleased,
   }));
+  // Stripe's per-charge limits for today's balance (#49): the manual Generate
+  // button is disabled with this reason, and the send paths skip the mint.
+  const payLinkLimitReason = balanceDue > 0 ? payLinkAmountBlock(balanceDue) : null;
 
   // MISS-04: an invoice saved before the basis fix stored retainage computed on
   // the tax-INCLUSIVE total. The Retention screen, Payments, the portal and the
@@ -655,7 +718,9 @@ function InvoiceInner() {
 
   type MintResult =
     | { ok: true; url: string; id: string }
-    | { ok: false; reason: 'not_connected' | 'failed'; error?: string };
+    // `message`: why, in words the GC can act on (billingFlowCore) — every
+    // non-not_connected failure is shown in place of the success toast (#49).
+    | { ok: false; reason: 'not_connected' | 'failed'; error?: string; message?: string };
 
   /**
    * Mint a Stripe Payment Link for `amount` (dollars) against `invoice` and
@@ -670,9 +735,12 @@ function InvoiceInner() {
     amount: number,
     customerEmail?: string,
   ): Promise<MintResult> => {
-    if (amount <= 0) return { ok: false, reason: 'failed', error: 'Nothing due' };
+    if (amount <= 0) return { ok: false, reason: 'failed', error: 'Nothing due', message: 'nothing is due on it' };
     const stripeAccountId = await resolveStripeAccountId();
     if (!stripeAccountId) return { ok: false, reason: 'not_connected' };
+    // Stripe's hard limits never pass on retry — say so before the round trip.
+    const blocked = payLinkAmountBlock(amount);
+    if (blocked) return { ok: false, reason: 'failed', error: blocked, message: blocked };
     const res = await createPaymentLink({
       invoiceId: invoice.id,
       invoiceNumber: invoice.number,
@@ -683,7 +751,7 @@ function InvoiceInner() {
       stripeAccountId,
       userTier: tier,
     });
-    if (!res.success || !res.url || !res.id) return { ok: false, reason: 'failed', error: res.error };
+    if (!res.success || !res.url || !res.id) return { ok: false, reason: 'failed', error: res.error, message: payLinkFailureReason(res.error) };
     // MONEY-F2: remember the amount this link charges — the portal shows Pay,
     // and this screen offers Copy / Share, only while it still equals the balance.
     updateInvoice(invoice.id, { payLinkUrl: res.url, payLinkId: res.id, payLinkAmount: Math.round(amount * 100) / 100 });
@@ -811,6 +879,7 @@ function InvoiceInner() {
     } else {
       const inv = buildNewInvoice(status);
       addInvoice(inv);
+      noteIssuedInvoiceNumber(inv.projectId, inv.number);
       // The invoice now exists — this is the moment the milestone is billed.
       void linkMilestone(inv);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -820,6 +889,14 @@ function InvoiceInner() {
     router.back();
   }, [projectId, lineItems, paymentTerms, termsOrigin, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router, buildNewInvoice, linkMilestone]);
 
+  // Prefill for the PDF send (the reminder card's "Email the invoice" fix):
+  // the address it went to last time, else the portal's first invitee — the
+  // same order the reminder cron resolves its recipient in.
+  const pdfDefaultRecipient = useMemo(() => {
+    const billTo = existingInvoice as (Invoice & InvoiceBillTo) | null | undefined;
+    return reminderRecipient(billTo?.billToEmail, project?.clientPortal?.invites ?? []) ?? '';
+  }, [existingInvoice, project?.clientPortal?.invites]);
+
   const handleSendPress = useCallback(() => {
     // Same wait as handleSave: never open Send on terms still "Checking…".
     if (termsOrigin === 'loading') {
@@ -828,6 +905,24 @@ function InvoiceInner() {
     }
     setShowSendRecipient(true);
   }, [termsOrigin]);
+
+  // #47: when the Send sheet OPENS with no recipient typed, prefill who the
+  // invoice went to last time, else the portal's first invitee — the same
+  // order the reminder cron resolves its recipient in. Only on the opening
+  // transition, so clearing the field while the sheet is up is respected.
+  const sendSheetWasOpen = useRef(false);
+  useEffect(() => {
+    const opening = showSendRecipient && !sendSheetWasOpen.current;
+    sendSheetWasOpen.current = showSendRecipient;
+    if (!opening || sendRecipientEmail.trim()) return;
+    const billTo = existingInvoice as (Invoice & InvoiceBillTo) | null | undefined;
+    const invite = (project?.clientPortal?.invites ?? []).find(i => (i.email ?? '').includes('@'));
+    const email = reminderRecipient(billTo?.billToEmail, invite ? [invite] : []);
+    if (!email) return;
+    setSendRecipientEmail(email);
+    const name = billTo?.billToEmail?.trim() === email ? billTo?.billToName : invite?.name;
+    if (name && !sendRecipientName.trim()) setSendRecipientName(name);
+  }, [showSendRecipient, sendRecipientEmail, sendRecipientName, existingInvoice, project?.clientPortal?.invites]);
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
@@ -843,7 +938,13 @@ function InvoiceInner() {
 
     const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
     const now = new Date().toISOString();
-    const dueDate = getDueDate(now, paymentTerms);
+    // An invoice that already went out (sent / partially paid / overdue) is
+    // RE-emailed, never re-issued: its due date and status stay what they are.
+    // Re-dating it from today would reset A/R ageing and stop dunning, and
+    // writing status 'sent' would overwrite a webhook-owned 'partially_paid'.
+    // Only drafts (and brand-new invoices) are dated from this send.
+    const isResend = !!existingInvoice && existingInvoice.status !== 'draft';
+    const dueDate = isResend && existingInvoice?.dueDate ? existingInvoice.dueDate : getDueDate(now, paymentTerms);
     const recipientInfo = sendRecipientName
       ? ` to ${sendRecipientName} (${sendRecipientEmail.trim()})`
       : ` to ${sendRecipientEmail.trim()}`;
@@ -868,6 +969,7 @@ function InvoiceInner() {
     } else {
       workingInvoice = buildNewInvoice('draft');
       addInvoice(workingInvoice);
+      noteIssuedInvoiceNumber(workingInvoice.projectId, workingInvoice.number);
       // Bill the milestone the instant the invoice is persisted — before the
       // email attempt, which can fail and leave the invoice a draft. A draft
       // invoice still exists (and stays on his list), so the milestone is
@@ -897,19 +999,56 @@ function InvoiceInner() {
       && Math.abs(workingInvoice.payLinkAmount - balanceDue) <= 0.01;
     let payLinkUrl: string | undefined = workingLinkMatchesBalance ? workingInvoice.payLinkUrl : undefined;
     let stripeNotConnected = false;
+    // Why the email goes out WITHOUT a Pay button, when it does (#49). Any
+    // reason but "Stripe not connected" (which has its own once-ever nudge)
+    // replaces the "sent" toast — the GC was told "Invoice #N sent" while the
+    // client got an invoice they could not pay online.
+    let noPayButtonReason: string | null = null;
     if (!workingLinkMatchesBalance && balanceDue > 0) {
-      try {
-        const minted = await mintPayLinkFor(workingInvoice, balanceDue, sendRecipientEmail.trim());
-        if (minted.ok) {
-          payLinkUrl = minted.url;
-        } else if (minted.reason === 'not_connected') {
-          console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
-          stripeNotConnected = true;
-        } else {
-          console.warn('[Invoice] Auto-generate payment link failed:', minted.error);
+      // A brand-new invoice whose INSERT is still sitting in the offline queue
+      // does not exist on the server yet: create-payment-link would 404 on
+      // its ownership check. Skip the mint and say why. (An INSERT still on
+      // the wire usually wins the race; if it loses, the 404 is reported in
+      // words below, never swallowed.) A queue we cannot read is treated as
+      // holding it — the send still goes, honestly without the button — but
+      // its copy only says what we KNOW: that the server copy is unconfirmed,
+      // not that he is offline.
+      let insertState: 'clear' | 'queued' | 'failed' | 'unknown' = 'clear';
+      if (createdNew) {
+        // Await this session's INSERT when it is still on the wire, so a mint
+        // never races it; the outcome tells a refused insert (not on the
+        // server at all) apart from one that went to the offline queue.
+        // `undefined` = no record of it this session → read the queue.
+        const outcome = await awaitInvoiceInsert(workingInvoice.id).catch(() => undefined);
+        if (outcome === 'failed') insertState = 'failed';
+        else if (outcome === 'queued') insertState = 'queued';
+        else if (outcome !== 'synced') {
+          try { if (pendingIdsForTable(await getOfflineQueue(), 'invoices').has(workingInvoice.id)) insertState = 'queued'; }
+          catch { insertState = 'unknown'; }
         }
-      } catch (err) {
-        console.warn('[Invoice] Auto-generate payment link threw:', err);
+      }
+      if (insertState === 'queued') {
+        noPayButtonReason = "you're offline, so the invoice is only saved on this phone for now — it reaches the server when you reconnect";
+      } else if (insertState === 'failed') {
+        noPayButtonReason = "the server didn't accept the invoice, so it is saved on this phone only — there is nothing on the server to attach a payment link to";
+      } else if (insertState === 'unknown') {
+        noPayButtonReason = "the invoice couldn't be confirmed on the server yet";
+      } else {
+        try {
+          const minted = await mintPayLinkFor(workingInvoice, balanceDue, sendRecipientEmail.trim());
+          if (minted.ok) {
+            payLinkUrl = minted.url;
+          } else if (minted.reason === 'not_connected') {
+            console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
+            stripeNotConnected = true;
+          } else {
+            console.warn('[Invoice] Auto-generate payment link failed:', minted.error);
+            noPayButtonReason = minted.message ?? payLinkFailureReason(minted.error);
+          }
+        } catch (err) {
+          console.warn('[Invoice] Auto-generate payment link threw:', err);
+          noPayButtonReason = payLinkFailureReason(err instanceof Error ? err.message : String(err));
+        }
       }
     }
 
@@ -954,7 +1093,9 @@ function InvoiceInner() {
 
     const result = await sendEmail({
       to: sendRecipientEmail.trim(),
-      subject: `Invoice #${workingInvoice.number}: ${(() => { const v = amountDueNow; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
+      // Exact to the cent (#135): the subject is the figure the Pay button
+      // charges — "$77K due" over a $77,484.88 charge read as a mismatch.
+      subject: `Invoice #${workingInvoice.number}: ${formatCurrency(amountDueNow)} due · ${project?.name ?? 'Project'}`,
       html,
       replyTo: branding.email || undefined,
       fromCompanyName: branding.companyName || undefined,
@@ -993,10 +1134,22 @@ function InvoiceInner() {
     // (updateInvoice reads the latest list, so it finds the invoice added
     // above, and orders its write behind that insert). Existing invoices need
     // their edits + status flushed.
+    // #47: the address it went to is stored with the flip, so the reminder
+    // cron chases THIS recipient instead of whoever is first on the portal.
+    const billTo: InvoiceBillTo = {
+      billToEmail: sendRecipientEmail.trim(),
+      billToName: sendRecipientName.trim() || undefined,
+    };
     if (createdNew) {
-      updateInvoice(workingInvoice.id, { status: 'sent', dueDate });
+      updateInvoice(workingInvoice.id, { status: 'sent', dueDate, ...billTo });
+    } else if (existingInvoice && isResend) {
+      // A re-send records only who it went to — no status, no due date, no
+      // re-priced lines on an invoice the client already holds.
+      const billToOnly: Partial<Invoice> & InvoiceBillTo = { ...billTo };
+      updateInvoice(existingInvoice.id, billToOnly);
     } else if (existingInvoice) {
       updateInvoice(existingInvoice.id, {
+        ...billTo,
         lineItems,
         paymentTerms,
         notes: notes.trim(),
@@ -1017,7 +1170,35 @@ function InvoiceInner() {
       });
     }
 
+    // #45: post it to the client portal too (ticked by default). Through the
+    // latest-callback ref, so the context's newest sendToClientPortal — the
+    // one that can see the invoice added above — is the one called. A failed
+    // post never un-sends the email; it is named in the result instead.
+    let portalNote = '';
+    if (postToPortal && portalEnabled) {
+      try {
+        await sendToClientPortalRef.current({ kind: 'invoice', itemId: workingInvoice.id, projectId: workingInvoice.projectId });
+      } catch (err) {
+        console.warn('[Invoice] portal post after email failed:', err);
+        portalNote = ` It was not posted to the client portal (${err instanceof Error ? err.message : 'try Send to Client below'}).`;
+      }
+    }
+
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (noPayButtonReason) {
+      showAlert(
+        `Invoice #${workingInvoice.number} sent — no Pay button`,
+        `${sentWithoutPayButtonMessage(workingInvoice.number, noPayButtonReason)}${portalNote}`,
+      );
+      router.back();
+      return;
+    }
+    if (portalNote) {
+      showAlert(`Invoice #${workingInvoice.number} sent${recipientInfo}`, portalNote.trim());
+      router.back();
+      return;
+    }
 
     // FF1-C: Stripe-not-connected nudge — show ONCE EVER, not on every
     // send. After the first time, the user knows; nagging on each invoice
@@ -1038,7 +1219,7 @@ function InvoiceInner() {
       nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}`);
     }
     router.back();
-  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, balanceDue, mintPayLinkFor, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral, linkMilestone]);
+  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, balanceDue, mintPayLinkFor, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral, linkMilestone, postToPortal, portalEnabled, awaitInvoiceInsert]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;
@@ -1060,6 +1241,9 @@ function InvoiceInner() {
         && existingInvoice.payLinkAmount != null
         && Math.abs(existingInvoice.payLinkAmount - pdfNetDue) <= 0.01;
       let payLinkUrl: string | undefined = storedLinkMatchesBalance ? existingInvoice.payLinkUrl : undefined;
+      // Same honesty as handleConfirmSend (#49): a failed mint is named in the
+      // result, never swallowed behind "Email Sent".
+      let noPayButtonReason: string | null = null;
       if (!storedLinkMatchesBalance && pdfNetDue > 0) {
         try {
           const minted = await mintPayLinkFor(existingInvoice, pdfNetDue, options.recipient.trim());
@@ -1069,9 +1253,11 @@ function InvoiceInner() {
             console.log('[Invoice] PDF send: skipping payment link — Stripe Connect not set up');
           } else {
             console.warn('[Invoice] PDF send: payment link mint failed:', minted.error);
+            noPayButtonReason = minted.message ?? payLinkFailureReason(minted.error);
           }
         } catch (err) {
           console.warn('[Invoice] Auto pay-link gen failed in handleSendPDF:', err);
+          noPayButtonReason = payLinkFailureReason(err instanceof Error ? err.message : String(err));
         }
       }
 
@@ -1124,7 +1310,7 @@ function InvoiceInner() {
 
       const result = await sendEmail({
         to: options.recipient.trim(),
-        subject: `Invoice #${existingInvoice.number}: ${(() => { const v = pdfNetDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project.name}`,
+        subject: `Invoice #${existingInvoice.number}: ${formatCurrency(pdfNetDue)} due · ${project.name}`,
         html: emailHtml,
         replyTo: branding.email || undefined,
         attachments: pdfUri ? [pdfUri] : undefined,
@@ -1139,11 +1325,22 @@ function InvoiceInner() {
       const pdfMissing = !pdfUri || (result.attachmentsDropped ?? 0) > 0;
 
       if (result.success) {
+        // #47: remember who it went to, for reminders — only when it changed.
+        const sentTo = options.recipient.trim();
+        if ((existingInvoice as Invoice & InvoiceBillTo).billToEmail?.trim() !== sentTo) {
+          // The PDF sheet asks for no name, so the previous recipient's name
+          // is CLEARED with the address (the key present, value undefined →
+          // bill_to_name null via invoiceBillToColumns): the dunning reminder
+          // must not greet the lender's AP desk as "Jane".
+          const billToPatch: Partial<Invoice> & InvoiceBillTo = { billToEmail: sentTo, billToName: undefined };
+          updateInvoice(existingInvoice.id, billToPatch);
+        }
+        const payNote = noPayButtonReason ? `\n\n${sentWithoutPayButtonMessage(existingInvoice.number, noPayButtonReason)}` : '';
         showAlert(
-          pdfMissing ? 'Sent — without the PDF' : 'Email Sent',
-          pdfMissing
+          noPayButtonReason && !pdfMissing ? 'Sent — without a Pay button' : (pdfMissing ? 'Sent — without the PDF' : 'Email Sent'),
+          (pdfMissing
             ? `The invoice summary was emailed to ${options.recipient}, but the PDF could not be attached. Send the PDF separately if the client needs the full document.`
-            : `Invoice emailed to ${options.recipient}`,
+            : `Invoice emailed to ${options.recipient}`) + payNote,
         );
       } else if (result.error === 'cancelled') {
         return;
@@ -1192,25 +1389,28 @@ function InvoiceInner() {
       });
     } catch (e) {
       console.error('[Invoice] PDF share error:', e);
-      showAlert('Error', 'Failed to generate PDF. Please try again.');
+      showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));
     }
-  }, [project, existingInvoice, settings, mintPayLinkFor]);
+  }, [project, existingInvoice, settings, mintPayLinkFor, updateInvoice]);
 
-  const handleMarkPaid = useCallback(() => {
-    const amt = parseFloat(paymentAmount) || 0;
-    if (amt <= 0) {
-      showAlert('Invalid Amount', 'Please enter a valid payment amount.');
-      return;
-    }
+  const commitPayment = useCallback((amt: number) => {
     if (!existingInvoice) return;
 
-    const payment: InvoicePayment = {
+    // #133: `date` stays the instant it was recorded (the QuickBooks
+    // reconciler matches on it); `receivedDate` is the day he says the money
+    // arrived, which is what QuickBooks is dated with and what every reader
+    // of "when was this paid" prefers (billingFlowCore.paymentReceivedDay).
+    const reference = paymentReference.trim();
+    const payment: InvoicePayment & RecordedPaymentFields = {
       id: createId('pay'),
       date: new Date().toISOString(),
       amount: amt,
       method: paymentMethod,
+      receivedDate: calendarDayOf(paymentReceivedDate) ?? todayCalendarDay(),
+      ...(reference ? { reference } : {}),
     };
-    const newPaid = amountPaid + amt;
+    // To the cent: two float adds of $0.10 are not $0.20.
+    const newPaid = Math.round((amountPaid + amt) * 100) / 100;
     // MONEY-F5: settled = the retention-net balance is covered. Held retention
     // no longer parks an invoice at "partially paid" until closeout.
     const newStatus = invoiceIsSettled({
@@ -1267,22 +1467,49 @@ function InvoiceInner() {
     // Only when the invoice is fully settled: a partial payment has not paid
     // the draw. Fire-and-forget, like the re-mint above — the payment is
     // already recorded, and a failed flip must never roll it back.
+    // It is a direct write (see markMilestonePaidByInvoice), so when it does
+    // not land he is TOLD (#136) — console.warn told nobody. The contract
+    // screen shows the draw as paid from this invoice either way and repairs
+    // the stored status the next time it opens.
     if (newStatus === 'paid' && existingInvoice.sourceContractId) {
+      const flipFailed = () => showAlert(
+        'Contract milestone not updated yet',
+        `The payment on invoice #${existingInvoice.number} is recorded. The contract's payment schedule could not be updated just now (offline or a server error); the contract shows this draw as paid from the invoice, and saves it the next time you open the contract with signal.`,
+      );
       void markMilestonePaidByInvoice(existingInvoice.sourceContractId, existingInvoice.id)
-        .then((outcome) => {
-          if (outcome === 'failed' || outcome === 'not_found') {
-            console.warn('[Invoice] milestone paid-flip did not land:', outcome);
-          }
-        })
-        .catch((err) => { console.warn('[Invoice] milestone paid-flip threw:', err); });
+        .then((outcome) => { if (outcome === 'failed' || outcome === 'not_found') flipFailed(); })
+        .catch(flipFailed);
     }
 
     setShowPaymentModal(false);
     setPaymentAmount('');
+    setPaymentReference('');
+    setPaymentReceivedDate(todayCalendarDay());
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Payment Recorded', `${formatCurrency(amt)} payment recorded. Status: ${newStatus.replace('_', ' ')}`);
     router.back();
-  }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, subtotal, retentionPctValue, retentionAmount, retentionReleased, updateInvoice, mintPayLinkFor, router]);
+  }, [paymentMethod, paymentReceivedDate, paymentReference, existingInvoice, amountPaid, totalDue, subtotal, retentionPctValue, retentionAmount, retentionReleased, updateInvoice, mintPayLinkFor, router]);
+
+  const handleMarkPaid = useCallback(() => {
+    if (!existingInvoice) return;
+    // #134: parseMoneyInput, not parseFloat — '12,500.00' was recorded as $12
+    // and pushed to QuickBooks. Refused with the reason, never read as 0;
+    // rounded to the cent; more than the balance asks first (overpayments are
+    // real — a combined check, a credit — so it asks rather than blocks).
+    const decision = recordPaymentDecision(paymentAmount, balanceDue, parseMoneyInput, formatCurrency);
+    if (decision.kind === 'refuse') {
+      showAlert(decision.title, decision.message);
+      return;
+    }
+    if (decision.kind === 'confirm') {
+      showAlert(decision.title, decision.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Record it', onPress: () => commitPayment(decision.amount) },
+      ]);
+      return;
+    }
+    commitPayment(decision.amount);
+  }, [paymentAmount, balanceDue, existingInvoice, commitPayment]);
 
   // Stripe payment link: generate once per invoice (or regenerate if the link
   // is lost/stale). We persist `payLinkUrl` + `payLinkId` on the invoice so the
@@ -1292,6 +1519,12 @@ function InvoiceInner() {
     if (!existingInvoice || !project) return;
     if (balanceDue <= 0) {
       showAlert('Nothing Due', 'This invoice has no outstanding balance.');
+      return;
+    }
+    // Same pre-check as the send paths: Stripe's per-charge limits never pass,
+    // so say why instead of relaying Stripe's raw error after a round trip.
+    if (payLinkLimitReason) {
+      showAlert('No payment link for this amount', `${payLinkLimitReason.charAt(0).toUpperCase()}${payLinkLimitReason.slice(1)}.`);
       return;
     }
 
@@ -1356,9 +1589,12 @@ function InvoiceInner() {
       });
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // #45: promise the portal button only when the portal shows this invoice.
       showAlert(
         'Payment Link Ready',
-        'A Stripe payment link has been generated and attached to this invoice. Your client will see a Pay Now button in the portal.',
+        invoiceShownInPortal(existingInvoice.portalState)
+          ? 'A Stripe payment link has been generated and attached to this invoice. Your client will see a Pay Now button in the portal.'
+          : 'A Stripe payment link has been generated. Copy or share it with your client, or email the invoice so it carries the Pay button. This invoice is not posted to the client portal, so it has no Pay button there.',
       );
     } catch (err) {
       console.error('[Invoice] Generate pay link failed:', err);
@@ -1366,7 +1602,7 @@ function InvoiceInner() {
     } finally {
       setGeneratingPayLink(false);
     }
-  }, [existingInvoice, project, balanceDue, contacts, settings, updateInvoice, user, tier, router]);
+  }, [existingInvoice, project, balanceDue, payLinkLimitReason, contacts, settings, updateInvoice, user, tier, router]);
 
   // MONEY-F2: Copy / Share hand the client a URL that charges a fixed amount,
   // so both refuse a link whose minted amount is not today's balance (the card
@@ -1431,6 +1667,12 @@ function InvoiceInner() {
       dunningStage: existingInvoice.dunningStage ?? 0,
       lastSentMs: lastMs != null && Number.isFinite(lastMs) ? lastMs : null,
       manual: true,
+      // #47: the cron's own recipient order (billing email, then the first
+      // portal invitee). None → the card says reminders are off, up front.
+      hasRecipient: reminderRecipient(
+        (existingInvoice as Invoice & InvoiceBillTo).billToEmail,
+        project?.clientPortal?.invites,
+      ) != null,
       nowMs,
     });
     return {
@@ -1439,7 +1681,7 @@ function InvoiceInner() {
       lastMs: lastMs != null && Number.isFinite(lastMs) ? lastMs : null,
       sentLabel: reminderSentLabel(existingInvoice.dunningStage, lastMs),
     };
-  }, [existingInvoice]);
+  }, [existingInvoice, project?.clientPortal?.invites]);
 
   // QuickBooks closed this invoice with something other than a payment (a
   // credit memo, journal entry, write-off). The dunning cron is paused on it;
@@ -1459,7 +1701,7 @@ function InvoiceInner() {
         showAlert(
           'No reminder sent',
           res.reason === 'no_recipient'
-            ? 'No client email is on file for this project. Add a portal invitee in Client Portal setup, then try again.'
+            ? 'No client email is on file for this invoice. Email the invoice to your client (the address is kept for reminders) or add a portal invitee in Client Portal setup, then try again.'
             : res.reason
               ? reminderBlockMessage(res.reason as Parameters<typeof reminderBlockMessage>[0], reminderState?.lastMs, Date.now())
               : 'This invoice is not eligible for a reminder right now.',
@@ -1525,9 +1767,11 @@ function InvoiceInner() {
   // draft mid-edit releases against what is on screen.
   const handleReleaseRetention = useCallback(() => {
     if (!existingInvoice) return;
-    const amt = parseFloat(retentionReleaseAmount) || 0;
-    if (amt <= 0) {
-      showAlert('Invalid Amount', 'Please enter a valid release amount.');
+    // #134: parseMoneyInput, not parseFloat — '10,000' released $10. The cap
+    // below already refuses more than is held; this only reads the number.
+    const amt = parsePositiveMoney(retentionReleaseAmount, parseMoneyInput);
+    if (amt == null) {
+      showAlert('Couldn’t read that amount', 'Type the release amount above $0.00, like 10000.00 or 10,000.00.');
       return;
     }
     if (amt > retentionPending + 0.001) {
@@ -1601,7 +1845,12 @@ function InvoiceInner() {
   // a balance reopened by a retention release still offers Record Payment and
   // the pay-link card (review of B3a: the released $10,000 was a dead end).
   const canRecordPayment = !!existingInvoice && effectiveStatus !== 'draft' && effectiveStatus !== 'paid';
-  const openRecordPayment = () => { setPaymentAmount(balanceDue.toFixed(2)); setShowPaymentModal(true); };
+  const openRecordPayment = () => {
+    setPaymentAmount(balanceDue.toFixed(2));
+    setPaymentReceivedDate(todayCalendarDay());
+    setPaymentReference('');
+    setShowPaymentModal(true);
+  };
 
   /**
    * Ask for the retainage exactly once, at the moment it first matters.
@@ -1619,11 +1868,12 @@ function InvoiceInner() {
     // `project` is required: this screen can mount with no job picked (the
     // ToolProjectPicker path below), and burning the one-shot there would mean
     // the ask never appears once he does pick one.
-    if (project && retainageSeed.needsAsk && !isLocked && !retainageAsked) {
+    // Never over a deposit: the contract already answered it (#32).
+    if (project && retainageSeed.needsAsk && !isLocked && !retainageAsked && !isDepositInvoice) {
       setRetainageAsked(true);
       setShowRetainageAsk(true);
     }
-  }, [project, retainageSeed.needsAsk, isLocked, retainageAsked]);
+  }, [project, retainageSeed.needsAsk, isLocked, retainageAsked, isDepositInvoice]);
 
   /**
    * He answered. The rate goes on the invoice being edited AND on the job, so
@@ -1674,6 +1924,7 @@ function InvoiceInner() {
    */
   const retentionProvenance = useMemo<{ label: string; warn: boolean } | null>(() => {
     if (!retentionSeedUntouched) return null;
+    if (isDepositInvoice) return { label: 'Deposit — no retainage held (per contract)', warn: false };
     if (retainageSeed.source !== 'invoice') {
       return { label: retainageSeed.label, warn: retainageSeed.needsAsk || !!retainageSeed.conflict };
     }
@@ -1684,9 +1935,10 @@ function InvoiceInner() {
       return { label: `this draft holds ${own}%, your contract says ${retainageBasis.percent}%`, warn: true };
     }
     return null;
-  }, [retentionSeedUntouched, retainageSeed, retainageBasis, isLocked, existingInvoice?.status, project?.retainagePercentAssumed]);
+  }, [retentionSeedUntouched, retainageSeed, retainageBasis, isLocked, existingInvoice?.status, project?.retainagePercentAssumed, isDepositInvoice]);
 
-  const retainageAskValue = parseFloat(retainageAskInput);
+  // parsePercentInput, not parseFloat: '1,5' read as 1% and '10abc' as 10% (#134).
+  const retainageAskValue = parsePercentInput(retainageAskInput) ?? NaN;
   const retainageAskValid = retainageAskInput.trim().length > 0 && isRecordedRetainageRate(retainageAskValue);
 
   if (!project) {
@@ -1849,6 +2101,11 @@ function InvoiceInner() {
               us his terms, and the invoice should not pretend he has. */}
           {!isLocked && termsOrigin === 'loading' && (
             <Text style={styles.termsHint}>Checking the payment terms in your cash-flow setup…</Text>
+          )}
+          {!isLocked && termsOrigin === 'contract' && (
+            <Text style={styles.termsHint} testID="invoice-terms-from-contract">
+              {milestoneContractTermsCaption(milestoneTrigger) ?? 'From the signed contract.'}
+            </Text>
           )}
           {!isLocked && termsOrigin === 'cash_flow_setup' && (
             <Text style={styles.termsHint}>From your cash-flow setup — the same terms your forecast uses.</Text>
@@ -2168,9 +2425,25 @@ function InvoiceInner() {
                 </Text>
               ) : null}
               {!reminderState.eligibility.eligible && reminderState.eligibility.reason && (
-                <Text style={styles.reminderHint}>
+                <Text style={styles.reminderHint} testID="reminder-block-reason">
                   {reminderBlockMessage(reminderState.eligibility.reason, reminderState.lastMs, reminderState.nowMs)}
                 </Text>
+              )}
+              {/* The card only renders for invoices that already went out, so
+                  the fix is the PDF send — it keeps the stored due date and
+                  status and stores the address. Never the draft Send sheet,
+                  which would re-date the invoice from today. */}
+              {reminderState.eligibility.reason === 'no_recipient' && (
+                <TouchableOpacity
+                  style={styles.pickContactBtn}
+                  onPress={() => setShowPDFPreSend(true)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  testID="reminder-add-recipient"
+                >
+                  <Send size={14} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.pickContactText}>Email the invoice to your client</Text>
+                </TouchableOpacity>
               )}
               <TouchableOpacity
                 style={[styles.reminderBtn, (!reminderState.eligibility.eligible || sendingReminder) && styles.reminderBtnDisabled]}
@@ -2223,7 +2496,9 @@ function InvoiceInner() {
                   <Text style={styles.payLinkTitle}>Stripe Payment Link</Text>
                   <Text style={styles.payLinkSub}>
                     {payLinkMatchesBalance
-                      ? 'Clients can pay by card or ACH via the portal.'
+                      ? invoiceShownInPortal(existingInvoice.portalState)
+                        ? 'Clients can pay by card or ACH via the portal.'
+                        : 'Included as a Pay button in the emailed invoice. Share it to the client portal to show it there too.'
                       : existingInvoice.payLinkUrl
                         ? existingInvoice.payLinkAmount == null
                           ? `This link predates amount tracking — regenerate it for the current balance of ${formatCurrency(balanceDue)}.`
@@ -2310,11 +2585,18 @@ function InvoiceInner() {
                   )}
                 </>
               ) : (
+                <>
+                {payLinkLimitReason ? (
+                  <Text style={styles.reminderHint} testID="pay-link-limit-reason">
+                    {`No payment link: ${payLinkLimitReason}.`}
+                  </Text>
+                ) : null}
                 <TouchableOpacity
-                  style={styles.payLinkGenerateBtn}
+                  style={[styles.payLinkGenerateBtn, !!payLinkLimitReason && styles.reminderBtnDisabled]}
                   onPress={handleGeneratePayLink}
                   activeOpacity={0.85}
-                  disabled={generatingPayLink}
+                  disabled={generatingPayLink || !!payLinkLimitReason}
+                  accessibilityState={{ disabled: generatingPayLink || !!payLinkLimitReason }}
                   testID="generate-pay-link-btn"
                 >
                   {generatingPayLink ? (
@@ -2329,6 +2611,7 @@ function InvoiceInner() {
                     </>
                   )}
                 </TouchableOpacity>
+                </>
               )}
             </View>
           )}
@@ -2339,11 +2622,15 @@ function InvoiceInner() {
               {existingInvoice.payments.map((p) => (
                 <View key={p.id} style={styles.paymentRow}>
                   <View style={styles.paymentInfo}>
+                    {/* The day it was RECEIVED (#133), as a calendar day — never
+                        `new Date(bareDay)`, which is UTC midnight and prints
+                        the previous day anywhere in the Americas. */}
                     <Text style={styles.paymentDate}>
-                      {new Date(p.date).toLocaleDateString()}
+                      {formatCalendarDay(paymentReceivedDay(p as InvoicePayment & RecordedPaymentFields)) || '—'}
                     </Text>
                     <Text style={styles.paymentMethodText}>
                       {p.method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      {(p as InvoicePayment & RecordedPaymentFields).reference ? ` · ${(p as InvoicePayment & RecordedPaymentFields).reference}` : ''}
                     </Text>
                   </View>
                   <Text style={styles.paymentAmount}>{formatCurrency(p.amount)}</Text>
@@ -2477,6 +2764,32 @@ function InvoiceInner() {
                 placeholderTextColor={themeColors.textMuted}
               />
 
+              <Text style={styles.modalFieldLabel}>Date received</Text>
+              <TouchableOpacity
+                style={styles.modalInput}
+                onPress={() => setShowReceivedDatePicker(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Date received, ${formatCalendarDay(paymentReceivedDate)}. Change it`}
+                testID="record-payment-received-date"
+                activeOpacity={0.7}
+              >
+                <Text style={styles.termsSelectorText}>
+                  {formatCalendarDay(paymentReceivedDate)}{paymentReceivedDate === todayCalendarDay() ? ' (today)' : ''}
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={styles.modalFieldLabel}>Check # / reference (optional)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={paymentReference}
+                onChangeText={setPaymentReference}
+                placeholder="e.g. 1042"
+                placeholderTextColor={themeColors.textMuted}
+                maxLength={60}
+                autoCapitalize="none"
+                testID="record-payment-reference"
+              />
+
               <Text style={styles.modalFieldLabel}>Payment Method</Text>
               <View style={styles.methodGrid}>
                 {PAYMENT_METHOD_OPTIONS.map(opt => (
@@ -2500,6 +2813,18 @@ function InvoiceInner() {
             </View>
           </View>
         </KeyboardAvoidingView>
+        {/* Inside the payment sheet's Modal so it presents over it. It emits a
+            noon-UTC instant; calendarDayOf takes the local day it names. */}
+        <DatePickerModal
+          visible={showReceivedDatePicker}
+          value={paymentReceivedDate}
+          title="Date received"
+          onClose={() => setShowReceivedDatePicker(false)}
+          onChange={(iso) => {
+            setPaymentReceivedDate(calendarDayOf(iso) ?? todayCalendarDay());
+            setShowReceivedDatePicker(false);
+          }}
+        />
       </Modal>
 
       {/* THE ASK. Opened only when utils/retainageSource found no rate on this
@@ -2714,6 +3039,32 @@ function InvoiceInner() {
                 </>
               )}
 
+              {/* #45: emailing and posting to the portal were two separate
+                  sends nothing reconciled — the portal showed no invoice and
+                  no Pay button for one the client had in their inbox. */}
+              <TouchableOpacity
+                style={[styles.portalPostRow, !portalEnabled && { opacity: 0.55 }]}
+                onPress={() => setPostToPortal(v => !v)}
+                disabled={!portalEnabled}
+                activeOpacity={0.7}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: portalEnabled && postToPortal, disabled: !portalEnabled }}
+                accessibilityLabel="Also post to client portal"
+                testID="send-post-to-portal"
+              >
+                {portalEnabled && postToPortal
+                  ? <SquareCheck size={18} color={themeColors.accent} strokeWidth={1.75} />
+                  : <Square size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.portalPostLabel}>Also post to client portal</Text>
+                  <Text style={styles.portalPostHint}>
+                    {portalEnabled
+                      ? 'The client sees it, with its Pay button, in their project portal.'
+                      : 'This project has no client portal yet — set one up in Client Portal to post invoices there.'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
                 <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
@@ -2748,6 +3099,7 @@ function InvoiceInner() {
           visible={showPDFPreSend}
           onClose={() => setShowPDFPreSend(false)}
           onSend={handleSendPDF}
+          defaultRecipient={pdfDefaultRecipient}
           documentType="invoice"
           projectName={project.name}
           documentNumber={existingInvoice.number}
@@ -2878,6 +3230,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '10' },
   pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  portalPostRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10, paddingVertical: 8 },
+  portalPostLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  portalPostHint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
   recipientModalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
   // In-content Record Payment row (mirrors releaseRetentionBtn's placement).
   recordPaymentBtn: { marginHorizontal: 16, marginBottom: 12, minHeight: 48, borderRadius: Tokens.radius.card, backgroundColor: themeColors.successSoft, alignItems: 'center', flexDirection: 'row', gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.success + '30' },

@@ -17,10 +17,20 @@
 // reports answered "not in your plans" while the right sheet sat at rank 9.
 // A caller that knows what it wants now passes `sources` and the filter runs
 // inside the top-K.
+//
+// OWNER SCOPE (audit #161). A search for plan sheets ONLY runs over the
+// PROJECT OWNER's plan index, after the caller is confirmed as the owner or an
+// accepted collaborator, and is metered on the owner's tier and cap — so his
+// PM or super can ask the plan set the GC paid to index. The hourly limit
+// stays on the caller. Every other search is the caller's own, exactly as
+// before: Project Memory rows can carry figures a field seat is blinded from
+// (project-memory-embed/planScope.ts).
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
+import { planOnlySources, tierMeets, ownerPlanRefusal, type Tier } from "../project-memory-embed/planScope.ts";
+import { resolvePlanScope, tierOfUser } from "../project-memory-embed/planScopeIo.ts";
 
 // Shared with project-memory-embed: per-user hourly ceiling on memory calls.
 const PM_HOURLY_LIMIT = 90;
@@ -49,7 +59,10 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ success: false, error: "Use POST" }, 405);
 
-  const auth = await requireTier(req, ["pro", "business", "enterprise"], "project_memory");
+  // Identity first (any verified user); the TIER gate runs below, against
+  // whoever the search is metered on — the caller, or for a plan-only search
+  // the project owner. requireTier with the lowest tier only verifies.
+  const auth = await requireTier(req, ["free", "pro", "business", "enterprise"], "project_memory");
   if (!auth.ok) return json(auth.body, auth.status);
 
   let body: SearchRequest;
@@ -60,12 +73,34 @@ serve(async (req: Request) => {
   const matchCount = Math.max(1, Math.min(24, body.matchCount ?? 8));
   if (!projectId || !query) return json({ success: false, error: "Missing projectId or query" }, 400);
 
+  const sources = cleanSources(body.sources);
+  // Whose index this reads (p_user_id) and whose plan pays for it.
+  let indexUserId = auth.userId;
+  let meter: { userId: string; tier: Tier } = { userId: auth.userId, tier: auth.tier };
+  if (planOnlySources(sources)) {
+    const scope = await resolvePlanScope(auth.userId, projectId);
+    if (!scope) return json({ success: false, error: "This project is not available on this account.", code: "project_unavailable" }, 403);
+    indexUserId = scope.indexUserId;
+    if (scope.meterUserId !== auth.userId) meter = { userId: scope.meterUserId, tier: await tierOfUser(scope.meterUserId) };
+    if (!tierMeets(meter.tier, "pro")) {
+      return json({
+        success: false,
+        error: scope.role === "owner"
+          ? `This feature requires pro or business or enterprise or higher. You're currently on ${meter.tier}.`
+          : ownerPlanRefusal("Ask Your Plans", "pro"),
+        code: "tier_required",
+      }, 403);
+    }
+  } else if (!tierMeets(auth.tier, "pro")) {
+    return json({ success: false, error: `This feature requires pro or business or enterprise or higher. You're currently on ${auth.tier}.`, code: "tier_required" }, 403);
+  }
+
   // Cost ceiling (audit): monthly cap (fail-closed) + hourly burst limit, checked
   // before spending on the query embedding. Search embeds ONE query, so it charges
   // 1 (unlike embed, which charges docs.length). The hourly bucket fails CLOSED
   // like every other paid relay (review 2026-09-05): rl < 0 → 503, `rl - 1 >=`.
-  const cap = MONTHLY_CAPS[auth.tier]?.project_memory ?? 0;
-  const used = await aiUsageGet(auth.userId, "project_memory");
+  const cap = MONTHLY_CAPS[meter.tier]?.project_memory ?? 0;
+  const used = await aiUsageGet(meter.userId, "project_memory");
   if (used + 1 > cap) {
     return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
   }
@@ -84,7 +119,6 @@ serve(async (req: Request) => {
   }
   if (!qvec[0]) return json({ success: false, error: "Empty embedding" }, 502);
 
-  const sources = cleanSources(body.sources);
   const callRpc = async (args: Record<string, unknown>) => await fetch(`${SUPABASE_URL}/rest/v1/rpc/match_project_memory`, {
     method: "POST",
     headers: {
@@ -95,7 +129,7 @@ serve(async (req: Request) => {
     body: JSON.stringify(args),
   });
   const baseArgs = {
-    p_user_id: auth.userId,
+    p_user_id: indexUserId,
     p_project_id: projectId,
     p_query: toVectorLiteral(qvec[0]),
   };
@@ -120,6 +154,6 @@ serve(async (req: Request) => {
   const raw = await r.json();
   let matches: Match[] = Array.isArray(raw) ? raw as Match[] : [];
   if (filterHere) matches = matches.filter(m => sources.includes(m.source)).slice(0, matchCount);
-  await aiUsageIncrement(auth.userId, "project_memory", 1);
+  await aiUsageIncrement(meter.userId, "project_memory", 1);
   return json({ success: true, matches });
 });

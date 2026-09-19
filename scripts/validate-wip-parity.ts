@@ -574,29 +574,35 @@ console.log('\ncost-to-date is the whole recorded cost, identically, in both eng
     { id: 'pm2', projectId: 'p1', fee: 940, status: 'denied' },
     { id: 'pm3', projectId: 'p2', fee: 7_000, status: 'issued' },
   ] as never;
-  const costSources = { receipts, timeEntries, laborRates, overtimeMultiplier: 1.5, equipment, permits };
-  const direct = { projectId: 'p1', timeEntries, laborRates, overtimeMultiplier: 1.5, equipment, permits };
+  // #65 · WHICH hours are overtime now comes from the GC's rule over each
+  // worker's week (utils/overtime), never the row's stored overtime_hours. These
+  // rows carry no worker or clock-in, so they pool into one 'worker'; a null rule
+  // keeps this block about PARITY between the two engines. Overtime allocation
+  // and pricing are pinned by validate-labor-cost-overtime.
+  const overtimeRule = { weeklyThreshold: null, dailyThreshold: null, weekStartsOn: 1 as const };
+  const costSources = { receipts, timeEntries, laborRates, overtimeMultiplier: 1.5, overtimeRule, equipment, permits };
+  const direct = { projectId: 'p1', timeEntries, laborRates, overtimeMultiplier: 1.5, overtimeRule, equipment, permits };
 
   const ctd = suggestCostToDateWithSource(commitments, receipts, direct);
   const job = computeJobCost({ project: PROJ, commitments, changeOrders: [], ...costSources });
 
   // THE ASSERTION THIS BLOCK EXISTS FOR. To the cent, on a fixture where the
-  // labour leg alone carries an overtime premium that a naive `hours × rate`
-  // would get wrong by $840.
+  // labour leg, priced through the same overtime allocation (#65), would read
+  // $840 apart if either engine still trusted t2's stored 40 h of overtime.
   close('the flagship cost-to-date equals the /reports one, to the cent', ctd.value, job.actual);
   // …and it is not equal because both are empty.
-  close('…and it is the full recorded figure, not the old lower bound', ctd.value, 271_230);
+  close('…and it is the full recorded figure, not the old lower bound', ctd.value, 270_390);
   close('…which the two-argument form still returns, for a caller not yet widened',
     suggestCostToDateWithSource(commitments, receipts).value, 222_000);
   close('…so the gap the fix closed is this many dollars',
-    ctd.value - suggestCostToDateWithSource(commitments, receipts).value, 49_230);
+    ctd.value - suggestCostToDateWithSource(commitments, receipts).value, 48_390);
 
   // Each component, so a leg that silently stops contributing is named rather
   // than hidden inside a total that another leg happens to compensate.
   close('subs paid — the draft excluded and the negative floored', ctd.committed, 180_000);
   close('material receipts', ctd.materials, 42_000);
-  // 400h × $68 = $27,200; (260h + 40h × 1.5) × $42 = $13,440; glazier unrated → $0.
-  close('self-perform crew hours, overtime priced, unrated trades refused', ctd.labor, 40_640);
+  // 400h × $68 = $27,200; 300h × $42 = $12,600 (stored OT not trusted, #65); glazier unrated → $0.
+  close('self-perform crew hours, stored overtime not trusted, unrated trades refused', ctd.labor, 39_800);
   // 80h / 8h per day × $450 = $4,500; the rate-less skid steer adds nothing.
   close('machine days at the machine’s own rate', ctd.equipment, 4_500);
   close('permit fees, denied ones included', ctd.permits, 4_090);
@@ -639,7 +645,7 @@ console.log('\ncost-to-date is the whole recorded cost, identically, in both eng
     costToDate: stale, billedToDate: 0,
   });
   close('and the earned-revenue divergence it used to print was this big',
-    reportRow.earnedRevenue! - staleRow.earnedRevenue, 67_691.25, 1e-6);
+    reportRow.earnedRevenue! - staleRow.earnedRevenue, 66_536.25, 1e-6);
 }
 
 // ── THE FLAGSHIP SCREEN ACTUALLY HANDS THE ENGINE THOSE SOURCES ─────────────
@@ -653,7 +659,7 @@ console.log('\ncost-to-date is the whole recorded cost, identically, in both eng
   const screen = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
   const calls = [...screen.matchAll(/suggestCostToDateWithSource\(/g)].length;
   eq('the flagship screen calls the sourced cost-to-date exactly once', calls, 1);
-  const wired = /suggestCostToDateWithSource\(commitments, receipts, \{\s*projectId: project\.id,\s*timeEntries, laborRates, overtimeMultiplier, equipment, permits,\s*\}\)/
+  const wired = /suggestCostToDateWithSource\(commitments, receipts, \{\s*projectId: project\.id,\s*timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits,\s*\}\)/
     .test(screen);
   eq('…and hands it the project plus all five direct cost sources', wired, true);
   for (const hook of ['useTimeEntriesMirror\\(\\)', 'useLaborRates\\(\\)', 'useMaterialReceipts\\(\\)']) {
@@ -671,7 +677,7 @@ console.log('\ncost-to-date is the whole recorded cost, identically, in both eng
     start >= 0 && /suggestCostToDateWithSource\(/.test(body), true);
   // And the deps have to carry them, or a rate typed on /settings never reaches
   // a row until the screen remounts — the same stale-map defect the ETC had.
-  for (const dep of ['timeEntries', 'laborRates', 'overtimeMultiplier', 'equipment', 'permits']) {
+  for (const dep of ['timeEntries', 'laborRates', 'overtimeMultiplier', 'overtimeRule', 'equipment', 'permits']) {
     eq(`…and buildRow re-runs when ${dep} changes`,
       new RegExp(`\\}, \\[costOverrides[^\\]]*\\b${dep}\\b[^\\]]*\\]`).test(screen), true);
   }

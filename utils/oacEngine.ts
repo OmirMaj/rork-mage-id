@@ -36,6 +36,26 @@ function daysBetween(iso: string, ref: number = Date.now()): number {
   return Math.round((ref - t) / ONE_DAY_MS);
 }
 
+/**
+ * Days a pending submittal has been with the reviewer, or null when it has
+ * not been sent. Measured from the LAST review cycle's sentDate (a resubmittal
+ * restarts the clock), falling back to submittedDate. Both are now '' for an
+ * unsent submittal (submittals #60), and daysBetween('') is 0 — which printed
+ * every unsent submittal as "0d in review" and never let it warn. Calendar-day
+ * math (utils/calendarDate), so a bare 'YYYY-MM-DD' is not read as UTC.
+ */
+export function submittalReviewAgeDays(
+  s: Pick<Submittal, 'submittedDate' | 'reviewCycles'>,
+  now: Date = new Date(),
+): number | null {
+  const cycles = s.reviewCycles ?? [];
+  const lastSent = cycles.length ? cycles[cycles.length - 1].sentDate : '';
+  const day = calendarDayOf(lastSent || '') ?? calendarDayOf(s.submittedDate || '');
+  if (!day) return null;
+  const until = daysUntilCalendarDay(day, now);
+  return until == null ? null : Math.max(0, -until);
+}
+
 // ─── Action items — the commitments the meeting actually produced ──
 //
 // An OACActionItem is the app's cleanest statement of who-owes-what: a
@@ -438,10 +458,11 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
       section: 'submittals',
       title: `${pendingSubs.length} submittal${pendingSubs.length === 1 ? '' : 's'} pending review`,
       detail: pendingSubs.slice(0, 5).map(s => {
-        const age = daysBetween(s.submittedDate);
-        return `• #${s.number} ${s.title}${s.specSection ? ` (Spec ${s.specSection})` : ''} — ${age}d in review`;
+        const age = submittalReviewAgeDays(s);
+        return `• #${s.number} ${s.title}${s.specSection ? ` (Spec ${s.specSection})` : ''} — ${age == null ? 'not sent yet' : `${age}d in review`}`;
       }).join('\n'),
-      status: pendingSubs.some(s => daysBetween(s.submittedDate) > 14) ? 'warn' : 'info',
+      // An unsent submittal is not late in review — it is not in review.
+      status: pendingSubs.some(s => (submittalReviewAgeDays(s) ?? 0) > 14) ? 'warn' : 'info',
     });
   }
 

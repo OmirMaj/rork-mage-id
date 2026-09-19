@@ -119,7 +119,7 @@ ok('the registry was walked against real screen files', FEATURE_REGISTRY.length 
   `only ${FEATURE_REGISTRY.length} entries — has the registry moved?`);
 
 // ── THE CHIP OVER-LOCKS FOR AN INVITED COLLABORATOR ─────────────────────────
-// Everything above compares the chip's tier to the screen's tier. Three rows
+// Everything above compares the chip's tier to the screen's tier. Some rows
 // have a third party in the conversation: their destination resolves access
 // through hooks/useProjectAccess, which is `tier access OR the collaborator
 // grant for THIS project` (utils/collaboratorAccess.resolveProjectAccess). The
@@ -150,8 +150,18 @@ const entryGateIsProjectAware = (src: string): boolean => {
   for (let i = start + 1; i < lines.length; i++) if (/^\}/.test(lines[i])) { end = i; break; }
   const body = lines.slice(start + 1, end);
   const gate = body.find(l => /^  if \(\s*!\s*\w+\(\s*['"][a-z0-9_]+['"]\s*\)\s*\)/.test(l));
-  if (!gate) return false;
-  const called = /!\s*(\w+)\(/.exec(gate)![1];
+  let called: string | null = gate ? /!\s*(\w+)\(/.exec(gate)![1] : null;
+  if (!called) {
+    // THE ALIAS SHAPE (app/plans.tsx): `const planAccess = canAccess('plan_markup');`
+    // then `if (!planAccess) {`. Follow the alias back to the function it
+    // calls; that function must still be the one useProjectAccess bound.
+    for (const l of body) {
+      const a = /^  const (\w+) = (\w+)\(\s*['"][a-z0-9_]+['"]\s*\);/.exec(l);
+      if (!a) continue;
+      if (body.some(g => new RegExp(`^  if \\(\\s*!\\s*${a[1]}\\s*\\)`).test(g))) { called = a[2]; break; }
+    }
+  }
+  if (!called) return false;
   // Names actually BOUND by a `const { … } = useProjectAccess(…)` in this body:
   // `{ canAccess: onProject }` binds `onProject`, not `canAccess`.
   const bound = new Set<string>();
@@ -165,7 +175,15 @@ const entryGateIsProjectAware = (src: string): boolean => {
   }
   return bound.has(called);
 };
-const PROJECT_GRANTABLE = ['ai-punch', 'punch-list', 'rfi'];
+// Wave 3 (2026-09-18) widened the set, each a decided false lock until the four
+// consumers learn project context: change-order and field-ticket (their screens
+// now resolve through useProjectAccess, and a collaborator reaches the "your GC
+// creates change orders" reason inside), plans (#73, via the planAccess alias)
+// and submittal (rfi-core). /time-tracking also opens for field/editor seats on
+// the GC's plan (#62), but its per-job clock gate (resolveClockGate) is not an
+// entry-gate shape this parser reads, so it is not in this set — its Business
+// chip over-locks an invited seat the same way.
+const PROJECT_GRANTABLE = ['ai-punch', 'change-order', 'field-ticket', 'plans', 'punch-list', 'rfi', 'submittal'];
 const grantable = FEATURE_REGISTRY.filter(e => {
   if (!e.requires) return false;
   const f = screenFileFor(e.route);

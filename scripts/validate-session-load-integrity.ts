@@ -29,6 +29,7 @@ import {
   unconfirmedProjectSyncIds, withDeviceCopies, type ProjectWriteLog,
 } from '../utils/projectsLoadGuard';
 import { isAppStorageKey } from '../utils/localCacheKeys';
+import { revokedCachedProjectIds, revocationConfirmed } from '../utils/projectContextPure';
 import { openScheduleSyncGate, resetScheduleSyncGatesForTest, takeStoreScheduleCopy } from '../utils/scheduleMerge';
 
 declare const Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync(code: string): string } };
@@ -90,13 +91,29 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
     // Every other per-account list's mirror ref (hotfix item 4).
     invoicesRef: { current: [{ id: 'inv-A' }] } as Ref<unknown[]>,
     invoiceInsertsRef: { current: new Map([['inv-A', Promise.resolve('synced')]]) } as Ref<Map<string, unknown>>,
+    // data-session critic round 2: A's owed foreground invoices re-read.
+    invoicesReloadOwedRef: { current: true } as Ref<boolean>,
     changeOrderInsertsRef: { current: new Map([['co-A', Promise.resolve('synced')]]) } as Ref<Map<string, unknown>>,
     punchItemsRef: { current: [{ id: 'punch-A' }] } as Ref<unknown[]>,
     projectPhotosRef: { current: [{ id: 'photo-A' }] } as Ref<unknown[]>,
     rfisRef: { current: [{ id: 'rfi-A' }] } as Ref<unknown[]>,
     submittalsRef: { current: [{ id: 'sub-A' }] } as Ref<unknown[]>,
+    // Wave 3 (context-money-portal): the portal send path's latest-value
+    // mirrors and the invoice-insert outcomes.
+    invoiceInsertOutcomesRef: { current: new Map([['inv-A', 'synced']]) } as Ref<Map<string, unknown>>,
+    changeOrdersRef: { current: [{ id: 'co-A' }] } as Ref<unknown[]>,
+    dailyReportsRef: { current: [{ id: 'dfr-A' }] } as Ref<unknown[]>,
+    aiaPayAppsRef: { current: [{ id: 'aia-A' }] } as Ref<unknown[]>,
+    warrantiesRef: { current: [{ id: 'war-A' }] } as Ref<unknown[]>,
     // Integration round 1: the lists declared below the reset key on this.
     accountEpochRef: { current: 0 } as Ref<number>,
+    // Wave 3 (context-integrator, #90): the removed-from verdicts of A's last
+    // load and the cleanup it owed must not reach B.
+    projectsLoadRevokedRef: { current: new Set(['a3']) } as Ref<ReadonlySet<string>>,
+    revokedCleanupOwedRef: { current: { userId: 'userA', names: new Map([['a3', 'A-three']]) } } as Ref<unknown>,
+    // Review round 1: A's swept-job list (late-hydrating lists are re-swept
+    // against it) must not sweep B's jobs.
+    revokedSweepRef: { current: new Map([['a3', 'A-three']]) } as Ref<Map<string, string>>,
   };
   // Every OTHER setter the block calls (the per-account collections), recorded
   // by name: which lists the reset put back to empty.
@@ -132,6 +149,8 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
       && refs.projectsLoadTasksRef.current.size === 0 && refs.projectsReloadOwedRef.current === false
       && refs.serverIdsSeededRef.current === false && refs.projectsLoadLandedRef.current === false
       && refs.projectsHydratedForRef.current === undefined);
+  ok('...and A\'s "removed from" verdicts and owed cleanup (#90) do not carry into B',
+    refs.projectsLoadRevokedRef.current.size === 0 && refs.revokedCleanupOwedRef.current === null && refs.revokedSweepRef.current.size === 0);
   ok('...A\'s waiting debounced syncs are dropped (they must not fire under B\'s session), and A\'s in-flight ones no longer count as B\'s pending',
     refs.syncDebounceMap.current.size === 0 && refs.inFlightProjectSyncsRef.current.size === 0);
   ok('...and the live-user ref follows (a load still out for A sees it is stale)', refs.liveUserIdRef.current === 'userB');
@@ -148,7 +167,12 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
     ok('...every per-account collection is emptied for B (not only projects)', notEmptied.length === 0, `not reset: ${notEmptied.join(', ')}`);
     ok('...and their mirror refs too (a batch add under B cannot start from A\'s rows)',
       refs.invoicesRef.current.length === 0 && refs.invoiceInsertsRef.current.size === 0 && refs.changeOrderInsertsRef.current.size === 0 && refs.punchItemsRef.current.length === 0
-        && refs.projectPhotosRef.current.length === 0 && refs.rfisRef.current.length === 0 && refs.submittalsRef.current.length === 0);
+        && refs.projectPhotosRef.current.length === 0 && refs.rfisRef.current.length === 0 && refs.submittalsRef.current.length === 0
+        // round 2: A's owed invoices re-read is not paid under B
+        && refs.invoicesReloadOwedRef.current === false);
+    ok('...and the portal send path\'s mirrors and A\'s insert outcomes (a send under B cannot find A\'s CO / DFR / pay app / warranty)',
+      refs.invoiceInsertOutcomesRef.current.size === 0 && refs.changeOrdersRef.current.length === 0 && refs.dailyReportsRef.current.length === 0
+        && refs.aiaPayAppsRef.current.length === 0 && refs.warrantiesRef.current.length === 0);
     collectionCalls.clear();
   }
 
@@ -239,7 +263,9 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
       CTX.indexOf('if (plansAccountEpoch !== accountEpochRef.current) {') > CTX.indexOf('const [permitRoadmaps, setPermitRoadmaps] = useState<PermitRoadmap[]>([]);')
         && CTX.indexOf('const [portalMessages, setPortalMessages] = useState<PortalMessage[]>([]);') < CTX.indexOf('if (plansAccountEpoch !== accountEpochRef.current) {'));
     ok('their loaders re-run per account and drop a read whose account left',
-      /\}, \[canSync, userId\]\);\s*useEffect\(\(\) => \{ void hydratePlansFromServer\(\); \}, \[hydratePlansFromServer\]\);/.test(CTX)
+      // Wave 3 (#74): the server half is shared with the re-read (pullPlansFromServer).
+      /\}, \[canSync, userId, pullPlansFromServer\]\);\s*useEffect\(\(\) => \{ void hydratePlansFromServer\(\); \}, \[hydratePlansFromServer\]\);/.test(CTX)
+        && /const refetchPlansFromServer = useCallback\(async \(\): Promise<void> => \{\s*if \(!canSync \|\| !userId\) return;\s*const owner = userId;\s*const stillMine = \(\) => liveUserIdRef\.current === owner;/.test(CTX)
         && /const stillMine = \(\) => liveUserIdRef\.current === owner;/.test(CTX)
         && /loadLocal<PortalMessage\[\]>\(PORTAL_MESSAGES_KEY, \[\]\)\.then\(\(list\) => \{\s*if \(liveUserIdRef\.current === owner\) setPortalMessages\(list\);\s*\}\);\s*\}, \[userId\]\);/.test(CTX)
         && /loadLocal<PermitRoadmap\[\]>\(PLAN_ROADMAPS_KEY, \[\]\)\.then\(mine\(setPermitRoadmaps\)\);\s*\}, \[userId\]\);/.test(CTX));
@@ -535,30 +561,38 @@ console.log('\nReview round 2 — a cold launch, a skipped foreground refetch, a
   const tr = (code: string) => new Bun.Transpiler({ loader: 'ts' }).transformSync(code);
   type Ref<T> = { current: T };
   const qf = slice(CTX, "queryKey: ['projects', userId],", 'const settingsQuery = useQuery({');
-  const loaderPlan = slice(qf, 'const planLocal = ', 'const merged = plan.projects;');
+  // Wave 3 (#90): the plan now ends with the removed-job filter.
+  const loaderPlan = slice(qf, 'const planLocal = ', 'projectsLoadRevokedRef.current = revoked;');
   const hydSrc = slice(CTX, 'if (projectsQuery.data) {\n      const loadedTasks', 'void settleOwedProjectsReload();\n    }');
   const settleSrc = slice(CTX, 'const settleOwedProjectsReload = useCallback(', '}, [queryClient, userId]);');
   const refetchSrc = slice(CTX, 'const refetchProjectsOnForeground = useCallback(', '}, [flushPendingProjectSyncs');
   ok('the loader\'s plan, the hydration pass, the settle and the refetch are all found', !!loaderPlan && !!hydSrc && !!settleSrc && !!refetchSrc);
 
   // The loader's REAL plan lines.
-  const runLoader = (env: { hydratedFor: string | null | undefined; userId: string; projectsRef: P[]; localForMerge: P[]; mapped: P[];
-    log: ProjectWriteLog; since: number; pending: Set<string> }) => new Function('projectsHydratedForRef', 'userId', 'projectsRef', 'withDeviceCopies',
+  // Review round 1 (#90): the loader now confirms a ZERO-row read with a
+  // second read before revoking (revocationConfirmed / confirmNoProjects), so
+  // the plan is async and takes the read's `data` and that confirmation.
+  const runLoader = async (env: { hydratedFor: string | null | undefined; userId: string; projectsRef: P[]; localForMerge: P[]; mapped: P[];
+    log: ProjectWriteLog; since: number; pending: Set<string>; confirmEmpty?: boolean }) => (new Function('projectsHydratedForRef', 'userId', 'projectsRef', 'withDeviceCopies',
     'localForMerge', 'projectWriteLogRef', 'writeSeqAtStart', 'planProjectsLoad', 'mapped', 'remoteIds', 'pendingAtStart', 'foldServerSchedule', 'baseAtStart',
-    tr(`const __l = () => { ${loaderPlan}\n return { merged, plan }; };`) + '\nreturn __l;')(
+    'revokedCachedProjectIds', 'projectsLoadRevokedRef', 'data', 'revocationConfirmed', 'confirmNoProjects', 'revokedSweepRef',
+    tr(`const __l = async () => { ${loaderPlan}\n return { merged, plan, revoked }; };`) + '\nreturn __l;')(
     { current: env.hydratedFor }, env.userId, { current: env.projectsRef }, withDeviceCopies, env.localForMerge, { current: env.log }, env.since,
-    planProjectsLoad, env.mapped, new Set(env.mapped.map(p => p.id)), env.pending, foldServerSchedule, new Map(),
-  )() as { merged: P[]; plan: { keptWhole: Set<string> } };
+    planProjectsLoad, env.mapped, new Set(env.mapped.map(p => p.id)), env.pending, foldServerSchedule, new Map(), revokedCachedProjectIds, { current: new Set() },
+    env.mapped, revocationConfirmed, async () => env.confirmEmpty === true, { current: new Map() },
+  )() as Promise<{ merged: P[]; plan: { keptWhole: Set<string> }; revoked: Set<string> }>);
   // The hydration pass's REAL body.
   const runHydration = (env: { data: P[]; hydratedFor: Ref<string | null | undefined>; userId: string; projectsRef: P[]; log: ProjectWriteLog;
-    since: number; pending: Set<string>; landed: Ref<boolean>; owed: Ref<boolean>; settle: () => void }) => {
+    since: number; pending: Set<string>; landed: Ref<boolean>; owed: Ref<boolean>; settle: () => void; revoked?: Set<string> }) => {
     let set: P[] | null = null;
     new Function('projectsQuery', 'projectsLoadTasksRef', 'projectsHydratedForRef', 'userId', 'projectsRef', 'withDeviceCopies', 'projectWriteLogRef',
       'projectsLoadSinceRef', 'planProjectsLoad', 'projectsLoadPendingRef', 'foldServerSchedule', 'projectsLoadBaseRef', 'setProjects',
-      'projectsLoadLandedRef', 'projectsReloadOwedRef', 'settleOwedProjectsReload', tr(`const __h = () => { ${hydSrc} };`) + '\nreturn __h;')(
+      'projectsLoadLandedRef', 'projectsReloadOwedRef', 'settleOwedProjectsReload',
+      'projectsLoadRevokedRef', 'revokedCleanupOwedRef', 'setRevokedCleanup', tr(`const __h = () => { ${hydSrc} };`) + '\nreturn __h;')(
       { data: env.data }, { current: new Map() }, env.hydratedFor, env.userId, { current: env.projectsRef }, withDeviceCopies, { current: env.log },
       { current: env.since }, planProjectsLoad, { current: env.pending }, foldServerSchedule, { current: new Map() }, (v: P[]) => { set = v; },
       env.landed, env.owed, env.settle,
+      { current: env.revoked ?? new Set() }, { current: null }, () => undefined,
     )();
     return set as P[] | null;
   };
@@ -576,7 +610,7 @@ console.log('\nReview round 2 — a cold launch, a skipped foreground refetch, a
     const env = { hydratedFor: undefined, userId: 'userA', projectsRef: [] as P[], localForMerge: [p1Cache, proj('p2', 'two'), p3Cache],
       mapped: [proj('p1', 'server', [t({ id: 'A', startDay: 1 })]), proj('p2', 'two-server')], log, since: log.seq,
       pending: pendingProjectIdsInQueue([{ table: 'projects', userId: 'userA', data: { id: 'p1' } }, { table: 'projects', userId: 'userA', data: { id: 'p3' } }], { userId: 'userA', marker: 'userA' }) };
-    const { merged } = runLoader(env);
+    const { merged } = await runLoader(env);
     const ids = merged.map(p => p.id).sort().join();
     ok('executed: cold launch, empty list — the load lists p1 (the device copy), p2 and the offline-created p3, and caches all three',
       ids === 'p1,p2,p3' && merged.find(p => p.id === 'p1')!.schedule!.tasks[0].startDay === 3
@@ -585,20 +619,49 @@ console.log('\nReview round 2 — a cold launch, a skipped foreground refetch, a
     const shown = runHydration({ data: merged, hydratedFor, userId: 'userA', projectsRef: [], log, since: env.since, pending: env.pending,
       landed: { current: false }, owed: { current: false }, settle: () => undefined });
     ok('executed: ...and Home shows all three after the hydration pass', (shown ?? []).map(p => p.id).sort().join() === 'p1,p2,p3', (shown ?? []).map(p => p.id).join());
+    // #90 (wave 3): the GC removed him from gc-job. The server stops returning
+    // it; his phone still caches it (owner stamp = the GC) with a queued DFR
+    // edit on the project row. It must leave the list AND the cache — while
+    // his own offline create p3 (no owner stamp) stays.
+    const gcJob = { ...proj('gc-job', 'Henderson'), ownerUserId: 'gc', myRole: 'field' } as P;
+    const env90 = { ...env, localForMerge: [...env.localForMerge, gcJob], projectsRef: [gcJob],
+      pending: new Set([...env.pending, 'gc-job']) };
+    const r90 = await runLoader(env90);
+    ok('#90 executed: a removed job with a queued write leaves the loaded list; his own offline create stays',
+      !r90.merged.some(p => p.id === 'gc-job') && r90.merged.some(p => p.id === 'p3') && r90.revoked.has('gc-job') && r90.revoked.size === 1,
+      r90.merged.map(p => p.id).join());
+    const shown90 = runHydration({ data: r90.merged, hydratedFor: { current: 'userA' }, userId: 'userA', projectsRef: [gcJob, ...r90.merged], log,
+      since: env.since, pending: env90.pending, landed: { current: false }, owed: { current: false }, settle: () => undefined, revoked: r90.revoked });
+    ok('#90 executed: ...and the hydration pass does not put it back from memory (its pending write would have)',
+      !(shown90 ?? []).some(p => p.id === 'gc-job'), (shown90 ?? []).map(p => p.id).join());
+    const control90 = runHydration({ data: r90.merged, hydratedFor: { current: 'userA' }, userId: 'userA', projectsRef: [gcJob, ...r90.merged], log,
+      since: env.since, pending: env90.pending, landed: { current: false }, owed: { current: false }, settle: () => undefined, revoked: new Set() });
+    // Review round 1: a ZERO-row read alone never revokes (an anon-key answer
+    // looks exactly like it); a second trusted zero-row read must agree.
+    const env0 = { ...env90, mapped: [] as P[] };
+    const zeroUnconfirmed = await runLoader({ ...env0, confirmEmpty: false });
+    ok('#90 executed: a zero-row read NOT confirmed by a second read revokes nothing (the job and its queued write stay)',
+      zeroUnconfirmed.revoked.size === 0 && zeroUnconfirmed.merged.some(p => p.id === 'gc-job'), zeroUnconfirmed.merged.map(p => p.id).join());
+    const zeroConfirmed = await runLoader({ ...env0, confirmEmpty: true });
+    ok('#90 executed: ...confirmed by the second read, the removed job leaves (his offline create p3 stays)',
+      zeroConfirmed.revoked.has('gc-job') && !zeroConfirmed.merged.some(p => p.id === 'gc-job') && zeroConfirmed.merged.some(p => p.id === 'p3'),
+      zeroConfirmed.merged.map(p => p.id).join());
+    ok('#90 control: without the verdict the planner re-adds the pending removed job from memory',
+      (control90 ?? []).some(p => p.id === 'gc-job'));
     ok('...which marks the list as this account\'s', hydratedFor.current === 'userA');
     const control = planProjectsLoad<P>([...env.mapped, p3Cache], [], log, env.since, { pending: env.pending });
     ok('control: planned against the empty in-memory list, p1 and p3 vanished', control.projects.map(p => p.id).join() === 'p2', control.projects.map(p => p.id).join());
     // A queued delete: gone from the list AND the cache → stays gone.
-    const del = runLoader({ ...env, localForMerge: [proj('p2', 'two')], pending: new Set(['p1']) });
+    const del = await runLoader({ ...env, localForMerge: [proj('p2', 'two')], pending: new Set(['p1']) });
     ok('executed: a queued delete, absent from both the list and the cache, stays absent', del.merged.every(p => p.id !== 'p1'));
     // Once hydrated, the list is the truth: a project deleted from it stays deleted even if the cache still has it.
-    const hydr = runLoader({ ...env, hydratedFor: 'userA', projectsRef: [proj('p2', 'two')] });
+    const hydr = await runLoader({ ...env, hydratedFor: 'userA', projectsRef: [proj('p2', 'two')] });
     ok('executed: once the list has hydrated, absence from it is a delete (the cache is not consulted)', hydr.merged.every(p => p.id !== 'p1' && p.id !== 'p3'));
     // A project deleted meanwhile (written after the load began) is not revived from the cache.
     const log2 = newProjectWriteLog();
     const since2 = log2.seq;
     noteProjectWrite(log2, 'p3');
-    const revived = runLoader({ ...env, log: log2, since: since2 });
+    const revived = await runLoader({ ...env, log: log2, since: since2 });
     ok('executed: before hydration, a project written since the load began and gone from the list is not revived from the cache', revived.merged.every(p => p.id !== 'p3'));
   } catch (e) { ok('the cold-launch replay runs', false, String(e)); }
 

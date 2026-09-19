@@ -7,7 +7,8 @@
 // Nothing here touches React, AsyncStorage, Supabase or the offline queue — the
 // context passes data in and writes results out.
 
-import type { CertificateOfInsurance, ClientPortalSettings, COICoverage, ProjectCollaborator, SavedAIAPayApp } from '@/types';
+import type { CertificateOfInsurance, ClientPortalSettings, COICoverage, PaymentSplit, ProjectCollaborator, SavedAIAPayApp } from '@/types';
+import { isValidStamp, sameSplit } from '@/utils/paymentTerms';
 import { invoiceIsSettled } from '@/utils/invoiceBilling';
 import { isFinancialsBlinded } from '@/utils/roleBlinding';
 import type { ProjectRole } from '@/utils/projectRole';
@@ -53,6 +54,30 @@ export function pendingIdsForTable(queue: readonly QueueEntryLike[], table: stri
   return ids;
 }
 
+/** #112 · Ids with a queued DELETE for `table`. pendingIdsForTable leaves
+ *  deletes out on purpose (keeping a row alive because its delete is queued is
+ *  the resurrection bug); a merge needs them separately, to keep the server's
+ *  still-undeleted copy OFF the screen until the delete lands. */
+export function pendingDeleteIdsForTable(queue: readonly QueueEntryLike[], table: string): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of queue) {
+    if (entry.table !== table || entry.operation !== 'delete') continue;
+    const id = entry.data?.id;
+    if (typeof id === 'string' && id) ids.add(id);
+  }
+  return ids;
+}
+
+export interface MergeLocalOnlyOptions<T> {
+  /** Ids with a queued delete (pendingDeleteIdsForTable): dropped from BOTH
+   *  sides, so a row deleted offline does not come back from the server copy. */
+  deletedIds?: ReadonlySet<string>;
+  /** How a pending id present on both sides combines. Default: the local row,
+   *  whole. A table where the server owns some columns outright (punch: the
+   *  sub's note, another phone's pin) passes a combiner that keeps them. */
+  combine?: (local: T, server: T) => T;
+}
+
 /**
  * Server-first load, without silently dropping what the server has not seen
  * yet. The projects loader always did this; every child loader instead
@@ -60,27 +85,109 @@ export function pendingIdsForTable(queue: readonly QueueEntryLike[], table: stri
  * the moment the SELECT beat the flush's INSERT — and re-entering it produced a
  * duplicate document number.
  *
- * Rules: a row on the server wins over the local copy (the server is the
- * merge point for every device); a local row absent from the server is kept
- * ONLY while its write is still queued. A local row that is neither on the
- * server nor queued was deleted elsewhere (or never made it) and is dropped.
- * A duplicate id inside the device copy (a record saved twice by two
- * optimistic paths) is kept once — first occurrence wins — so the merge can
- * never hand a list with repeated keys to a FlatList.
+ * Rules:
+ *  - A row with NO queued write: the server wins (the server is the merge point
+ *    for every device). A local row absent from the server is dropped — it was
+ *    deleted elsewhere, or never made it.
+ *  - A row with a queued create/update (`pendingIds`): the LOCAL row wins, on
+ *    the server list's position (#112). The SELECT can run before the flush
+ *    lands, and the server's copy is then the PRE-edit row — an item closed
+ *    offline in a basement flipped back to open on screen, and the loader
+ *    saved that over the device cache. The local row carries every field the
+ *    queued write will send, so it is what the server will hold once it lands.
+ *    A pending row the server does not have yet (offline create) is appended.
+ *  - A row with a queued delete (`opts.deletedIds`) is left out entirely.
+ *  - A duplicate id inside the device copy (a record saved twice by two
+ *    optimistic paths) is kept once — first occurrence wins — so the merge can
+ *    never hand a list with repeated keys to a FlatList.
+ * An EMPTY server list is a valid input: the result is exactly the pending
+ * local rows (the caller decides whether an empty read may be trusted —
+ * emptyReadAuthoritative).
  */
 export function mergeLocalOnly<T extends { id: string }>(
   serverRows: readonly T[],
   localRows: readonly T[],
   pendingIds: ReadonlySet<string>,
+  opts?: MergeLocalOnlyOptions<T>,
 ): T[] {
-  const seen = new Set(serverRows.map(r => r.id));
-  const keep: T[] = [];
-  for (const r of localRows) {
-    if (seen.has(r.id) || !pendingIds.has(r.id)) continue;
+  const deleted = opts?.deletedIds;
+  const localById = new Map<string, T>();
+  for (const r of localRows) if (!localById.has(r.id)) localById.set(r.id, r);
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const r of serverRows) {
+    if (seen.has(r.id) || deleted?.has(r.id)) continue;
     seen.add(r.id);
-    keep.push(r);
+    const local = pendingIds.has(r.id) ? localById.get(r.id) : undefined;
+    out.push(local ? (opts?.combine ? opts.combine(local, r) : local) : r);
   }
-  return [...serverRows, ...keep];
+  for (const r of localRows) {
+    if (seen.has(r.id) || !pendingIds.has(r.id) || deleted?.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
+}
+
+/**
+ * #112 / #90 · May an EMPTY successful SELECT replace the device copy? Only
+ * when it was answered to THIS user's live bearer. supabase-js sends the ANON
+ * key once the access token has expired and the refresh failed, and RLS then
+ * answers every table with zero rows and no error — trusting that would wipe a
+ * good cache (and, for projects, every job) on a phone that merely slept past
+ * its token. So: the load's account is still the live one, the auth feed names
+ * the same user, and a bearer is on hand right now. A non-empty result needs
+ * none of this — the anon key cannot read anyone's rows.
+ */
+export function emptyReadAuthoritative(a: {
+  loadUserId: string | null | undefined;
+  liveUserId: string | null | undefined;
+  sessionUserId: string | null | undefined;
+  /** Review round 1: the access token supabase-js WILL send, read BEFORE the
+   *  SELECT (bearerTokenForRead — null unless it has runway, so the request
+   *  cannot trigger a refresh that fails and falls back to the anon key). A
+   *  bearer that is live only AFTER the read proves nothing about what the
+   *  read carried: a retryable refresh failure sends anon, and a later
+   *  getSession() can then refresh fine. */
+  bearerBefore: string | null | undefined;
+  /** The access token right after the read. Must be the SAME token: a
+   *  refresh (or sign-out) in between means the read's bearer is unknown. */
+  bearerAfter: string | null | undefined;
+}): boolean {
+  if (!a.loadUserId) return false;
+  if (typeof a.bearerBefore !== 'string' || a.bearerBefore.length === 0) return false;
+  return a.liveUserId === a.loadUserId && a.sessionUserId === a.loadUserId && a.bearerAfter === a.bearerBefore;
+}
+
+/** auth-js refreshes a session whose token expires within EXPIRY_MARGIN_MS
+ *  (90 s, @supabase/auth-js lib/constants) before it hands it to a request —
+ *  and a refresh that fails with a retryable error makes supabase-js send the
+ *  ANON key. A token with more runway than that margin plus a minute of slack
+ *  is sent as it is. */
+export const BEARER_READ_RUNWAY_MS = 150_000;
+
+/** The token a read issued NOW will carry, or null when that is not certain
+ *  (no session, or too close to expiry — the request may refresh first). A
+ *  session with no expires_at is never refreshed by auth-js, so it is sent. */
+export function bearerTokenForRead(
+  session: { access_token?: string | null; expires_at?: number | null } | null | undefined,
+  nowMs: number,
+): string | null {
+  const token = session?.access_token;
+  if (typeof token !== 'string' || token.length === 0) return null;
+  const exp = session?.expires_at;
+  if (typeof exp === 'number' && Number.isFinite(exp) && exp * 1000 - nowMs <= BEARER_READ_RUNWAY_MS) return null;
+  return token;
+}
+
+/** #90 review round · The one IRREVERSIBLE step — forgetting a job and
+ *  discarding its unsent writes — never rests on a single zero-row projects
+ *  read. A read that returned rows proves the bearer was a user's (anon reads
+ *  nothing); a zero-row read must be confirmed by a second, independent
+ *  trusted zero-row read before any job is revoked. Unconfirmed, the jobs stay
+ *  and the next load decides again. */
+export function revocationConfirmed(a: { rowCount: number; confirmedEmpty: boolean }): boolean {
+  return a.rowCount > 0 || a.confirmedEmpty === true;
 }
 
 // ─── Pins survive a refetch while their writes are pending (2026-09-18) ──────
@@ -874,4 +981,905 @@ export function savedToAiaRow(a: SavedAIAPayApp, userId: string | null | undefin
     created_at: a.createdAt ?? (a.savedAt || undefined) ?? now,
     updated_at: a.updatedAt ?? now,
   };
+}
+
+// ─── Wave 3 · context-money-portal ───────────────────────────────────────────
+// Each helper below is a decision ProjectContext used to make inline, where a
+// one-column slip went unseen. scripts/validate-context-money-portal-*.ts runs
+// them.
+
+/**
+ * #21 · The daily_reports columns an INSERT and an UPDATE both write. The
+ * update was hand-listed separately and was one column short — `date` — so a
+ * report he re-dated (Monday → Friday, the backfill case) moved on this phone
+ * only; the next refetch put it back on Monday everywhere. One builder for
+ * both means an edit can never persist fewer columns than a create. The
+ * insert adds only what a create alone owns: DAILY_REPORT_INSERT_ONLY.
+ * `photos` arrives already mapped to storage paths (dfrPhotoRows) — never a
+ * device-local uri.
+ */
+export function dailyReportColumns(
+  dr: {
+    date: string; weather: unknown; manpower: unknown; workPerformed: unknown;
+    materialsDelivered: unknown; issuesAndDelays: unknown; status: unknown;
+    incident?: unknown; workProgress?: unknown; homeownerSummary?: unknown;
+    homeownerSummaryGeneratedAt?: unknown; homeownerSummaryPublished?: boolean;
+  },
+  mapped: { photos: unknown },
+): Record<string, unknown> {
+  return {
+    // Sent exactly as the insert always sent it (a bare day or an instant —
+    // the column accepts both, and the list reads either via dayOrInstantDate).
+    date: dr.date,
+    weather: dr.weather, manpower: dr.manpower, work_performed: dr.workPerformed,
+    materials_delivered: dr.materialsDelivered, issues_and_delays: dr.issuesAndDelays,
+    photos: mapped.photos, status: dr.status,
+    incident: dr.incident ?? null, work_progress: dr.workProgress ?? null,
+    homeowner_summary: dr.homeownerSummary ?? null,
+    homeowner_summary_generated_at: dr.homeownerSummaryGeneratedAt ?? null,
+    homeowner_summary_published: dr.homeownerSummaryPublished ?? false,
+  };
+}
+
+/** Columns only a create writes. portal_state is the send/recall path's on
+ *  every later write (a stale in-memory copy must never be echoed back). */
+export const DAILY_REPORT_INSERT_ONLY = ['user_id', 'project_id', 'created_at', 'portal_state'] as const;
+
+/**
+ * #131 · The frozen sales-tax figures a CO carries once sent. Only keys the CO
+ * actually holds are written — a CO that never froze tax sends none of these
+ * columns, so an older row is never blanked and an edit from a device ahead of
+ * the migration cannot be refused over a column it never touched. null clears.
+ */
+export function changeOrderTaxColumns(co: {
+  taxRatePct?: number | null; taxAmount?: number | null;
+  totalWithTax?: number | null; priorApprovedChangesTotal?: number | null;
+}): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  if (co.taxRatePct !== undefined) out.tax_rate_pct = co.taxRatePct;
+  if (co.taxAmount !== undefined) out.tax_amount = co.taxAmount;
+  if (co.totalWithTax !== undefined) out.total_with_tax = co.totalWithTax;
+  if (co.priorApprovedChangesTotal !== undefined) out.prior_approved_changes_total = co.priorApprovedChangesTotal;
+  return out;
+}
+
+/** The read side of changeOrderTaxColumns. numeric comes back as a string
+ *  from PostgREST; an absent or null column stays undefined, never 0 — a 0
+ *  would print "tax $0.00" on a CO that simply predates the freeze. */
+export function changeOrderTaxFromRow(r: Record<string, unknown>): {
+  taxRatePct?: number; taxAmount?: number; totalWithTax?: number; priorApprovedChangesTotal?: number;
+} {
+  const num = (v: unknown): number | undefined => {
+    if (v == null || v === '') return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const out: { taxRatePct?: number; taxAmount?: number; totalWithTax?: number; priorApprovedChangesTotal?: number } = {};
+  const rate = num(r.tax_rate_pct); if (rate !== undefined) out.taxRatePct = rate;
+  const tax = num(r.tax_amount); if (tax !== undefined) out.taxAmount = tax;
+  const total = num(r.total_with_tax); if (total !== undefined) out.totalWithTax = total;
+  const prior = num(r.prior_approved_changes_total); if (prior !== undefined) out.priorApprovedChangesTotal = prior;
+  return out;
+}
+
+/**
+ * #47 · The billing recipient columns. `updates` null = an INSERT (write what
+ * the invoice holds); otherwise an UPDATE writes only a key the edit named.
+ * An empty or blank address is stored as null — invoice-dunning then falls
+ * back to the portal invitee rather than mailing "".
+ */
+export function invoiceBillToColumns(
+  inv: { billToEmail?: string | null; billToName?: string | null },
+  updates: { billToEmail?: unknown; billToName?: unknown } | null,
+): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  const clean = (v: string | null | undefined): string | null => {
+    const t = (v ?? '').trim();
+    return t ? t : null;
+  };
+  if (updates === null) {
+    // Omitted when empty: a create with no billing contact never references
+    // the column at all.
+    const email = clean(inv.billToEmail);
+    const name = clean(inv.billToName);
+    if (email) out.bill_to_email = email;
+    if (name) out.bill_to_name = name;
+    return out;
+  }
+  if ('billToEmail' in updates) out.bill_to_email = clean(inv.billToEmail);
+  if ('billToName' in updates) out.bill_to_name = clean(inv.billToName);
+  return out;
+}
+
+/** The read side of invoiceBillToColumns. */
+export function invoiceBillToFromRow(r: Record<string, unknown>): { billToEmail?: string; billToName?: string } {
+  const out: { billToEmail?: string; billToName?: string } = {};
+  if (typeof r.bill_to_email === 'string' && r.bill_to_email.trim()) out.billToEmail = r.bill_to_email;
+  if (typeof r.bill_to_name === 'string' && r.bill_to_name.trim()) out.billToName = r.bill_to_name;
+  return out;
+}
+
+/**
+ * #40 · The audit entries a CO edit must APPEND on the server: every entry of
+ * the new trail whose id the old trail did not hold. change_orders.audit_trail
+ * is never written whole from a device any more (it erased the sealed
+ * e-signature the portal RPC appends server-side); new entries go through
+ * co_append_audit, which skips ids already present. Entries with no id are
+ * skipped — the RPC refuses them and they could never be de-duplicated.
+ */
+export function newAuditEntries<E extends { id?: unknown }>(
+  prevTrail: readonly E[] | null | undefined,
+  nextTrail: readonly E[] | null | undefined,
+): E[] {
+  const seen = new Set((prevTrail ?? []).map(e => e?.id).filter((id): id is string => typeof id === 'string'));
+  const out: E[] = [];
+  for (const e of nextTrail ?? []) {
+    if (!e || typeof e.id !== 'string' || !e.id.trim() || seen.has(e.id)) continue;
+    seen.add(e.id);
+    out.push(e);
+  }
+  return out;
+}
+
+/** co_append_audit refuses more than 50 entries in one call. */
+export const CO_AUDIT_APPEND_MAX = 50;
+
+/** Split into RPC-sized batches, order kept. */
+export function chunkForAppend<E>(entries: readonly E[], max: number = CO_AUDIT_APPEND_MAX): E[][] {
+  const out: E[][] = [];
+  for (let i = 0; i < entries.length; i += max) out.push(entries.slice(i, i + max));
+  return out;
+}
+
+/**
+ * #40 · Should a change_orders realtime UPDATE re-read the list? It used to
+ * fire only on a status change, so an audit-only append made on the server
+ * (the client's sealed e-signature) never reached the GC's screen. With the
+ * default replica identity `old` carries only the key, so any difference in
+ * status, updated_at or the trail counts.
+ */
+export function coRealtimeShouldRefetch(
+  next: Record<string, unknown> | null | undefined,
+  old: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!next) return false;
+  const o = old ?? {};
+  if (next.status !== o.status) return true;
+  if (next.updated_at !== o.updated_at) return true;
+  return JSON.stringify(next.audit_trail ?? null) !== JSON.stringify(o.audit_trail ?? null);
+}
+
+/**
+ * #92 · Why this device must not delete a project, or null when it may. Only
+ * the owner can: projects_delete is `auth.uid() = user_id`, so a collaborator's
+ * (even an editor's) DELETE matches 0 rows, reports success, and the local
+ * cascade had already wiped every child record from his phone until the job
+ * reappeared on the next load. A project with no ownerUserId predates the
+ * field and is his exactly when it carries no collaborator role (A-1) — the
+ * same rule as utils/portalLiteSync.isPortalOwner. Signed out, every project
+ * is a local one.
+ */
+export const DELETE_NOT_OWNER_REASON = 'Only the project owner can delete this job. You can leave it instead.';
+export function deleteProjectRefusal(
+  project: { ownerUserId?: string | null; myRole?: ProjectRole | undefined } | undefined,
+  userId: string | null | undefined,
+): string | null {
+  if (!project) return null;
+  if (project.ownerUserId) {
+    if (!userId) return null;
+    return project.ownerUserId === userId ? null : DELETE_NOT_OWNER_REASON;
+  }
+  return !project.myRole || project.myRole === 'owner' ? null : DELETE_NOT_OWNER_REASON;
+}
+
+/**
+ * #116 (FOUNDER interim: owner / editor only) · Why this device may not send
+ * to — or recall from — the client portal, or null when it may. The owner
+ * always may; anyone else needs an ACCEPTED editor row for himself, read
+ * fresh from project_collaborators (the role on the cached project can be a
+ * day old). A field or viewer seat is refused with the reason; so is a failed
+ * read, rather than guessing either way. Refusing here also means the
+ * portal_messages insert — which RLS refuses for anyone but the owner — is
+ * never queued as a write that can only ever fail.
+ */
+export const PORTAL_OWNER_DECIDES_REASON = 'The project owner decides what the homeowner sees. Ask them to send this to the client portal.';
+export const PORTAL_ACCESS_UNKNOWN_REASON = 'Couldn’t check your access to this project’s client portal — check your signal and try again.';
+export function portalWriteRefusal(input: {
+  project: { ownerUserId?: string | null; myRole?: ProjectRole | undefined } | undefined;
+  userId: string | null | undefined;
+  /** This project's collaborator rows, or 'error' when they could not be read. */
+  collaborators: readonly Pick<ProjectCollaborator, 'userId' | 'role' | 'status'>[] | 'error' | null;
+}): string | null {
+  const { project, userId, collaborators } = input;
+  if (!project) return null;
+  if (project.ownerUserId ? project.ownerUserId === userId : (!project.myRole || project.myRole === 'owner')) return null;
+  if (!userId) return PORTAL_OWNER_DECIDES_REASON;
+  if (collaborators === 'error' || collaborators === null) return PORTAL_ACCESS_UNKNOWN_REASON;
+  const mine = collaborators.find(c => c.userId === userId && c.status === 'accepted');
+  return mine?.role === 'editor' ? null : PORTAL_OWNER_DECIDES_REASON;
+}
+
+/**
+ * #48 · Server rows, but a row this device still has a queued write for keeps
+ * the DEVICE copy: that copy is newer than the server's until the write lands.
+ * mergeLocalOnly kept only rows MISSING from the server, so re-reading the
+ * invoices on foreground (to pick up a Stripe payment) would have put the
+ * pre-edit server row over an offline payment he had just recorded. Local-only
+ * pending rows are kept as mergeLocalOnly keeps them.
+ */
+export function mergeServerKeepingPending<T extends { id: string }>(
+  serverRows: readonly T[],
+  localRows: readonly T[],
+  pendingIds: ReadonlySet<string>,
+  opts?: MergeLocalOnlyOptions<T>,
+): T[] {
+  // #112: mergeLocalOnly now keeps the device row for a pending id itself;
+  // this name stays for its callers (and the validators that pin them).
+  return mergeLocalOnly(serverRows, localRows, pendingIds, opts);
+}
+
+/**
+ * #121 · Owned, portal-proposal projects whose published terms stamp is NOT
+ * `split`. The toast "proposal, portal and contract now all say 25 / 65 / 10"
+ * used to be chosen whenever no portal was MISSING a stamp — so a portal the
+ * web had already stamped 30 / 60 / 10 still counted as agreeing. It is only
+ * true when this list is empty (and nothing was left unstamped).
+ */
+export function portalsDisagreeingWithSplit(
+  projects: readonly { id: string; ownerUserId?: string | null; clientPortal?: Pick<ClientPortalSettings, 'enabled' | 'proposalApprovalEnabled' | 'proposalPaymentTerms'> | null }[],
+  userId: string | null | undefined,
+  split: PaymentSplit,
+): string[] {
+  if (!userId) return [];
+  return projects
+    .filter(p => p.ownerUserId === userId
+      && !!p.clientPortal?.enabled
+      && !!p.clientPortal.proposalApprovalEnabled
+      && isValidStamp(p.clientPortal.proposalPaymentTerms)
+      && !sameSplit(p.clientPortal.proposalPaymentTerms, split))
+    .map(p => p.id);
+}
+
+/**
+ * #23 · Everything one project's lite portal publish is built from, as a
+ * string — the provider-level sync publishes a project only when this moved
+ * since its last good publish. Tenant-wide lists are cut to the project first,
+ * so a change on one job never re-publishes every other job's portal.
+ */
+export function portalLiteSignature(
+  projectId: string,
+  input: {
+    project: unknown;
+    settings: unknown;
+    lists: Record<string, readonly { projectId?: string }[]>;
+  },
+): string {
+  const lists: Record<string, unknown[]> = {};
+  for (const key of Object.keys(input.lists).sort()) {
+    lists[key] = input.lists[key].filter(r => r?.projectId === projectId);
+  }
+  return JSON.stringify({ project: input.project, settings: input.settings, lists });
+}
+
+/** A lite publish that settled this signature: the portal holds it, or has
+ *  nothing to hold. Anything else (a failed read or write, a run folded into
+ *  one already in flight, a profile not loaded) is retried on the next pass. */
+export function portalLiteOutcomeSettles(outcome: string): boolean {
+  return outcome === 'published' || outcome === 'unchanged' || outcome === 'portal_off' || outcome === 'not_owner';
+}
+
+/**
+ * #116 (review round) · May this device write the portal_messages notice that
+ * goes with a send or recall? Only the owner: the insert policy ('gc inserts
+ * own portal messages') admits projects.user_id = auth.uid() and nobody else,
+ * so an ACCEPTED editor — who may send (portalWriteRefusal) — would still
+ * queue a notice that can never land. The item's portal_state write and the
+ * owner's provider republish carry the send; only the chat line is skipped.
+ * Same owner rule as portalWriteRefusal / deleteProjectRefusal (A-1).
+ */
+export function portalMessageAllowed(
+  project: { ownerUserId?: string | null; myRole?: ProjectRole | undefined } | undefined,
+  userId: string | null | undefined,
+): boolean {
+  if (!project || !userId) return false;
+  if (project.ownerUserId) return project.ownerUserId === userId;
+  return !project.myRole || project.myRole === 'owner';
+}
+
+/**
+ * #40 (review round) · The change_orders loader's rows with every audit entry
+ * this device still owes the server laid back on. The loader takes the server
+ * row once the queued UPDATE has flushed, and the server row lacks what
+ * co_append_audit has not appended yet — the client's in-person signature, a
+ * "place these days" marker — so without this they vanished from the screen
+ * until the append landed (and a missing marker let a second one be written).
+ * Server order first; a pending entry the server already holds is not doubled.
+ */
+export function overlayPendingAudit<R extends { id: string; auditTrail?: E[] | null }, E extends { id?: unknown }>(
+  rows: readonly R[],
+  pending: ReadonlyMap<string, readonly E[]>,
+): R[] {
+  if (pending.size === 0) return rows as R[];
+  return rows.map((r) => {
+    const owed = pending.get(r.id);
+    if (!owed || owed.length === 0) return r;
+    const add = newAuditEntries(r.auditTrail ?? [], owed);
+    return add.length ? { ...r, auditTrail: [...(r.auditTrail ?? []), ...add] } : r;
+  });
+}
+
+/** The durable form of the pending CO audit appends (AsyncStorage). */
+export type CoAuditPendingStore<E> = { owner: string; pending: Record<string, E[]> };
+
+/** Read a stored pending-append map back — only this account's, only arrays. */
+export function coAuditPendingFromStore<E>(stored: unknown, owner: string | null | undefined): Map<string, E[]> {
+  const out = new Map<string, E[]>();
+  if (!owner || !stored || typeof stored !== 'object') return out;
+  const s = stored as Partial<CoAuditPendingStore<E>>;
+  if (s.owner !== owner || !s.pending || typeof s.pending !== 'object') return out;
+  for (const [id, list] of Object.entries(s.pending)) {
+    if (Array.isArray(list) && list.length) out.set(id, list);
+  }
+  return out;
+}
+
+/**
+ * #40 review round · Ids whose DEVICE copy a change_orders read must keep: a
+ * write from this device (UPDATE or audit append) is on the wire, or settled
+ * after the read went out — that read may have been answered before the write
+ * landed, so its row is the pre-edit one. A write that settled before the read
+ * started is already in what the read returns.
+ */
+export function idsWrittenDuringRead(
+  touches: ReadonlyMap<string, { inFlight: number; settledAt: number }>,
+  readStartedAt: number,
+): Set<string> {
+  const out = new Set<string>();
+  for (const [id, t] of touches) if (t.inFlight > 0 || t.settledAt >= readStartedAt) out.add(id);
+  return out;
+}
+/** The change-order name of idsWrittenDuringRead (context-money-portal). */
+export const coIdsWrittenDuringRead = idsWrittenDuringRead;
+
+/**
+ * #23 review round · The projects a LOCAL write of one list touched: an item
+ * added, removed or changed between the list the write replaced and the list
+ * it wrote. The provider publishes a portal only for projects this device
+ * changed (plus once after load) — a refetch that moved a list is never a
+ * reason to publish, because the device's other lists may be the stale ones.
+ * An item without a projectId marks nothing.
+ */
+export function portalDirtyProjectIds<T extends { id: string; projectId?: string }>(
+  prev: readonly T[] | null | undefined,
+  next: readonly T[] | null | undefined,
+  projectOf: (r: T) => string | undefined = r => r.projectId,
+): Set<string> {
+  const out = new Set<string>();
+  const before = new Map<string, T>();
+  for (const r of prev ?? []) if (r && !before.has(r.id)) before.set(r.id, r);
+  const seen = new Set<string>();
+  for (const r of next ?? []) {
+    if (!r || seen.has(r.id)) continue;
+    seen.add(r.id);
+    const old = before.get(r.id);
+    if (old === r) continue;
+    if (old && JSON.stringify(old) === JSON.stringify(r)) continue;
+    const pid = projectOf(r);
+    if (pid) out.add(pid);
+    const oldPid = old ? projectOf(old) : undefined;
+    if (oldPid && oldPid !== pid) out.add(oldPid);
+  }
+  for (const [id, old] of before) {
+    const pid = seen.has(id) ? undefined : projectOf(old);
+    if (pid) out.add(pid);
+  }
+  return out;
+}
+
+/** Same, for the projects list itself: a project whose row this device changed. */
+export function portalDirtyProjects(
+  prev: readonly { id: string }[] | null | undefined,
+  next: readonly { id: string }[] | null | undefined,
+): Set<string> {
+  return portalDirtyProjectIds<{ id: string }>(prev, next, p => p.id);
+}
+
+// ─── #90 · A job he was removed from leaves his phone ───────────────────────
+
+/** The cached shape the revocation decision reads. */
+export interface CachedProjectLike {
+  id: string;
+  name?: string;
+  ownerUserId?: string | null;
+  myRole?: ProjectCollaborator['role'] | null;
+}
+
+/**
+ * #90 · Cached projects a SUCCESSFUL projects read says he can no longer see:
+ * the server did not return them, and they are someone else's — a known owner
+ * who is not him, or (a legacy cache with no owner stamp) a collaborator role
+ * stamped on them. A cached project with no owner and no collaborator role is
+ * his own offline create or an unstamped legacy row, and is KEPT: never lock
+ * an owner out of a job the server has not seen yet.
+ *
+ * The loader used to keep every cached project the server stopped returning,
+ * and a zero-row read fell through to the whole cache — so the GC removing a
+ * foreman left the job on the foreman's phone for good, and roleForUser (no
+ * collaborator row → 'owner') then handed him the owner's controls.
+ */
+export function revokedCachedProjectIds(
+  cached: readonly CachedProjectLike[],
+  returnedIds: ReadonlySet<string>,
+  userId: string | null | undefined,
+): Set<string> {
+  const out = new Set<string>();
+  if (!userId) return out;
+  for (const p of cached) {
+    if (!p?.id || returnedIds.has(p.id)) continue;
+    const foreignOwner = !!p.ownerUserId && p.ownerUserId !== userId;
+    const legacyShared = !p.ownerUserId && !!p.myRole && p.myRole !== 'owner';
+    if (foreignOwner || legacyShared) out.add(p.id);
+  }
+  return out;
+}
+
+/** The sentence a queued write for a job he lost access to is dropped with. */
+export function noLongerHaveAccessReason(jobName: string | null | undefined): string {
+  const name = (jobName ?? '').trim();
+  return `You no longer have access to ${name ? name : 'this job'}`;
+}
+
+/**
+ * #90 · Which job a queued write belongs to, when it is one of `projectIds`:
+ * a projects row by id, any row carrying project_id, or a child row whose id
+ * the device cache ties to one of those jobs (an UPDATE patch carries no
+ * project_id). Returns the project id, or null to keep the entry.
+ */
+export function queuedEntryRevokedProject(
+  entry: QueueEntryLike,
+  projectIds: ReadonlySet<string>,
+  childProjectById: ReadonlyMap<string, string>,
+): string | null {
+  const data = entry.data ?? {};
+  const id = typeof data.id === 'string' ? data.id : null;
+  if (entry.table === 'projects' || entry.table === 'project_financials') {
+    const pid = entry.table === 'projects' ? id : (typeof data.project_id === 'string' ? data.project_id : null);
+    return pid && projectIds.has(pid) ? pid : null;
+  }
+  const pid = typeof data.project_id === 'string' ? data.project_id : null;
+  if (pid && projectIds.has(pid)) return pid;
+  const viaChild = id ? childProjectById.get(id) : undefined;
+  return viaChild && projectIds.has(viaChild) ? viaChild : null;
+}
+
+// ─── #55 · RFI / submittal edits write only what changed ─────────────────────
+
+/** RFI field → rfis column, for every column rfiMutableRow writes. A field not
+ *  listed here (portalState, number, projectId, updatedAt) is never sent by an
+ *  edit: portal_state belongs to send/recall, number to the server (#148). */
+export const RFI_FIELD_COLUMNS: Readonly<Record<string, string>> = {
+  subject: 'subject', question: 'question', submittedBy: 'submitted_by',
+  assignedTo: 'assigned_to', assignedSubId: 'assigned_sub_id',
+  ballInCourt: 'ball_in_court', handoffs: 'handoffs',
+  dateSubmitted: 'date_submitted', dateRequired: 'date_required',
+  dateResponded: 'date_responded', response: 'response',
+  status: 'status', priority: 'priority',
+  linkedDrawing: 'linked_drawing', linkedTaskId: 'linked_task_id',
+  attachments: 'attachments', sourcePhotoId: 'source_photo_id',
+};
+
+/** Submittal field → submittals column. review_cycles / current_status are
+ *  listed so an explicit edit of them still maps, but addReviewCycle never
+ *  writes them — it goes through submittal_append_review_cycle. */
+export const SUBMITTAL_FIELD_COLUMNS: Readonly<Record<string, string>> = {
+  title: 'title', specSection: 'spec_section', submittedBy: 'submitted_by',
+  submittedDate: 'submitted_date', requiredDate: 'required_date',
+  reviewCycles: 'review_cycles', currentStatus: 'current_status',
+  attachments: 'attachments',
+  linkedTaskId: 'linked_task_id', submittalType: 'submittal_type', trade: 'trade',
+  sourcePages: 'source_pages', leadDays: 'lead_days', requiredDateSource: 'required_date_source',
+};
+
+/** Columns rfi-core's guard watches (20260919080000 CLIENT WRITE CONTRACT §1):
+ *  a write naming one of them MUST name updated_at. */
+export const RFI_GUARDED_COLUMNS: readonly string[] = ['response', 'date_responded', 'status', 'ball_in_court', 'handoffs'];
+export const SUBMITTAL_GUARDED_COLUMNS: readonly string[] = ['review_cycles', 'current_status'];
+
+/**
+ * #55 · The UPDATE payload for an edit: `id`, the columns of the fields the
+ * caller actually changed (the keys of `updates`, even one set to undefined —
+ * that is a clear, sent as the builder's null), and updated_at. Every value is
+ * taken from the SAME row builder the insert uses, so an edit can never write
+ * a column in a different shape from a create.
+ *
+ * Writing the whole mutable row from the device copy is how the architect's
+ * portal answer was erased: a phone holding the 7am copy sent response NULL,
+ * status 'open' on an unrelated edit. `updatedAt` is the updated_at of the copy
+ * the edit was made on (the server's own value after a read; a device stamp
+ * after a local edit). rfi-core's guard steps aside only when that equals the
+ * server's current value — the writer saw the current row, so a deliberate
+ * reopen lands — and coerces everything else (contract rules 2-3). A
+ * device-stamped value never equals a server stamp, so it always takes the
+ * guarded path.
+ */
+export function rowPatch(
+  fullRow: Record<string, unknown>,
+  changedFields: readonly string[],
+  columnOf: Readonly<Record<string, string>>,
+  updatedAt: string,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { id: fullRow.id };
+  for (const f of changedFields) {
+    const col = columnOf[f];
+    if (!col || col === 'id') continue;
+    out[col] = Object.prototype.hasOwnProperty.call(fullRow, col) && fullRow[col] !== undefined ? fullRow[col] : null;
+  }
+  out.updated_at = updatedAt;
+  return out;
+}
+
+/** #60 / #144 · The intake columns (20260919090000), in and out. `?? null` on
+ *  the way out so a cleared link reaches the server; undefined on the way in
+ *  for NULL so an unset field stays unset. */
+export function submittalIntakeColumns(s: {
+  linkedTaskId?: string; submittalType?: string; trade?: string;
+  sourcePages?: number[]; leadDays?: number; requiredDateSource?: 'schedule' | 'manual';
+}): Record<string, unknown> {
+  return {
+    linked_task_id: s.linkedTaskId || null,
+    submittal_type: s.submittalType ?? null,
+    trade: s.trade ?? null,
+    source_pages: Array.isArray(s.sourcePages) ? s.sourcePages : null,
+    lead_days: typeof s.leadDays === 'number' && Number.isFinite(s.leadDays) ? Math.round(s.leadDays) : null,
+    required_date_source: s.requiredDateSource === 'schedule' || s.requiredDateSource === 'manual' ? s.requiredDateSource : null,
+  };
+}
+
+export function submittalIntakeFromRow(r: Record<string, unknown>): {
+  linkedTaskId?: string; submittalType?: string; trade?: string;
+  sourcePages?: number[]; leadDays?: number; requiredDateSource?: 'schedule' | 'manual';
+} {
+  const pages = Array.isArray(r.source_pages)
+    ? (r.source_pages as unknown[]).map(Number).filter(n => Number.isFinite(n))
+    : undefined;
+  const src = r.required_date_source;
+  return {
+    linkedTaskId: (r.linked_task_id as string | null) || undefined,
+    submittalType: (r.submittal_type as string | null) ?? undefined,
+    trade: (r.trade as string | null) ?? undefined,
+    sourcePages: pages,
+    leadDays: r.lead_days == null || !Number.isFinite(Number(r.lead_days)) ? undefined : Number(r.lead_days),
+    requiredDateSource: src === 'schedule' || src === 'manual' ? src : undefined,
+  };
+}
+
+/** #16 / #111 · Punch columns the app READS but never writes on an update:
+ *  who raised the item (user_id, stamped on insert) and the sub's note (the
+ *  sub portal's RPC owns sub_note — an app write would overwrite it). */
+export function punchServerOwnedFromRow(r: Record<string, unknown>): { createdByUserId?: string; subNote?: string } {
+  return {
+    createdByUserId: (r.user_id as string | null) ?? undefined,
+    subNote: (r.sub_note as string | null) ?? undefined,
+  };
+}
+
+/** #112 combiner for punch: the device row wins for a queued write, but the
+ *  columns the device never writes stay the server's — the sub's note, and
+ *  the pin (keepPendingPinFields then restores THIS device's pin only where
+ *  its pin write is still out, so another phone's pin is never hidden). */
+export function combinePunchPending<T extends {
+  subNote?: string; planSheetId?: string; pinX?: number; pinY?: number; createdByUserId?: string;
+}>(local: T, server: T): T {
+  return {
+    ...local,
+    subNote: server.subNote,
+    planSheetId: server.planSheetId, pinX: server.pinX, pinY: server.pinY,
+    createdByUserId: local.createdByUserId ?? server.createdByUserId,
+  };
+}
+
+// ─── #74 · plans re-read without wiping what is still on its way ────────────
+
+export const PLAN_SYNC_TABLES: readonly string[] = ['plan_sheets', 'drawing_pins', 'plan_markups', 'plan_calibrations'];
+
+/** Any queued write (create, edit or delete) to a plan table. A plans re-read
+ *  replaces the lists from server rows, so it waits for these to land. */
+export function planWritesQueued(queue: readonly QueueEntryLike[]): boolean {
+  return queue.some(e => PLAN_SYNC_TABLES.includes(e.table));
+}
+
+/** A plans RE-read's merge: the server row wins by id, and a device row the
+ *  server did not return is kept (a sheet imported moments ago whose write is
+ *  on the wire and in no queue yet). A deletion made on another device is
+ *  therefore only seen on the next cold load — the same as before (#74 leaves
+ *  that known limit alone). */
+export function unionServerFirst<T extends { id: string }>(
+  serverRows: readonly T[],
+  localRows: readonly T[],
+  /** Review round 1 · ids this device wrote while the read was out (a write
+   *  on the wire, or one that settled after the read started — see
+   *  idsWrittenDuringRead). The read may predate the write, so for these the
+   *  DEVICE is the truth: its row is kept, and an id it no longer holds (a
+   *  delete in flight) is left out rather than resurrected. */
+  keepLocalIds?: ReadonlySet<string>,
+): T[] {
+  const localById = new Map<string, T>();
+  if (keepLocalIds && keepLocalIds.size > 0) for (const r of localRows) if (!localById.has(r.id)) localById.set(r.id, r);
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const r of serverRows) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    if (keepLocalIds?.has(r.id)) {
+      const mine = localById.get(r.id);
+      if (mine) out.push(mine);
+      continue;
+    }
+    out.push(r);
+  }
+  for (const r of localRows) { if (!seen.has(r.id)) { seen.add(r.id); out.push(r); } }
+  return out;
+}
+
+// ─── #55 review round · which updated_at an RFI / submittal edit sends ──────
+//
+// The answer guard (20260919080000) steps aside only when a write names the
+// row's CURRENT server updated_at. The first cut sent the local copy's
+// updatedAt — the server's stamp after a read, but a DEVICE clock after any
+// edit of his own, because a direct write triggers no re-read. So "fix the
+// response text, then tap Reopen" sent a device stamp: the guard kept the RFI
+// answered while the screen said open, and the next refetch flipped it back
+// with no word. The server's stamp now lives apart from the display one
+// (serverUpdatedAt), set only by a server read or the read-back after his own
+// write lands, and cleared the moment he sends an edit. An edit that would
+// REGRESS a guarded column (reopen, clear the answer, rewrite the custody
+// chain / review cycles, move a submittal's status without a new cycle) is
+// sent only with a known server stamp; otherwise it is refused, with why,
+// instead of being silently undone on the server.
+
+/** Canonical JSON: object keys sorted (jsonb reorders them), so a value read
+ *  back from Postgres compares equal to the one the device wrote. */
+export function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).filter(k => o[k] !== undefined).sort().map(k => `${JSON.stringify(k)}:${canonicalJson(o[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+function isAppendOf(before: readonly unknown[], after: readonly unknown[]): boolean {
+  if (after.length < before.length) return false;
+  for (let i = 0; i < before.length; i++) if (canonicalJson(before[i]) !== canonicalJson(after[i])) return false;
+  return true;
+}
+
+const nonEmptyText = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
+
+/** The guarded regression an RFI edit makes, or null (contract §2's list). */
+export function rfiEditRegression(
+  before: { status?: string; response?: string; dateResponded?: string; handoffs?: readonly unknown[] },
+  updates: Record<string, unknown>,
+): 'reopen' | 'clear_response' | 'clear_date_responded' | 'rewrite_handoffs' | null {
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(updates, k);
+  if (has('status') && updates.status === 'open' && (before.status === 'answered' || before.status === 'closed')) return 'reopen';
+  if (has('response') && nonEmptyText(before.response) && !nonEmptyText(updates.response)) return 'clear_response';
+  if (has('dateResponded') && nonEmptyText(before.dateResponded) && !nonEmptyText(updates.dateResponded)) return 'clear_date_responded';
+  if (has('handoffs') && !isAppendOf(before.handoffs ?? [], (updates.handoffs as unknown[] | undefined) ?? [])) return 'rewrite_handoffs';
+  return null;
+}
+
+/** The guarded regression a submittal edit makes, or null: a review cycle the
+ *  server has rewritten or removed, or a status moved without appending the
+ *  cycle that carries it (the guard keeps the server's status then). */
+export function submittalEditRegression(
+  before: { reviewCycles?: readonly { status?: string }[]; currentStatus?: string },
+  updates: Record<string, unknown>,
+): 'rewrite_cycles' | 'status_change' | null {
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(updates, k);
+  const beforeCycles = before.reviewCycles ?? [];
+  const cycles = has('reviewCycles') ? ((updates.reviewCycles as { status?: string }[] | undefined) ?? []) : beforeCycles;
+  if (has('reviewCycles') && !isAppendOf(beforeCycles, cycles)) return 'rewrite_cycles';
+  if (has('currentStatus') && updates.currentStatus !== before.currentStatus) {
+    const appended = cycles.length > beforeCycles.length;
+    if (!(appended && cycles[cycles.length - 1]?.status === updates.currentStatus)) return 'status_change';
+  }
+  return null;
+}
+
+export type ProDocEditPlan<T> =
+  | { ok: true; next: T; changedKeys: string[]; stamp: string; deliberate: boolean }
+  | { ok: false; title: string; reason: string };
+
+/**
+ * The whole decision of updateRFI / updateSubmittal, pure so a SEQUENCE of
+ * edits is executed by the validator: the new local row, the fields the patch
+ * names, and the updated_at it sends.
+ *  - serverUpdatedAt / updatedAt in `updates` are ignored — the provider owns
+ *    both (a screen passing its render copy back must not restore a stale
+ *    server stamp).
+ *  - sending: the stamp is the known server stamp (a deliberate edit — the
+ *    guard steps aside) or, unknown, the device clock (the guard applies:
+ *    safe for every edit that is not a regression). The new local row's
+ *    serverUpdatedAt is cleared: the server stamps a new value on landing.
+ *  - a regression with no known server stamp is REFUSED, with why.
+ *  - not sending (signed out / no backend): local edit only, stamp kept.
+ */
+export function planProDocEdit<T extends { updatedAt: string; serverUpdatedAt?: string }>(a: {
+  kind: 'rfi' | 'submittal';
+  before: T;
+  updates: Partial<T>;
+  nowIso: string;
+  sending: boolean;
+}): ProDocEditPlan<T> {
+  const clean: Record<string, unknown> = { ...(a.updates as Record<string, unknown>) };
+  delete clean.serverUpdatedAt;
+  delete clean.updatedAt;
+  const before = a.before as unknown as Record<string, unknown>;
+  const regression = a.kind === 'rfi'
+    ? rfiEditRegression(before as Parameters<typeof rfiEditRegression>[0], clean)
+    : submittalEditRegression(before as Parameters<typeof submittalEditRegression>[0], clean);
+  const known = typeof a.before.serverUpdatedAt === 'string' && a.before.serverUpdatedAt.length > 0;
+  if (a.sending && regression && !known) {
+    const what = a.kind === 'rfi'
+      ? (regression === 'reopen' ? 'reopen this RFI' : regression === 'rewrite_handoffs' ? 'change who this RFI sat with' : 'clear the answer')
+      : (regression === 'status_change' ? 'change this submittal\'s status' : 'change a review cycle');
+    const kept = a.kind === 'rfi' ? 'keep the RFI as answered' : 'keep its review cycles and status';
+    return {
+      ok: false,
+      title: a.kind === 'rfi' ? 'Not reopened yet' : 'Not changed yet',
+      reason: `This phone does not have the server's latest copy (your last change may still be syncing). Try again in a moment — to ${what} now, the server would ${kept}, and this screen would disagree with it.`,
+    };
+  }
+  const next = {
+    ...a.before,
+    ...(clean as Partial<T>),
+    updatedAt: a.nowIso,
+    serverUpdatedAt: a.sending ? undefined : a.before.serverUpdatedAt,
+  } as T;
+  return {
+    ok: true,
+    next,
+    changedKeys: Object.keys(clean),
+    stamp: known ? (a.before.serverUpdatedAt as string) : a.nowIso,
+    deliberate: known,
+  };
+}
+
+/** After his own write lands, may the stamp the server reports now be taken
+ *  as the one THIS device's copy matches? Only when the server's guarded
+ *  columns equal the device's (compared canonically): otherwise someone else
+ *  wrote in between (the architect's answer), and adopting the stamp would
+ *  let his next reopen overwrite an answer he never saw — the caller re-reads
+ *  the list instead. */
+export function serverStampAdoptable(
+  deviceColumns: Record<string, unknown>,
+  serverRow: Record<string, unknown> | null | undefined,
+  guardedColumns: readonly string[],
+): boolean {
+  if (!serverRow || typeof serverRow.updated_at !== 'string' || serverRow.updated_at.length === 0) return false;
+  return guardedColumns.every(c => canonicalJson(deviceColumns[c] ?? null) === canonicalJson(serverRow[c] ?? null));
+}
+
+// ─── #90 review round · the removed-job sweep ───────────────────────────────
+
+/** Record id → its job, for the rows of revoked jobs across any lists (the
+ *  in-memory ones AND the device caches: on a cold launch the projects load
+ *  can land before the child lists hydrate, and a queued UPDATE carries no
+ *  project_id — only this map ties it to the job). */
+export function childProjectMap(
+  lists: readonly (readonly { id?: string; projectId?: string }[] | null | undefined)[],
+  revoked: ReadonlySet<string>,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const r of list) if (r && typeof r.id === 'string' && r.projectId && revoked.has(r.projectId)) out.set(r.id, r.projectId);
+  }
+  return out;
+}
+
+/** Does any list still hold a record of a revoked job (a list that hydrated
+ *  after the first sweep)? */
+export function listsHoldRevoked(
+  lists: readonly (readonly { projectId?: string }[] | null | undefined)[],
+  revoked: ReadonlySet<string>,
+): boolean {
+  if (revoked.size === 0) return false;
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const r of list) if (r?.projectId && revoked.has(r.projectId)) return true;
+  }
+  return false;
+}
+
+// ─── #23 (data-session critic) · a portal publish only from SERVER lists ─────
+
+/**
+ * The lists a homeowner-portal publish is built from. Every one of their
+ * loaders falls back to the device cache when its read fails (or its empty
+ * answer was not trusted) and still reports "loaded" — so "loaded" alone does
+ * not say the list is the server's. The portal writer treats a missing item
+ * or section as GONE (#44): one flaky invoices read at launch, published,
+ * pulled the client's invoices and Pay links off every portal.
+ */
+export const PORTAL_FED_LISTS = [
+  'projects', 'invoices', 'changeOrders', 'dailyReports', 'photos', 'punchItems', 'rfis', 'permits', 'warranties',
+] as const;
+export type PortalFedList = typeof PORTAL_FED_LISTS[number];
+/**
+ * Which portal-fed lists were read from the server SINCE THE LATEST RETURN TO
+ * THE FOREGROUND (round 2 of the #23 critic). `epoch` is bumped by the
+ * provider's single foreground pass BEFORE it starts re-reading every list;
+ * a stamp counts only for the epoch it was read in. Why epochs and not just
+ * "was it the server's": the daily reports, photos, change orders, permits
+ * and warranties used to be read once per launch, and an iPhone that read
+ * them at 07:00 and published at 19:00 (a punch edit, any settings save)
+ * rebuilt the portal from the 07:00 copies — pulling everything the GC shared
+ * from the web since then off the homeowner's page (#44). With the epoch, a
+ * list read before the latest foreground can never feed a publish.
+ */
+export interface PortalServerReads {
+  epoch: number;
+  /** list → the account and the epoch its read STARTED in (server answers only). */
+  stamps: Partial<Record<PortalFedList, { userId: string; epoch: number }>>;
+}
+export const EMPTY_PORTAL_SERVER_READS: PortalServerReads = { epoch: 0, stamps: {} };
+
+/**
+ * Record one load's outcome. `readEpoch` is the epoch the read STARTED in —
+ * captured before the SELECT, so a read already on the wire when the phone
+ * came back cannot count for the new epoch. A server answer stamps the list;
+ * a cache fallback clears this account's stamp. A load from an older epoch
+ * changes nothing either way: its success is too old to count, and its
+ * failure says nothing about the re-read the foreground pass started (whose
+ * result react-query keeps — invalidation cancels the older fetch). Returns
+ * `prev` itself when nothing changed, so a React state setter is a no-op.
+ */
+export function notePortalListRead(
+  prev: PortalServerReads, list: PortalFedList, userId: string, fromServer: boolean, readEpoch: number,
+): PortalServerReads {
+  if (readEpoch !== prev.epoch) return prev;
+  const cur = prev.stamps[list];
+  if (fromServer) {
+    if (cur && cur.userId === userId && cur.epoch === readEpoch) return prev;
+    return { ...prev, stamps: { ...prev.stamps, [list]: { userId, epoch: readEpoch } } };
+  }
+  if (!cur || cur.userId !== userId) return prev;
+  const stamps = { ...prev.stamps };
+  delete stamps[list];
+  return { ...prev, stamps };
+}
+
+/** A return to the foreground: every stamp from an earlier epoch stops counting. */
+export function beginPortalReadEpoch(prev: PortalServerReads, epoch: number): PortalServerReads {
+  return prev.epoch === epoch ? prev : { ...prev, epoch };
+}
+
+/** True only when EVERY portal-fed list was read from the server, for this account, in the current epoch. */
+export function portalListsFromServer(reads: PortalServerReads, userId: string | null | undefined): boolean {
+  if (!userId) return false;
+  return PORTAL_FED_LISTS.every((list) => {
+    const s = reads.stamps[list];
+    return !!s && s.userId === userId && s.epoch === reads.epoch;
+  });
+}
+
+/**
+ * The device rows a re-read must keep, from the write tracker: an id written
+ * (insert/update/delete) while the read was out is the device's — kept if the
+ * device still holds it (an insert not yet committed, an edit not yet landed),
+ * and treated as deleted if it does not (a delete not yet landed would
+ * otherwise come back from the SELECT).
+ */
+export function deviceRowsWrittenDuringRead(
+  touches: ReadonlyMap<string, { inFlight: number; settledAt: number }>,
+  readStartedAt: number,
+  deviceRows: readonly { id: string }[],
+): { keep: Set<string>; gone: Set<string> } {
+  const keep = idsWrittenDuringRead(touches, readStartedAt);
+  const onDevice = new Set(deviceRows.map(r => r.id));
+  const gone = new Set<string>();
+  for (const id of keep) if (!onDevice.has(id)) gone.add(id);
+  return { keep, gone };
 }

@@ -27,7 +27,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
-import type { JobCostActualSources } from '@/utils/jobCostEngine';
+import { unpricedLaborFor, unpricedLaborLine, type JobCostActualSources } from '@/utils/jobCostEngine';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
@@ -80,10 +80,10 @@ function LivingEstimateInner() {
   // self-perform overrun read as the bid margin (audit round 2, #16).
   const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
   const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier, isLoading: ratesLoading } = useLaborRates();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: ratesLoading } = useLaborRates();
   const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, equipment, permits, subcontractors]);
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
   // Those stores default to [] / {} while AsyncStorage is read; on that beat
   // a self-perform job's projected margin was its bid margin under an "On
   // track" chip — a guess rendered as a projection. Hold the numbers until
@@ -122,8 +122,14 @@ function LivingEstimateInner() {
   }
 
   const health: MarginHealth = snapshot?.health ?? 'healthy';
+  // #61: crew hours on a trade with no rate price at $0, so the projected
+  // cost is short by that labor and the margin reads fatter than it is. The
+  // chip must not say "On track" on numbers missing a cost stream — it names
+  // the gap instead, and the line under the hero says how to close it.
+  const unpriced = unpricedLaborFor(project.id, timeEntries, laborRates);
+  const laborGap = unpriced.hours > 0 && health === 'healthy';
   const healthColor =
-    health === 'critical' ? t.danger : health === 'watch' ? t.accent : t.success;
+    health === 'critical' ? t.danger : health === 'watch' ? t.accent : laborGap ? t.warningLabel : t.success;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -177,7 +183,7 @@ function LivingEstimateInner() {
               <View style={styles.heroTopRow}>
                 <Text style={styles.heroLabel}>Projected margin at completion</Text>
                 <View style={[styles.healthChip, { backgroundColor: healthColor + '22' }]}>
-                  {health === 'critical' ? (
+                  {health === 'critical' || laborGap ? (
                     <AlertTriangle size={13} color={healthColor} strokeWidth={1.75} />
                   ) : health === 'watch' ? (
                     <TrendingDown size={13} color={healthColor} strokeWidth={1.75} />
@@ -185,7 +191,7 @@ function LivingEstimateInner() {
                     <TrendingUp size={13} color={healthColor} strokeWidth={1.75} />
                   )}
                   <Text style={[styles.healthChipText, { color: healthColor }]}>
-                    {health === 'critical' ? 'At risk' : health === 'watch' ? 'Watch' : 'On track'}
+                    {health === 'critical' ? 'At risk' : health === 'watch' ? 'Watch' : laborGap ? 'Labor unpriced' : 'On track'}
                   </Text>
                 </View>
               </View>
@@ -208,6 +214,21 @@ function LivingEstimateInner() {
                 </Text>
               </View>
             </View>
+
+            {unpriced.hours > 0 ? (
+              <TouchableOpacity
+                testID="living-estimate-unpriced-labor"
+                style={styles.unpricedCard}
+                onPress={() => router.push({ pathname: '/time-tracking', params: { projectId: project.id } } as never)}
+                accessibilityRole="link"
+                activeOpacity={0.8}
+              >
+                <AlertTriangle size={15} color={t.warningLabel} strokeWidth={1.75} />
+                <Text style={styles.unpricedText}>
+                  {unpricedLaborLine(unpriced.hours)} Set labor rates →
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Revenue vs cost, original vs projected */}
             <View style={styles.compareCard}>
@@ -352,6 +373,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   heroTopRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
   heroLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const },
+  unpricedCard: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
+    backgroundColor: t.warningSoft, borderRadius: Tokens.radius.card, padding: 12, marginBottom: 12,
+  },
+  unpricedText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
   healthChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   healthChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   // The screen's ONE hero figure — projected margin. Serif per the type rule

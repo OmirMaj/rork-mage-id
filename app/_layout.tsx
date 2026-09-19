@@ -49,6 +49,7 @@ import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink
 import { pathToDocumentTitle } from '@/utils/routeTitle';
 import { AutonomyProvider } from '@/hooks/useAutonomy';
 import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
+import { INVITE_PARAM, sanitizeInviteToken } from '@/utils/deepLinksInvite';
 import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
@@ -598,6 +599,17 @@ function RootLayoutNav() {
       return;
     }
 
+    // #93: an invitee who just signed in on /login?invite=… (or /signup?invite=…)
+    // is left alone here: login/signup route him back to /accept-invite
+    // themselves (postSignInHref). A brand-new account has no persona, so the
+    // gate below used to race that navigation and could win — replacing /login
+    // with /persona-select and dropping the token. Exactly one navigation now:
+    // the screen's. (A session restored straight onto an invite-bearing auth
+    // screen, with no sign-in to finish, is sent on by the screen's own
+    // mount check.) accept-invite is exempt from the gates, so he accepts
+    // first and is walked through setup after.
+    if (isAuthenticated && inAuth && sanitizeInviteToken(globalParamsRef.current[INVITE_PARAM])) return;
+
     // Persona gate — runs BEFORE the onboarding gate. New users have to
     // pick a marketplace persona (contractor / client / both) before
     // entering the onboarding flow, because the onboarding question and
@@ -649,7 +661,14 @@ function RootLayoutNav() {
         // pending was validated by isInAppRoute inside setPendingDeepLink /
         // takePendingDeepLink — the `as any` cast here sidesteps typed-routes
         // exhaustive checking while keeping the runtime guarantee intact.
-        router.replace(pending as any);
+        //
+        // #94: tab shell first, the stashed screen PUSHED on top. A bare
+        // replace swapped the only root-stack entry for a screen outside
+        // (tabs) — a teammate's project link opened with no back chevron and
+        // no tab bar. A stash that IS the home tab needs only the replace.
+        router.replace('/(tabs)/(home)' as any);
+        const route = pending.replace(/^\//, '').split('?')[0];
+        if (route && route !== '(tabs)' && route !== '(tabs)/(home)') router.push(pending as any);
       }
     })();
   }, [isAuthenticated, userRole, hasSeenOnboarding, router]);

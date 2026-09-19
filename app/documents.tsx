@@ -193,7 +193,7 @@ export default function DocumentsScreen() {
         type: 'other',
         title: `Submittal #${s.number} · ${s.title}`,
         status,
-        createdAt: s.submittedDate ?? s.createdAt ?? new Date().toISOString(),
+        createdAt: s.submittedDate || s.createdAt || new Date().toISOString(),
         notes: s.specSection ? `Spec ${s.specSection}` : undefined,
       });
     }

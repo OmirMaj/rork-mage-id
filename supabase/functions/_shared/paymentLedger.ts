@@ -522,7 +522,13 @@ export function pairDistanceMs(e: QboLedgerEntry, p: QboLinkedPayment): number |
   if (created < at - MATCH_CREATED_SLACK_MS) return null;
   const txnDay = dayIndex(p.txnDate);
   if (Number.isFinite(txnDay)) {
-    const entryDay = dayIndex(typeof e.receivedAt === "string" && e.receivedAt ? e.receivedAt : e.date);
+    // The day he says the money arrived wins (a bare day, billing-contract
+    // #133): a cheque he backdates more than the window and a bookkeeper's
+    // hand-keyed copy dated the same day still pair. Else the recorded instant.
+    const entryDay = dayIndex(
+      typeof e.receivedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.receivedDate) ? e.receivedDate
+        : typeof e.receivedAt === "string" && e.receivedAt ? e.receivedAt : e.date,
+    );
     if (!Number.isFinite(entryDay) || Math.abs(txnDay - entryDay) > MATCH_TXN_DATE_WINDOW_DAYS) return null;
   }
   return Math.abs(created - at);

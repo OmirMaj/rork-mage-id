@@ -121,29 +121,46 @@ export function inferTradeFromText(text: string): TradeInferenceResult {
 }
 
 /**
- * Given an inferred trade and the GC's sub list, pick the best sub to
- * auto-assign. Preference: assigned to this project → trade match →
- * compliance status (compliant over expiring). Returns null if no
- * reasonable candidate; the UI will show the trade badge with "No sub
- * on file" and the PM can add one or leave it blank.
+ * The sub a walk item is PROPOSED to — only ever one of this trade who is
+ * assigned to THIS project (assignedProjects includes projectId). Among
+ * several, the most recently touched. null when none: the walk card then says
+ * "No sub on this job" and the item saves unassigned (assignedSub '').
+ *
+ * There is deliberately no cross-job fallback. The old one returned the most
+ * recently updated sub of the trade from ANY job, and the walk wrote it as the
+ * assignment without showing it — so the list, the export and that company's
+ * portal all presented a guess as fact. What the walk proposes is shown on the
+ * card before Save, and he can change or clear it there.
  */
-export function pickSubForTrade(
+export function pickSubForTrade<S extends Pick<Subcontractor, 'id' | 'trade' | 'assignedProjects'> & { updatedAt?: string }>(
   trade: SubTrade,
-  subs: Subcontractor[],
+  subs: readonly S[],
   projectId?: string,
-): Subcontractor | null {
-  const tradeSubs = subs.filter(s => s.trade === trade);
-  if (tradeSubs.length === 0) return null;
+): S | null {
+  if (!projectId) return null;
+  const onProject = subs.filter(s => s.trade === trade && (s.assignedProjects ?? []).includes(projectId));
+  if (onProject.length === 0) return null;
+  const at = (s: S) => { const t = s.updatedAt ? new Date(s.updatedAt).getTime() : 0; return Number.isFinite(t) ? t : 0; };
+  return [...onProject].sort((a, b) => at(b) - at(a))[0] ?? null;
+}
 
-  // Prefer one already assigned to this project.
-  if (projectId) {
-    const onProject = tradeSubs.find(s => s.assignedProjects?.includes(projectId));
-    if (onProject) return onProject;
-  }
+/**
+ * Who the walk card's item will be saved to.
+ *   'auto'   — the sub pickSubForTrade proposes for the card's trade (on this
+ *              job only), shown on the card BEFORE save;
+ *   'picked' — he tapped a sub in the sheet;
+ *   'none'   — he cleared it: saves unassigned.
+ * The walk resets it to 'auto' on every save and whenever the trade changes,
+ * so a sub picked for an electrical item never rides onto the next one.
+ */
+export type WalkSubChoice<S = Pick<Subcontractor, 'id' | 'companyName' | 'trade' | 'assignedProjects'>> =
+  | { mode: 'auto' } | { mode: 'picked'; sub: S } | { mode: 'none' };
 
-  // Sort by how recently we touched them — the PM's "warm" subs bubble up.
-  const sorted = [...tradeSubs].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
-  return sorted[0] ?? null;
+/** The sub the card shows and Save writes — the same call, so they cannot differ. null = unassigned. */
+export function walkProposedSub<S extends Pick<Subcontractor, 'id' | 'trade' | 'assignedProjects'> & { updatedAt?: string }>(
+  choice: WalkSubChoice<S>, trade: SubTrade, subs: readonly S[], projectId: string,
+): S | null {
+  if (choice.mode === 'none') return null;
+  if (choice.mode === 'picked') return choice.sub;
+  return pickSubForTrade(trade, subs, projectId);
 }

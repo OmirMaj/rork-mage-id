@@ -98,7 +98,9 @@ console.log('\nread-failure honesty');
   ok('daily report: a cancelled composer no longer returns silently — it says where the report went',
     /Saved as a draft/.test(send) && /result\.error === 'cancelled'/.test(send));
   ok('daily report: the record is only stamped "sent" once something actually left the device',
-    /let delivered = wantsEmail/.test(send) && /if \(!delivered\)/.test(send) && /setSentFlip\(/.test(send));
+    // dfr-document: the rule is the pure dfrDelivered (executed by
+    // validate-dfr-document-wave3); here we pin that the send path consults it.
+    /if \(!dfrDelivered\(\{ wantsEmail, emailSent, fileSaved \}\)\)/.test(send) && /setSentFlip\(/.test(send));
   ok('daily report: the status flip runs from an effect, never from the send closure (a stale updateDailyReport would write back a list without the new row)',
     /const \[sentFlip, setSentFlip\]/.test(dfr)
     && !/updateDailyReport\(/.test(send));

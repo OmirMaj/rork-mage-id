@@ -38,13 +38,14 @@ import { Tokens } from '@/constants/designTokens';
  */
 
 import { generateUUID } from '@/utils/generateId';
-import { billedAmountForLine, retainageOnWorkValue } from '@/utils/invoiceBilling';
+import { billedAmountForLine, retainageOnWorkValue, roundCents } from '@/utils/invoiceBilling';
 import { resolveRetainagePercent } from '@/utils/retainageSource';
 import {
   billedAgainstChangeOrder, changeOrderBillKey, isChangeOrderBillKey,
 } from '@/utils/changeOrderBilling';
 import {
   billedAgainstMilestones, applyMilestoneBilling, sovFootingShortfall,
+  nextInvoiceNumberFrom, sessionIssuedInvoiceMax, noteIssuedInvoiceNumber,
 } from '@/utils/billingFlowCore';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -98,7 +99,10 @@ function clampPct(v: number): number {
 // text.
 type InvoiceTermsDefault = {
   terms: 'net_15' | 'net_30' | 'net_45' | 'due_on_receipt';
-  origin: 'cash_flow_setup' | 'fallback' | 'unconfirmed';
+  // 'contract' never comes out of this block: app/invoice.tsx sets it when a
+  // signed contract row already fixed the terms (utils/billingFlowCore
+  // milestoneContractTerms), and nothing in cash-flow setup may overwrite it.
+  origin: 'cash_flow_setup' | 'fallback' | 'unconfirmed' | 'contract';
 };
 type CashFlowTermsSettings = { data?: { defaultPaymentTerms?: unknown } | null; setupComplete?: boolean; source?: string } | null | undefined;
 function invoiceTermsDefaultFromCashFlow(settings: CashFlowTermsSettings): InvoiceTermsDefault {
@@ -249,8 +253,10 @@ export default function BillFromEstimateScreen() {
   const project = useMemo(() => getProject(projectId), [projectId, getProject]);
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId), [projectId, getInvoicesForProject]);
   // Max+1, not length+1 — a deleted invoice would otherwise reuse a
-  // number that's already on a client-facing invoice.
-  const nextInvoiceNumber = existingInvoices.reduce((max, i) => Math.max(max, i.number ?? 0), 0) + 1;
+  // number that's already on a client-facing invoice. And past the highest
+  // number THIS device issued this session (shared with app/invoice.tsx), so
+  // an invoice whose queued INSERT a refetch has not seen yet is not re-used.
+  const nextInvoiceNumber = nextInvoiceNumberFrom(existingInvoices, sessionIssuedInvoiceMax.get(projectId) ?? 0);
   const isProgressDefault = type === 'progress';
 
   // Build source rows from the linked (new-style) estimate first, then fall
@@ -472,7 +478,8 @@ export default function BillFromEstimateScreen() {
     return map;
   }, [rows, selected, billPercents]);
 
-  const subtotal = useMemo(() => Object.values(amountsByKey).reduce((a, b) => a + b, 0), [amountsByKey]);
+  // To the cent: a sum of cent values still carries float noise (0.1 + 0.2).
+  const subtotal = useMemo(() => roundCents(Object.values(amountsByKey).reduce((a, b) => a + b, 0)), [amountsByKey]);
 
   const allFullyBilled = rows.length > 0 && rows.every(r => r.remaining <= 0.009);
 
@@ -484,8 +491,11 @@ export default function BillFromEstimateScreen() {
   // MONEY-F3: the persisted setting, 0 % when the GC never set one — never an
   // invented client-side rate.
   const taxRate = settings.taxRate ?? 0;
-  const taxAmount = subtotal * (taxRate / 100);
-  const totalDue = subtotal + taxAmount;
+  // Money to the cent (integration critic money-portal): 8.875% of $10,000.05
+  // is $887.504… — the invoice, its Stripe link and the paid threshold all
+  // read these, so they are stored rounded, the way invoice.tsx rounds them.
+  const taxAmount = roundCents(subtotal * (taxRate / 100));
+  const totalDue = roundCents(subtotal + taxAmount);
 
   const applyPreset = useCallback((preset: number) => {
     const next: Record<string, number> = {};
@@ -634,6 +644,7 @@ export default function BillFromEstimateScreen() {
     };
 
     addInvoice(inv);
+    noteIssuedInvoiceNumber(inv.projectId, inv.number);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Replace, not push — user should land on the editor, and Back should
     // take them all the way back to the project detail they came from rather
