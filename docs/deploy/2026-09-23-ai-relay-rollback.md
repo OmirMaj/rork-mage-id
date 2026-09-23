@@ -1,0 +1,536 @@
+# AI relay rollback: the wave-6a schema rule looped live (2026-09-23)
+
+**Rule:** production's `ai` edge function runs the **6065b326** code. Do **not**
+deploy `supabase/functions/ai` from `main` until the anyOf schema rule has
+passed the live check below: the founder's request plus the three multi-shape
+features (8 request bodies), each sent twice. The check must pass on the exact
+commit being deployed, and the OTA carrying that commit's hints must ship
+**before** the function (see "Deploy order").
+
+## What happened live
+
+The orchestrator verified this against production Gemini (`gemini-2.5-flash`),
+using the relay's exact system prompt and `userMsg`:
+
+- Wave 6a (29fd92b1, OTA a08fc0a7) moved the relay's schemaHint → responseSchema
+  rule into `supabase/functions/_shared/inferSchema.ts` and added
+  `unionItemSchema`. That function turned an array hint with 2+ object examples
+  into **one** item schema. `properties` was the union of every example's keys
+  and `required` was only the keys every example shared. For the schedule
+  editor (`SCHEDULE_EDIT_SCHEMA_HINT`) that meant **15 optional properties**
+  and `required: ["op"]`.
+- The founder's request was *"Add three tasks after Rough Inspection: fire
+  blocking 2 days, then insulation inspection 1 day, then a moisture test
+  1 day"*. Gemini answered with
+  `{"op":"addTask","title":"fire blocking","type":"TaskType.TASK_TYPE_STANDARD_TASK_ID_STRING_VALUE_…"}`.
+  It had filled addDependency's free-form `type` string on an addTask and
+  looped inside it until `MAX_TOKENS`: 7,760 output tokens and 33 s through
+  the relay. The app's first live attempt timed out at 60 s. This happened
+  2 of 2 times.
+- **Rollback:** the `ai` function was redeployed from **6065b326**, which has
+  the old `val[0]` rule. Adds are squeezed into the move shape again
+  (`{op, task, deltaDays}`, all required), the multi-add bug is back, and the
+  function is fast. The OTA (a08fc0a7) stayed. Its hints are written so the
+  old rule reads them exactly as before: the first example of each rewritten
+  hint is the old single example (`validate-ai-infer-schema`, "deploy-order
+  safety").
+- **The degeneration class** is an *optional free-form string* property inside
+  a multi-shape item. Constrained decoding may enter such a property on any
+  item, and nothing bounds what goes inside it.
+
+## What main has now (not deployed)
+
+`_shared/inferSchema.ts` implements candidate **C2**, which passed once live:
+2.5 s, `STOP`, 113 output tokens, three chained addTask ops with the right
+durations and `after` chaining.
+
+- If an array hint has 2+ plain-object examples **whose key sets differ**, it
+  becomes `items: { anyOf: [...] }`, with one alternative per distinct
+  (key set + discriminator values) example, in example order.
+- Each alternative is `{ type:'object', properties: that example's keys only,
+  required: ALL of them, propertyOrdering: that key order }`.
+- A **discriminator** is a key that every example carries, whose values are all
+  identifier-like strings (no spaces, no `<placeholder>`), and whose values are
+  not all equal. In practice that is the editors' `op`. It becomes
+  `{ type:'string', enum:[that example's value] }`. Bulk edit's
+  `alias:'<alias>'` has the same value in every example, so it stays a plain
+  string.
+- Everything else infers exactly what 6065b326 inferred. This includes arrays
+  whose object examples all share **one** key set, even when their values
+  differ. That case is wider than the brief's "no discriminator", and on
+  purpose:
+  - `utils/bidLevelingEngine.ts` builds its example with
+    `bids.map(b => ({ bidId: b.id, … }))`, so at runtime every row has a
+    distinct `bidId`.
+  - `utils/oacEngine.ts` actionItems has different prose in every key.
+  - If value-only differences triggered anyOf, the model would be locked to
+    the sample ids or sentences through `enum`. The validator now evaluates
+    every hint with its **real** strings, and runtime `.map` rows get distinct
+    values. It proves that mutation "M3" (the literal brief) breaks bid leveling.
+- The relay's "alternative item shapes" prompt sentence is unchanged. It fires
+  exactly where anyOf is emitted: `hintHasMultiShapeArray` walks the hint the
+  way `inferSchema` does (a single-shape array is read from `val[0]` only).
+- No `maxItems` on the anyOf arrays, on purpose: the loop class was a string
+  inside one item, which the closed alternatives remove; a cap would silently
+  truncate a legitimate large bulk edit (one update per field per selected
+  task). The live check bounds the whole answer instead (≤ 1,500 output tokens,
+  no repeated substring).
+
+**The hint is the whole vocabulary.** A closed anyOf cannot emit an op, or an
+op shape, that has no example in the hint. So the shape hints changed with the
+rule (all additions after the first example, so the old `val[0]` rule reads
+every hint exactly as before):
+
+- `SCHEDULE_EDIT_SCHEMA_HINT` (`utils/copilot/scheduleEdit/scheduleEditCapability.ts`)
+  gains `{ op: 'level' }`: the prompt offers re-level, and without the example
+  the anyOf relay could not emit it (production's `val[0]` rule lets it through
+  as `{op:'level', task:'', deltaDays:0}`). It also gains an **unanchored**
+  addTask shape `{op, title, durationDays, isMilestone}`: on the anchored shape
+  `after` is required, so an add with no position ("add a two-week cabinet
+  procurement task") would otherwise have to invent one, and an echoed
+  `'<task id…>'` there is dropped as "no position given". The prompt line says
+  to leave `after` out only when no position was given (the add then goes at
+  the end, as the interpreter already does).
+- `normalizeEditOps` (`editOps.ts`): `level` carries no ref, so an echoed
+  `{op:'level'}` cannot be told from a request by its value. An answer that
+  echoes any example (a pure placeholder op) is copying the list, and its
+  `level` is dropped with it. A real "push it a week and re-level" keeps it.
+- `BULK_EDIT_SCHEMA_HINT` (`utils/scheduleAI.ts`) now has a single-field shape
+  for **every** field: `{alias, durationDays}`, `{alias, startDay}`,
+  `{alias, crew}`, `{alias, phase}`, `{alias, progressPercent}`. Before, only
+  startDay and crew had one, so "compress these by 20%" had to use the full
+  7-field shape, which requires `progressPercent`; the model had never been
+  shown the task's progress, would guess it, and `mergeBulkUpdates` would write
+  the guess over real progress. Two more guards: each selected-task line in the
+  prompt now carries `progress=N%` (a restated full shape keeps it, and
+  `mergeBulkUpdates` ignores a value equal to the current one), and the prompt
+  says to send `progressPercent` only when progress was asked for. The same
+  "restate at the current value" line meant a task with **no crew** (printed
+  `crew=-`) came back as crew `'-'`, which `mergeBulkUpdates` wrote as a crew:
+  CPM leveling then made `crew:-` a resource and the reports stopped flagging
+  the task unstaffed. `mergeBulkUpdates` now treats the printed marker (and
+  `—`, `(none)`, `none`, `n/a`) as blank for crew and phase, and an unset phase
+  prints `phase=-` too (it printed `phase=undefined`).
+
+**Validators:** `scripts/validate-ai-infer-schema.ts` walks all 69 schemaHint
+literals and compares them against a snapshot of the 6065b326 schemas. Only
+the three shape hints (7 sites) moved. It also pins that no derived schema
+contains an optional free-form string, and proves the rolled-back union rule
+fails that check. `scripts/validate-copilot-edit-relay-contract.ts` simulates
+an anyOf decoder end to end. Mutation-tested: the union rule, no enum,
+optional non-discriminator fields, a value-triggered anyOf, no identifier
+guard, no dedupe and no propertyOrdering each turn them red.
+
+## Deploy order
+
+1. **OTA first**, with this commit's hints. It is safe on the production relay
+   (6065b326): every rewritten hint's first example is the old single example,
+   so the old rule infers byte-identical schemas (`validate-ai-infer-schema`,
+   "deploy-order safety"); the prompt additions are harmless there.
+2. **Live check** (below) on the same commit: all 16 runs pass.
+3. **Deploy `supabase/functions/ai`.** An app still on an older OTA (a08fc0a7
+   or earlier) keeps its old hints against the new relay until it picks up the
+   update on next launch: no `level` example (re-level cannot be emitted) and
+   bulk single-field shapes for startDay and crew only. Give the OTA a day to
+   spread before step 3, or accept that window.
+4. Re-run check 1 once through the real relay from the app, then **delete
+   `ai-schema-probe`** (`supabase functions delete ai-schema-probe`).
+
+## The live check (run before any deploy of `supabase/functions/ai`)
+
+This check goes through the **temporary master-only probe function
+`ai-schema-probe`**, deployed to project `nteoqhcswappxxjlpvap` with
+`verify_jwt = true`. It is not in the repo, and it must be deleted after the
+fix ships. Its source is recorded in full at the end of this document, so it
+can be audited, redeployed from `supabase/functions/ai-schema-probe/index.ts`
+(next to `_shared/verifyUser.ts`) if it is gone, and deleted deliberately. The
+probe takes `{ sys, prompt, responseSchema, maxTokens, model, thinkingBudget? }`,
+calls Gemini with `temperature: 0.3` and `responseMimeType:
+application/json` (the same as the relay), and returns
+`{ status, ms, body }`. It answers 403 to anyone but the two master accounts.
+
+The script builds each request body the way main's relay would:
+
+- the relay's `sys` string, read from `ai/index.ts`;
+- the capability's **real** prompt, plus the relay's "Match this exact JSON
+  structure" suffix and the alternative-shapes sentence (both asserted against
+  `ai/index.ts`);
+- `responseSchema = inferSchema(realHint)`;
+- `maxTokens: 16000`, the relay's floor for jsonMode + the `smart` tier.
+
+It builds eight checks:
+
+| # | Feature | Request | Pass when |
+|---|---|---|---|
+| 1 | schedule editor, the founder's request | "Add three tasks after Rough Inspection: fire blocking 2 days, then insulation inspection 1 day, then a moisture test 1 day" | 3 addTask ops, durations [2,1,1], the first after t5 / Rough Inspection, no `type` on any add, and all 3 survive `normalizeEditOps` |
+| 2 | schedule editor, mixed shapes | "Push drywall back a week, make paint 5 days, and have rough electrical start when rough plumbing starts" | move t6 +7, setDuration t7 5, an SS addDependency; every addDependency `type` is one of FS/SS/FF/SF (the free-form string that looped live) |
+| 2b | schedule editor, re-level | "Re-level the crew, the electricians are double booked" | an `{op:"level"}` that survives `normalizeEditOps` |
+| 5a | schedule editor, unanchored add | "Add a two-week cabinet procurement task" | exactly 1 add survives `normalizeEditOps`, nothing dropped (no invented `'<task id…>'` position) |
+| 5b | schedule editor, the capability's own suggestion | "Add a two-week cabinet procurement milestone before paint" | same as 5a |
+| 3 | estimate editor | "Cut the tile to 350 square feet, bump the markup to 18 percent, and add 5 gallons of paint primer at 40 dollars" | setQuantity m1 350, setGlobalMarkup 18, addLine 5 @ 40 |
+| 4 | AI drawer bulk edit (the prompt `aiBulkEdit` really builds, captured) | "Start drywall on day 20 and give paint to the Finish crew" (Drywall + Paint selected; Drywall has **no crew**, printed `crew=-`) | an update with startDay 20, an update with crew ~ Finish; through `mergeBulkUpdates`: Drywall moves to day 20 and gets **no crew**, Paint gets the Finish crew |
+| 4b | AI drawer bulk edit, duration only, on tasks 50% done | "Compress each of these by 20%" (Drywall + Paint selected, both at progress 50; Drywall has no crew) | through `mergeBulkUpdates`: both durations shrink and **no patch touches progress, crew or phase**; no update carries a `progressPercent` other than the current 50 |
+
+Each body is sent **twice**. A run passes only if every one of these holds:
+HTTP 200, `finishReason: STOP`, ≤ 15 s, ≤ 1,500 output tokens, the answer
+parses as JSON, no repeated substring (the loop signature), the answer is
+**closed** against the schema it was decoded against, and the answer meets the
+feature's pass condition. **Every run must pass before deploying.**
+
+**Closed** is what makes this a proof that the API enforced the schema, not
+that one sample happened to be clean. Gemini's documentation does not settle
+it: Firebase's structured-output page says an unsupported schema field is
+ignored rather than rejected, and the Vertex page describes enums as
+`format: "enum"` while the relay sends `{type:'string', enum:[…]}` (the form C2
+passed live with). So `closedViolation` walks every answer against
+`body.responseSchema`: no object may carry a key outside `properties` or miss a
+`required` key, every enum value must be in its enum, and every item of an
+`items.anyOf` array must match **exactly one** closed alternative. If anyOf,
+enum or required were silently dropped, stray free-form fields come back and
+the run fails with `item matches 0 closed alternatives`. The dry run
+self-tests the assertion on all 8 schemas (a schema-shaped answer passes; a
+stray key from another shape, a dropped required key and an op outside its
+enum each fail). The script was also run end to end against a **local** fake
+probe (no network): correct answers pass 16/16, and one off-schema item per
+check fails 16/16 on the closed assertion, including items that every feature
+condition would have accepted.
+
+To run it, save the script below as `scratchpad/ai-relay-live-check.ts` and
+run it from the repo root on the commit you intend to deploy:
+
+```bash
+# 1. Dry run: writes the 8 request bodies (inspect them), sends nothing
+OUT_DIR=/tmp/ai-relay-live-check bun run scratchpad/ai-relay-live-check.ts
+
+# 2. Live: master account only. MASTER_JWT is the founder's session access token.
+PROBE_URL=https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/ai-schema-probe \
+MASTER_JWT=... bun run scratchpad/ai-relay-live-check.ts --send
+```
+
+Then follow "Deploy order" above.
+
+```ts
+// ai-relay-live-check.ts — build (and optionally send) the live-check requests
+// for the ai relay's anyOf schema rule, through the master-only probe function
+// ai-schema-probe. Run from the repo root:
+//   bun run <path>/ai-relay-live-check.ts            # dry run: writes the 8 bodies, sends nothing
+//   PROBE_URL=https://<ref>.supabase.co/functions/v1/ai-schema-probe \
+//   MASTER_JWT=<founder's session access token> \
+//   bun run <path>/ai-relay-live-check.ts --send     # sends each body twice, checks every answer
+//
+// Every body is what the `ai` relay on main would send Gemini for that feature:
+// the relay's system prompt, the capability's REAL prompt + the relay's userMsg
+// suffix (copied from supabase/functions/ai/index.ts, asserted below), and
+// responseSchema = the REAL _shared/inferSchema.ts on the REAL hint.
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+declare const Bun: { plugin: (p: { name: string; setup: (b: { onLoad: (o: { filter: RegExp }, cb: () => { contents: string; loader: 'ts' }) => void }) => void }) => void };
+Bun.plugin({
+  name: 'stub-views-and-network',
+  setup(build) {
+    build.onLoad({ filter: /components\/copilot\/(ScheduleDiffView|EstimateDiffView)\.tsx$/ }, () => ({ contents: 'export default function View() { return null; }', loader: 'ts' }));
+    build.onLoad({ filter: /utils\/mageAI\.ts$/ }, () => ({ contents: 'export async function mageAI(p) { globalThis.__captured = p; return { success: false, error: "dry" }; }', loader: 'ts' }));
+  },
+});
+
+const ROOT = process.cwd();
+const relay = readFileSync(join(ROOT, 'supabase/functions/ai/index.ts'), 'utf8');
+const SYS = /const sys = "([^"]+)";/.exec(relay)?.[1];
+const MATCH = '\n\nMatch this exact JSON structure (values shown are examples only, generate realistic data for the request):\n';
+const SHAPES = '\n\nWhere an array shows several example items, those are the alternative item shapes. Include only the items this request actually needs, each with only the fields its shape uses.';
+if (!SYS || !relay.includes(JSON.stringify(MATCH).slice(1, -1)) || !relay.includes(JSON.stringify(SHAPES).slice(1, -1))) {
+  throw new Error('relay prompt text moved — update this script from supabase/functions/ai/index.ts');
+}
+
+const { inferSchema, hintHasMultiShapeArray } = await import(join(ROOT, 'supabase/functions/_shared/inferSchema.ts'));
+const { scheduleEditCapability } = await import(join(ROOT, 'utils/copilot/scheduleEdit/scheduleEditCapability.ts'));
+const { buildScheduleEditGrounding } = await import(join(ROOT, 'utils/copilot/scheduleEdit/scheduleEditGrounding.ts'));
+const { estimateEditCapability } = await import(join(ROOT, 'utils/copilot/estimateEdit/estimateEditCapability.ts'));
+const { buildEstimateEditGrounding } = await import(join(ROOT, 'utils/copilot/estimateEdit/estimateEditGrounding.ts'));
+const { normalizeEditOps } = await import(join(ROOT, 'utils/copilot/scheduleEdit/editOps.ts'));
+const { aiBulkEdit, mergeBulkUpdates } = await import(join(ROOT, 'utils/scheduleAI.ts'));
+const { runCpm } = await import(join(ROOT, 'utils/cpm.ts'));
+
+const body = (prompt: string, hint: unknown) => ({
+  sys: SYS,
+  prompt: prompt + MATCH + JSON.stringify(hint, null, 2) + (hintHasMultiShapeArray(hint) ? SHAPES : ''),
+  responseSchema: inferSchema(hint),
+  maxTokens: 16000, // the relay's floor for jsonMode + tier 'smart' (every call below is smart)
+  model: 'gemini-2.5-flash',
+});
+
+// Closed-decoder proof, run on EVERY answer before the feature check. A clean
+// sample does not prove the API enforced the schema (Firebase documents that an
+// unsupported schema field is ignored, not rejected). So the answer must match
+// the schema it was decoded against EXACTLY: every object has no key outside
+// `properties` and every `required` key; every enum value is in its enum; and
+// every item of an `items.anyOf` array matches EXACTLY ONE closed alternative.
+// If anyOf / enum / required were silently dropped, stray free-form fields come
+// back and this fails the run.
+function closedViolation(v: any, s: any, path = '$'): string | null {
+  if (!s) return `${path}: no schema for this value`;
+  if (Array.isArray(s.anyOf)) {
+    const hits = s.anyOf.filter((alt: any) => closedViolation(v, alt, path) === null).length;
+    return hits === 1 ? null : `${path}: item matches ${hits} closed alternatives (need exactly 1): ${JSON.stringify(v).slice(0, 200)}`;
+  }
+  if (Array.isArray(s.enum) && !s.enum.includes(v)) return `${path}: ${JSON.stringify(v)} is not in enum ${JSON.stringify(s.enum)}`;
+  switch (s.type) {
+    case 'object': {
+      if (v === null || typeof v !== 'object' || Array.isArray(v)) return `${path}: expected an object`;
+      const props = s.properties ?? {};
+      const extra = Object.keys(v).filter(k => !Object.prototype.hasOwnProperty.call(props, k));
+      if (extra.length) return `${path}: key(s) ${extra.join(', ')} outside the schema`;
+      const missing = (s.required ?? []).filter((k: string) => !(k in v));
+      if (missing.length) return `${path}: required key(s) ${missing.join(', ')} missing`;
+      for (const k of Object.keys(v)) { const e = closedViolation(v[k], props[k], `${path}.${k}`); if (e) return e; }
+      return null;
+    }
+    case 'array': {
+      if (!Array.isArray(v)) return `${path}: expected an array`;
+      for (let i = 0; i < v.length; i++) { const e = closedViolation(v[i], s.items, `${path}[${i}]`); if (e) return e; }
+      return null;
+    }
+    case 'number': case 'integer': return typeof v === 'number' ? null : `${path}: expected a number`;
+    case 'boolean': return typeof v === 'boolean' ? null : `${path}: expected a boolean`;
+    case 'string': return typeof v === 'string' ? null : `${path}: expected a string`;
+    default: return `${path}: unknown schema type ${s.type}`;
+  }
+}
+// Self-test (runs in the dry run too): a filled answer that follows the schema
+// passes; the same answer with a stray key on a multi-shape item (the live loop:
+// addDependency's `type` on an addTask), with a required key dropped, or with an
+// op outside its enum, fails.
+const fill = (s: any): any => s.anyOf ? fill(s.anyOf[0])
+  : s.type === 'object' ? Object.fromEntries(Object.keys(s.properties ?? {}).map(k => [k, fill(s.properties[k])]))
+  : s.type === 'array' ? [fill(s.items)] : s.type === 'number' || s.type === 'integer' ? 1 : s.type === 'boolean' ? false : (s.enum?.[0] ?? 'x');
+function selfTestClosed(name: string, schema: any) {
+  const good = fill(schema);
+  const e0 = closedViolation(good, schema);
+  if (e0) throw new Error(`closed-schema self-test (${name}): a schema-shaped answer failed: ${e0}`);
+  const bad: string[] = [];
+  const walk = (v: any, s: any, set: (x: any) => void) => {
+    if (s.type === 'object') for (const k of Object.keys(s.properties ?? {})) walk(v[k], s.properties[k], (x) => { v[k] = x; });
+    if (s.type === 'array' && s.items?.anyOf?.length >= 2) {
+      const [a0, a1] = s.items.anyOf;
+      const strayKey = Object.keys(a1.properties).find(k => !(k in a0.properties)) ?? '__stray';
+      const variants = [
+        { ...fill(a0), [strayKey]: fill(a1.properties[strayKey] ?? { type: 'string' }) },
+        Object.fromEntries(Object.entries(fill(a0)).slice(0, -1)),
+        ...Object.entries(a0.properties).filter(([, p]: any) => p.enum).map(([k]) => ({ ...fill(a0), [k]: 'notAnOp' })),
+      ];
+      for (const item of variants) {
+        set([item]);
+        if (!closedViolation(good, schema)) bad.push(JSON.stringify(item));
+      }
+      set([fill(a0)]);
+    }
+  };
+  walk(good, schema, () => {});
+  if (bad.length) throw new Error(`closed-schema self-test (${name}): these off-schema items PASSED: ${bad.join(' ; ')}`);
+  if (!closedViolation({ ...good, __stray: 'x' }, schema)) throw new Error(`closed-schema self-test (${name}): a stray top-level key passed`);
+}
+
+const mk = (id: string, title: string, startDay: number, durationDays: number, deps: string[] = [], extra: Record<string, unknown> = {}) =>
+  ({ id, title, phase: 'Interior', durationDays, startDay, progress: 0, crew: 'Frame crew', dependencies: deps, notes: '', status: 'not_started', ...extra });
+const tasks = [
+  mk('t1', 'Demo', 1, 3), mk('t2', 'Framing', 4, 8, ['t1']), mk('t3', 'Rough Plumbing', 12, 4, ['t2']),
+  mk('t4', 'Rough Electrical', 12, 5, ['t2']), mk('t5', 'Rough Inspection', 17, 1, ['t3', 't4']),
+  mk('t6', 'Drywall', 18, 6, ['t5']), mk('t7', 'Paint', 24, 4, ['t6']), mk('t8', 'Final Inspection', 28, 1, ['t7']),
+];
+const schedCtx = { project: { name: 'Henderson Remodel' }, projectId: 'p1', currentTasks: tasks, cpmOptions: {} } as never;
+
+const CHECKS: { name: string; body: unknown; expect: (json: any) => string | null }[] = [];
+
+// 1. The founder's request, verbatim (the one that looped live under the union rule).
+{
+  const g = await buildScheduleEditGrounding(schedCtx);
+  const t = 'Add three tasks after Rough Inspection: fire blocking 2 days, then insulation inspection 1 day, then a moisture test 1 day';
+  const { prompt, schemaHint } = scheduleEditCapability.buildTurnPrompt({ transcript: t, draft: { ops: [] }, grounding: g, asking: null });
+  CHECKS.push({ name: '1-founder-three-adds', body: body(prompt, schemaHint), expect: (j) => {
+    const adds = (j?.ops ?? []).filter((o: any) => o.op === 'addTask');
+    if (adds.length !== 3) return `expected 3 addTask ops, got ${adds.length}`;
+    if (JSON.stringify(adds.map((a: any) => a.durationDays)) !== '[2,1,1]') return `durations ${JSON.stringify(adds.map((a: any) => a.durationDays))}`;
+    if (adds[0].after !== 't5' && !/rough inspection/i.test(adds[0].after)) return `first add not after Rough Inspection: ${adds[0].after}`;
+    if (adds.some((a: any) => 'type' in a)) return 'an addTask carries `type`';
+    const n = normalizeEditOps(j.ops);
+    if (n.ops.filter((o: any) => o.op === 'addTask').length !== 3 || n.dropped.length) return `normalizeEditOps kept ${n.ops.length}, dropped ${JSON.stringify(n.dropped)}`;
+    return null;
+  } });
+}
+// 2. Schedule editor, mixed shapes: a move, a dependency and a duration.
+{
+  const g = await buildScheduleEditGrounding(schedCtx);
+  const t = 'Push drywall back a week, make paint 5 days, and have rough electrical start when rough plumbing starts';
+  const { prompt, schemaHint } = scheduleEditCapability.buildTurnPrompt({ transcript: t, draft: { ops: [] }, grounding: g, asking: null });
+  CHECKS.push({ name: '2-schedule-mixed', body: body(prompt, schemaHint), expect: (j) => {
+    const ops = j?.ops ?? [];
+    const has = (f: (o: any) => boolean) => ops.some(f);
+    if (!has((o) => o.op === 'move' && o.task === 't6' && o.deltaDays === 7)) return 'no move t6 +7';
+    if (!has((o) => o.op === 'setDuration' && o.task === 't7' && o.days === 5)) return 'no setDuration t7 5';
+    if (!has((o) => o.op === 'addDependency' && o.type === 'SS')) return 'no SS dependency';
+    // `type` is the free-form string that looped live; on a dependency it must be one of the four.
+    if (ops.some((o: any) => o.op === 'addDependency' && !['FS', 'SS', 'FF', 'SF'].includes(o.type))) return 'an addDependency type outside FS|SS|FF|SF';
+    return null;
+  } });
+}
+// 2b. Re-level — offered by the prompt ({op:"level"}). Under the anyOf rule it can
+// only be emitted because SCHEDULE_EDIT_SCHEMA_HINT lists { op: 'level' }.
+{
+  const g = await buildScheduleEditGrounding(schedCtx);
+  const t = 'Re-level the crew, the electricians are double booked';
+  const { prompt, schemaHint } = scheduleEditCapability.buildTurnPrompt({ transcript: t, draft: { ops: [] }, grounding: g, asking: null });
+  CHECKS.push({ name: '2b-schedule-relevel', body: body(prompt, schemaHint), expect: (j) =>
+    normalizeEditOps(j?.ops ?? []).ops.some((o: any) => o.op === 'level') ? null : 'no {op:"level"} survived normalizeEditOps' });
+}
+// 5. Unanchored adds: `after` is required on the anchored addTask shape, so an add
+// with no position must use the unanchored shape (or a real anchor) — never an
+// echoed '<task id…>' placeholder, which normalizeEditOps drops as "no position given".
+for (const [name, t] of [
+  ['5a-unanchored-add', 'Add a two-week cabinet procurement task'],
+  ['5b-capability-suggestion', 'Add a two-week cabinet procurement milestone before paint'],
+] as const) {
+  const g = await buildScheduleEditGrounding(schedCtx);
+  const { prompt, schemaHint } = scheduleEditCapability.buildTurnPrompt({ transcript: t, draft: { ops: [] }, grounding: g, asking: null });
+  CHECKS.push({ name, body: body(prompt, schemaHint), expect: (j) => {
+    const n = normalizeEditOps(j?.ops ?? []);
+    const adds = n.ops.filter((o: any) => o.op === 'addTask');
+    if (adds.length !== 1) return `expected 1 addTask after normalizeEditOps, got ${adds.length}; dropped ${JSON.stringify(n.dropped)}`;
+    if (n.dropped.length) return `dropped ${JSON.stringify(n.dropped)}`;
+    if (!/cabinet/i.test(adds[0].title)) return `title ${adds[0].title}`;
+    return null;
+  } });
+}
+// 3. Estimate editor: quantity, markup and a new line.
+{
+  const items = [
+    { materialId: 'm1', name: 'Porcelain tile', category: 'Finishes', unit: 'sf', quantity: 400, unitPrice: 6, usesBulk: false, bulkPrice: 0, lineTotal: 2400 },
+    { materialId: 'm2', name: 'Drywall 1/2"', category: 'Interior', unit: 'sheet', quantity: 120, unitPrice: 14, usesBulk: false, bulkPrice: 0, lineTotal: 1680 },
+  ];
+  const g = await buildEstimateEditGrounding({ project: { name: 'Henderson Remodel', linkedEstimate: { items, globalMarkup: 15, grandTotal: 4692 } } } as never);
+  const t = 'Cut the tile to 350 square feet, bump the markup to 18 percent, and add 5 gallons of paint primer at 40 dollars';
+  const { prompt, schemaHint } = estimateEditCapability.buildTurnPrompt({ transcript: t, draft: { ops: [] }, grounding: g, asking: null });
+  CHECKS.push({ name: '3-estimate-mixed', body: body(prompt, schemaHint), expect: (j) => {
+    const ops = j?.ops ?? [];
+    if (!ops.some((o: any) => o.op === 'setQuantity' && o.item === 'm1' && o.quantity === 350)) return 'no setQuantity m1 350';
+    if (!ops.some((o: any) => o.op === 'setGlobalMarkup' && o.markupPct === 18)) return 'no markup 18';
+    if (!ops.some((o: any) => o.op === 'addLine' && o.quantity === 5 && o.unitPrice === 40)) return 'no addLine 5 @ 40';
+    return null;
+  } });
+}
+// 4. The AI drawer's bulk edit: a single-field move and a crew change on two selected rows.
+{
+  // Drywall (t6) has NO crew: the prompt prints it `crew=-`, and a full-shape
+  // answer restates that. mergeBulkUpdates must not write '-' as a crew.
+  const bulkTasks = tasks.map(t => (t.id === 't6' ? { ...t, crew: '' } : t));
+  const byAlias = new Map(bulkTasks.map((t, i) => [`T${i + 1}`, t.id]));
+  await aiBulkEdit(bulkTasks as never, runCpm(bulkTasks as never, {}), ['t6', 't7'], 'Start drywall on day 20 and give paint to the Finish crew');
+  const p = (globalThis as any).__captured;
+  CHECKS.push({ name: '4-bulk-edit', body: body(p.prompt, p.schemaHint), expect: (j) => {
+    const u = j?.updates ?? [];
+    if (!u.some((x: any) => x.startDay === 20)) return 'no startDay 20';
+    if (!u.some((x: any) => typeof x.crew === 'string' && /finish/i.test(x.crew))) return 'no Finish crew';
+    const patches = mergeBulkUpdates(bulkTasks as never, u, byAlias, new Set(['t6', 't7']));
+    const pt = (id: string) => patches.find((x: any) => x.taskId === id)?.patch ?? {};
+    if (pt('t6').startDay !== 20) return `drywall not moved to day 20: ${JSON.stringify(patches)}`;
+    if ('crew' in pt('t6')) return `crewless drywall got a crew: ${JSON.stringify(pt('t6'))}`;
+    if (!/finish/i.test(pt('t7').crew ?? '')) return `paint crew not set: ${JSON.stringify(patches)}`;
+    return null;
+  } });
+}
+// 4b. Bulk edit, duration only, on tasks already 50% done ("compress by 20%" — the
+// drawer's headline use). No update may change progress: a guessed progressPercent
+// would be written over real progress by mergeBulkUpdates.
+{
+  // Both 50% done; Drywall (t6) also has no crew (printed `crew=-`).
+  const half = tasks.map(t => (t.id === 't6' || t.id === 't7' ? { ...t, progress: 50, ...(t.id === 't6' ? { crew: '' } : {}) } : t));
+  await aiBulkEdit(half as never, runCpm(half as never, {}), ['t6', 't7'], 'Compress each of these by 20%');
+  const p = (globalThis as any).__captured;
+  const byAlias = new Map(half.map((t, i) => [`T${i + 1}`, t.id]));
+  CHECKS.push({ name: '4b-bulk-compress-keeps-progress', body: body(p.prompt, p.schemaHint), expect: (j) => {
+    const u = j?.updates ?? [];
+    const patches = mergeBulkUpdates(half as never, u, byAlias, new Set(['t6', 't7']));
+    if (patches.some((x: any) => 'progress' in x.patch)) return `progress changed: ${JSON.stringify(patches)}`;
+    if (patches.some((x: any) => 'crew' in x.patch || 'phase' in x.patch)) return `crew/phase changed: ${JSON.stringify(patches)}`;
+    if (u.some((x: any) => 'progressPercent' in x && x.progressPercent !== 50)) return 'an update carries a progressPercent other than the current 50';
+    const dur = (id: string) => patches.find((x: any) => x.taskId === id)?.patch?.durationDays;
+    if (!(dur('t6') < 6) || !(dur('t7') < 4)) return `durations not compressed: ${JSON.stringify(patches)}`;
+    return null;
+  } });
+}
+
+const OUT = process.env.OUT_DIR ?? '/tmp/ai-relay-live-check';
+mkdirSync(OUT, { recursive: true });
+for (const c of CHECKS) writeFileSync(join(OUT, `${c.name}.json`), JSON.stringify(c.body, null, 2));
+for (const c of CHECKS) selfTestClosed(c.name, (c.body as any).responseSchema);
+console.log(`wrote ${CHECKS.length} bodies to ${OUT}; closed-schema assertion self-tested on all ${CHECKS.length} schemas`);
+
+if (process.argv.includes('--send')) {
+  const url = process.env.PROBE_URL, jwt = process.env.MASTER_JWT;
+  if (!url || !jwt) throw new Error('PROBE_URL and MASTER_JWT are required with --send');
+  let failed = 0;
+  for (const c of CHECKS) for (let run = 1; run <= 2; run++) {
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' }, body: JSON.stringify(c.body) });
+    const res = await r.json() as { status?: number; ms?: number; body?: string; err?: string };
+    const g = (() => { try { return JSON.parse(res.body ?? ''); } catch { return null; } })();
+    const cand = g?.candidates?.[0];
+    const text = (cand?.content?.parts ?? []).filter((p: any) => p.thought !== true).map((p: any) => p.text ?? '').join('');
+    const out = g?.usageMetadata?.candidatesTokenCount ?? -1;
+    let why: string | null = null;
+    let json: unknown = null;
+    if (res.status !== 200) why = `HTTP ${res.status} ${res.err ?? (res.body ?? '').slice(0, 300)}`;
+    else if (cand?.finishReason !== 'STOP') why = `finishReason ${cand?.finishReason}`;
+    else if ((res.ms ?? 1e9) > 15000) why = `slow: ${res.ms} ms`;
+    else if (out > 1500) why = `${out} output tokens`;
+    else { try { json = JSON.parse(text); } catch { why = 'answer is not JSON'; } }
+    if (!why && /(.{12,})\1{3,}/.test(text)) why = 'repetition loop in the answer';
+    if (!why) why = closedViolation(json, (c.body as any).responseSchema);
+    if (!why) why = c.expect(json);
+    console.log(`${why ? 'FAIL' : 'PASS'} ${c.name} run ${run}: ${res.ms} ms, ${out} out tokens, ${cand?.finishReason}${why ? ' — ' + why : ''}`);
+    if (why) { failed++; console.log('   answer:', text.slice(0, 600)); }
+  }
+  console.log(failed ? `\n${failed} FAILED — do NOT deploy main's ai function` : `\nall ${CHECKS.length * 2} runs passed`);
+  process.exit(failed ? 1 : 0);
+}
+```
+
+## The probe function's source (`ai-schema-probe`, as deployed)
+
+Recorded here because the only other copy was under `/private/tmp`. Its
+`supabase/config.toml` set `project_id = "nteoqhcswappxxjlpvap"` and
+`[functions.ai-schema-probe] verify_jwt = true`.
+
+```ts
+// TEMPORARY diagnostic (2026-09-23): lets the founder's master account time a Gemini
+// call with a candidate responseSchema, to fix the ai relay's multi-shape schema
+// before redeploying it. Master accounts only. Deleted after the fix ships.
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { verifyUserToken } from "../_shared/verifyUser.ts";
+const GK = Deno.env.get("GEMINI_API_KEY") || "";
+const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
+const MASTER = ["omirmajeed2000@gmail.com", "support@mageid.app"];
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: H });
+  const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const u = await verifyUserToken(bearer);
+  if (!u || u.role !== "authenticated" || !MASTER.includes((u.email || "").toLowerCase())) {
+    return new Response(JSON.stringify({ error: "forbidden" }), { status: 403, headers: H });
+  }
+  const b = await req.json();
+  const cfg: Record<string, unknown> = { maxOutputTokens: b.maxTokens ?? 1000, temperature: 0.3, responseMimeType: "application/json" };
+  if (b.responseSchema) cfg.responseSchema = b.responseSchema;
+  if (b.responseJsonSchema) cfg.responseJsonSchema = b.responseJsonSchema;
+  if (b.thinkingBudget !== undefined) cfg.thinkingConfig = { thinkingBudget: b.thinkingBudget };
+  const gb = { contents: [{ role: "user", parts: [{ text: b.prompt }] }], systemInstruction: { parts: [{ text: b.sys || "" }] }, generationConfig: cfg };
+  const t0 = Date.now();
+  const ac = new AbortController();
+  const tm = setTimeout(() => ac.abort(), 90000);
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${b.model || "gemini-2.5-flash"}:generateContent?key=${GK}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(gb), signal: ac.signal });
+    const txt = await r.text();
+    return new Response(JSON.stringify({ status: r.status, ms: Date.now() - t0, body: txt.slice(0, 8000) }), { headers: H });
+  } catch (e) {
+    return new Response(JSON.stringify({ err: String(e), ms: Date.now() - t0 }), { headers: H });
+  } finally { clearTimeout(tm); }
+});
+```

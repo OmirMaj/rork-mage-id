@@ -14,7 +14,11 @@ export interface EstimateEditDraft { ops: EstimateEditOp[] }
 export interface EstimateEditApplied { route: '/project-detail'; projectId: string }
 
 /** One example per op SHAPE — the relay (supabase/functions/_shared/inferSchema)
- *  unions them so only `op` is required and every op can be expressed. The one
+ *  turns them into items.anyOf: one CLOSED alternative per example (only its
+ *  keys, all required, `op` pinned by enum), so every op can be expressed and
+ *  none can carry another op's fields. A closed anyOf cannot emit an op with no
+ *  example here — every op the prompt offers needs one
+ *  (scripts/validate-ai-infer-schema.ts pins it). The one
  *  setUnitPrice example this replaced meant Gemini could emit only
  *  {op, item, unitPrice}: "cut the demo quantity in half", "bump the markup to
  *  20%" and "add a line for paint" were all dropped by the normalizer.
@@ -34,9 +38,10 @@ export const ESTIMATE_EDIT_SCHEMA_HINT = {
 
 const isPlaceholder = (v: unknown) => typeof v === 'string' && v.trim().startsWith('<');
 
-/** The ref each op kind READS (review round 3). The union schema declares
- *  `item` and `name` on every op, so a decoder may fill the slot an op does not
- *  use with the example's placeholder — setUnitPrice{item:'m1', name:'<new line
+/** The ref each op kind READS (review round 3). The wave-6a union schema
+ *  (rolled back live 2026-09-23) declared `item` and `name` on every op; the
+ *  anyOf rule declares only each op's own. Kept as a net for an old relay or a
+ *  decoder that fills the slot an op does not use with the example's placeholder — setUnitPrice{item:'m1', name:'<new line
  *  name>'} is a real price change and must not vanish. Only a placeholder in a
  *  ref the op actually reads marks an echo. An unknown kind is judged on both
  *  (normalizeEstimateOps then drops it anyway). */

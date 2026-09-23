@@ -12,8 +12,14 @@
 // Here the responseSchema is built from the capability's REAL hint by the
 // relay's REAL inferSchema (_shared/inferSchema.ts), Gemini's strict decoder
 // is simulated over it (declared keys only; a required key it lacks is still
-// emitted, empty), and the result is pushed through normalize → merge →
-// interpret → diff → commit.
+// emitted, empty; under items.anyOf it picks ONE closed alternative — the one
+// whose `op` enum matches — and can emit nothing an alternative lacks), and
+// the result is pushed through normalize → merge → interpret → diff → commit.
+//
+// 2026-09-23: the ops item is anyOf (one closed shape per example op), not the
+// wave-6a union (15 optional fields, required [op]) that made Gemini loop in
+// addDependency's `type` on an addTask live — see
+// docs/deploy/2026-09-23-ai-relay-rollback.md.
 //
 // Run: bun run scripts/validate-copilot-edit-relay-contract.ts
 import type { ScheduleTask } from '../types';
@@ -60,7 +66,23 @@ const ok = (n: string, c: boolean, why = '') => { if (c) { pass++; console.log('
 
 // What Gemini can emit for an intended object under a responseSchema:
 // declared properties only; a required key the intent lacks is still emitted.
+function pickAlternative(anyOf: any[], v: any): any | null {
+  const intentKeys = Object.keys(v ?? {});
+  // An alternative whose `op` enum names another op can never carry this one.
+  const fits = anyOf.filter((a) => {
+    const e = a?.properties?.op?.enum;
+    return !Array.isArray(e) || e.includes(v?.op);
+  });
+  if (fits.length === 0) return null;
+  const score = (a: any) => intentKeys.filter(k => k in (a.properties ?? {})).length * 100 - (a.required ?? []).filter((k: string) => !(k in (v ?? {}))).length;
+  return fits.reduce((best, a) => (score(a) > score(best) ? a : best));
+}
 function emit(schema: any, v: any): any {
+  if (Array.isArray(schema?.anyOf)) {
+    const alt = pickAlternative(schema.anyOf, v);
+    // No alternative can express this intent: the decoder cannot emit it.
+    return alt ? emit(alt, v) : null;
+  }
   if (schema?.type === 'object') {
     const out: Record<string, any> = {};
     for (const k of Object.keys(schema.properties ?? {})) {
@@ -69,7 +91,7 @@ function emit(schema: any, v: any): any {
     }
     return out;
   }
-  if (schema?.type === 'array') return (Array.isArray(v) ? v : [v]).map((x: any) => emit(schema.items, x));
+  if (schema?.type === 'array') return (Array.isArray(v) ? v : [v]).map((x: any) => emit(schema.items, x)).filter((x: any) => x !== null);
   return v;
 }
 
@@ -86,19 +108,35 @@ const CANON: Record<string, any> = {
   setProgress: { op: 'setProgress', task: 't2', pct: 50 }, addDependency: { op: 'addDependency', from: 't1', to: 't3', type: 'SS', lag: 1 },
   removeDependency: { op: 'removeDependency', from: 't1', to: 't2' }, addTask: { op: 'addTask', title: 'Drywall hang', durationDays: 4, after: 't2' },
   removeTask: { op: 'removeTask', task: 't3' }, level: { op: 'level' },
+  // No position given ("add a two-week cabinet procurement milestone"): the
+  // unanchored addTask shape, so the decoder is never forced to invent `after`
+  // (an echoed '<task id…>' there is dropped as "no position given").
+  addTaskAtEnd: { op: 'addTask', title: 'Cabinet procurement', durationDays: 10 },
 };
 for (const [k, intent] of Object.entries(CANON)) {
   const got = normalizeEditOps([emit(item, intent)]).ops[0];
   ok(`${k} round-trips`, !!got && Object.entries(intent).every(([f, v]) => (got as any)[f] === v), JSON.stringify(got ?? 'DROPPED'));
 }
-ok('only `op` is required per item (other fields are per-op)', JSON.stringify(item?.required) === '["op"]', JSON.stringify(item?.required));
+{
+  const alts: any[] = item?.anyOf ?? [];
+  ok('ops.items is anyOf — one CLOSED alternative per example op shape', alts.length === (hint as any).ops.length
+    && alts.every((a) => JSON.stringify(a.required) === JSON.stringify(Object.keys(a.properties)) && Array.isArray(a.properties.op?.enum) && a.properties.op.enum.length === 1),
+    JSON.stringify(item));
+  ok('no ops-level union: no single item schema with required ["op"] and 15 optional fields', !('properties' in (item ?? {})));
+  ok('an addTask can carry ONLY title/durationDays/after/isMilestone (no `type` slot to loop in)',
+    JSON.stringify(alts.filter((a) => a.properties.op.enum[0] === 'addTask').map((a) => Object.keys(a.properties))) === '[["op","title","durationDays","after","isMilestone"],["op","title","durationDays","isMilestone"]]');
+  ok('level is an alternative (a closed anyOf cannot emit an op the hint does not list)', alts.some((a) => a.properties.op.enum[0] === 'level'));
+  const atEnd = normalizeEditOps([emit(item, CANON.addTaskAtEnd)]);
+  ok('an unanchored add survives normalizeEditOps with NO `after` (not "no position given")', atEnd.ops.length === 1 && !('after' in atEnd.ops[0]) && atEnd.dropped.length === 0, JSON.stringify(atEnd));
+}
 ok('move(deltaDays) is the FIRST example (an un-redeployed relay reads val[0])',
   JSON.stringify(Object.keys((hint as any).ops[0])) === '["op","task","deltaDays"]' && (hint as any).ops[0].op === 'move');
 
-// Review round 3: the decoder above emits only keys the intent has. Gemini may
-// also FILL a declared slot the op kind never reads, echoing the example's
-// value (no propertyOrdering: keys come alphabetically, `after` first). Fill
-// every slot the kind does not read with the first example value for it.
+// Review round 3 (written against the union schema): Gemini may FILL a
+// declared slot the op kind never reads, echoing the example's value. Under
+// the anyOf schema an alternative declares only its own op's slots, so the
+// decoder drops these fills — kept as a regression net in case a later rule
+// ever declares foreign slots on an op again.
 const READS: Record<string, string[]> = {
   move: ['op', 'task', 'deltaDays', 'toStartDay'], setDuration: ['op', 'task', 'days'], setCrew: ['op', 'task', 'crewSize'],
   setProgress: ['op', 'task', 'pct'], addDependency: ['op', 'from', 'to', 'type', 'lag'], removeDependency: ['op', 'from', 'to'],
@@ -128,7 +166,11 @@ for (const [k, intent] of Object.entries(CANON)) {
 
 console.log('\nan echoed example can never touch a real task');
 const echo = normalizeEditOps(emit(schema, hint).ops);
-ok('the whole example list echoed back → zero ops', echo.ops.length === 0, JSON.stringify(echo.ops));
+ok('the whole example list echoed back → zero ops (its { op: \'level\' } included — no ref to tell it from a request)', echo.ops.length === 0, JSON.stringify(echo.ops));
+{
+  const real = normalizeEditOps(emit(schema, { ops: [{ op: 'move', task: 't2', deltaDays: 7 }, { op: 'level' }] }).ops);
+  ok('…but a real "push it a week and re-level" keeps its level', JSON.stringify(real.ops.map((o: any) => o.op)) === '["move","level"]', JSON.stringify(real));
+}
 ok('…and it is not reported as a request he made', echo.dropped.length === 0, JSON.stringify(echo.dropped));
 
 console.log('\nmulti-add — "add three tasks after rough-in" lands three chained tasks');
@@ -208,27 +250,63 @@ ok('estimate mergeDraft keeps all 5 ops', estDraft.ops.length === 5, JSON.string
 const estEcho = estCap.mergeDraft({ ops: [] }, emit({ type: 'object', properties: { ops: { type: 'array', items: estItem } }, required: ['ops'] }, estHint), { transcript: 'drop the tile price', asking: null });
 ok('an echoed estimate example edits nothing (placeholders + markup guard)', estEcho.ops.length === 0, JSON.stringify(estEcho.ops));
 
-console.log('\nbulk edit (the AI drawer) — only alias forced; one row per task; the count is what Apply changes');
-const { aiBulkEdit } = await import('../utils/scheduleAI');
-const bt = [mk('t1', 'Framing', 1, 5), mk('t2', 'Drywall', 6, 4, ['t1'])].map(t => ({ ...t, crew: 'Frame crew', phase: 'Structure' }));
+console.log('\nbulk edit (the AI drawer) — one closed single-field shape per field; one row per task; the count is what Apply changes');
+const { aiBulkEdit, mergeBulkUpdates } = await import('../utils/scheduleAI');
+const bt = [mk('t1', 'Framing', 1, 5), mk('t2', 'Drywall', 6, 4, ['t1'])].map(t => ({ ...t, crew: 'Frame crew', phase: 'Structure', progress: 50 }));
 let lastParams: any = null;
+const bulkSchema = () => inferSchema(JSON.parse(JSON.stringify(lastParams.schemaHint))) as any;
 (globalThis as any).__fakeAI = async (p: any) => {
   lastParams = p;
   const s = inferSchema(JSON.parse(JSON.stringify(p.schemaHint))) as any;
-  // The model answers per field (the multi-shape hint invites it): three
-  // updates for T1, none restating crew or phase.
-  return { success: true, data: emit(s, { summary: 'compress + move', updates: [
-    { alias: 'T1', durationDays: 4 }, { alias: 'T1', startDay: 3 }, { alias: 'T1', progressPercent: 20 },
+  // The model answers per field, each in its own single-field shape; none
+  // restates the fields it is not changing.
+  return { success: true, data: emit(s, { summary: 'move, recrew, compress', updates: [
+    { alias: 'T1', startDay: 3 }, { alias: 'T1', crew: 'Finish crew' }, { alias: 'T1', durationDays: 4 },
   ] }) };
 };
-const bulk = await aiBulkEdit(bt as any, runCpm(bt as any, {}), ['t1', 't2'], 'compress framing and move it to day 3');
+const bulk = await aiBulkEdit(bt as any, runCpm(bt as any, {}), ['t1', 't2'], 'compress framing by 20% and move it to day 3');
 ok('bulk edit is tagged as the schedule copilot on the relay', lastParams?.feature === 'scheduleCopilot', lastParams?.feature);
 ok('3 per-field updates for one task → ONE row', bulk.patches.length === 1, `rows ${bulk.patches.length}`);
-ok('…carrying all three fields', JSON.stringify(bulk.patches[0]?.patch) === '{"durationDays":4,"startDay":3,"progress":20}', JSON.stringify(bulk.patches[0]?.patch));
-ok('crew and phase are NOT blanked (they were never forced)', !('crew' in (bulk.patches[0]?.patch ?? {})) && !('phase' in (bulk.patches[0]?.patch ?? {})));
-(globalThis as any).__fakeAI = async () => ({ success: true, data: { summary: 's', updates: [{ alias: 'T2', durationDays: 4, startDay: 6, crew: '', phase: '', progressPercent: 0, rationale: '' }] } });
+ok('…carrying exactly those three fields', JSON.stringify(bulk.patches[0]?.patch) === '{"startDay":3,"crew":"Finish crew","durationDays":4}', JSON.stringify(bulk.patches[0]?.patch));
+ok('phase and progress are NOT forced by a single-field shape', !('phase' in (bulk.patches[0]?.patch ?? {})) && !('progress' in (bulk.patches[0]?.patch ?? {})));
+{
+  // Every field the full shape carries has its own single-field shape, so no
+  // one-field change is forced into the 7-field shape (which requires
+  // progressPercent — the model would guess it and overwrite real progress).
+  const anyOf: any[] = bulkSchema().properties.updates.items.anyOf;
+  const fields = Object.keys(anyOf[0].properties).filter(k => k !== 'alias' && k !== 'rationale');
+  const single = (k: string) => anyOf.some(a => JSON.stringify(a.required) === JSON.stringify(['alias', k]));
+  ok('every bulk field (duration, start, crew, phase, progress) has a single-field {alias, field} shape', fields.length === 5 && fields.every(single), JSON.stringify(fields.filter(k => !single(k))));
+  // A duration-only intent under the decoder lands in {alias, durationDays} —
+  // it carries no progressPercent at all.
+  const one = emit(bulkSchema().properties.updates, [{ alias: 'T2', durationDays: 3 }]);
+  ok('"compress drywall to 3 days" is emitted with no progressPercent / phase / crew slot', JSON.stringify(one) === '[{"alias":"T2","durationDays":3}]', JSON.stringify(one));
+  ok('the prompt shows each selected task\'s current progress (a restated full shape keeps it)', /T1: Framing \| start=1 \| dur=5d \| crew=Frame crew \| phase=Structure \| progress=50%/.test(lastParams?.prompt ?? ''), '');
+}
+(globalThis as any).__fakeAI = async () => ({ success: true, data: { summary: 's', updates: [{ alias: 'T2', durationDays: 3, startDay: 6, crew: 'Frame crew', phase: 'Structure', progressPercent: 50, rationale: 'compress' }] } });
+const full = await aiBulkEdit(bt as any, runCpm(bt as any, {}), ['t2'], 'compress drywall to 3 days');
+ok('a full-shape answer restating the CURRENT progress changes duration only (progress untouched)', JSON.stringify(full.patches[0]?.patch) === '{"durationDays":3}', JSON.stringify(full.patches));
+(globalThis as any).__fakeAI = async () => ({ success: true, data: { summary: 's', updates: [{ alias: 'T2', durationDays: 4, startDay: 6, crew: '', phase: '', progressPercent: 50, rationale: '' }] } });
 const noop = await aiBulkEdit(bt as any, runCpm(bt as any, {}), ['t2'], 'x');
 ok('an old-relay answer (every field forced: blank crew/phase, current values) changes nothing', noop.patches.length === 0, JSON.stringify(noop.patches));
+{
+  // A task with NO crew / phase is printed `crew=-` / `phase=-`, and the prompt
+  // asks a full-shape answer to restate unchanged fields at their current value
+  // — so the model restates '-'. That is not a crew: written, CPM leveling made
+  // it a `crew:-` resource and the reports stopped flagging the task unstaffed.
+  const bare = [mk('t1', 'Framing', 1, 5), { ...mk('t2', 'Drywall', 6, 4, ['t1']), crew: '', phase: '', progress: 50 }];
+  let bareParams: any = null;
+  (globalThis as any).__fakeAI = async (p: any) => { bareParams = p; return { success: true, data: { summary: 's', updates: [{ alias: 'T2', durationDays: 3, startDay: 6, crew: '-', phase: '-', progressPercent: 50, rationale: 'compress' }] } }; };
+  const r = await aiBulkEdit(bare as any, runCpm(bare as any, {}), ['t2'], 'compress drywall to 3 days');
+  ok('a crewless, phaseless task is printed crew=- / phase=- (never "undefined")', /T2: Drywall \| start=6 \| dur=4d \| crew=- \| phase=- \| progress=50%/.test(bareParams?.prompt ?? ''), '');
+  ok('a full shape restating crew "-" / phase "-" on that task changes duration only', JSON.stringify(r.patches[0]?.patch) === '{"durationDays":3}', JSON.stringify(r.patches));
+  for (const marker of ['\u2014', '(none)', 'None', 'n/a', ' - ']) {
+    const m = mergeBulkUpdates(bare as any, [{ alias: 'T2', crew: marker, phase: marker }], new Map([['T2', 't2']]), new Set(['t2']));
+    ok(`restated blank marker ${JSON.stringify(marker)} writes no crew / phase`, m.length === 0, JSON.stringify(m));
+  }
+  const real = mergeBulkUpdates(bare as any, [{ alias: 'T2', crew: 'Finish crew', phase: 'Finishes' }], new Map([['T2', 't2']]), new Set(['t2']));
+  ok('…while a real crew / phase on that task is still written', JSON.stringify(real[0]?.patch) === '{"crew":"Finish crew","phase":"Finishes"}', JSON.stringify(real));
+}
 
 console.log('\nentry points — Schedule Pro, the editor panel, the shell (source)');
 const { readFileSync } = await import('node:fs');

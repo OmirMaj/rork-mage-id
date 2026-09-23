@@ -309,9 +309,12 @@ console.log('\nthe hub keeps a multi-part schedule request whole');
 
 console.log('\na placeholder only counts in a field the op READS (review round 3)');
 {
-  // With the union schema every item declares task/from/to/after/title and
-  // only `op` is required; a decoder that fills an unused slot with the
-  // example's placeholder must not cost him a complete op.
+  // Written for the wave-6a union schema (every item declared task/from/to/
+  // after/title, only `op` required — rolled back live 2026-09-23). The anyOf
+  // schema declares only each op's own slots, but the production relay
+  // (6065b326, val[0] = move) still forces `task` onto every op, so a decoder
+  // that fills an unused slot with the example's placeholder must not cost
+  // him a complete op.
   const kept = (o: Record<string, unknown>) => normalizeDetailed([o]).ops.length === 1;
   ok('addTask with task:"<task id>" in the unused slot is KEPT', kept({ op: 'addTask', title: 'Drywall hang', durationDays: 4, after: 't1', task: '<task id>' }));
   ok('addTask with from/to placeholders is KEPT', kept({ op: 'addTask', title: 'Drywall hang', durationDays: 4, after: 't1', from: '<task id>', to: '<task id>' }));

@@ -1,0 +1,32 @@
+// TEMPORARY diagnostic (2026-09-23): lets the founder's master account time a Gemini
+// call with a candidate responseSchema, to fix the ai relay's multi-shape schema
+// before redeploying it. Master accounts only. Deleted after the fix ships.
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { verifyUserToken } from "../_shared/verifyUser.ts";
+const GK = Deno.env.get("GEMINI_API_KEY") || "";
+const H = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
+const MASTER = ["omirmajeed2000@gmail.com", "support@mageid.app"];
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: H });
+  const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const u = await verifyUserToken(bearer);
+  if (!u || u.role !== "authenticated" || !MASTER.includes((u.email || "").toLowerCase())) {
+    return new Response(JSON.stringify({ error: "forbidden" }), { status: 403, headers: H });
+  }
+  const b = await req.json();
+  const cfg: Record<string, unknown> = { maxOutputTokens: b.maxTokens ?? 1000, temperature: 0.3, responseMimeType: "application/json" };
+  if (b.responseSchema) cfg.responseSchema = b.responseSchema;
+  if (b.responseJsonSchema) cfg.responseJsonSchema = b.responseJsonSchema;
+  if (b.thinkingBudget !== undefined) cfg.thinkingConfig = { thinkingBudget: b.thinkingBudget };
+  const gb = { contents: [{ role: "user", parts: [{ text: b.prompt }] }], systemInstruction: { parts: [{ text: b.sys || "" }] }, generationConfig: cfg };
+  const t0 = Date.now();
+  const ac = new AbortController();
+  const tm = setTimeout(() => ac.abort(), 90000);
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${b.model || "gemini-2.5-flash"}:generateContent?key=${GK}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(gb), signal: ac.signal });
+    const txt = await r.text();
+    return new Response(JSON.stringify({ status: r.status, ms: Date.now() - t0, body: txt.slice(0, 8000) }), { headers: H });
+  } catch (e) {
+    return new Response(JSON.stringify({ err: String(e), ms: Date.now() - t0 }), { headers: H });
+  } finally { clearTimeout(tm); }
+});

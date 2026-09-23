@@ -16,11 +16,23 @@ export interface ScheduleEditDraft { ops: EditOp[]; dropped?: DroppedOp[] }
 export interface ScheduleEditApplied { done: true; landed: string[]; notLanded: string[] }
 
 /** One example per op SHAPE. The relay (supabase/functions/_shared/inferSchema)
- *  unions a multi-example array into one item schema whose only required key is
- *  `op`, so every op kind can be expressed. The single `move` example this
- *  replaced let Gemini emit only {op, task, deltaDays}: an add had nowhere to put
- *  its title or duration and was dropped — "add three tasks" came back as one
- *  move, or nothing.
+ *  turns a list of differently-shaped examples into items.anyOf: one CLOSED
+ *  alternative per example — only that example's keys, all required, `op`
+ *  pinned to its value by enum. So every op kind can be expressed, and an op can
+ *  carry nothing another op declares. (The first fix merged the shapes into
+ *  one item with 15 optional fields; Gemini filled addDependency's free-form
+ *  `type` on an addTask and looped until MAX_TOKENS in production — rolled
+ *  back, docs/deploy/2026-09-23-ai-relay-rollback.md.) The single `move`
+ *  example this replaced let Gemini emit only {op, task, deltaDays}: an add had
+ *  nowhere to put its title or duration and was dropped — "add three tasks"
+ *  came back as one move, or nothing.
+ *
+ *  THE HINT IS THE WHOLE VOCABULARY: a closed anyOf cannot emit an op (or an op
+ *  shape) that has no example here. Every op the prompt below offers must have
+ *  one — scripts/validate-ai-infer-schema.ts fails the build otherwise. That is
+ *  why `level` is listed, and why addTask has two shapes: anchored (`after`)
+ *  and unanchored (no `after` = at the end), so an add with no position is
+ *  never forced to invent one.
  *
  *  ORDER MATTERS: move(deltaDays) stays FIRST, so a relay that has not been
  *  redeployed (it reads val[0] only) infers exactly today's schema — the OTA and
@@ -28,9 +40,9 @@ export interface ScheduleEditApplied { done: true; landed: string[]; notLanded: 
  *
  *  Refs are placeholders ('<task id>') so an echoed example can never touch a
  *  real task: normalizeEditOps discards any ref that starts with '<'. `level`
- *  carries no ref, so it is NOT listed — an echoed example must not re-level the
- *  crew; the op is still expressible (only `op` is required) and the prompt
- *  lists it. */
+ *  carries no ref, so an echo cannot be told from a request by its value;
+ *  normalizeEditOps drops a `level` that arrives in the same answer as an
+ *  echoed example instead. */
 export const SCHEDULE_EDIT_SCHEMA_HINT = {
   ops: [
     { op: 'move', task: '<task id>', deltaDays: 7 },
@@ -41,7 +53,9 @@ export const SCHEDULE_EDIT_SCHEMA_HINT = {
     { op: 'addDependency', from: '<task id>', to: '<task id>', type: 'FS', lag: 0 },
     { op: 'removeDependency', from: '<task id>', to: '<task id>' },
     { op: 'addTask', title: '<new task title>', durationDays: 3, after: '<task id, or the exact title of a task you added just before>', isMilestone: false },
+    { op: 'addTask', title: '<new task title>', durationDays: 3, isMilestone: false },
     { op: 'removeTask', task: '<task id>' },
+    { op: 'level' },
   ],
 };
 
@@ -77,7 +91,8 @@ export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, Schedu
       '• {op:"setDuration", task, days}  • {op:"setCrew", task, crewSize}',
       '• {op:"setProgress", task, pct}',
       '• {op:"addDependency", from, to, type:"FS|SS|FF|SF", lag}  • {op:"removeDependency", from, to}',
-      '• {op:"addTask", title, durationDays, after, isMilestone}  • {op:"removeTask", task}',
+      '• {op:"addTask", title, durationDays, after, isMilestone}  (leave out `after` only when no position was given — it then goes at the end)',
+      '• {op:"removeTask", task}',
       '• {op:"level"}  (re-level / fix crew overloads)',
       '',
       'CURRENT TASKS:', ...((grounding.data.taskList as string[]) ?? []),

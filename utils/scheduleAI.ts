@@ -745,9 +745,14 @@ export interface AIBulkPatch {
 
 /** Multi-example hint. The FIRST example is the full one this replaced, so a
  *  relay that has not been redeployed (it reads val[0] only) infers exactly
- *  today's schema. With the union rule (supabase/functions/_shared/
- *  inferSchema.ts) only `alias` is in every example, so it is the only
- *  required field.
+ *  today's schema. The relay's anyOf rule (supabase/functions/_shared/
+ *  inferSchema.ts) makes each example a CLOSED alternative: only its keys, all
+ *  required. So every field needs its own single-field example, or changing it
+ *  forces the full shape — and the full shape forces progressPercent, which the
+ *  model would have to guess and mergeBulkUpdates would write over real
+ *  progress ("compress these by 20%" resetting progress). The selected-task
+ *  lines also carry each task's current progress, so a full-shape answer that
+ *  restates it changes nothing.
  *  The old one-example hint made EVERY field required: to change a duration
  *  the model still had to send crew and phase, filled them with '', and Apply
  *  wrote blank crew/phase over real values. Aliases are placeholders so an
@@ -764,10 +769,13 @@ export const BULK_EDIT_SCHEMA_HINT = {
       progressPercent: 50,
       rationale: 'user asked to compress by 20% and reassign crew',
     },
-    // Single-field updates: with these, `alias` is the only key every example
-    // shares, so it is the only one the decoder is forced to fill.
+    // Single-field updates, one per field: each is its own closed shape, so a
+    // one-field change never has to restate (or invent) the others.
+    { alias: '<alias>', durationDays: 3 },
     { alias: '<alias>', startDay: 20 },
     { alias: '<alias>', crew: 'Framing' },
+    { alias: '<alias>', phase: 'Finishes' },
+    { alias: '<alias>', progressPercent: 50 },
   ],
 };
 
@@ -781,12 +789,26 @@ type RawBulkUpdate = {
   rationale?: string;
 };
 
+/** The marker the bulk prompt prints for an unset crew/phase, and the "none"
+ *  spellings a model restates it as. Never a crew or phase name. */
+const BULK_BLANK_MARKER = /^(?:[-\u2013\u2014]+|\(?none\)?|n\/a)$/i;
+/** A crew/phase value the model actually named, or null for blank / a marker. */
+export function namedBulkValue(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  return s === '' || BULK_BLANK_MARKER.test(s) ? null : s;
+}
+
 /** Fold the model's updates into ONE patch per task, in first-seen order. The
  *  model may send one update per field; listing those as separate rows read
  *  "3 change(s) proposed" for one task, Apply all kept only one of them, and a
  *  single tick cleared all three. Blank crew/phase and values equal to the row's
- *  current value are ignored — they change nothing. Pure (exported for the
- *  validator). */
+ *  current value are ignored — they change nothing. "Blank" includes the marker
+ *  the prompt itself prints for an unset crew/phase (`crew=-`): the prompt asks
+ *  a full-shape answer to restate unchanged fields, so a crewless task comes
+ *  back as crew '-', which is not a crew — written, it became a `crew:-`
+ *  resource in CPM leveling and hid the task from the unstaffed reports.
+ *  Pure (exported for the validator). */
 export function mergeBulkUpdates(
   tasks: ScheduleTask[],
   updates: RawBulkUpdate[],
@@ -807,8 +829,10 @@ export function mergeBulkUpdates(
     if (typeof u.startDay === 'number' && u.startDay >= 1 && Math.round(u.startDay) !== t.startDay) {
       patch.startDay = Math.round(u.startDay);
     }
-    if (typeof u.crew === 'string' && u.crew.trim() !== '' && u.crew.trim() !== t.crew) patch.crew = u.crew.trim();
-    if (typeof u.phase === 'string' && u.phase.trim() !== '' && u.phase.trim() !== t.phase) patch.phase = u.phase.trim();
+    const crew = namedBulkValue(u.crew);
+    if (crew !== null && crew !== (t.crew ?? '')) patch.crew = crew;
+    const phase = namedBulkValue(u.phase);
+    if (phase !== null && phase !== (t.phase ?? '')) patch.phase = phase;
     if (typeof u.progressPercent === 'number') {
       const pct = Math.max(0, Math.min(100, Math.round(u.progressPercent)));
       if (pct !== t.progress) patch.progress = pct;
@@ -855,7 +879,7 @@ export async function aiBulkEdit(
   const fullContext = serializeSchedule(tasks, cpm);
   const selectedLines = selected.map(t => {
     const alias = byId.get(t.id) ?? t.id;
-    return `${alias}: ${t.title} | start=${t.startDay} | dur=${t.durationDays}d | crew=${t.crew || '-'} | phase=${t.phase}`;
+    return `${alias}: ${t.title} | start=${t.startDay} | dur=${t.durationDays}d | crew=${t.crew || '-'} | phase=${t.phase || '-'} | progress=${t.progress}%`;
   }).join('\n');
 
   const schemaHint = BULK_EDIT_SCHEMA_HINT;
@@ -879,6 +903,9 @@ Rules:
   new tasks are added from "Tell me what to change".
 - One update per field you change is fine — only include the fields you
   are actually changing for that task.
+- Send progressPercent ONLY when the PM asked to change progress. If you use
+  the full shape, restate every field you are not changing at its CURRENT
+  value from the lines above (progress included).
 - If the instruction is ambiguous or unsafe, return updates: [] and explain
   in summary.`;
 

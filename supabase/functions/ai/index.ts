@@ -62,7 +62,9 @@ function jsonResp(body: unknown, status = 200) {
 
 // The schemaHint → responseSchema rule lives in _shared/inferSchema.ts (pure,
 // no Deno imports) so the validators run the exact function Gemini's schema
-// comes from. See that file for the multi-shape array rule.
+// comes from. See that file for the multi-shape array rule (one anyOf
+// alternative per example shape; the wave-6a union rule was rolled back in
+// production — docs/deploy/2026-09-23-ai-relay-rollback.md).
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: H });
@@ -269,7 +271,7 @@ serve(async (req) => {
     if (jsonMode && schemaHint) {
       userMsg += "\n\nMatch this exact JSON structure (values shown are examples only, generate realistic data for the request):\n" + JSON.stringify(schemaHint, null, 2);
       // A hint that lists several example items in one array is showing the
-      // alternative item SHAPES (inferSchema unions them). Say so, or the model
+      // alternative item SHAPES (inferSchema makes each one an anyOf alternative). Say so, or the model
       // copies every example. Added ONLY for such hints, so every other
       // feature's prompt is byte-identical to before.
       if (hintHasMultiShapeArray(schemaHint)) {

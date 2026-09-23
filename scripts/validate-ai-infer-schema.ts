@@ -13,6 +13,21 @@
 // exactly the schema it inferred before the rewrite, so the OTA and the
 // function deploy are safe in either order.
 //
+// THE RULE (2026-09-23, after the wave-6a union rule was rolled back live —
+// docs/deploy/2026-09-23-ai-relay-rollback.md): an array of object examples
+// whose key sets differ becomes items.anyOf, one closed alternative per shape
+// (every key required, propertyOrdering, `op` pinned by enum). The union rule
+// left an OPTIONAL FREE-FORM STRING in the item (addDependency's `type`), and
+// Gemini degenerated inside it on an addTask until MAX_TOKENS. This validator
+// pins that no inferred schema anywhere contains one.
+//
+// Hints are evaluated TWICE: once normalised (every string 'x' — the hash the
+// snapshot keys on) and once RAW (the real example strings; a runtime-built
+// `.map` example gets distinct strings per element, as it does at runtime).
+// The rule is judged on the RAW value: a discriminator reads string VALUES, so
+// a normalised walk would never see one (oacEngine's actionItems carry prose
+// that differs in every key; bid leveling's map carries a distinct bidId).
+//
 // Run: bun run scripts/validate-ai-infer-schema.ts
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { createHash } from 'crypto';
@@ -55,7 +70,13 @@ ok('ai/index.ts no longer defines its own inferSchema', !/function inferSchema\(
 ok('responseSchema is inferSchema(schemaHint)', /genConfig\.responseSchema = inferSchema\(schemaHint\)/.test(relay));
 const shared = readFileSync(join(ROOT, 'supabase/functions/_shared/inferSchema.ts'), 'utf8');
 ok('_shared/inferSchema.ts has no Deno/URL imports (bun + Deno both load it)', !/^import /m.test(shared));
-ok('emits no propertyOrdering / anyOf', !/propertyOrdering|anyOf/.test(shared.replace(/\/\/.*$/gm, '')));
+{
+  const code = shared.replace(/\/\/.*$/gm, '');
+  ok('anyOf / enum / propertyOrdering are built ONLY inside alternativeSchemas (the multi-shape path)',
+    (code.match(/anyOf:|enum:|propertyOrdering:/g) ?? []).length >= 3
+      && !/anyOf:|enum:|propertyOrdering:/.test(code.slice(0, code.indexOf('function alternativeSchemas')).replace(/export interface InferredSchema[\s\S]*?\n\}/, '')));
+  ok('the union rule is gone (no unionItemSchema, no "required = shared keys")', !/unionItemSchema|examples\.every\(ex => hasOwn\(ex, k\)\)\);\s*return \{ type: "object", properties, required \}/.test(code));
+}
 
 // ── Walk the source for every schemaHint literal. ──
 const DIRS = ['app', 'components', 'utils', 'hooks', 'contexts', 'lib', 'services', 'backend'];
@@ -74,7 +95,7 @@ function walk(d: string) {
 for (const d of DIRS) walk(join(ROOT, d));
 
 const UNRESOLVED = Symbol('unresolved');
-type Found = { where: string; key: string; value: unknown };
+type Found = { where: string; key: string; value: unknown; raw: unknown };
 const found: Found[] = [];
 const unresolved: string[] = [];
 
@@ -102,16 +123,22 @@ function scan(f: string, src: string, found: Found[], unresolved: string[]) {
   };
   // `loose`: inside a `.map(x => ({...}))` example, runtime values (x.id,
   // a ?? b) stand in as strings — only the KEYS decide byte-identity there.
+  // RAW mode keeps real string literals; a runtime value inside a `.map`
+  // example becomes a DISTINCT string each time (as real rows are).
+  let raw = false;
+  let runtimeN = 0;
+  const str = (e: ts.StringLiteral | ts.NoSubstitutionTemplateLiteral) => (raw ? e.text : 'x');
   const evalExpr = (e: ts.Expression, depth = 0, loose = false): unknown => {
     const r = evalStrict(e, depth, loose);
-    return r === UNRESOLVED && loose ? 'x' : r;
+    return r === UNRESOLVED && loose ? (raw ? `runtime-${++runtimeN}` : 'x') : r;
   };
   const evalStrict = (e: ts.Expression, depth: number, loose: boolean): unknown => {
     if (depth > 40) return UNRESOLVED;
     if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression?.(e) || ts.isTypeAssertionExpression(e)) {
       return evalExpr((e as ts.ParenthesizedExpression).expression, depth + 1, loose);
     }
-    if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) || ts.isTemplateExpression(e)) return 'x';
+    if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return str(e);
+    if (ts.isTemplateExpression(e)) return raw ? `template-${++runtimeN}` : 'x';
     if (ts.isNumericLiteral(e)) return Number(e.text);
     if (ts.isPrefixUnaryExpression(e) && ts.isNumericLiteral(e.operand)) return -Number(e.operand.text);
     if (e.kind === ts.SyntaxKind.TrueKeyword) return true;
@@ -133,7 +160,9 @@ function scan(f: string, src: string, found: Found[], unresolved: string[]) {
       if (!body) return UNRESOLVED;
       const el = evalExpr(body, depth + 1, true);
       if (el === UNRESOLVED) return UNRESOLVED;
-      return [el, JSON.parse(JSON.stringify(el))];
+      // Normalised: two identical copies. Raw: the body evaluated again, so
+      // runtime values differ between the two rows.
+      return [el, raw ? evalExpr(body, depth + 1, true) : JSON.parse(JSON.stringify(el))];
     }
     if (ts.isArrayLiteralExpression(e)) {
       const out: unknown[] = [];
@@ -166,7 +195,7 @@ function scan(f: string, src: string, found: Found[], unresolved: string[]) {
     // is still a string example — the schema only reads the type.
     if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.PlusToken) {
       const l = evalExpr(e.left, depth + 1, loose), r = evalExpr(e.right, depth + 1, loose);
-      if (typeof l === 'string' || typeof r === 'string') return 'x';
+      if (typeof l === 'string' || typeof r === 'string') return raw ? `concat-${++runtimeN}` : 'x';
     }
     // `a ?? 'fallback'` / `a || 0`: the runtime value has the fallback's type.
     if (ts.isBinaryExpression(e) && (e.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken || e.operatorToken.kind === ts.SyntaxKind.BarBarToken)) {
@@ -190,9 +219,13 @@ function scan(f: string, src: string, found: Found[], unresolved: string[]) {
       // A hint that is just forwarded (`schemaHint: params.schemaHint`,
       // `schemaHint: hint`) is not a literal of its own.
       const forwarded = ts.isPropertyAccessExpression(expr) || (ts.isIdentifier(expr) && !resolveIdent(expr) && expr.text !== 'undefined');
+      raw = false;
       const v = evalExpr(expr);
+      raw = true;
+      const r = evalExpr(expr);
+      raw = false;
       if (v === UNRESOLVED) { if (!forwarded) unresolved.push(where); }
-      else if (v !== undefined) found.push({ where, key, value: JSON.parse(JSON.stringify(v)) });
+      else if (v !== undefined) found.push({ where, key, value: JSON.parse(JSON.stringify(v)), raw: JSON.parse(JSON.stringify(r)) });
     }
     ts.forEachChild(n, visit);
   };
@@ -215,16 +248,29 @@ let identical = 0;
 const changed: string[] = [];
 const unexpected: string[] = [];
 for (const h of found) {
-  const same = J(legacyInferSchema(h.value)) === J(inferSchema(h.value));
+  // Judged on BOTH evaluations; the raw one carries the real example strings.
+  const same = J(legacyInferSchema(h.value)) === J(inferSchema(h.value)) && J(legacyInferSchema(h.raw)) === J(inferSchema(h.raw));
   if (same) identical++; else { changed.push(h.where); if (!isIntendedHint(h)) unexpected.push(h.where); }
 }
 ok(`${identical} hints infer byte-identically to the old relay`, identical + changed.length === found.length);
 ok('the ONLY hints the RULE change alters are the intended op-shape hints (same hint, old rule vs new)', unexpected.length === 0, unexpected.join('; '));
 ok('the three intended hints are among those found and did change', ['scheduleEditCapability', 'estimateEditCapability', 'BULK_EDIT_SCHEMA_HINT'].every(k => changed.some(w => w.includes(k))), changed.join('; '));
 // The relay's extra prompt sentence fires only for hints with differing shapes.
-const withSentence = found.filter(h => hintHasMultiShapeArray(h.value));
+const withSentence = found.filter(h => hintHasMultiShapeArray(h.value) || hintHasMultiShapeArray(h.raw));
 ok('the "alternative shapes" prompt sentence is added only for the intended hints', withSentence.every(isIntendedHint), withSentence.filter(h => !isIntendedHint(h)).map(h => h.where).join('; '));
-ok('a runtime-built identical-key example array (bid leveling) is found and unchanged', found.some(h => h.where.startsWith('utils/bidLevelingEngine.ts') && !changed.includes(h.where)));
+{
+  const bid = found.find(h => h.where.startsWith('utils/bidLevelingEngine.ts'));
+  const adj = (bid?.raw as any)?.adjustments;
+  ok('a runtime-built identical-key example array (bid leveling) is found and unchanged',
+    !!bid && !changed.includes(bid.where));
+  ok('…evaluated RAW with a distinct bidId per row (so a value-based discriminator WOULD fire on it)',
+    Array.isArray(adj) && adj.length === 2 && adj[0].bidId !== adj[1].bidId && J(legacyInferSchema(bid!.raw)) === J(inferSchema(bid!.raw)), J(adj));
+  const oac = found.find(h => h.where.startsWith('utils/oacEngine.ts') && Array.isArray((h.raw as any)?.actionItems));
+  const ai = (oac?.raw as any)?.actionItems;
+  ok('oacEngine actionItems: same keys, different PROSE in every key → still val[0], every key required, no enum',
+    !!oac && Array.isArray(ai) && ai.length === 2 && ai[0].description !== ai[1].description
+      && J(inferSchema(oac!.raw)) === J(legacyInferSchema(oac!.raw)) && !/"enum"|anyOf/.test(J(inferSchema(oac!.raw))), J(ai));
+}
 
 // ── The snapshot: what Gemini is held to, per hint site (integration review).
 //
@@ -274,7 +320,10 @@ const CHANGED_SINCE_6065 = Object.values(CHANGED_SINCE_6065_BY_FEATURE).flat().s
 type SnapEntry = { hintSha: string; schema: string; schemaAt6065: string | null };
 const sha = (v: unknown) => createHash('sha256').update(J(v)).digest('hex').slice(0, 16);
 const current: Record<string, SnapEntry> = {};
-for (const h of found) current[h.key] = { hintSha: sha(h.value), schema: J(inferSchema(h.value)), schemaAt6065: null };
+// hintSha keys on the normalised literal (no churn when an example's prose is
+// reworded); `schema` is what the relay derives from the RAW literal, so a
+// changed op name (a discriminator) still moves it.
+for (const h of found) current[h.key] = { hintSha: sha(h.value), schema: J(inferSchema(h.raw)), schemaAt6065: null };
 let snapshot: Record<string, SnapEntry> = {};
 try { snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8')); } catch { snapshot = {}; }
 
@@ -288,7 +337,7 @@ if (process.argv.includes('--update')) {
       scan(join(ROOT, rel), src, baseFound, baseUnresolved);
     } catch { /* the file did not exist at the base commit */ }
   }
-  const baseByKey = new Map(baseFound.map(h => [h.key, J(legacyInferSchema(h.value))]));
+  const baseByKey = new Map(baseFound.map(h => [h.key, J(legacyInferSchema(h.raw))]));
   const next: Record<string, SnapEntry> = {};
   for (const k of Object.keys(current).sort()) {
     next[k] = { ...current[k], schemaAt6065: snapshot[k] ? snapshot[k].schemaAt6065 : (baseByKey.get(k) ?? null) };
@@ -328,9 +377,10 @@ console.log('\nthe relay prompt — the "alternative shapes" sentence only for m
   const matchLine = '\n\nMatch this exact JSON structure (values shown are examples only, generate realistic data for the request):\n';
   let singleOk = true; const leaked: string[] = [];
   for (const h of found) {
-    const msg = build('P', true, h.value, hintHasMultiShapeArray);
     if (isIntendedHint(h)) continue;
-    if (msg !== 'P' + matchLine + JSON.stringify(h.value, null, 2)) { singleOk = false; leaked.push(h.where); }
+    for (const v of [h.value, h.raw]) {
+      if (build('P', true, v, hintHasMultiShapeArray) !== 'P' + matchLine + JSON.stringify(v, null, 2)) { singleOk = false; leaked.push(h.where); }
+    }
   }
   ok('every non-shape hint gets exactly the pre-change prompt (no sentence, nothing else)', singleOk, leaked.join('; '));
   ok('the three shape hints DO get the sentence', ['SCHEDULE_EDIT_SCHEMA_HINT', 'ESTIMATE_EDIT_SCHEMA_HINT', 'BULK_EDIT_SCHEMA_HINT'].every(c => SENTENCE.test(build('P', true, found.find(h => h.where.endsWith(`const ${c}`))?.value, hintHasMultiShapeArray))));
@@ -340,7 +390,7 @@ console.log('\nthe relay prompt — the "alternative shapes" sentence only for m
 console.log('\ndeploy-order safety — an OLD relay reads the rewritten hints exactly as before');
 // The rewritten hints, as the walk evaluated them from source (importing the
 // capability modules under bun would pull React Native in).
-const hintByConst = (name: string) => found.find(h => h.where.endsWith(`const ${name}`))?.value;
+const hintByConst = (name: string) => found.find(h => h.where.endsWith(`const ${name}`))?.raw;
 const SCHEDULE_EDIT_SCHEMA_HINT = hintByConst('SCHEDULE_EDIT_SCHEMA_HINT');
 const ESTIMATE_EDIT_SCHEMA_HINT = hintByConst('ESTIMATE_EDIT_SCHEMA_HINT');
 const BULK_EDIT_SCHEMA_HINT = hintByConst('BULK_EDIT_SCHEMA_HINT');
@@ -352,29 +402,132 @@ ok('estimate edit: old rule on the new hint === old rule on the old setUnitPrice
 ok('bulk edit: old rule on the new hint === old rule on the old full-example hint',
   J(legacyInferSchema(BULK_EDIT_SCHEMA_HINT)) === J(legacyInferSchema({ summary: 's', updates: [{ alias: 'T3', durationDays: 4, startDay: 12, crew: 'c', phase: 'p', progressPercent: 50, rationale: 'r' }] })));
 
-console.log('\nthe new rule — what the rewritten hints now allow');
-const opsItem = (h: unknown) => (inferSchema(h) as any).properties.ops.items;
-ok('schedule edit: only `op` is required per op', J(opsItem(SCHEDULE_EDIT_SCHEMA_HINT).required) === '["op"]', J(opsItem(SCHEDULE_EDIT_SCHEMA_HINT).required));
-ok('schedule edit: an addTask can carry title, durationDays and after',
-  ['title', 'durationDays', 'after', 'toStartDay', 'days', 'crewSize', 'pct', 'from', 'to', 'type', 'lag'].every(k => k in opsItem(SCHEDULE_EDIT_SCHEMA_HINT).properties));
-ok('estimate edit: only `op` is required; quantity / markupPct / name declared',
-  J(opsItem(ESTIMATE_EDIT_SCHEMA_HINT).required) === '["op"]' && ['quantity', 'markupPct', 'name', 'category', 'unit'].every(k => k in opsItem(ESTIMATE_EDIT_SCHEMA_HINT).properties));
-const bulkItem = (inferSchema(BULK_EDIT_SCHEMA_HINT) as any).properties.updates.items;
-ok('bulk edit: only `alias` is required (crew/phase no longer forced)', J(bulkItem.required) === '["alias"]', J(bulkItem.required));
+console.log('\nthe anyOf rule — what the three shape hints now infer');
+type Alt = { type: string; properties: Record<string, any>; required: string[]; propertyOrdering: string[] };
+const alts = (h: unknown, field: string): Alt[] => (inferSchema(h) as any).properties?.[field]?.items?.anyOf ?? [];
+const schedAlts = alts(SCHEDULE_EDIT_SCHEMA_HINT, 'ops');
+const estAlts = alts(ESTIMATE_EDIT_SCHEMA_HINT, 'ops');
+const bulkAlts = alts(BULK_EDIT_SCHEMA_HINT, 'updates');
+const opOf = (a: Alt) => a.properties.op?.enum?.[0];
+ok('schedule edit: ops.items is anyOf, one alternative per example shape (11)', schedAlts.length === 11, `${schedAlts.length}`);
+ok('schedule edit: the alternatives follow example order', J(schedAlts.map(opOf)) === J((SCHEDULE_EDIT_SCHEMA_HINT as any).ops.map((o: any) => o.op)));
+ok('the founder\'s addTask alternative is EXACTLY {op∈[addTask], title, durationDays, after, isMilestone}, all required, in order — no `type`',
+  J(schedAlts.find(a => opOf(a) === 'addTask')) === J({ type: 'object', properties: { op: { type: 'string', enum: ['addTask'] }, title: { type: 'string' }, durationDays: { type: 'number' }, after: { type: 'string' }, isMilestone: { type: 'boolean' } }, required: ['op', 'title', 'durationDays', 'after', 'isMilestone'], propertyOrdering: ['op', 'title', 'durationDays', 'after', 'isMilestone'] }),
+  J(schedAlts.find(a => opOf(a) === 'addTask')));
+ok('an unanchored add has its own shape {op∈[addTask], title, durationDays, isMilestone} — never forced to invent `after`',
+  J(schedAlts.filter(a => opOf(a) === 'addTask')[1]) === J({ type: 'object', properties: { op: { type: 'string', enum: ['addTask'] }, title: { type: 'string' }, durationDays: { type: 'number' }, isMilestone: { type: 'boolean' } }, required: ['op', 'title', 'durationDays', 'isMilestone'], propertyOrdering: ['op', 'title', 'durationDays', 'isMilestone'] }),
+  J(schedAlts.filter(a => opOf(a) === 'addTask')));
+ok('the two move shapes are two alternatives (deltaDays | toStartDay), both op∈[move]',
+  J(schedAlts.filter(a => opOf(a) === 'move').map(a => a.propertyOrdering)) === J([['op', 'task', 'deltaDays'], ['op', 'task', 'toStartDay']]));
+ok('`type` (the free-form string Gemini looped in) is declared ONLY on addDependency, and required there',
+  J(schedAlts.filter(a => 'type' in a.properties).map(opOf)) === '["addDependency"]' && schedAlts.find(a => opOf(a) === 'addDependency')!.required.includes('type'));
+ok('estimate edit: 5 alternatives, op pinned per alternative, in example order',
+  J(estAlts.map(opOf)) === '["setUnitPrice","setQuantity","setGlobalMarkup","addLine","removeLine"]');
+ok('estimate edit: setGlobalMarkup is exactly {op, markupPct}', J(estAlts[2]?.propertyOrdering) === '["op","markupPct"]' && J(estAlts[2]?.required) === '["op","markupPct"]');
+ok('bulk edit: 6 alternatives; alias (one value, \'<alias>\', in every example) is a plain string, never an enum',
+  bulkAlts.length === 6 && bulkAlts.every(a => J(a.properties.alias) === '{"type":"string"}'));
+ok('bulk edit: EVERY field of the full shape has a single-field {alias, field} shape — a one-field change never forces progressPercent',
+  (() => { const fields = Object.keys(bulkAlts[0]?.properties ?? {}).filter(k => k !== 'alias' && k !== 'rationale');
+    return fields.length === 5 && fields.every(k => bulkAlts.some(a => J(a.required) === J(['alias', k]))); })(),
+  J(bulkAlts.map(a => a.required)));
+ok('every alternative of every shape hint: required === propertyOrdering === its own keys (closed shape)',
+  [...schedAlts, ...estAlts, ...bulkAlts].every(a => J(a.required) === J(Object.keys(a.properties)) && J(a.propertyOrdering) === J(Object.keys(a.properties))));
 
-console.log('\nunion + edge cases');
-ok('two object examples → one item schema, union of keys, shared keys required',
-  J(inferSchema([{ a: 1, b: 'x' }, { a: 2, c: true }])) === '{"type":"array","items":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"string"},"c":{"type":"boolean"}},"required":["a"]}}');
-ok('examples sharing identical keys infer exactly like the old rule',
-  J(inferSchema({ xs: [{ a: 1, b: 'x' }, { a: 3, b: 'y' }] })) === J(legacyInferSchema({ xs: [{ a: 1, b: 'x' }, { a: 3, b: 'y' }] })));
-ok('first occurrence wins when examples disagree on a type', J((inferSchema([{ a: 'x' }, { a: 1 }]) as any).items.properties.a) === '{"type":"string"}');
+// Every op the editor's PROMPT offers must be an alternative, or the decoder
+// cannot emit it at all (a closed anyOf has no free `op`).
+const opsInPrompt = (rel: string) => {
+  const src = readFileSync(join(ROOT, rel), 'utf8');
+  return [...new Set([...src.matchAll(/\{op:"([A-Za-z]+)"/g)].map(m => m[1]))];
+};
+{
+  const sPrompt = opsInPrompt('utils/copilot/scheduleEdit/scheduleEditCapability.ts');
+  const ePrompt = opsInPrompt('utils/copilot/estimateEdit/estimateEditCapability.ts');
+  const sEnum = new Set(schedAlts.map(opOf)), eEnum = new Set(estAlts.map(opOf));
+  ok('estimate edit: every op the prompt offers has an alternative', ePrompt.length >= 5 && ePrompt.every(o => eEnum.has(o)), J(ePrompt.filter(o => !eEnum.has(o))));
+  // The prompt offers {op:"level"}; the old val[0] rule let it through as
+  // {op:'level', task:'', deltaDays:0}. A closed anyOf can only emit it if the
+  // hint lists it — without the example, the anyOf relay would lose re-level.
+  ok('schedule edit: every op the prompt offers has an alternative (incl. level)', sPrompt.length >= 9 && sPrompt.every(o => sEnum.has(o)),
+    `MISSING from SCHEDULE_EDIT_SCHEMA_HINT: ${J(sPrompt.filter(o => !sEnum.has(o)))}`);
+  const lv = schedAlts.find(a => opOf(a) === 'level');
+  ok('…level is exactly the closed alternative {op∈[level]}',
+    J(lv) === J({ type: 'object', properties: { op: { type: 'string', enum: ['level'] } }, required: ['op'], propertyOrdering: ['op'] }), J(lv));
+}
+
+// ── The degeneration class, pinned. ──
+// An optional free-form string property (type string, no enum, not required)
+// is where Gemini looped live. No schema the relay derives may carry one.
+function optionalFreeStrings(s: any, path = '$'): string[] {
+  if (!s || typeof s !== 'object') return [];
+  const out: string[] = [];
+  if (s.type === 'object' && s.properties) {
+    for (const [k, p] of Object.entries<any>(s.properties)) {
+      if (p?.type === 'string' && !Array.isArray(p.enum) && !(s.required ?? []).includes(k)) out.push(`${path}.${k}`);
+      out.push(...optionalFreeStrings(p, `${path}.${k}`));
+    }
+  }
+  if (s.items) out.push(...optionalFreeStrings(s.items, `${path}[]`));
+  if (Array.isArray(s.anyOf)) s.anyOf.forEach((a: any, i: number) => out.push(...optionalFreeStrings(a, `${path}|${i}`)));
+  return out;
+}
+// The wave-6a union rule, frozen from 29fd92b1, so the pin is proven to have teeth.
+function unionRule(val: unknown): any {
+  if (val === null || val === undefined) return { type: 'string' };
+  if (Array.isArray(val)) {
+    if (val.length >= 2 && val.every(v => v !== null && typeof v === 'object' && !Array.isArray(v))) {
+      const properties: Record<string, any> = {};
+      for (const ex of val as Record<string, unknown>[]) for (const [k, v] of Object.entries(ex)) if (!(k in properties)) properties[k] = unionRule(v);
+      return { type: 'array', items: { type: 'object', properties, required: Object.keys(properties).filter(k => (val as Record<string, unknown>[]).every(ex => k in ex)) } };
+    }
+    return { type: 'array', items: val.length > 0 ? unionRule(val[0]) : { type: 'string' } };
+  }
+  if (typeof val === 'object') {
+    const properties: Record<string, any> = {}; const required: string[] = [];
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) { properties[k] = unionRule(v); required.push(k); }
+    return { type: 'object', properties, required };
+  }
+  return { type: typeof val === 'number' ? 'number' : typeof val === 'boolean' ? 'boolean' : 'string' };
+}
+console.log('\nthe degeneration class — no optional free-form string anywhere');
+{
+  const bad = found.flatMap(h => optionalFreeStrings(inferSchema(h.raw)).map(p => `${h.where} ${p}`));
+  ok(`no schema derived from any of the ${found.length} hints has an optional free-form string property`, bad.length === 0, bad.join('; '));
+  ok('none in the three multi-shape schemas specifically', [SCHEDULE_EDIT_SCHEMA_HINT, ESTIMATE_EDIT_SCHEMA_HINT, BULK_EDIT_SCHEMA_HINT].every(h => optionalFreeStrings(inferSchema(h)).length === 0));
+  const unionBad = optionalFreeStrings(unionRule(SCHEDULE_EDIT_SCHEMA_HINT));
+  ok('the pin has teeth: the rolled-back union rule on the schedule hint FAILS it (…ops[].type among the offenders)', unionBad.includes('$.ops[].type'), J(unionBad));
+  ok('…and the union rule\'s item was the live shape (15 properties, required [op])',
+    (() => { const it = unionRule(SCHEDULE_EDIT_SCHEMA_HINT).properties.ops.items; return Object.keys(it.properties).length === 15 && J(it.required) === '["op"]'; })());
+}
+
+console.log('\nedge cases');
+ok('two object examples with different keys → anyOf of closed shapes',
+  J(inferSchema([{ a: 1, b: 'x' }, { a: 2, c: true }])) === '{"type":"array","items":{"anyOf":[{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"string"}},"required":["a","b"],"propertyOrdering":["a","b"]},{"type":"object","properties":{"a":{"type":"number"},"c":{"type":"boolean"}},"required":["a","c"],"propertyOrdering":["a","c"]}]}}');
+ok('a discriminator becomes a one-value enum per alternative',
+  J(inferSchema([{ op: 'a', x: 1 }, { op: 'b', y: 2 }])) === '{"type":"array","items":{"anyOf":[{"type":"object","properties":{"op":{"type":"string","enum":["a"]},"x":{"type":"number"}},"required":["op","x"],"propertyOrdering":["op","x"]},{"type":"object","properties":{"op":{"type":"string","enum":["b"]},"y":{"type":"number"}},"required":["op","y"],"propertyOrdering":["op","y"]}]}}');
+ok('a shared key with ONE value stays a plain string', J((inferSchema([{ k: 'same', a: 1 }, { k: 'same', b: 2 }]) as any).items.anyOf[0].properties.k) === '{"type":"string"}');
+ok('a shared key with PROSE values is not a discriminator (no enum pinning a sentence)',
+  !/enum/.test(J(inferSchema([{ note: 'first thing', a: 1 }, { note: 'second thing', b: 2 }]))));
+ok('a `<placeholder>` is not a discriminator value', !/enum/.test(J(inferSchema([{ t: '<a>', a: 1 }, { t: '<b>', b: 2 }]))));
+ok('a shared key that is a number in some example is not a discriminator', !/enum/.test(J(inferSchema([{ op: 'a', a: 1 }, { op: 2, b: 2 }]))));
+ok('duplicate shapes (same keys, same discriminator value) collapse to one alternative, first kept',
+  (inferSchema([{ op: 'a', x: 1 }, { op: 'b', y: 1 }, { op: 'a', x: 9 }]) as any).items.anyOf.length === 2);
+ok('same keys, different discriminator values → still one alternative each',
+  (inferSchema([{ op: 'a', x: 1 }, { op: 'b', x: 1 }, { op: 'c', y: 1 }]) as any).items.anyOf.map((a: any) => a.properties.op.enum[0]).join() === 'a,b,c');
+ok('examples sharing ONE key set (even with differing op-like values) infer exactly like the old rule',
+  J(inferSchema({ xs: [{ op: 'a', b: 'x' }, { op: 'c', b: 'y' }] })) === J(legacyInferSchema({ xs: [{ op: 'a', b: 'x' }, { op: 'c', b: 'y' }] })));
 ok('empty array → array of strings (unchanged)', J(inferSchema([])) === '{"type":"array","items":{"type":"string"}}');
 ok('one-example array unchanged', J(inferSchema([{ a: 1 }])) === J(legacyInferSchema([{ a: 1 }])));
 ok('array of primitives reads val[0] (unchanged)', J(inferSchema([1, 'x'])) === '{"type":"array","items":{"type":"number"}}');
 ok('mixed object/primitive array reads val[0] (unchanged)', J(inferSchema([{ a: 1 }, 'x'])) === J(legacyInferSchema([{ a: 1 }, 'x'])));
 ok('null / undefined → string', J(inferSchema(null)) === '{"type":"string"}' && J(inferSchema(undefined)) === '{"type":"string"}');
-ok('nested multi-shape array inside an object is unioned', J((inferSchema({ o: { xs: [{ a: 1 }, { b: 2 }] } }) as any).properties.o.properties.xs.items.required) === '[]');
+ok('nested multi-shape array inside an object → anyOf there, recursive inference inside each alternative',
+  (inferSchema({ o: { xs: [{ a: 1 }, { b: [{ c: 1 }, { d: 's' }] }] } }) as any).properties.o.properties.xs.items.anyOf[1].properties.b.items.anyOf.length === 2);
 ok('hintHasMultiShapeArray: identical-key examples do not trigger the prompt sentence', !hintHasMultiShapeArray({ xs: [{ a: 1 }, { a: 2 }] }) && hintHasMultiShapeArray({ xs: [{ a: 1 }, { b: 2 }] }));
+ok('hintHasMultiShapeArray reads a single-shape array from val[0] only, as inferSchema does (a multi-shape array in a LATER same-key row reaches neither)',
+  (() => { const h = { xs: [{ a: [1] }, { a: [{ b: 1 }, { c: 2 }] }] }; return !hintHasMultiShapeArray(h) && !/anyOf/.test(J(inferSchema(h))); })()
+    && hintHasMultiShapeArray({ xs: [{ a: [{ b: 1 }, { c: 2 }] }, { a: [1] }] }));
+ok('hintHasMultiShapeArray fires exactly where inferSchema emits anyOf (every hint, raw)',
+  found.every(h => hintHasMultiShapeArray(h.raw) === /"anyOf"/.test(J(inferSchema(h.raw)))));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

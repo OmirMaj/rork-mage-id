@@ -53,10 +53,13 @@ const REF_FIELDS = ['task', 'from', 'to', 'after', 'title'] as const;
 type RefField = (typeof REF_FIELDS)[number];
 
 /** The ref fields each op kind actually READS. Placeholders are judged only
- *  here (review round 3): with the union schema every item declares all five
- *  ref fields and only `op` is required, so a decoder that fills an UNUSED slot
- *  by echoing the example ({op:'addTask', title:'Drywall hang', after:'t1',
- *  task:'<task id>'}) must not cost him a complete, valid add. The old rule
+ *  here (review round 3, written against the wave-6a union schema that declared
+ *  all five ref fields on every op — rolled back live 2026-09-23). The relay's
+ *  anyOf rule now gives each op a CLOSED shape with only its own slots, so a
+ *  foreign slot should not arrive; this stays as a net for an old relay or a
+ *  decoder that fills an UNUSED slot by echoing the example ({op:'addTask',
+ *  title:'Drywall hang', after:'t1', task:'<task id>'}) — that must not cost
+ *  him a complete, valid add. The old rule
  *  dropped the whole op when ANY of the five fields held a placeholder, and
  *  "add three tasks" could come back "Understood 0 of 3". An unknown op kind
  *  reads nothing we know of — it is judged on all five, then reported. */
@@ -150,13 +153,17 @@ export function normalizeEditOps(raw: unknown): NormalizedEditOps {
   const out: EditOp[] = [];
   const dropped: DroppedOp[] = [];
   const drop = (a: Record<string, unknown>, why: string) => { dropped.push(describeRaw(a, why)); };
+  // `level` carries no ref, so an echoed { op: 'level' } example cannot be
+  // told from a request by its value. An answer that echoes any example is
+  // copying the list: its `level` is part of the copy, not a request.
+  let echoed = false;
   for (const r of raw) {
     if (r === null || typeof r !== 'object') continue;
     const sent = r as Record<string, unknown>;
     const op = sent.op;
     if (typeof op !== 'string' || !op.trim()) { drop(sent, 'no change type'); continue; }
     const a = scrubForeignPlaceholders(sent);
-    if (isPureEcho(a)) continue;
+    if (isPureEcho(a)) { echoed = true; continue; }
     const placeholder = ownRefs(op).find(f => isPlaceholderRef(a[f]));
     if (placeholder) { drop(a, placeholder === 'after' ? 'no position given for the new task' : `no ${placeholder === 'title' ? 'name' : 'task'} given`); continue; }
     switch (op) {
@@ -221,7 +228,7 @@ export function normalizeEditOps(raw: unknown): NormalizedEditOps {
       default: drop(a, 'not a change this editor can make'); break;
     }
   }
-  return { ops: out, dropped };
+  return { ops: echoed ? out.filter(o => o.op !== 'level') : out, dropped };
 }
 
 /** Fold a turn's answer into the draft — THE COMPLETE-DRAFT RULE (integration
