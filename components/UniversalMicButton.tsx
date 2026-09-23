@@ -20,7 +20,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTimeEntries } from '@/hooks/useTimeEntries';
 import { todayCalendarDay } from '@/utils/calendarDate';
 import VoiceRecorder from '@/components/VoiceRecorder';
-import { parseVoiceAction, type VoiceActionResult } from '@/utils/voiceActionParser';
+import { matchFieldScheduleUpdates, parseVoiceAction, scheduleEditRouteForTranscript, type VoiceActionResult } from '@/utils/voiceActionParser';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
@@ -142,6 +142,20 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
       setStep('idle');
       return;
     }
+    // "Add three tasks after rough-in" is a change to the running schedule,
+    // and the parser below has no kind for it — it came back as a note, an
+    // RFI or a daily log, and the tasks were never added (audit W6 E8). Send
+    // it to the schedule editor, seeded with his words, before a parse (or a
+    // voice-capture credit) is spent; the editor meters its own AI call.
+    const editRoute = scheduleEditRouteForTranscript(transcript, project);
+    if (editRoute) {
+      // Close the mic sheet first, then navigate: the Schedule tab opens its
+      // editor as a Modal, and iOS refuses to present one while this one is
+      // still dismissing (the same 350ms guard UniversalSearch uses).
+      handleClose();
+      setTimeout(() => router.push(editRoute as never), Platform.OS === 'ios' ? 350 : 0);
+      return;
+    }
     // Metered gate — a free user gets a few lifetime voice captures, then a
     // wall. checkAILimit fails open on storage error so a hiccup never costs
     // a trial or blocks value.
@@ -169,7 +183,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
       setError('AI couldn\'t parse that — try again.');
       setStep('idle');
     }
-  }, [project, tier]);
+  }, [project, tier, handleClose, router]);
 
   const handleConfirm = useCallback(async () => {
     if (!parsed) return;
@@ -448,16 +462,21 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         const totalHrs = timeEntries.reduce((s, t) => s + (t.hours || 0), 0);
         if (totalHrs > 0) summaryParts.push(`${totalHrs}h logged`);
 
-        // 2) Schedule — fuzzy-match spoken task names to real schedule items.
+        // 2) Schedule — each spoken update lands on ONE task. The old loop
+        // walked the tasks and gave each the first update whose name it
+        // contained, so "drywall is done" marked Drywall hang, tape AND finish
+        // done (E8). matchFieldScheduleUpdates matches update-by-update and
+        // refuses an ambiguous name; the parser already said which ones.
         const schedule = proj.schedule;
         const workProgress: { taskId: string; taskName: string; phase: string; pct: number }[] = [];
         if (schedule && (parsed.fieldScheduleUpdates ?? []).length > 0) {
-          const norm = (s: string) => s.toLowerCase().trim();
+          const matchedByTask = new Map(
+            matchFieldScheduleUpdates(schedule.tasks, parsed.fieldScheduleUpdates).matched.map(m => [m.taskId, m] as const),
+          );
           const updatedTasks = schedule.tasks.map(t => {
-            const match = parsed.fieldScheduleUpdates.find(u =>
-              u.taskName && (norm(t.title).includes(norm(u.taskName)) || norm(u.taskName).includes(norm(t.title))));
+            const match = matchedByTask.get(t.id);
             if (!match) return t;
-            const pct = Math.max(0, Math.min(100, Math.round(match.progressPercent)));
+            const pct = match.pct;
             workProgress.push({ taskId: t.id, taskName: t.title, phase: t.phase, pct });
             const status: typeof t.status = pct >= 100 ? 'done' : pct > 0 ? 'in_progress' : t.status;
             // As-built actuals on a status change (#89), the Schedule tab's and
@@ -764,7 +783,9 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                           <View key={i} style={styles.lineItemRow}>
                             <Text style={styles.lineItemName} numberOfLines={1}>{li.name || '—'}</Text>
                             <Text style={styles.lineItemQty}>{li.quantity} {li.unit}</Text>
-                            <Text style={styles.lineItemAmt}>${(li.unitPrice * li.quantity).toLocaleString()}</Text>
+                            {/* A price he never said is filed as $0 (voiceActionParser
+                                groundVoicePrices) — say so rather than show "$0". */}
+                            <Text style={styles.lineItemAmt}>{li.priceStated ? `$${(li.unitPrice * li.quantity).toLocaleString()}` : 'No price said'}</Text>
                           </View>
                         ))
                       ) : parsed.changeAmount > 0 ? (
@@ -811,7 +832,9 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                           <View key={i} style={styles.lineItemRow}>
                             <Text style={styles.lineItemName} numberOfLines={1}>{li.name || '—'}</Text>
                             <Text style={styles.lineItemQty}>{li.quantity} {li.unit}</Text>
-                            <Text style={styles.lineItemAmt}>${(li.unitPrice * li.quantity).toLocaleString()}</Text>
+                            {/* A price he never said is filed as $0 (voiceActionParser
+                                groundVoicePrices) — say so rather than show "$0". */}
+                            <Text style={styles.lineItemAmt}>{li.priceStated ? `$${(li.unitPrice * li.quantity).toLocaleString()}` : 'No price said'}</Text>
                           </View>
                         ))
                       ) : (
@@ -889,6 +912,14 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                                 style={styles.clarifyChip}
                                 onPress={async () => {
                                   const combined = `${lastTranscriptRef.current} — ${answer}`;
+                                  // Same front door as the first parse: an
+                                  // add-tasks request goes to the editor.
+                                  const editRoute = scheduleEditRouteForTranscript(combined, project);
+                                  if (editRoute) {
+                                    handleClose();
+                                    setTimeout(() => router.push(editRoute as never), Platform.OS === 'ios' ? 350 : 0);
+                                    return;
+                                  }
                                   setStep('parsing');
                                   setError(null);
                                   try {

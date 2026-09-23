@@ -9,6 +9,8 @@
 // contractor's own words carry a real temporal signal. Deterministic + pure so
 // it can be unit-validated without a model in the loop.
 
+import { addCalendarDays, parseCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+
 // Word-boundary temporal tokens: month names, weekdays, relative units, seasons,
 // quarters, named days. Kept to genuinely time-bearing words to avoid false
 // positives on ordinary scope text ("kitchen and two baths" has none of these).
@@ -35,13 +37,45 @@ export function hasDateSignal(transcript: string): boolean {
 }
 
 /** Whether to fold a model-extracted startDate into the draft. Accept only a
- *  real string date AND either a date signal in the contractor's own words or
+ *  real CALENDAR DAY AND either a date signal in the contractor's own words or
  *  that they are directly answering the start-date question. Pure so the gate
- *  is unit-validated without the capability's (RN-heavy) dependency chain. */
+ *  is unit-validated without the capability's (RN-heavy) dependency chain.
+ *
+ *  "A real calendar day" is what parseCalendarDay can read (W6 A2). The relay
+ *  types an unknown field as a REQUIRED STRING, so a model with nothing to say
+ *  answers "", "null", "unknown" or "end of March" — and every one of those
+ *  passed `typeof === 'string'`. Any non-empty one then set startDate, which
+ *  silently skipped "when do you break ground?" and wrote a string no screen
+ *  can turn into a date onto the schedule. */
 export function shouldAcceptStartDate(
   aiStartDate: unknown,
   transcript: string,
   answeringStartDate: boolean,
+  today: string = todayCalendarDay(),
 ): boolean {
-  return typeof aiStartDate === 'string' && (hasDateSignal(transcript) || answeringStartDate);
+  const day = normalizeStartDate(aiStartDate);
+  return day != null && isPlausibleStartDay(day, today) && (hasDateSignal(transcript) || answeringStartDate);
+}
+
+/** How far a stated start may sit from today before it reads as the model
+ *  converting "end of March" into the wrong YEAR rather than as his date. A
+ *  job that broke ground a few weeks ago is real; one 200 days ago or three
+ *  years out is a conversion error. Out of range = not accepted, so "when do
+ *  you break ground?" is asked instead of a wrong anchor landing. */
+export const START_DAY_MAX_PAST_DAYS = 60;
+export const START_DAY_MAX_FUTURE_DAYS = 730;
+
+/** True when `day` (YYYY-MM-DD) lies within [today − 60 days, today + 2 years]. */
+export function isPlausibleStartDay(day: string, today: string = todayCalendarDay()): boolean {
+  const d = parseCalendarDay(day), t = parseCalendarDay(today);
+  if (!d || !t) return false;
+  return d >= addCalendarDays(t, -START_DAY_MAX_PAST_DAYS) && d <= addCalendarDays(t, START_DAY_MAX_FUTURE_DAYS);
+}
+
+/** The calendar day ('YYYY-MM-DD') a model value names, or null. A full ISO
+ *  timestamp keeps its date half; anything parseCalendarDay rejects is null. */
+export function normalizeStartDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const day = value.trim().slice(0, 10);
+  return parseCalendarDay(day) ? day : null;
 }

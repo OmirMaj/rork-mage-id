@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Switch, KeyboardAvoidingView, ActivityIndicator, Image, FlatList,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,7 +75,7 @@ import GanttChart from '@/components/schedule/GanttChart';
 import TodayView from '@/components/schedule/TodayView';
 import LookaheadView from '@/components/schedule/LookaheadView';
 import VerticalGantt from '@/components/schedule/VerticalGantt';
-import { MobileScheduleScreen } from '@/components/schedule/mobile/MobileScheduleScreen';
+import { MobileScheduleScreen, describeMobileScheduleEdit } from '@/components/schedule/mobile/MobileScheduleScreen';
 import { StartDayBasisNotice } from '@/components/schedule/StartDayBasisNotice';
 import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
@@ -97,10 +97,11 @@ import { geocodeProjectLocation, type GeocodeResult } from '@/utils/geocodeProje
 import AIScheduleRisk from '@/components/AIScheduleRisk';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { ContentWidth, Tokens } from '@/constants/designTokens';
 import { cardSurface, taskStatusInk, labelOn } from '@/components/ui';
 import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
+import { claimScheduleEditSeed, MODAL_DISMISS_DELAY_MS } from '@/utils/copilot/intentTable';
 import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
@@ -432,8 +433,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   // Schedule" et al). Same nonce pattern as MobileScheduleScreen: each
   // navigation mints a `focus` nonce so fresh arrivals re-apply the param
   // while sticky tab params from an old visit never override a manual switch.
-  const { projectId: routeProjectId, focus: routeFocus } =
-    useLocalSearchParams<{ projectId?: string; focus?: string }>();
+  const { projectId: routeProjectId, focus: routeFocus, editSeed: routeEditSeed } =
+    useLocalSearchParams<{ projectId?: string; focus?: string; editSeed?: string }>();
+  const navigation = useNavigation();
   // Shared with the sibling surface via the parent wrapper so an already-
   // consumed nonce stays consumed across a phone<->desktop breakpoint remount
   // (a fresh local ref would re-yank the manual selection). Falls back to a
@@ -672,6 +674,18 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
   const [showScenariosModal, setShowScenariosModal] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  // The words the Copilot hub routed here ("add three tasks after rough-in"),
+  // pre-filled into the editor so he does not say them twice.
+  const [editSeed, setEditSeed] = useState<string | undefined>(undefined);
+  // Each open mounts a fresh sheet (key={editNonce}): a Modal iOS refused to
+  // present while another was dismissing is never retried by RN, and the
+  // next tap would otherwise do nothing. Also clears a failed attempt.
+  const [editNonce, setEditNonce] = useState(0);
+  const openEditor = useCallback((seed?: string) => {
+    setEditSeed(seed);
+    setEditNonce((n) => n + 1);
+    setEditOpen(true);
+  }, []);
 
   const cpmOptions = useMemo(() => ({
     scheduleStartDate: activeSchedule?.startDate,
@@ -762,6 +776,31 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     ]);
     return true;
   }, [activeSchedule, activeScenarioTasks, exitSavedPlanView]);
+
+  // A hub or mic arrival that asked to CHANGE this job's running schedule
+  // opens the editor once, on the job the focus effect above selected (tab
+  // params are sticky — claimScheduleEditSeed keeps a later plain visit from
+  // re-opening it, across the phone/tablet breakpoint too). Refused out loud
+  // BEFORE an AI turn is spent — like the "Tell me what to change" bar — when
+  // the seat cannot save it OR a saved plan is on screen (the preview would be
+  // built on the frozen snapshot, and Apply refused afterwards). Opened after
+  // the sheet that brought him here has gone (iOS stacking guard).
+  useEffect(() => {
+    if (!routeEditSeed || !routeProjectId) return;
+    if (selectedProject?.id !== routeProjectId) return;
+    if (!claimScheduleEditSeed(`${routeProjectId}:${routeFocus ?? ''}:${routeEditSeed}`)) return;
+    // Clear the words from the URL once claimed: on the web the param lives in
+    // the query string and the claim only in module memory, so a reload (or
+    // the link opened in a new tab) re-opened the editor pre-filled, and one
+    // tap on Send added the same tasks twice (review round 4).
+    // THIS screen's navigation, not the global router: router.setParams
+    // targets whichever route the container reports focused, which is not
+    // always this nested tab screen.
+    navigation.setParams({ editSeed: '' } as never);
+    if (refuseScheduleWrite('AI schedule change') || refuseWhileWhatIf()) return;
+    const seed = String(routeEditSeed);
+    setTimeout(() => openEditor(seed), MODAL_DISMISS_DELAY_MS(Platform.OS));
+  }, [routeEditSeed, routeProjectId, routeFocus, selectedProject?.id, refuseScheduleWrite, refuseWhileWhatIf, openEditor, navigation]);
 
   /**
    * THE forecast for this screen. Drives the Gantt weather badges (horizontal
@@ -911,7 +950,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   }, [liveSortedTasks, projectStartDate, activeSchedule]);
 
   const capGate = useProjectCapGate();
-  const saveSchedule = useCallback((schedule: ProjectSchedule, project: Project | null) => {
+  // Returns false when it refused (and said why) — the AI editor's commit
+  // reports that instead of a "done" card. Every other caller ignores it.
+  const saveSchedule = useCallback((schedule: ProjectSchedule, project: Project | null): boolean => {
     console.log('[Schedule] Saving schedule', { projectId: project?.id, taskCount: schedule.tasks.length });
     if (project) {
       // THE sink for every task edit, template pick and AI build on this
@@ -921,7 +962,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       // before the edit rather than after the server drops it (#25). A field
       // collaborator's progress still saves from Quick Field Update and the
       // phone schedule; the reason says so.
-      if (refuseScheduleWrite('Schedule changes')) return;
+      if (refuseScheduleWrite('Schedule changes')) return false;
       // startDate policy (finish-jump bug, sim-audit #2):
       //  - project already has a schedule → preserve ITS anchor exactly,
       //    including "no anchor". Retro-stamping today onto a dateless
@@ -954,12 +995,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         },
         status: project.estimate ? 'estimated' : 'draft',
       });
-      return;
+      return true;
     }
     // #57 / #156 (CONTRACT 5): a schedule with no job makes one — which the
     // free plan's cap refuses on the server once he has a job of his own, and
     // a refused job (with this schedule in it) would live on this phone only.
-    if (!capGate.canCreate('Schedule Project')) { capGate.explainAndOfferUpgrade(); return; }
+    if (!capGate.canCreate('Schedule Project')) { capGate.explainAndOfferUpgrade(); return false; }
     const now = new Date().toISOString();
     const newProject: Project = {
       id: createId('project'), name: 'Schedule Project', type: 'renovation',
@@ -972,6 +1013,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     };
     addProject(newProject);
     setSelectedProjectId(newProject.id);
+    return true;
   }, [addProject, updateProject, refuseScheduleWrite, capGate]);
 
   // One opener for every "set start date" door (both start bars and the
@@ -1094,11 +1136,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
    * scenarios, baseline, …) are preserved. saveSchedule further guards
    * startDate so the known finish-jump bug cannot reintroduce itself.
    */
-  const persistEditedTasks = useCallback((nextTasks: ScheduleTask[], opts?: { live?: boolean }) => {
-    if (!selectedProject || !activeSchedule) return;
+  // Returns what it saved (the reflowed, stamped rows + the CPM finish), or
+  // null when it saved nothing — the AI editor's commit audits the one and
+  // reports the other.
+  const persistEditedTasks = useCallback((nextTasks: ScheduleTask[], opts?: { live?: boolean }): { tasks: ScheduleTask[]; finish: number } | null => {
+    if (!selectedProject || !activeSchedule) return null;
     // `live`: nextTasks were built from the LIVE plan (a task opened from
     // Today/Lookahead), so there is no snapshot to leak into it.
-    if (!opts?.live && refuseWhileWhatIf()) return;
+    if (!opts?.live && refuseWhileWhatIf()) return null;
     // Step 1: reflow dependent startDay values via CPM.
     const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions).tasks;
     // Step 2: derive accurate scalar fields via the canonical builder.
@@ -1131,14 +1176,37 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       riskItems: built.riskItems,
       updatedAt: new Date().toISOString(),
     };
-    saveSchedule(merged, selectedProject);
+    if (saveSchedule(merged, selectedProject) === false) return null;
+    return { tasks: stamped, finish: cpmResult.projectFinish };
   }, [selectedProject, activeSchedule, cpmOptions, saveSchedule, refuseWhileWhatIf]);
 
-  const mobileCommit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
-    if (!selectedProject || !activeSchedule) return;
-    if (refuseWhileWhatIf()) return;
-    persistEditedTasks(producer(sortedTasks));
-  }, [selectedProject, activeSchedule, sortedTasks, persistEditedTasks, refuseWhileWhatIf]);
+  // The AI editor's commit (ScheduleEditPanel). A write this screen would
+  // refuse is refused HERE with the reason handed back, so the editor's card
+  // says "Nothing was saved: …" instead of ticking "Added …" lines over an
+  // alert. A write that lands gets one History row, as on the phone and in
+  // Schedule Pro — this host used to leave AI batches out of the log.
+  const mobileCommit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]): string | void => {
+    if (!selectedProject || !activeSchedule) return 'Not saved: no schedule is open.';
+    if (scheduleWriteBlockedReason) return `Not saved: ${scheduleWriteBlockedReason}`;
+    const whatIf = activeScenarioTasks ? whatIfEditRefusal(activeSchedule) : null;
+    if (whatIf) return whatIf.reason;
+    const prevTasks = sortedTasks;
+    const saved = persistEditedTasks(producer(prevTasks));
+    if (!saved) return 'Not saved: the schedule could not be saved.';
+    const anchorDate = resolveScheduleAnchor(activeSchedule).date;
+    const auditDraft = describeMobileScheduleEdit({
+      prev: prevTasks,
+      next: saved.tasks,
+      finishBefore: runCpm(prevTasks, cpmOptions).projectFinish,
+      finishAfter: saved.finish,
+      formatFinish: (day) => (anchorDate
+        ? calendarDayToDate(anchorDate, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : `day ${day}`),
+      reason: 'AI schedule change',
+      user: auditUser,
+    });
+    if (auditDraft) void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry(auditDraft));
+  }, [selectedProject, activeSchedule, sortedTasks, persistEditedTasks, scheduleWriteBlockedReason, activeScenarioTasks, cpmOptions, auditUser]);
 
   const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null, live = false) => {
     // `live` (#54): the edit came from a task Today/Lookahead showed — build
@@ -2738,12 +2806,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           dependents visibly shift, then persists via updateProject. */}
       {selectedProject && (
         <ScheduleEditPanel
+          key={editNonce}
           visible={editOpen}
-          onClose={() => setEditOpen(false)}
+          onClose={() => { setEditOpen(false); setEditSeed(undefined); }}
           projectId={selectedProject.id}
           tasks={sortedTasks}
           commit={mobileCommit}
           cpmOptions={cpmOptions}
+          seed={editSeed}
         />
       )}
     </>
@@ -2881,6 +2951,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         )}
 
         {activeSchedule && (
+          // Card views sit in the centred reading column on desktop web; the
+          // start bar rides in it too so its edges line up with the cards
+          // under it. The Gantt keeps the full width (its timeline is wide).
+          <View style={viewMode !== 'gantt' ? desktopStyles.readingColumn : null}>
           <View
             /* SCHED-NO-ANCHOR: this row is the disclosure. Undated, it must not
                print today's date as if it were the plan's start — every date on
@@ -2910,12 +2984,15 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               </Text>
             </TouchableOpacity>
           </View>
+          </View>
         )}
 
         <View style={desktopStyles.splitContainer}>
           {viewMode === 'gantt' && renderDesktopTaskListPanel()}
           <View style={desktopStyles.mainPanel}>
-            {savedPlanBanner}
+            {savedPlanBanner && (
+              <View style={viewMode !== 'gantt' ? desktopStyles.readingColumn : null}>{savedPlanBanner}</View>
+            )}
             {viewMode === 'board' ? (
               // Board owns the scroll container in board mode. It cannot be a
               // child of the ScrollView below: a FlatList nested in a same-axis
@@ -2927,7 +3004,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 renderItem={renderBoardRow}
                 extraData={renderBoardRow}
                 ListHeaderComponent={boardFilterBar}
-                contentContainerStyle={{ paddingBottom: 60 }}
+                // Board rows are one card per task: a reading column, not
+                // 1,300px-wide strips (founder, 2026-09-23).
+                contentContainerStyle={[{ paddingBottom: 60 }, desktopStyles.readingColumn]}
                 showsVerticalScrollIndicator={false}
                 initialNumToRender={12}
                 maxToRenderPerBatch={12}
@@ -2936,7 +3015,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               />
             ) : (
             <ScrollView
-              contentContainerStyle={{ paddingBottom: 60 }}
+              // Today / Lookahead / Resources / Summary are stacked cards —
+              // centred at ContentWidth.reading instead of stretched across
+              // the window. The Gantt keeps the full width.
+              contentContainerStyle={[{ paddingBottom: 60 }, viewMode !== 'gantt' ? desktopStyles.readingColumn : null]}
               showsVerticalScrollIndicator={false}
             >
               {viewMode === 'today' && (
@@ -3425,7 +3507,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             {sortedTasks.length > 0 && (
               <TouchableOpacity
                 style={styles.copilotBar}
-                onPress={() => setEditOpen(true)}
+                // A seat that cannot save the change, or a saved plan on
+                // screen, is told so BEFORE he spends an AI turn on it.
+                onPress={() => {
+                  if (refuseScheduleWrite('AI schedule change') || refuseWhileWhatIf()) return;
+                  openEditor(undefined);
+                }}
                 testID="schedule-copilot-bar"
                 accessibilityRole="button"
                 accessibilityLabel="Tell the copilot what to change"
@@ -4342,9 +4429,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
   topBar: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
-  copilotEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
+  // Prompt pills stay prompt-sized on a wide window (the Copilot column, 720).
+  copilotEntry: { maxWidth: 720, flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
   copilotEntryText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
-  copilotBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.full, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: themeColors.accent },
+  copilotBar: { maxWidth: 720, flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.full, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: themeColors.accent },
   copilotBarText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
   topBarStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   topBarStat: { alignItems: 'center' },
@@ -4839,6 +4927,14 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   mainPanel: {
     flex: 1,
+  },
+  // The centred card column for desktop web (see ContentWidth in
+  // constants/designTokens). width 100% below the cap, so nothing narrower
+  // than it changes.
+  readingColumn: {
+    width: '100%' as const,
+    maxWidth: ContentWidth.reading,
+    alignSelf: 'center' as const,
   },
   statusBar: {
     flexDirection: 'row',

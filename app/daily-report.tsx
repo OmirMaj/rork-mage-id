@@ -2531,7 +2531,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     }
     // Recompute exactly what ScheduleDiffView previewed (it computes internally
     // from ops + ctx; onApply hands us nothing).
-    const { nextTasks } = interpretScheduleOps(delayPreviewOps, schedule.tasks);
+    const { nextTasks } = interpretScheduleOps(delayPreviewOps, schedule.tasks, delayCpmOptions);
     const edited = applyEditEffects(delayPreviewOps, nextTasks, delayCpmOptions);
     // persistEditedTasks pattern (app/(tabs)/schedule/index.tsx:447-473):
     // reflow startDays via CPM, re-derive the scalar fields, merge over a

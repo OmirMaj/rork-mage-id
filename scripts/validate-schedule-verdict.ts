@@ -229,7 +229,9 @@ console.log('\nphone schedule edits land in the audit log:');
   expect('describeMobileScheduleEdit is where this guard expects it', start >= 0 && end > start, true);
   if (start >= 0 && end > start) {
     const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(
-      `${src.slice(start, end)}\nglobalThis.__describe = describeMobileScheduleEdit;`);
+      // The function is exported (schedule/index.tsx's tablet AI commit reuses
+      // it); `export` is illegal inside new Function, so it is stripped here.
+      `${src.slice(start, end).replace(/^export /gm, '')}\nglobalThis.__describe = describeMobileScheduleEdit;`);
     new Function('summarizeTaskDiff', js)(summarizeTaskDiff);
     type Draft = { kind: string; summary: string; taskId?: string } | null;
     const describe = (globalThis as unknown as { __describe: (i: unknown) => Draft }).__describe;

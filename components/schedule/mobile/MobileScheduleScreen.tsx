@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Bell, Check, ChevronDown, ChevronRight, FolderOpen, CalendarDays, CalendarOff, Download, FileInput, Flag, History, Lock, Mic, RefreshCw, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -64,6 +64,9 @@ import {
   type CatchUpPlan, type NamedBaseline, type PacedVerdict,
 } from '@/utils/scheduleOps';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
+import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
+import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
+import { claimScheduleEditSeed, MODAL_DISMISS_DELAY_MS } from '@/utils/copilot/intentTable';
 
 // MISS-08 (runtime audit 2026-09-06): the second sub-tab was labelled
 // "4D Model". There is no 3D model behind it and no 3D dependency anywhere in
@@ -146,7 +149,9 @@ function materialTaskDiff(before: ScheduleTask, after: ScheduleTask): { keys: st
   return { keys, after: snapshot };
 }
 
-function describeMobileScheduleEdit(input: {
+/** Exported: the classic Schedule tab's AI editor writes the same History row
+ *  for the same kind of batch. */
+export function describeMobileScheduleEdit(input: {
   prev: ScheduleTask[];
   next: ScheduleTask[];
   finishBefore: number;
@@ -251,8 +256,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // params: each arrival mints a new nonce, so re-opening from the same
   // project re-applies, while plain tab presses (stale nonce) never yank the
   // selection away from a project the user cycled to manually.
-  const { projectId: routeProjectId, focus: routeFocus } =
-    useLocalSearchParams<{ projectId?: string; focus?: string }>();
+  const { projectId: routeProjectId, focus: routeFocus, editSeed: routeEditSeed } =
+    useLocalSearchParams<{ projectId?: string; focus?: string; editSeed?: string }>();
+  const navigation = useNavigation();
   // Shared with the desktop sibling via the parent wrapper so a nonce already
   // consumed on one surface stays consumed after a breakpoint remount — a
   // fresh local ref would re-yank a manually-cycled project back to the CTA's
@@ -903,6 +909,127 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     if (auditDraft && writePath === 'row') void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry(auditDraft));
   }, [selectedProject, activeSchedule, updateProject, writePath, anchor.date, auditUser]);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // "TELL ME WHAT TO CHANGE" — the AI editor on the phone (audit W6 A2, E6).
+  //
+  // The editor (ScheduleEditPanel → scheduleEdit) lived only on the classic
+  // tablet screen and Schedule Pro, so an iPhone had no AI way to add, move or
+  // remove a task on a running schedule: the only voice door here builds a
+  // NEW plan from the estimate. This is the same panel, fed the same three
+  // things the tablet feeds it — the stored tasks, a commit, and the CPM
+  // options its preview runs on — so what Apply writes is what the diff showed.
+  //
+  // The commit is the tablet's persistEditedTasks, not this screen's
+  // saveTasks: saveTasks keeps each stored startDay (the phone is a manual
+  // scheduler), which would drop the ripple the preview just showed him
+  // ("finish +4d"). applyToProjectSchedule reflows the dependents and stamps
+  // the live critical path; buildScheduleFromTasks recomputes the derived
+  // scalars applyToProjectSchedule deliberately leaves alone; every sidecar
+  // field of the schedule is kept.
+  // ─────────────────────────────────────────────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSeed, setEditSeed] = useState<string | undefined>(undefined);
+  // Every open mounts a FRESH sheet (the key below). iOS can refuse to present
+  // a Modal while another is still on screen or dismissing, and RN never
+  // retries — editOpen stayed true and "Tell me what to change" then did
+  // nothing on this screen. A new key re-presents, and clears a failed
+  // attempt's draft and error along with it.
+  const [editNonce, setEditNonce] = useState(0);
+  const openEditor = useCallback((seed?: string) => {
+    setEditSeed(seed);
+    setEditNonce((n) => n + 1);
+    setEditOpen(true);
+  }, []);
+  // The anchor the row stores, exactly as the tablet's cpmOptions: the preview
+  // and the commit must run the same calendar or Apply lands a different
+  // finish from the one the diff promised. Memoised so the panel's preview is
+  // not rebuilt (and new task ids re-minted) on every render.
+  const editCpmOptions = useMemo(() => ({
+    scheduleStartDate: activeSchedule?.startDate,
+    workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+    nonWorkingDates: activeSchedule?.nonWorkingDates,
+  }), [activeSchedule?.startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
+
+  // Returns the reason when it refuses, so the editor's card says "Nothing was
+  // saved: …" rather than ticking "Added …" lines over the notice.
+  const commitAiEdit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]): string | void => {
+    if (!selectedProject || !activeSchedule) return 'Not saved: no schedule is open.';
+    // Adds, removals, dates and links are all outside the field RPC, and a
+    // view-only seat writes nothing — refuse out loud rather than let a
+    // preview that said "+3 tasks" land as nothing on his next reload.
+    if (writePath !== 'row') {
+      const notice = writePath === 'field_rpc' ? FIELD_NOT_SAVED('the AI schedule change') : VIEWER_SCHEDULE_NOTICE;
+      setFieldNotice(notice);
+      return writePath === 'field_rpc' ? notice : `Not saved: ${notice}`;
+    }
+    const prevTasks = latestTasksRef.current;
+    const nextTasks = producer(prevTasks);
+    const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, editCpmOptions).tasks;
+    const cpmAfter = runCpm(reflowed, editCpmOptions);
+    const built = buildScheduleFromTasks(
+      activeSchedule.name ?? `${selectedProject.name} Schedule`,
+      selectedProject.id,
+      reflowed,
+      activeSchedule.baseline ?? null,
+      { criticalPathDays: cpmAfter.projectFinish },
+    );
+    const merged: ProjectSchedule = {
+      ...activeSchedule,
+      tasks: reflowed,
+      totalDurationDays: built.totalDurationDays,
+      criticalPathDays: built.criticalPathDays,
+      healthScore: built.healthScore,
+      laborAlignmentScore: built.laborAlignmentScore,
+      riskItems: built.riskItems,
+      updatedAt: new Date().toISOString(),
+    };
+    updateProject(selectedProject.id, { schedule: merged });
+    // One History row for the one decision, named for what made it — the
+    // tablet's AI batches skipped the log entirely.
+    const auditDraft = describeMobileScheduleEdit({
+      prev: prevTasks,
+      next: reflowed,
+      finishBefore: runCpm(prevTasks, editCpmOptions).projectFinish,
+      finishAfter: cpmAfter.projectFinish,
+      formatFinish: (day) => (anchor.date
+        ? calendarDayToDate(anchor.date, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : `day ${day}`),
+      reason: 'AI schedule change',
+      user: auditUser,
+    });
+    if (auditDraft) void appendAuditToAsyncStorage(selectedProject.id, buildAuditEntry(auditDraft));
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [selectedProject, activeSchedule, writePath, editCpmOptions, updateProject, anchor.date, auditUser]);
+
+  // Arrivals from the Copilot hub ("add three tasks after rough-in" on a job
+  // that already has a schedule) carry the words as `editSeed`. Open the
+  // editor on THAT job, pre-filled, once per arrival — tab params are sticky,
+  // so a later plain visit to the tab must not re-open it.
+  useEffect(() => {
+    if (!routeEditSeed || !routeProjectId) return;
+    if (selectedProject?.id !== routeProjectId) return; // the focus effect selects it first
+    if (!claimScheduleEditSeed(`${routeProjectId}:${routeFocus ?? ''}:${routeEditSeed}`)) return;
+    // Clear the words from the URL once claimed: on the web the param lives in
+    // the query string and the claim only in module memory, so a reload (or
+    // the link opened in a new tab) re-opened the editor pre-filled, and one
+    // tap on Send added the same tasks twice (review round 4).
+    // THIS screen's navigation, not the global router: router.setParams
+    // targets whichever route the container reports focused, which is not
+    // always this nested tab screen.
+    navigation.setParams({ editSeed: '' } as never);
+    if (writePath === 'row') {
+      // Open once whatever brought him here (the hub sheet, the mic sheet)
+      // has finished dismissing — presenting mid-dismiss is the iOS stacking
+      // bug (MODAL_DISMISS_DELAY_MS, the same 350ms guard UniversalSearch uses).
+      // Not cleared on a re-run: the seed is already claimed, so a cleared
+      // timer would never open the editor at all.
+      const seed = String(routeEditSeed);
+      setTimeout(() => openEditor(seed), MODAL_DISMISS_DELAY_MS(Platform.OS));
+      return;
+    }
+    setFieldNotice(writePath === 'field_rpc' ? FIELD_NOT_SAVED('the AI schedule change') : VIEWER_SCHEDULE_NOTICE);
+  }, [routeEditSeed, routeProjectId, routeFocus, selectedProject?.id, writePath, openEditor, navigation]);
+
   const onUpdateTask = useCallback((next: ScheduleTask) => {
     // Pace flywheel: this is a full-object sink — `next` spreads the previous
     // task, so it already carries any existing actuals. The stamp (computed
@@ -1424,6 +1551,22 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           )
         ) : (
           <>
+            {/* The AI editor's front door on the phone. Owner / editor only:
+                everything it does (add, move, link, remove) is outside what a
+                field seat saves, and a view-only seat saves nothing. */}
+            {writePath === 'row' && (
+              <TouchableOpacity
+                style={styles.copilotBar}
+                onPress={() => openEditor(undefined)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Tell the copilot what to change"
+                testID="mobile-schedule-copilot-bar"
+              >
+                <Mic size={16} color={colors.accent} strokeWidth={1.75} />
+                <Text style={styles.copilotBarText} numberOfLines={1}>Tell me what to change</Text>
+              </TouchableOpacity>
+            )}
             {/* The timeline is a CALENDAR drawing — its columns are dates and
                 its today-line is a date. With no anchor every column would be
                 counted off from today, so the toggle is withheld and the list
@@ -1511,6 +1654,16 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         // The list row's own placement (#88): the sheet prints and steps from
         // the engine's dates, not the stored pin.
         placements={placements}
+      />
+      <ScheduleEditPanel
+        key={editNonce}
+        visible={editOpen}
+        onClose={() => { setEditOpen(false); setEditSeed(undefined); }}
+        projectId={selectedProject.id}
+        tasks={tasks}
+        commit={commitAiEdit}
+        cpmOptions={editCpmOptions}
+        seed={editSeed}
       />
       <AddTaskModal visible={showAdd} onCancel={() => { setShowAdd(false); setAddPrefillDate(undefined); }} onCreate={onCreate} tasks={tasks} defaultStartDate={addPrefillDate} />
 
@@ -2126,6 +2279,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   subtab: { paddingVertical: 10, marginRight: 22 },
   subtabText: { fontSize: 14, fontWeight: '700' as const, color: t.textMuted },
   subtabBar: { height: 2.5, borderRadius: 2, marginTop: 8 },
+  // Same bar as the tablet's "Tell me what to change" (accent-soft pill), so
+  // the AI editor reads as one thing on every form factor.
+  copilotBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginHorizontal: 16, marginTop: 12, backgroundColor: t.accentSoft, borderRadius: Tokens.radius.full, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: t.accent },
+  copilotBarText: { flex: 1, ...Type.subheadEmphasized, color: t.accent },
   viewToggle: { flexDirection: 'row' as const, alignSelf: 'flex-start' as const, marginHorizontal: 16, marginTop: 12, marginBottom: 2, backgroundColor: t.surfaceAlt, borderRadius: 9, padding: 3, gap: 2 },
   viewSeg: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 7 },
   viewSegOn: { backgroundColor: t.surface },

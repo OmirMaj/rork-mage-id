@@ -16,7 +16,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { parseCalendarDay, formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
 import { addWorkingDays } from '@/utils/scheduleEngine';
-import { Tokens } from '@/constants/designTokens';
+import { ContentWidth, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -263,7 +263,11 @@ function StatusDonut({ done, inProgress, notStarted, overdue, total }: { done: n
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1 },
-  content: { padding: 18, gap: 14 },
+  // Centred at ContentWidth.reading: Schedule Pro is full-bleed on desktop
+  // web, and the four flex:1 stat tiles and the chart cards used to stretch
+  // across the whole monitor (founder, 2026-09-23). 100% below the cap —
+  // the phone and a narrow window are unchanged.
+  content: { padding: 18, gap: 14, width: '100%', maxWidth: ContentWidth.reading, alignSelf: 'center' },
   verdictBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: t.surface, borderRadius: Tokens.radius.md, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line },
   verdictDot: { width: 10, height: 10, borderRadius: Tokens.radius.full, marginTop: 4 },
   verdictHeadline: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text },

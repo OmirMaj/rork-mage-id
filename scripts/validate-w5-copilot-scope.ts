@@ -89,7 +89,7 @@ ok('tiles carry the typed text (trimmed) as the seed', tileSeed('  framed the th
 const split = src('utils/copilot/splitIntents.ts');
 ok('splitIntents never returns a bare [] for a failed call', /if \(!res\.success\) return \{ actions: \[\], errorKind:/.test(split) && !/if \(!res\.success\) return \[\];/.test(split));
 const hub = src('app/copilot-hub.tsx');
-ok('the hub branches on hubOutcome and seeds every grid tile', /hubOutcome\(res\)/.test(hub) && /open\(i\.id, tileSeed\(text\)\)/.test(hub) && !/onPress=\{\(\) => open\(i\.id\)\}/.test(hub));
+ok('the hub branches on hubOutcome and seeds every grid tile', /hubOutcome\(res(?:, utterance)?\)/.test(hub) && /open\(i\.id, tileSeed\(text\)\)/.test(hub) && !/onPress=\{\(\) => open\(i\.id\)\}/.test(hub));
 ok('the hub shows the failure message and gates Ask MAGE', /outcome\.message/.test(hub) && /showAskMage\(outcome, isQuestionShaped\(text\)\)/.test(hub));
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);

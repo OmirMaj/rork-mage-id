@@ -42,6 +42,25 @@ export interface Grounding {
 
 /** Everything a capability needs to read history + persist. Assembled by the
  *  shell; no capability touches Supabase directly. */
+/** What a host's task commit reports: `false` or a reason string = refused
+ *  (nothing written); anything else = written. */
+export type CommitOutcome = boolean | string | void;
+/** True when a host commit refused the write. */
+export const commitRefused = (o: CommitOutcome): boolean => o === false || typeof o === 'string';
+
+/** The follow-up protocol of the two EDIT capabilities (schedule and estimate),
+ *  word for word the same in both prompts: every turn the model returns the
+ *  COMPLETE draft and mergeDraft REPLACES the queued one with it. Asking for
+ *  "only NEW ops" made the app guess, from word lists, whether a re-sent op was
+ *  a correction or another one — and it guessed wrong both ways (a doubled
+ *  chain, or a requested task silently gone). Replacing needs no guess. */
+export const COMPLETE_DRAFT_RULE = [
+  'Return the COMPLETE list of ops for EVERYTHING they have asked for so far, not',
+  'just this turn: keep every queued op that still stands, change the ones they',
+  'corrected, add what is new, and leave out anything they took back. Your list',
+  'REPLACES the draft — an op you leave out is not applied.',
+].join('\n');
+
 export interface CopilotContext {
   project: Project | null;
   projectId: string;
@@ -52,8 +71,12 @@ export interface CopilotContext {
   safety?: any;
   /** Injected by the schedule-edit panel: the desktop editor's undo-safe
    *  commit + the live task array + the CPM options it renders with, so an
-   *  edit capability can preview + apply against exactly what's on screen. */
-  commitTasks?: (producer: (prev: import('@/types').ScheduleTask[]) => import('@/types').ScheduleTask[]) => void;
+   *  edit capability can preview + apply against exactly what's on screen.
+   *  Returns `false`, or the REASON as a string, when the host refused the
+   *  write (a saved plan on screen, a field / view-only seat) — the capability
+   *  then reports every line as "Not saved" instead of a ticked "Added …" card
+   *  over an alert that says nothing was saved. `true`/undefined = written. */
+  commitTasks?: (producer: (prev: import('@/types').ScheduleTask[]) => import('@/types').ScheduleTask[]) => CommitOutcome;
   currentTasks?: import('@/types').ScheduleTask[];
   cpmOptions?: import('@/utils/cpm').RunCpmOptions;
   tier: string;

@@ -8,8 +8,9 @@
 import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
 import { scheduleGaps, type ScheduleDraft } from './scheduleGaps';
 import { buildScheduleGrounding } from './scheduleGrounding';
-import { shouldAcceptStartDate } from './dateSignal';
+import { shouldAcceptStartDate, normalizeStartDate } from './dateSignal';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface ScheduleApplied { route: '/schedule-review'; projectId: string }
 
@@ -50,15 +51,20 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
       'field null unless they explicitly stated it (or their history directly',
       'supports it). Filling a field with a guess SKIPS a question you should',
       'have asked. Specifically:',
-      '• startDate: null UNLESS they named a start / break-ground date, including',
-      '  a concrete relative one like "in two weeks" or "end of March". NEVER',
-      '  guess or assume a date, and never default to today.',
-      '• phased / weatherBuffer: null unless they said so.',
-      '• crewCap: null unless they gave a crew size.',
-      '• longLeadMilestones: omit unless they named ordered / long-lead items.',
+      '• startDate: "" UNLESS they named a start / break-ground date, including',
+      '  a concrete relative one like "in two weeks" or "end of March" — then the',
+      '  calendar day as YYYY-MM-DD. NEVER guess or assume a date, never today.',
+      '• phased / weatherBuffer: "unknown" unless they said so; "yes" or "no" when they did.',
+      '• crewCap: 0 unless they gave a crew size; then that number.',
+      '• longLeadMilestones: [] unless they named ordered / long-lead items.',
       '',
-      'Fields: startDate (ISO string or null), phased (bool or null),',
-      'longLeadMilestones (string[]), crewCap (number or null), weatherBuffer (bool or null).',
+      'Fields: startDate ("" or YYYY-MM-DD), phased ("yes" | "no" | "unknown"),',
+      'longLeadMilestones (string[]), crewCap (number, 0 = not said), weatherBuffer ("yes" | "no" | "unknown").',
+      '',
+      // Without today's date "in two weeks" / "end of March" has nothing to
+      // count from — a wrong-year day passed every check and became the
+      // schedule's anchor (integration review, wave 6).
+      `TODAY: ${todayCalendarDay()} — count relative dates from this day; "end of March" means the next March 31 on or after it.`,
       '',
       'THEIR HISTORY:', ...grounding.facts,
       '',
@@ -67,8 +73,16 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
       'WHAT THEY SAID: ' + transcript,
       'Return ONLY the updated draft JSON.',
     ].filter(Boolean).join('\n'),
-    // Example shows the SHAPE with unknowns left null — reinforces "don't guess".
-    schemaHint: { startDate: null, phased: null, longLeadMilestones: [], crewCap: null, weatherBuffer: null },
+    // TYPED examples whose value IS "not said" (W6 A2). The relay turns every
+    // example key into a REQUIRED field of the example's type, and a `null`
+    // example into a required STRING — so the old all-null hint forced
+    // crewCap: "4" and phased: "true", which the typeof checks below threw
+    // away: he said "crew of four, phase it, no weather buffer" and the draft
+    // kept none of it. A null can't be expressed at all, so each field gets a
+    // typed sentinel the model CAN return when he said nothing — "" / 0 /
+    // "unknown" — instead of being forced to guess a boolean, which would skip
+    // the very question the interview exists to ask.
+    schemaHint: { startDate: '', phased: 'unknown', longLeadMilestones: [], crewCap: 0, weatherBuffer: 'unknown' },
   }),
 
   mergeDraft: (draft, aiJson, meta): ScheduleDraft => {
@@ -78,9 +92,12 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
     // break ground?" gap (impact 0.9) fires and the interview actually asks.
     // This also protects the startDate-jump bug (never let a guessed date land).
     const acceptStart = shouldAcceptStartDate(aiJson?.startDate, meta?.transcript ?? '', meta?.asking?.field === 'startDate');
+    const phased = coerceStatedBool(aiJson?.phased);
+    const weatherBuffer = coerceStatedBool(aiJson?.weatherBuffer);
+    const crewCap = coerceStatedCrew(aiJson?.crewCap);
     return {
-      startDate: acceptStart ? aiJson.startDate : draft.startDate ?? null,
-      phased: typeof aiJson?.phased === 'boolean' ? aiJson.phased : draft.phased ?? null,
+      startDate: acceptStart ? normalizeStartDate(aiJson.startDate) : draft.startDate ?? null,
+      phased: phased ?? draft.phased ?? null,
       // Only a NON-EMPTY array counts as "stated". The model routinely echoes
       // the empty array from the schema hint; letting `[]` overwrite null would
       // make longLeadMilestones non-null and permanently suppress the long-lead
@@ -88,8 +105,8 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
       longLeadMilestones: (Array.isArray(aiJson?.longLeadMilestones) && aiJson.longLeadMilestones.length > 0)
         ? aiJson.longLeadMilestones
         : draft.longLeadMilestones,
-      crewCap: typeof aiJson?.crewCap === 'number' ? aiJson.crewCap : draft.crewCap ?? null,
-      weatherBuffer: typeof aiJson?.weatherBuffer === 'boolean' ? aiJson.weatherBuffer : draft.weatherBuffer ?? null,
+      crewCap: crewCap ?? draft.crewCap ?? null,
+      weatherBuffer: weatherBuffer ?? draft.weatherBuffer ?? null,
     };
   },
 
@@ -105,11 +122,55 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
     // the shell did not provide it — undefined means "not loaded", and the
     // generator then assigns nobody rather than concluding he has no subs.
     const subs = Array.isArray(ctx.ctx?.subcontractors) ? ctx.ctx.subcontractors : undefined;
-    const result = await generateScheduleFromEstimate(project, project.linkedEstimate, allProjects, subs);
+    // Phasing is the one answer only the generator can honour — it goes into
+    // the generator's prompt (see phasingInstruction); unstated = unchanged.
+    const result = await generateScheduleFromEstimate(project, project.linkedEstimate, allProjects, subs, { phased: draft.phased ?? null });
     // Fold the interview's start date onto the generated draft. NEVER auto-stamp
     // today — only set when the user gave a date (guards the startDate jump bug).
-    if (draft.startDate && result.schedule) result.schedule.startDate = draft.startDate;
+    // Only a real calendar day: anything else would be written onto the
+    // schedule as an anchor no screen can read.
+    const startDay = normalizeStartDate(draft.startDate);
+    if (startDay && result.schedule) result.schedule.startDate = startDay;
+    // What he stated that is enforced on the generated plan afterwards. "Crew of four" caps every task's crew; "no weather
+    // buffer" zeroes the schedule's separate buffer (it is never folded into a
+    // duration). Phasing is not faked here — it went to the generator above.
+    applyStatedConstraints(result, draft);
     stashDraft(result);
     return { route: '/schedule-review', projectId: ctx.projectId };
   },
 };
+
+/** "yes" / "true" / true → true; "no" / "false" / false → false; anything
+ *  else ("unknown", "", null) → null, i.e. NOT stated — the gap still asks. */
+export function coerceStatedBool(v: unknown): boolean | null {
+  if (typeof v === 'boolean') return v;
+  if (typeof v !== 'string') return null;
+  const t = v.trim().toLowerCase();
+  if (t === 'yes' || t === 'true' || t === 'y') return true;
+  if (t === 'no' || t === 'false' || t === 'n') return false;
+  return null;
+}
+
+/** 4 / "4" / "4 guys" → 4. 0, negatives, "" and non-numbers → null (not
+ *  stated). Capped at 50: a crew size, not a headcount for the whole job. */
+export function coerceStatedCrew(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number((v.match(/\d+(\.\d+)?/) ?? [''])[0]) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(50, Math.max(1, Math.round(n)));
+}
+
+/** Hold the generated plan to what he said: crewCap caps every task's crew
+ *  size (the stashed task list and the schedule's copy), and weatherBuffer
+ *  false zeroes the schedule's buffer days. Mutates the draft result. */
+export function applyStatedConstraints(
+  result: { tasks?: { crewSize?: number }[]; schedule?: { tasks?: { crewSize?: number }[]; bufferDays?: number } | null },
+  draft: Pick<ScheduleDraft, 'crewCap' | 'weatherBuffer'>,
+): void {
+  const cap = typeof draft.crewCap === 'number' && draft.crewCap > 0 ? draft.crewCap : null;
+  if (cap != null) {
+    for (const list of [result.tasks, result.schedule?.tasks]) {
+      for (const t of list ?? []) if (typeof t.crewSize === 'number' && t.crewSize > cap) t.crewSize = cap;
+    }
+  }
+  if (draft.weatherBuffer === false && result.schedule) result.schedule.bufferDays = 0;
+}

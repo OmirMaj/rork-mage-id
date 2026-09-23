@@ -255,7 +255,7 @@ console.log('\n#57 / #156 — every create path asks the cap gate:');
 {
   const sites: [string, RegExp][] = [
     ['app/estimate-wizard.tsx', /if \(!capGate\.canCreate\(newProjectName\)\) \{ setShowSaveModal\(false\); capGate\.explainAndOfferUpgrade\(\); return; \}/],
-    ['app/(tabs)/schedule/index.tsx', /if \(!capGate\.canCreate\('Schedule Project'\)\) \{ capGate\.explainAndOfferUpgrade\(\); return; \}/],
+    ['app/(tabs)/schedule/index.tsx', /if \(!capGate\.canCreate\('Schedule Project'\)\) \{ capGate\.explainAndOfferUpgrade\(\); return(?: false)?; \}/],
     ['components/UniversalMicButton.tsx', /if \(!capGate\.canCreate\(voiceName\)\) \{[\s\S]{0,80}capGate\.explainAndOfferUpgrade\(\);/],
     ['app/copilot.tsx', /canCreateProject: capGate\.canCreate, addProject: gatedAddProject, markupDecided, markup: globalMarkup, receipts, laborSamples, seeds \}/],
     ['utils/copilot/newProject/newProjectCapability.ts', /if \(typeof canCreate === 'function' && !canCreate\(project\.name\)\) throw projectCapError\(\);\s*ctx\.ctx\?\.addProject\?\.\(project\);/],

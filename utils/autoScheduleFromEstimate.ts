@@ -3,6 +3,7 @@ import { matchSubForPhase, assignmentNote, summariseAssignments, type TradeCandi
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { autoScheduleSchema, normalizeGeneratedTask, SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
+import { phasingInstruction } from '@/utils/copilot/schedule/scheduleGaps';
 import type { Project, ScheduleTask, ProjectSchedule, DependencyLink, DependencyType, LinkedEstimate } from '@/types';
 
 export interface AutoScheduleResult {
@@ -59,12 +60,18 @@ export async function generateScheduleFromEstimate(
   /** The sub roster. Optional — omitted means "not loaded", and the generator
    *  then assigns nobody rather than concluding the contractor has no subs. */
   subcontractors?: TradeCandidate[],
+  /** What the schedule interview settled that only the generator can honour
+   *  (utils/copilot/schedule/scheduleCapability). Optional; omitted = today's
+   *  prompt, byte for byte. */
+  constraints?: { phased?: boolean | null },
 ): Promise<AutoScheduleResult> {
   if (!estimate || !estimate.items || estimate.items.length === 0) {
     throw new Error('Estimate has no line items to generate a schedule from.');
   }
 
   const { summary, categoryMap } = buildEstimateSummary(estimate);
+  // The interview's phasing answer (empty when not stated → prompt unchanged).
+  const phasing = phasingInstruction(constraints?.phased);
 
   // Best-effort pace grounding — a book error must never block generation.
   let paceBlock = '';
@@ -97,7 +104,7 @@ INSTRUCTIONS:
 7. Link every task to the relevant estimate categories via linkedCategories so we can tie spend to schedule.
 8. If the estimate has almost no site-work materials but large finishes, skew the schedule toward interior work.
 9. Every task MUST include a non-empty rationale. Set assumption:true when the estimate lacks the quantities to size the task and you fell back to a rule of thumb.
-
+${phasing ? `10. ${phasing}\n` : ''}
 Output JSON only. No prose.`;
 
   const aiResult = await mageAI({

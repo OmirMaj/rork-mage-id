@@ -111,7 +111,12 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
     // sees an untagged request from this build (audit EDGE-F7).
     payload.feature = feature;
     if (schemaHint) {
-      payload.schemaHint = schemaHint;
+      // An empty-array hint field (`lineItems: []`) tells the relay nothing
+      // about the element, and it infers an array of STRINGS — the model is
+      // then held to strings, Zod refuses them and the salvage empties the
+      // field (the global mic lost every progress %, hour and line item this
+      // way). When a Zod schema came too, its element shape fills the gap.
+      payload.schemaHint = schema ? fillEmptyArrayHints(schemaHint, schema) : schemaHint;
       payload.jsonMode = true;
     } else if (schema) {
       // No schemaHint provided — derive an example shape from the Zod schema so
@@ -624,4 +629,60 @@ function deriveHintFromZod(schema: any, depth = 0): unknown {
     return items.map((item: any) => deriveHintFromZod(item, depth + 1));
   }
   return null;
+}
+
+/** Peel optional / nullable / default / catch / readonly / pipe wrappers. */
+function unwrapZod(schema: any, depth = 0): any {
+  const def = schema?._def;
+  if (!def || depth > 8) return schema;
+  const t = def.typeName ?? def.type;
+  if (['ZodOptional', 'optional', 'ZodNullable', 'nullable', 'ZodDefault', 'default', 'ZodCatch', 'catch', 'ZodReadonly', 'readonly'].includes(t)) {
+    return unwrapZod(def.innerType, depth + 1);
+  }
+  if (t === 'ZodPipe' || t === 'pipe') return unwrapZod(def.in ?? def.left, depth + 1);
+  return schema;
+}
+
+/**
+ * The hint with every EMPTY array whose Zod element is not a plain string
+ * replaced by a one-element example derived from that element (depth-first,
+ * through nested objects and populated arrays). Everything else — including
+ * `[]` for a string array, which the relay already reads as strings — comes
+ * back byte-identical, so a hint with nothing to fill sends exactly what it
+ * sent before. Pure; exported for scripts/validate-w6a-entry-mageai.ts.
+ */
+export function fillEmptyArrayHints<T>(hint: T, schema: any, depth = 0): T {
+  if (depth > 6 || hint == null) return hint;
+  const z = unwrapZod(schema);
+  const def = z?._def;
+  if (!def) return hint;
+  const t = def.typeName ?? def.type;
+  if (Array.isArray(hint)) {
+    if (t !== 'ZodArray' && t !== 'array') return hint;
+    const element = def.element ?? def.type;
+    if (hint.length === 0) {
+      const inner = unwrapZod(element)?._def;
+      const innerType = inner?.typeName ?? inner?.type;
+      if (innerType === 'ZodString' || innerType === 'string') return hint;
+      const example = deriveHintFromZod(element);
+      return (example == null ? hint : [example]) as unknown as T;
+    }
+    let changed = false;
+    const next = hint.map((h) => { const f = fillEmptyArrayHints(h, element, depth + 1); if (f !== h) changed = true; return f; });
+    return (changed ? next : hint) as unknown as T;
+  }
+  if (typeof hint === 'object') {
+    if (t !== 'ZodObject' && t !== 'object') return hint;
+    const shape = typeof def.shape === 'function' ? def.shape() : def.shape;
+    if (!shape) return hint;
+    let changed = false;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(hint as Record<string, unknown>)) {
+      const f = shape[k] ? fillEmptyArrayHints(v, shape[k], depth + 1) : v;
+      if (f !== v) changed = true;
+      out[k] = f;
+    }
+    return (changed ? out : hint) as T;
+  }
+  return hint;
 }

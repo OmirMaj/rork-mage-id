@@ -219,7 +219,8 @@ console.log('\n#54 — a saved plan cannot hide live progress:');
       && /const handleProgressUpdate = useCallback\(\s*\(task: ScheduleTask, nextProgress: number\) => applyProgressUpdate\(task, nextProgress, false\)/.test(TAB)
       && /if \(!opts\?\.liveTasks && whatIfEditRefusal\(existing\)\) return null;/.test(TAB));
   ok('ONE banner, rendered above every desktop view mode and in the phone header',
-    /\{savedPlanBanner\}\s*\{viewMode === 'board' \? \(/.test(TAB)
+    // The desktop-width lane seats the banner in the reading column.
+    /\{savedPlanBanner\}(?:<\/View>\s*\)\})?\s*\{viewMode === 'board' \? \(/.test(TAB)
       && /\{!isFieldMode && savedPlanBanner \? \(/.test(TAB)
       && (TAB.match(/testID="scenario-banner"/g) ?? []).length === 1
       && !/viewMode === 'gantt' && \(\s*<View style=\{styles\.ganttWrapper\}>\s*\{activeScenarioTasks && \(/.test(TAB));
@@ -250,7 +251,8 @@ console.log('\n#54 — the task sheet opened from a live view acts on the live p
       && /const nextTasks: ScheduleTask\[\] = baseTasks\.map\(/.test(saveTask)
       && /persistEditedTasks\(nextTasks, \{ live \}\);/.test(saveTask)
       && /handleSaveTask\(taskDraft, editingTask, editingLive\);/.test(TAB)
-      && /if \(!opts\?\.live && refuseWhileWhatIf\(\)\) return;/.test(slice(TAB, 'const persistEditedTasks = useCallback(', 'const mobileCommit')));
+      // persistEditedTasks returns what it saved (null = nothing) for the AI editor's commit.
+      && /if \(!opts\?\.live && refuseWhileWhatIf\(\)\) return(?: null)?;/.test(slice(TAB, 'const persistEditedTasks = useCallback(', 'const mobileCommit')));
   const del = slice(TAB, 'const handleDeleteTask = useCallback(', 'const latestScheduleRef');
   ok('delete from a live-opened sheet deletes from the live plan',
     /if \(!live && refuseWhileWhatIf\(\)\) return;/.test(del) && /\(live \? liveSortedTasks : sortedTasks\)/.test(del)

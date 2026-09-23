@@ -209,6 +209,26 @@ export const IconSize = {
   large:   { size: 24, strokeWidth: 2.0 },
 } as const;
 
+// ─────────────────────────────────────────────────────────────────────
+// Content widths — how wide a card column may grow on a desktop browser.
+// ─────────────────────────────────────────────────────────────────────
+//
+// On web the routed content is 1400 wide (useResponsiveLayout.contentMaxWidth)
+// and Schedule Pro is full-bleed, so a stack of flex:1 cards stretched to
+// 1,368px (the Schedule tab's Today view, measured on app.mageid.app at a
+// 2056px window, 2026-09-23) and to the whole monitor in Pro — one-line
+// banners 1,300px long, four stat tiles 500px each. The founder: "the boxes
+// are so stretched out and it looks terrible". Card and list views sit in a
+// centred column of these widths; timelines and grids (Gantt, List) keep the
+// full width because their content really is that wide. Below the cap the
+// column is simply 100%, so phones and tablets are unchanged.
+export const ContentWidth = {
+  /** Stacked cards and single-column lists (Today, Lookahead, Board rows, a dashboard). */
+  reading: 1040,
+  /** Side-by-side columns that each need a card's width (a kanban board). */
+  board: 1280,
+} as const;
+
 // Tokens — a barrel export for callers who want one symbol.
 export const Tokens = {
   spacing: Spacing,
@@ -217,6 +237,7 @@ export const Tokens = {
   motion: Motion,
   touchTarget: TouchTarget,
   iconSize: IconSize,
+  contentWidth: ContentWidth,
   continuousCorners,
 } as const;
 

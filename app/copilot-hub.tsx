@@ -8,23 +8,24 @@
 // button. Built on the §3.7 design tokens (ink/cream ground, MAGE-orange accent,
 // amber = the "your data" signal, Fraunces for the ask, JetBrains-Mono labels).
 import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
   X, ClipboardList, CalendarDays, Receipt, Repeat, MessageSquare,
   FileText, CheckSquare, Wallet, ShieldAlert, ShieldCheck, HardHat, FolderPlus,
-  ClipboardCheck, UserPlus, Stamp, AlertTriangle, ChevronRight, ClipboardPaste,
+  ClipboardCheck, UserPlus, Stamp, AlertTriangle, ChevronRight, ClipboardPaste, CalendarClock,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { INTENTS } from '@/utils/copilot/intentTable';
+import { INTENTS, routeScheduleRequest, scheduleEditHref, scheduleViewHref, SCHEDULE_EDIT_INTENT, hubScheduleNav, MODAL_DISMISS_DELAY_MS, type ScheduleRoute } from '@/utils/copilot/intentTable';
+import { pickableProjects } from '@/utils/copilot/projectScope';
 import { splitIntents, type SplitAction } from '@/utils/copilot/splitIntents';
-import { hubOutcome, showAskMage, tileSeed, NO_MATCH_COPY, type HubOutcome } from '@/utils/copilot/hubRouting';
+import { hubOutcome, showAskMage, tileSeed, NO_MATCH_COPY, SCHEDULE_CARD_LAST_COPY, type HubOutcome } from '@/utils/copilot/hubRouting';
 import { useProjects } from '@/contexts/ProjectContext';
 import { isQuestionShaped } from '@/utils/oneMind/resolveScope';
 import { MageAIMark } from '@/components/icons';
@@ -71,12 +72,50 @@ export default function CopilotHubScreen() {
   const { projects } = useProjects();
   const forJob = projectId ? projects.find((p) => p.id === projectId)?.name : undefined;
 
+  // A schedule request on a job whose schedule is already running asked for
+  // the job to be named (several running schedules, none named here).
+  const [schedulePick, setSchedulePick] = useState<Extract<ScheduleRoute, { kind: 'pick' }> | null>(null);
+
+  /** Go where a schedule route says. EDIT opens the editor on the Schedule tab,
+   *  seeded with his words; VIEW (a question about the plan) opens the
+   *  schedule itself; BUILD is the builder the hub always opened. */
+  const goSchedule = useCallback((r: ScheduleRoute, how: 'push' | 'replace') => {
+    // On iPhone the hub is a native modal: an edit/view arrival dismisses it
+    // first, then navigates, or the Schedule tab (and its editor) opens
+    // hidden UNDER this sheet (hubScheduleNav explains the iOS mechanics).
+    const nav = (href: never) => {
+      const mode = hubScheduleNav({ kind: r.kind, how, platform: Platform.OS, canGoBack: router.canGoBack() });
+      if (mode === 'dismiss-then-push') {
+        router.back();
+        setTimeout(() => router.push(href), MODAL_DISMISS_DELAY_MS(Platform.OS));
+      } else if (mode === 'replace') router.replace(href);
+      else router.push(href);
+    };
+    if (r.kind === 'edit') { setSchedulePick(null); nav(scheduleEditHref(r.projectId, r.seed) as never); return; }
+    if (r.kind === 'view') { setSchedulePick(null); nav(scheduleViewHref(r.projectId) as never); return; }
+    if (r.kind === 'pick') { setSchedulePick(r); return; }
+    setSchedulePick(null);
+    nav({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: r.projectId, ...(r.seed ? { seed: r.seed } : {}) } } as never);
+  }, [router]);
+
+  /** The schedule split (utils/copilot/intentTable.routeScheduleRequest):
+   *  on a job that already HAS tasks, "add three tasks after rough-in" is a
+   *  change to the running plan — the editor, which previews the ripple — not
+   *  a rebuild from the estimate whose Accept replaces the plan. With no job
+   *  named, closed jobs are never offered. */
+  const scheduleRoute = useCallback((seed: string | undefined): ScheduleRoute => routeScheduleRequest({
+    text: seed,
+    projectId: projectId ?? '',
+    projects: projectId ? projects : pickableProjects(projects),
+  }), [projectId, projects]);
+
   const open = useCallback((capabilityId: CopilotCapabilityId, seed?: string) => {
+    if (capabilityId === 'schedule') { goSchedule(scheduleRoute(seed), 'push'); return; }
     router.push({
       pathname: '/copilot',
       params: { capabilityId, projectId: projectId ?? '', ...(seed ? { seed } : {}) },
     } as never);
-  }, [router, projectId]);
+  }, [router, projectId, goSchedule, scheduleRoute]);
 
   /**
    * Pull an email (or any prose) straight off the clipboard into the router.
@@ -102,6 +141,7 @@ export default function CopilotHubScreen() {
       setText(clip);
       setOutcome(null);
       setQueue([]);
+      setSchedulePick(null);
     } catch {
       showAlert('Could not read the clipboard', 'Paste the text into the box instead.');
     } finally {
@@ -115,13 +155,15 @@ export default function CopilotHubScreen() {
     setThinking(true);
     setOutcome(null);
     setQueue([]);
+    setSchedulePick(null);
     const res = await splitIntents(utterance);
     setThinking(false);
-    const o = hubOutcome(res);
-    if (o.kind === 'route') router.replace({ pathname: '/copilot', params: { capabilityId: o.action.capabilityId, projectId: projectId ?? '', seed: o.action.text } } as never);
+    const o = hubOutcome(res, utterance);
+    if (o.kind === 'route' && o.action.capabilityId === 'schedule') goSchedule(scheduleRoute(o.action.text), 'replace');
+    else if (o.kind === 'route') router.replace({ pathname: '/copilot', params: { capabilityId: o.action.capabilityId, projectId: projectId ?? '', seed: o.action.text } } as never);
     else if (o.kind === 'queue') setQueue(o.actions);
     else setOutcome(o);
-  }, [text, thinking, projectId, router]);
+  }, [text, thinking, projectId, router, goSchedule, scheduleRoute]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -159,7 +201,7 @@ export default function CopilotHubScreen() {
         <TextInput
           style={styles.input}
           value={text}
-          onChangeText={(t) => { setText(t); setOutcome(null); }}
+          onChangeText={(t) => { setText(t); setOutcome(null); setSchedulePick(null); }}
           placeholder="Say it in your own words…"
           placeholderTextColor={colors.textMuted}
           multiline
@@ -201,11 +243,39 @@ export default function CopilotHubScreen() {
           </TouchableOpacity>
         )}
 
+        {schedulePick && (
+          // Several jobs have a running schedule and none was named. The
+          // change is for ONE of them — ask, rather than guess a job and
+          // preview edits against the wrong plan.
+          <View style={styles.queueWrap} testID="copilot-hub-schedule-pick">
+            <Text style={styles.queueLabel}>WHICH JOB’S SCHEDULE?</Text>
+            {schedulePick.candidates.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                style={styles.card}
+                onPress={() => goSchedule(schedulePick.then === 'view' ? { kind: 'view', projectId: c.id } : { kind: 'edit', projectId: c.id, seed: schedulePick.seed }, 'push')}
+                activeOpacity={0.85}
+                testID={`copilot-hub-schedule-pick-${c.id}`}
+              >
+                <View style={styles.cardIcon}><CalendarClock size={18} color={colors.accent} strokeWidth={2} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardLabel} numberOfLines={1}>{c.name}</Text>
+                  <Text style={styles.queueSub} numberOfLines={1}>{schedulePick.then === 'view' ? 'Open this schedule' : `${SCHEDULE_EDIT_INTENT.label} — you review the change before it sticks`}</Text>
+                </View>
+                <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {queue.length > 1 && (
           <View style={styles.queueWrap}>
             <Text style={styles.queueLabel}>I HEARD {queue.length} THINGS — TAP TO HANDLE EACH</Text>
             {queue.map((a, i) => {
               const Icon = ICONS[a.capabilityId] ?? ClipboardList;
+              // hubOutcome lists schedule cards last; one that opens the
+              // Schedule tab leaves the hub (and this queue) behind — say so.
+              const leavesHub = a.capabilityId === 'schedule' && ['edit', 'view'].includes(scheduleRoute(a.text).kind);
               return (
                 <TouchableOpacity
                   key={i}
@@ -218,6 +288,7 @@ export default function CopilotHubScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardLabel}>{INTENTS.find((x) => x.id === a.capabilityId)?.label ?? a.capabilityId}</Text>
                     <Text style={styles.queueSub} numberOfLines={1}>{a.label}</Text>
+                    {leavesHub && <Text style={styles.queueSub} numberOfLines={1} testID="copilot-hub-queue-schedule-last">{SCHEDULE_CARD_LAST_COPY}</Text>}
                   </View>
                   <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
                 </TouchableOpacity>
@@ -257,7 +328,10 @@ function makeStyles(colors: ThemeColors) {
     root: { flex: 1, backgroundColor: colors.bg },
     topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm },
     brand: { ...Type.monoEyebrow, color: colors.textSecondary },
-    body: { paddingHorizontal: Tokens.spacing.lg, paddingBottom: Tokens.spacing['3xl'], gap: Tokens.spacing.sm },
+    // Capped and centred: on the web the hub's cards ran the full width of a
+    // desktop window — one-line rows stretched to 1400px (the founder's
+    // "boxes so stretched out"). Under 720pt (every phone) nothing changes.
+    body: { paddingHorizontal: Tokens.spacing.lg, paddingBottom: Tokens.spacing['3xl'], gap: Tokens.spacing.sm, width: '100%', maxWidth: 720, alignSelf: 'center' },
     eyebrow: { ...Type.monoLabel, color: colors.accent },
     question: { ...Type.serifHeadline, color: colors.text },
     hint: { ...Type.monoLabel, color: colors.textMuted, marginBottom: Tokens.spacing.sm },

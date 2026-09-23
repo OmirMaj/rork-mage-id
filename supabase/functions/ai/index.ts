@@ -39,6 +39,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
+import { inferSchema, hintHasMultiShapeArray } from "../_shared/inferSchema.ts";
 
 const GK = Deno.env.get("GEMINI_API_KEY") || "";
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
@@ -59,26 +60,9 @@ function jsonResp(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...H, "Content-Type": "application/json" } });
 }
 
-// Derive a JSON Schema from a plain JS example object. Gemini uses this for
-// constrained decoding — guarantees structurally valid JSON output.
-function inferSchema(val: unknown): Record<string, unknown> {
-  if (val === null || val === undefined) return { type: "string" };
-  if (Array.isArray(val)) {
-    return { type: "array", items: val.length > 0 ? inferSchema(val[0]) : { type: "string" } };
-  }
-  if (typeof val === "object") {
-    const properties: Record<string, unknown> = {};
-    const required: string[] = [];
-    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      properties[k] = inferSchema(v);
-      required.push(k);
-    }
-    return { type: "object", properties, required };
-  }
-  if (typeof val === "number") return { type: "number" };
-  if (typeof val === "boolean") return { type: "boolean" };
-  return { type: "string" };
-}
+// The schemaHint → responseSchema rule lives in _shared/inferSchema.ts (pure,
+// no Deno imports) so the validators run the exact function Gemini's schema
+// comes from. See that file for the multi-shape array rule.
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: H });
@@ -284,6 +268,13 @@ serve(async (req) => {
     let userMsg = prompt;
     if (jsonMode && schemaHint) {
       userMsg += "\n\nMatch this exact JSON structure (values shown are examples only, generate realistic data for the request):\n" + JSON.stringify(schemaHint, null, 2);
+      // A hint that lists several example items in one array is showing the
+      // alternative item SHAPES (inferSchema unions them). Say so, or the model
+      // copies every example. Added ONLY for such hints, so every other
+      // feature's prompt is byte-identical to before.
+      if (hintHasMultiShapeArray(schemaHint)) {
+        userMsg += "\n\nWhere an array shows several example items, those are the alternative item shapes. Include only the items this request actually needs, each with only the fields its shape uses.";
+      }
     }
 
     const genConfig: Record<string, unknown> = {
@@ -348,7 +339,11 @@ serve(async (req) => {
     const data = await r.json();
     const candidate = data.candidates?.[0];
     const finishReason = candidate?.finishReason || "UNKNOWN";
-    const raw = candidate?.content?.parts?.[0]?.text || "";
+    // Join every non-thought text part. Reading parts[0] alone dropped the rest
+    // of an answer the model split across parts (and, with thinking on, read
+    // the thought summary instead of the answer).
+    const parts: { text?: unknown; thought?: unknown }[] = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+    const raw = parts.filter(p => p && p.thought !== true && typeof p.text === "string").map(p => p.text as string).join("");
     const usage = data.usageMetadata || {};
 
     if (!raw) {

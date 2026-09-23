@@ -1,6 +1,7 @@
 // scripts/validate-copilot-estimate-edit.ts — pure-fn validator for the
 // estimate edit-op normalizer, the money-math recompute, and the interpreter.
 import { normalizeEstimateOps, recomputeEstimate, applyGlobalMarkupToItems } from '../utils/copilot/estimateEdit/estimateOps';
+import { readFileSync as readSrc } from 'node:fs';
 import { interpretEstimateOps } from '../utils/copilot/estimateEdit/interpretEstimateOps';
 import type { LinkedEstimate, LinkedEstimateItem } from '../types';
 
@@ -175,6 +176,46 @@ ok('partial application: valid applies, invalid reported', (() => {
   ], base());
   return nextEstimate.items.find(i => i.materialId === 'm1')!.quantity === 50 && results[0].ok && !results[1].ok;
 })());
+
+console.log('\nTHE COMPLETE-DRAFT RULE: a follow-up answer replaces the estimate draft (integration round 6)');
+{
+  // The estimate editor follows the schedule editor's rule: every turn the
+  // model returns the COMPLETE list and mergeDraft adopts it. The key-matching
+  // merge it replaced had to guess "correction or another line".
+  type OnLoadResult = { contents: string; loader: 'ts' };
+  type BunPluginBuilder = { onLoad: (opts: { filter: RegExp }, cb: () => OnLoadResult) => void };
+  const B = (globalThis as { Bun?: { plugin: (p: { name: string; setup: (build: BunPluginBuilder) => void }) => void } }).Bun;
+  if (!B) { console.error('validate-copilot-estimate-edit must run under bun (needs Bun.plugin)'); process.exit(1); }
+  B.plugin({
+    name: 'stub-estimate-diff-view',
+    setup(build) {
+      build.onLoad({ filter: /components\/copilot\/EstimateDiffView\.tsx$/ }, () => ({ contents: 'export default function View() { return null; }', loader: 'ts' }));
+    },
+  });
+  const { estimateEditCapability: cap } = await import('../utils/copilot/estimateEdit/estimateEditCapability');
+  const turn = (draft: { ops: any[] }, answer: unknown[], said: string) => cap.mergeDraft(draft as never, { ops: answer }, { transcript: said, asking: null }) as { ops: any[] };
+  const same = (d: { ops: any[] }, answer: unknown[]) => JSON.stringify(d.ops) === JSON.stringify(normalizeEstimateOps(answer));
+  const prompt = cap.buildTurnPrompt({ transcript: 'x', draft: { ops: [] }, grounding: { facts: [], data: { itemList: [] } } as never, asking: null }).prompt;
+  ok('the prompt asks for the COMPLETE list (it REPLACES the draft), not "only NEW ops"',
+    /Return the COMPLETE list of ops for EVERYTHING they have asked for so far/.test(prompt) && /REPLACES the draft/.test(prompt) && !/only NEW ops/i.test(prompt));
+
+  const paint = { op: 'addLine', name: 'Paint primer', category: 'Finishes', unit: 'gal', quantity: 5, unitPrice: 40 };
+  const t1 = turn({ ops: [] }, [paint], 'add 5 gallons of paint primer at $40');
+  const a2 = [{ ...paint, quantity: 6 }, { op: 'setQuantity', item: 'm1', quantity: 50 }];
+  const t2 = turn(t1, a2, 'add 5 gallons of paint primer at $40 | make it 6 gallons, and also cut the tile to 50');
+  ok('a correction with "also" → the draft IS the answer (2 ops, the primer at 6)', same(t2, a2) && t2.ops.length === 2 && t2.ops[0].quantity === 6);
+  const a3 = [paint, { ...paint, name: 'Paint primer', quantity: 2 }];
+  const t3 = turn(t1, a3, 'add 5 gallons of paint primer at $40 | and a second primer line, 2 gallons, for the garage');
+  ok('"a second primer line" → both lines kept (2 ops)', same(t3, a3) && t3.ops.length === 2);
+  const t4 = turn(t2, [{ op: 'setQuantity', item: 'm1', quantity: 50 }], 'add 5 gallons of paint primer at $40 | make it 6 gallons, and also cut the tile to 50 | forget the primer');
+  ok('"forget the primer" → the line is gone (1 op)', t4.ops.length === 1 && t4.ops[0].op === 'setQuantity');
+  const mk1 = turn({ ops: [] }, [{ op: 'setGlobalMarkup', markupPct: 15 }], 'bump the markup to 15%');
+  const mk2 = turn(mk1, [{ op: 'setGlobalMarkup', markupPct: 15 }, paint], 'bump the markup to 15% | also add paint primer');
+  ok('a queued markup re-sent on a later turn with no markup words is KEPT', same(mk2, [{ op: 'setGlobalMarkup', markupPct: 15 }, paint]) && mk2.ops.length === 2);
+  const echo = turn({ ops: [] }, [{ op: 'setGlobalMarkup', markupPct: 20 }, paint], 'add paint primer');
+  ok('…while an unrequested markup (the echoed example) is still refused', echo.ops.length === 1 && echo.ops[0].op === 'addLine');
+  ok('an answer with no ops array keeps what is queued', cap.mergeDraft(t1 as never, {}, { transcript: 'x | y', asking: null }) === (t1 as never));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

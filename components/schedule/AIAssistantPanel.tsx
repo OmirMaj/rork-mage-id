@@ -44,6 +44,7 @@ import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { isAddTaskRequest, editorSeedFor } from '@/utils/copilot/scheduleEdit/addIntent';
 import {
   aiDetectRisks,
   aiOptimizeSchedule,
@@ -85,6 +86,11 @@ export interface AIAssistantPanelProps {
    *  estimate" — a cost-linked schedule whose earned value / cash flow
    *  populate immediately. */
   linkedEstimate?: LinkedEstimate | null;
+  /** Hand a request to ADD tasks to the schedule editor (ScheduleEditPanel),
+   *  seeded with his words + the selected rows. This drawer can only edit the
+   *  rows it is shown; answering an add here reported "1 change(s) proposed"
+   *  for the selected row and added nothing. */
+  onHandOffToEditor?: (seed: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +107,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const {
     visible, onClose, tasks, cpm, projectStartDate, todayDayNumber,
     onApplyPatch, onApplyBulkPatches, onReplaceAll, onFocusTasks, selectedIds,
-    linkedEstimate,
+    linkedEstimate, onHandOffToEditor,
   } = props;
   const [mode, setMode] = useState<Mode>('home');
   const [busy, setBusy] = useState(false);
@@ -160,6 +166,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     return tasks.filter(t => selectedIds.has(t.id)).map(t => t.title);
   }, [tasks, selectedIds]);
 
+  // An "add tasks" request typed into Ask / Bulk / As-built goes to the editor
+  // that can add tasks — no AI call is spent here. Returns true when handed off.
+  const handOffIfAdd = useCallback((text: string): boolean => {
+    if (!onHandOffToEditor || !isAddTaskRequest(text)) return false;
+    onHandOffToEditor(editorSeedFor(text, selectedTaskTitles));
+    return true;
+  }, [onHandOffToEditor, selectedTaskTitles]);
+
   // Meter every user-initiated copilot AI call under the 'scheduleCopilot'
   // feature key. Free tier gets 3 lifetime trials across the whole panel;
   // paid tiers fall under the smart daily quota. Mirrors the standard
@@ -179,6 +193,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const handleBulkEdit = useCallback(() => {
     if (!bulkDraft.trim() || !selectedIds || selectedIds.size === 0) return;
     const instruction = bulkDraft.trim();
+    if (handOffIfAdd(instruction)) { setBulkDraft(''); return; }
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiBulkEdit(tasks, cpm, Array.from(selectedIds), instruction);
@@ -211,7 +226,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     });
   // run is intentionally omitted (declared below); it is a stable useCallback.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bulkDraft, selectedIds, tasks, cpm, gateCopilot]);
+  }, [bulkDraft, selectedIds, tasks, cpm, gateCopilot, handOffIfAdd]);
 
   const handleBulkApplyAll = useCallback(() => {
     if (!bulkResult) return;
@@ -224,13 +239,17 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     setBulkDraft('');
   }, [bulkResult, onApplyBulkPatches, onApplyPatch]);
 
-  const handleBulkApplyOne = useCallback((p: AIBulkPatch) => {
+  // Rows are keyed + removed by INDEX: aiBulkEdit merges one patch per task,
+  // and a tick clears exactly the row it applied.
+  const handleBulkApplyOne = useCallback((index: number) => {
+    const p = bulkResult?.patches[index];
+    if (!p) return;
     onApplyPatch(p.taskId, p.patch);
     setBulkResult(prev => prev ? {
       ...prev,
-      patches: prev.patches.filter(x => x.taskId !== p.taskId),
+      patches: prev.patches.filter((_, i) => i !== index),
     } : prev);
-  }, [onApplyPatch]);
+  }, [bulkResult, onApplyPatch]);
 
   const resetAll = useCallback(() => {
     setMode('home');
@@ -297,6 +316,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const handleAsk = useCallback(() => {
     if (!chatDraft.trim()) return;
     const question = chatDraft.trim();
+    if (handOffIfAdd(question)) { setChatDraft(''); return; }
     run(async () => {
       if (!(await gateCopilot())) return;
       setChatDraft('');
@@ -308,10 +328,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [chatDraft, tasks, cpm, projectStartDate, run, gateCopilot]);
+  }, [chatDraft, tasks, cpm, projectStartDate, run, gateCopilot, handOffIfAdd]);
 
   const handleAsBuiltParse = useCallback(() => {
     if (!asBuiltDraft.trim()) return;
+    if (handOffIfAdd(asBuiltDraft.trim())) { setAsBuiltDraft(''); return; }
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiLogAsBuilt(tasks, asBuiltDraft.trim(), todayDayNumber);
@@ -321,12 +342,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [asBuiltDraft, tasks, todayDayNumber, run, gateCopilot]);
+  }, [asBuiltDraft, tasks, todayDayNumber, run, gateCopilot, handOffIfAdd]);
 
-  const handleAsBuiltApply = useCallback((p: AIAsBuiltPatch) => {
+  const handleAsBuiltApply = useCallback((index: number) => {
+    const p = asBuiltPatches[index];
+    if (!p) return;
     onApplyPatch(p.taskId, p.patch);
-    setAsBuiltPatches(prev => prev.filter(x => x.taskId !== p.taskId));
-  }, [onApplyPatch]);
+    setAsBuiltPatches(prev => prev.filter((_, i) => i !== index));
+  }, [asBuiltPatches, onApplyPatch]);
 
   const handleAsBuiltApplyAll = useCallback(() => {
     for (const p of asBuiltPatches) onApplyPatch(p.taskId, p.patch);
@@ -336,6 +359,10 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
 
   const handleGenerate = useCallback(() => {
     if (!genDraft.trim()) return;
+    // Generate REPLACES the plan. "Add three tasks…" typed here on a job that
+    // already has tasks is an edit — hand it to the editor, which adds them,
+    // instead of offering to swap the whole schedule for three rows.
+    if (tasks.length > 0 && handOffIfAdd(genDraft.trim())) { setGenDraft(''); return; }
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiGenerateSchedule(genDraft.trim(), paceInfo.facts);
@@ -346,7 +373,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [genDraft, run, gateCopilot, paceInfo.facts]);
+  }, [genDraft, run, gateCopilot, paceInfo.facts, tasks.length, handOffIfAdd]);
 
   // One-tap, estimate-grounded generation. Tasks come back cost-linked, so the
   // earned-value and cash-flow panels populate the moment the plan is applied.
@@ -539,20 +566,20 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               {asBuiltPatches.length > 0 && (
                 <View style={styles.card}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>{asBuiltPatches.length} update(s) proposed</Text>
+                    <Text style={styles.cardTitle}>{asBuiltPatches.length} task{asBuiltPatches.length === 1 ? '' : 's'} to update</Text>
                     <TouchableOpacity style={styles.applyAllBtn} onPress={handleAsBuiltApplyAll}>
                       <Check size={12} color="#fff" strokeWidth={1.75} />
                       <Text style={styles.applyAllBtnText}>Apply all</Text>
                     </TouchableOpacity>
                   </View>
-                  {asBuiltPatches.map(p => (
-                    <View key={p.taskId} style={styles.patchRow}>
+                  {asBuiltPatches.map((p, i) => (
+                    <View key={`${i}-${p.taskId}`} style={styles.patchRow}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.patchTitle}>{p.taskTitle}</Text>
                         <Text style={styles.patchDetail}>{describePatch(p.patch)}</Text>
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
-                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleAsBuiltApply(p)} accessibilityRole="button" accessibilityLabel="Confirm">
+                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleAsBuiltApply(i)} accessibilityRole="button" accessibilityLabel="Confirm">
                         <Check size={12} color={themeColors.accent} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
@@ -578,13 +605,16 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     "Compress each of these by 20%"{'\n'}
                     "Move them all out by one week"{'\n'}
                     "Reassign to the Finish Carp crew"
+                    {onHandOffToEditor ? '\n\nTo add new tasks, just say so ("Add a drywall inspection after these") and the schedule editor opens with it.' : ''}
                   </Text>
                 </View>
               )}
               {bulkResult && (
                 <View style={styles.card}>
                   <View style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { flex: 1 }]}>{bulkResult.patches.length} change(s) proposed</Text>
+                    <Text style={[styles.cardTitle, { flex: 1 }]} testID="ai-bulk-count">
+                      {bulkResult.patches.length} task{bulkResult.patches.length === 1 ? '' : 's'} to change
+                    </Text>
                     {bulkResult.fromCache && (
                       <View style={styles.cachedPill}>
                         <Text style={styles.cachedPillText}>cached</Text>
@@ -608,14 +638,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   {bulkResult.summary ? (
                     <Text style={styles.cardBody}>{bulkResult.summary}</Text>
                   ) : null}
-                  {bulkResult.patches.map(p => (
-                    <View key={p.taskId} style={styles.patchRow}>
+                  {bulkResult.patches.map((p, i) => (
+                    <View key={`${i}-${p.taskId}`} style={styles.patchRow}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.patchTitle}>{p.taskTitle}</Text>
                         <Text style={styles.patchDetail}>{describePatch(p.patch)}</Text>
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
-                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleBulkApplyOne(p)} accessibilityRole="button" accessibilityLabel="Confirm">
+                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleBulkApplyOne(i)} accessibilityRole="button" accessibilityLabel="Confirm">
                         <Check size={12} color={themeColors.accent} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
@@ -695,7 +725,10 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.primaryBtn} onPress={handleGenerateApply}>
                       <Check size={12} color="#fff" strokeWidth={1.75} />
-                      <Text style={styles.primaryBtnText}>Apply to project</Text>
+                      {/* Apply REPLACES the plan — say so where he taps. */}
+                      <Text style={styles.primaryBtnText} testID="ai-generate-apply-label">
+                        {tasks.length > 0 ? `Replace ${tasks.length} task${tasks.length === 1 ? '' : 's'} with ${genPreview.length}` : 'Apply to project'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -927,6 +960,11 @@ function describePatch(patch: Partial<ScheduleTask>): string {
   const bits: string[] = [];
   if (patch.progress != null) bits.push(`${patch.progress}% progress`);
   if (patch.status) bits.push(patch.status.replace('_', ' '));
+  // Bulk edits carry these; the row used to read just "update".
+  if (patch.startDay != null) bits.push(`start day ${patch.startDay}`);
+  if (patch.durationDays != null) bits.push(`${patch.durationDays}d`);
+  if (patch.crew) bits.push(`crew ${patch.crew}`);
+  if (patch.phase) bits.push(`phase ${patch.phase}`);
   // actualStartDay/actualEndDay are CALENDAR indices (day 1 = the schedule's
   // start date, weekends counted — #50), not the working-day numbers the grid
   // shows as "Day N", so the preview says which scale it is. No date is printed:

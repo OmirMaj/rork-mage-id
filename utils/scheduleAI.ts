@@ -18,6 +18,10 @@ import { createId } from '@/utils/scheduleEngine';
 import { paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { stableHash } from '@/utils/stableHash';
 
+// Every call here is the Schedule Pro AI drawer, which gates its quota on
+// 'scheduleCopilot'. Untagged, the relay counted them as 'general'.
+const SCHEDULE_AI_FEATURE = 'scheduleCopilot';
+
 // ---------------------------------------------------------------------------
 // Serializer — turns the schedule into a string Gemini can read cheaply.
 // ---------------------------------------------------------------------------
@@ -113,6 +117,7 @@ Return up to 6 findings, most important first.`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     schemaHint,
     tier: 'smart',
     maxTokens: 1200,
@@ -200,6 +205,7 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     schemaHint,
     tier: 'smart',
     maxTokens: 1200,
@@ -274,6 +280,7 @@ Project finish: day ${cpm.projectFinish}`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     tier: 'fast',
     maxTokens: 600,
     cacheKey: `explain-cp-v2-${cpm.criticalPath.join('-')}-${cpm.projectFinish}`,
@@ -325,6 +332,7 @@ ${serialized}`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     tier: 'smart',
     maxTokens: 400,
     cacheKey: `delay-${taskId}-${daysDelay}-${cpm.projectFinish}`,
@@ -359,6 +367,7 @@ Question: ${question}`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     tier: 'smart',
     maxTokens: 500,
     // No cache — conversational answers shouldn't be reused
@@ -414,6 +423,7 @@ ${simplified}`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     schemaHint,
     tier: 'fast',
     maxTokens: 600,
@@ -452,7 +462,11 @@ ${simplified}`;
       patch.status = 'done';
       patch.progress = 100;
     }
-    patches.push({ taskId: id, taskTitle: t.title, patch, rationale: u.rationale || '' });
+    // One row per task: two updates for the same task merge, so the count,
+    // Apply all and each tick all mean the same set of rows.
+    const existing = patches.find(p => p.taskId === id);
+    if (existing) existing.patch = { ...existing.patch, ...patch };
+    else patches.push({ taskId: id, taskTitle: t.title, patch, rationale: u.rationale || '' });
   }
   return { ok: true, patches, summary: raw.summary || `${patches.length} update(s) parsed`, cached: res.cached };
 }
@@ -522,6 +536,7 @@ ${description}`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     schemaHint,
     tier: 'smart',
     maxTokens: 3000,
@@ -629,6 +644,7 @@ ${itemLines}`;
   const paceFactsList = params.paceFacts ?? [];
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     schemaHint,
     tier: 'smart',
     maxTokens: 4000,
@@ -727,6 +743,88 @@ export interface AIBulkPatch {
   rationale: string;
 }
 
+/** Multi-example hint. The FIRST example is the full one this replaced, so a
+ *  relay that has not been redeployed (it reads val[0] only) infers exactly
+ *  today's schema. With the union rule (supabase/functions/_shared/
+ *  inferSchema.ts) only `alias` is in every example, so it is the only
+ *  required field.
+ *  The old one-example hint made EVERY field required: to change a duration
+ *  the model still had to send crew and phase, filled them with '', and Apply
+ *  wrote blank crew/phase over real values. Aliases are placeholders so an
+ *  echoed example can't resolve to a real row. */
+export const BULK_EDIT_SCHEMA_HINT = {
+  summary: 'one-line description of what you are doing',
+  updates: [
+    {
+      alias: '<alias>',
+      durationDays: 4,
+      startDay: 12,
+      crew: 'Finish Carp',
+      phase: 'Finishes',
+      progressPercent: 50,
+      rationale: 'user asked to compress by 20% and reassign crew',
+    },
+    // Single-field updates: with these, `alias` is the only key every example
+    // shares, so it is the only one the decoder is forced to fill.
+    { alias: '<alias>', startDay: 20 },
+    { alias: '<alias>', crew: 'Framing' },
+  ],
+};
+
+type RawBulkUpdate = {
+  alias?: string;
+  durationDays?: number;
+  startDay?: number;
+  crew?: string;
+  phase?: string;
+  progressPercent?: number;
+  rationale?: string;
+};
+
+/** Fold the model's updates into ONE patch per task, in first-seen order. The
+ *  model may send one update per field; listing those as separate rows read
+ *  "3 change(s) proposed" for one task, Apply all kept only one of them, and a
+ *  single tick cleared all three. Blank crew/phase and values equal to the row's
+ *  current value are ignored — they change nothing. Pure (exported for the
+ *  validator). */
+export function mergeBulkUpdates(
+  tasks: ScheduleTask[],
+  updates: RawBulkUpdate[],
+  byAlias: Map<string, string>,
+  selSet: Set<string>,
+): AIBulkPatch[] {
+  const out: AIBulkPatch[] = [];
+  for (const u of updates) {
+    const id = u.alias ? byAlias.get(u.alias) : undefined;
+    if (!id) continue;
+    if (!selSet.has(id)) continue; // model tried to edit outside selection — drop
+    const t = tasks.find(x => x.id === id);
+    if (!t) continue;
+    const patch: Partial<ScheduleTask> = {};
+    if (typeof u.durationDays === 'number' && u.durationDays >= 0 && Math.round(u.durationDays) !== t.durationDays) {
+      patch.durationDays = Math.round(u.durationDays);
+    }
+    if (typeof u.startDay === 'number' && u.startDay >= 1 && Math.round(u.startDay) !== t.startDay) {
+      patch.startDay = Math.round(u.startDay);
+    }
+    if (typeof u.crew === 'string' && u.crew.trim() !== '' && u.crew.trim() !== t.crew) patch.crew = u.crew.trim();
+    if (typeof u.phase === 'string' && u.phase.trim() !== '' && u.phase.trim() !== t.phase) patch.phase = u.phase.trim();
+    if (typeof u.progressPercent === 'number') {
+      const pct = Math.max(0, Math.min(100, Math.round(u.progressPercent)));
+      if (pct !== t.progress) patch.progress = pct;
+    }
+    if (Object.keys(patch).length === 0) continue;
+    const existing = out.find(p => p.taskId === id);
+    if (existing) {
+      existing.patch = { ...existing.patch, ...patch };
+      if (u.rationale && !existing.rationale) existing.rationale = u.rationale;
+    } else {
+      out.push({ taskId: id, taskTitle: t.title, patch, rationale: u.rationale ?? '' });
+    }
+  }
+  return out;
+}
+
 export async function aiBulkEdit(
   tasks: ScheduleTask[],
   cpm: CpmResult,
@@ -760,20 +858,7 @@ export async function aiBulkEdit(
     return `${alias}: ${t.title} | start=${t.startDay} | dur=${t.durationDays}d | crew=${t.crew || '-'} | phase=${t.phase}`;
   }).join('\n');
 
-  const schemaHint = {
-    summary: 'one-line description of what you are doing',
-    updates: [
-      {
-        alias: 'T3',
-        durationDays: 4,
-        startDay: 12,
-        crew: 'Finish Carp',
-        phase: 'Finishes',
-        progressPercent: 50,
-        rationale: 'user asked to compress by 20% and reassign crew',
-      },
-    ],
-  };
+  const schemaHint = BULK_EDIT_SCHEMA_HINT;
 
   const prompt = `You are editing a construction schedule on behalf of the PM.
 ONLY modify these selected tasks (cite them by alias — do not invent new ones):
@@ -789,12 +874,17 @@ Rules:
   only shows actual deltas).
 - Keep durations >= 0.
 - Keep startDay >= 1.
-- Never add or remove tasks — only edit the listed ones.
+- Never add or remove tasks — only edit the listed ones. If the instruction
+  asks to ADD or CREATE tasks, return updates: [] and say in summary that
+  new tasks are added from "Tell me what to change".
+- One update per field you change is fine — only include the fields you
+  are actually changing for that task.
 - If the instruction is ambiguous or unsafe, return updates: [] and explain
   in summary.`;
 
   const res = await mageAI({
     prompt,
+    feature: SCHEDULE_AI_FEATURE,
     schemaHint,
     tier: 'smart',
     maxTokens: 900,
@@ -824,33 +914,7 @@ Rules:
     }[];
   };
 
-  const patches: AIBulkPatch[] = [];
-  for (const u of raw.updates ?? []) {
-    const id = u.alias ? byAlias.get(u.alias) : undefined;
-    if (!id) continue;
-    if (!selSet.has(id)) continue; // model tried to edit outside selection — drop
-    const t = tasks.find(x => x.id === id);
-    if (!t) continue;
-    const patch: Partial<ScheduleTask> = {};
-    if (typeof u.durationDays === 'number' && u.durationDays >= 0 && u.durationDays !== t.durationDays) {
-      patch.durationDays = Math.round(u.durationDays);
-    }
-    if (typeof u.startDay === 'number' && u.startDay >= 1 && u.startDay !== t.startDay) {
-      patch.startDay = Math.round(u.startDay);
-    }
-    if (typeof u.crew === 'string' && u.crew !== t.crew) patch.crew = u.crew;
-    if (typeof u.phase === 'string' && u.phase !== t.phase) patch.phase = u.phase;
-    if (typeof u.progressPercent === 'number' && u.progressPercent !== t.progress) {
-      patch.progress = Math.max(0, Math.min(100, Math.round(u.progressPercent)));
-    }
-    if (Object.keys(patch).length === 0) continue;
-    patches.push({
-      taskId: id,
-      taskTitle: t.title,
-      patch,
-      rationale: u.rationale ?? '',
-    });
-  }
+  const patches = mergeBulkUpdates(tasks, raw.updates ?? [], byAlias, selSet);
 
   return {
     // A 'validation' partial is still a usable, token-spending success (some

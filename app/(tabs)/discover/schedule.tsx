@@ -66,8 +66,11 @@ export default function DiscoverScheduleTool() {
         break;
 
       case 'interview':
-        // AI guided interview → schedule-builder (no project context required;
-        // the builder picks or creates one inside).
+        // AI guided interview → schedule-builder. Discover has no job, so the
+        // builder's FIRST card is "Which job is this schedule for?" (or
+        // "Create a project first"). It used to run every question and an AI
+        // call, then end on "No project." (audit W6 A2) — pinned by
+        // scripts/validate-w6a-entry-points.ts.
         router.push({ pathname: '/schedule-builder' } as any);
         break;
 
@@ -211,7 +214,13 @@ export default function DiscoverScheduleTool() {
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   scrollContent: { flexGrow: 1 },
-  existingSection: { paddingHorizontal: 16, marginTop: 8 },
+  // The sidebar's Schedule entry lands HERE on the web. The on-ramp card above
+  // is a 520pt column, but these rows ran the full width of a desktop window —
+  // a one-line job name and "12 tasks · 40d" stretched across ~1400px, the
+  // founder's "boxes so stretched out". Same column as the on-ramp (520 + the
+  // 16pt gutters); every phone is narrower than the cap, so nothing changes
+  // there.
+  existingSection: { paddingHorizontal: 16, marginTop: 8, width: '100%', maxWidth: 552, alignSelf: 'center' },
   sectionTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,

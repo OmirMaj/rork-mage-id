@@ -6,10 +6,10 @@
 // schedule-review screen. Built on Colors/Type/Tokens; New-Arch-safe animation
 // (opacity + translateY only — never scaleXY).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Animated, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Animated, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
-import { X, CalendarDays, ChevronRight, Hammer, ArrowRight } from 'lucide-react-native';
+import { X, CalendarDays, ChevronRight, Hammer, ArrowRight, FolderPlus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -22,16 +22,25 @@ import { visibleQuestions, defaultAnswers, type ScheduleBuilderAnswers, type Que
 import { generateScheduleFromAnswers } from '@/utils/copilot/scheduleBuilder/generateScheduleFromAnswers';
 import { generateFollowups } from '@/utils/copilot/scheduleBuilder/followups';
 import { coerceFollowupAnswer } from '@/utils/copilot/scheduleBuilder/followupsValidator';
+import { pickableProjects } from '@/utils/copilot/projectScope';
 
 const SKIP = Symbol('skip');
 
-export default function ScheduleBuilderInterview({ projectId }: { projectId: string }) {
+export default function ScheduleBuilderInterview({ projectId: routeProjectId }: { projectId: string }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { getProject, updateProject, projects, getRFIsForProject, getDailyReportsForProject } = useProjects();
-  const project = useMemo(() => getProject(projectId) ?? null, [getProject, projectId]);
+  const { getProject, updateProject, projects, projectsLoaded, getRFIsForProject, getDailyReportsForProject } = useProjects();
+  // THE JOB COMES FIRST (audit W6 A2). Discover › Schedule's recommended
+  // "Answer a few quick questions" opens this screen with no projectId, and
+  // the whole interview ran — scope, size, dates, follow-ups, an AI call —
+  // before the last tap said "No project." The job is now picked (or created)
+  // before the first question, so nothing he answers is thrown away.
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const projectId = (routeProjectId && getProject(routeProjectId) ? routeProjectId : pickedId) ?? '';
+  const project = useMemo(() => (projectId ? getProject(projectId) ?? null : null), [getProject, projectId]);
+  const jobChoices = useMemo(() => pickableProjects(projects), [projects]);
 
   const staticQuestions = useMemo(() => visibleQuestions(project), [project]);
   // Dynamic follow-ups: 0-2 QuestionSpecs generated after the scope answer.
@@ -60,6 +69,13 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const resumeIdxRef = useRef<number | null>(null);
   const prefillEntryRef = useRef<string | null>(null);
   const q: QuestionSpec | undefined = questions[idx];
+  // The job can resolve AFTER the first render (picked here, or the projects
+  // list still loading when a projectId was passed). Its defaults are what a
+  // skipped question falls back to, so they follow the job.
+  useEffect(() => {
+    if (project) setAnswers(defaultAnswers(project));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
 
   useEffect(() => {
     setEntry(prefillEntryRef.current ?? '');
@@ -181,6 +197,81 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
     advance(q.kind === 'number' ? (Number(raw.replace(/[^0-9.]/g, '')) || SKIP) : raw);
   }, [q, entry, advance]);
 
+  if (!project) {
+    const stale = !!routeProjectId && projectsLoaded && !pickedId;
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]} testID="sb-job-picker">
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.topbar}>
+          <Text style={styles.brand}>AI&nbsp;SCHEDULE&nbsp;BUILDER</Text>
+          <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Close" hitSlop={10} testID="sb-close">
+            <X size={20} color={colors.textMuted} strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+        {/* Width-capped: on the web a full-bleed list of jobs stretches each
+            row across a 1400px screen (the founder's "boxes so stretched
+            out"). A picker reads as a column. */}
+        <ScrollView contentContainerStyle={[styles.card, styles.pickerColumn, { paddingBottom: insets.bottom + Tokens.spacing.xl }]}>
+          <Text style={styles.eyebrow}>FIRST, WHICH JOB?</Text>
+          <Text style={styles.question}>Which job is this schedule for?</Text>
+          <Text style={styles.subtext}>
+            {stale
+              ? 'That job isn’t on this device any more. Pick the job to schedule — the questions come next.'
+              : 'The questions are about this job, and the schedule is saved onto it.'}
+          </Text>
+          {!projectsLoaded && (jobChoices.length === 0 || !!routeProjectId) ? (
+            <ActivityIndicator color={colors.accent} />
+          ) : jobChoices.length === 0 ? (
+            <TouchableOpacity
+              style={[styles.choice, styles.choiceRec]}
+              onPress={() => router.replace({ pathname: '/copilot', params: { capabilityId: 'new_project' } } as never)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              testID="sb-job-create"
+            >
+              <FolderPlus size={20} color={colors.accent} strokeWidth={2} />
+              <Text style={styles.choiceText}>Create a project first</Text>
+              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.choices}>
+              {jobChoices.map((p) => {
+                const n = p.schedule?.tasks?.length ?? 0;
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.choice}
+                    onPress={() => {
+                      // Defaults and skip-rules are per job (size, deadline,
+                      // occupied) — start the interview fresh on the one picked.
+                      setPickedId(p.id);
+                      setAnswers(defaultAnswers(p));
+                      setDynamicFollowups([]);
+                      setIdx(0);
+                    }}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    testID={`sb-job-${p.id}`}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.choiceText} numberOfLines={1}>{p.name || 'Untitled job'}</Text>
+                      {/* A job with a running schedule is replaced only at
+                          review, which says what a replace loses — but he
+                          should know that before ten questions, not after. */}
+                      <Text style={styles.jobMeta} numberOfLines={1}>
+                        {n > 0 ? `Has a ${n}-task schedule — you’ll review before anything replaces it` : 'No schedule yet'}
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
   if (fetchingFollowups) {
     return (
       <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
@@ -236,21 +327,27 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
           <X size={20} color={colors.textMuted} strokeWidth={2} />
         </TouchableOpacity>
       </View>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${((idx + 1) / questions.length) * 100}%` }]} />
+      {/* One 640pt column on the web, like the job picker: the question card,
+          its answer rows and the progress bar ran the full width of a desktop
+          window (a one-word choice in a ~1400px box — the founder's "boxes so
+          stretched out"). Phones are narrower than the cap: unchanged. */}
+      <View style={styles.pickerColumn}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${((idx + 1) / questions.length) * 100}%` }]} />
+        </View>
+        {/* The suffix was double-counting. `questions` is already
+            [...staticQuestions, ...dynamicFollowups] (see the memo above), so by
+            the time a follow-up exists it is IN the denominator — and the label
+            still announced "(+ FOLLOW-UPS)" on top of it. A GC on the last
+            question read "12 OF 12 (+ FOLLOW-UPS)" beside a full progress bar and
+            could not tell whether he was done or had an unknown number left
+            (founder report, 2026-09-07). The count alone is the truth. */}
+        <Text style={styles.progressLabel}>
+          {idx + 1} OF {questions.length}
+        </Text>
       </View>
-      {/* The suffix was double-counting. `questions` is already
-          [...staticQuestions, ...dynamicFollowups] (see the memo above), so by
-          the time a follow-up exists it is IN the denominator — and the label
-          still announced "(+ FOLLOW-UPS)" on top of it. A GC on the last
-          question read "12 OF 12 (+ FOLLOW-UPS)" beside a full progress bar and
-          could not tell whether he was done or had an unknown number left
-          (founder report, 2026-09-07). The count alone is the truth. */}
-      <Text style={styles.progressLabel}>
-        {idx + 1} OF {questions.length}
-      </Text>
 
-      <Animated.View style={[styles.card, cardStyle]}>
+      <Animated.View style={[styles.card, styles.pickerColumn, cardStyle]}>
         <Text style={styles.eyebrow}>{q.eyebrow}</Text>
         <Text style={styles.question}>{q.question}</Text>
         <Text style={styles.subtext}>{q.subtext}</Text>
@@ -325,6 +422,8 @@ function makeStyles(colors: ThemeColors) {
     choice: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, backgroundColor: colors.surface },
     choiceRec: { borderColor: colors.accent },
     choiceText: { ...Type.subheadEmphasized, color: colors.text, flex: 1 },
+    jobMeta: { ...Type.footnote, color: colors.textMuted, marginTop: 2 },
+    pickerColumn: { width: '100%', maxWidth: 640, alignSelf: 'center' },
     radio: { width: 18, height: 18, borderRadius: Tokens.radius.full, borderWidth: 2, borderColor: colors.line },
     radioRec: { borderColor: colors.accent, backgroundColor: colors.accent },
     suggested: { ...Type.monoLabel, color: colors.accent },

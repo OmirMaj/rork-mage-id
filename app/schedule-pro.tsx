@@ -50,7 +50,7 @@ import {
   applyFieldTaskPatches, mergeWrittenStamps, fieldScheduleSettingsChanged, fieldTaskDiff, scheduleWritePathForRole,
   sendFieldTaskPatches, staleFieldEdits, type FieldEditRefusal,
   captureFieldSendFailure, mergeFieldSendFailure, pendingFieldRetryPatches, fieldAutoRetryDelayMs,
-  planFieldRetry, fieldRetrySupersededNotice,
+  planFieldRetry, fieldRetrySupersededNotice, FIELD_TASK_PATCH_KEYS,
   type FieldSendFailure,
 } from '@/utils/fieldScheduleUpdate';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -77,7 +77,6 @@ import TaskInspector from '@/components/schedule/TaskInspector';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
-import VoiceCommandModal from '@/components/VoiceCommandModal';
 import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
 import { ExportSheet } from '@/components/schedule/ExportSheet';
@@ -599,16 +598,17 @@ function ScheduleProScreenInner() {
   // the CPM ripple, apply through this screen's commit()" flow. Opened by the
   // toolbar "Voice" button; distinct from the AIAssistantPanel drawer ("AI").
   const [editOpen, setEditOpen] = useState(false);
+  // An "add tasks" request typed into the AI drawer opens the editor seeded
+  // with his words (the drawer can only edit the rows it is shown).
+  const [editSeed, setEditSeed] = useState<string | undefined>(undefined);
   const [showClosures, setShowClosures] = useState(false);
   const [showWeather, setShowWeather] = useState(false);
   const [weatherResult, setWeatherResult] = useState<WeatherRescheduleResult | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showBaselineManager, setShowBaselineManager] = useState(false);
-  // Voice → schedule mutations. Tap mic, speak ("push framing by 3 days"),
-  // executor mutates via handleEdit. Closes the loop on the field-side
-  // wedge — Houzz Pro is the only competitor with voice-to-schedule and
-  // theirs only creates, doesn't mutate.
-  const [showVoice, setShowVoice] = useState(false);
+  // (The VoiceCommandModal that used to mount here was unreachable — nothing
+  // ever opened it. Voice edits go through the "Voice" button and the "Tell
+  // me what to change" bar, both of which open ScheduleEditPanel.)
   const [showHealth, setShowHealth] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
@@ -786,6 +786,16 @@ function ScheduleProScreenInner() {
     }
     return map.size > 0 ? map : undefined;
   }, [workingTasks, project?.schedule]);
+
+  // The schedule editor panel's CPM options, memoized. A fresh literal every
+  // render re-ran the panel's whole preview on every render of this screen.
+  const editCpmOptions = useMemo(() => ({
+    scheduleStartDate: scheduleStartIso,
+    criticalFloatThresholdDays,
+    workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+    nonWorkingDates: project?.schedule?.nonWorkingDates,
+    taskCalendars,
+  }), [scheduleStartIso, criticalFloatThresholdDays, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates, taskCalendars]);
 
   const rolledTasks = useMemo(() => {
     const hasSummary = workingTasks.some(t => t.isSummary);
@@ -1076,7 +1086,12 @@ function ScheduleProScreenInner() {
         project.id,
         stamped,
         project.schedule?.baseline ?? null,
-        { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
+        // The LIVE finish (cpmRef), like the unmount flush below. The closure's
+        // `cpm` is the render before this edit, so the saved finish lagged one
+        // edit behind (26 saved while the plan finished on 31) — and
+        // project-detail, the share sheet, the PDF, cash flow and the contract
+        // timeline all read this value.
+        { criticalPathDays: liveCpm?.projectFinish ?? cpm.projectFinish }, // v2.1: engine-true value
       );
       // Take ONLY the freshly derived scalars off the rebuild and keep every
       // sidecar field the existing schedule already carries —
@@ -1411,6 +1426,85 @@ function ScheduleProScreenInner() {
     void appendAuditToAsyncStorage(project.id, buildAuditEntry(entry));
   }, [project?.id, writePath]);
 
+  // AI-applied batches — the editor's Apply, the drawer's "Apply all" and
+  // Generate — land through here: ONE undoable commit, plus an audit entry per
+  // task the batch added, removed or changed (the same summarizeTaskDiff trail
+  // handleEdit writes). They used to go through bare commit() and left nothing
+  // in the log a delay claim is argued from. `before` is read from the ref and
+  // the producer run once HERE, not inside the state updater, so the audit is
+  // written once even where React double-invokes updaters.
+  const commitAiBatch = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[], source: string) => {
+    const before = workingTasksRef.current;
+    const after = producer(before);
+    if (after === before) return;
+    const who = user?.email ?? user?.name ?? 'anonymous';
+    const beforeById = new Map(before.map(t => [t.id, t]));
+    const afterIds = new Set(after.map(t => t.id));
+    // A whole-plan replace (Generate mints every id fresh) is one entry, not
+    // one "deleted" + one "added" line per row.
+    if (after.length > 1 && !after.some(t => beforeById.has(t.id))) {
+      writeAudit({ user: who, kind: 'task_create', summary: before.length > 0 ? `${source}: replaced ${before.length} tasks with ${after.length}` : `${source}: added ${after.length} tasks` });
+      commit(prev => (prev === before ? after : producer(prev)));
+      return;
+    }
+    for (const a of after) {
+      const b = beforeById.get(a.id);
+      if (!b) {
+        writeAudit({ user: who, kind: 'task_create', taskId: a.id, taskTitle: a.title, summary: `${source}: added task "${a.title}"` });
+        continue;
+      }
+      // Compare by VALUE: the interpreter copies every task's arrays, so an
+      // identity check (summarizeTaskDiff's ===) would log every row as
+      // "dependencies changed".
+      const rb = b as unknown as Record<string, unknown>, ra = a as unknown as Record<string, unknown>;
+      const changed = Object.keys({ ...rb, ...ra }).filter(k => JSON.stringify(rb[k]) !== JSON.stringify(ra[k]));
+      if (changed.length === 0) continue; // nothing on this row changed
+      const pick = (o: Record<string, unknown>) => Object.fromEntries(changed.map(k => [k, o[k]]));
+      const summary = summarizeTaskDiff(pick(rb), pick(ra));
+      const logic = changed.includes('dependencies') || changed.includes('dependencyLinks');
+      writeAudit({
+        user: who, taskId: a.id, taskTitle: b.title,
+        kind: logic ? 'dependency_edit' : (a.progress !== b.progress ? 'progress_update' : 'task_edit'),
+        summary: `${source}: ${summary}`,
+        before: b as unknown as Record<string, unknown>,
+        after: a as unknown as Record<string, unknown>,
+      });
+    }
+    for (const b of before) {
+      if (!afterIds.has(b.id)) writeAudit({ user: who, kind: 'task_delete', taskId: b.id, taskTitle: b.title, summary: `${source}: deleted task "${b.title}"` });
+    }
+    // Same result the audit describes; re-run the producer only if the plan
+    // moved under us between the ref read and the state update.
+    commit(prev => (prev === before ? after : producer(prev)));
+  }, [commit, writeAudit, user?.email, user?.name]);
+  // The editor's Apply. A batch this seat cannot save is refused up front and
+  // the reason handed back, so the editor's card says "Nothing was saved": a
+  // viewer's updateProject is a no-op, and a field seat's RPC refuses
+  // everything but progress/status/notes/actuals — the ticked "Added …" card
+  // it used to show was a change that never saved. A field seat's progress-only
+  // batch ("drywall is 50% done") still goes through, as a grid edit would.
+  const commitEditorBatch = useCallback(
+    (producer: (prev: ScheduleTask[]) => ScheduleTask[]): string | void => {
+      if (writePath === 'field_rpc') {
+        const before = workingTasksRef.current;
+        const after = producer(before);
+        const byId = new Map(before.map(t => [t.id, t]));
+        const fieldKeys = new Set<string>(FIELD_TASK_PATCH_KEYS);
+        const fieldOnly = after.length === before.length && after.every(a => {
+          const b = byId.get(a.id);
+          if (!b) return false;
+          const rb = b as unknown as Record<string, unknown>, ra = a as unknown as Record<string, unknown>;
+          return Object.keys({ ...rb, ...ra }).every(k => fieldKeys.has(k) || JSON.stringify(rb[k]) === JSON.stringify(ra[k]));
+        });
+        if (!fieldOnly) return 'Not saved: field access saves progress, status, notes and actual start/finish only — adding, removing or moving tasks needs editor access from the project owner.';
+      } else if (writePath !== 'row') {
+        return 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
+      }
+      commitAiBatch(producer, 'AI schedule edit');
+    },
+    [commitAiBatch, writePath],
+  );
+
   // -------------------------------------------------------------------------
   // Legacy day-scale disclosure (the utils/scheduleRebase.ts population)
   // -------------------------------------------------------------------------
@@ -1597,38 +1691,6 @@ function ScheduleProScreenInner() {
       return { ...t, startDay: Math.max(1, t.startDay + p.deltaDays) };
     }));
   }, [commit]);
-
-  // Voice → mutation adapter. The voice executor calls these; CPM re-runs
-  // on each commit so successors ripple automatically. Each mutation is
-  // a single `commit()` so undo/redo treats voice edits identically to
-  // manual ones.
-  const voiceUpdateFunctions = useMemo(() => ({
-    handleProgressUpdate: (task: ScheduleTask, progress: number) => {
-      handleEdit(task.id, { progress });
-    },
-    onAddNote: (task: ScheduleTask, note: string) => {
-      const existing = task.notes ? `${task.notes}\n` : '';
-      handleEdit(task.id, { notes: `${existing}${note}` });
-    },
-    onRescheduleTask: (
-      task: ScheduleTask,
-      args: { newStartDay?: number; deltaDays?: number; newDurationDays?: number },
-    ) => {
-      const patch: Partial<ScheduleTask> = {};
-      if (typeof args.newStartDay === 'number') {
-        patch.startDay = Math.max(1, args.newStartDay);
-      } else if (typeof args.deltaDays === 'number') {
-        patch.startDay = Math.max(1, task.startDay + args.deltaDays);
-      }
-      if (typeof args.newDurationDays === 'number') {
-        patch.durationDays = Math.max(1, args.newDurationDays);
-      }
-      handleEdit(task.id, patch);
-    },
-    onAssignCrew: (task: ScheduleTask, crew: string) => {
-      handleEdit(task.id, { crew });
-    },
-  }), [handleEdit]);
 
   // Opens the Add Task modal. The actual commit happens in
   // handleCommitAddTask once the user submits the form.
@@ -1822,8 +1884,8 @@ function ScheduleProScreenInner() {
   // -------------------------------------------------------------------------
 
   const handleReplaceAll = useCallback((tasks: ScheduleTask[]) => {
-    commit(() => generateWbsCodes(tasks));
-  }, [commit]);
+    commitAiBatch(() => generateWbsCodes(tasks), 'AI generated schedule');
+  }, [commitAiBatch]);
 
   // -------------------------------------------------------------------------
   // Bulk edit — every op is ONE commit() so undo restores the whole batch
@@ -2560,7 +2622,12 @@ function ScheduleProScreenInner() {
                 router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never);
                 break;
               case 'voice':
-                setEditOpen(true);
+                // The editor panel is mounted only in the main render below,
+                // never in this early-return branch — setEditOpen here did
+                // nothing, then the sheet popped open on its own once the
+                // schedule got a task. An empty schedule is a BUILD, not an
+                // edit: the schedule Copilot, as the iPhone already does.
+                router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: project.id } } as never);
                 break;
               case 'example':
                 handleLoadDemo();
@@ -2902,35 +2969,19 @@ function ScheduleProScreenInner() {
         />
       )}
 
-      {/* Voice → schedule mutations. The modal handles transcription +
-          parsing + executor; we provide the update functions. CPM re-runs
-          on every commit so successors ripple automatically. */}
-      <VoiceCommandModal
-        visible={showVoice}
-        onClose={() => setShowVoice(false)}
-        tasks={workingTasks}
-        projectName={project?.name ?? 'Schedule'}
-        projectId={project?.id ?? ''}
-        updateFunctions={voiceUpdateFunctions}
-      />
-
       {/* Conversational schedule editor — say the change, preview the CPM
           ripple, apply through this screen's own commit() (so it lands on the
           same undo/audit stack as a manual edit). */}
       {project && (
         <ScheduleEditPanel
           visible={editOpen}
-          onClose={() => setEditOpen(false)}
+          onClose={() => { setEditOpen(false); setEditSeed(undefined); }}
           projectId={project.id}
           tasks={workingTasks}
-          commit={commit}
-          cpmOptions={{
-            scheduleStartDate: scheduleStartIso,
-            criticalFloatThresholdDays,
-            workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
-            nonWorkingDates: project?.schedule?.nonWorkingDates,
-            taskCalendars,
-          }}
+          commit={commitEditorBatch}
+          cpmOptions={editCpmOptions}
+          seed={editSeed}
+          hasToolbarUndo
         />
       )}
 
@@ -3072,16 +3123,22 @@ function ScheduleProScreenInner() {
         linkedEstimate={project?.linkedEstimate ?? null}
         onApplyPatch={handleEdit}
         onApplyBulkPatches={(patches) => {
-          // Batch a set of AI-proposed patches into one undoable commit.
-          commit(prev => {
-            const patchMap = new Map(patches.map(p => [p.taskId, p.patch]));
-            return prev.map(t => {
-              const patch = patchMap.get(t.id);
-              return patch ? { ...t, ...patch } : t;
-            });
-          });
+          // Batch a set of AI-proposed patches into one undoable, audited
+          // commit. Patches for the same task MERGE — a Map keyed by task used
+          // to keep only the last one, so "Apply all" dropped the rest.
+          const patchMap = new Map<string, Partial<ScheduleTask>>();
+          for (const p of patches) patchMap.set(p.taskId, { ...(patchMap.get(p.taskId) ?? {}), ...p.patch });
+          commitAiBatch(prev => prev.map(t => {
+            const patch = patchMap.get(t.id);
+            return patch ? { ...t, ...patch } : t;
+          }), 'AI bulk edit');
         }}
         onReplaceAll={handleReplaceAll}
+        onHandOffToEditor={(seed) => {
+          setShowAI(false);
+          setEditSeed(seed);
+          setEditOpen(true);
+        }}
       />
 
       {/* Export sheet — five-option bottom sheet (PDF / CSV / Share / iCal / Print).
@@ -3283,6 +3340,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginHorizontal: 16,
+    // A prompt pill, not a banner: on a wide monitor it stretched ~1,400px
+    // for four words. Capped at the Copilot column (720), left-aligned with
+    // the header above it; narrower windows are unchanged.
+    maxWidth: 720,
     marginBottom: 8,
     backgroundColor: t.accentSoft,
     borderRadius: Tokens.radius.full,

@@ -6,7 +6,9 @@ import type { CpmResult } from '@/utils/cpm';
 export interface ScheduleDiff {
   finishBeforeDay: number; finishAfterDay: number; finishDeltaDays: number;
   moved: { id: string; name: string; startDelta: number; durationDelta: number }[];
-  added: { name: string; startDay: number; durationDays: number; isMilestone: boolean }[];
+  /** `id` so a view can tell same-named new rows apart (ScheduleDiffView's
+   *  "nothing waits on it yet" flag is per row, not per title). */
+  added: { id: string; name: string; startDay: number; durationDays: number; isMilestone: boolean }[];
   removed: { name: string }[];
   depChanges: { fromName: string; toName: string; type: DependencyType; added: boolean }[];
   criticalEntered: string[];
@@ -39,7 +41,7 @@ export function diffSchedule(
     if (startDelta !== 0 || durationDelta !== 0) moved.push({ id: a.id, name: a.title, startDelta, durationDelta });
   }
   const added = after.filter(a => !beforeById.has(a.id))
-    .map(a => ({ name: a.title, startDay: a.startDay, durationDays: a.durationDays, isMilestone: !!a.isMilestone }));
+    .map(a => ({ id: a.id, name: a.title, startDay: a.startDay, durationDays: a.durationDays, isMilestone: !!a.isMilestone }));
   const removed = before.filter(b => !afterById.has(b.id)).map(b => ({ name: b.title }));
 
   const depChanges: ScheduleDiff['depChanges'] = [];

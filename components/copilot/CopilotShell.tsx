@@ -9,8 +9,8 @@
 //   from Colors/Type/Tokens (no raw hex / inline fontSize / borderRadius).
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays, ArrowLeft, Briefcase, Receipt } from 'lucide-react-native';
+import { useRouter, usePathname } from 'expo-router';
+import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays, ArrowLeft, Briefcase, Receipt, Undo2 } from 'lucide-react-native';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import DatePickerModal from '@/components/DatePickerModal';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -35,12 +35,22 @@ interface Props {
   onPickProject?: () => void;
   /** Open the estimate Copilot for this job (#34: schedule / billing need one). */
   onBuildEstimate?: () => void;
+  /** Undo the Apply just made (the schedule editor passes one). Offered on the
+   *  "what landed" card; returns what happened in a sentence. */
+  onUndo?: () => { ok: boolean; message: string };
 }
 
-export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickProject, onBuildEstimate }: Props) {
+/** An apply() result that lists what changed. A capability that returns one
+ *  keeps the shell open on a "what landed" card instead of closing blind. */
+interface LandedResult { landed: string[]; notLanded?: string[] }
+const isLandedResult = (a: unknown): a is LandedResult =>
+  !!a && typeof a === 'object' && Array.isArray((a as LandedResult).landed);
+
+export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickProject, onBuildEstimate, onUndo }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const pathname = usePathname();
   const convo = useCopilotConversation(capabilityId, ctx);
   const { state, cap, start, utterance, answer, skip, confirm, cancel, patchDraft, backToReview } = convo;
   const [micOpen, setMicOpen] = useState(false);
@@ -49,6 +59,10 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
   // Free-text answer for a `text`/`number` gap. Reset whenever the gap changes
   // so a new question starts blank.
   const [entry, setEntry] = useState('');
+  // The "what landed" card after an Apply that reports its changes.
+  const [landed, setLanded] = useState<LandedResult | null>(null);
+  const [undoResult, setUndoResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const undone = !!undoResult?.ok;
 
   // On mount: build grounding → listening (the compose view; voice is optional).
   useEffect(() => {
@@ -91,7 +105,12 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
       answer(g.field, raw);
     }
   }, [state.currentGap, entry, answer, skip]);
-  const openWeb = useCallback(() => { onDone(); router.push({ pathname: cap.copy.webRoute as never, params: { id: ctx.projectId } as never }); }, [onDone, router, ctx.projectId, cap.copy.webRoute]);
+  // Schedule Pro reads `projectId` (it used to get only `id` and opened the
+  // project picker); `id` stays for the routes that read that.
+  const openWeb = useCallback(() => { onDone(); router.push({ pathname: cap.copy.webRoute as never, params: { id: ctx.projectId, projectId: ctx.projectId } as never }); }, [onDone, router, ctx.projectId, cap.copy.webRoute]);
+  // Already on that screen (the editor opened over Schedule Pro) — the escape
+  // would only reopen what is underneath.
+  const onWebRoute = pathname === cap.copy.webRoute;
   const close = useCallback(() => { cancel(); onDone(); }, [cancel, onDone]);
 
   const thinking = state.phase === 'thinking';
@@ -149,7 +168,10 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      {/* keyboardShouldPersistTaps: a tap on Send/Apply while the keyboard is
+          up must land, not just dismiss it. automaticallyAdjustKeyboardInsets
+          (iOS) keeps the review's follow-up box above the keyboard. */}
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         {/* resolved defaults — shown, not asked */}
         {[{ key: 'history', head: 'SET FROM YOUR HISTORY — NOTHING TO ASK', rows: fromHistory },
           { key: 'assumed', head: 'ASSUMED — CHANGE ON THE GRID', rows: assumed }]
@@ -284,11 +306,33 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               {cap.renderReview({
                 draft: state.draft,
                 ctx,
-                confirm: async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } else if (a) { onDone(); } },
+                confirm: async () => {
+                  const a = await confirm();
+                  if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); }
+                  else if (isLandedResult(a)) { setLanded(a); }
+                  else if (a) { onDone(); }
+                },
                 cancel: () => { cancel(); onDone(); },
                 patchDraft,
                 note: state.reviewNote,
               })}
+              {/* The review can say "say it another way" — so it needs a box to
+                  say it in. A follow-up is one more turn; the capability's
+                  merge replaces an op it already queued rather than doubling it. */}
+              <TextInput
+                style={styles.composeInput}
+                value={compose}
+                onChangeText={setCompose}
+                placeholder="Add to it or say it another way…"
+                placeholderTextColor={colors.textMuted}
+                multiline
+                testID="copilot-review-compose"
+              />
+              {compose.trim().length > 0 && (
+                <TouchableOpacity accessibilityRole="button" style={styles.ghostBtn} activeOpacity={0.8} onPress={submitCompose} testID="copilot-review-send">
+                  <Text style={styles.ghostBtnText}>Send</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={styles.ask}>
@@ -302,6 +346,37 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               </TouchableOpacity>
             </View>
           )
+        )}
+
+        {state.phase === 'done' && landed && (
+          <View style={styles.ask} testID="copilot-landed">
+            <Text style={styles.askEyebrow}>{undone ? 'UNDONE' : 'DONE — HERE’S WHAT CHANGED'}</Text>
+            {undone ? (
+              <Text style={styles.question}>{undoResult!.message}</Text>
+            ) : (
+              <>
+                {landed.landed.length === 0 && <Text style={styles.question}>Nothing changed.</Text>}
+                {landed.landed.map((l, i) => (
+                  <View key={`l${i}`} style={styles.resRow}>
+                    <View style={styles.tick}><Check size={11} color={colors.success} strokeWidth={3} /></View>
+                    <Text style={[styles.resLabel, styles.resText]}>{l}</Text>
+                  </View>
+                ))}
+                {(landed.notLanded ?? []).map((l, i) => <Text key={`n${i}`} style={styles.basis}>{l}</Text>)}
+                {undoResult && !undoResult.ok && <Text style={styles.grounding}>{undoResult.message}</Text>}
+              </>
+            )}
+            {!!onUndo && !undoResult && landed.landed.length > 0 && (
+              <TouchableOpacity accessibilityRole="button" style={styles.ghostBtn} activeOpacity={0.8} onPress={() => setUndoResult(onUndo())} testID="copilot-undo">
+                <Undo2 size={16} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={styles.ghostBtnText}>Undo</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={onDone} testID="copilot-landed-done">
+              <Check size={18} color={Colors.textOnAccent} strokeWidth={2} />
+              <Text style={styles.buildBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {state.phase === 'applying' && (
@@ -368,25 +443,33 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               <Text style={styles.ghostText}>Build it now — skip the rest</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity accessibilityRole="button" style={styles.ghost} onPress={openWeb}>
-            <Monitor size={14} color={colors.textMuted} strokeWidth={1.9} />
-            <Text style={styles.ghostText}>Open on web to fine-tune</Text>
-            <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.9} />
-          </TouchableOpacity>
+          {!onWebRoute && (
+            <TouchableOpacity accessibilityRole="button" style={styles.ghost} onPress={openWeb}>
+              <Monitor size={14} color={colors.textMuted} strokeWidth={1.9} />
+              <Text style={styles.ghostText}>Open on web to fine-tune</Text>
+              <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.9} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
   );
 }
 
+/** The reading column every Copilot screen shares (copilot-hub uses 720). */
+export const COPILOT_COLUMN_MAX_WIDTH = 720;
+
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.bg },
-    topbar: { paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm, gap: Tokens.spacing.xs },
+    // One centred column on a wide web window (the hub's 720): the compose
+    // box, the diff, Apply and Done used to stretch the full ~1390px. Phones
+    // are narrower than the cap and unchanged.
+    topbar: { width: '100%', maxWidth: COPILOT_COLUMN_MAX_WIDTH, alignSelf: 'center', paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm, gap: Tokens.spacing.xs },
     topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     brand: { ...Type.monoEyebrow, color: colors.textSecondary },
     progress: { ...Type.monoLabel, color: colors.textMuted },
-    body: { paddingHorizontal: Tokens.spacing.lg, paddingBottom: Tokens.spacing['3xl'], gap: Tokens.spacing.lg },
+    body: { width: '100%', maxWidth: COPILOT_COLUMN_MAX_WIDTH, alignSelf: 'center', paddingHorizontal: Tokens.spacing.lg, paddingBottom: Tokens.spacing['3xl'], gap: Tokens.spacing.lg },
 
     resolvedGroup: { gap: Tokens.spacing.xs },
     resHead: { ...Type.monoLabel, color: colors.textMuted },
@@ -427,7 +510,7 @@ function makeStyles(colors: ThemeColors) {
     ghostBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, paddingVertical: Tokens.spacing.md },
     ghostBtnText: { ...Type.bodyEmphasized, color: colors.textSecondary },
 
-    actionbar: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
+    actionbar: { width: '100%', maxWidth: COPILOT_COLUMN_MAX_WIDTH, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
     mic: { width: 52, height: 52, borderRadius: Tokens.radius.full, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
     escapes: { flex: 1, gap: Tokens.spacing.xxs },
     ghost: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },

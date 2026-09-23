@@ -1,5 +1,11 @@
 // components/copilot/ScheduleDiffView.tsx — the before→after preview for a
 // conversational schedule edit. Pure compute (interpret → CPM → diff), memoized.
+//
+// Honest acknowledgement: the header counts what the app UNDERSTOOD against
+// everything the AI sent ("Understood 3 of 4 changes"), every op it couldn't
+// read or apply gets its own line, and the button names how many changes Apply
+// will make. It used to list only what survived and enable "Apply it" if
+// anything did — "add three tasks" + one move showed just the move.
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Hammer, X, TriangleAlert } from 'lucide-react-native';
@@ -10,28 +16,45 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { runCpm } from '@/utils/cpm';
 import type { CopilotContext } from '@/utils/copilot/types';
-import type { EditOp } from '@/utils/copilot/scheduleEdit/editOps';
+import { describeDropped, type EditOp, type DroppedOp } from '@/utils/copilot/scheduleEdit/editOps';
 import { interpretScheduleOps, applyEditEffects } from '@/utils/copilot/scheduleEdit/interpretOps';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 
-export default function ScheduleDiffView({ ops, ctx, onApply, onDiscard }: {
-  ops: EditOp[]; ctx: CopilotContext; onApply: () => void; onDiscard: () => void;
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDiscard }: {
+  ops: EditOp[]; dropped?: DroppedOp[]; ctx: CopilotContext; onApply: () => void; onDiscard: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { diff, valid } = useMemo(() => {
+  const { diff, okCount, loose } = useMemo(() => {
     const before = ctx.currentTasks ?? [];
-    const { nextTasks, results } = interpretScheduleOps(ops, before);
+    // The host's calendar: a move CPM would ignore is reported, not counted.
+    const { nextTasks, results } = interpretScheduleOps(ops, before, ctx.cpmOptions ?? {});
     const after = applyEditEffects(ops, nextTasks, ctx.cpmOptions ?? {});
     const rejected = results.filter(r => !r.ok).map(r => ({ summary: r.reason ?? 'skipped' }));
     const d = diffSchedule(before, after, runCpm(before, ctx.cpmOptions ?? {}), runCpm(after, ctx.cpmOptions ?? {}), rejected);
-    return { diff: d, valid: results.some(r => r.ok) };
+    // A new task nothing waits on doesn't push anything — say so, so a task
+    // that landed "at the end, on its own" is never read as inserted work.
+    // Keyed by task ID: three new "Cleanup" rows where only the last is loose
+    // used to flag all three (review round 3).
+    const beforeIds = new Set(before.map(t => t.id));
+    const newIds = after.filter(t => !beforeIds.has(t.id)).map(t => t.id);
+    const loose = new Set(newIds.filter(id => !after.some(t => t.dependencies.includes(id))));
+    return { diff: d, okCount: results.filter(r => r.ok).length, loose };
   }, [ops, ctx]);
 
+  const total = ops.length + dropped.length;
+  const valid = okCount > 0;
   const dd = (n: number) => (n > 0 ? `+${n}d` : `${n}d`);
   return (
     <View style={styles.wrap}>
       <Text style={styles.eyebrow}>HERE’S THE RIPPLE</Text>
+      {total > 0 && (
+        <Text style={styles.count} testID="schedule-edit-understood">
+          {okCount === total ? `Understood ${plural(total, 'change')}` : `Understood ${okCount} of ${plural(total, 'change')}`}
+        </Text>
+      )}
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         {diff.finishDeltaDays !== 0 && (
           <Text style={styles.finish}>Finish {dd(diff.finishDeltaDays)} — day {diff.finishBeforeDay} → {diff.finishAfterDay}</Text>
@@ -41,7 +64,11 @@ export default function ScheduleDiffView({ ops, ctx, onApply, onDiscard }: {
             {m.name}:{m.startDelta ? ` start ${dd(m.startDelta)}` : ''}{m.durationDelta ? ` dur ${dd(m.durationDelta)}` : ''}
           </Text>
         ))}
-        {diff.added.map((a, i) => <Text key={`a${i}`} style={styles.add}>+ {a.name} ({a.durationDays}d{a.isMilestone ? ', milestone' : ''})</Text>)}
+        {diff.added.map((a, i) => (
+          <Text key={`a${i}`} style={styles.add} testID="schedule-edit-added">
+            + {a.name} ({a.durationDays}d{a.isMilestone ? ', milestone' : ''}){loose.has(a.id) ? ' — nothing waits on it yet' : ''}
+          </Text>
+        ))}
         {diff.removed.map((r, i) => <Text key={`r${i}`} style={styles.remove}>− {r.name}</Text>)}
         {diff.depChanges.map((c, i) => <Text key={`d${i}`} style={styles.line}>{c.added ? '+' : '−'} dep {c.fromName} → {c.toName} ({c.type})</Text>)}
         {diff.criticalEntered.length > 0 && (
@@ -51,14 +78,15 @@ export default function ScheduleDiffView({ ops, ctx, onApply, onDiscard }: {
           </View>
         )}
         {diff.criticalLeft.length > 0 && <Text style={styles.line}>off critical: {diff.criticalLeft.join(', ')}</Text>}
-        {diff.rejected.map((r, i) => <Text key={`x${i}`} style={styles.reject}>couldn’t: {r.summary}</Text>)}
-        {!valid && <Text style={styles.reject}>Nothing to change — try rephrasing.</Text>}
+        {dropped.map((d, i) => <Text key={`u${i}`} style={styles.reject} testID="schedule-edit-unread">Couldn’t read: {describeDropped(d, ctx.currentTasks ?? [])}</Text>)}
+        {diff.rejected.map((r, i) => <Text key={`x${i}`} style={styles.reject}>Couldn’t apply: {r.summary}</Text>)}
+        {!valid && <Text style={styles.reject}>Nothing to change yet — say it another way below.</Text>}
       </ScrollView>
-      <TouchableOpacity style={[styles.apply, !valid && styles.applyOff]} onPress={onApply} disabled={!valid} activeOpacity={0.9} testID="schedule-edit-apply">
+      <TouchableOpacity style={[styles.apply, !valid && styles.applyOff]} onPress={onApply} disabled={!valid} activeOpacity={0.9} testID="schedule-edit-apply" accessibilityRole="button">
         <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
-        <Text style={styles.applyText}>Apply it</Text>
+        <Text style={styles.applyText}>{valid ? `Apply ${plural(okCount, 'change')}` : 'Nothing to apply'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.discard} onPress={onDiscard} activeOpacity={0.7} testID="schedule-edit-discard">
+      <TouchableOpacity style={styles.discard} onPress={onDiscard} activeOpacity={0.7} testID="schedule-edit-discard" accessibilityRole="button">
         <X size={14} color={colors.textMuted} strokeWidth={2} />
         <Text style={styles.discardText}>Not that — discard</Text>
       </TouchableOpacity>
@@ -70,6 +98,7 @@ function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
     wrap: { gap: Tokens.spacing.sm },
     eyebrow: { ...Type.monoLabel, color: colors.accent },
+    count: { ...Type.subheadEmphasized, color: colors.text },
     body: { maxHeight: 320 },
     finish: { ...Type.subheadEmphasized, color: colors.text, marginBottom: Tokens.spacing.xs },
     line: { ...Type.body, color: colors.textSecondary, paddingVertical: Tokens.spacing.xxs },

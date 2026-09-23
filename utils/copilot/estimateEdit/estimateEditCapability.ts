@@ -3,7 +3,7 @@
 // → apply via commitEstimatePatch (undo-safe, versioned) + updateProject. No
 // host seam needed — the estimate persists through the standard project update.
 import { createElement } from 'react';
-import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
+import { COMPLETE_DRAFT_RULE, type CopilotCapability, type CopilotContext, type Gap, type Grounding } from '../types';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { normalizeEstimateOps, type EstimateEditOp } from './estimateOps';
 import { interpretEstimateOps } from './interpretEstimateOps';
@@ -12,6 +12,41 @@ import EstimateDiffView from '@/components/copilot/EstimateDiffView';
 
 export interface EstimateEditDraft { ops: EstimateEditOp[] }
 export interface EstimateEditApplied { route: '/project-detail'; projectId: string }
+
+/** One example per op SHAPE — the relay (supabase/functions/_shared/inferSchema)
+ *  unions them so only `op` is required and every op can be expressed. The one
+ *  setUnitPrice example this replaced meant Gemini could emit only
+ *  {op, item, unitPrice}: "cut the demo quantity in half", "bump the markup to
+ *  20%" and "add a line for paint" were all dropped by the normalizer.
+ *  setUnitPrice stays FIRST so a relay that has not been redeployed (val[0]
+ *  only) infers exactly today's schema. Refs are placeholders; mergeDraft
+ *  discards an op whose OWN ref (item, or an addLine's name) is one — see
+ *  isEstimateEcho — so an echoed example never edits a real line. */
+export const ESTIMATE_EDIT_SCHEMA_HINT = {
+  ops: [
+    { op: 'setUnitPrice', item: '<line id>', unitPrice: 10 },
+    { op: 'setQuantity', item: '<line id>', quantity: 150 },
+    { op: 'setGlobalMarkup', markupPct: 20 },
+    { op: 'addLine', name: '<new line name>', category: 'General', unit: 'ea', quantity: 5, unitPrice: 40 },
+    { op: 'removeLine', item: '<line id>' },
+  ],
+};
+
+const isPlaceholder = (v: unknown) => typeof v === 'string' && v.trim().startsWith('<');
+
+/** The ref each op kind READS (review round 3). The union schema declares
+ *  `item` and `name` on every op, so a decoder may fill the slot an op does not
+ *  use with the example's placeholder — setUnitPrice{item:'m1', name:'<new line
+ *  name>'} is a real price change and must not vanish. Only a placeholder in a
+ *  ref the op actually reads marks an echo. An unknown kind is judged on both
+ *  (normalizeEstimateOps then drops it anyway). */
+const EST_OWN_REFS: Record<string, readonly ('item' | 'name')[]> = {
+  setUnitPrice: ['item'], setQuantity: ['item'], removeLine: ['item'], addLine: ['name'], setGlobalMarkup: [],
+};
+export const isEstimateEcho = (o: Record<string, unknown> | null | undefined): boolean => {
+  const kind = typeof o?.op === 'string' && Object.prototype.hasOwnProperty.call(EST_OWN_REFS, o.op) ? EST_OWN_REFS[o.op] : (['item', 'name'] as const);
+  return kind.some(f => isPlaceholder(o?.[f]));
+};
 
 export const estimateEditCapability: CopilotCapability<EstimateEditDraft, EstimateEditApplied> = {
   id: 'estimateEdit',
@@ -48,15 +83,34 @@ export const estimateEditCapability: CopilotCapability<EstimateEditDraft, Estima
       'CURRENT LINE ITEMS:', ...((grounding.data.itemList as string[]) ?? []),
       `Markup: ${grounding.data.globalMarkup ?? 0}%.`,
       '',
-      'DRAFT OPS SO FAR: ' + JSON.stringify(draft.ops ?? []),
-      'WHAT THEY SAID: ' + transcript,
+      'The example shows every op SHAPE — emit only the ops asked for.',
+      'DRAFT OPS SO FAR (from what they said before): ' + JSON.stringify(draft.ops ?? []),
+      COMPLETE_DRAFT_RULE,
+      'WHAT THEY SAID (earlier turns first, separated by " | "): ' + transcript,
       'Return ONLY JSON: { "ops": [ ... ] }.',
     ].join('\n'),
-    schemaHint: { ops: [{ op: 'setUnitPrice', item: 'm1', unitPrice: 10 }] },
+    schemaHint: ESTIMATE_EDIT_SCHEMA_HINT,
   }),
-  mergeDraft: (draft, aiJson): EstimateEditDraft => ({
-    ops: [...(draft.ops ?? []), ...normalizeEstimateOps(aiJson?.ops)],
-  }),
+  mergeDraft: (draft, aiJson, meta): EstimateEditDraft => {
+    // No ops array is not an answer to the protocol — keep what is queued.
+    if (!Array.isArray(aiJson?.ops)) return draft;
+    // setGlobalMarkup carries no line ref, so a placeholder can't mark an echo
+    // of it. It reprices every line, so it is only taken when his words are
+    // about markup THIS turn, or a markup change is already queued (the
+    // complete-draft answer re-sends it on every later turn, and "also add
+    // paint" must not quietly drop the markup he asked for). An echoed example
+    // must never move the contract.
+    const lastTurn = meta?.transcript ? meta.transcript.split(' | ').pop() ?? '' : '';
+    const saidMarkup = /mark-?up|margin|profit|overhead|%|percent/i.test(lastTurn)
+      || (draft.ops ?? []).some(o => o.op === 'setGlobalMarkup');
+    const raw = (aiJson.ops as Record<string, unknown>[]).filter(o =>
+      !isEstimateEcho(o) && (o?.op !== 'setGlobalMarkup' || saidMarkup));
+    // THE COMPLETE-DRAFT RULE (COMPLETE_DRAFT_RULE, the schedule editor's
+    // rule): the answer is the whole list for everything he has asked so far,
+    // so it REPLACES the draft. The merge this replaced matched re-sent ops by
+    // key, which had to guess correction vs. another line.
+    return { ops: normalizeEstimateOps(raw) };
+  },
   apply: async (draft: EstimateEditDraft, ctx: CopilotContext): Promise<EstimateEditApplied> => {
     const project = ctx.project;
     if (project?.linkedEstimate && ctx.ctx?.updateProject) {

@@ -67,3 +67,20 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
   }
   return gaps;
 }
+
+/**
+ * The interview's phasing answer, as one line of the generator's prompt
+ * (integration review, wave 6 — handoff 3). The interview ASKS "phase it by
+ * area, or can trades overlap?" on an occupied remodel; before this the answer
+ * was captured and then dropped, because generateScheduleFromEstimate never
+ * saw it. Empty when he did not say — the generator's own judgement stands.
+ */
+export function phasingInstruction(phased: boolean | null | undefined): string {
+  if (phased === true) {
+    return 'PHASING: the contractor wants this occupied job PHASED BY AREA. Finish each area (demo through finishes) before the next area starts; do not run the same trade in two areas at once. Name each task with its area.';
+  }
+  if (phased === false) {
+    return 'PHASING: trades may overlap across areas — do not phase the job by area.';
+  }
+  return '';
+}
