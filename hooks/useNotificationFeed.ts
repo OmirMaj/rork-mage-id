@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProjectActions } from '@/contexts/ProjectContext';
+import { refreshForNotification } from '@/utils/notificationTapRefresh';
 
 // Reads notification_outbox rows the GC owns and surfaces them as an
 // in-app feed. Pairs with push + email — push is the urgent ping, this
@@ -49,6 +51,21 @@ export function useNotificationFeed() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const enabled = !!user?.id && isSupabaseConfigured;
+  // #82: an outbox row landing is the notice itself — on web (no push) it is
+  // the ONLY signal that a client paid or a sub marked an item ready. Re-read
+  // the list the notice is about, from the one shared table. Held in a ref so
+  // the realtime channel (subscribed once per user) always calls the latest.
+  const { refetchInvoicesNow } = useProjectActions();
+  const refreshDepsRef = useRef({
+    invalidate: (queryKey: string[]) => queryClient.invalidateQueries({ queryKey }),
+    refetchInvoicesNow,
+  });
+  useEffect(() => {
+    refreshDepsRef.current = {
+      invalidate: (queryKey: string[]) => queryClient.invalidateQueries({ queryKey }),
+      refetchInvoicesNow,
+    };
+  }, [queryClient, refetchInvoicesNow]);
 
   const query = useQuery({
     queryKey: ['notificationFeed', user?.id ?? null],
@@ -149,7 +166,14 @@ export function useNotificationFeed() {
     channel.on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'notification_outbox', filter: `recipient_user_id=eq.${user.id}` },
-      () => { void queryClient.invalidateQueries({ queryKey: ['notificationFeed', user.id] }); },
+      (payload) => {
+        void queryClient.invalidateQueries({ queryKey: ['notificationFeed', user.id] });
+        const row = (payload?.new ?? {}) as { event_type?: unknown; payload?: unknown };
+        if (typeof row.event_type === 'string') {
+          const data = row.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {};
+          void refreshForNotification(row.event_type, data, refreshDepsRef.current);
+        }
+      },
     );
     channel.subscribe();
     return () => { void supabase.removeChannel(channel); };

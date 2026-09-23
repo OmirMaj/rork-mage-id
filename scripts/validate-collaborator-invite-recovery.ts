@@ -68,8 +68,15 @@ ok('login routes every success through postSignInHref(inviteToken, …)',
   /router\.replace\(postSignInHref\(inviteToken, '\/\(tabs\)\/summary'\)/.test(login) && (login.match(/goAfterSignIn\(\);/g) ?? []).length >= 4);
 ok('login hands the token to signup', /router\.push\(signupHrefForInvite\(inviteToken\)/.test(login));
 const signup = read('app', 'signup.tsx');
-ok('signup (OAuth, live session) lands back on the invite', (signup.match(/postSignInHref\(inviteToken, '\/onboarding'\)/g) ?? []).length === 2
-  && !/router\.replace\('\/onboarding'\)/.test(signup));
+// #109 (wave 4): the OAuth fallback is Home, not /onboarding (the persona /
+// onboarding gates route a genuinely new account on from there). Both OAuth
+// handlers go through ONE goAfterOAuth, which carries the invite token.
+{
+  const goFn = /const goAfterOAuth = useCallback\(\(\) => \{[\s\S]*?\n  \}, \[/.exec(signup)?.[0] ?? '';
+  ok('signup (OAuth, live session) lands back on the invite', /router\.replace\(postSignInHref\(inviteToken, '\/\(tabs\)\/\(home\)'\) as never\)/.test(goFn)
+    && (signup.match(/\n\s+goAfterOAuth\(\);/g) ?? []).length === 2
+    && !/'\/onboarding'/.test(signup.replace(/\/\/.*$/gm, '')));
+}
 
 console.log('\nHome finds invites the link lost (#29):');
 expect('headline names who / what / role', pendingInviteHeadline({ invitedBy: "Mike's Construction", projectName: 'Henderson Remodel', role: 'field' }),

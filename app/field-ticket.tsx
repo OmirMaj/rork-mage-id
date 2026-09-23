@@ -561,7 +561,10 @@ export default function FieldTicketScreen() {
             });
             addChangeOrder(co);
             updateFieldTicket(ticket.id, ticketConversionPatch(co, now));
-            nailIt(`CO #${co.number} drafted — ${money(co.changeAmount)}`);
+            // No number in the toast: it is provisional until the server has
+            // it (#77/#141) — the change-order screen opens next and shows the
+            // confirmed number, or "(pending #)".
+            nailIt(`Change order drafted — ${money(co.changeAmount)}`);
             router.push({
               pathname: '/change-order',
               params: { projectId: ticket.projectId, coId: co.id },

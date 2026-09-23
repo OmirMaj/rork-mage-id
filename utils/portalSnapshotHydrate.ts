@@ -166,12 +166,19 @@ export function hydratePortalSnapshot(
     updatedAt: snapshotAt,
   }));
 
-  const photos: ProjectPhoto[] = (s.photos ?? []).map((p, i) => ({
+  // v13 (#14): a published photo carries an http(s) `url` only when it has a
+  // public link; one in the private bucket carries just its id and path, and
+  // only the static portal can sign it (signed-media-urls needs the portal
+  // token this screen does not hold). Such a photo is left out here rather
+  // than handed to <Image> as a broken tile — never a file:// uri either.
+  const photos: ProjectPhoto[] = (s.photos ?? [])
+    .filter(p => typeof p.url === 'string' && /^https?:\/\//i.test(p.url))
+    .map((p, i) => ({
     // Snapshot photos are anonymous (url + caption only), so mint a stable
     // index-based key. Stable within one snapshot, which is all React needs.
     id: `${portalId}-photo-${i}`,
     projectId,
-    uri: p.url,
+    uri: p.url as string,
     timestamp: p.timestamp ?? snapshotAt,
     tag: p.caption,
     markup: (p.markup ?? []).map((m, mi) => ({ id: `${portalId}-photo-${i}-m-${mi}`, ...m })),

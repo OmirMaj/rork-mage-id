@@ -270,6 +270,17 @@ for (const route of ['/post-bid', '/smart-proposal']) {
     'Its only other inbound link lives inside the Discover tab, which does not exist on desktop.');
 }
 
+// Construction News (wave 4, founder request F3) shipped with a door on each
+// form factor. Both pinned by name, because the sidebar row has no registry
+// `feature` yet (utils/featureRegistry.ts belongs to another lane — reported
+// handoff), so the catalog checks further down cannot see either row.
+ok('DesktopSidebar has a row for /construction-news',
+  sidebarSrc.includes("route: '/construction-news'"),
+  'The desktop door: the Tools grid lives inside the Discover tab, which does not exist on desktop.');
+ok('Discover ▸ Tools has a tile for /construction-news',
+  read(join('app', '(tabs)', 'discover', 'tools.tsx')).includes("route: '/construction-news'"),
+  'The phone door: the sidebar mounts only at >=1024pt.');
+
 const registrySrc = read(join('utils', 'featureRegistry.ts'));
 ok('featureRegistry indexes /post-bid as what it actually is',
   /id: 'post-bid', title: 'Post a Bid'/.test(registrySrc) && !/'why lost'/.test(registrySrc),
@@ -603,6 +614,27 @@ const registryById = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
       while (j < end && lines[j].trim() === '') j++;
       if (j < end && /^\s+return\b/.test(lines[j]) && /<Paywall\b/.test(lines.slice(j, j + 3).join('\n'))) return a.key;
     }
+    // THE BRANCH-RESOLVER SHAPE (wave 4, #127 app/punch-list.tsx): the wall
+    // is still `if (!canAccess('k')) {` at the component's top level, but its
+    // first statement asks a pure resolver WHICH answer the refusal gets
+    // (invited seat → allow, role read in flight → checking, …) and only its
+    // 'paywall' answer returns the Paywall —
+    //     if (!canAccess('punch_list_closeout')) {
+    //       const answer = punchGateAnswer({ … });
+    //       if (answer === 'allow') return <Inner/>;
+    //       if (answer === 'paywall') { return (<Paywall …/>); }
+    //       return <PunchGateView …/>;
+    //     }
+    // Counted only when the block itself returns a <Paywall> — a block that
+    // never walls anyone (a toast, a router.push) stays uncounted.
+    for (let i = start + 1; i < end; i++) {
+      const m = lines[i].match(/^  if \(\s*!\s*canAccess\w*\(\s*['"]([a-z0-9_]+)['"]\s*\)\s*\)\s*\{\s*$/);
+      if (!m) continue;
+      let close = i + 1;
+      while (close < end && !/^  \}/.test(lines[close])) close++;
+      const block = lines.slice(i + 1, close).join('\n');
+      if (/\breturn \(\s*\n\s*<Paywall\b/.test(block) || /\breturn <Paywall\b/.test(block)) return m[1];
+    }
     // THE RESOLVER SHAPE (wave 3, #91 app/schedule-pro.tsx): the tier check is
     // handed to a pure gate resolver whose 'open' branch renders the screen and
     // whose fall-through renders the Paywall —
@@ -698,11 +730,13 @@ const registryById = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
   // that shape. Teaching entryGateOf both took it to 52. The number goes up
   // when the parser learns something and down never — if a real screen loses
   // its wall this goes red, and if a refactor hides four more, so does this.
+  // Wave 4: the branch-resolver shape (punch-list's #127 gate, and crew's
+  // claimed-worker branch, which was always a wall) took it to 53.
   const gatedSeen = FEATURE_REGISTRY.filter(e => {
     const f = screenFileFor(e.route);
     return f ? entryGateOf(read(f)) !== undefined : false;
   }).length;
-  const FLOOR = 52;
+  const FLOOR = 53;
   ok(`the entry-gate parser still sees the walls: ${gatedSeen} (floor ${FLOOR})`, gatedSeen >= FLOOR,
     `only ${gatedSeen} registry destinations parse as entry-gated, down from the floor of ${FLOOR}. The checks `
     + 'above cannot fail on a screen the parser cannot read, so a change to how screens gate must '

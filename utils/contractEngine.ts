@@ -15,6 +15,7 @@ import { contractScheduleFromSplit, contractWarrantyText } from '@/utils/payment
 // so a guard can EXECUTE it (this file imports @/lib/supabase). See the
 // re-export block below.
 import { suggestContractTimeline } from '@/utils/contractTimelineCore';
+import { recordHomeownerSignatureWith, type RecordSignatureOutcome } from '@/utils/contractSignatureCore';
 import type {
   ProjectContract, PaymentMilestone, ContractAllowance,
   ContractSignature, ContractStatus,
@@ -427,6 +428,63 @@ export async function setContractStatus(id: string, status: ContractStatus, extr
     return false;
   }
   return true;
+}
+
+/**
+ * #67 (wave 4): record a homeowner signature given OUTSIDE the portal — in
+ * person on this device, or on paper. Rules and outcomes live in
+ * utils/contractSignatureCore.ts (executed by a validator); this is the IO.
+ * Deliberately NOT through the offline queue: the flip is conditional on the
+ * live row still being 'sent' and unsigned, which only a live read can know,
+ * so no signal is refused with a reason instead of queued.
+ */
+export async function recordHomeownerSignature(
+  contractId: string,
+  signature: ContractSignature,
+): Promise<RecordSignatureOutcome> {
+  if (!isSupabaseConfigured) return { kind: 'failed', error: 'Not connected to the server.' };
+  return recordHomeownerSignatureWith({
+    async readState(id) {
+      const { data, error } = await supabase
+        .from('project_contracts')
+        .select('status,homeowner_signature')
+        .eq('id', id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      const row = data as { status: ContractStatus; homeowner_signature: ContractSignature | null };
+      return { status: row.status, homeownerSigned: !!row.homeowner_signature };
+    },
+    async flipIfStillSent(id, patch) {
+      const { data, error } = await supabase
+        .from('project_contracts')
+        .update(patch)
+        .eq('id', id)
+        .eq('status', 'sent')
+        .is('homeowner_signature', null)
+        .select('id');
+      if (error) throw error;
+      return (data ?? []).length;
+    },
+  }, contractId, signature);
+}
+
+/**
+ * #67: upload the photo of a paper-signed page to the private
+ * `secure-contracts` bucket (owner-only RLS on the first path segment, the
+ * same bucket the sealed PDF lives in). Returns the storage PATH — never a
+ * URL, which would expire. Throws (a transport error included) so the caller
+ * can refuse with the reason; upsert:false so evidence is never replaced.
+ */
+export async function uploadSignedPageEvidence(userId: string, contractId: string, fileUri: string): Promise<string> {
+  const { readFileBytes } = await import('@/utils/fileBytes');
+  const bytes = await readFileBytes(fileUri);
+  const path = `${userId}/${contractId}-signed-page-${Date.now()}.jpg`;
+  const { error } = await supabase.storage
+    .from('secure-contracts')
+    .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw error;
+  return path;
 }
 
 /**

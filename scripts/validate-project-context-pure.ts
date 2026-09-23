@@ -545,8 +545,10 @@ check('B-1 loader: every money pick routes through financialPickAfterLoad with t
   && /pick\('estimate_versions', r\.estimate_versions, cached\?\.estimateVersions\)/.test(ctx)
   && /pick\('target_budget', r\.target_budget, cached\?\.targetBudget\)/.test(ctx));
 check('B-1 / B-3 loader: stamps financialsLoaded via financialsLoadedFor, legacy money included',
-  /financialsLoaded: financialsLoadedFor\(\{ owned, hasRow: !!f, readSucceeded: finReadOk, myRole, legacyHasMoney \}\)/.test(ctx));
-check('B-3 loader: legacy money is read off the projects row through legacyMoneyPresent', /const legacyHasMoney = legacyMoneyPresent\(r\);/.test(ctx));
+  // Round 8: hasRow is the SERVER's fin row (fServer), never a Not-saved line laid over it.
+  /financialsLoaded: financialsLoadedFor\(\{ owned, hasRow: !!fServer, readSucceeded: finReadOk, myRole, legacyHasMoney \}\)/.test(ctx)
+    && /const fServer = finById\.get\(rid\);/.test(ctx));
+check('B-3 loader: legacy money is read off the SERVER projects row through legacyMoneyPresent', /const legacyHasMoney = legacyMoneyPresent\(serverRow\);/.test(ctx));
 check('B-3 loader: the display-fallback role is the FRESH server role only (never the cache)', /const displayRole = rolesReadOk \? myRole : undefined;/.test(ctx));
 check('B-1 loader: the device copy is read ONCE — per-project stamps come from it and local-only rows merge from it',
   /const localById = new Map\(localForMerge\.map\(\(p\) => \[p\.id, p\] as const\)\);/.test(ctx)

@@ -214,27 +214,39 @@ ok('…both when the photo is already cached and when it arrives late',
   /useState\(\s*existingRFI\?\.linkedTaskId \?\? prefillPhoto\?\.linkedTaskId/.test(rfi)
   && /setLinkedTaskId\(prev => prev \|\| \(prefillPhoto\.linkedTaskId/.test(rfi));
 ok('a photo that hydrates AFTER mount still fills the form',
-  /prefillPulled/.test(rfi) && /\}, \[prefillPhoto, existingRFI\]\);/.test(rfi));
+  // wave 4 #97: the latch also respects a removed source photo.
+  /prefillPulled/.test(rfi) && /\}, \[prefillPhoto, existingRFI, sourceUnlinked\]\);/.test(rfi));
 ok('…and never overwrites an existing RFI or something already typed',
-  /if \(!prefillPhoto \|\| existingRFI \|\| prefillPulled\.current\) return;/.test(rfi));
+  /if \(!prefillPhoto \|\| existingRFI \|\| prefillPulled\.current \|\| sourceUnlinked\) return;/.test(rfi));
 ok('attachments are actually rendered (they used to be invisible)',
   /attachments\.map\(\(stored, index\) =>/.test(rfi));
 ok('…with the markup drawn over them',
-  /const \{ uri, markup \} = attachmentView\(stored, index\);/.test(rfi)
+  /const \{ uri, markup(, sheet)? \} = attachmentView\(stored, index\);/.test(rfi)
   && /<PhotoMarkupOverlay markup=\{markup\}/.test(rfi));
 ok('…resolved by the source photo id first, the copied URI only as fallback',
-  /markup: markupForSource\(projectPhotos, fromSource\?\.id, uri\)/.test(rfi)
+  /(markup: |const markup = )markupForSource\(projectPhotos, fromSource\?\.id, uri\)/.test(rfi)
   && !/markupForUri\(/.test(rfi));
 ok('…and the source photo\'s CURRENT uri is rendered over a stale stored copy',
-  /uri: fromSource\?\.uri \|\| uri,/.test(rfi));
+  // wave 4 #113: the source photo's uri is returned first, before any sheet signing.
+  (/uri: fromSource\?\.uri \|\| uri,/.test(rfi) || /if \(fromSource\?\.uri\) return \{ uri: fromSource\.uri,/.test(rfi)));
 ok('a new RFI raised from a photo keeps the photo id',
   /\.\.\.\(sourcePhotoId && attachments\.length > 0 \? \{ sourcePhotoId \} : \{\}\)/.test(rfi));
 ok('an existing RFI reads its own id; a new one takes the prefill\'s',
-  /const sourcePhotoId = existingRFI \? sourcePhotoIdOf\(existingRFI\) : \(prefillPhotoId \|\| undefined\);/.test(rfi));
+  // wave 4 #97: …unless he removed the source photo, which unlinks it.
+  /const sourcePhotoId = sourceUnlinked\s*\?\s*undefined\s*:\s*\(existingRFI \? sourcePhotoIdOf\(existingRFI\) : \(prefillPhotoId \|\| undefined\)\);/.test(rfi));
 ok('the emailed attachment is the source photo\'s current uri, not an expired copy',
   // rfi-core (wave 3) re-seeds the send from the saved record, so the list is
   // read off `sent` (the persisted RFI) — the same attachments, the same view.
-  /(?:existingRFI|sent)\.attachments\.map\(\(stored, index\) => attachmentView\(stored, index\)\.uri\)/.test(rfi));
+  // wave 4 #93: the send maps the DURABLE list; attachmentView still decides the
+  // source photo (sheet === null), and only a drawing takes the fresh signature.
+  (/(?:existingRFI|sent)\.attachments\.map\(\(stored, index\) => attachmentView\(stored, index\)\.uri\)/.test(rfi)
+    || /durable\.map\(\(u, index\) => \{\s*const v = attachmentView\(u, index\);\s*return v\.sheet === null \? v\.uri : \(minted\.get\(u\) \?\? v\.uri\);/.test(rfi)
+    // wave 4 integration: the same mapping moved into utils/rfiSendAttachments
+    // (an unsigned drawing is now left out instead of sent as a bare key); a
+    // non-sheet entry — the source photo — still sends attachmentView's uri.
+    || (/rfiEmailAttachments\(durable, attachmentView, minted\)/.test(rfi)
+      && /const v = view\(u, index\);\s*if \(v\.sheet === null\) \{\s*uris\.push\(v\.uri\);/.test(
+        readFileSync(join(ROOT, 'utils/rfiSendAttachments.ts'), 'utf8')))));
 ok('the note does not promise the markup shows everywhere in MAGE ID',
   !/shows here and in MAGE ID/.test(rfi));
 ok('…on a SQUARE cover thumbnail, the frame the annotator normalized against',

@@ -302,12 +302,23 @@ serve(async (req) => {
     // a 4xx: supabase.functions.invoke drops the body of a non-2xx response,
     // and this message is the only thing that tells the owner what to do.
     // Pending and revoked rows fall through and are (re)issued as before.
+    // #129: a PENDING row re-sent with the SAME role keeps its token (below).
+    let reuseToken: string | null = null;
     {
       const ex = await rest(
-        `project_collaborators?project_id=eq.${encodeURIComponent(projectId)}&invited_email=eq.${encodeURIComponent(email)}&select=id,role,status&limit=1`,
+        `project_collaborators?project_id=eq.${encodeURIComponent(projectId)}&invited_email=eq.${encodeURIComponent(email)}&select=id,role,status,invite_token&limit=1`,
       );
       if (!ex.ok) return json({ error: `Could not check the roster (${ex.status})` }, 502);
-      const existing = ((await ex.json()) as { id: string; role: string; status: string }[])[0];
+      const existing = ((await ex.json()) as { id: string; role: string; status: string; invite_token: string | null }[])[0];
+      // #129: re-sending to someone still PENDING in the same role re-emails
+      // the SAME link. Minting a new token killed the link the GC had already
+      // texted his foreman — typically because a failed or offline Team read
+      // showed "No collaborators yet" and he re-typed the address. A role
+      // change or a revoked row still gets a fresh token (the old link must
+      // not grant the old role, or a seat he was removed from).
+      if (existing?.status === "pending" && existing.role === role && existing.invite_token) {
+        reuseToken = existing.invite_token;
+      }
       if (existing?.status === "accepted") {
         return json({
           success: false,
@@ -334,9 +345,10 @@ serve(async (req) => {
         }, 402);
       }
     }
-    const token = newToken();
-    // Upsert on (project_id, invited_email): re-inviting a PENDING or REVOKED
-    // row refreshes the token/role (an accepted row returned above).
+    const token = reuseToken ?? newToken();
+    // Upsert on (project_id, invited_email): re-inviting a REVOKED row, or a
+    // PENDING one in a new role, refreshes the token/role; a same-role
+    // pending re-send keeps its token (#129). An accepted row returned above.
     const ins = await rest(`project_collaborators?on_conflict=project_id,invited_email`, {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=representation" },
@@ -358,7 +370,7 @@ serve(async (req) => {
     const mail = await sendInviteEmail(email, link, projectName, inviterName, role);
     // #177: emailSent tells the owner's screen whether to say "Emailed to X"
     // or "Email not sent — copy the link". The invite row exists either way.
-    return json({ success: true, link, collaborator: rows[0] ?? null, emailSent: mail.sent, emailReason: mail.reason ?? null });
+    return json({ success: true, link, collaborator: rows[0] ?? null, emailSent: mail.sent, emailReason: mail.reason ?? null, linkReused: reuseToken !== null });
   }
 
   // ── getLink ──────────────────────────────────────────────────────────────────

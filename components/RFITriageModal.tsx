@@ -80,7 +80,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
       showAlert('Missing details', 'Pick a project and fill in the subject and question.');
       return;
     }
-    const rfi = addRFI({
+    addRFI({
       projectId,
       subject: subject.trim(),
       question: question.trim(),
@@ -94,7 +94,9 @@ export default function RFITriageModal({ visible, onClose }: Props) {
       attachments: [],
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    nailIt(`RFI #${rfi.number} filed`);
+    // #28: no number here — addRFI's is the device's guess; the server assigns
+    // the real one on insert, and the RFI screen prints it once read back.
+    nailIt('RFI filed — its number is assigned when it syncs');
     close();
   };
 

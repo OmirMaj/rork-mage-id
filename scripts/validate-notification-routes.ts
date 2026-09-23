@@ -89,7 +89,7 @@ const P = '11111111-2222-3333-4444-555555555555';
 const CO = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const FULL: Record<string, unknown> = {
   project_id: P, change_order_id: CO, rfp_id: 'rfp-1', sub_id: 'sub-1', lead_id: 'lead-1',
-  invoice_id: 'inv-1', report_id: 'dr-1', item_id: 'item-1', kind: 'rfi',
+  invoice_id: 'inv-1', report_id: 'dr-1', item_id: 'item-1', kind: 'rfi', incident_id: 'inc-1',
 };
 const EVENTS = [
   'portal_message', 'budget_proposal', 'co_approval', 'contract_signed', 'selection_chosen',
@@ -97,6 +97,7 @@ const EVENTS = [
   'sub_invoice_reviewed', 'nearby_rfp_posted', 'bid_question_asked', 'bid_question_answered',
   'rfp_awarded', 'lead_received', 'margin_alert', 'morning_brief', 'week_close',
   'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready',
+  'safety_incident_filed',
 ];
 
 async function main() {
@@ -136,7 +137,15 @@ async function main() {
   ok('an RFI response opens that RFI', at('pro_response_received') === `/rfi?projectId=${P}&rfiId=item-1`);
   ok('a submittal response opens that submittal', at('pro_response_received', { ...FULL, kind: 'submittal' }) === `/submittal?projectId=${P}&submittalId=item-1`);
   ok('a push carries the pro kind as proKind (its own kind is the event)', at('pro_response_received', { projectId: P, itemId: 'item-1', kind: 'pro_response_received', proKind: 'submittal' }) === `/submittal?projectId=${P}&submittalId=item-1`);
-  ok('a punch item marked ready opens the punch list', at('punch_marked_ready') === `/punch-list?projectId=${P}`);
+  // Wave 4 (#51/#54): the item itself, not the whole list.
+  ok('a punch item marked ready opens that item (trigger payload: punch_item_id)', at('punch_marked_ready', { project_id: P, punch_item_id: 'pi-1', sub_name: 'Rivera' }) === `/punch-list?projectId=${P}&itemId=pi-1`, String(at('punch_marked_ready', { project_id: P, punch_item_id: 'pi-1' })));
+  ok('a punch-ready push (camelCase itemId) opens the same item', at('punch_marked_ready', { projectId: P, itemId: 'pi-1', kind: 'punch_marked_ready' }) === `/punch-list?projectId=${P}&itemId=pi-1`);
+  ok('a punch-ready event with no item id still opens the job\'s punch list', at('punch_marked_ready', { project_id: P }) === `/punch-list?projectId=${P}`);
+  ok('notify pushes the punch item id (payload.punch_item_id), not the undefined item_id', /itemId: payload\.punch_item_id \?\? payload\.item_id/.test(read('supabase/functions/notify/index.ts')));
+  // Wave 4 (#119): a foreman's incident report opens THAT case in Safety.
+  ok('a filed incident opens that case', at('safety_incident_filed') === `/safety-incidents?projectId=${P}&incidentId=inc-1`, String(at('safety_incident_filed')));
+  ok('an incident push (camelCase) opens the same case', at('safety_incident_filed', { projectId: P, incidentId: 'inc-1', kind: 'safety_incident_filed' }) === `/safety-incidents?projectId=${P}&incidentId=inc-1`);
+  ok('an incident event with no case id opens the job\'s incidents', at('safety_incident_filed', { project_id: P }) === `/safety-incidents?projectId=${P}`);
   ok('param values are URI-encoded', routes.routeHref({ pathname: '/x', params: { a: 'b&c=d' } }) === '/x?a=b%26c%3Dd');
 
   console.log('\n#12 no surface keeps its own table');
@@ -228,7 +237,7 @@ async function main() {
     // raised only by stripe-webhook and the database triggers, never a JWT.
     const m = /SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set\(\[([\s\S]*?)\]\)/.exec(NOTIFY);
     const members = new Set((m?.[1] ?? '').match(/'[a-z_]+'/g)?.map((x) => x.slice(1, -1)) ?? []);
-    const need = ['portal_reply', 'lead_received', 'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready'];
+    const need = ['portal_reply', 'lead_received', 'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready', 'safety_incident_filed'];
     ok('notify refuses the trigger-only events (portal_reply, lead_received, wave-3 money/field/design events) from anything but a trusted caller',
       need.every((e) => members.has(e)) && /!isService && SERVICE_ONLY_EVENTS\.has\(event\)/.test(NOTIFY),
       `missing: ${need.filter((e) => !members.has(e)).join(',')}`);

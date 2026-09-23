@@ -16,19 +16,21 @@ import { useProjectRole } from '@/hooks/useProjectRole';
 import { supabase } from '@/lib/supabase';
 import LockedAccessCard, { FieldSendFailureBanner } from '@/components/LockedAccessCard';
 import {
-  applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, FIELD_TASK_PATCH_KEYS,
+  applyFieldTaskPatches, mergeWrittenStamps, fieldScheduleSettingsChanged, fieldTaskDiff, FIELD_TASK_PATCH_KEYS,
   scheduleWritePathForRole, sendFieldTaskPatches, staleFieldEdits,
   captureFieldSendFailure, mergeFieldSendFailure, pendingFieldRetryPatches, fieldAutoRetryDelayMs,
-  planFieldRetry, fieldRetrySupersededNotice,
+  planFieldRetry, fieldRetrySupersededNotice, peerScheduleAdopt,
   type FieldSendFailure,
 } from '@/utils/fieldScheduleUpdate';
+import { projectWriteQueued } from '@/utils/scheduleMerge';
+import { getOwnOfflineQueue, onQueueChanged } from '@/utils/offlineQueue';
 import type { Project, ProjectSchedule, ScheduleAuditEntry, ScheduleTask } from '@/types';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
 import { buildScheduleFromTasks, mergeEditedSchedule, createId } from '@/utils/scheduleEngine';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
-import { useLiveSchedule, type LiveScheduleCopy } from '@/hooks/useLiveSchedule';
+import { liveScheduleCopyFromRow, useLiveSchedule, type LiveScheduleCopy } from '@/hooks/useLiveSchedule';
 import {
   runCpm, previewStartDayBasisMigration, startDayBasisAnswerPatch,
   calendarDayToDate, workingDaysBetween, type CpmResult,
@@ -364,6 +366,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
       const sent = await sendFieldTaskPatches(supabase, id, patches);
       if (sent.ok) {
         accepted = applyFieldTaskPatches(baseTasks, patches);
+        // With the stamps the RPC wrote (#87), so a retry after a later failed
+        // send still finds the server holding what this device holds.
+        accepted = mergeWrittenStamps(accepted, sent.stamps);
         // Local copy = what the server now holds. The row PATCH this also
         // enqueues is refused for field (0 rows, nothing written).
         updateProjectRaw(id, { schedule: { ...currentSchedule, tasks: accepted, updatedAt: new Date().toISOString() } });
@@ -516,8 +521,48 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   // pushed over this tab for the same job would otherwise share it and tear
   // it down on unmount (hooks/useLiveSchedule.ts).
   const liveProjectId = selectedProject?.id;
+  // THE WHOLE COPY, not only its tasks (#86): the baseline list and the active
+  // baseline ride along. Tasks-only kept this phone's [v1]/v1 after the GC
+  // captured and activated v2 on the web, and his next nudge here wrote
+  // [v1]/v1 back over the row — v2 deleted, "behind plan" measured from v1
+  // again. absorbServerSchedule takes them only while this project has no
+  // unconfirmed write of its own, so a lock made here that is still leaving is
+  // never lost to a peer echo.
+  // ...and only while this project has NOTHING in the offline queue either.
+  // A write that answered 'queued' has left the debounce and in-flight maps
+  // absorbServerSchedule checks, so a whole copy taken then would replace the
+  // tasks he edited with no signal, and his next nudge would queue the server
+  // copy behind them — his offline edits gone when it lands last. Busy until
+  // the first read says otherwise, and from the moment a change is signalled
+  // until it is read (the same rule as Schedule Pro's queueBusyRef). A busy
+  // project takes the tasks-only 3-way merge (peerScheduleAdopt).
+  const queueBusyRef = useRef(true);
+  useEffect(() => {
+    const pid = liveProjectId;
+    if (!pid) { queueBusyRef.current = false; return; }
+    let disposed = false;
+    let seq = 0;
+    const refresh = () => {
+      const mine = ++seq;
+      queueBusyRef.current = true;
+      void getOwnOfflineQueue().then((queue) => {
+        if (disposed || mine !== seq) return;
+        queueBusyRef.current = projectWriteQueued(queue, pid);
+      }).catch(() => {
+        // Unreadable queue: stay on the tasks-only merge, which never drops a
+        // local edit — only the baselines wait for a later copy.
+        if (disposed || mine !== seq) return;
+        queueBusyRef.current = true;
+      });
+    };
+    refresh();
+    const unsubscribe = onQueueChanged(refresh);
+    return () => { disposed = true; unsubscribe(); };
+  }, [liveProjectId]);
   const onPeerSchedule = useCallback((copy: LiveScheduleCopy) => {
-    if (liveProjectId) absorbServerSchedule(liveProjectId, copy.tasks);
+    if (liveProjectId) {
+      absorbServerSchedule(liveProjectId, copy.tasks, peerScheduleAdopt(copy, queueBusyRef.current));
+    }
   }, [liveProjectId, absorbServerSchedule]);
   // Realtime does not replay what it missed while the socket was down (a
   // pocketed phone, a dead zone on site) — re-read the row once it rejoins.
@@ -527,8 +572,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     void (async () => {
       try {
         const { data } = await supabase.from('projects').select('schedule').eq('id', pid).maybeSingle();
-        const fresh = (data as { schedule?: { tasks?: ScheduleTask[] } } | null)?.schedule?.tasks;
-        if (Array.isArray(fresh)) absorbServerSchedule(pid, fresh);
+        // The whole schedule column, read the same way as a live event (#86).
+        const fresh = liveScheduleCopyFromRow((data as { schedule?: unknown } | null)?.schedule);
+        if (fresh) absorbServerSchedule(pid, fresh.tasks, peerScheduleAdopt(fresh, queueBusyRef.current));
       } catch {
         // Offline again — the next rejoin or the foreground refetch catches up.
       }
@@ -1462,6 +1508,9 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
         onUpdateTask={onUpdateTask}
         onDeleteTask={onDeleteTask}
         writePath={writePath}
+        // The list row's own placement (#88): the sheet prints and steps from
+        // the engine's dates, not the stored pin.
+        placements={placements}
       />
       <AddTaskModal visible={showAdd} onCancel={() => { setShowAdd(false); setAddPrefillDate(undefined); }} onCreate={onCreate} tasks={tasks} defaultStartDate={addPrefillDate} />
 

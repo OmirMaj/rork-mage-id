@@ -27,14 +27,14 @@ import { useEffect, useRef } from 'react';
 
 let mountSeq = 0;
 import { supabase } from '@/lib/supabase';
-import type { ScheduleTask } from '@/types';
+import { scheduleCopyFromRow, type ServerScheduleCopy } from '@/utils/fieldScheduleUpdate';
 
-export interface LiveScheduleCopy {
-  tasks: ScheduleTask[];
-  stamp: string | null;
-  /** The row's named baselines (utils/scheduleMerge.ts ScheduleCopy has why). */
-  baselines?: unknown[];
-}
+/** A live copy of the row's schedule — utils/fieldScheduleUpdate.ts
+ *  ServerScheduleCopy has the fields and why activeBaselineId is carried (#86). */
+export type LiveScheduleCopy = ServerScheduleCopy;
+/** Read a projects row's `schedule` (a realtime payload.new.schedule, or a
+ *  re-read of the column) the one way every live path reads it. */
+export const liveScheduleCopyFromRow = scheduleCopyFromRow;
 
 export function useLiveSchedule(
   projectId: string | undefined,
@@ -64,11 +64,8 @@ export function useLiveSchedule(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'projects', filter: `id=eq.${projectId}` },
         (payload) => {
-          const schedule = (payload.new as { schedule?: { tasks?: ScheduleTask[]; updatedAt?: unknown; baselines?: unknown } })?.schedule;
-          const tasks = schedule?.tasks;
-          if (!Array.isArray(tasks)) return;
-          const stamp = typeof schedule?.updatedAt === 'string' ? schedule.updatedAt : null;
-          cbRef.current({ tasks, stamp, baselines: Array.isArray(schedule?.baselines) ? schedule.baselines : undefined });
+          const copy = liveScheduleCopyFromRow((payload.new as { schedule?: unknown } | null)?.schedule);
+          if (copy) cbRef.current(copy);
         },
       )
       .subscribe((status) => {

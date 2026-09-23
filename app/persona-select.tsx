@@ -18,7 +18,7 @@
 // (or skip directly to /(tabs)/(home) if onboarding already complete,
 // e.g. a user revisits this screen from Settings to change persona).
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Pressable, Dimensions, AccessibilityInfo,
 } from 'react-native';
@@ -33,6 +33,11 @@ import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-nativ
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { Type } from '@/constants/typography';
 import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { parsePendingInvites, pendingInviteHeadline, type PendingInvite } from '@/utils/deepLinksInvite';
+import { settleWithin } from '@/utils/projectRole';
 import { showAlert } from '@/utils/alert';
 import {
   USER_ROLE_LABELS,
@@ -84,6 +89,34 @@ export default function PersonaSelectScreen() {
   const invitedProject = typeof rawInvited === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(rawInvited) ? rawInvited : null;
 
   const { isDesktop } = useResponsiveLayout();
+
+  // #107 / #131 safety net: an invite that reached neither the URL nor the
+  // account (a link opened on another device, an OAuth sign-up in a different
+  // browser, a pasted address). For a NEW account with no invitedProject, ask
+  // the server which invites wait for his verified email — the same
+  // project-invite `listPending` call, and the same react-query entry, as
+  // Home's PendingInvitesCard. If one does, the GC onboarding is not his:
+  // contractor / both skip it and land on Home, where that card offers the
+  // invite with one tap. Nothing is accepted on his behalf.
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const queryClient = useQueryClient();
+  const lookForInvites = !invitedProject && hasSeenOnboarding === false && !!userId && isSupabaseConfigured;
+  const pendingInvitesQueryKey = useMemo(() => ['pending-invites', userId] as const, [userId]);
+  const fetchPendingInvites = useCallback(async (): Promise<PendingInvite[]> => {
+    const { data, error } = await supabase.functions.invoke('project-invite', { body: { action: 'listPending' } });
+    if (error) throw error;
+    return parsePendingInvites(data);
+  }, []);
+  const pendingInvitesQuery = useQuery({
+    // A react-query key (memory only), not a storage key — shared with
+    // components/collaborators/PendingInvitesCard.
+    queryKey: pendingInvitesQueryKey,
+    enabled: lookForInvites,
+    staleTime: 60_000,
+    queryFn: fetchPendingInvites,
+  });
+  const waitingInvite: PendingInvite | null = lookForInvites ? (pendingInvitesQuery.data?.[0] ?? null) : null;
 
   const [submitting, setSubmitting] = useState<UserRole | null>(null);
 
@@ -168,6 +201,26 @@ export default function PersonaSelectScreen() {
       await setUserRole(role);
       track(AnalyticsEvents.PERSONA_SELECTED, { persona: role, onboarding: !hasSeenOnboarding });
 
+      // #107 / #131: a new account with an invite waiting skips the GC
+      // onboarding. If he tapped before the lookup answered, wait for it
+      // briefly (bounded — a dead signal must not hold the pick); no answer
+      // means no invite we can show, and first-run proceeds as usual.
+      let invited = waitingInvite;
+      if (!invited && lookForInvites && !hasSeenOnboarding && (role === 'contractor' || role === 'both')) {
+        let found: PendingInvite[] = [];
+        await settleWithin(
+          queryClient.fetchQuery({ queryKey: pendingInvitesQueryKey, queryFn: fetchPendingInvites, staleTime: 60_000 })
+            .then((list) => { found = list; }),
+          4000,
+        );
+        invited = found[0] ?? null;
+      }
+      if (invited && !hasSeenOnboarding) {
+        await completeOnboarding();
+        router.replace('/(tabs)/(home)' as never);
+        return;
+      }
+
       // Routing after pick has three paths:
       //   1. Existing user changing persona from Settings (hasSeenOnboarding
       //      is true): drop straight on home — they've seen onboarding once,
@@ -201,7 +254,7 @@ export default function PersonaSelectScreen() {
         'Please tap your role again.',
       );
     }
-  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, invitedProject]);
+  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, invitedProject, waitingInvite, lookForInvites, queryClient, fetchPendingInvites, pendingInvitesQueryKey]);
 
   const handlePick = useCallback((role: UserRole) => {
     if (submitting) return;
@@ -266,6 +319,8 @@ export default function PersonaSelectScreen() {
         <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
           {invitedProject
             ? "You've joined a project. Tell us which side you're on and we'll open it — you can switch later in Settings."
+            : waitingInvite
+            ? `${pendingInviteHeadline(waitingInvite)}. Tell us which side you're on and it will be waiting on your Home screen to accept — you can switch later in Settings.`
             : "MAGE ID has two sides — the operating system for builders, and a marketplace for property owners hiring them. Pick one and we'll set up the right experience. You can switch later in Settings."}
         </Animated.Text>
 

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { COAuditEntry } from '@/types';
+import type { COApprover, COAuditEntry } from '@/types';
 
 // Closes the seam between the static client portal and the GC's app: when
 // a client taps Approve / Decline on a change order, a row lands in
@@ -78,21 +78,75 @@ export function mergeAuditTrails(server: COAuditEntry[], local: COAuditEntry[]):
  *    our entry records only what the app did — "status set" / "already" — not
  *    a second copy of the decision (#40).
  *  - Status flips only on that first pass, and only if it differs.
+ *  - CONFLICT (#71 / #132, wave 4). The portal RPCs no longer write
+ *    change_orders.status — this hook flips it, because that flip is what runs
+ *    the "place these days" marker, its notification and fireGradingEvent in
+ *    ProjectContext.updateChangeOrder. So this is also the last place a second
+ *    answer for the SAME send can be caught: a sealed client_signed_via_portal /
+ *    client_declined_via_portal entry whose id is ANOTHER approval row's, or our
+ *    own key from another row, dated at or after the CO's current send
+ *    (co.sentAt — the GC device's clock, the same compromise the server's
+ *    legacy fallback makes). Then we write 'portal_decision_conflict', change
+ *    no status, and say so in the trail the CO screen shows. A row whose own
+ *    sealed entry is in the trail is not a conflict, and an answer to an
+ *    EARLIER send (a CO revised and re-sent) is not one either. WHAT IT GIVES
+ *    UP: with no sentAt on this device every earlier answer counts as current,
+ *    so a re-sent CO's second decision waits for the GC instead of flipping.
+ *  - #72: the pending Client approver is stamped in the same patch (status,
+ *    name = signer, responseDate = the row's created_at, the decline note as
+ *    rejectionReason), so client-view's "Approved by" banner and aiaBilling's
+ *    approval date read the client's answer instead of 'pending'.
  */
 export function planPortalApproval(
   row: { id: string; decision: 'approved' | 'declined'; signer_name: string | null; signer_email: string | null; note: string | null; created_at: string },
   coStatus: string | undefined,
   trail: COAuditEntry[],
-): { entry: COAuditEntry | null; status: 'approved' | 'rejected' | null } {
+  co?: { approvers?: COApprover[]; sentAt?: string },
+): { entry: COAuditEntry | null; status: 'approved' | 'rejected' | null; approvers: COApprover[] | null } {
   // The idempotence key, derived from the approval row and nothing else.
   const key = `audit-portal-${row.id.slice(0, 8)}`;
   const alreadyApplied = trail.some(e => e.id === key);
-  if (alreadyApplied) return { entry: null, status: null };
+  if (alreadyApplied) return { entry: null, status: null, approvers: null };
   const wanted = row.decision === 'approved' ? 'approved' : 'rejected';
-  const flips = coStatus !== wanted;
   const sealed = trail.some(e => e.id === row.id);
   const actor = row.signer_name || row.signer_email || 'client';
   const statusWord = wanted === 'approved' ? 'Approved' : 'Rejected';
+
+  // Another row's answer to the CURRENT send. Our own keys share the
+  // 'audit-portal-' prefix; the sealed entries carry the other row's id.
+  const sentMs = co?.sentAt ? Date.parse(co.sentAt) : NaN;
+  const ownKeyPrefix = key.slice(0, 'audit-portal-'.length);
+  const other = trail.find((e) => {
+    if (!e || e.id === row.id || e.id === key) return false;
+    const isSealed = e.action === 'client_signed_via_portal' || e.action === 'client_declined_via_portal';
+    const isOurs = typeof e.id === 'string' && e.id.startsWith(ownKeyPrefix)
+      && (e.action === 'portal_decision_applied' || e.action === 'approved_via_portal' || e.action === 'declined_via_portal');
+    if (!isSealed && !isOurs) return false;
+    const at = Date.parse(e.timestamp);
+    // Unknown on either side: treat it as this send's (never flip on a doubt).
+    if (Number.isFinite(sentMs) && Number.isFinite(at) && at < sentMs) return false;
+    return true;
+  });
+  if (other) {
+    const otherWord = other.action === 'client_declined_via_portal' || other.action === 'declined_via_portal'
+      || /Status set to Rejected|already Rejected/.test(other.detail ?? '')
+      ? 'declined' : 'approved';
+    return {
+      entry: {
+        id: key,
+        action: 'portal_decision_conflict',
+        actor: 'MAGE ID',
+        timestamp: row.created_at,
+        detail: `Your client's portal recorded a second answer for this change order: ${row.decision} by ${actor}, `
+          + `after it was already ${otherWord}${other.actor && other.actor !== 'MAGE ID' ? ` by ${other.actor}` : ''}. `
+          + `Status left as ${coStatus || 'it was'} — confirm with your client before changing it.`,
+      },
+      status: null,
+      approvers: null,
+    };
+  }
+
+  const flips = coStatus !== wanted;
   const entry: COAuditEntry = sealed
     ? {
         id: key,
@@ -110,7 +164,18 @@ export function planPortalApproval(
         timestamp: row.created_at,
         detail: row.note ? `Note: ${row.note}` : undefined,
       };
-  return { entry, status: flips ? wanted : null };
+
+  // #72: the Client approver still waiting on this answer.
+  const list = Array.isArray(co?.approvers) ? co!.approvers! : [];
+  const at = list.findIndex(a => a && a.role === 'Client' && a.status === 'pending');
+  const approvers = at < 0 ? null : list.map((a, i): COApprover => (i !== at ? a : {
+    ...a,
+    status: wanted,
+    name: row.signer_name || row.signer_email || a.name,
+    responseDate: row.created_at,
+    ...(wanted === 'rejected' && row.note ? { rejectionReason: row.note } : {}),
+  }));
+  return { entry, status: flips ? wanted : null, approvers };
 }
 
 // `.select('id')` is load-bearing, not decoration. Without a returning clause
@@ -165,6 +230,7 @@ export function usePortalApprovalReconciler(): void {
         // pre-pass copy.
         const pendingTrails = new Map<string, COAuditEntry[]>();
         const pendingStatus = new Map<string, string | undefined>();
+        const pendingApprovers = new Map<string, COApprover[]>();
         let touched = false;
 
         for (const row of data as ApprovalRow[]) {
@@ -202,7 +268,10 @@ export function usePortalApprovalReconciler(): void {
             status = co.status;
           }
 
-          const plan = planPortalApproval(row, status, trail);
+          const plan = planPortalApproval(row, status, trail, {
+            approvers: pendingApprovers.get(co.id) ?? co.approvers,
+            sentAt: co.portalState?.sentAt,
+          });
           if (plan.entry) {
             const auditTrail = [...trail, plan.entry];
             pendingTrails.set(co.id, auditTrail);
@@ -215,8 +284,18 @@ export function usePortalApprovalReconciler(): void {
             // promises nothing moves until he applies it (#37). The CO gets
             // the "place these days" marker; the project screen places them.
             const wantedStatus = plan.status;
-            if (wantedStatus) updateChangeOrder(co.id, { status: wantedStatus, auditTrail }, { deferReflow: true });
+            // #72: the Client approver rides in the SAME patch (one queued
+            // write), never a second update that could land without the other.
+            const approvers = plan.approvers;
+            if (approvers) pendingApprovers.set(co.id, approvers);
+            if (wantedStatus && approvers) updateChangeOrder(co.id, { status: wantedStatus, auditTrail, approvers }, { deferReflow: true });
+            else if (wantedStatus) updateChangeOrder(co.id, { status: wantedStatus, auditTrail }, { deferReflow: true });
+            else if (approvers) updateChangeOrder(co.id, { auditTrail, approvers }, { deferReflow: true });
             else updateChangeOrder(co.id, { auditTrail }, { deferReflow: true });
+            if (plan.entry.action === 'portal_decision_conflict') {
+              // Loud in the log as well as in the trail the CO screen shows.
+              console.warn('[usePortalApprovalReconciler] conflicting portal decision left for the GC', co.id, row.id);
+            }
           } else {
             pendingTrails.set(co.id, trail);
             pendingStatus.set(co.id, status);

@@ -36,6 +36,8 @@
 //                                    (trigger only; audit round 2, #16)
 //     'lead_received'              — website quote form / widget lead → GC
 //                                    (trigger only; audit round 2, #9)
+//     'safety_incident_filed'      — invited collaborator files an incident → GC
+//                                    (trigger only; wave 4, #119; no PHI)
 //
 // DEPLOY ORDER (review 2026-09-04, advisory 4): marketing/portal/index.html must
 // be live BEFORE this function is deployed. Anonymous callers (that page) now
@@ -341,6 +343,21 @@ function badgeFromUnread(unread: number | null): number | null {
 
 // >>> wave3-notify-text (pure; scripts/validate-invoice-send-pay-notify.ts evaluates this block)
 /**
+ * 'Mon, Sep 15' for a bare calendar day ('YYYY-MM-DD'), read as that day and
+ * never as a UTC instant (new Date('2026-09-15') is Sep 14 in every US zone).
+ * Anything else — an instant, garbage, an impossible date — is null, so the
+ * copy falls back to "a daily report" instead of printing a guessed day.
+ */
+function reportDayLabel(v: unknown): string | null {
+  const m = typeof v === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim()) : null;
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const at = new Date(Date.UTC(y, mo - 1, d, 12));
+  if (at.getUTCFullYear() !== y || at.getUTCMonth() !== mo - 1 || at.getUTCDate() !== d) return null;
+  return at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+/**
  * Push / email / inbox wording for the wave-3 GC events. One function so the
  * push, the email and the validator agree. Every figure is exact to the cent
  * (fmtMoneyCents) — a GC reconciles "client paid $77,484.88" against his bank,
@@ -351,6 +368,11 @@ function badgeFromUnread(unread: number | null): number | null {
  *   field_report_filed     a collaborator's daily report was filed (dfr-screen trigger)
  *   pro_response_received  an architect/engineer answered an RFI or submittal (rfi-core)
  *   punch_marked_ready     a sub marked a punch item ready for review (punch)
+ *   safety_incident_filed  an invited collaborator filed an incident report (wave 4,
+ *                          #119; trg_notify_safety_incident_filed). NO PHI: the
+ *                          payload carries only the author's name and the severity
+ *                          word, and neither is printed as injury detail — a push
+ *                          lands on a lock screen and the outbox feeds the digests.
  */
 function wave3NotifyText(event: string, p: Record<string, unknown>, projectName: string): {
   prefKey: string; pushTitle: string; pushBody: string; emailSubject: string;
@@ -403,16 +425,39 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
       };
     }
     case 'field_report_filed': {
+      // Wave 4 (#60): raised when the report is SUBMITTED (status → 'sent'),
+      // not on the first Save Draft, and for the report's own day — a Monday
+      // report backfilled on Wednesday is "the report for Mon, Sep 15", never
+      // "today's". report_date is the trigger's calendar day ('YYYY-MM-DD');
+      // missing/garbled → "a daily report", never a guessed day.
+      // (#59/#133): portal_status is what the homeowner can see NOW (the
+      // trigger's rule: shared AND the portal shows daily reports). The copy
+      // used to promise "nothing reaches the homeowner" while a foreman's
+      // report was already on the portal; each branch now says what is true.
+      // An older trigger sent no portal_status — then neither promise is made.
       const who = s(p.author_name) || 'Your field team';
+      const day = reportDayLabel(p.report_date);
+      const filed = day ? `filed the report for ${day}` : 'filed a daily report';
+      const status = p.portal_status === 'sent' ? 'sent' : p.portal_status === 'draft' ? 'draft' : null;
+      const tail = status === 'sent'
+        ? (p.in_weekly_digest === false
+          ? "It's already on the homeowner's portal. Hide it if it shouldn't be."
+          : "It's already on the homeowner's portal and will be in Friday's update. Hide it if it shouldn't be.")
+        : status === 'draft'
+          ? 'Review it before anything goes to the homeowner.'
+          : 'Open it to check what the homeowner can see.';
+      const rows: [string, string, boolean?][] = [['Filed by', who]];
+      if (day) rows.push(['Report date', day]);
+      rows.push(['Homeowner portal', status === 'sent' ? 'Showing now' : status === 'draft' ? 'Not shown — waiting on you' : 'Check in the app']);
       return {
         prefKey: 'field_report',
         pushTitle: `Daily report filed · ${projectName}`,
-        pushBody: `${who} filed today's report. Review it before anything goes to the homeowner.`,
-        emailSubject: `${who} filed a daily report · ${projectName}`,
+        pushBody: `${who} ${filed}. ${tail}`,
+        emailSubject: `${who} ${filed} · ${projectName}`,
         eyebrow: 'Daily report filed',
         title: `${who} filed a daily report`,
-        subtitle: 'Nothing reaches the homeowner until you decide it should.',
-        rows: [['Filed by', who]],
+        subtitle: tail,
+        rows,
         ctaLabel: 'Review the report',
       };
     }
@@ -435,17 +480,50 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
       };
     }
     case 'punch_marked_ready': {
+      // Wave 4 (#51): WHICH item — the description, the room and the sub's own
+      // note (CONTRACT 10 payload keys) — instead of twelve identical "marked a
+      // punch item ready" pushes. The sub typed all three on his portal, so
+      // they are clipped here and escaped where they meet HTML (the dispatch
+      // escapes every row; wrapEmailHtml escapes title/subtitle). more_count
+      // is the marks from this sub on this job that arrived inside the
+      // coalescing window and went only to the inbox (punchReadyCoalesce).
+      const clip = (v: string, n: number) => (v.length > n ? `${v.slice(0, n - 1).trimEnd()}…` : v);
       const who = s(p.sub_name) || 'A subcontractor';
+      const desc = clip(s(p.description).replace(/\s+/g, ' '), 80);
+      const loc = clip(s(p.location).replace(/\s+/g, ' '), 60);
+      const note = clip(s(p.sub_note).replace(/\s+/g, ' '), 200);
+      const moreN = typeof p.more_count === 'number' && Number.isInteger(p.more_count) && p.more_count > 0 ? p.more_count : 0;
+      const more = moreN ? ` And ${moreN} more from ${who} since the last alert — see Review.` : '';
+      const item = desc ? `“${desc}”` : 'a punch item';
+      const rows: [string, string, boolean?][] = [['From', who]];
+      if (desc) rows.push(['Item', desc, true]);
+      rows.push(['Location', loc || 'No room given']);
+      if (note) rows.push(['Sub’s note', note]);
+      if (moreN) rows.push(['Also marked since the last alert', `${moreN} more`]);
       return {
         prefKey: 'punch_ready',
         pushTitle: `Punch item ready · ${projectName}`,
-        pushBody: `${who} marked a punch item ready for your review.`,
-        emailSubject: `${who} marked a punch item ready · ${projectName}`,
+        pushBody: `${who} marked ${item}${loc ? ` (${loc})` : ''} ready for your review.${more}`,
+        emailSubject: `${who} marked ${desc ? `“${clip(desc, 50)}”` : 'a punch item'} ready · ${projectName}`,
         eyebrow: 'Punch list',
-        title: `${who} says a punch item is done`,
+        title: `${who} says ${desc ? `“${desc}”` : 'a punch item'} is done`,
         subtitle: 'Walk it and close it, or send it back.',
-        rows: [['From', who]],
-        ctaLabel: 'Open the punch list',
+        rows,
+        ctaLabel: 'Open the item',
+      };
+    }
+    case 'safety_incident_filed': {
+      const who = s(p.author_name) || 'Someone on your team';
+      return {
+        prefKey: 'safety_incident',
+        pushTitle: `Incident report filed · ${projectName}`,
+        pushBody: `${who} filed an incident report on ${projectName}. Open it in Safety.`,
+        emailSubject: `${who} filed an incident report · ${projectName}`,
+        eyebrow: 'Safety',
+        title: `${who} filed an incident report`,
+        subtitle: `Open it in Safety to review the case and decide whether it goes on your OSHA 300 log.`,
+        rows: [['Filed by', who]],
+        ctaLabel: 'Open the incident',
       };
     }
     default:
@@ -768,6 +846,52 @@ async function exceedsRateLimit(scope: string, cap: number): Promise<boolean> {
   }
 }
 
+// ─── punch_marked_ready coalescing (wave 4, #51) ───────────────────────
+// >>> punch-ready-coalesce (scripts/validate-w4-punch-gc-fixes.ts evaluates this block with stubbed I/O)
+/** The window a sub's sweep of "Mark fixed" taps collapses into one alert. */
+const PUNCH_READY_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Should this punch_marked_ready go out loud, and how many quiet ones came
+ * before it? The first mark per GC + job + sub in a fixed 10-minute window is
+ * loud (rate_limit_increment's atomic counter — the i'th caller sees count i,
+ * so exactly one per window is first); later ones in the window are quiet
+ * (inbox row only). A loud one counts the quiet rows logged since the last
+ * loud one for the same key, so its push says "and N more".
+ *
+ * Fails OPEN like exceedsRateLimit: a counter or read that errors sends the
+ * alert (a duplicate beats a dropped "work is ready"), and a failed count is
+ * simply no "and N more". Fixed windows, not sliding: a sweep that straddles
+ * a boundary sends two alerts, never zero.
+ */
+async function punchReadyCoalesce(
+  gcUserId: string,
+  projectId: string | null,
+  payload: Record<string, unknown>,
+): Promise<{ quiet: boolean; more: number }> {
+  const sub = typeof payload.sub_name === 'string' ? payload.sub_name.trim() : '';
+  const subKey = sub.toLowerCase() || '-';
+  const windowId = Math.floor(Date.now() / PUNCH_READY_WINDOW_MS);
+  if (await exceedsRateLimit(`notify:punch_ready:${gcUserId}:${projectId ?? '-'}:${subKey}:${windowId}`, 1)) {
+    return { quiet: true, more: 0 };
+  }
+  if (!projectId || !sub) return { quiet: false, more: 0 };
+  try {
+    const base = `notification_outbox?event_type=eq.punch_marked_ready&recipient_user_id=eq.${encodeURIComponent(gcUserId)}`
+      + `&payload->>project_id=eq.${encodeURIComponent(projectId)}&payload->>sub_name=eq.${encodeURIComponent(sub)}`;
+    // A loud row with no push token has a NULL push_status — still loud.
+    const lastLoud = await sbGet(`${base}&or=(push_status.is.null,push_status.neq.coalesced)&select=created_at&order=created_at.desc&limit=1`) as { created_at: string }[];
+    const since = Array.isArray(lastLoud) && lastLoud[0]?.created_at
+      ? lastLoud[0].created_at
+      : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const quietRows = await sbGet(`${base}&push_status=eq.coalesced&created_at=gt.${encodeURIComponent(since)}&select=id&limit=500`) as unknown[];
+    return { quiet: false, more: Array.isArray(quietRows) ? quietRows.length : 0 };
+  } catch {
+    return { quiet: false, more: 0 };
+  }
+}
+// <<< punch-ready-coalesce
+
 // ─── Event dispatch ───────────────────────────────────────────────────
 /** Events only a trigger (service caller) may raise — see dispatch(). */
 /** lead_received pushes/emails per GC per hour (public-lead-intake caps
@@ -789,6 +913,8 @@ const PORTAL_REPLY_GLOBAL_HOURLY_CAP = 500;
 const SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set([
   'portal_reply', 'lead_received',
   'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready',
+  // wave 4 (#119): raised only by trg_notify_safety_incident_filed.
+  'safety_incident_filed',
 ]);
 
 interface DispatchResult {
@@ -1038,6 +1164,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     sender?: { name?: string; email?: string; phone?: string } | null;
     /** Email subject — usually different (and tighter) than push title. */
     emailSubject: string;
+    /** Inbox row only: no push, no email (a coalesced repeat — see
+     *  punchReadyCoalesce). Both statuses are logged as 'coalesced'. */
+    quiet?: boolean;
     /** wrapEmailHtml inputs. We add the shell defaults around it. */
     emailWrap: {
       preheader: string;
@@ -1055,8 +1184,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     let emailStatus: string | null = null;
     let emailResp: unknown = null;
 
-    const allowPush = kind === 'gc' && prefAllows(gc.notification_preferences, spec.prefKey, 'push');
-    const allowEmail = prefAllows(gc.notification_preferences, spec.prefKey, 'email');
+    const allowPush = !spec.quiet && kind === 'gc' && prefAllows(gc.notification_preferences, spec.prefKey, 'push');
+    const allowEmail = !spec.quiet && prefAllows(gc.notification_preferences, spec.prefKey, 'email');
+    if (spec.quiet) { pushStatus = 'coalesced'; emailStatus = 'coalesced'; }
 
     if (allowPush && spec.pushToken) {
       const badge = badgeFromUnread(await unreadCountFor(gcUserId));
@@ -1236,9 +1366,12 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           title: `${signerName} ${verb} ${coName}`,
           subtitle: isApproved
             ? 'Approval is logged and time-stamped — proceed with the work.'
+            // #73: name the action the CO screen actually has — "Revise &
+            // re-issue" on the declined CO starts a new version with the next
+            // number (the declined one keeps its record).
             : note
-              ? 'Their reason is below — answer it, then revise and re-issue if it still applies.'
-              : 'They gave no reason. Reach out to clarify, then revise and re-issue if appropriate.',
+              ? 'Their reason is below — answer it, then use Revise & re-issue on the change order if it still applies.'
+              : 'They gave no reason. Reach out to clarify, then use Revise & re-issue on the change order if appropriate.',
           bodyHtml: `${emailStatCard([
             coName !== 'a change order' ? emailStatRow('Change order', escapeHtml(coName.replace('CO ', ''))) : '',
             description ? emailStatRow('Scope', escapeHtml(description.length > 80 ? description.slice(0, 80) + '…' : description)) : '',
@@ -1356,8 +1489,11 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     case 'client_payment_failed':
     case 'field_report_filed':
     case 'pro_response_received':
+    case 'safety_incident_filed':
     case 'punch_marked_ready': {
-      const text = wave3NotifyText(event, payload, projectName);
+      // #51: one alert per sub sweep — see punchReadyCoalesce.
+      const co = event === 'punch_marked_ready' ? await punchReadyCoalesce(gcUserId, projectId, payload) : { quiet: false, more: 0 };
+      const text = wave3NotifyText(event, co.more > 0 ? { ...payload, more_count: co.more } : payload, projectName);
       if (!text) break;
       // Screen ids come from the payload (a trusted caller — see
       // SERVICE_ONLY_EVENTS) and go through the shared route table.
@@ -1370,14 +1506,16 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           kind: pushKind, projectId,
           invoiceId: payload.invoice_id ?? undefined,
           reportId: payload.report_id ?? undefined,
-          itemId: payload.item_id ?? undefined,
+          itemId: payload.punch_item_id ?? payload.item_id ?? undefined, // punch | pro response
           proKind: payload.kind ?? undefined,
+          incidentId: payload.incident_id ?? undefined,
         },
         pushToken: gc.push_token,
         email: gc.email,
         // Mail TO the GC about his own client / crew: no "Sent by <himself>".
         sender: null,
         emailSubject: text.emailSubject,
+        quiet: co.quiet,
         emailWrap: {
           preheader: text.pushBody,
           eyebrow: text.eyebrow,

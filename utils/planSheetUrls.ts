@@ -137,6 +137,28 @@ export function isProjectScopedPlanSheetPath(path: string | null | undefined): b
 }
 
 /**
+ * #112 — in-memory signature cache, keyed by storage path.
+ *
+ * MEMORY ONLY, never persisted (a signed URL must never reach a durable store —
+ * see the TTL comment above). Reused while more than an hour of the 24 h TTL is
+ * left; a path nearer its expiry is re-signed on the next read.
+ *
+ * Tenant boundary: clearPlanSheetUrlCache() is called on sign-out / the local
+ * user-cache wipe (HANDOFF auth-invite, CONTRACT 14), so account B can never be
+ * handed a URL account A minted. The epoch counter covers a batch that was in
+ * flight when the wipe ran.
+ */
+const PLAN_SHEET_URL_REUSE_MIN_LEFT_MS = 60 * 60 * 1000;
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+let cacheEpoch = 0;
+
+/** Drop every cached plan-sheet signature (sign-out / tenant switch). */
+export function clearPlanSheetUrlCache(): void {
+  signedUrlCache.clear();
+  cacheEpoch += 1;
+}
+
+/**
  * Mint fresh signed URLs for a batch of stored paths / legacy URLs.
  *
  * Keyed by the ORIGINAL input string so a caller holding a mix of paths and
@@ -158,8 +180,28 @@ export async function resolvePlanSheetUrls(uris: string[]): Promise<Map<string, 
     if (existing) existing.push(uri);
     else byPath.set(path, [uri]);
   }
-  const paths = [...byPath.keys()];
+  // #112: serve a still-fresh signature from the module cache. Every focus
+  // of Plans / the viewer, the app-foreground refetch and the launch hydrate
+  // all land here, and a NEW signed URL for the same object is an image-cache
+  // miss — each thumbnail and the full-res sheet downloaded again on every
+  // open. Reusing the signature keeps the URI byte-identical, so the image
+  // cache hits. Only a path with more than PLAN_SHEET_URL_REUSE_MIN_LEFT_MS of
+  // life left is reused, so a URL we hand out never dies under the screen.
+  const now = Date.now();
+  const paths: string[] = [];
+  for (const path of byPath.keys()) {
+    const hit = signedUrlCache.get(path);
+    if (hit && hit.expiresAt - now > PLAN_SHEET_URL_REUSE_MIN_LEFT_MS) {
+      for (const original of byPath.get(path) ?? []) out.set(original, hit.url);
+    } else {
+      paths.push(path);
+    }
+  }
   if (paths.length === 0) return out;
+  // The epoch the batch started under — a clearPlanSheetUrlCache() (sign-out /
+  // tenant wipe) while createSignedUrls is in flight must not let the old
+  // account's signatures land back in the cache afterwards.
+  const epoch = cacheEpoch;
   // createSignedUrls is batched but not unbounded — chunk it, same as
   // resolvePhotoUrls in utils/storage.ts. A 200-sheet hospital set is one
   // project's worth of plans and would otherwise be one enormous request.
@@ -175,6 +217,10 @@ export async function resolvePlanSheetUrls(uris: string[]): Promise<Map<string, 
         const path = (entry as { path?: string | null }).path;
         const signedUrl = (entry as { signedUrl?: string | null }).signedUrl;
         if (!path || !signedUrl) continue;
+        if (epoch === cacheEpoch) {
+          // Minted at (or just before) `now`, so now + TTL is a safe upper bound.
+          signedUrlCache.set(path, { url: signedUrl, expiresAt: now + PLAN_SHEET_URL_TTL_SECONDS * 1000 });
+        }
         for (const original of byPath.get(path) ?? []) out.set(original, signedUrl);
       }
     } catch {/* offline — caller keeps its existing URI */}

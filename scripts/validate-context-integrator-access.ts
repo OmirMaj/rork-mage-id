@@ -63,8 +63,10 @@ console.log('\n#90 — his queued writes for a removed job go to the failure pat
   ok('the sentence names the job', noLongerHaveAccessReason('Henderson') === 'You no longer have access to Henderson'
     && noLongerHaveAccessReason('  ') === 'You no longer have access to this job');
   const dq = slice(OQ, 'export async function discardQueuedWrites(', '\n}\n');
+  // Integration round 1: as NOTES — a write to a job he left can never land,
+  // so the sheet must not offer it a Retry.
   ok('offlineQueue.discardQueuedWrites rewrites the queue under the lock and reports every drop through notifyDroppedWrites',
-    /await withQueueLock\(async \(\) => \{/.test(dq) && /for \(const \[reason, entries\] of byReason\) notifyDroppedWrites\(entries, reason\);/.test(dq)
+    /await withQueueLock\(async \(\) => \{/.test(dq) && /for \(const \[reason, entries\] of byReason\) await notifyDroppedWrites\(entries, reason, \{ asNotes: true \}\);/.test(dq)
       && /notifyQueueChanged\(remaining\)/.test(dq));
 }
 
@@ -102,9 +104,13 @@ console.log('\n#90 — the provider applies it:');
     listsHoldRevoked([[{ projectId: 'p3' }], [{ projectId: 'gc-job' }]], ids) && !listsHoldRevoked([[{ projectId: 'p3' }]], ids)
       && !listsHoldRevoked([[{ projectId: 'gc-job' }]], new Set()));
   const sweep = slice(CTX, 'const sweepRevokedJobs = (ids: ReadonlySet<string>, names: ReadonlyMap<string, string>): Promise<number> => {', '\n  };');
+  const mapHelper = slice(CTX, 'const childProjectMapFromListsAndCaches = async (', '\n  };');
   ok('the sweep drops the jobs\' child records locally (the delete cascade, no server write), then builds the map from memory AND every device cache',
+    // Wave 4 #8/#128: the map is built by childProjectMapFromListsAndCaches,
+    // shared with countQueuedForProject so the Leave count equals the sweep.
     /forgetProjectsLocally\(ids\);/.test(sweep) && !/syncProjectToSupabase/.test(sweep)
-      && /REVOKED_SWEEP_CACHE_KEYS\.map\(k =>\s*loadLocal/.test(sweep) && /const childProject = childProjectMap\(\[\.\.\.memory, \.\.\.disk\], ids\);/.test(sweep));
+      && /const childProject = await childProjectMapFromListsAndCaches\(memory, ids\);/.test(sweep)
+      && /REVOKED_SWEEP_CACHE_KEYS\.map\(k =>\s*loadLocal/.test(mapHelper) && /return childProjectMap\(\[\.\.\.memory, \.\.\.disk\], ids\);/.test(mapHelper));
   ok('...sends their queued writes to the failure path with the job\'s name',
     /discardQueuedWrites\(\(m\) => \{\s*const pid = queuedEntryRevokedProject\(m, ids, childProject\);/.test(sweep) && /noLongerHaveAccessReason\(names\.get\(pid\)\)/.test(sweep));
   const keysBlock = slice(CTX, 'const REVOKED_SWEEP_CACHE_KEYS = [', '] as const;');

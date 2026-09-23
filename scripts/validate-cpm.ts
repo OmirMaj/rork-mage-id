@@ -748,7 +748,9 @@ console.log('\n10. renderers are wired to cpm.es/ef');
   // axis's own unit, so the overlay is NOT lifted and the buttons stamp the same
   // calendar day every status sink stamps.
   ok('the Gantt actual overlay is drawn on the axis directly (calendar actuals, no toCal)',
-    /const aStart = bar\.task\.actualStartDay;/.test(ganttLayers)
+    // wave 4 #89: through actualCalendarDay (a date-only actual counts), still
+    // on the calendar axis.
+    /const aStart = actualCalendarDay\(bar\.task, 'start', stampBasis\);/.test(ganttLayers)
     && !/toCal\(aStartOrd\)|toCal\(bar\.task\.actualEndDay\)/.test(ganttLayers));
   ok('logStartToday and logFinishToday stamp through stampActuals on the calendar scale',
     /ganttLogStartPatch\(task, stampDay\(\)/.test(ganttLayers)

@@ -193,13 +193,15 @@ async function checkReadServer() {
   ok('his setting is named as coming from cash-flow setup',
     /termsOrigin === 'cash_flow_setup'[\s\S]{0,200}?From your cash-flow setup/.test(src));
   // Review 2026-09-17: Save / Send tapped while the picker still said
+  // (wave 4: the handlers also carry the #34 send lock, the #38 owner gate
+  // and the #66 tax check, so the windows are wider — the order still holds.)
   // "Checking…" stamped a Net 30 the GC never saw. Both entry points wait.
   ok('Save waits while the new invoice terms are still loading',
-    /const handleSave = useCallback\([\s\S]{0,700}?if \(termsOrigin === 'loading'\) \{\s*showAlert\(TERMS_LOADING_TITLE, TERMS_LOADING_MESSAGE\);\s*return;/.test(src));
+    /const handleSave = useCallback\([\s\S]{0,1400}?if \(termsOrigin === 'loading'\) \{\s*showAlert\(TERMS_LOADING_TITLE, TERMS_LOADING_MESSAGE\);\s*return;/.test(src));
   ok('Send waits while the new invoice terms are still loading',
-    /const handleSendPress = useCallback\(\(\) => \{[\s\S]{0,200}?if \(termsOrigin === 'loading'\) \{\s*showAlert\(TERMS_LOADING_TITLE, TERMS_LOADING_MESSAGE\);\s*return;\s*\}\s*setShowSendRecipient\(true\);\s*\}, \[termsOrigin\]\);/.test(src));
+    /const handleSendPress = useCallback\(\(\) => \{[\s\S]{0,400}?if \(termsOrigin === 'loading'\) \{\s*showAlert\(TERMS_LOADING_TITLE, TERMS_LOADING_MESSAGE\);\s*return;\s*\}[\s\S]{0,400}?setShowSendRecipient\(true\);\s*\}, \[termsOrigin\b/.test(src));
   ok('the Save guard is not stale (termsOrigin in handleSave deps)',
-    /\}, \[projectId, lineItems, paymentTerms, termsOrigin, notes,/.test(src));
+    /\}, \[projectId, billingBlocked, lineItems, paymentTerms, termsOrigin, /.test(src));
   ok('a bill-from-estimate draft carries its resolved origin into the editor (all three origins)',
     /termsOriginParam === 'cash_flow_setup' \|\| termsOriginParam === 'fallback' \|\| termsOriginParam === 'unconfirmed'/.test(src));
 }

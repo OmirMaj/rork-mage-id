@@ -35,6 +35,7 @@ import { absorbServerScheduleTasks, FIELD_TASK_PATCH_KEYS, stampFieldEdits } fro
 // 357d0a34's rebase, kept outside the app as this file's control.
 import { rebaseWorkingTasks } from './shipped-schedule-rebase';
 import { buildScheduleFromTasks } from '../utils/scheduleEngine';
+import { absorbedScheduleMeta } from '../utils/projectContextPure';
 import type { ScheduleTask } from '../types';
 
 let pass = 0, fail = 0;
@@ -1029,15 +1030,23 @@ console.log('\nwiring:');
       && /const settled = !syncBusy\(\);/.test(outside)
       && /takeStoreScheduleCopy\(gate, \{[\s\S]*?\}, persistPendingRef\.current \|\| fieldSavesInFlightRef\.current > 0, settled\);\s*if \(copy\) adoptServerCopy\(copy, settled\);/.test(outside)
       && /baselines: Array\.isArray\(incoming\.baselines\)/.test(outside), true);
-  const adopt = slice(PRO, 'const adoptServerCopy = useCallback(', '}, [livePeerProjectId, absorbServerSchedule]);');
+  const adopt = slice(PRO, 'const adoptServerCopy = useCallback(', '}, [livePeerProjectId, absorbServerSchedule, setActiveBaselineId]);');
   expect('adoption is whole (grid in its own row order, sub rollup re-applied, baselines taken) and — when it is the server\'s — reaches ProjectContext with its stamp; no persist, no undo entry',
     /withSubRollup\(inLocalOrder\(copy\.tasks, h\.present\), subRollupRef\.current\)/.test(adopt)
       && /baselinesRef\.current = next;\s*setNamedBaselines\(next\);/.test(adopt)
       && /if \(!fromServer\) return;\s*lastServerTasksRef\.current = copy\.tasks;/.test(adopt)
-      && /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{ stamp: copy\.stamp, baselines: copy\.baselines \}\)/.test(adopt) && !/schedulePersist|pushHistory/.test(adopt), true);
-  expect('events and the re-read carry the row\'s baselines',
-    /baselines: Array\.isArray\(schedule\?\.baselines\) \? schedule\.baselines : undefined/.test(LIVE)
-      && /baselines: Array\.isArray\(schedule\.baselines\) \? schedule\.baselines : undefined/.test(PRO), true);
+      // wave 4 #86: the active baseline rides with the copy (when it says).
+      && /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{\s*stamp: copy\.stamp,\s*baselines: copy\.baselines,\s*\.\.\.\(copy\.activeBaselineId !== undefined \? \{ activeBaselineId: copy\.activeBaselineId \} : \{\}\),\s*\}\)/.test(adopt)
+      && /if \(copy\.activeBaselineId !== undefined\) \{/.test(adopt) && !/schedulePersist|pushHistory/.test(adopt), true);
+  // wave 4 #86: ONE reader for the row's schedule (utils/fieldScheduleUpdate
+  // scheduleCopyFromRow) — events and the re-read both go through it, and it
+  // carries baselines and the active baseline id (missing key = cleared).
+  const FSU = readFileSync(join(ROOT, 'utils', 'fieldScheduleUpdate.ts'), 'utf8');
+  expect('events and the re-read carry the row\'s baselines (and the active baseline id)',
+    /baselines: Array\.isArray\(s\.baselines\) \? s\.baselines : undefined/.test(FSU)
+      && /activeBaselineId: typeof s\.activeBaselineId === 'string' \? s\.activeBaselineId : null/.test(FSU)
+      && /liveScheduleCopyFromRow\(\(payload\.new as \{ schedule\?: unknown \} \| null\)\?\.schedule\)/.test(LIVE)
+      && /answered\(error \? null : liveScheduleCopyFromRow\(\(data as \{ schedule\?: unknown \} \| null\)\?\.schedule\)\)/.test(PRO), true);
   const settle = slice(PRO, 'const settleSync = useCallback(', '}, [syncBusy, adoptServerCopy, livePeerProjectId]);');
   expect('settling: nothing while busy; a parked copy; the owed re-read begun and answered through the gate (as the Sim does), re-read at once when it says so',
     /if \(syncBusy\(\)\) return;/.test(settle) && /settleScheduleSyncGate\(gate, false\)/.test(settle)
@@ -1061,7 +1070,8 @@ console.log('\nwiring:');
     /useEffect\(\(\) => \{\s*return \(\) => \{\s*if \(!persistPendingRef\.current\) return;/.test(flush)
       && /\n  \}, \[\]\);/.test(flush) && /flushUpdateProjectRef\.current\(project\.id, \{/.test(flush), true);
   expect('useLiveSchedule hands over the save stamp and reports a re-subscribe after a drop',
-    /const stamp = typeof schedule\?\.updatedAt === 'string' \? schedule\.updatedAt : null;/.test(LIVE)
+    /stamp: typeof s\.updatedAt === 'string' \? s\.updatedAt : null,/.test(readFileSync(join(ROOT, 'utils', 'fieldScheduleUpdate.ts'), 'utf8'))
+      && /export const liveScheduleCopyFromRow = scheduleCopyFromRow;/.test(LIVE)
       && /if \(joined && dropped\) gapRef\.current\?\.\(\);/.test(LIVE), true);
   const abs = slice(CTX, 'const absorbServerSchedule = useCallback(', 'const saveChangeOrdersMutationRaw = useMutation(');
   expect('ProjectContext takes an adopted copy whole with its stamp — unless a sync of the project is still out',
@@ -1069,10 +1079,24 @@ console.log('\nwiring:');
       && /const next = whole \? tasks : absorbServerScheduleTasks\(prevServer, tasks, localTasks\);/.test(abs), true);
   // Leftovers review: the store took TASKS only, so another screen's write of
   // project.schedule from it deleted a baseline captured on another device.
-  expect('…and whole means its named baselines too (a copy without the key keeps the stored ones)',
-    /const baselines = whole && Array\.isArray\(adopt\?\.baselines\)\s*\?[^:]*adopt!\.baselines[^:]*:\s*p\.schedule\.baselines;/.test(abs)
-      && /schedule: \{ \.\.\.x\.schedule, tasks: next, updatedAt: stamp, baselines \}/.test(abs)
-      && /JSON\.stringify\(baselines\) === JSON\.stringify\(p\.schedule\.baselines\)\) return;/.test(abs), true);
+  // #86 (wave 4) moved the rule into utils/projectContextPure.absorbedScheduleMeta
+  // (it also carries the active baseline id): run the rule, pin the call site.
+  {
+    const stored = { baselines: [{ id: 'v1' }], activeBaselineId: 'v1' };
+    const withKey = { baselines: [{ id: 'v1' }, { id: 'v2' }], activeBaselineId: 'v2' };
+    const took = absorbedScheduleMeta(stored, withKey, true);
+    const noKey = absorbedScheduleMeta(stored, { activeBaselineId: undefined }, true);
+    const partial = absorbedScheduleMeta(stored, withKey, false);
+    const cleared = absorbedScheduleMeta(stored, { baselines: [], activeBaselineId: null }, true);
+    expect('…and whole means its named baselines too (a copy without the key keeps the stored ones)',
+      JSON.stringify(took.baselines) === JSON.stringify(withKey.baselines) && took.activeBaselineId === 'v2'
+        && noKey.baselines === stored.baselines && noKey.activeBaselineId === 'v1'
+        && partial.baselines === stored.baselines && partial.activeBaselineId === 'v1'
+        && JSON.stringify(cleared.baselines) === '[]' && cleared.activeBaselineId === undefined
+        && /const meta = absorbedScheduleMeta\(p\.schedule, adopt, whole\);\s*const baselines = meta\.baselines;/.test(abs)
+        && /schedule: withActiveBaselineId\(\{ \.\.\.x\.schedule, tasks: next, updatedAt: stamp, baselines \}, meta\.activeBaselineId\)/.test(abs)
+        && /JSON\.stringify\(baselines\) === JSON\.stringify\(p\.schedule\.baselines\)[\s\S]{0,160}&& meta\.activeBaselineId === p\.schedule\.activeBaselineId\) return;/.test(abs), true);
+  }
   expect('ProjectContext tells listeners each time a project sync reports',
     /inFlightProjectSyncsRef\.current\.delete\(entry\);[\s\S]{0,200}for \(const listener of Array\.from\(projectSyncSettledListenersRef\.current\)\)/.test(CTX), true);
 }

@@ -118,8 +118,22 @@ export function notificationRoute(event: string, data: Record<string, unknown> |
       if (projectId && itemId && kind === 'submittal') return { pathname: '/submittal', params: { projectId, submittalId: itemId } };
       return projectId ? { pathname: '/project-detail', params: { id: projectId } } : null;
     }
-    case 'punch_marked_ready':
-      return projectId ? { pathname: '/punch-list', params: { projectId } } : null;
+    case 'punch_marked_ready': {
+      // Wave 4 (#51/#54): the item itself — punch-list reads ?itemId=, re-reads
+      // the list, switches to the list the item is on, filters to its status
+      // and scrolls to it. The trigger names it punch_item_id; the push data
+      // carries itemId.
+      const itemId = pick(d, 'punch_item_id', 'punchItemId', 'item_id', 'itemId');
+      if (!projectId) return null;
+      return { pathname: '/punch-list', params: itemId ? { projectId, itemId } : { projectId } };
+    }
+    case 'safety_incident_filed': {
+      // Wave 4 (#119): the case itself — safety-incidents opens ?incidentId=
+      // into its form once the list has it (RLS: author or project owner).
+      const incidentId = pick(d, 'incident_id', 'incidentId');
+      if (projectId && incidentId) return { pathname: '/safety-incidents', params: { projectId, incidentId } };
+      return projectId ? { pathname: '/safety-incidents', params: { projectId } } : null;
+    }
     default:
       return null;
   }

@@ -61,7 +61,7 @@ import { supabaseWrite } from '@/utils/offlineQueue';
 import { extractSheet } from '@/utils/plans/askYourPlans';
 import { PLAN_EXTRACT_STOP_CODES } from '@/utils/plans/memoryIndexCore';
 import {
-  titleBlockSuggestions, planBatchRenumber, chainColumnsPatch, planScreenGate, planControlBlock, effectivePlanRole,
+  titleBlockSuggestions, planBatchRenumber, chainColumnsPatch, planScreenGate, planControlBlock, effectivePlanRole, sheetDeleteBlock,
   type TitleBlockSuggestion,
 } from '@/utils/plans/revisionActions';
 
@@ -154,7 +154,14 @@ export default function PlansScreen() {
   const seatRole = effectivePlanRole(role, project, authUser?.id);
   const roleStatus = { isError: roleState.isError, offline };
   const importBlock = planControlBlock(seatRole, 'import', roleStatus);
-  const deleteBlock = planControlBlock(seatRole, 'delete', roleStatus);
+  // #118: delete is decided PER SHEET (sheetDeleteBlock) — an editor may
+  // delete the sheets he added (plan_sheets_collab_delete), not the GC's.
+  const deleteBlockFor = useCallback(
+    (sheet: PlanSheet) => sheetDeleteBlock(seatRole, sheet, authUser?.id, roleStatus),
+    // roleStatus is rebuilt every render; its two inputs are the real deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [seatRole, authUser?.id, roleState.isError, offline],
+  );
   const compareBlock = planControlBlock(seatRole, 'compare', roleStatus);
   const estimateBlock = planControlBlock(seatRole, 'estimate', roleStatus);
   // Hide superseded sheets by default — when a sheet number gets
@@ -329,6 +336,10 @@ export default function PlansScreen() {
         projectId,
         name: pdfPageSheetName(baseName, pages.length, p.pageNumber),
         sheetNumber: undefined,
+        // #118: the uploader, on the local copy too — an editor who imported
+        // the wrong PDF can delete these sheets before the next server read
+        // (plan_sheets_collab_delete admits user_id = auth.uid()).
+        userId: authUser?.id,
         // DB-F11: `storagePath` is what reaches plan_sheets.image_uri (the
         // context's durablePlanSheetValue picks it); `imageUri` carries the
         // freshly-signed url so the thumbnail renders right now without a
@@ -385,7 +396,7 @@ export default function PlansScreen() {
       setPdfImporting(false);
       setPdfStatus('');
     }
-  }, [projectId, allSheets, addPlanSheets, router, refreshQuota, isBusinessOrAbove, readTitleBlocks, importBlock]);
+  }, [projectId, allSheets, addPlanSheets, router, refreshQuota, isBusinessOrAbove, readTitleBlocks, importBlock, authUser?.id]);
 
   // Upload FIRST, then create the sheet with its storage path (utils/addFloorPlan).
   // This used to call addPlanSheet with the picker's file:// and upload
@@ -480,12 +491,13 @@ export default function PlansScreen() {
   }, [repickAndAttach, importBlock]);
 
   const handleDelete = useCallback((sheet: PlanSheet) => {
-    if (deleteBlock) { showAlert('Can\u2019t delete this sheet', deleteBlock); return; }
-    showAlert('Delete sheet', `Remove \u201C${sheet.name}\u201D? All pins and markup on this sheet will also be removed.`, [
+    const block = deleteBlockFor(sheet);
+    if (block) { showAlert('Can\u2019t delete this sheet', block); return; }
+    showAlert('Delete sheet', `Remove \u201C${sheet.name}\u201D? All pins and markup on this sheet \u2014 including teammates\u2019 \u2014 will also be removed.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deletePlanSheet(sheet.id) },
     ]);
-  }, [deletePlanSheet, deleteBlock]);
+  }, [deletePlanSheet, deleteBlockFor]);
 
   // Project picker when launched without a project
   if (!projectId || !project) {
@@ -678,7 +690,7 @@ export default function PlansScreen() {
                     </TouchableOpacity>
                   ) : null}
                 </View>
-                <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={[styles.iconBtn, deleteBlock ? { opacity: 0.4 } : null]} hitSlop={10} accessibilityRole="button" accessibilityLabel="Delete" accessibilityHint={deleteBlock ?? undefined}>
+                <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={[styles.iconBtn, deleteBlockFor(s) ? { opacity: 0.4 } : null]} hitSlop={10} accessibilityRole="button" accessibilityLabel="Delete" accessibilityHint={deleteBlockFor(s) ?? undefined} testID={`plans-delete-${s.id}`}>
                   <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />

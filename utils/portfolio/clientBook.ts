@@ -10,7 +10,9 @@
 //
 // Pure. No React. No network. Never throws.
 
-import type { Project, Invoice, ChangeOrder } from '@/types';
+import type { Project, Invoice, ChangeOrder, InvoicePayment } from '@/types';
+import { paymentReceivedAt, type RecordedPaymentFields } from '@/utils/billingFlowCore';
+import { dayOrInstantDate } from '@/utils/calendarDate';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling';
 
@@ -54,15 +56,21 @@ function median(arr: number[]): number | null {
  */
 function daysToFullyPaid(invoice: Invoice): number | null {
   if (!invoice.issueDate || !invoice.payments?.length) return null;
-  const issueMs = Date.parse(invoice.issueDate);
+  // #85: both ends in ONE frame. The received day is read at local noon
+  // (paymentReceivedAt), so a bare issue day is too (dayOrInstantDate) —
+  // Date.parse('YYYY-MM-DD') is UTC midnight, half a day off, and Math.round
+  // could turn that into a whole extra day.
+  const issueMs = dayOrInstantDate(invoice.issueDate).getTime();
   if (!Number.isFinite(issueMs)) return null;
-  // Sort payments by date ascending
-  const sorted = [...invoice.payments].sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+  // #85: by the day the money was RECEIVED (a backdated check), not when it
+  // was keyed in — the date every other money surface uses.
+  const receivedMs = (p: InvoicePayment) => paymentReceivedAt(p as InvoicePayment & RecordedPaymentFields).getTime();
+  const sorted = [...invoice.payments].sort((a, b) => receivedMs(a) - receivedMs(b));
   let cumulative = 0;
   for (const pmt of sorted) {
     cumulative += pmt.amount;
     if (invoice.totalDue > 0 && invoiceIsSettled({ ...invoice, amountPaid: cumulative })) {
-      const pmtMs = Date.parse(pmt.date);
+      const pmtMs = receivedMs(pmt);
       if (!Number.isFinite(pmtMs)) return null;
       return Math.max(0, Math.round((pmtMs - issueMs) / 86_400_000));
     }

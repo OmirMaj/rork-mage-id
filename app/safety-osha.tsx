@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ShieldAlert, FileText, Download, AlertTriangle, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -21,7 +21,7 @@ import { Tokens } from '@/constants/designTokens';
 import {
   buildOsha300Log, OSHA_CLASS_LABEL, buildOsha300ATotals, prefillHoursFromTimeEntries,
   osha300ARates, type Osha300ASummaryInput, availableOshaYears, currentOshaYear,
-  incidentsForOwnEstablishment, recordablesWithUnreadableDates,
+  incidentsForOwnEstablishment, hoursEntriesForOwnEstablishment, recordablesWithUnreadableDates,
 } from '@/utils/safety/oshaLog';
 import { useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { Card, Button, StatusPill } from '@/components/ui';
@@ -55,7 +55,10 @@ function SafetyOshaInner() {
   const { isDesktop } = useResponsiveLayout();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { incidents } = useSafety();
+  const { incidents, refresh } = useSafety();
+  // The log re-reads on focus (audit #119), so a foreman's newly filed
+  // recordable case is on it without a relaunch.
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
   const { settings, projects } = useProjects();
   const { user } = useAuth();
 
@@ -100,10 +103,18 @@ function SafetyOshaInner() {
   // Hours are READ-ONLY from the time-tracking mirror, and only ever a pre-fill.
   // Scoped to the same project filter as the case list: dividing one job's
   // cases by the whole company's hours would print a rate that is simply wrong.
+  // And to the same ESTABLISHMENT as the case list (audit #124): his own
+  // shifts on a job another GC owns are that GC's hours, exactly as the cases
+  // there are that GC's cases — counting them only in the denominator
+  // understated his rates.
   const timeEntries = useTimeEntriesMirror();
   const prefill = useMemo(
-    () => prefillHoursFromTimeEntries(timeEntries, est.year, projectId || undefined),
-    [timeEntries, est.year, projectId],
+    () => prefillHoursFromTimeEntries(
+      hoursEntriesForOwnEstablishment(timeEntries, projects, user?.id),
+      est.year,
+      projectId || undefined,
+    ),
+    [timeEntries, projects, user?.id, est.year, projectId],
   );
   // Edited values keyed by year+scope, so switching the year never carries last
   // year's confirmed hours onto this year's rate.

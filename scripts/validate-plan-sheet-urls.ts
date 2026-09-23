@@ -161,7 +161,12 @@ const {
   localPlanSheetValue,
   planSheetRowUris,
   carryDeviceLocalPlanSheetUris,
+  clearPlanSheetUrlCache,
 } = mod;
+// #112 (wave 4): resolvePlanSheetUrls reuses a still-fresh signature from a
+// module cache. A scenario below that models signing being REFUSED must start
+// from an empty cache, or it measures the cache instead of the refusal.
+const refuse = () => { clearPlanSheetUrlCache(); signOk = false; };
 
 const PROJECT = '11111111-2222-3333-4444-555555555555';
 const P1 = `${PROJECT}/sheet-abc-page-1.png`;
@@ -327,7 +332,7 @@ eq('a legacy row is re-signed, keyed by what the row actually stores',
 // THE PRE-MIGRATION RELEASE. While the bucket is still public there is no
 // SELECT policy, so signing can be refused — and the legacy public URL in the
 // row still works. An unresolvable input must therefore come back UNCHANGED.
-signOk = false;
+refuse();
 eq('an unsignable legacy url is returned unchanged, not blanked',
   await resolvePlanSheetUrl(PUBLIC_URL(P1)), PUBLIC_URL(P1));
 eq('an unsignable path is returned unchanged', await resolvePlanSheetUrl(P1), P1);
@@ -336,6 +341,7 @@ eq('a batch that cannot be signed resolves to an empty map',
 signOk = true;
 
 // A per-object denial (someone else's project) must not take out the batch.
+clearPlanSheetUrlCache();
 unsignable = new Set([P2]);
 const mixed = await resolvePlanSheetUrls([P1, P2]);
 eq('one denied object does not blank the rest', mixed.get(P1), SIGNED(P1));
@@ -395,7 +401,7 @@ eq('page order is preserved', rendered.map(p => p.pageNumber), [1, 2]);
 
 // Pre-migration: signing refused, so the server's legacy URL is the fallback
 // and the thumbnail still renders.
-signOk = false;
+refuse();
 const degraded = await uploadAndRenderPdf({ fileUri: 'file:///tmp/a.pdf', projectId: PROJECT, fileName: 'a.pdf' });
 eq('when signing is refused the legacy url keeps the thumbnail alive',
   degraded[0]?.viewUrl, PUBLIC_URL(P1));
@@ -406,7 +412,7 @@ const reResolved = await resolveRenderedPages([
   { pageNumber: 1, storagePath: P1, viewUrl: '', width: 1, height: 1 },
 ]);
 eq('a saved page re-signs from its storagePath', reResolved[0]?.viewUrl, SIGNED(P1));
-signOk = false;
+refuse();
 const reResolvedOffline = await resolveRenderedPages([
   { pageNumber: 1, storagePath: P1, viewUrl: '', width: 1, height: 1 },
 ]);

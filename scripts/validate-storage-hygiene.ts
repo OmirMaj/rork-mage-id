@@ -39,6 +39,8 @@ import {
   selectTenantKeysToWipe,
 } from '../utils/localCacheKeys';
 
+declare const Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync(code: string): string } };
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
@@ -387,22 +389,84 @@ ok('offline write queues survive a same-user re-auth',
     unlockedRetain.length === 0,
     `not under the lock: ${unlockedRetain.join(', ')}`);
 
-  // COUNTS, not presence. AuthContext clears the queues at TWO sites — the
-  // deliberate sign-out and the "a different user just signed in" path — and a
-  // presence test passes while one of them is missing a queue, which is the
-  // whole leak. Requiring the counts to match makes the three calls travel
-  // together: adding a site without the new queue fails, and so does dropping
-  // one call from either site. (Mutation-proved 2026-09-08: deleting a single
-  // `await clearAudioTranscribeQueue();` passed the presence form.)
-  const clearCounts = OFFLINE_WRITE_QUEUE_KEYS.map((k) => ({
-    key: k,
-    fn: QUEUE_MODULES[k]?.clearFn ?? '(no row)',
-    n: (authNoComments.match(new RegExp(`await ${QUEUE_MODULES[k]?.clearFn ?? '\\0'}\\(\\);`, 'g')) ?? []).length,
-  }));
-  const expectedSites = Math.max(...clearCounts.map((c) => c.n));
-  ok('every exempt queue is cleared at EVERY sign-out site, not just one of them',
-    expectedSites > 1 && clearCounts.every((c) => c.n === expectedSites),
-    `sign-out sites: ${expectedSites}; per queue: ${clearCounts.map((c) => `${c.fn}×${c.n}`).join(', ')}`);
+  // ONE unit, TWO sites (#10, wave 4). AuthContext drops pending writes at two
+  // sites — the deliberate sign-out (wipeLocalUserCache, dropOfflineQueue) and
+  // the "a different user just signed in" branch of completeSignIn. They used
+  // to repeat the queue clears longhand, and this block counted the calls so
+  // the sites travelled together (mutation-proved 2026-09-08). Then wave 3
+  // added an owner-stamped companion store (the CO audit entries,
+  // OWNER_STAMPED_PENDING_KEYS) to ONE site only, and the count could not see
+  // it. Both sites now call a single dropPendingWrites() helper, so the rule
+  // becomes: the helper clears every exempt queue AND the owner-stamped keys;
+  // no queue is cleared anywhere else in AuthContext; and both sites call it.
+  const helperAt = authNoComments.indexOf('async function dropPendingWrites(): Promise<void> {');
+  const helper = helperAt === -1 ? '' : authNoComments.slice(helperAt, authNoComments.indexOf('\n}\n', helperAt) + 2);
+  ok('dropPendingWrites() exists — the one place pending writes are dropped', helper.length > 0);
+  const missingFromHelper = OFFLINE_WRITE_QUEUE_KEYS.filter((k) => {
+    const fn = QUEUE_MODULES[k]?.clearFn;
+    return !fn || (helper.match(new RegExp(`await ${fn}\\(\\);`, 'g')) ?? []).length !== 1;
+  });
+  ok('…clears every exempt queue exactly once', missingFromHelper.length === 0,
+    `not cleared (or cleared twice) by the helper: ${missingFromHelper.join(', ')}`);
+  ok('…and removes the owner-stamped companion stores with them (#10)',
+    /await AsyncStorage\.multiRemove\(\[\.\.\.OWNER_STAMPED_PENDING_KEYS\]\)/.test(helper),
+    'an audit entry left without the UPDATE it belonged to can be appended later');
+  const outsideHelper = authNoComments.slice(0, Math.max(0, helperAt)) + authNoComments.slice(helperAt + helper.length);
+  const strayClears = OFFLINE_WRITE_QUEUE_KEYS.filter((k) => {
+    const fn = QUEUE_MODULES[k]?.clearFn;
+    return !!fn && new RegExp(`await ${fn}\\(\\);`).test(outsideHelper);
+  });
+  ok('no queue is cleared outside the helper (a site that bypasses it drifts again)', strayClears.length === 0,
+    `cleared longhand elsewhere: ${strayClears.join(', ')}`);
+  ok('no owner-stamped key is removed outside the helper',
+    !/OWNER_STAMPED_PENDING_KEYS\]\)/.test(outsideHelper));
+  const wipeFn = authNoComments.slice(authNoComments.indexOf('async function wipeLocalUserCache('),
+    authNoComments.indexOf('await AsyncStorage.multiRemove(LOCAL_USER_CACHE_KEYS'));
+  ok('the sign-out site: wipeLocalUserCache calls it under dropOfflineQueue',
+    /if \(dropOfflineQueue\) \{[\s\S]{0,80}?await dropPendingWrites\(\);/.test(wipeFn));
+  const completeAt = authNoComments.indexOf('const completeSignIn = useCallback(');
+  const complete = completeAt === -1 ? '' : authNoComments.slice(completeAt, authNoComments.indexOf('\n  }, [', completeAt));
+  ok('the tenant-switch site: completeSignIn\'s not-same-user branch calls it',
+    /if \(handoff\.sameUser\) \{[\s\S]*?await wipeLocalUserCache\(\);[\s\S]*?\} else \{[\s\S]*?await dropPendingWrites\(\);[\s\S]*?\}/.test(complete),
+    'a different account signing in must not inherit the previous user\'s pending CO audit entries');
+
+  // EXECUTED (#10): a password sign-in by B after A, with A's pending CO audit
+  // store on disk. completeSignIn + dropPendingWrites are extracted from
+  // AuthContext and run against spies — the owner-stamped keys must go.
+  {
+    const tr = (code: string) => new Bun.Transpiler({ loader: 'ts' }).transformSync(code);
+    const completeSrc = complete.replace(/^const completeSignIn = useCallback\(/, '') + '\n  }';
+    const calls: string[] = [];
+    const deps: Record<string, unknown> = {
+      clearOfflineQueue: async () => { calls.push('clearOfflineQueue'); },
+      clearPhotoUploadQueue: async () => { calls.push('clearPhotoUploadQueue'); },
+      clearAudioTranscribeQueue: async () => { calls.push('clearAudioTranscribeQueue'); },
+      clearSyncFailures: async () => { calls.push('clearSyncFailures'); },
+      AsyncStorage: { multiRemove: async (keys: string[]) => { calls.push(`multiRemove:${keys.join('|')}`); } },
+      OWNER_STAMPED_PENDING_KEYS: ['mageid_co_audit_pending'],
+      wipeLocalUserCache: async () => { calls.push('wipe:full'); },
+      writeLastUser: async () => { calls.push('writeLastUser'); },
+      queryClient: { clear: () => { calls.push('queryClient.clear'); } },
+    };
+    const names = Object.keys(deps);
+    type CompleteSignIn = (u: unknown, h: unknown) => Promise<void>;
+    const run: CompleteSignIn | null = (() => {
+      try {
+        return new Function(...names, tr(`${helper}\nreturn (${completeSrc});`))(...names.map((n) => deps[n])) as CompleteSignIn;
+      } catch (e) { console.log('   (extract failed:', (e as Error).message, ')'); return null; }
+    })();
+    ok('completeSignIn + dropPendingWrites extracted and runnable', !!run);
+    if (run) {
+      await run({ id: 'user-b', email: 'b@x.com' }, { sameUser: false, last: { id: 'user-a', email: 'a@x.com' } });
+      ok('EXECUTED: a different user signing in drops A\'s pending CO audit entries',
+        calls.includes('multiRemove:mageid_co_audit_pending'), calls.join(','));
+      ok('…together with all four queues', ['clearOfflineQueue', 'clearPhotoUploadQueue', 'clearAudioTranscribeQueue', 'clearSyncFailures'].every((c) => calls.includes(c)), calls.join(','));
+      calls.length = 0;
+      await run({ id: 'user-a', email: 'a@x.com' }, { sameUser: true, last: { id: 'user-a', email: 'a@x.com' } });
+      ok('EXECUTED: the SAME user signing back in keeps them (and the queues)',
+        !calls.some((c) => c.startsWith('multiRemove') || c.startsWith('clear') || c === 'wipe:full'), calls.join(','));
+    }
+  }
 
   // ── BLOCKING (review 2026-09-05, round 4): the marker backfill NARROWS
   // before it STAMPS ─────────────────────────────────────────────────────────

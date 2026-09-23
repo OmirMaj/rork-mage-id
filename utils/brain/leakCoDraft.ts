@@ -1,9 +1,11 @@
 // utils/brain/leakCoDraft.ts
 //
 // Pure Leak→Draft-CO builder. No React, no network, no storage.
-// Sibling of the manual handleDraftLeakCO in app/daily-report.tsx — uses
-// the EXACT same description format (daily-report.tsx:667-708) so auto-
-// drafted COs are indistinguishable in content from manual ones.
+// Sibling of the manual handleDraftLeakCO in app/daily-report.tsx. Both open
+// with "Out-of-scope work from daily report <Mon D>" (the manual-draft guard
+// below matches that phrase); since wave 4 (#76) neither puts prices, report
+// quotes or "NEEDS PRICE" notes into the client-facing description — the items
+// are tagged line items instead.
 //
 // DEDUPE MARKER: auditTrail entry { action:'auto_drafted_from_leak', ... }
 // on every auto-drafted CO. Survives cache wipes (audit_trail is a synced
@@ -16,9 +18,22 @@
 // G14: no new PredictionKind values introduced.
 
 import type {
-  ChangeOrder, ChangeOrderStatus, DailyFieldReport, Project,
+  ChangeOrder, ChangeOrderLineItem, ChangeOrderStatus, DailyFieldReport, Project,
 } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { nextChangeOrderNumber } from '@/utils/coNumbering';
+
+/** Whole cents (same rule as the CO screen's coRoundCents). */
+function centsOf(n: number): number {
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
+/** A line's name from the flagged item — its own words, never a price or quote. */
+function lineName(desc: string | undefined): string {
+  const t = (desc ?? '').trim().replace(/\s+/g, ' ');
+  if (!t) return 'Out-of-scope work';
+  return t.length > 80 ? `${t.slice(0, 79)}…` : t;
+}
 
 // ─── Dedupe marker ────────────────────────────────────────────────────────────
 
@@ -209,10 +224,12 @@ export function guardSnippetsForReportDate(raw: string): string[] {
 /**
  * Build a draft ChangeOrder from a DraftCandidate.
  *
- * Description format is identical to handleDraftLeakCO (daily-report.tsx:667-708):
- * "Out-of-scope work from daily report <date>: <priced lines>; <NEEDS PRICE: lines>"
+ * Description: "Out-of-scope work from daily report <date>." — a client-facing
+ * scope sentence; the items are line items tagged with their price source
+ * (wave 4 #76).
  *
- * CO number = max(existing) + 1 (same rule as change-order.tsx:113-118).
+ * CO number = utils/coNumbering.nextChangeOrderNumber — provisional; the
+ * server keeps it when free (20260920050000).
  *
  * DEDUPE MARKER: auditTrail entry with action=AUTO_DRAFT_ACTION, detail=report.id.
  * This is how the sweep identifies its own work in subsequent sessions.
@@ -227,25 +244,24 @@ export function buildDraftCO(
 
   const pricedItems = leakItems.filter(it => it.estimatedPrice != null);
   const unpricedItems = leakItems.filter(it => it.estimatedPrice == null);
-  const totalPriced = pricedItems.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
 
   // LOCAL calendar day — parity with the manual path so the description shows
   // the day the user actually filed the report, and the manual-draft guard's
   // snippet match holds in both directions.
   const when = formatReportDayLocal(report.date ?? '');
 
-  const pricedLines = pricedItems.map(it =>
-    `${it.description} (~$${(it.estimatedPrice ?? 0).toLocaleString('en-US')}${it.reportQuote ? ` — "${it.reportQuote}"` : ''})`,
-  );
-  const unpricedLines = unpricedItems.map(it =>
-    `NEEDS PRICE: ${it.description}${it.reportQuote ? ` ("${it.reportQuote}")` : ''}`,
-  );
+  // #76 (wave 4) — the description is CLIENT-FACING: it goes into the email,
+  // the portal card and the e-sign record the homeowner signs. It used to carry
+  // the AI's "~$450" guesses, verbatim crew quotes from the report and
+  // "NEEDS PRICE:" notes. It is now one neutral scope sentence; the items are
+  // line items instead, each tagged with where its price came from, and the CO
+  // screen refuses to send while a line is unpriced or an unconfirmed AI
+  // estimate (coUnconfirmedPriceBlocker). The "from daily report <Mon D>"
+  // phrase stays: guardSnippetsForReportDate matches it.
+  const description = `Out-of-scope work from daily report ${when}.`;
 
-  const description = `Out-of-scope work from daily report ${when}: ` +
-    [...pricedLines, ...unpricedLines].join('; ');
-
-  // CO number: max(existing) + 1 (same logic as change-order.tsx:113-118).
-  const nextNumber = existingCOs.reduce((max, c) => Math.max(max, c.number || 0), 0) + 1;
+  // Provisional: the server keeps it when free and moves a collider (#77/#141).
+  const nextNumber = nextChangeOrderNumber(existingCOs);
 
   // Contract value: estimate grandTotal + sum of existing approved COs.
   const baseContractValue = (project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0);
@@ -253,19 +269,27 @@ export function buildDraftCO(
     .filter(c => c.status === 'approved')
     .reduce((s, c) => s + (c.changeAmount ?? 0), 0);
   const originalContractValue = baseContractValue + approvedCOsTotal;
-  const newContractTotal = originalContractValue + totalPriced;
 
-  // Single consolidated line item matching the priced total.
-  const lineItem = {
-    id: generateUUID(),
-    name: 'Out-of-scope work',
-    description,
-    quantity: 1,
-    unit: 'ls',
-    unitPrice: totalPriced,
-    total: totalPriced,
-    isNew: true,
-  };
+  // One line per flagged item. A priced item goes on at its learned-cost
+  // estimate, marked 'ai_estimated' until he confirms it; an unpriced one is a
+  // $0 line marked 'needs_price'. Whole cents where it is computed.
+  const lineItems: ChangeOrderLineItem[] = [
+    ...pricedItems.map(it => {
+      const price = centsOf(it.estimatedPrice ?? 0);
+      return {
+        id: generateUUID(), name: lineName(it.description), description: '',
+        quantity: 1, unit: 'ls', unitPrice: price, total: price, isNew: true,
+        priceSource: 'ai_estimated' as const,
+      };
+    }),
+    ...unpricedItems.map(it => ({
+      id: generateUUID(), name: lineName(it.description), description: '',
+      quantity: 1, unit: 'ls', unitPrice: 0, total: 0, isNew: true,
+      priceSource: 'needs_price' as const,
+    })),
+  ];
+  const changeAmount = centsOf(lineItems.reduce((s, l) => s + l.total, 0));
+  const newContractTotal = centsOf(originalContractValue + changeAmount);
 
   const co: ChangeOrder = {
     id: generateUUID(),
@@ -274,9 +298,9 @@ export function buildDraftCO(
     date: nowISO,
     description,
     reason: 'out_of_scope',
-    lineItems: [lineItem],
+    lineItems,
     originalContractValue,
-    changeAmount: totalPriced,
+    changeAmount,
     newContractTotal,
     status: 'draft' as ChangeOrderStatus,
     // DEDUPE MARKER: survives cache wipes (synced column).

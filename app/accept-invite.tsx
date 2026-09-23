@@ -10,7 +10,10 @@
 // same-session fallback: a brand-new account's pre-session wipe clears every
 // 'mageid_' key, which is how the token used to vanish (audit round 2 #29).
 // If the link is lost anyway, Home's pending-invite card lists the invite by
-// his verified email.
+// his verified email. An EMAIL sign-up also carries the token on the account
+// (user_metadata.invite_token, #107): the root gate routes the confirmed,
+// persona-less account here, and this screen clears it once the server has
+// answered for good (clearInviteToken).
 //
 // LEAVING THIS SCREEN (#93 / #94 / #156). This route is exempt from the root
 // persona / onboarding gates, so a brand-new account accepts FIRST. Where
@@ -47,6 +50,7 @@ import { MageAIMark } from '@/components/icons';
 import { loginHrefForInvite } from '@/utils/deepLinksInvite';
 import { useProjects } from '@/contexts/ProjectContext';
 import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink';
+import { settleWithin } from '@/utils/projectRole';
 
 const PENDING_KEY = 'mageid_pending_invite';
 type Status = 'idle' | 'accepting' | 'done' | 'error' | 'signin';
@@ -64,7 +68,7 @@ export default function AcceptInvite() {
   const { colors: t } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading: authLoading, clearInviteToken } = useAuth();
   const { userRole, hasSeenOnboarding, completeOnboarding, isLoading: firstRunLoading } = useProjects();
   // userRole reads null WHILE it loads, exactly like "never picked". Deciding
   // on it then would send a set-up user to persona-select, or stash a link his
@@ -113,15 +117,29 @@ export default function AcceptInvite() {
       setSignedInAs(code === 'email_mismatch' && body?.signedInAs ? body.signedInAs : null);
       // A dead token must not be replayed by a later tokenless visit.
       if (code === 'invalid_or_used') await AsyncStorage.removeItem(PENDING_KEY);
+      // #107: an answer that can never change (used, replaced, someone else's
+      // address) also takes the token off the ACCOUNT, or the root gate would
+      // bring a persona-less account back here on every launch. A transient
+      // failure keeps it: the next launch gets one more try.
+      if (!canRetryInvite(code)) void clearInviteToken(token);
       return;
     }
     await AsyncStorage.removeItem(PENDING_KEY);
-    // The project list, its schedule and field data were all read before he
-    // was a member; re-read them so "Open the project" finds it.
-    void queryClient.invalidateQueries();
+    // #111: the project list, its schedule and field data were all read
+    // before he was a member. The PROJECT LIST is re-read first, with
+    // "Accepting your invite…" still on screen, so "Open the project" finds
+    // the job instead of "Project not found" on slow site LTE. Bounded (~8 s);
+    // a failed or slow read still lands on 'done' — project-detail holds its
+    // loader while the list re-reads and, with justJoined, never claims the
+    // job does not exist. Only the projects query is awaited: the other ~30
+    // families refetch after it, un-awaited, so they cannot hold this up.
+    await settleWithin(queryClient.refetchQueries({ queryKey: ['projects', user?.id] }), 8000);
+    void queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'projects' });
+    // #107: accepted — the token on the account has done its job.
+    void clearInviteToken(token);
     setProjectId(body.projectId ?? null);
     setStatus('done');
-  }, [params.token, queryClient]);
+  }, [params.token, queryClient, user?.id, clearInviteToken]);
 
   // #93/#156: the safety net. Stashed only while first-run is unfinished — a
   // fully set-up user's replay already ran at mount, so a stash now would
@@ -129,7 +147,7 @@ export default function AcceptInvite() {
   useEffect(() => {
     if (status !== 'done' || !projectId || !firstRunKnown) return;
     if (userRole !== null && hasSeenOnboarding === true) return;
-    void setPendingDeepLink(`/project-detail?id=${encodeURIComponent(projectId)}`);
+    void setPendingDeepLink(`/project-detail?id=${encodeURIComponent(projectId)}&justJoined=1`);
   }, [status, projectId, userRole, hasSeenOnboarding, firstRunKnown]);
 
   const openProject = useCallback(async () => {
@@ -138,7 +156,7 @@ export default function AcceptInvite() {
     // Fully set up: tab shell underneath, project on top (#94).
     if (userRole !== null && hasSeenOnboarding === true) {
       router.replace('/(tabs)/(home)' as never);
-      router.push({ pathname: '/project-detail', params: { id: projectId } } as never);
+      router.push({ pathname: '/project-detail', params: { id: projectId, justJoined: '1' } } as never);
       return;
     }
     setOpening(true);
@@ -154,7 +172,7 @@ export default function AcceptInvite() {
       await takePendingDeepLink();
       await completeOnboarding();
       router.replace('/(tabs)/(home)' as never);
-      router.push({ pathname: '/project-detail', params: { id: projectId } } as never);
+      router.push({ pathname: '/project-detail', params: { id: projectId, justJoined: '1' } } as never);
     } catch (err) {
       console.warn('[accept-invite] could not finish setup before opening the project', err);
       setOpening(false);
@@ -175,10 +193,17 @@ export default function AcceptInvite() {
   }, [signedInAs]);
 
   // Auto-accept once the invitee is signed in.
+  //
+  // #107: not before auth has settled. Opened from an email-confirmation link
+  // (or a cold start), the session is still being restored — on web
+  // detectSessionInUrl is redeeming the link's code — and "not signed in yet"
+  // read as "signed out": he was shown "Sign in to accept" and sent to sign in
+  // a second time for an account he had just confirmed.
   useEffect(() => {
+    if (authLoading) return;
     if (isAuthenticated && user?.id && status === 'idle') void accept();
     else if (!isAuthenticated && status === 'idle') setStatus('signin');
-  }, [isAuthenticated, user?.id, status, accept]);
+  }, [authLoading, isAuthenticated, user?.id, status, accept]);
 
   return (
     <View style={[styles.root, { backgroundColor: t.bg, paddingTop: insets.top }]}>

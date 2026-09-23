@@ -6,14 +6,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Notifications from 'expo-notifications';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCoreData } from '@/contexts/ProjectContext';
+import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
 import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { showAlert } from '@/utils/alert';
 import {
   registerForPushNotifications,
   addNotificationResponseListener,
+  addNotificationReceivedListener,
 } from '@/utils/notifications';
+import { refreshForNotification, refreshThenOpen } from '@/utils/notificationTapRefresh';
 import {
   decidePushAsk, pushAskCopy,
   type PushAskMoment, type PushPermission,
@@ -47,8 +49,19 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   // provider only needs that one flag, and subscribing to all seven domain
   // contexts would re-run it on every unrelated invoice or punch-item change.
   const { hasSeenOnboarding } = useCoreData();
+  // #82: the guarded invoices re-read. From the stable-actions bucket, so it
+  // costs this provider no re-renders.
+  const { refetchInvoicesNow } = useProjectActions();
   const [pushToken, setPushToken] = useState<string | null>(null);
   const responseListenerRef = useRef<Notifications.EventSubscription | null>(null);
+  const receivedListenerRef = useRef<Notifications.EventSubscription | null>(null);
+
+  // The deps utils/notificationTapRefresh drives: prefix invalidation for the
+  // plain lists, the guarded money re-read for the invoice kinds.
+  const refreshDeps = useMemo(() => ({
+    invalidate: (queryKey: string[]) => queryClient.invalidateQueries({ queryKey }),
+    refetchInvoicesNow,
+  }), [queryClient, refetchInvoicesNow]);
 
   // Watch for portal CO approvals and fold them onto the underlying
   // ChangeOrder records. Runs on a 90s poll while the GC is signed in.
@@ -103,18 +116,26 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
           : '/ask');
         return;
       }
-      // A website lead was inserted on the server seconds ago; the lead list
-      // is read once and has no realtime, so re-read it before the screen
-      // opens (lead-detail also waits for a fresh read before seeding a form).
-      if (kind === 'lead_received') void queryClient.invalidateQueries({ queryKey: ['leads'] });
+      // The notice was written by the server seconds ago; the list it is
+      // about was read at launch / on a foreground return, and a tap with the
+      // app open is neither (#82: "Client paid" opened an invoice still
+      // showing the full balance with Record Payment on offer). Re-read what
+      // the notice makes stale BEFORE the screen opens — utils/
+      // notificationTapRefresh is the one table (leads, punch, reports,
+      // RFIs/submittals, and the money kinds through the guarded
+      // refetchInvoicesNow, never a raw invalidate). A money notice waits for
+      // its read, bounded, so the stale balance is not shown as fact.
       const route = kind ? notificationRoute(kind, data as Record<string, unknown>) : null;
       if (route) {
         // Every pathname in the table is checked against app/ by
         // scripts/validate-notification-routes.ts — typed routes cannot see
         // through a runtime table, the validator does.
-        router.push(routeHref(route) as Href);
+        void refreshThenOpen(kind, data as Record<string, unknown>, refreshDeps, () => {
+          router.push(routeHref(route) as Href);
+        });
         return;
       }
+      if (kind) void refreshForNotification(kind, data as Record<string, unknown>, refreshDeps);
 
       // Pre-`kind` pushes (marketplace chat, bid responses, legacy CO pings).
       if (conversationId) {
@@ -126,13 +147,26 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       }
     });
 
+    // #82 (c): a notice that lands while the app is OPEN re-reads its list
+    // right away, tapped or not — the banner says "Client paid" and the
+    // invoice he may already be looking at should agree without a tap.
+    receivedListenerRef.current = addNotificationReceivedListener((notification) => {
+      const d = notification.request.content.data as Record<string, unknown> | undefined;
+      const k = d?.kind;
+      if (typeof k === 'string') void refreshForNotification(k, d, refreshDeps);
+    });
+
     return () => {
       if (responseListenerRef.current) {
         responseListenerRef.current.remove();
         responseListenerRef.current = null;
       }
+      if (receivedListenerRef.current) {
+        receivedListenerRef.current.remove();
+        receivedListenerRef.current = null;
+      }
     };
-  }, [isAuthenticated, user, router, queryClient]);
+  }, [isAuthenticated, user, router, refreshDeps]);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -170,18 +204,24 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         },
       )
       // #56: the architect's answer (submit_pro_response) and a reply-portal
-      // review cycle are server-side UPDATEs of the GC's own rfis/submittals
-      // rows; nothing re-read those lists until a cold relaunch, so he kept
-      // editing the pre-answer copy. Filtered to his rows (the loader keeps
-      // any row with a queued write of his own, so an echo cannot undo it).
+      // review cycle are server-side UPDATEs of rfis/submittals rows; nothing
+      // re-read those lists until a foreground return, so he kept editing the
+      // pre-answer copy. #33 (wave 4): NOT filtered to user_id — a row a
+      // teammate raised carries the teammate's id, so the GC never heard the
+      // architect answer it. Realtime applies each subscriber's SELECT RLS
+      // (rfis_collab_select / submittals_collab_select: own row OR
+      // can_access_project, a SECURITY DEFINER helper), so he receives exactly
+      // the rows he can read — and a teammate now hears the GC's rows too. The
+      // loader keeps any row with a queued write of his own, so an echo
+      // cannot undo it, whoever raised the row.
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'rfis', filter: `user_id=eq.${user.id}` },
+        { event: 'UPDATE', schema: 'public', table: 'rfis' },
         () => { void queryClient.invalidateQueries({ queryKey: ['rfis'] }); },
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'submittals', filter: `user_id=eq.${user.id}` },
+        { event: 'UPDATE', schema: 'public', table: 'submittals' },
         () => { void queryClient.invalidateQueries({ queryKey: ['submittals'] }); },
       )
       .subscribe((status) => {

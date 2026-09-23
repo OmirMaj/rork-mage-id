@@ -10,9 +10,10 @@
 // which names tomorrow for any shift punched after ~5 pm Pacific (field-ops #9).
 
 import type { TimeEntry } from '@/types';
-import { addCalendarDays, parseCalendarDay, toCalendarDayString, todayCalendarDay } from '@/utils/calendarDate';
+import { addCalendarDays, parseCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 import {
   computeOvertime, overtimeFor, describeOvertimeRule, openShiftHours, payrollWeekStart, shiftWorkDay,
+  isMissedOpenShift, missedClockOutHours as missedClockOutHoursRule,
   DEFAULT_OVERTIME_RULE, type OvertimeRule, type Weekday,
 } from '@/utils/overtime';
 
@@ -79,22 +80,22 @@ export function breakMinutesAt(entry: Pick<TimeEntry, 'status' | 'breakMinutes' 
 // flagged, leaves the On Site count, stops blocking a new clock-in, and its
 // Clock Out asks for the real out time.
 
-/** Net hours past which an open shift is certainly forgotten, whatever the day. */
-export function missedClockOutHours(alertHours: number): number {
-  return Math.max((Number.isFinite(alertHours) ? alertHours : 8) + 2, 14);
-}
+/** Net hours past which an open shift is certainly forgotten, whatever the day.
+ *  The rule lives in utils/overtime (#41 — the live OT allocation needs it and
+ *  cannot import this module back); re-exported for every existing caller. */
+export const missedClockOutHours = missedClockOutHoursRule;
 
 /**
  * An open shift that started on an earlier LOCAL day than today, or has run
  * more net hours than max(alert + 2, 14). The day test uses calendar days, so
  * a shift clocked in at 11 pm reads as missed after midnight — its Clock Out
  * then asks for the time (with "now" one tap away) instead of guessing.
+ * One rule with the live overtime split (utils/overtime.isMissedOpenShift), so
+ * a shift the screen calls "missed" is never also counted as hours so far.
  */
 export function isMissedClockOut(entry: TimeEntry, nowMs: number, alertHours: number): boolean {
   if (!isOpenShift(entry)) return false;
-  const day = shiftWorkDay(entry);
-  if (day && day < todayCalendarDay(new Date(nowMs))) return true;
-  return liveNetHours(entry, nowMs) > missedClockOutHours(alertHours);
+  return isMissedOpenShift(entry, nowMs, alertHours);
 }
 
 /** End of the clock-in's local day (23:59), as epoch ms. */
@@ -381,6 +382,17 @@ export function csvToTsv(csv: string): string {
 // the server does NOT have — here the server has the row, so it needs
 // local-wins-while-pending.)
 
+/** Options for the own-timesheet pull (#103). The team pull passes none. */
+export interface MergeServerPullOptions<T> {
+  /** Stamp every row the server returned with this instant as
+   *  `seenOnServerAt`: from then on the device KNOWS the row reached the
+   *  server, so its later absence means it was deleted there. */
+  seenAt?: string;
+  /** A local row the server did NOT return is dropped when this says so.
+   *  Pass it only for a COMPLETE pull (see timeEntryGoneFromServer). */
+  pruneMissing?: (e: T) => boolean;
+}
+
 /**
  * Merge a server pull into the device copy:
  *   • an id with a queued write (`pendingIds` — the union read before AND after
@@ -388,13 +400,15 @@ export function csvToTsv(csv: string): string {
  *   • an id with a queued DELETE is dropped from both sides, so an entry
  *     deleted offline does not come back on the same pull;
  *   • every other server row wins; a local row the server lacks is kept (an
- *     offline clock-in not yet flushed).
+ *     offline clock-in not yet flushed) — UNLESS `opts.pruneMissing` says it
+ *     was deleted on another device (#103).
  */
-export function mergeServerPull<T extends { id: string }>(
+export function mergeServerPull<T extends { id: string; seenOnServerAt?: string }>(
   local: readonly T[],
   fromServer: readonly T[],
   pendingIds: ReadonlySet<string>,
   deletedIds: ReadonlySet<string>,
+  opts: MergeServerPullOptions<T> = {},
 ): T[] {
   const byId = new Map<string, T>();
   const localById = new Map<string, T>();
@@ -403,12 +417,73 @@ export function mergeServerPull<T extends { id: string }>(
     localById.set(e.id, e);
     byId.set(e.id, e);
   }
+  const serverIds = new Set<string>();
   for (const s of fromServer) {
     if (deletedIds.has(s.id)) continue;
+    serverIds.add(s.id);
     const mine = localById.get(s.id);
-    byId.set(s.id, pendingIds.has(s.id) && mine ? mine : s);
+    const row = pendingIds.has(s.id) && mine ? mine : s;
+    byId.set(s.id, opts.seenAt ? { ...row, seenOnServerAt: opts.seenAt } : row);
+  }
+  if (opts.pruneMissing) {
+    for (const e of localById.values()) {
+      if (!serverIds.has(e.id) && opts.pruneMissing(e)) byId.delete(e.id);
+    }
   }
   return Array.from(byId.values());
+}
+
+/**
+ * #103: may a local shift the server did not return be dropped as "deleted on
+ * another device"? A shift deleted on the web used to stay on every other
+ * device forever — paid in that phone's payroll CSV, costed in Job Costing.
+ * Only when ALL of these hold, because each missing guard deletes real hours:
+ *   • the pull was COMPLETE (every page read — an unpaged SELECT is silently
+ *     cut at PostgREST's max_rows, and the oldest shifts would look deleted);
+ *   • the row carries `seenOnServerAt` — the device saw it on the server
+ *     before, so it is not an offline clock-in still on its way up, nor an
+ *     insert whose queued write failed (dropping that destroys the only copy);
+ *   • its project id is a uuid — a legacy 'unassigned' row never reaches the
+ *     server by design (#155) and would otherwise vanish from payroll;
+ *   • no write for it is queued or in flight (`pendingIds`).
+ */
+export function timeEntryGoneFromServer(
+  e: Pick<TimeEntry, 'id' | 'projectId' | 'seenOnServerAt'>,
+  pendingIds: ReadonlySet<string>,
+  pullComplete: boolean,
+): boolean {
+  return pullComplete && !!e.seenOnServerAt && isUuid(e.projectId) && !pendingIds.has(e.id);
+}
+
+/**
+ * Integration round 2 (field): the shifts a DISCARD from the Not-saved sheet
+ * takes off this phone. The discard confirm says a never-saved record is
+ * removed from the phone, but a re-pull cannot do it for a time entry:
+ * mergeServerPull keeps every local row the server lacks unless
+ * timeEntryGoneFromServer says so, and that needs `seenOnServerAt`, which an
+ * insert the server refused never gets. So a foreman whose clock-in was
+ * refused (his seat removed before the flush) tapped Discard and the shift
+ * stayed — in Time Tracking, this phone's payroll CSV, Job Costing labor and
+ * the DFR crew roster, and "on the clock".
+ *
+ * Removed: an entry whose INSERT/UPSERT is in the discarded batch, that the
+ * device never saw on the server, and that has no write still queued or under
+ * Not saved (`keepIds` — a later clock-in resend would otherwise lose its
+ * row). A discarded EDIT removes nothing: the re-pull puts MAGE's copy back.
+ */
+export function dropDiscardedTimeEntryCreates<T extends { id: string; seenOnServerAt?: string }>(
+  entries: readonly T[],
+  discarded: readonly { table?: string; operation?: string; recordId?: string }[],
+  keepIds: ReadonlySet<string>,
+): T[] {
+  const created = new Set<string>();
+  for (const f of discarded) {
+    if (f.table !== 'time_entries' || !f.recordId) continue;
+    if (f.operation === 'insert' || f.operation === 'upsert') created.add(f.recordId);
+  }
+  if (created.size === 0) return entries as T[];
+  const out = entries.filter(e => !(created.has(e.id) && !e.seenOnServerAt && !keepIds.has(e.id)));
+  return out.length === entries.length ? (entries as T[]) : out;
 }
 
 /** Ids with a queued delete on `table` (pendingIdsForTable leaves deletes out
@@ -431,4 +506,77 @@ export function queuedDeleteIds(
  *  the phone (#155). */
 export function isUuid(v: unknown): v is string {
   return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+// ── The GC's crew for one job, saved for a seat's offline clock-in (#100) ──
+//
+// A foreman on a field seat clocks the GC's crew in from the job's crew list
+// (contexts/CrewContext useProjectCrew — two SECURITY DEFINER reads). That
+// list came only from the network, so in a basement with no signal he could
+// clock nobody in and the day's hours were never recorded. Each successful
+// read is now saved on the device, per user and per job, and served — labelled
+// with when it was fetched — when the read can't reach the server. Only what
+// the Clock In sheet needs is kept: id, name, trades, status, and each
+// certificate's type and expiry (the cert chips are worked out from the expiry
+// against today, so a day-old copy still flags a card that lapsed since). The
+// `mageid_` prefix puts it in the tenant sweep; a removed seat's copy is
+// deleted when his role on the job resolves to none.
+
+export const PROJECT_CREW_CACHE_PREFIX = 'mageid_project_crew:';
+
+export function projectCrewCacheKey(userId: string, projectId: string): string {
+  return `${PROJECT_CREW_CACHE_PREFIX}${userId}:${projectId}`;
+}
+
+export interface SavedCrewMember { id: string; fullName: string; trades: string[]; status: string }
+export interface SavedCrewCert { id: string; workerId?: string; type: string; expiresDate?: string }
+export interface SavedProjectCrew { fetchedAt: string; crew: SavedCrewMember[]; certifications: SavedCrewCert[] }
+
+/** The saved shape — and nothing more — from a fresh read. */
+export function savedProjectCrewFrom(
+  crew: readonly SavedCrewMember[],
+  certifications: readonly { id: string; workerId?: string; type: string; expiresDate?: string }[],
+  fetchedAt: string,
+): SavedProjectCrew {
+  return {
+    fetchedAt,
+    crew: crew.map(m => ({ id: m.id, fullName: m.fullName, trades: [...m.trades], status: m.status })),
+    certifications: certifications.map(c => ({
+      id: c.id,
+      ...(c.workerId ? { workerId: c.workerId } : {}),
+      type: c.type,
+      ...(c.expiresDate ? { expiresDate: c.expiresDate } : {}),
+    })),
+  };
+}
+
+/** Read a saved copy back; null for anything that is not one. */
+export function parseSavedProjectCrew(raw: string | null | undefined): SavedProjectCrew | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<SavedProjectCrew> | null;
+    if (!v || typeof v.fetchedAt !== 'string' || !Number.isFinite(Date.parse(v.fetchedAt))) return null;
+    if (!Array.isArray(v.crew) || !Array.isArray(v.certifications)) return null;
+    const crew = v.crew
+      .filter((m): m is SavedCrewMember => !!m && typeof m.id === 'string')
+      .map(m => ({ id: m.id, fullName: typeof m.fullName === 'string' ? m.fullName : '', trades: Array.isArray(m.trades) ? m.trades.filter((t): t is string => typeof t === 'string') : [], status: typeof m.status === 'string' ? m.status : 'active' }));
+    const certifications = v.certifications
+      .filter((c): c is SavedCrewCert => !!c && typeof c.id === 'string')
+      .map(c => ({ id: c.id, workerId: typeof c.workerId === 'string' ? c.workerId : undefined, type: typeof c.type === 'string' ? c.type : '', expiresDate: typeof c.expiresDate === 'string' ? c.expiresDate : undefined }));
+    return { fetchedAt: v.fetchedAt, crew, certifications };
+  } catch {
+    return null;
+  }
+}
+
+/** "Crew list saved Tue 7:05 am" — when the copy on screen was fetched. */
+export function savedCrewLine(fetchedAt: string, offline: boolean): string {
+  const ms = Date.parse(fetchedAt);
+  const d = new Date(ms);
+  const when = Number.isFinite(ms)
+    ? `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]} ${formatClockTime(ms)}`
+    : 'earlier';
+  return offline
+    ? `You're offline. Crew list and certificate flags from ${when}, saved on this phone.`
+    : `Showing the crew list saved ${when} while this job's list reloads.`;
 }

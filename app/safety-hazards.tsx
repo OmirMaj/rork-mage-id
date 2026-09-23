@@ -44,6 +44,9 @@ import { hazardPhotoForSave, stagedPathFor } from '@/utils/safety/hazardPhoto';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import {
+  aiLimitAlertTitle, crewEmptyTitle, crewListNote, safetyAiBlockedReason, safetyAiServerRefusal,
+} from '@/utils/safety/safetyRefresh';
 
 const SCALE_OPTIONS: HazardScale[] = [1, 2, 3, 4, 5];
 
@@ -101,7 +104,11 @@ function SafetyHazardsInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
-  const { tier } = useTierAccess();
+  const { tier, isBusinessOrAbove } = useTierAccess();
+  // The scan runs on HIS own plan, never the GC's: the server requires
+  // Business (safety-detect-hazards requireTier(['business'])), so a Pro
+  // foreman was told "Pro feature", paid, and was refused anyway (audit #123).
+  const scanBlocked = safetyAiBlockedReason('hazard_scan', isBusinessOrAbove);
   const { user } = useAuth();
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -261,8 +268,9 @@ function SafetyHazardsInner() {
     // Hazard scan is a vision call — meter it under the shared 'photoAnalysis'
     // feature key so it draws from the same monthly ceiling as AI Punch /
     // Photo Triage rather than the generic text bucket.
+    if (scanBlocked) { showAlert('Business feature', scanBlocked); return; }
     const check = await checkAILimit(tier, 'smart', 'photoAnalysis');
-    if (!check.allowed) { showAlert('AI limit reached', check.message ?? 'Monthly photo analysis limit reached.'); return; }
+    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Monthly photo analysis limit reached.'); return; }
     setDetecting(true);
     setScanNote(null);
     try {
@@ -283,6 +291,8 @@ function SafetyHazardsInner() {
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session?.access_token ?? ''}` },
         body,
       });
+      const refusal = safetyAiServerRefusal('hazard_scan', res.status);
+      if (refusal) { setScanNote(refusal); return; }
       const json = await res.json();
       if (!res.ok || !json.success) { setScanNote(json.error ?? 'Could not scan the photo. Log hazards manually.'); return; }
       const found: Suggestion[] = json.data.hazards ?? [];
@@ -301,7 +311,7 @@ function SafetyHazardsInner() {
     } finally {
       setDetecting(false);
     }
-  }, [pickedUri, photoUrl, tier]);
+  }, [pickedUri, photoUrl, tier, scanBlocked]);
 
   const applySuggestion = useCallback((s: Suggestion) => {
     setDescription(s.description);
@@ -394,6 +404,11 @@ function SafetyHazardsInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Hazard Log — ${project.name}` }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+        {/* Audit #121: an invited crew seat reads only the hazards he filed
+            (20260919130000), so the list says so instead of looking empty. */}
+        {seat === 'crew' ? (
+          <Text style={styles.collabNote} testID="hazard-collab-note">{crewListNote('hazard')}</Text>
+        ) : null}
         {items.map(item => {
           const band = riskBand(item.riskScore);
           const sc = getStatusConfig(themeColors, item.status);
@@ -434,7 +449,7 @@ function SafetyHazardsInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<TriangleAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No hazards logged"
+              title={seat === 'crew' ? crewEmptyTitle('hazard') : 'No hazards logged'}
               message="Log site hazards and rank them by risk (severity × likelihood). Highest-risk hazards surface first, and AI can scan a site photo to spot hazards for you to confirm."
               actionLabel="Log hazard"
               onAction={() => { resetForm(); setShowForm(true); }}
@@ -484,9 +499,9 @@ function SafetyHazardsInner() {
           ) : null}
 
           <TouchableOpacity
-            style={[styles.walkBtn, (detecting || (!pickedUri && !photoUrl.trim())) ? styles.walkBtnDisabled : null]}
+            style={[styles.walkBtn, (detecting || !!scanBlocked || (!pickedUri && !photoUrl.trim())) ? styles.walkBtnDisabled : null]}
             onPress={handleDetect}
-            disabled={detecting || (!pickedUri && !photoUrl.trim())}
+            disabled={detecting || !!scanBlocked || (!pickedUri && !photoUrl.trim())}
             activeOpacity={0.85}
             testID="scan-hazards"
           >
@@ -497,6 +512,9 @@ function SafetyHazardsInner() {
             )}
             <Text style={styles.walkBtnText}>{detecting ? 'Scanning…' : 'Scan photo for hazards'}</Text>
           </TouchableOpacity>
+          {scanBlocked ? (
+            <Text style={styles.aiBlockedText} testID="scan-hazards-blocked">{scanBlocked}</Text>
+          ) : null}
 
           {scanNote ? (
             <View style={styles.scanNoteBanner}>
@@ -732,6 +750,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   pickedThumbRemove: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
   walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill },
   walkBtnDisabled: { opacity: 0.5 },
+  aiBlockedText: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
+  collabNote: { marginHorizontal: 20, marginTop: 12, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 19 },
   walkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   scanNoteBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '30' },
   scanNoteText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },

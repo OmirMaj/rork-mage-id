@@ -51,9 +51,15 @@ export function portalLiveOverrides(kind: SendableItemKind, live: unknown): Reco
     case 'aia_pay_app':
       return pick('paidAt', 'payLinkUrl', 'payLinkId', 'payLinkAmount');
     case 'change_order':
+      return pick('status');
     case 'rfi':
     case 'submittal':
-      return pick('status');
+      // #28: the number is the SERVER's (assigned on insert under a lock —
+      // 20260919080000 §3), not something he wrote. A copy frozen while the
+      // phone still held its guess ("RFI #7" for what the server made #8)
+      // showed the guess on the portal forever; laid over live, the portal
+      // shows the server's number once the provider has refetched it.
+      return pick('status', 'number');
     case 'photo':
       // The pixels are not an editable figure, and a data: URI would blow the
       // snapshot cap — the frozen copy leaves them out (freezeForPortal).

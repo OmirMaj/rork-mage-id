@@ -11,7 +11,7 @@ import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } f
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 import { resolveScheduleAnchor, scheduleDayNumberFor } from '@/utils/scheduleOps';
-import { dayOrInstantDate } from '@/utils/calendarDate';
+import { calendarDayOf, dayOrInstantDate, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -265,12 +265,35 @@ export const dailyReportSchema = z.object({
 
 export type DailyReportGenResult = z.infer<typeof dailyReportSchema>;
 
+/**
+ * Wave 4 #61: the day the report is FOR. The prompt printed `new Date()` and
+ * called everything "today", so a missed Monday opened from Home on Wednesday
+ * was drafted as Wednesday. `reportDay` is the report's calendar day
+ * ('YYYY-MM-DD', from app/daily-report's reportCalendarDay). Task statuses
+ * are the schedule as it stands NOW — for a past day they are no record of
+ * that day, so the prompt says so and forbids claiming completion on it (the
+ * screen also holds the button back for a past day; this is the second line).
+ */
+export function dailyReportPromptDay(reportDay: string | null | undefined, now: Date = new Date()): {
+  label: string; isPast: boolean;
+} {
+  const day = calendarDayOf(reportDay ?? null);
+  const today = todayCalendarDay(now);
+  const d = day ?? today;
+  return {
+    label: formatCalendarDay(d, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) || d,
+    isPast: d < today,
+  };
+}
+
 export async function generateDailyReport(
   projectName: string,
   tasks: ScheduleTask[],
   weatherStr: string,
+  reportDay?: string | null,
 ): Promise<DailyReportGenResult> {
   console.log('[AI DFR] Generating daily report...');
+  const day = dailyReportPromptDay(reportDay);
   const activeTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'done');
   // Audit #28: the DFR used to send 'Clear' when no weather was recorded, and
   // this prompt believed it. An empty or "Not recorded" value is UNKNOWN — the
@@ -280,17 +303,19 @@ export async function generateDailyReport(
     ? weatherStr.trim()
     : 'Not recorded — the weather is UNKNOWN. Do not describe or assume it; leave weatherImpact empty.';
   const aiResult = await mageAI({
-    prompt: `You are a construction superintendent writing a professional daily field report. Based on the project schedule data below, generate a complete daily report for today. Write in professional but concise construction industry language.
+    prompt: `You are a construction superintendent writing a professional daily field report. Based on the project schedule data below, generate a complete daily report for ${day.isPast ? `${day.label} (a past day)` : 'today'}. Write in professional but concise construction industry language.
 
 PROJECT: ${projectName}
-DATE: ${new Date().toLocaleDateString()}
+DATE OF THIS REPORT: ${day.label}
 WEATHER: ${weatherLine}
-
-TODAY'S TASKS:
+${day.isPast ? `
+IMPORTANT: this report is for ${day.label}, not today. The task statuses and percentages below are the schedule AS OF NOW, not as of ${day.label}. Do not state that any task was completed on ${day.label}; describe only work the data shows was under way, and leave workCompleted empty.
+` : ''}
+${day.isPast ? `TASKS (status as of now, not as of ${day.label})` : "TODAY'S TASKS"}:
 ${activeTasks.map(t => `- ${t.title} (${t.phase}): ${t.progress}% complete, Status: ${t.status}, Crew: ${t.crew || 'TBD'} (${t.crewSize || 0} workers)`).join('\n') || 'No active tasks'}
 
-COMPLETED TODAY:
-${activeTasks.filter(t => t.status === 'done').map(t => t.title).join(', ') || 'None completed today'}
+${day.isPast ? 'MARKED DONE AS OF NOW (may have finished on another day)' : 'COMPLETED TODAY'}:
+${activeTasks.filter(t => t.status === 'done').map(t => t.title).join(', ') || (day.isPast ? 'None' : 'None completed today')}
 
 Generate a professional daily report. Be specific based on the task data.`,
     schema: dailyReportSchema,

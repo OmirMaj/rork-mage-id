@@ -7,6 +7,7 @@
 //
 // Section order is intent-based, not alphabetical:
 //   1. AI Hub      — marquee AI features
+//   1b. Industry   — Construction News (publisher headlines)
 //   2. Decisions   — what's waiting on the GC to approve
 //   3. Field       — what crews + owners are doing day-to-day
 //   4. Money       — cash, draws, taxes, sales pipeline
@@ -39,7 +40,7 @@ import {
   FileSignature, ShieldCheck, UserPlus, Gavel, FileDown, PackageCheck, Inbox, TrendingUp,
   Download, Wrench, ArrowLeft, ScanLine, HardHat, IdCard, ScanEye, Truck, Hourglass, Store,
   Zap, BadgeCheck, CalendarClock, Code, FileSearch, BookOpen, PenTool, KeyRound, Target,
-  PieChart, SlidersHorizontal, ScrollText, Award, Stamp,
+  PieChart, SlidersHorizontal, ScrollText, Award, Stamp, Newspaper,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageEquipment, MageTakeoff, MageChangeOrder, MageRFI, MageSubmittal,
@@ -58,14 +59,17 @@ import { featureFor, type FeatureId } from '@/utils/featureRegistry';
 import { useTierAccess } from '@/hooks/useTierAccess';
 
 const SECTIONS = [
-  'AI HUB', 'DECISIONS', 'FIELD', 'MONEY', 'FIND WORK',
+  'AI HUB', 'INDUSTRY', 'DECISIONS', 'FIELD', 'MONEY', 'FIND WORK',
   'COMPLIANCE', 'CLOSEOUT', 'REPORTING', 'NETWORK',
 ] as const;
 type ToolSection = (typeof SECTIONS)[number];
 
 interface ToolRow {
-  /** Registry row that owns this destination. */
-  feature: FeatureId;
+  /** Registry row that owns this destination. Every row sets it (the
+   *  Construction News registry row landed in the wave-4 integration pass);
+   *  it stays optional only as a fallback — a row without it opens its own
+   *  `route` and never shows a tier chip. */
+  feature?: FeatureId;
   /** Must equal featureFor(feature).route — see the header note. */
   route: string;
   /** Accepts lucide icons AND the bespoke Mage glyph set (plain function
@@ -100,6 +104,11 @@ const TOOL_ROWS: ToolRow[] = [
   { feature: 'compare-drawings', route: '/compare-drawings', Icon: Layers, title: 'Compare Drawings', subtitle: 'See exactly what changed between two plan revisions', tone: 'accent', testID: 'tools-compare-drawings', section: 'AI HUB' },
   { feature: 'extract-submittals', route: '/extract-submittals', Icon: BookOpen, title: 'Spec Book Extract', subtitle: 'Pull submittal requirements out of a 200-page spec book in one tap', tone: 'accent', testID: 'tools-spec-extract', section: 'AI HUB' },
   { feature: 'scan', route: '/scan', Icon: ScanLine, title: 'Scan Anything', subtitle: 'Snap any doc — invoice, business card, COI — it files itself to the right project', tone: 'warning', testID: 'tools-scan', section: 'AI HUB' },
+
+  // ── INDUSTRY — what is happening outside the GC's own jobs. Construction
+  // News merges a curated set of publisher feeds (supabase/functions/
+  // construction-news); it needs no project and gates on no tier.
+  { route: '/construction-news', Icon: Newspaper, title: 'Construction News', subtitle: 'Latest headlines from ENR, Construction Dive, NAHB, OSHA and more', tone: 'info', testID: 'tools-construction-news', feature: 'construction-news', section: 'INDUSTRY' },
 
   // ── DECISIONS — what is waiting on the GC to act on.
   // PRODUCT-F4 / UX-F16: the marketed chase list was sidebar-only —
@@ -245,6 +254,7 @@ export default function DiscoverToolsScreen() {
   // enforce, in either direction.
   const { canAccess, requiredTierFor } = useTierAccess();
   const tierMeta = useCallback((row: ToolRow): string | undefined => {
+    if (!row.feature) return undefined;
     const requires = featureFor(row.feature).requires;
     if (!requires || canAccess(requires)) return undefined;
     return requiredTierFor(requires).toUpperCase();
@@ -253,7 +263,7 @@ export default function DiscoverToolsScreen() {
   // Push the REGISTRY route, not the row's literal, so a literal that has
   // drifted since ship-check last ran cannot misroute anyone.
   const open = useCallback(
-    (row: ToolRow) => router.push(featureFor(row.feature).route as never),
+    (row: ToolRow) => router.push((row.feature ? featureFor(row.feature).route : row.route) as never),
     [router],
   );
 
@@ -296,7 +306,7 @@ export default function DiscoverToolsScreen() {
             <Text style={styles.sectionTitle}>{section}</Text>
             <View style={styles.sectionCard}>
               {rows.map((row, i) => (
-                <React.Fragment key={row.feature}>
+                <React.Fragment key={row.testID}>
                   {i > 0 && <View style={styles.divider} />}
                   <NavRow
                     Icon={row.Icon}

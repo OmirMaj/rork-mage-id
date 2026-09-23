@@ -252,7 +252,12 @@ console.log('\n#134 Record Payment reads "12,500.00" as $12,500.00');
   const mark = INVOICE.slice(INVOICE.indexOf('const handleMarkPaid = useCallback'), INVOICE.indexOf('// Stripe payment link', INVOICE.indexOf('const handleMarkPaid = useCallback')));
   ok('handleMarkPaid decides through recordPaymentDecision(parseMoneyInput) and confirms an overpayment before writing',
     /recordPaymentDecision\(paymentAmount, balanceDue, parseMoneyInput, formatCurrency\)/.test(mark) && !/parseFloat/.test(mark)
-      && /decision\.kind === 'confirm'[\s\S]{0,260}onPress: \(\) => commitPayment\(decision\.amount\)[\s\S]{0,40}\]\);\s*return;/.test(mark));
+      // Integration round 1: both paths go through commitPaymentPastUnsaved,
+      // which asks first when a payment on this invoice is under Not saved.
+      // Final fix round 3: under the one-at-a-time lock (recordUnderLock runs
+      // commitPaymentPastUnsaved), and Cancel / a dismissal frees the lock.
+      && /decision\.kind === 'confirm'[\s\S]{0,420}onPress: \(\) => \{ void recordUnderLock\(decision\.amount\); \}[\s\S]{0,80}\], \{ onDismiss: release \}\);\s*return;/.test(mark)
+      && /const recordUnderLock = useCallback\(async \(amt: number\) => \{\s*try \{\s*await commitPaymentPastUnsaved\(amt\);/.test(INVOICE));
   const rel = INVOICE.slice(INVOICE.indexOf('const handleReleaseRetention = useCallback'), INVOICE.indexOf('const effectiveStatus ='));
   ok('the retention release parses with parseMoneyInput', /parsePositiveMoney\(retentionReleaseAmount, parseMoneyInput\)/.test(rel) && !/parseFloat/.test(rel));
   ok('the retainage ask parses a percentage strictly', /const retainageAskValue = parsePercentInput\(retainageAskInput\) \?\? NaN;/.test(INVOICE));

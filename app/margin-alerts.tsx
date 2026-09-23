@@ -234,8 +234,10 @@ function MarginAlertsInner() {
                 // An unpriced-labor alert is fixed by pricing the crew's trade on
                 // Time Tracking (where the labor rates live), not by reading the
                 // margin breakdown, which cannot price hours that have no rate.
+                // #104: open the Labor rates sheet on the first unpriced trade,
+                // as Job Costing and Living Estimate do — not just the screen.
                 onPress={() => router.push(a.kind === 'unpriced_labor'
-                  ? { pathname: '/time-tracking', params: { projectId: a.projectId } } as any
+                  ? { pathname: '/time-tracking', params: { projectId: a.projectId, openRates: '1', ...(a.unpricedTrade ? { rateTrade: a.unpricedTrade } : {}) } } as any
                   : { pathname: '/margin-risk', params: { projectId: a.projectId } } as any)}
                 activeOpacity={0.7}
                 testID={`margin-alert-${a.projectId}`}

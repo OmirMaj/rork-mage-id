@@ -88,6 +88,7 @@ import {
   applyLedgerEntry,
   settlementStatus,
   netPayable,
+  ledgerSum,
 } from '../supabase/functions/_shared/paymentMath';
 
 // Declared locally rather than pulled from `bun-types`: this repo has no bun
@@ -261,8 +262,12 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       /regenerate for the current balance of/.test(code), true);
     eq('Copy / Share buttons render only behind payLinkMatchesBalance',
       /\{payLinkMatchesBalance && \(\s*<>\s*<TouchableOpacity[\s\S]{0,400}testID="copy-pay-link-btn"/.test(code), true);
+    // wave 4 #80: the payment re-mint charges the SERVER's balance, read back
+    // after invoice_append_payment landed (afterRecordedPayment), never the
+    // stale local newBalance; the retention release still re-mints locally.
     eq('recording a payment and releasing retention both re-mint a live link for the new balance',
-      (code.match(/void mintPayLinkFor\(existingInvoice, newBalance\)/g) ?? []).length, 2);
+      [(code.match(/void mintPayLinkFor\(existingInvoice, newBalance\)/g) ?? []).length,
+        (code.match(/void mintPayLinkFor\(existingInvoice, follow\.remintFor\)/g) ?? []).length], [1, 1]);
     eq('a draft total change clears payLinkAmount together with url/id',
       /totalChanged \? \{ payLinkUrl: undefined, payLinkId: undefined, payLinkAmount: undefined \}/.test(code), true);
     // RETAINAGE-1 moved this mechanic out of the screen and into
@@ -2578,6 +2583,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     type Row = Record<string, unknown>;
     type Write = { table: string; patch: Row; on: [string, unknown] };
     const writes: Write[] = [];
+    const rpcCalls: { fn: string; args: unknown }[] = [];
     const deactivated: string[] = [];
     /** A PostgREST-shaped double, only as clever as the four chains the
      *  function actually issues. Terminal awaits are `.single()` and `.is()`
@@ -2595,6 +2601,18 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
         return b;
       };
       return {
+        // wave 4 #80: the credit is an append through invoice_append_payment,
+        // simulated with the webhook's own ledger rules (the SQL twin is
+        // executed in PGlite). An applied append is a write; a replay is not.
+        rpc: (fn: string, args: { p_invoice_id: string; p_entry: { id: string; amount: number } }) => {
+          rpcCalls.push({ fn, args });
+          if (!invoice) return Promise.resolve({ data: null, error: { code: 'P0002', message: 'invoice_not_found' } });
+          const applied = applyLedgerEntry(ledgerFrom(invoice.payments), args.p_entry as never);
+          const paid = toCents2(ledgerSum(applied.ledger));
+          const status = applied.applied ? settlementStatus(invoice.status as string, paid, invoice as never) : invoice.status;
+          if (applied.applied) writes.push({ table: 'invoices', patch: { __rpc: fn, payments: applied.ledger, amount_paid: paid, status }, on: ['id', args.p_invoice_id] });
+          return Promise.resolve({ data: { ok: true, already: !applied.applied, amount_paid: applied.applied ? paid : invoice.amount_paid, status }, error: null });
+        },
         from: (table: string) => ({
           select: () => reader(table === 'invoices' ? (invoice ? [invoice] : []) : aiaRows),
           update: (patch: Row) => ({
@@ -2693,6 +2711,43 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       'inv1', session, 'acct_1', 'invoice');
     eq('the link Stripe just charged is not deactivated a second time',
       [writes.some(w => w.table === 'aia_pay_apps'), deactivated], [true, []]);
+
+    // ── wave 4 #80: THE CREDIT IS AN APPEND, NEVER A WHOLE-LEDGER WRITE ────────
+    // The old read-then-UPDATE wrote back the ledger it had read, erasing a
+    // check the GC recorded between the read and the write.
+    writes.length = 0; rpcCalls.length = 0;
+    await creditInvoice(makeDb(invoiceRow(), [aiaRow()]), 'inv1', session, 'acct_1', 'invoice');
+    eq('the credit goes through invoice_append_payment with only this session\'s entry',
+      rpcCalls.map(c => [c.fn, (c.args as { p_entry: { id: string; amount: number } }).p_entry.id, (c.args as { p_entry: { amount: number } }).p_entry.amount]),
+      [['invoice_append_payment', 'stripe-cs_1', 61_400]]);
+    eq('…and no plain UPDATE of invoices carries payments, amount_paid or status',
+      writes.filter(w => w.table === 'invoices' && !w.patch.__rpc)
+        .some(w => 'payments' in w.patch || 'amount_paid' in w.patch || 'status' in w.patch), false);
+    eq('…while the spent link still comes off the invoice',
+      writes.filter(w => w.table === 'invoices' && !w.patch.__rpc).map(w => [w.patch.pay_link_url, w.patch.pay_link_id, w.patch.pay_link_amount]),
+      [[null, null, null]]);
+    // A check recorded on the phone between the webhook's read and its write
+    // survives — the append is keyed on ids, the ledger is the server's.
+    writes.length = 0;
+    const withCheck = { ...invoiceRow(), amount_paid: 300, status: 'partially_paid',
+      payments: [{ id: 'pay-check', amount: 300, method: 'check' }] };
+    const both = await creditInvoice(makeDb(withCheck, []), 'inv1', { ...session, amount_total: 6_110_000 }, 'acct_1', 'invoice') as { newAmountPaid?: number; newStatus?: string };
+    eq('a device check and the card payment both stay on the ledger',
+      [both.newAmountPaid, both.newStatus], [61_400, 'paid']);
+
+    // #83: the ACH that settles clears the marker IT left — never another's.
+    writes.length = 0;
+    await creditInvoice(makeDb({ ...invoiceRow(), pay_pending_session: 'cs_1' }, []), 'inv1', session, 'acct_1', 'invoice');
+    eq('async success clears the pending marker of its own session',
+      writes.some(w => w.table === 'invoices' && w.patch.pay_pending_session === null && w.patch.pay_pending_at === null), true);
+    writes.length = 0;
+    await creditInvoice(makeDb({ ...invoiceRow(), pay_pending_session: 'cs_OTHER' }, []), 'inv1', session, 'acct_1', 'invoice');
+    eq('…and leaves a different session\'s marker alone',
+      writes.some(w => 'pay_pending_session' in w.patch), false);
+    writes.length = 0;
+    await creditInvoice(makeDb({ ...dupInvoice, pay_pending_session: 'cs_1' }, []), 'inv1', session, 'acct_1', 'invoice');
+    eq('a re-delivered success still clears a marker a crashed first run left',
+      writes.map(w => Object.keys(w.patch).sort()), [['pay_pending_amount', 'pay_pending_at', 'pay_pending_session']]);
   }
 
   // Read-side suppression cannot undo a charge Stripe has already taken, so

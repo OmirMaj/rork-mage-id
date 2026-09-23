@@ -54,6 +54,162 @@ export function pendingIdsForTable(queue: readonly QueueEntryLike[], table: stri
   return ids;
 }
 
+/**
+ * #28 (wave 4) · A portal send the batch (Client Outbox "Send all") must HOLD:
+ * an RFI or submittal whose INSERT is still queued. The server numbers every
+ * insert itself (#148), so until it lands the device's number is a guess — and
+ * the send freezes the record, number included, into the homeowner's copy.
+ * The record screen and the Outbox already hold on the number's state; this is
+ * the provider's own rule, so no caller can send one early.
+ */
+export function portalSendHeldForNumber(kind: string, itemId: string, queue: readonly QueueEntryLike[]): boolean {
+  const table = kind === 'rfi' ? 'rfis' : kind === 'submittal' ? 'submittals' : null;
+  if (!table) return false;
+  return queue.some(e => e.table === table && e.operation === 'insert' && e.data?.id === itemId);
+}
+
+/**
+ * Record ids of `table` that the "Not saved" ledger names ONLY for refused
+ * rpc calls (wave 4 review: recordInvoicePayment's invoice_append_payment).
+ * A refused append is already taken back off the device copy, so there is
+ * nothing on the phone to protect — keeping that id in a loader's keep set
+ * would pin the pre-payment device row over every later server read (a
+ * client's Stripe payment hidden until he taps Discard, and an owner device
+ * republishing the stale row into the portal). A record that ALSO has a
+ * refused row write (insert/update/…) stays kept: that payload is the only
+ * copy. Shape-typed so the bun validators drive it without the ledger module.
+ */
+export function rpcOnlyLedgerIds(
+  own: readonly { kind: string; table?: string; recordId?: string; operation?: string }[],
+  table: string,
+): Set<string> {
+  const rpc = new Set<string>();
+  const row = new Set<string>();
+  for (const f of own) {
+    if (f.kind !== 'write' || f.table !== table || !f.recordId) continue;
+    (f.operation === 'rpc' ? rpc : row).add(f.recordId);
+  }
+  for (const id of row) rpc.delete(id);
+  return rpc;
+}
+
+/**
+ * Integration round 3 · The project ids this session has under Not saved (the
+ * projects loader lays each one's line over the server row — round 8, see
+ * unsavedProjectPinsIn — and keeps the device row only when there is no
+ * server row to lay it over): an unsaved project_financials
+ * write (keyed on project_id — the money and contract terms), or an unsaved
+ * projects write — less a projects id the ledger names ONLY for refused rpc
+ * calls (rpcOnlyLedgerIds: that line stays on the sheet but does not shadow
+ * the server row) unless a write of it is still queued. `own` is this
+ * session's ledger, read AFTER `queuedProjectIds` (queue first, then ledger).
+ */
+export function unsavedProjectIdsIn(
+  own: readonly { kind: string; table?: string; recordId?: string; operation?: string }[],
+  queuedProjectIds: ReadonlySet<string>,
+): Set<string> {
+  const pins = unsavedProjectPinsIn(own, queuedProjectIds);
+  return new Set([...pins.whole, ...pins.moneyOnly]);
+}
+
+/**
+ * Wave-4 final fix (round 8) · The same ids, split by what the Not-saved line
+ * covers, with the line's own row for each — what the projects loader lays
+ * over the SERVER's row instead of pinning the device's row whole.
+ *  • `whole` — an unsaved projects write. `projectRows` holds the columns its
+ *    lines carry (oldest to newest, a later line's column wins — the same end
+ *    state as Retry replaying them in order); every other column is the
+ *    server's.
+ *  • `moneyOnly` — ONLY an unsaved project_financials write. The loader takes
+ *    the server's projects row whole and lays `finRows` (the line's row: the
+ *    durable copy of his refused budget / terms edit, folded with every save
+ *    parked behind it) over the server's project_financials row.
+ *  • `deleted` — a refused projects DELETE. There is no row to lay over; the
+ *    loader keeps the device's absence (the old whole pin).
+ *
+ * Why not pin the job whole (round 7): his next edit of that job then sent
+ * the phone's OLD projects row back as a whole-row write, overwriting a
+ * rename, a close-out or a portal switched off on the web. Why not read his
+ * money from the AsyncStorage cache (round 4): a same-user re-auth sweep
+ * empties that cache; the ledger survives it. Identity and bookkeeping
+ * columns (OVERLAY_SKIP) always stay the server's.
+ */
+export interface UnsavedProjectPins {
+  whole: Set<string>;
+  moneyOnly: Set<string>;
+  projectRows: Map<string, Record<string, unknown>>;
+  finRows: Map<string, Record<string, unknown>>;
+  deleted: Set<string>;
+}
+
+const OVERLAY_SKIP = new Set(['id', 'project_id', 'user_id', 'created_at', 'updated_at']);
+
+type UnsavedLineLike = {
+  kind: string; table?: string; recordId?: string; operation?: string;
+  row?: Record<string, unknown>; queuedAt?: number; at?: number;
+};
+
+export function unsavedProjectPinsIn(
+  own: readonly UnsavedLineLike[],
+  queuedProjectIds: ReadonlySet<string>,
+): UnsavedProjectPins {
+  const whole = new Set<string>();
+  const fin = new Set<string>();
+  const deleted = new Set<string>();
+  const rpcOnly = rpcOnlyLedgerIds(own, 'projects');
+  const rowLines: UnsavedLineLike[] = [];
+  for (const f of own) {
+    if (f.kind !== 'write' || !f.recordId) continue;
+    if (f.table === 'project_financials') fin.add(f.recordId);
+    else if (f.table === 'projects' && (!rpcOnly.has(f.recordId) || queuedProjectIds.has(f.recordId))) whole.add(f.recordId);
+    else continue;
+    if (f.table === 'projects' && f.operation === 'delete') deleted.add(f.recordId);
+    else if (f.operation !== 'rpc' && f.operation !== 'delete' && f.row) rowLines.push(f);
+  }
+  const moneyOnly = new Set([...fin].filter((id) => !whole.has(id)));
+  const projectRows = new Map<string, Record<string, unknown>>();
+  const finRows = new Map<string, Record<string, unknown>>();
+  rowLines.sort((a, b) => (a.queuedAt ?? a.at ?? 0) - (b.queuedAt ?? b.at ?? 0));
+  for (const f of rowLines) {
+    const into = f.table === 'projects' ? projectRows : finRows;
+    const id = f.recordId as string;
+    const acc = into.get(id) ?? {};
+    for (const [k, v] of Object.entries(f.row as Record<string, unknown>)) if (!OVERLAY_SKIP.has(k)) acc[k] = v;
+    into.set(id, acc);
+  }
+  return { whole, moneyOnly, projectRows, finRows, deleted };
+}
+
+/** Round 8 · `server` with `line`'s columns laid over it (the line wins where
+ *  it carries a column). No line → the server row as it is. No server row
+ *  (a project_financials row not created yet) → the line's columns alone. */
+export function overlayUnsavedRow(
+  server: Record<string, unknown> | undefined,
+  line: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!line) return server;
+  return { ...(server ?? {}), ...line };
+}
+
+/**
+ * Wave-4 final fix · Whether a projects load that just landed owes a re-read.
+ * Only a row kept whole for a write still QUEUED or on the wire owes one —
+ * that write will land (or be refused) on its own, and the settle / post-flush
+ * listeners re-read once it has. A row kept whole ONLY because a line sits
+ * under Not saved (`ledgerOnly`) never owes one: nothing but his Retry or
+ * Discard moves that line, and both re-read 'projects' themselves
+ * (rereadLedgerTables). Owing it anyway was an endless reload — the settle
+ * checks the queue, finds it empty, re-reads, and the ledger pins the row
+ * again: three SELECTs per pass, the whole cache rewritten each time.
+ */
+export function projectsReloadOwedAfterLoad(
+  keptWhole: ReadonlySet<string>,
+  ledgerOnly: ReadonlySet<string>,
+): boolean {
+  for (const id of keptWhole) if (!ledgerOnly.has(id)) return true;
+  return false;
+}
+
 /** #112 · Ids with a queued DELETE for `table`. pendingIdsForTable leaves
  *  deletes out on purpose (keeping a row alive because its delete is queued is
  *  the resurrection bug); a merge needs them separately, to keep the server's
@@ -717,6 +873,149 @@ export function shouldFlipInvoiceToPaid(inv: InvoiceSettlementInput): boolean {
   });
 }
 
+// ─── #83/#135 (wave 4) · the pending bank-payment marker ─────────────────────
+
+/**
+ * invoices / aia_pay_apps pay_pending_at + pay_pending_amount → the record's
+ * paymentPendingAt / paymentPendingAmount (CONTRACT 3). Both columns are the
+ * webhook's: set when a Checkout Session completes UNPAID (ACH in flight),
+ * cleared when it settles or fails. A missing or null column leaves the key
+ * OUT (not `undefined`-valued), so a row read before the migration landed
+ * looks exactly like a row with no payment in flight. numeric(12,2) arrives
+ * as a string from PostgREST; an unparseable one is dropped, never read as 0.
+ */
+export function pendingPaymentFromRow(r: Record<string, unknown>): { paymentPendingAt?: string; paymentPendingAmount?: number } {
+  const out: { paymentPendingAt?: string; paymentPendingAmount?: number } = {};
+  if (typeof r.pay_pending_at === 'string' && r.pay_pending_at.length > 0) out.paymentPendingAt = r.pay_pending_at;
+  if (r.pay_pending_amount != null && r.pay_pending_amount !== '') {
+    const n = Number(r.pay_pending_amount);
+    if (Number.isFinite(n)) out.paymentPendingAmount = Math.round(n * 100) / 100;
+  }
+  return out;
+}
+
+// ─── #80/#35 (wave 4) · a recorded payment is an APPEND ──────────────────────
+
+/** The fields a manual payment moves on the device copy. */
+export interface PaymentAppendInput {
+  status?: string;
+  totalDue?: number;
+  amountPaid?: number;
+  subtotal?: number;
+  retentionPercent?: number;
+  retentionAmount?: number;
+  retentionReleased?: number;
+  payments?: readonly { id: string; amount: number }[] | null;
+}
+
+/**
+ * The OPTIMISTIC device copy of an invoice after one payment is recorded —
+ * what the screen shows while invoice_append_payment is out (or queued).
+ * Only the new entry is added (by id: an entry already on the row is a no-op,
+ * `null`), amount_paid moves by exactly that entry to the cent, and the status
+ * follows the same rule as the server's invoice_settlement_status: settled
+ * NET of held retention (1-cent tolerance) → 'paid', otherwise any money in →
+ * 'partially_paid'. The server's answer replaces all of it on the guarded
+ * re-read; nothing here is ever written to the server (the RPC recomputes the
+ * ledger sum itself, from the row it has locked).
+ */
+export function optimisticPaymentAppend<E extends { id: string; amount: number }, S extends string = string>(
+  inv: PaymentAppendInput & { status?: S },
+  entry: E,
+): { payments: E[]; amountPaid: number; status: S | 'paid' | 'partially_paid' | 'sent' } | null {
+  const prior = (inv.payments ?? []) as E[];
+  if (prior.some(p => p && p.id === entry.id)) return null;
+  const amountPaid = Math.round(((inv.amountPaid ?? 0) + entry.amount) * 100) / 100;
+  const settled = invoiceIsSettled({
+    totalDue: inv.totalDue ?? 0, amountPaid,
+    subtotal: inv.subtotal, retentionPercent: inv.retentionPercent,
+    retentionAmount: inv.retentionAmount, retentionReleased: inv.retentionReleased,
+  });
+  const status: S | 'paid' | 'partially_paid' | 'sent' = amountPaid > 0.005 ? (settled ? 'paid' : 'partially_paid') : (inv.status ?? 'sent');
+  return { payments: [...prior, entry], amountPaid, status };
+}
+
+/**
+ * Undo an optimistic append whose RPC was REFUSED ('failed' — the caller tells
+ * him nothing was recorded, so the device copy must not show it either).
+ * Only this entry leaves, amount_paid drops by exactly its amount, and the
+ * status goes back to what it was before — unless something else moved the
+ * row meanwhile (a server re-read already replaced it): then `null`, and the
+ * row is left alone.
+ */
+export function revertOptimisticPayment<E extends { id: string; amount: number }, S extends string = string>(
+  inv: PaymentAppendInput,
+  entry: E,
+  before: { status?: S },
+): { payments: E[]; amountPaid: number; status?: S } | null {
+  const prior = (inv.payments ?? []) as E[];
+  if (!prior.some(p => p && p.id === entry.id)) return null;
+  return {
+    payments: prior.filter(p => p.id !== entry.id),
+    amountPaid: Math.max(0, Math.round(((inv.amountPaid ?? 0) - entry.amount) * 100) / 100),
+    status: before.status,
+  };
+}
+
+/**
+ * Integration round 2 · Take a payment append the FLUSH refused off the device
+ * copy. revertOptimisticPayment above covers the direct 'failed' answer, where
+ * the pre-payment row is still in hand; a QUEUED append refused later had no
+ * such undo — the drop triggers no invoices re-read, and when another write of
+ * the invoice sits under Not saved too (the UPDATE queued behind the append is
+ * dropped with it as an orphan) the loader keeps the device row, so the phone
+ * showed the refused payment as recorded, status paid, and an owner device
+ * published it to the portal. The pre-payment status is not known here, so it
+ * is RECOMPUTED from what is left: some money still paid → paid or partially
+ * paid by the same retention-net rule as the append; none → an invoice that
+ * read paid / partially paid goes back to 'sent' (any other status stands).
+ * `null` when the entry is not on the row (nothing to take back).
+ */
+export function stripDroppedPayment<E extends { id: string; amount: number }>(
+  inv: PaymentAppendInput,
+  entryId: string,
+): { payments: E[]; amountPaid: number; status?: string } | null {
+  const prior = (inv.payments ?? []) as E[];
+  const hit = prior.find(p => p && p.id === entryId);
+  if (!hit) return null;
+  const amountPaid = Math.max(0, Math.round(((inv.amountPaid ?? 0) - (Number(hit.amount) || 0)) * 100) / 100);
+  let status = inv.status;
+  if (amountPaid > 0.005) {
+    status = invoiceIsSettled({
+      totalDue: inv.totalDue ?? 0, amountPaid,
+      subtotal: inv.subtotal, retentionPercent: inv.retentionPercent,
+      retentionAmount: inv.retentionAmount, retentionReleased: inv.retentionReleased,
+    }) ? 'paid' : 'partially_paid';
+  } else if (status === 'paid' || status === 'partially_paid') {
+    status = 'sent';
+  }
+  return { payments: prior.filter(p => p.id !== entryId), amountPaid, ...(status !== undefined ? { status } : {}) };
+}
+
+/** The entry id of a queued invoice_append_payment, or null. */
+export function droppedAppendEntryId(m: { table?: string; operation?: string; rpc?: { fn?: string; args?: Record<string, unknown> } }): string | null {
+  if (m.table !== 'invoices' || m.operation !== 'rpc' || m.rpc?.fn !== 'invoice_append_payment') return null;
+  const e = m.rpc.args?.p_entry as { id?: unknown } | undefined;
+  return typeof e?.id === 'string' && e.id.length > 0 ? e.id : null;
+}
+
+/**
+ * Integration round 3 · The payment entry a Retry just took off the Not-saved
+ * sheet (landed or queued), with its invoice — or null. ProjectContext puts it
+ * back on the device copy (optimisticPaymentAppend, idempotent by entry id):
+ * a flush refusal had stripped it (stripDroppedPayment), and without this a
+ * Retry answered 'queued' left the invoice reading unpaid until the flush —
+ * where a second "record payment" found no unsaved append to warn about.
+ */
+export function retriedAppendEntry<E extends { id: string; amount: number }>(
+  line: { table?: string; operation?: string; recordId?: string; rpc?: { fn?: string; args?: Record<string, unknown> } },
+): { invoiceId: string; entry: E } | null {
+  if (!droppedAppendEntryId(line) || typeof line.recordId !== 'string' || !line.recordId) return null;
+  const e = line.rpc?.args?.p_entry as E | undefined;
+  if (!e || typeof e.amount !== 'number' || !Number.isFinite(e.amount)) return null;
+  return { invoiceId: line.recordId, entry: e };
+}
+
 // ─── MONEY-F1 · aia_pay_apps row ⇄ SavedAIAPayApp ────────────────────────────
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
@@ -912,6 +1211,11 @@ export function aiaRowToSaved(r: Record<string, unknown>): SavedAIAPayApp {
     payLinkUrl: str(r.pay_link_url),
     payLinkId: str(r.pay_link_id),
     payLinkAmount: r.pay_link_amount == null ? undefined : coerceRate(r.pay_link_amount, 0),
+    // #83/#135 (wave 4, CONTRACT 3): a bank payment the client started on the
+    // Pay link that is still settling. Server-owned like pay_link_* — stamped
+    // by stripe-webhook on the unpaid Checkout completion, cleared when it
+    // settles or fails — and never written back by savedToAiaRow.
+    ...pendingPaymentFromRow(r),
     paidAt: str(r.paid_at),
     savedAt: createdAt ?? '',
     createdAt,
@@ -1344,10 +1648,11 @@ export const coIdsWrittenDuringRead = idsWrittenDuringRead;
 /**
  * #23 review round · The projects a LOCAL write of one list touched: an item
  * added, removed or changed between the list the write replaced and the list
- * it wrote. The provider publishes a portal only for projects this device
- * changed (plus once after load) — a refetch that moved a list is never a
- * reason to publish, because the device's other lists may be the stale ones.
- * An item without a projectId marks nothing.
+ * it wrote. The provider publishes a portal for projects this device changed
+ * (plus once after load) and — #17 (wave 4) — for a shared record another
+ * member of the job filed, once SERVER reads brought it in (see
+ * portalArrivalProjectIds below; a cache read never marks). An item without a
+ * projectId marks nothing.
  */
 export function portalDirtyProjectIds<T extends { id: string; projectId?: string }>(
   prev: readonly T[] | null | undefined,
@@ -1382,6 +1687,94 @@ export function portalDirtyProjects(
   next: readonly { id: string }[] | null | undefined,
 ): Set<string> {
   return portalDirtyProjectIds<{ id: string }>(prev, next, p => p.id);
+}
+
+/** The shape portalArrivalProjectIds reads off a daily report or a photo. */
+export interface PortalArrivalRow {
+  id: string;
+  projectId?: string;
+  portalState?: { status?: string } | null;
+}
+
+/**
+ * #17 (wave 4) · The OWNER's portal jobs a server read must republish because
+ * a SHARED record ANOTHER member of the job filed arrived, changed, or left.
+ *
+ * A foreman's (editor seat's) daily report and photos land with portal_state
+ * 'sent' (auto-share), but his device may not publish (not_owner) and the
+ * portal overlay can only REMOVE items — so they reached the homeowner only
+ * when the GC happened to edit that job himself. Now the owner's provider
+ * compares the lists its last publish pass saw with the ones it holds now
+ * (both server reads of the current epoch — the caller only asks while every
+ * portal-fed list is the server's), and marks the job.
+ *
+ * Counted: a row by someone else (`authorOf` known and not `viewerId`) that is
+ * shared (isShared: no portal_state, or status 'sent') and is new, or changed
+ * in anything but its device-local fields (`fingerprint` — a photo's signed
+ * URL is re-minted on every read and must not count), plus a previously
+ * shared row by someone else that is gone or no longer shared. Only jobs in
+ * `ownedPortalProjectIds` (his own, portal on). A row with no author on
+ * record, or his own, never marks here: his own writes mark through the
+ * tracked saves, and a change he made on the web is published by the web.
+ * Under the #59 interim a field / viewer seat's rows arrive as draft, so they
+ * mark nothing until the GC sends them (a tracked save).
+ */
+export function portalArrivalProjectIds<T extends PortalArrivalRow>(
+  prev: readonly T[] | null | undefined,
+  next: readonly T[] | null | undefined,
+  opts: {
+    viewerId: string;
+    ownedPortalProjectIds: ReadonlySet<string>;
+    authorOf: (r: T) => string | null | undefined;
+    fingerprint: (r: T) => string;
+  },
+): Set<string> {
+  const out = new Set<string>();
+  const sharedByOther = (r: T): boolean => {
+    const author = opts.authorOf(r);
+    if (!author || author === opts.viewerId) return false;
+    const status = r.portalState?.status;
+    return status == null || status === 'sent';
+  };
+  const mark = (r: T) => { if (r.projectId && opts.ownedPortalProjectIds.has(r.projectId)) out.add(r.projectId); };
+  const before = new Map<string, T>();
+  for (const r of prev ?? []) if (r && !before.has(r.id)) before.set(r.id, r);
+  const seen = new Set<string>();
+  for (const r of next ?? []) {
+    if (!r || seen.has(r.id)) continue;
+    seen.add(r.id);
+    const old = before.get(r.id);
+    const nowShared = sharedByOther(r);
+    const wasShared = !!old && sharedByOther(old);
+    if (nowShared) {
+      if (!old || !wasShared || opts.fingerprint(old) !== opts.fingerprint(r)) mark(r);
+      if (old && old.projectId !== r.projectId && wasShared) mark(old);
+    } else if (wasShared) {
+      mark(old!);
+    }
+  }
+  for (const [id, old] of before) if (!seen.has(id) && sharedByOther(old)) mark(old);
+  return out;
+}
+
+/**
+ * #17 · A row's identity for portalArrivalProjectIds with its device-local
+ * fields dropped: `uri` / `localUri` (a signed URL re-minted on every read, a
+ * file path only this phone has) at the top level and on nested photos, and
+ * the local-only leak scan. What is left is what the portal is built from.
+ */
+export function portalContentFingerprint(r: object): string {
+  const strip = (o: unknown): unknown => {
+    if (Array.isArray(o)) return o.map(strip);
+    if (!o || typeof o !== 'object') return o;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(o as Record<string, unknown>).sort()) {
+      if (k === 'uri' || k === 'localUri' || k === 'leakScan') continue;
+      out[k] = strip((o as Record<string, unknown>)[k]);
+    }
+    return out;
+  };
+  return JSON.stringify(strip(r));
 }
 
 // ─── #90 · A job he was removed from leaves his phone ───────────────────────
@@ -1450,6 +1843,26 @@ export function queuedEntryRevokedProject(
   if (pid && projectIds.has(pid)) return pid;
   const viaChild = id ? childProjectById.get(id) : undefined;
   return viaChild && projectIds.has(viaChild) ? viaChild : null;
+}
+
+/**
+ * #8/#128 (wave 4) · How many queue entries belong to one job — by the SAME
+ * matcher the leave / revocation sweep discards with (queuedEntryRevokedProject
+ * with the record → job map), so the number "Leave project" warns about is
+ * exactly what leaving would throw away. Matching on project_id alone missed
+ * child UPDATEs (a punch status edit, a daily report's second save), which tie
+ * to the job only through the map.
+ */
+export function countQueuedEntriesForProject(
+  queue: readonly QueueEntryLike[],
+  projectId: string,
+  childProjectById: ReadonlyMap<string, string>,
+): number {
+  if (!projectId) return 0;
+  const ids = new Set([projectId]);
+  let n = 0;
+  for (const entry of queue) if (queuedEntryRevokedProject(entry, ids, childProjectById) === projectId) n += 1;
+  return n;
 }
 
 // ─── #55 · RFI / submittal edits write only what changed ─────────────────────
@@ -1724,7 +2137,13 @@ export function planProDocEdit<T extends { updatedAt: string; serverUpdatedAt?: 
     const what = a.kind === 'rfi'
       ? (regression === 'reopen' ? 'reopen this RFI' : regression === 'rewrite_handoffs' ? 'change who this RFI sat with' : 'clear the answer')
       : (regression === 'status_change' ? 'change this submittal\'s status' : 'change a review cycle');
-    const kept = a.kind === 'rfi' ? 'keep the RFI as answered' : 'keep its review cycles and status';
+    // Worded from the before-state (rfi-core review): an RFI closed with no
+    // answer on record was never "answered", so don't say the server keeps it so.
+    const answered = a.kind === 'rfi'
+      && ((typeof before.response === 'string' && before.response.trim().length > 0) || !!before.dateResponded);
+    const kept = a.kind === 'rfi'
+      ? (before.status === 'closed' && !answered ? 'keep the RFI closed' : 'keep the RFI as answered')
+      : 'keep its review cycles and status';
     return {
       ok: false,
       title: a.kind === 'rfi' ? 'Not reopened yet' : 'Not changed yet',
@@ -1808,6 +2227,20 @@ export const PORTAL_FED_LISTS = [
 ] as const;
 export type PortalFedList = typeof PORTAL_FED_LISTS[number];
 /**
+ * #15 (wave 4) · Lists a publish reads only when they are fresh, stamped by
+ * the same epoch machinery but NOT part of portalListsFromServer's nine:
+ * the AIA pay applications. The lite writer builds the pay-app section FRESH
+ * only when it is handed the list (utils/portalLiteSync — absent = carry the
+ * published section), so the provider waits for this list's server read in
+ * the current epoch too (portalSideListFresh) before any pass runs — an
+ * unread AIA list handed over as "none" would pull every pay app, and its
+ * Pay button, off the homeowner's page (#44). Kept out of the nine so every
+ * other reader of that gate (project-detail's own publish, which does not
+ * pass the AIA list and so carries it) is unchanged.
+ */
+export const PORTAL_SIDE_LISTS = ['aiaPayApps'] as const;
+export type PortalSideList = typeof PORTAL_SIDE_LISTS[number];
+/**
  * Which portal-fed lists were read from the server SINCE THE LATEST RETURN TO
  * THE FOREGROUND (round 2 of the #23 critic). `epoch` is bumped by the
  * provider's single foreground pass BEFORE it starts re-reading every list;
@@ -1822,7 +2255,7 @@ export type PortalFedList = typeof PORTAL_FED_LISTS[number];
 export interface PortalServerReads {
   epoch: number;
   /** list → the account and the epoch its read STARTED in (server answers only). */
-  stamps: Partial<Record<PortalFedList, { userId: string; epoch: number }>>;
+  stamps: Partial<Record<PortalFedList | PortalSideList, { userId: string; epoch: number }>>;
 }
 export const EMPTY_PORTAL_SERVER_READS: PortalServerReads = { epoch: 0, stamps: {} };
 
@@ -1837,7 +2270,7 @@ export const EMPTY_PORTAL_SERVER_READS: PortalServerReads = { epoch: 0, stamps: 
  * `prev` itself when nothing changed, so a React state setter is a no-op.
  */
 export function notePortalListRead(
-  prev: PortalServerReads, list: PortalFedList, userId: string, fromServer: boolean, readEpoch: number,
+  prev: PortalServerReads, list: PortalFedList | PortalSideList, userId: string, fromServer: boolean, readEpoch: number,
 ): PortalServerReads {
   if (readEpoch !== prev.epoch) return prev;
   const cur = prev.stamps[list];
@@ -1865,6 +2298,13 @@ export function portalListsFromServer(reads: PortalServerReads, userId: string |
   });
 }
 
+/** #15 · One side list (PORTAL_SIDE_LISTS) was read from the server, for this account, in the current epoch. */
+export function portalSideListFresh(reads: PortalServerReads, list: PortalSideList, userId: string | null | undefined): boolean {
+  if (!userId) return false;
+  const s = reads.stamps[list];
+  return !!s && s.userId === userId && s.epoch === reads.epoch;
+}
+
 /**
  * The device rows a re-read must keep, from the write tracker: an id written
  * (insert/update/delete) while the read was out is the device's — kept if the
@@ -1882,4 +2322,249 @@ export function deviceRowsWrittenDuringRead(
   const gone = new Set<string>();
   for (const id of keep) if (!onDevice.has(id)) gone.add(id);
   return { keep, gone };
+}
+
+// ─── #86 (wave 4) · a live schedule copy carries the active baseline ─────────
+
+/**
+ * The baselines and active-baseline id the store keeps after absorbing a
+ * server copy of a schedule. Taken from the copy only when the absorb is WHOLE
+ * (no unconfirmed local sync of the project — a phone with a pending lock must
+ * not lose it to a peer's echo). Before, the id was never carried on any live
+ * path: the GC activated v2 on the web, the phone kept v1, and its next edit
+ * wrote [v1] / v1 back — deleting v2 on the server.
+ *  - `adopt.baselines` absent (an older event shape): the store's stay.
+ *  - `adopt.activeBaselineId`: undefined = the copy did not say (keep); null =
+ *    the copy has none (clear — the key is then removed, see
+ *    utils/scheduleOps.withActiveBaselineId); a string = that baseline.
+ */
+export function absorbedScheduleMeta<B>(
+  current: { baselines?: B[]; activeBaselineId?: string },
+  adopt: { baselines?: readonly unknown[]; activeBaselineId?: string | null } | undefined,
+  whole: boolean,
+): { baselines: B[] | undefined; activeBaselineId: string | undefined } {
+  const baselines = whole && Array.isArray(adopt?.baselines) ? (adopt!.baselines as B[]) : current.baselines;
+  const incoming = adopt?.activeBaselineId;
+  const activeBaselineId = whole && incoming !== undefined
+    ? (typeof incoming === 'string' && incoming.length > 0 ? incoming : undefined)
+    : current.activeBaselineId;
+  return { baselines, activeBaselineId };
+}
+
+// ─── wave 4 · context-records (#30, #40, #27/#29, #79, #118) ────────────────
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * #30 · The reply-link token for a new RFI / submittal, minted ON THE DEVICE so
+ * the record has its architect reply link from the first render — online or
+ * off, with no read-back race (a voice RFI opened at once used to go out with
+ * no link, because share_token was only a server default and the device row
+ * never had it). `mint` must be a CSPRNG (expo-crypto's randomUUID): the token
+ * is the bearer credential for get_rfi_by_token / submit_pro_response, so
+ * utils/generateId's Math.random fallback is never acceptable here. A minter
+ * that throws or hands back something that is not a uuid gives `undefined` —
+ * the caller then leaves share_token out and the column default mints it.
+ */
+export function mintedShareToken(mint: () => string): string | undefined {
+  try {
+    const t = mint();
+    return typeof t === 'string' && UUID_RE.test(t) ? t.toLowerCase() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * #30 · mergeLocalOnly's combine for rfis / submittals: the device copy wins
+ * for what he edits, but the server-only columns come from the server row when
+ * the device copy lacks them (a row born before client minting, or one whose
+ * mint fell back to the column default). Without it a kept device row hid the
+ * token the server had already given the record.
+ */
+export function withServerShareToken<T extends { shareToken?: string; createdAt?: string }>(local: T, server: T): T {
+  const shareToken = local.shareToken || server.shareToken;
+  const createdAt = local.createdAt || server.createdAt;
+  if (shareToken === local.shareToken && createdAt === local.createdAt) return local;
+  return { ...local, shareToken, createdAt };
+}
+
+/**
+ * #40 · What a co_append_audit error means.
+ *  - 'payload': the entries themselves were refused (bad shape / too many) —
+ *    final, resending the same batch can never succeed.
+ *  - 'row_or_session': co_denied / 42501. The RPC says the same thing for "not
+ *    your CO", "the row is not on the server yet" and "this request carried no
+ *    user token" (anon has no EXECUTE) — so it is final only when the caller
+ *    has ruled the other two out (coAuditRefusalIsFinal).
+ *  - 'transient': anything else — the entries stay owed.
+ */
+export type CoAuditErrorKind = 'payload' | 'row_or_session' | 'transient';
+export function classifyCoAuditError(err: { message?: string | null; code?: string | null }): CoAuditErrorKind {
+  const msg = err.message ?? '';
+  if (/co_audit_bad_entries|co_audit_too_many/.test(msg)) return 'payload';
+  if (/co_denied/.test(msg) || err.code === '42501') return 'row_or_session';
+  return 'transient';
+}
+
+/**
+ * #40 · A co_denied / 42501 drops the owed entries for good ONLY when the
+ * request went out with this user's live bearer (before and after — the A4
+ * rule in utils/offlineQueue: a refusal answered to an anon request says
+ * nothing about the write) AND the CO is known to be on the server: no INSERT
+ * of it on the wire and no write of it in the queue. Otherwise a mic-drafted
+ * CO whose insert had not reported, or an append made while the token was
+ * refreshing, lost its in-person signature entry for ever.
+ */
+export function coAuditRefusalIsFinal(ctx: {
+  bearerBefore: boolean; bearerAfter: boolean; insertInFlight: boolean; queued: boolean;
+}): boolean {
+  return ctx.bearerBefore && ctx.bearerAfter && !ctx.insertInFlight && !ctx.queued;
+}
+
+/**
+ * #29 · Must a new review cycle ride the offline queue instead of the RPC?
+ *  - 'insert': the submittal's own INSERT is still queued — the RPC cannot
+ *    find the row.
+ *  - 'cycle_patch': a queued UPDATE carries review_cycles or current_status —
+ *    it would land after the RPC and overwrite what the RPC wrote.
+ *  - null: the RPC goes direct. A queued edit of any OTHER column (a title
+ *    typo) is a named-column patch that cannot touch the cycles, so it no
+ *    longer blocks the cycle (or makes a weeks-old submittal read as unsent).
+ */
+export function submittalCycleQueueHold(queue: readonly QueueEntryLike[], id: string): 'insert' | 'cycle_patch' | null {
+  let hold: 'insert' | 'cycle_patch' | null = null;
+  for (const e of queue) {
+    if (e.table !== 'submittals' || e.data?.id !== id) continue;
+    if (e.operation === 'insert') return 'insert';
+    if (e.operation === 'update' && ('review_cycles' in e.data || 'current_status' in e.data)) hold = 'cycle_patch';
+  }
+  return hold;
+}
+
+/** #29 · Why a close-in-place cannot go through the queue, per hold. The old
+ *  single sentence blamed the connection even with full signal. */
+export function closeCycleHoldReason(hold: 'insert' | 'cycle_patch' | 'network', cycleNo: number): string {
+  if (hold === 'insert') return `This submittal hasn't reached the server yet, so Cycle ${cycleNo} can't be closed there. Close it once it syncs.`;
+  if (hold === 'cycle_patch') return `A change to this submittal's review log is still syncing. Try closing Cycle ${cycleNo} again in a moment.`;
+  return `Closing Cycle ${cycleNo} needs a connection — the server closes it so no other copy is overwritten. Try again once you have signal.`;
+}
+
+const SUBMITTAL_STATUS_WORDS: Record<string, string> = {
+  pending: 'Pending', in_review: 'In review', approved: 'Approved', approved_as_noted: 'Approved as noted',
+  revise_resubmit: 'Revise & resubmit', rejected: 'Rejected',
+};
+
+/**
+ * #27 · submittal_append_review_cycle's refusal of a close on a cycle the
+ * reviewer already returned through the reply link (CONTRACT 16:
+ * {success:false, error:'already_closed', cycle_number, status}). Nothing was
+ * added and current_status was left alone — say so, and what to do.
+ */
+export function alreadyClosedCycleReason(res: { cycle_number?: unknown; status?: unknown }, fallbackNo: number): string {
+  const n = typeof res.cycle_number === 'number' && Number.isFinite(res.cycle_number) ? res.cycle_number : fallbackNo;
+  const word = typeof res.status === 'string' ? SUBMITTAL_STATUS_WORDS[res.status] ?? res.status : '';
+  return `The reviewer already returned Cycle ${n}${word ? ` (${word})` : ''} through the reply link, so nothing was added — their stamp is on the log now. If yours differs, start a new cycle.`;
+}
+
+/**
+ * #79 · The GC's own approval of a CO (the CO screen's Mark approved, the
+ * reflow preview's confirm, project-detail's Approve) leaves a trail entry
+ * saying who — coApprovalLine prints "Marked approved by <actor>" from it.
+ * Not for the portal reconciler (it writes its own portal entries). Idempotent
+ * over the edit: a trail that already gained a 'marked_approved' in this edit
+ * gets no second one.
+ */
+export function withMarkedApproved<E extends { id: string; action: string; actor: string; timestamp: string; detail?: string }>(
+  priorTrail: readonly E[] | undefined,
+  nextTrail: readonly E[] | undefined,
+  mark: { id: string; actor: string; timestamp: string },
+): E[] {
+  const next = [...(nextTrail ?? [])];
+  const had = new Set((priorTrail ?? []).map(e => e.id));
+  if (next.some(e => e.action === 'marked_approved' && !had.has(e.id))) return next;
+  next.push({ id: mark.id, action: 'marked_approved', actor: mark.actor, timestamp: mark.timestamp } as E);
+  return next;
+}
+
+/**
+ * #118 · Deleting a plan sheet. When it was the LATEST revision in its chain
+ * (not itself superseded), the sheet it replaced (previousSheetId) is current
+ * again: un-supersede it, or the set shows no current sheet for that number
+ * — the GC's wrong import deleted, and the field left with nothing to open.
+ * Only when no other live sheet already replaces that predecessor.
+ */
+export function planSheetsAfterDelete<S extends { id: string; previousSheetId?: string; superseded?: boolean }>(
+  list: readonly S[],
+  id: string,
+  nowIso: string,
+): { list: S[]; restoredId: string | null } {
+  const gone = list.find(s => s.id === id);
+  const rest = list.filter(s => s.id !== id);
+  const prevId = gone && !gone.superseded ? gone.previousSheetId : undefined;
+  if (!prevId) return { list: rest, restoredId: null };
+  const prev = rest.find(s => s.id === prevId);
+  const replacedElsewhere = rest.some(s => s.previousSheetId === prevId && !s.superseded);
+  if (!prev || !prev.superseded || replacedElsewhere) return { list: rest, restoredId: null };
+  return {
+    list: rest.map(s => (s.id === prevId ? { ...s, superseded: false, updatedAt: nowIso } : s)),
+    restoredId: prevId,
+  };
+}
+
+/**
+ * #59 / #133 interim, the CLIENT half (integration round 1). A daily report or
+ * photo created by a field or viewer seat lands as a DRAFT on the server —
+ * trg_daily_reports_portal_owner / trg_portal_state_owner (migration
+ * 20260920140000) turn any INSERT by a caller who is not the owner or an
+ * editor into {status:'draft'}, whatever the project's autoShare says: the GC
+ * reviews a foreman's work before the homeowner sees it. The phone must say
+ * the same from the first render, or a report made by voice or photo triage
+ * reads "Shared in the homeowner's portal" and a photo shows "Sent" with a
+ * Recall bar until the next server read, while nothing reached the homeowner.
+ */
+export function fieldSeatCreatesDraft(kind: string, myRole: ProjectCollaborator['role'] | undefined): boolean {
+  return (kind === 'daily_report' || kind === 'photo') && (myRole === 'field' || myRole === 'viewer');
+}
+
+/**
+ * Integration round 2 · Which owed change-order audit entries a Discard from
+ * the Not-saved sheet takes with it, by CO: `'all'` when a discarded line is
+ * the CO's CREATE (insert/upsert — the row will not exist, so no owed entry
+ * has anywhere to land), otherwise exactly the entry ids that rode the
+ * discarded writes (`rides`). A CO whose discarded lines carry neither gets no
+ * key: its owed entries belong to edits that landed and stay.
+ */
+export function coAuditDropsForDiscard(
+  discarded: readonly { table?: string; recordId?: string; operation?: string; rides?: readonly string[] }[],
+): Map<string, 'all' | Set<string>> {
+  const out = new Map<string, 'all' | Set<string>>();
+  for (const f of discarded) {
+    if (f.table !== 'change_orders' || !f.recordId) continue;
+    const cur = out.get(f.recordId);
+    if (cur === 'all') continue;
+    if (f.operation === 'insert' || f.operation === 'upsert') { out.set(f.recordId, 'all'); continue; }
+    if (!f.rides || f.rides.length === 0) continue;
+    const ids = cur ?? new Set<string>();
+    for (const r of f.rides) ids.add(r);
+    out.set(f.recordId, ids);
+  }
+  return out;
+}
+
+/**
+ * Integration round 2 · A Not-saved ledger line (utils/syncLedger SyncFailure)
+ * as the queue entry it was — so "Leave project" counts, and its sweep turns
+ * into notes, the job's UNSAVED writes by the SAME matcher and record → job
+ * map it uses for queued ones (queuedEntryRevokedProject). A payload line's
+ * row carries project_id (or its id ties to the job through the map); an rpc
+ * line is its record id. A line with nothing to match on is null.
+ */
+export function ledgerLineAsQueueEntry(
+  f: { table?: string; operation?: string; recordId?: string; row?: Record<string, unknown> },
+): QueueEntryLike | null {
+  if (!f.table || !f.operation) return null;
+  if (f.row) return { table: f.table, operation: f.operation, data: f.row };
+  if (f.recordId) return { table: f.table, operation: f.operation, data: { id: f.recordId } };
+  return null;
 }

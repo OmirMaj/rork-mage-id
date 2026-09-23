@@ -31,14 +31,21 @@
 // to re-enter it"). "Sync unknown" is its own state — a badge that showed
 // nothing there would be reporting an all-clear it cannot vouch for.
 //
-// Tapping still does not force a flush — OfflineSyncManager already retries on
-// AppState wake and cold boot, and a manual button creates ambiguity ("did I
-// press it? is it stuck?"). Tapping explains. On the failed state it also
-// offers to dismiss the notice, which is an ACKNOWLEDGEMENT, not a recovery,
-// and the prompt says exactly that.
+// Tapping still does not force a flush of the QUEUE — OfflineSyncManager
+// already retries on AppState wake and cold boot, and a manual button creates
+// ambiguity ("did I press it? is it stuck?"). Tapping explains.
+//
+// #1 (wave 4): on the failed state it opens a sheet, one row per record that
+// is NOT saved to MAGE, with the reason. A row whose payload the ledger kept
+// offers Retry (it is resent exactly as it was, through the normal write path)
+// and Discard (removed from this phone for good, after a confirm that says
+// so). Nothing is ever resent without that tap. A row the ledger cannot resend
+// (a photo, a dictation, a note from before payloads were kept) offers only
+// Dismiss — an ACKNOWLEDGEMENT, not a recovery, and the prompt says exactly
+// that.
 
-import React, { useCallback } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CloudOff, CircleAlert, CircleHelp } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -48,6 +55,9 @@ import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { Button } from '@/components/ui';
+import { discardConfirmBody, type UnsavedLine } from '@/utils/syncStatusCore';
+import { onSyncSheetRequested } from '@/utils/syncLedger';
 
 interface Props {
   /** Optional: visual variant. 'compact' shows the icon + the short count;
@@ -67,26 +77,68 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const status = useSyncStatus();
-  const { tone, visible, title, detail, failed, acknowledgeFailures } = status;
+  const { tone, visible, title, detail, unsaved, retryUnsaved, discardUnsaved } = status;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetOpenRef = useRef(false);
+  sheetOpenRef.current = sheetOpen;
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // Every ask for the sheet PRESENTS it, even when it is already marked open.
+  // iOS shows one Modal at a time: a request made while another Modal was up
+  // (the invoice's Record Payment sheet) was silently refused, sheetOpen stayed
+  // true, and every later request or badge tap was a no-op — the only Retry /
+  // Discard surface wedged until the app was killed. Marked open → close it,
+  // then open it again on the next tick so the Modal presents afresh.
+  const presentSheet = useCallback(() => {
+    if (!sheetOpenRef.current) { setSheetOpen(true); return; }
+    setSheetOpen(false);
+    setTimeout(() => setSheetOpen(true), 0);
+  }, []);
+  // Another screen can ask for the sheet (the sign-out confirm offers "Review
+  // unsaved first"). It still opens only while something is unsaved. Only the
+  // app-wide floating pill answers — Home's header pill may be mounted in the
+  // tab behind, and two sheets would stack.
+  useEffect(() => (floating ? onSyncSheetRequested(presentSheet) : undefined), [floating, presentSheet]);
 
   const onPress = useCallback(() => {
     if (!visible) return;
     if (tone === 'failed') {
-      // Not "Retry" — there is nothing to retry. The entries are out of the
-      // queue and the payloads are gone; offering a retry button would be the
-      // spinner-that-lies in a different costume.
-      showAlert(
-        title,
-        `${detail}\n\nDismissing this notice does NOT recover the data.`,
-        [
-          { text: 'Keep showing', style: 'cancel' },
-          { text: 'Dismiss', style: 'destructive', onPress: () => { void acknowledgeFailures(); } },
-        ],
-      );
+      presentSheet();
       return;
     }
     showAlert(title, detail);
-  }, [visible, tone, title, detail, acknowledgeFailures]);
+  }, [visible, tone, title, detail, presentSheet]);
+
+  const onRetry = useCallback(async (line: UnsavedLine) => {
+    setBusyId(line.id);
+    try {
+      const out = await retryUnsaved(line.id);
+      if (out === 'queued') {
+        showAlert('Saved on this device', `${line.label} will be sent the next time you have signal.`);
+      }
+      // 'failed': the line stays exactly as it was (the replay removes a line
+      // only once its resend lands or queues) — the row stays on the phone.
+    } finally {
+      setBusyId(null);
+    }
+  }, [retryUnsaved]);
+
+  const onDiscard = useCallback((line: UnsavedLine) => {
+    showAlert(
+      line.canRetry ? `Discard this ${line.label.toLowerCase()}?` : 'Dismiss this notice?',
+      line.canRetry
+        // Worded per operation: a failed edit or delete is not a lost record.
+        ? discardConfirmBody(line.discards)
+        : `${line.line}.\n\nDismissing this notice does NOT recover the data — you need to re-enter it.`,
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: line.canRetry ? 'Discard' : 'Dismiss',
+          style: 'destructive',
+          onPress: () => { void discardUnsaved(line.id); },
+        },
+      ],
+    );
+  }, [discardUnsaved]);
 
   if (!visible) return null;
 
@@ -102,25 +154,75 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
     : String(status.pending);
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={status.badge}
-      accessibilityHint={failedTone ? 'Shows what could not be saved' : 'Shows what is waiting to sync'}
-      testID="offline-sync-pill"
-      style={floating ? styles.floatingGround : undefined}
-    >
-      <View style={[
-        styles.pill,
-        failedTone ? { backgroundColor: themeColors.danger + '1F', borderColor: themeColors.danger + '59' } : null,
-      ]}>
-        <Icon size={12} color={label} strokeWidth={1.75} />
-        <Text style={[styles.text, failedTone ? { color: themeColors.danger } : null]} numberOfLines={1}>
-          {text}
-        </Text>
-      </View>
-    </TouchableOpacity>
+    <>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={status.badge}
+        accessibilityHint={failedTone ? 'Shows what could not be saved' : 'Shows what is waiting to sync'}
+        testID="offline-sync-pill"
+        style={floating ? styles.floatingGround : undefined}
+      >
+        <View style={[
+          styles.pill,
+          failedTone ? { backgroundColor: themeColors.danger + '1F', borderColor: themeColors.danger + '59' } : null,
+        ]}>
+          <Icon size={12} color={label} strokeWidth={1.75} />
+          <Text style={[styles.text, failedTone ? { color: themeColors.danger } : null]} numberOfLines={1}>
+            {text}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      <Modal
+        visible={sheetOpen && failedTone}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSheetOpen(false)}
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.sheet} testID="offline-sync-sheet">
+            <Text style={styles.sheetTitle}>{title}</Text>
+            {/* The rows below ARE the "What failed" list — not repeated. */}
+            <Text style={styles.sheetDetail}>
+              {detail.split('\n\n').filter((p) => !p.startsWith('What failed')).join('\n\n')}
+            </Text>
+            <ScrollView style={styles.rows}>
+              {unsaved.map((line) => (
+                <View key={line.id} style={styles.row}>
+                  <Text style={styles.rowLabel}>
+                    {line.writes > 1 ? `${line.label} (${line.writes} changes)` : line.label}
+                  </Text>
+                  <Text style={styles.rowReason}>{line.line}</Text>
+                  <View style={styles.rowActions}>
+                    {line.canRetry ? (
+                      <Button
+                        label="Retry"
+                        variant="secondary"
+                        size="sm"
+                        loading={busyId === line.id}
+                        disabled={busyId !== null && busyId !== line.id}
+                        onPress={() => { void onRetry(line); }}
+                        testID={`offline-sync-retry-${line.id}`}
+                      />
+                    ) : null}
+                    <Button
+                      label={line.canRetry ? 'Discard' : 'Dismiss'}
+                      variant="ghost"
+                      size="sm"
+                      disabled={busyId !== null}
+                      onPress={() => onDiscard(line)}
+                      testID={`offline-sync-discard-${line.id}`}
+                    />
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            <Button label="Close" variant="ghost" onPress={() => setSheetOpen(false)} fullWidth />
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -154,4 +256,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize, fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
+  backdrop: {
+    flex: 1, justifyContent: 'flex-end',
+    backgroundColor: Colors.overlay,
+  },
+  sheet: {
+    backgroundColor: t.surface,
+    borderTopLeftRadius: Tokens.radius.panel, borderTopRightRadius: Tokens.radius.panel,
+    padding: Tokens.spacing.md, paddingBottom: Tokens.spacing.xl,
+    maxHeight: '80%', gap: Tokens.spacing.sm,
+  },
+  sheetTitle: { ...Type.headline, color: t.text },
+  sheetDetail: { ...Type.footnote, color: t.textSecondary },
+  rows: { flexGrow: 0 },
+  row: {
+    paddingVertical: Tokens.spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
+    gap: Tokens.spacing.xxs,
+  },
+  rowLabel: { ...Type.subheadEmphasized, color: t.text },
+  rowReason: { ...Type.footnote, color: t.dangerLabel },
+  rowActions: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
 });

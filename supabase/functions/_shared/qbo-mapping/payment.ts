@@ -186,31 +186,50 @@ export async function upsertPaymentForInvoice(conn: QboConnectionRow, encodedId:
   const qboPaymentId = r?.Payment?.Id;
   if (!qboPaymentId) throw new Error('QBO did not return a Payment.Id');
 
-  // RE-READ, THEN PATCH BY ID. `inv.payments` was read several QuickBooks round
-  // trips ago (invoice refresh, customer, balance, POST). Writing that copy back
-  // dropped any payment stripe-webhook or the app added to this invoice in the
-  // meantime — out of the ledger, while amount_paid kept it. Same shape as
-  // paymentLedger.markPushFailure / applyQboMatches (inlined, not imported:
-  // validate-money-definitions runs this file in a sandbox with only its own
-  // siblings). The read→write window left is milliseconds, not seconds.
-  const { data: fresh, error: freshErr } = await s.from('invoices').select('payments').eq('id', invoiceId).eq('user_id', userId).maybeSingle();
-  if (freshErr) throw new Error(`invoice re-read: ${freshErr.message}`);
-  const freshPayments = (fresh as { payments?: unknown } | null)?.payments;
-  const ledger = Array.isArray(freshPayments) ? freshPayments as InvoicePaymentBlob[] : [];
-  const target = ledger.find(p => p && p.id === paymentId);
-  if (!target || target.qboId) {
-    // Deleted in MAGE, or stamped by a parallel push, while this one was in
-    // flight. QuickBooks now holds Payment <qboPaymentId>; the reconciler's
-    // exact-amount matching (or a person) reconciles it. Never re-add it here.
-    console.warn(`[qbo payment] ${paymentId} on invoice #${inv.number} ${target ? `already carries QuickBooks payment ${target.qboId}` : 'was removed'} while QuickBooks payment ${qboPaymentId} was being posted`);
-    return;
+  // RE-READ, THEN PATCH BY ID — AND WRITE ONLY OVER THE ROW RE-READ. `inv.payments`
+  // was read several QuickBooks round trips ago (invoice refresh, customer,
+  // balance, POST). Writing that copy back dropped any payment stripe-webhook or
+  // the app added to this invoice in the meantime — out of the ledger, while
+  // amount_paid kept it. Same shape as paymentLedger.markPushFailure /
+  // applyQboMatches and qbo-sync / qbo-reconciler patchInvoiceLedger (inlined,
+  // not imported: validate-money-definitions runs this file in a sandbox with
+  // only its own siblings).
+  // Wave-4 final fix: the re-read alone still left a window — an append (or a
+  // Stripe credit) landing between it and the UPDATE was erased, because this
+  // runs as service_role and passes invoices_ledger_guard. The UPDATE is now
+  // conditional on the updated_at it re-read; 0 rows = the row moved, so it is
+  // re-read and the stamp re-applied. Every UPDATE of invoices — this one
+  // included — bumps updated_at (production's invoices_updated_at BEFORE
+  // UPDATE trigger, update_updated_at), so any writer that raced this one sees
+  // its own swap miss too and re-reads in turn.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data: fresh, error: freshErr } = await s.from('invoices').select('payments, updated_at').eq('id', invoiceId).eq('user_id', userId).maybeSingle();
+    if (freshErr) throw new Error(`invoice re-read: ${freshErr.message}`);
+    const freshRow = fresh as { payments?: unknown; updated_at?: string | null } | null;
+    const freshPayments = freshRow?.payments;
+    const ledger = Array.isArray(freshPayments) ? freshPayments as InvoicePaymentBlob[] : [];
+    const target = ledger.find(p => p && p.id === paymentId);
+    if (!target || target.qboId) {
+      // Deleted in MAGE, or stamped by a parallel push, while this one was in
+      // flight. QuickBooks now holds Payment <qboPaymentId>; the reconciler's
+      // exact-amount matching (or a person) reconciles it. Never re-add it here.
+      console.warn(`[qbo payment] ${paymentId} on invoice #${inv.number} ${target ? `already carries QuickBooks payment ${target.qboId}` : 'was removed'} while QuickBooks payment ${qboPaymentId} was being posted`);
+      return;
+    }
+    const nextPayments = ledger.map(p => {
+      if (p !== target) return p;
+      const { qboError: _drop, ...rest } = p as InvoicePaymentBlob & { qboError?: string };
+      void _drop;
+      return { ...rest, qboId: qboPaymentId, source: 'mage' as const, qboApplied: applied };
+    });
+    let upd = s.from('invoices').update({ payments: nextPayments }).eq('id', invoiceId).eq('user_id', userId);
+    upd = freshRow?.updated_at ? upd.eq('updated_at', freshRow.updated_at) : upd.is('updated_at', null);
+    const { data: wrote, error: updateErr } = await upd.select('id');
+    if (updateErr) throw new Error(`invoice update: ${updateErr.message}`);
+    if (Array.isArray(wrote) && wrote.length > 0) return;
   }
-  const nextPayments = ledger.map(p => {
-    if (p !== target) return p;
-    const { qboError: _drop, ...rest } = p as InvoicePaymentBlob & { qboError?: string };
-    void _drop;
-    return { ...rest, qboId: qboPaymentId, source: 'mage' as const, qboApplied: applied };
-  });
-  const { error: updateErr } = await s.from('invoices').update({ payments: nextPayments }).eq('id', invoiceId).eq('user_id', userId);
-  if (updateErr) throw new Error(`invoice update: ${updateErr.message}`);
+  // The row never held still for four tries. QuickBooks holds Payment
+  // <qboPaymentId>, tagged with this entry's id (magePaymentTag), so the
+  // reconciler can still match it to this entry exactly; say which one.
+  throw new Error(`invoice changed during the QuickBooks payment stamp (QuickBooks payment ${qboPaymentId} was posted)`);
 }

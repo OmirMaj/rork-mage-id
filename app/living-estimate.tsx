@@ -219,7 +219,8 @@ function LivingEstimateInner() {
               <TouchableOpacity
                 testID="living-estimate-unpriced-labor"
                 style={styles.unpricedCard}
-                onPress={() => router.push({ pathname: '/time-tracking', params: { projectId: project.id } } as never)}
+                // #104: straight to the Labor rates sheet, on the unpriced trade.
+                onPress={() => router.push({ pathname: '/time-tracking', params: { projectId: project.id, openRates: '1', ...(unpriced.trades[0] ? { rateTrade: unpriced.trades[0] } : {}) } } as never)}
                 accessibilityRole="link"
                 activeOpacity={0.8}
               >

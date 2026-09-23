@@ -346,6 +346,66 @@ export function scheduledWorkingDayLabel(
 }
 
 /**
+ * The working-day ordinal (the scale ScheduleTask.startDay stores) of the day
+ * the ENGINE scheduled a task to start (#88). The phone task sheet steps its
+ * Start control from this, not from the stored pin: a task a grown predecessor
+ * pushed from Mar 3 to Mar 10 shows Mar 10, and "+" must ask for Mar 11 — it
+ * used to ask for Mar 4, which the engine put straight back, so the tap had no
+ * visible effect and the snap-back notice fired every time. `calendar` must be
+ * the options the placements' runCpm ran with. No placement → the pin.
+ */
+export function scheduledStartOrdinal(
+  task: Pick<ScheduleTask, 'startDay'>,
+  placement: ScheduledPlacement | undefined,
+  calendar: DayScaleOptions = {},
+): number {
+  const pin = Math.max(1, task.startDay ?? 1);
+  if (!placement) return pin;
+  const es = Math.max(1, Math.round(placement.es));
+  return placement.scale === 'working' ? es : calendarIndexToWorkingOrdinal(es, calendar);
+}
+
+/**
+ * The pin the sheet's start stepper writes (#88). '+' steps from the date he
+ * SEES (the scheduled start), so one tap always moves the bar a day later.
+ * '-' steps from the lower of the pin and the scheduled start: on a task a
+ * predecessor holds later than its pin, stepping the scheduled start down
+ * would move the stored pin LATER (pin 1, held to 6: '-' wrote 5), silently
+ * losing his earlier pin for the day the predecessor shrinks.
+ */
+export function steppedStartDay(pinDay: number, scheduledDay: number, delta: number): number {
+  const from = delta > 0 ? scheduledDay : Math.min(pinDay, scheduledDay);
+  return Math.max(1, from + delta);
+}
+
+/**
+ * The predecessor holding a task later than its own pin (#88), by the same
+ * placements the rows draw — named so the sheet can say "Held to Mar 10 by
+ * Framing (you set Mar 3)". Null when the task starts on its pin (or earlier),
+ * or no placed predecessor is linked.
+ */
+export function heldByPredecessor(
+  task: ScheduleTask,
+  tasks: readonly ScheduleTask[],
+  placements: ReadonlyMap<string, ScheduledPlacement> | undefined,
+  calendar: DayScaleOptions = {},
+): string | null {
+  const placement = placements?.get(task.id);
+  if (!placement) return null;
+  if (scheduledStartOrdinal(task, placement, calendar) <= Math.max(1, task.startDay ?? 1)) return null;
+  let waitsOn: string | null = null;
+  let latest = -Infinity;
+  for (const link of typedLinks(task)) {
+    const pr = placements?.get(link.taskId);
+    const pt = tasks.find(x => x.id === link.taskId);
+    if (!pr || !pt) continue;
+    const edge = (link.type === 'SS' || link.type === 'SF') ? pr.es : pr.ef;
+    if (edge > latest) { latest = edge; waitsOn = pt.title || null; }
+  }
+  return waitsOn;
+}
+
+/**
  * A drag or stepper moved a task's pin earlier than its predecessors allow:
  * the bar will snap back to the engine's date. Returns why, so the screen can
  * say so instead of looking like it ignored him (a blocked control says why),
@@ -536,12 +596,43 @@ function dependencyOrder(tasks: ScheduleTask[]): string[] | null {
   return order.length === tasks.length ? order : null;
 }
 
+/**
+ * A task's actual start / finish as a CALENDAR index (the stampActuals scale),
+ * reading the ISO date when the day number was never stamped (#89). Home's
+ * Quick Field Update and the mic used to write only actualStartDate /
+ * actualEndDate, so every reader keyed on the day number — Reflow from
+ * actuals, bring-up-to-date, the Gantt's Start/Finish buttons, prediction
+ * grading — treated a task the foreman had finished as never started. The
+ * date is the LOCAL day it was recorded, counted from the schedule anchor
+ * (day 1 = the anchor), floored at 1. No anchor → only the day number counts:
+ * an index with no anchor is not a date.
+ */
+export function actualCalendarDay(
+  task: Pick<ScheduleTask, 'actualStartDay' | 'actualEndDay' | 'actualStartDate' | 'actualEndDate'>,
+  which: 'start' | 'end',
+  scheduleStartDate: string | null | undefined,
+): number | null {
+  const day = which === 'start' ? task.actualStartDay : task.actualEndDay;
+  if (day != null) return day;
+  const iso = which === 'start' ? task.actualStartDate : task.actualEndDate;
+  if (!iso || !scheduleStartDate) return null;
+  const anchor = parseCalendarDay(scheduleStartDate);
+  const at = new Date(iso);
+  if (!anchor || Number.isNaN(at.getTime())) return null;
+  anchor.setHours(0, 0, 0, 0);
+  at.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.round((at.getTime() - anchor.getTime()) / 86400000) + 1);
+}
+
 export function reflowFromActuals(tasks: ScheduleTask[], calendar: DayScaleOptions = {}): ScheduleTask[] {
   /** A calendar-indexed actual read back as a working ordinal. Omitting the
    *  calendar is only honest on a 7-day, closure-free schedule. */
   const ordinalOf = (calendarDay: number) => calendarIndexToWorkingOrdinal(calendarDay, calendar);
   const byId = new Map<string, ScheduleTask>();
   for (const t of tasks) byId.set(t.id, { ...t });
+  // Day number, or the recorded date read on the anchor (#89).
+  const aStart = (t: ScheduleTask) => actualCalendarDay(t, 'start', calendar.scheduleStartDate);
+  const aEnd = (t: ScheduleTask) => actualCalendarDay(t, 'end', calendar.scheduleStartDate);
 
   const order = dependencyOrder(tasks);
   if (!order) return tasks;   // cycle
@@ -549,11 +640,13 @@ export function reflowFromActuals(tasks: ScheduleTask[], calendar: DayScaleOptio
   /** Where a task really is, as [start, end] working ordinals. Actuals win. */
   const span = (t: ScheduleTask): { start: number; end: number } => {
     const dur = Math.max(0, t.durationDays ?? 0);
-    if (t.actualStartDay != null) {
-      const start = ordinalOf(t.actualStartDay);
+    const as = aStart(t);
+    const ae = aEnd(t);
+    if (as != null) {
+      const start = ordinalOf(as);
       return {
         start,
-        end: t.actualEndDay != null ? Math.max(start, ordinalOf(t.actualEndDay)) : start + Math.max(0, dur - 1),
+        end: ae != null ? Math.max(start, ordinalOf(ae)) : start + Math.max(0, dur - 1),
       };
     }
     // FINISH-ONLY actual. Since #141 no status path invents a start it never
@@ -564,8 +657,8 @@ export function reflowFromActuals(tasks: ScheduleTask[], calendar: DayScaleOptio
     // same reading planCatchUpToToday gives it. Ignoring it here made the
     // Gantt's Finish today → Reflow from actuals report "nothing to reflow"
     // and leave every successor on its old date.
-    if (t.actualEndDay != null) {
-      return { start: t.startDay, end: Math.max(t.startDay, ordinalOf(t.actualEndDay)) };
+    if (ae != null) {
+      return { start: t.startDay, end: Math.max(t.startDay, ordinalOf(ae)) };
     }
     return { start: t.startDay, end: t.startDay + Math.max(0, dur - 1) };
   };
@@ -575,7 +668,7 @@ export function reflowFromActuals(tasks: ScheduleTask[], calendar: DayScaleOptio
     // Started or finished work is grounded in reality — the cascade never
     // overrides it. (It still PROPAGATES from it: `span` reads the actuals.)
     // EITHER actual pins it: a finish-only record is finished work too.
-    if (t.actualStartDay != null || t.actualEndDay != null) continue;
+    if (aStart(t) != null || aEnd(t) != null) continue;
 
     const dur = Math.max(0, t.durationDays ?? 0);
     let required = t.startDay;                       // never pull work earlier
@@ -731,16 +824,21 @@ export function planCatchUpToToday(tasks: ScheduleTask[], opts: CatchUpOptions):
 
   /** A calendar-indexed actual read back as a working ordinal. */
   const ordinalOf = (calendarDay: number) => calendarIndexToWorkingOrdinal(calendarDay, cal);
+  // Day number, or the recorded date read on the anchor (#89).
+  const aStart = (t: ScheduleTask) => actualCalendarDay(t, 'start', cal.scheduleStartDate);
+  const aEnd = (t: ScheduleTask) => actualCalendarDay(t, 'end', cal.scheduleStartDate);
 
   /** Where a task sits NOW, as [start, end] WORKING ordinals. */
   const span = (t: ScheduleTask): { start: number; end: number } => {
     const dur = Math.max(0, t.durationDays ?? 0);
     // A task we just caught up is authored, not observed: its fields already
     // hold the new plan, and its (older) actual start must not override them.
-    const startedElsewhere = t.actualStartDay != null && !caughtUp.has(t.id);
-    const start = startedElsewhere ? ordinalOf(t.actualStartDay!) : t.startDay;
-    if (t.actualEndDay != null && !caughtUp.has(t.id)) {
-      return { start, end: Math.max(start, ordinalOf(t.actualEndDay)) };
+    const as = aStart(t);
+    const ae = aEnd(t);
+    const startedElsewhere = as != null && !caughtUp.has(t.id);
+    const start = startedElsewhere ? ordinalOf(as) : t.startDay;
+    if (ae != null && !caughtUp.has(t.id)) {
+      return { start, end: Math.max(start, ordinalOf(ae)) };
     }
     return { start, end: start + Math.max(0, dur - 1) };
   };
@@ -763,7 +861,7 @@ export function planCatchUpToToday(tasks: ScheduleTask[], opts: CatchUpOptions):
 
     // ── Cascade. Running work is pinned: a predecessor slipping does not
     //    un-start a crew that is on site today.
-    if (t.actualStartDay != null) continue;
+    if (aStart(t) != null) continue;
 
     let required = t.startDay;                       // never pull work earlier
     for (const link of typedLinks(t)) {

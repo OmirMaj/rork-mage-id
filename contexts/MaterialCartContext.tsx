@@ -18,13 +18,39 @@
 // - dedup-by-id semantics for addToCart so repeat taps bump quantity.
 // - `usesBulk` is recomputed on every quantity change so the bulk-pricing
 //   banner stays in sync without callers needing to think about it.
-// - Hydrates once on mount. We don't sync to Supabase — cart is purely
-//   client-side and not shared across devices (intentional; this is the
-//   draft scratch area, not committed estimate data).
+// - Hydrates per ACCOUNT, not once per mount (#9, below). We don't sync to
+//   Supabase — cart is purely client-side and not shared across devices
+//   (intentional; this is the draft scratch area, not committed estimate data).
+//
+// ── #9: the store follows the signed-in account ─────────────────────────────
+// The provider is mounted once, above the navigator, and used to hydrate once
+// with no idea who was signed in. The tenant wipe cleared the mageid_* keys
+// on disk, but the IN-MEMORY cart, labor lines, markup and "markup decided"
+// flag survived a sign-out and a different sign-in in the same tab: on a
+// shared office computer the next contractor's wizard applied the previous
+// one's 22% without asking, and his first cart edit wrote the previous
+// user's lines back to storage under his account.
+//
+// Now, whenever the user id changes (including to null on sign-out):
+//   1. the persist effects are disarmed FIRST (hydratedRef=false) — the reset
+//      effect is declared above them, and React runs effects in order, so they
+//      never see the reset-to-default state as something to write;
+//   2. everything resets to its defaults (markupDecided back to null, "don't
+//      know yet", so nothing prompts mid-switch);
+//   3. a new generation starts, so a slow load begun for the previous account
+//      can never land after the switch;
+//   4. with a user, the new account's copy is read from disk — already wiped
+//      by AuthContext's pre-session handoff for a different tenant, still
+//      there for the same user coming back. With no user, nothing is read:
+//      signed out, the store stays empty (the sign-out wipe may still be
+//      running, and a read now could pick up keys it is about to remove).
+// Not a `key={user.id}` on the provider: it sits above Bids, Companies, Hire,
+// Notification and the navigator, which would all remount on every sign-in.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
+import { useAuth } from '@/contexts/AuthContext';
 import type { MaterialItem } from '@/constants/materials';
 import type { LaborRate } from '@/constants/laborRates';
 import type { AssemblyItem } from '@/constants/assemblies';
@@ -136,11 +162,27 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
   // before AsyncStorage has answered.
   const [markupDecided, setMarkupDecided] = useState<boolean | null>(null);
   // Track when we've hydrated so we don't write the empty initial state back
-  // over the persisted cart on first mount.
+  // over the persisted cart on first mount — and, since #9, so nothing is
+  // written between an account switch and the new account's hydrate.
   const hydratedRef = useRef(false);
+  // #9: one generation per account the store has served. A hydrate lands only
+  // if its generation is still current.
+  const generationRef = useRef(0);
+  // The jest harness mounts a few providers without AuthProvider; the app never
+  // does (app/_layout.tsx nests this provider inside it).
+  const userId = useAuth()?.user?.id ?? null;
 
+  // #9: MUST stay above the four persist effects — see the header.
   useEffect(() => {
-    let cancelled = false;
+    const generation = ++generationRef.current;
+    hydratedRef.current = false;
+    setCart([]);
+    setLaborCart([]);
+    setAssemblyCart([]);
+    setGlobalMarkupState(DEFAULT_MARKUP);
+    setMarkupDecided(null);
+    if (!userId) return;
+    const current = () => generationRef.current === generation;
     (async () => {
       const [cartLoaded, markupRaw, laborLoaded, assemblyLoaded, decidedRaw] = await Promise.all([
         loadLocal<MaterialCartItem[]>(CART_KEY, []),
@@ -149,7 +191,7 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
         loadLocal<AssemblyCartItem[]>(ASSEMBLY_KEY, []),
         loadRaw(MARKUP_DECIDED_KEY),
       ]);
-      if (cancelled) return;
+      if (!current()) return;
       const markupLoaded = parseNumber(markupRaw);
       // Seeded from the markup already on disk, not just from the new flag —
       // otherwise every existing estimator user hydrates as "never asked" and
@@ -191,8 +233,10 @@ export const [MaterialCartProvider, useMaterialCart] = createContextHook(() => {
       }
       hydratedRef.current = true;
     })();
-    return () => { cancelled = true; };
-  }, []);
+    // Unmount or switch: retire this generation so its load, if still in
+    // flight, lands nowhere.
+    return () => { generationRef.current += 1; };
+  }, [userId]);
 
   // Persist whenever cart or markup changes — only after hydration so we
   // don't write the initial empty state.

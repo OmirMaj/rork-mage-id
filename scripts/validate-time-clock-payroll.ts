@@ -187,11 +187,12 @@ console.log('\nScreen wiring (source):');
     /closeTeamShift\(entry\.id, \{ clockOut: outIso/.test(tt) && /if \(teamRow\) return;/.test(tt));
   ok('#63 the job-costing drill tags team rows the same way', /teamLoggedByLabel\(e as TeamTimeEntry\)/.test(jc) && /Time Tracking lists all/.test(jc));
   ok('#66 missed shifts leave On Site and stop blocking a clock-in',
-    /liveCount: activeLiveRows\.length/.test(tt) && /!isMissed\(e\)\)\),/.test(tt));
+    // wave 4 #99: the block is now the open-shift-by-worker map availableRoster filters on.
+    /liveCount: activeLiveRows\.length/.test(tt) && /!isMissed\(e\) && !out\.has\(e\.workerId\)/.test(tt) && /roster\.filter\(m => !openShiftByWorker\.has\(m\.id\)\)/.test(tt));
   ok('#152 the timer and Hours Today use liveNetHours', /formatHoursMinutes\(elapsedHrs\)/.test(tt) && /liveNetHours\(e, nowMs\)/.test(tt) && !/getElapsedHours/.test(tt));
   ok('#67 the pull reads the queue before and after the SELECT and subscribes to flushes',
     /const queueBefore = await readTimeEntryQueue\(\)/.test(hook) && /const queueAfter = await readTimeEntryQueue\(\)/.test(hook)
-    && /mergeServerPull\(prev, fromServer, pending, deleted\)/.test(hook) && /onQueueFlushed\(tables =>/.test(hook));
+    && /mergeServerPull\(prev, fromServer, pending, deleted[,)]/.test(hook) && /onQueueFlushed\(tables =>/.test(hook));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

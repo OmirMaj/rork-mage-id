@@ -4,7 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform, View, LogBox } from "react-native";
+import { AppState, Platform, View, LogBox, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandSplash from "@/components/BrandSplash";
@@ -49,7 +49,11 @@ import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink
 import { pathToDocumentTitle } from '@/utils/routeTitle';
 import { AutonomyProvider } from '@/hooks/useAutonomy';
 import { PUBLIC_PATHS } from '@/utils/deepLinkScheme';
-import { INVITE_PARAM, sanitizeInviteToken } from '@/utils/deepLinksInvite';
+import {
+  INVITE_PARAM, sanitizeInviteToken, markInviteTokenHandled, metadataInviteRedirect,
+  rootNavPresentation, ROOT_NAV_INITIAL, type RootNavState,
+} from '@/utils/deepLinksInvite';
+import { isTransportError } from '@/utils/networkErrors';
 import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
@@ -184,10 +188,17 @@ void SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      // #126 (CONTRACT 15): a read that never reached the server is not
+      // retried — the device is offline, and two more tries only hold the
+      // screen on its loader for the retry window before the same error.
+      // This used to match only the browser's exact 'Failed to fetch', which
+      // React Native never produces ('Network request failed'), so on iPhone
+      // every offline read retried twice. isTransportError is the one shared
+      // definition (offlineQueue and useProjectRole read the same one); a
+      // server answer — an RLS refusal, a 57014 statement timeout — still gets
+      // its two retries.
       retry: (failureCount, error) => {
-        if (error instanceof TypeError && error.message === 'Failed to fetch') {
-          return false;
-        }
+        if (isTransportError(error)) return false;
         return failureCount < 2;
       },
       staleTime: 5 * 60 * 1000,
@@ -534,8 +545,18 @@ function RootLayoutNav() {
   const globalParams = useGlobalSearchParams();
   const globalParamsRef = useRef(globalParams);
   globalParamsRef.current = globalParams;
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, session } = useAuth();
   const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
+  // #107 / #131: the invite token signup() stored on the account
+  // (user_metadata.invite_token). Read as a primitive so the gate re-runs only
+  // when the token itself changes, not on every token refresh.
+  const accountInviteToken = sanitizeInviteToken(session?.user?.user_metadata?.invite_token);
+  const accountInviteHref = metadataInviteRedirect({ userRole, meta: { invite_token: accountInviteToken } });
+  // #7: whether the last SETTLED gate run saw a session. A redirect to /login
+  // right after one is a sign-out (or an expiry), not a signed-out visitor
+  // opening a link: the screen he was on is his, possibly the previous
+  // tenant's, and must not be stashed for whoever signs in next.
+  const lastSettledAuthRef = useRef<boolean | null>(null);
 
   // Home-screen quick actions (long-press the app icon) route via the `href`
   // param declared on each action in app.json. Requires a native build —
@@ -544,6 +565,8 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (authLoading || projectLoading || hasSeenOnboarding === null) return;
+    const sessionJustEnded = lastSettledAuthRef.current === true && !isAuthenticated;
+    lastSettledAuthRef.current = isAuthenticated;
 
     const inAuth = segments[0] === 'login' || segments[0] === 'signup';
     const inOnboarding = segments[0] === 'onboarding';
@@ -592,7 +615,10 @@ function RootLayoutNav() {
       // need a post-login replay because they're either the destination of the
       // bounce or public routes that don't require auth.
       const firstSeg = pathname.replace(/^\//, '').split('?')[0];
-      if (pathname !== '/login' && !PUBLIC_PATHS.has(firstSeg)) {
+      // #7: the Stack now stays mounted across a sign-out, so `pathname` here
+      // is the screen the signed-out user was ON — never replay that for the
+      // next account (the loader swap used to reset it to Home first).
+      if (pathname !== '/login' && !PUBLIC_PATHS.has(firstSeg) && !sessionJustEnded) {
         void setPendingDeepLink(pathname + pendingLinkQuery(segments as string[], globalParamsRef.current));
       }
       router.replace('/login');
@@ -609,6 +635,23 @@ function RootLayoutNav() {
     // mount check.) accept-invite is exempt from the gates, so he accepts
     // first and is walked through setup after.
     if (isAuthenticated && inAuth && sanitizeInviteToken(globalParamsRef.current[INVITE_PARAM])) return;
+
+    // #107 / #131: an invite that rode the ACCOUNT rather than the URL. An
+    // email sign-up from an invite confirms through a link that opens a new
+    // tab (or device) at the root, with no token on the route — so he used to
+    // get the GC's persona + onboarding (company name, rates, "price your
+    // first bid") before he ever saw the job. signup() stored the token in
+    // user_metadata; a brand-new account (no persona yet) that carries one
+    // goes to accept it FIRST, ahead of the persona gate below. accept-invite
+    // is exempt from these gates and walks him through the persona question
+    // after, skipping the GC onboarding (#93). Once per token per launch
+    // (markInviteTokenHandled), so leaving the invite screen cannot loop.
+    if (isAuthenticated && accountInviteHref) {
+      markInviteTokenHandled(accountInviteToken);
+      console.log('[Layout] New account carries an invite — opening it before persona / onboarding');
+      router.replace(accountInviteHref as never);
+      return;
+    }
 
     // Persona gate — runs BEFORE the onboarding gate. New users have to
     // pick a marketplace persona (contractor / client / both) before
@@ -634,7 +677,7 @@ function RootLayoutNav() {
       router.replace('/(tabs)/(home)' as any);
       return;
     }
-  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, pathname]);
+  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, pathname, accountInviteHref, accountInviteToken]);
 
   // Post-login deep-link replay: when the user completes sign-in AND all
   // onboarding gates (persona + onboarding screen), check for a stashed
@@ -744,7 +787,23 @@ function RootLayoutNav() {
   const bootstrapping =
     authLoading || projectLoading || hasSeenOnboarding === null;
 
-  if (bootstrapping) {
+  // #7: the loader REPLACES the Stack only on the first boot and on a switch
+  // between two different accounts; any other reload (a sign-in from signed
+  // out, the same user signing back in, a sign-out) draws it OVER the mounted
+  // Stack. Tearing the navigator down on every sign-in threw away the screen
+  // that was navigating — login/signup's return trip to /accept-invite?token=…
+  // either threw or was discarded, and the invitee landed on Home, then
+  // persona-select, then the GC onboarding. The gate above already waits while
+  // these queries load, so nothing routes early under the overlay. Policy and
+  // reasoning: utils/deepLinksInvite.rootNavPresentation.
+  const navStateRef = useRef<RootNavState>(ROOT_NAV_INITIAL);
+  const { mode: navMode, next: navNext } = rootNavPresentation(navStateRef.current, {
+    bootstrapping,
+    userId: user?.id ?? null,
+  });
+  navStateRef.current = navNext;
+
+  if (navMode === 'loader') {
     return <CraneLoader label="MAGE ID" />;
   }
 
@@ -758,7 +817,10 @@ function RootLayoutNav() {
           <DesktopSidebar width={layout.sidebarWidth} />
         </View>
       )}
-      <View style={{ flex: 1 }}>
+      {/* Keyed by the account generation: a switch between two different
+          accounts remounts the navigator fresh (the previous tenant's screens
+          never survive in memory); a plain reload keeps it mounted. */}
+      <View style={{ flex: 1 }} key={`stack-${navNext.generation}`}>
         <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
@@ -1013,6 +1075,18 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen name="wip-report" options={{ title: 'WIP Report' }} />
+      {/* Construction News (founder request 2026-09-22): publisher feed
+          headlines, merged by the construction-news edge function. Doors:
+          the Discover ▸ Tools tile and the desktop sidebar's WORKSPACE row. */}
+      <Stack.Screen
+        name="construction-news"
+        options={{
+          title: "Construction News",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: NATIVE_HEADER_TITLE,
+        }}
+      />
       <Stack.Screen
         name="job-costing"
         options={{ headerShown: false }}
@@ -1524,6 +1598,13 @@ function RootLayoutNav() {
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
         </Stack>
       </View>
+      {navMode === 'stack+overlay' ? (
+        // Blocks input while the boot reads run, exactly as the full-screen
+        // loader did, without unmounting what is underneath.
+        <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]} testID="root-nav-reload-overlay">
+          <CraneLoader label="MAGE ID" />
+        </View>
+      ) : null}
     </View>
   );
 }

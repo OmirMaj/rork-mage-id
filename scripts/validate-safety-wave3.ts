@@ -218,10 +218,17 @@ console.log('\n#85 hydrate keeps queued rows:');
   ok('no duplicate ids', new Set(merged.map(r => r.id)).size === merged.length);
   const ctx = src('contexts/SafetyContext.tsx');
   ok('hydrateCollection merges before it saves the cache',
-    /const merged = mergeLocalOnly\(\s*mapped,[\s\S]*pendingIdsForTable\(queue, table\),\s*\);\s*await saveLocal\(key, merged\);\s*return merged;/.test(ctx));
-  ok('flushed safety tables are re-read', /onQueueFlushed\(\(tables\) => \{\s*if \(!hydratedRef\.current\) return;/.test(ctx) && /tables\.has\(target\.table\)/.test(ctx));
+    /const merged = mergeLocalOnly\(\s*mapped,[\s\S]*pendingIdsForTable\(queue, table\),[\s\S]*?\);\s*if \(persist\) await saveLocal\(key, merged\);\s*return merged;/.test(ctx));
+  // Wave 4 (#119): a re-read persists only what it applies, and only when no
+  // local write to that collection happened during its round trip.
+  ok('a re-read reads without persisting, then applies only if the account and the local list are unchanged',
+    /hydrateCollection\(table, key, true, map, false, userId\)/.test(ctx)
+    && /if \(r === null\) return;\s*if \(gen !== genRef\.current\) return;\s*if \(\(localWritesRef\.current\[key\] \?\? 0\) !== before\) return;\s*set\(r\);\s*void saveLocal\(key, r\);/.test(ctx));
+  ok('every local write in the provider bumps the collection\'s write count', !/void saveLocal\(keys\./.test(ctx) && /localWritesRef\.current\[key\] = \(localWritesRef\.current\[key\] \?\? 0\) \+ 1;/.test(ctx));
+  ok('flushed safety tables are re-read', /onQueueFlushed\(\(tables\) => \{ void rereadTables\(tables\); \}\)/.test(ctx)
+    && /if \(!canSync \|\| !hydratedRef\.current\) return;/.test(ctx) && /targets\.filter\(t => tables\.has\(t\.table\)\)/.test(ctx));
   for (const t of ['JHAS_TABLE', 'TOOLBOX_TABLE', 'INCIDENTS_TABLE', 'HAZARDS_TABLE', 'INSPECTIONS_TABLE', 'CERTIFICATIONS_TABLE', 'TEMPLATES_TABLE']) {
-    ok(`…including ${t}`, new RegExp(`\\{ table: ${t}, run:`).test(ctx));
+    ok(`…including ${t}`, new RegExp(`mk\\(${t}, keys\\.`).test(ctx));
   }
 }
 
@@ -292,7 +299,7 @@ console.log('\n#81 / #170 entry and gates:');
     ok(`${f}: delete is refused for non-owners with the reason`, /safetyDeleteBlockedReason\(seat\)/.test(s));
   }
   ok('AI metering stays on his own tier (JHA / hazards read useTierAccess().tier)',
-    /const \{ tier \} = useTierAccess\(\);/.test(src('app/safety-jha.tsx')) && /const \{ tier \} = useTierAccess\(\);/.test(src('app/safety-hazards.tsx')));
+    /const \{ tier, isBusinessOrAbove \} = useTierAccess\(\);/.test(src('app/safety-jha.tsx')) && /const \{ tier, isBusinessOrAbove \} = useTierAccess\(\);/.test(src('app/safety-hazards.tsx')));
   const gate = hub.slice(hub.indexOf('export function SafetyAccessBlocked'), hub.indexOf('/** Shared projects on which'));
   ok('the gate spins ONLY while loading, retries on error, else paywalls',
     gate.indexOf('roleState.isLoading') < gate.indexOf('roleState.isError') && gate.indexOf('roleState.isError') < gate.indexOf('<Paywall'));

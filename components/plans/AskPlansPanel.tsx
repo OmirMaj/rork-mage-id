@@ -8,8 +8,9 @@
 // collaborator grant for THIS project (#73/#161). A collaborator's questions
 // run against the index the project owner built, metered on the owner's plan
 // (project-memory-search resolves the owner server-side), so the grant is no
-// longer an honest upsell turned into a 403. Only the owner builds the index;
-// a collaborator sees why Index is not offered. If locked, an upsell card with
+// longer an honest upsell turned into a 403. The owner or an editor builds the
+// index (#114 — planScope mayWritePlanIndex, metered on the owner's plan); a
+// viewer or field seat sees why Index is not offered. If locked, an upsell card with
 // a way to upgrade is shown instead.
 //
 // #78: answers come only from CURRENT sheets. On open, and whenever the sheet
@@ -39,8 +40,9 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { askPlans, indexPlanSheets, readPlanIndexManifest, type PlanIndexResult } from '@/utils/plans/askYourPlans';
-import { summarizePlanIndex, type IndexTone } from '@/utils/plans/memoryIndexCore';
+import { askPlans, indexPlanSheets, readPlanIndexManifest, reembedRenumberedSheets, type PlanIndexRun } from '@/utils/plans/askYourPlans';
+import { summarizePlanIndex, renumberReembedPlan, renumberSavedMessage, type IndexTone } from '@/utils/plans/memoryIndexCore';
+import { showAlert } from '@/utils/alert';
 import {
   planBatchRenumber, chainColumnsPatch, planControlBlock, effectivePlanRole, type PlanRoleStatus, staleMatchesNote, changedSinceIndexLabel,
   type TitleBlockSuggestion, type PlanRole,
@@ -111,7 +113,8 @@ function AskPlansPanelInner({
   const { updatePlanSheet } = useProjects();
   const { user } = useAuth();
   const canSyncSheets = !!user?.id && isSupabaseConfigured;
-  // Only the owner builds the index (it spends the owner's plan reads).
+  // The owner or an editor builds the index (#114; it spends the owner's plan
+  // reads). A viewer / field seat is told why, and is never told to "tap Index".
   const indexBlock = planControlBlock(role, 'index', roleStatus);
 
   const [question, setQuestion] = useState('');
@@ -123,9 +126,15 @@ function AskPlansPanelInner({
   // The SEARCH failed, which is not "your plans don't say". Kept apart from
   // `answer` so a server refusal can never be worded as a plan answer.
   const [searchFailed, setSearchFailed] = useState<string | null>(null);
+  // #117: the search worked but the answer step failed — its own line, with
+  // "try again" only when a retry can help.
+  const [answerFailed, setAnswerFailed] = useState<{ reason: string; retry: boolean } | null>(null);
 
   const [indexState, setIndexState] = useState<IndexState>('idle');
-  const [indexResult, setIndexResult] = useState<PlanIndexResult | null>(null);
+  const [indexResult, setIndexResult] = useState<PlanIndexRun | null>(null);
+  // #115: the last run's transcriptions, kept after the summary is cleared so
+  // accepting its title-block numbers can re-embed without a second read.
+  const lastRunTextRef = useRef<Record<string, string>>({});
   const [indexProgress, setIndexProgress] = useState<{ done: number; total: number } | null>(null);
   const [staleDropped, setStaleDropped] = useState(0);
   // #78: sheets changed since the last index, from a free manifest read.
@@ -161,6 +170,7 @@ function AskPlansPanelInner({
     setNoneFound(false);
     setWeakGrounding(false);
     setSearchFailed(null);
+    setAnswerFailed(null);
     setStaleDropped(0);
     try {
       const result = await askPlans(projectId, q, sheets);
@@ -170,13 +180,15 @@ function AskPlansPanelInner({
       setNoneFound(result.noneFound);
       setWeakGrounding(result.weakGrounding);
       setSearchFailed(result.searchFailed);
-      setAskState(result.searchFailed ? 'error' : 'answered');
+      setAnswerFailed(result.answerFailed ? { reason: result.answerFailed, retry: result.answerFailedKind === 'retry' } : null);
+      setAskState(result.searchFailed || result.answerFailed ? 'error' : 'answered');
     } catch {
       setAnswer('');
       setCitations([]);
       setNoneFound(false);
       setWeakGrounding(false);
       setSearchFailed("the plan search could not be reached");
+      setAnswerFailed(null);
       setAskState('error');
     }
   }, [projectId, question, askState, sheets]);
@@ -188,6 +200,7 @@ function AskPlansPanelInner({
     setIndexProgress(null);
     try {
       const result = await indexPlanSheets(projectId, sheets, (done, total) => setIndexProgress({ done, total }));
+      lastRunTextRef.current = result.extractedText;
       setIndexResult(result);
       setIndexState('done');
       setChangedCount(result.skipped.length);
@@ -205,18 +218,37 @@ function AskPlansPanelInner({
   // Apply the confirmed numbers exactly as app/plans.tsx applyTitleNumbers
   // does: one ordered plan against the set as it is now, chain columns through
   // the offline queue.
-  const applyTitleNumbers = useCallback(() => {
+  //
+  // #115: this used to apply them silently — a sheet the renumber had just
+  // marked superseded vanished from the list without a word, the button kept
+  // the old success summary, and every renumbered sheet then read as
+  // "changed", so the next Index paid to read each one again. Now it says
+  // what happened (plan.messages, as plans.tsx does), clears the summary, and
+  // re-embeds the renumbered sheets under their new citation from the text
+  // this run already read — embeddings only, no plan-extract spend.
+  const applyTitleNumbers = useCallback(async () => {
     if (!titleReview) return;
     const accepted = titleReview.filter(i => i.use).map(i => ({ sheetId: i.sheetId, sheetNumber: i.sheetNumber }));
     setTitleReview(null);
     if (accepted.length === 0) return;
-    const plan = planBatchRenumber(accepted, sheetsRef.current.filter(s => s.projectId === projectId));
+    const before = sheetsRef.current.filter(s => s.projectId === projectId);
+    const plan = planBatchRenumber(accepted, before);
     const now = new Date().toISOString();
     for (const p of plan.patches) {
       updatePlanSheet(p.id, p.updates);
       const chain = chainColumnsPatch(p.updates);
       if (canSyncSheets && chain) void supabaseWrite('plan_sheets', 'update', { id: p.id, ...chain, updated_at: now });
     }
+    setIndexState('idle');
+    setIndexResult(null);
+    const { reembed, missingText } = renumberReembedPlan(plan.patches, before, lastRunTextRef.current);
+    const out = await reembedRenumberedSheets(projectId, reembed);
+    showAlert('Sheet numbers saved', renumberSavedMessage(plan.applied, plan.messages, {
+      reembedded: out.reembedded, failed: out.failed, missingText: missingText.length,
+    }));
+    // The manifest effect may have read before the re-embed landed — ask again.
+    const man = await readPlanIndexManifest(projectId, sheetsRef.current, false);
+    setChangedCount(man ? man.staleIds.size : null);
   }, [titleReview, projectId, updatePlanSheet, canSyncSheets]);
 
   const jumpToSheet = useCallback((sheetId: string) => {
@@ -252,7 +284,7 @@ function AskPlansPanelInner({
   // A citation can only open a CURRENT sheet this device has — a chip on a
   // superseded copy would open the drawing the answer must not come from.
   const liveCitations = citations.filter(c => sheets.some(s => s.id === c.sheetId && !s.superseded));
-  const staleNote = staleMatchesNote(staleDropped, !!answer);
+  const staleNote = staleMatchesNote(staleDropped, !!answer, indexBlock === null);
 
   return (
     <View style={styles.panel}>
@@ -367,7 +399,20 @@ function AskPlansPanelInner({
         </View>
       ) : null}
 
-      {/* Index / re-index action — the owner's; a collaborator is told why. */}
+      {/* #117: the search found sheets, but writing the answer failed or was
+          refused. Its own words; "try again" only when a retry can help —
+          after a cap, a retry just charges the owner's search meter again. */}
+      {askState === 'error' && answerFailed ? (
+        <View style={styles.weakRow} testID="ask-plans-answer-failed">
+          <AlertTriangle size={12} color={t.dangerLabel} strokeWidth={2} />
+          <Text style={[styles.weakText, { color: t.dangerLabel }]}>
+            Found matching sheets, but couldn&apos;t write the answer — {answerFailed.reason}.{answerFailed.retry ? ' Try again in a moment.' : ''}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Index / re-index action — the owner's or an editor's (#114); a viewer
+          or field seat is told why. */}
       {indexBlock ? (
         <View style={{ gap: 6 }}>
           <Text style={styles.skipText} testID="ask-plans-index-blocked">{indexBlock}</Text>
@@ -421,7 +466,7 @@ function AskPlansPanelInner({
             <Button
               label={titleReview.some(i => i.use) ? `Use ${titleReview.filter(i => i.use).length} number${titleReview.filter(i => i.use).length === 1 ? '' : 's'}` : 'Tick a number to use it'}
               size="sm"
-              onPress={applyTitleNumbers}
+              onPress={() => { void applyTitleNumbers(); }}
               disabled={!titleReview.some(i => i.use)}
             />
             <Button label="Not now" size="sm" variant="ghost" onPress={() => setTitleReview(null)} />

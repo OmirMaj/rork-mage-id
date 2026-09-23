@@ -127,6 +127,65 @@ export interface PlanIndexResult {
   supersededExcluded: number;
 }
 
+/**
+ * #115: after he accepts the title-block numbers an Index run offered, which
+ * sheets must be RE-EMBEDDED so their citations read the new number — and
+ * whether this run still holds each one's transcription.
+ *
+ * The number is part of the fingerprint AND of the embedded citation label
+ * (sheetToDocs' ref), so a renumbered sheet is stale: its rows still cite
+ * "IFC Set — Page 12". A manifest-only hash rewrite would hide that. The
+ * transcription the run already paid for is enough to re-embed with the new
+ * label — embeddings only, no second metered plan-extract read. A sheet whose
+ * text this run does not hold (the panel remounted) is reported so the button
+ * can say the next Index will spend a read on it, never spend it silently.
+ * A sheet the renumber marked superseded is left out: the index drops it.
+ */
+export function renumberReembedPlan<S extends { id: string; sheetNumber?: string; superseded?: boolean }>(
+  patches: readonly { id: string; updates: { sheetNumber?: string; superseded?: boolean } }[],
+  sheetsBefore: readonly S[],
+  extractedText: Readonly<Record<string, string>>,
+): { reembed: { sheet: S; text: string }[]; missingText: S[] } {
+  const after = new Map(sheetsBefore.map(s => [s.id, { ...s }]));
+  const renumbered = new Set<string>();
+  for (const p of patches) {
+    const cur = after.get(p.id);
+    if (!cur) continue;
+    after.set(p.id, { ...cur, ...p.updates });
+    if (p.updates.sheetNumber !== undefined) renumbered.add(p.id);
+  }
+  const reembed: { sheet: S; text: string }[] = [];
+  const missingText: S[] = [];
+  for (const id of renumbered) {
+    const sheet = after.get(id);
+    if (!sheet || sheet.superseded === true) continue;
+    const text = (extractedText[id] ?? '').trim();
+    if (text) reembed.push({ sheet, text });
+    else missingText.push(sheet);
+  }
+  return { reembed, missingText };
+}
+
+/** #115: the "Sheet numbers saved" alert body — what was numbered, what the
+ *  renumber did to each chain (plan.messages), and what happened to the index. */
+export function renumberSavedMessage(
+  applied: number,
+  messages: readonly string[],
+  index: { reembedded: number; failed: string | null; missingText: number },
+): string {
+  const lines = [`${applied} sheet${applied === 1 ? '' : 's'} numbered.`, ...messages];
+  if (index.reembedded > 0) {
+    lines.push(`Ask Your Plans now cites ${index.reembedded === 1 ? 'it' : 'them'} by the new number \u2014 re-used the text already read, no extra plan reads.`);
+  }
+  if (index.failed) {
+    lines.push(`Couldn\u2019t update the index citations just now \u2014 ${index.failed}. The next Index re-reads ${index.reembedded === 0 ? 'those sheets' : 'them'}.`);
+  }
+  if (index.missingText > 0) {
+    lines.push(`${index.missingText} renumbered sheet${index.missingText === 1 ? '' : 's'} still cite${index.missingText === 1 ? 's' : ''} the old name \u2014 the next Index re-reads ${index.missingText === 1 ? 'it' : 'them'} (${index.missingText} plan read${index.missingText === 1 ? '' : 's'}).`);
+  }
+  return lines.join('\n\n');
+}
+
 /** Stop codes: once one sheet hits these, every later sheet would too, so the
  *  run stops calling (and stops spending the hourly bucket) and says so. */
 export const PLAN_EXTRACT_STOP_CODES = new Set([

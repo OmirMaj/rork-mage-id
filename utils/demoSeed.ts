@@ -692,19 +692,25 @@ function punchTemplate(ctx: SeedCtx, projectId: string, specs: PunchSpec[]) {
   const isoDaysAgo = (n: number) => new Date(now.getTime() - n * dayMs).toISOString();
 
   for (const p of specs) {
-    ctx.addPunchItem({
+    // #3: typed, not cast. The old `as unknown as PunchItem` hid a missing
+    // dueDate — punch_items.due_date is NOT NULL with no default, so every
+    // sample punch item was refused by the server (23502) and then deleted
+    // from the phone by the next list read. Blank due date and no sub are
+    // what every other creation path sends.
+    const item: PunchItem = {
       id: generateUUID(),
       projectId,
       description: p.description,
       location: p.location,
+      assignedSub: '',
+      dueDate: '',
       priority: p.priority,
       status: p.status,
       createdAt: isoDaysAgo(8),
       updatedAt: isoNow,
       closedAt: p.status === 'closed' ? isoDaysAgo(2) : undefined,
-      notes: '',
-      photos: [],
-    } as unknown as PunchItem);
+    };
+    ctx.addPunchItem(item);
   }
 }
 

@@ -9,16 +9,21 @@
 // <AuthProvider> and can read the current user for canSync + row user_id.
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectDeletion } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite, getOfflineQueue, onQueueFlushed } from '@/utils/offlineQueue';
-import { mergeLocalOnly, pendingIdsForTable } from '@/utils/projectContextPure';
+import { unsavedWriteIds, onUnsavedDiscarded } from '@/utils/syncLedger';
+import {
+  bearerTokenForRead, emptyReadAuthoritative, mergeLocalOnly, pendingDeleteIdsForTable, pendingIdsForTable,
+} from '@/utils/projectContextPure';
 import { certStatus } from '@/utils/safety/certStatus';
 import { isRecordableCase } from '@/utils/safety/oshaLog';
 import { pruneCollection } from '@/utils/safety/pruneDeletedProject';
+import { shouldRunSafetyRefresh, SAFETY_PROJECT_TABLES } from '@/utils/safety/safetyRefresh';
 import type {
   JobHazardAnalysis,
   ToolboxTalk,
@@ -241,31 +246,93 @@ function mapTemplate(r: Row): SafetyFormTemplate {
 // loaders use) keeps a local row the server lacks ONLY while its write is
 // still queued; a row neither on the server nor queued was deleted elsewhere
 // and goes.
+//
+// `persist: false` (the re-reads below) returns the merged list WITHOUT
+// writing the cache: the caller writes it only if nothing on this device
+// changed that collection while the read was in flight — otherwise a row he
+// added a second ago would be overwritten by a list read before it existed.
 async function hydrateCollection<T extends { id: string }>(
   table: string,
   key: string,
   canSync: boolean,
   map: (r: Row) => T,
-): Promise<T[]> {
+  persist = true,
+  expectUserId: string | null = null,
+): Promise<T[] | null> {
   if (canSync) {
     try {
+      // Re-reads only (persist=false): the bearer the SELECT will carry, read
+      // BEFORE it — see the empty-read guard below.
+      const bearerBefore = persist ? null : await sessionBearer().then(s => s.bearer);
       const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false });
       if (!error && Array.isArray(data)) {
         const mapped = data.map(map).filter(x => x && typeof x.id === 'string');
-        const prior = await loadLocal<T[]>(key, []);
+        const priorRaw = await loadLocal<T[]>(key, []);
+        const prior = Array.isArray(priorRaw) ? priorRaw.filter(x => x && typeof x.id === 'string') : [];
+        // Review round 1 (#119, minor): an empty re-read is not proof. The
+        // foreground/visibility re-reads fire at exactly the moment a session
+        // refresh can fail, and then supabase-js sends the anon key and RLS
+        // answers zero rows with no error — which would wipe every case from
+        // the Safety/OSHA screens and the offline cache. Same rule as
+        // ProjectContext (#112/#90): an empty answer replaces a non-empty
+        // list only when the read provably went out with THIS user's token
+        // (a token with runway before, the same token after, the session's
+        // user = the provider's). Otherwise null = keep what is shown.
+        if (!persist && mapped.length === 0 && prior.length > 0) {
+          const after = await sessionBearer();
+          const trusted = emptyReadAuthoritative({
+            loadUserId: expectUserId,
+            liveUserId: expectUserId,
+            sessionUserId: after.userId,
+            bearerBefore,
+            bearerAfter: after.token,
+          });
+          if (!trusted) return null;
+        }
         const queue = await getOfflineQueue().catch(() => []);
+        // Integration round 2: and every row whose write is under Not saved
+        // (refused by the server, or dropped by a flush) — kept on the phone
+        // until Retry lands it or Discard, like ProjectContext's loaders. A
+        // refused incident or hazard used to vanish from the list on the next
+        // re-read while the sheet still offered to Retry it. The queue is read
+        // FIRST, the ledger second: a write moving queue → ledger (its line is
+        // written before it leaves the queue) is always seen in one of them.
+        const unsaved = await unsavedWriteIds(table).catch(() => new Set<string>());
+        // Review round 1 (#119, major): a row whose DELETE is still queued
+        // stays hidden. Without deletedIds a re-read that lands before the
+        // flush (foreground/focus as signal returns) put the deleted JHA or
+        // hazard back on screen and into the cache.
         const merged = mergeLocalOnly(
           mapped,
-          Array.isArray(prior) ? prior.filter(x => x && typeof x.id === 'string') : [],
-          pendingIdsForTable(queue, table),
+          prior,
+          new Set([...pendingIdsForTable(queue, table), ...unsaved]),
+          { deletedIds: pendingDeleteIdsForTable(queue, table) },
         );
-        await saveLocal(key, merged);
+        if (persist) await saveLocal(key, merged);
         return merged;
       }
     } catch { /* fall through to local cache */ }
   }
   const local = await loadLocal<T[]>(key, []);
   return Array.isArray(local) ? local.filter(x => x && typeof x.id === 'string') : [];
+}
+
+// The session as supabase-js will use it now: `bearer` is the token a read
+// issued now will carry (null when it may refresh first), `token` the raw
+// access token, `userId` the session's user.
+async function sessionBearer(): Promise<{ bearer: string | null; token: string | null; userId: string | null }> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const session = data?.session ?? null;
+    const t = session?.access_token;
+    return {
+      bearer: bearerTokenForRead(session, Date.now()),
+      token: typeof t === 'string' && t.length > 0 ? t : null,
+      userId: session?.user?.id ?? null,
+    };
+  } catch {
+    return { bearer: null, token: null, userId: null };
+  }
 }
 
 export const [SafetyProvider, useSafety] = createContextHook(() => {
@@ -306,10 +373,41 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   // Don't write the empty initial state back over persisted data before the
   // first hydrate completes (same guard PropertyContext uses).
   const hydratedRef = useRef(false);
+  // #122 (integration round 1): the same fact as STATE, so a screen can tell
+  // "this case is not in the log" from "the log has not loaded on this phone
+  // yet". The daily report used to lock a foreman's own classification and
+  // skip his case write in that window on a cold start or a second device.
+  const [incidentsHydrated, setIncidentsHydrated] = useState(false);
+  // Case writes held until the log is loaded (fileCaseWhenHydrated). Each
+  // carries the account generation it was made under; a switch clears them.
+  const heldCaseWritesRef = useRef<{ caseId: string; gen: number; build: (linked: SafetyIncident | null) => SafetyIncident | null }[]>([]);
+  const [heldCaseTick, setHeldCaseTick] = useState(0);
+  // Account generation: bumped on every sign-in / account switch, so a re-read
+  // that started under the previous account is thrown away when it lands.
+  const genRef = useRef(0);
+  // Per-cache-key count of LOCAL writes (every add / update / delete / prune
+  // goes through saveMine). A re-read compares the count from before and after
+  // its network round trip; if the collection changed on this device in
+  // between, the result is dropped rather than applied over the newer local
+  // list (the next trigger reads again). Simplest provable rule — it gives up
+  // one refresh, never a record.
+  const localWritesRef = useRef<Record<string, number>>({});
+  // refresh() bookkeeping (see below); reset on every account switch.
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const lastRefreshAtRef = useRef<number | null>(null);
+  const saveMine = useCallback((key: string, data: unknown) => {
+    localWritesRef.current[key] = (localWritesRef.current[key] ?? 0) + 1;
+    void saveLocal(key, data);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     hydratedRef.current = false;
+    setIncidentsHydrated(false);
+    heldCaseWritesRef.current = [];
+    genRef.current += 1;
+    lastRefreshAtRef.current = null;
+    refreshInFlightRef.current = null;
     // Clear the previous account's in-memory rows IMMEDIATELY so a stale
     // cache can never render for a different (or logged-out) user during the
     // async hydrate below. On logout (canSync=false, no server read) this
@@ -327,39 +425,142 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
         hydrateCollection(TEMPLATES_TABLE, keys.templates, canSync, mapTemplate),
       ]);
       if (cancelled) return;
-      setJhas(j); setToolboxTalks(t); setIncidents(i); setHazards(h);
-      setInspections(insp); setCertifications(cert); setTemplates(tpl);
+      // persist=true never answers null (only a re-read can), so ?? [] is
+      // type plumbing, not a fallback that fires.
+      setJhas(j ?? []); setToolboxTalks(t ?? []); setIncidents(i ?? []); setHazards(h ?? []);
+      setInspections(insp ?? []); setCertifications(cert ?? []); setTemplates(tpl ?? []);
       hydratedRef.current = true;
+      setIncidentsHydrated(true);
     })();
     return () => { cancelled = true; };
   }, [userId, canSync, keys]);
+
+  // ── Re-reads (audit #85 flush; audit #119 foreground / focus / realtime) ──
+  // One path for every re-read after the first hydrate. Each target reads its
+  // table (mergeLocalOnly keeps a row whose write is still queued, so an
+  // unflushed case cannot be erased), and applies + persists the result only
+  // when (a) the account is the one it started under and (b) nothing on this
+  // device wrote that collection meanwhile (localWritesRef).
+  type RereadTarget = { table: string; apply: () => Promise<void> };
+  const targets = useMemo<RereadTarget[]>(() => {
+    const mk = <T extends { id: string }>(table: string, key: string, map: (r: Row) => T, set: (v: T[]) => void): RereadTarget => ({
+      table,
+      apply: async () => {
+        const gen = genRef.current;
+        const before = localWritesRef.current[key] ?? 0;
+        const r = await hydrateCollection(table, key, true, map, false, userId);
+        // null = an empty answer that can't be trusted (see hydrateCollection).
+        if (r === null) return;
+        if (gen !== genRef.current) return;
+        if ((localWritesRef.current[key] ?? 0) !== before) return;
+        set(r);
+        void saveLocal(key, r);
+      },
+    });
+    return [
+      mk(JHAS_TABLE, keys.jhas, mapJha, setJhas),
+      mk(TOOLBOX_TABLE, keys.toolbox, mapToolbox, setToolboxTalks),
+      mk(INCIDENTS_TABLE, keys.incidents, mapIncident, setIncidents),
+      mk(HAZARDS_TABLE, keys.hazards, mapHazard, setHazards),
+      mk(INSPECTIONS_TABLE, keys.inspections, mapInspection, setInspections),
+      mk(CERTIFICATIONS_TABLE, keys.certifications, mapCertification, setCertifications),
+      mk(TEMPLATES_TABLE, keys.templates, mapTemplate, setTemplates),
+    ];
+  }, [keys, userId]);
+
+  const rereadTables = useCallback(async (tables: ReadonlySet<string>): Promise<void> => {
+    if (!canSync || !hydratedRef.current) return;
+    await Promise.all(
+      targets.filter(t => tables.has(t.table)).map(t => t.apply().catch(() => { /* the next trigger re-reads */ })),
+    );
+  }, [canSync, targets]);
 
   // Re-read a safety table once its queued writes have flushed (audit #85).
   // The first hydrate ran before the flush, so the row it kept was the local
   // copy; after the flush the server copy is the one to show, and a write the
   // queue discarded must drop out now rather than at the next cold start.
-  // Only the tables that flushed are re-read, only after the first hydrate,
-  // and a result that arrives after an account switch is thrown away.
   useEffect(() => {
     if (!canSync) return;
-    let live = true;
-    const targets: { table: string; run: () => Promise<void> }[] = [
-      { table: JHAS_TABLE, run: async () => { const r = await hydrateCollection(JHAS_TABLE, keys.jhas, true, mapJha); if (live) setJhas(r); } },
-      { table: TOOLBOX_TABLE, run: async () => { const r = await hydrateCollection(TOOLBOX_TABLE, keys.toolbox, true, mapToolbox); if (live) setToolboxTalks(r); } },
-      { table: INCIDENTS_TABLE, run: async () => { const r = await hydrateCollection(INCIDENTS_TABLE, keys.incidents, true, mapIncident); if (live) setIncidents(r); } },
-      { table: HAZARDS_TABLE, run: async () => { const r = await hydrateCollection(HAZARDS_TABLE, keys.hazards, true, mapHazard); if (live) setHazards(r); } },
-      { table: INSPECTIONS_TABLE, run: async () => { const r = await hydrateCollection(INSPECTIONS_TABLE, keys.inspections, true, mapInspection); if (live) setInspections(r); } },
-      { table: CERTIFICATIONS_TABLE, run: async () => { const r = await hydrateCollection(CERTIFICATIONS_TABLE, keys.certifications, true, mapCertification); if (live) setCertifications(r); } },
-      { table: TEMPLATES_TABLE, run: async () => { const r = await hydrateCollection(TEMPLATES_TABLE, keys.templates, true, mapTemplate); if (live) setTemplates(r); } },
-    ];
-    const unsubscribe = onQueueFlushed((tables) => {
-      if (!hydratedRef.current) return;
-      for (const target of targets) {
-        if (tables.has(target.table)) void target.run().catch(() => { /* the next flush or launch re-reads */ });
-      }
+    return onQueueFlushed((tables) => { void rereadTables(tables); });
+  }, [canSync, rereadTables]);
+  // Round 2: a Not-saved write discarded from the sync sheet stops being kept
+  // (see the merge above) — re-read its table so the phone goes back to MAGE's
+  // copy now, as the discard confirm says, not at the next trigger.
+  useEffect(() => {
+    if (!canSync) return;
+    return onUnsavedDiscarded((discarded) => {
+      const tables = new Set<string>();
+      for (const f of discarded) if (f.table) tables.add(f.table);
+      if (tables.size > 0) void rereadTables(tables);
     });
-    return () => { live = false; unsubscribe(); };
-  }, [canSync, keys]);
+  }, [canSync, rereadTables]);
+
+  // refresh() — the five project-scoped tables (audit #119). The GC's own read
+  // ran once per sign-in, so a foreman's injury report filed while the GC's
+  // app or web tab was open never showed until a relaunch. Called on the
+  // return to the foreground, on web tab visibility, from the Safety hub /
+  // Incidents / OSHA 300 focus, and by pull-to-refresh on Incidents. Guarded:
+  // nothing before the first hydrate (it would race the mount read), one read
+  // at a time (a second caller shares the one in flight), and a short gap
+  // between automatic reads (focus + foreground fire together). `force` (the
+  // pull-to-refresh gesture) skips only the gap.
+  const refresh = useCallback((opts?: { force?: boolean }): Promise<void> => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const now = Date.now();
+    if (!shouldRunSafetyRefresh({
+      canSync, hydrated: hydratedRef.current, inFlight: false,
+      lastAt: lastRefreshAtRef.current, now, force: opts?.force === true,
+    })) return Promise.resolve();
+    lastRefreshAtRef.current = now;
+    const run = rereadTables(new Set(SAFETY_PROJECT_TABLES)).finally(() => {
+      if (refreshInFlightRef.current === run) refreshInFlightRef.current = null;
+    });
+    refreshInFlightRef.current = run;
+    return run;
+  }, [canSync, rereadTables]);
+
+  // Foreground (native) and tab visibility (web). Only a RETURN to the
+  // foreground — the launch itself already hydrates.
+  const refreshRef = useRef(refresh);
+  useEffect(() => { refreshRef.current = refresh; }, [refresh]);
+  useEffect(() => {
+    if (!canSync) return;
+    let prev: AppStateStatus | null = AppState.currentState ?? null;
+    const sub = AppState.addEventListener('change', (next) => {
+      const back = next === 'active' && prev != null && prev !== 'active';
+      prev = next;
+      if (back) void refreshRef.current();
+    });
+    let removeVis: (() => void) | null = null;
+    if (Platform.OS === 'web' && typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      const onVis = () => { if (document.visibilityState === 'visible') void refreshRef.current(); };
+      document.addEventListener('visibilitychange', onVis);
+      removeVis = () => document.removeEventListener('visibilitychange', onVis);
+    }
+    return () => { sub.remove(); removeVis?.(); };
+  }, [canSync]);
+
+  // Realtime on safety_incidents (20260920110000 adds the table to the
+  // publication; RLS scopes every event to the author and the project owner).
+  // The payload is never spliced in: the table is re-read, so the queued-write
+  // and tombstone rules still decide what is shown. Bursts coalesce.
+  useEffect(() => {
+    if (!canSync || !userId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { timer = null; void rereadTables(new Set([INCIDENTS_TABLE])); }, 400);
+    };
+    const channel = supabase
+      .channel(`safety-incidents-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: INCIDENTS_TABLE }, bump)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: INCIDENTS_TABLE }, bump)
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [canSync, userId, rereadTables]);
 
   // ── Deleted-incident tombstones (audit #89) ──────────────────────────
   const tombstoneKey = `${INCIDENT_TOMBSTONES_KEY}_${userId ?? 'anon'}`;
@@ -430,22 +631,22 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     // we only persist the ones that actually shrank.
     setJhas(prev => {
       const next = pruneCollection(prev, deletedProjectId);
-      if (next !== prev) void saveLocal(keys.jhas, next);
+      if (next !== prev) saveMine(keys.jhas, next);
       return next;
     });
     setToolboxTalks(prev => {
       const next = pruneCollection(prev, deletedProjectId);
-      if (next !== prev) void saveLocal(keys.toolbox, next);
+      if (next !== prev) saveMine(keys.toolbox, next);
       return next;
     });
     setIncidents(prev => {
       const next = pruneCollection(prev, deletedProjectId);
-      if (next !== prev) void saveLocal(keys.incidents, next);
+      if (next !== prev) saveMine(keys.incidents, next);
       return next;
     });
     setHazards(prev => {
       const next = pruneCollection(prev, deletedProjectId);
-      if (next !== prev) void saveLocal(keys.hazards, next);
+      if (next !== prev) saveMine(keys.hazards, next);
       return next;
     });
     // Inspections are project-scoped too (they carry projectId) and would orphan
@@ -453,7 +654,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     // and are correctly left untouched by pruneCollection.
     setInspections(prev => {
       const next = pruneCollection(prev, deletedProjectId);
-      if (next !== prev) void saveLocal(keys.inspections, next);
+      if (next !== prev) saveMine(keys.inspections, next);
       return next;
     });
     // No server write: ProjectContext already issued the parent delete and the
@@ -465,7 +666,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const jha: JobHazardAnalysis = { ...input, createdBy: input.createdBy || authorName };
     const updated = [jha, ...jhas];
     setJhas(updated);
-    void saveLocal(keys.jhas, updated);
+    saveMine(keys.jhas, updated);
     if (canSync) {
       void supabaseWrite('jhas', 'insert', {
         id: jha.id, user_id: userId, project_id: jha.projectId,
@@ -482,7 +683,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const now = new Date().toISOString();
     const updated = jhas.map(x => x.id === id ? { ...x, ...updates, updatedAt: now } : x);
     setJhas(updated);
-    void saveLocal(keys.jhas, updated);
+    saveMine(keys.jhas, updated);
     if (canSync) {
       const j = updated.find(x => x.id === id);
       if (j) void supabaseWrite('jhas', 'update', {
@@ -497,7 +698,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const deleteJha = useCallback((id: string) => {
     const updated = jhas.filter(x => x.id !== id);
     setJhas(updated);
-    void saveLocal(keys.jhas, updated);
+    saveMine(keys.jhas, updated);
     if (canSync) void supabaseWrite('jhas', 'delete', { id });
   }, [jhas, canSync, keys]);
 
@@ -512,7 +713,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const talk: ToolboxTalk = { ...input, createdBy: input.createdBy || authorName };
     const updated = [talk, ...toolboxTalks];
     setToolboxTalks(updated);
-    void saveLocal(keys.toolbox, updated);
+    saveMine(keys.toolbox, updated);
     if (canSync) {
       void supabaseWrite('toolbox_talks', 'insert', {
         id: talk.id, user_id: userId, project_id: talk.projectId,
@@ -528,7 +729,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const now = new Date().toISOString();
     const updated = toolboxTalks.map(x => x.id === id ? { ...x, ...updates, updatedAt: now } : x);
     setToolboxTalks(updated);
-    void saveLocal(keys.toolbox, updated);
+    saveMine(keys.toolbox, updated);
     if (canSync) {
       const t = updated.find(x => x.id === id);
       if (t) void supabaseWrite('toolbox_talks', 'update', {
@@ -542,7 +743,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const deleteToolboxTalk = useCallback((id: string) => {
     const updated = toolboxTalks.filter(x => x.id !== id);
     setToolboxTalks(updated);
-    void saveLocal(keys.toolbox, updated);
+    saveMine(keys.toolbox, updated);
     if (canSync) void supabaseWrite('toolbox_talks', 'delete', { id });
   }, [toolboxTalks, canSync, keys]);
 
@@ -564,7 +765,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     };
     const updated = [incident, ...incidents];
     setIncidents(updated);
-    void saveLocal(keys.incidents, updated);
+    saveMine(keys.incidents, updated);
     if (canSync) {
       void supabaseWrite('safety_incidents', 'insert', {
         id: incident.id, user_id: userId, project_id: incident.projectId,
@@ -589,7 +790,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const now = new Date().toISOString();
     const updated = incidents.map(x => x.id === id ? { ...x, ...updates, updatedAt: now } : x);
     setIncidents(updated);
-    void saveLocal(keys.incidents, updated);
+    saveMine(keys.incidents, updated);
     if (canSync) {
       const i = updated.find(x => x.id === id);
       if (i) void supabaseWrite('safety_incidents', 'update', {
@@ -609,6 +810,35 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   }, [incidents, canSync, keys]);
 
   /**
+   * #122 (integration round 1): write a report's case once the injury log is
+   * on this phone. Before the first hydrate, "no case under this id" means
+   * "not loaded yet", and add/update would compute from an empty list (and
+   * insert over a case the server already holds). `build` gets the case the
+   * log holds under `caseId` (or null) and returns the record to write — or
+   * null to write nothing (e.g. it turns out to be another author's case).
+   * Runs at once when the log is already loaded. One held write per render,
+   * so each sees the list the previous one produced.
+   */
+  const fileCaseWhenHydrated = useCallback((caseId: string, build: (linked: SafetyIncident | null) => SafetyIncident | null) => {
+    heldCaseWritesRef.current.push({ caseId, gen: genRef.current, build });
+    setHeldCaseTick(t => t + 1);
+  }, []);
+  useEffect(() => {
+    if (!incidentsHydrated) return;
+    const next = heldCaseWritesRef.current.shift();
+    if (!next) return;
+    if (next.gen === genRef.current) {
+      const linked = incidents.find(x => x.id === next.caseId) ?? null;
+      const rec = next.build(linked);
+      if (rec) {
+        if (linked) updateIncident(rec.id, rec);
+        else addIncident(rec);
+      }
+    }
+    if (heldCaseWritesRef.current.length > 0) setHeldCaseTick(t => t + 1);
+  }, [incidentsHydrated, heldCaseTick, incidents, addIncident, updateIncident]);
+
+  /**
    * Deletes a case and returns true — EXCEPT an OSHA-recordable case, which is
    * refused (returns false, writes nothing). 29 CFR 1904.33 requires the 300
    * log to be kept five years; deleting a row renumbers the log and drops the
@@ -621,7 +851,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     if (target && isRecordableCase(target)) return false;
     const updated = incidents.filter(x => x.id !== id);
     setIncidents(updated);
-    void saveLocal(keys.incidents, updated);
+    saveMine(keys.incidents, updated);
     if (!tombstonesRef.current.has(id)) {
       tombstonesRef.current.add(id);
       const next = [...tombstonesRef.current];
@@ -642,7 +872,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const addHazard = useCallback((hazard: Hazard) => {
     const updated = [hazard, ...hazards];
     setHazards(updated);
-    void saveLocal(keys.hazards, updated);
+    saveMine(keys.hazards, updated);
     if (canSync) {
       void supabaseWrite('hazards', 'insert', {
         id: hazard.id, user_id: userId, project_id: hazard.projectId,
@@ -662,7 +892,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const now = new Date().toISOString();
     const updated = hazards.map(x => x.id === id ? { ...x, ...updates, updatedAt: now } : x);
     setHazards(updated);
-    void saveLocal(keys.hazards, updated);
+    saveMine(keys.hazards, updated);
     if (canSync) {
       const hz = updated.find(x => x.id === id);
       if (hz) void supabaseWrite('hazards', 'update', {
@@ -680,7 +910,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const deleteHazard = useCallback((id: string) => {
     const updated = hazards.filter(x => x.id !== id);
     setHazards(updated);
-    void saveLocal(keys.hazards, updated);
+    saveMine(keys.hazards, updated);
     if (canSync) void supabaseWrite('hazards', 'delete', { id });
   }, [hazards, canSync, keys]);
 
@@ -694,7 +924,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const addInspection = useCallback((inspection: SafetyInspection) => {
     const updated = [inspection, ...inspections];
     setInspections(updated);
-    void saveLocal(keys.inspections, updated);
+    saveMine(keys.inspections, updated);
     if (canSync) void supabaseWrite('safety_inspections', 'insert', {
       id: inspection.id, user_id: userId, project_id: inspection.projectId,
       template_id: inspection.templateId ?? null, title: inspection.title,
@@ -709,7 +939,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const now = new Date().toISOString();
     const updated = inspections.map(x => x.id === id ? { ...x, ...changes, updatedAt: now } : x);
     setInspections(updated);
-    void saveLocal(keys.inspections, updated);
+    saveMine(keys.inspections, updated);
     if (canSync) {
       const payload: Record<string, unknown> = { id };
       if (changes.title !== undefined) payload.title = changes.title;
@@ -729,7 +959,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const deleteInspection = useCallback((id: string) => {
     const updated = inspections.filter(x => x.id !== id);
     setInspections(updated);
-    void saveLocal(keys.inspections, updated);
+    saveMine(keys.inspections, updated);
     if (canSync) void supabaseWrite('safety_inspections', 'delete', { id });
   }, [inspections, canSync, keys]);
 
@@ -742,7 +972,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const addCertification = useCallback((cert: Certification) => {
     const updated = [cert, ...certifications];
     setCertifications(updated);
-    void saveLocal(keys.certifications, updated);
+    saveMine(keys.certifications, updated);
     if (canSync) void supabaseWrite('certifications', 'insert', {
       id: cert.id, user_id: userId, worker_id: cert.workerId ?? null,
       holder_name: cert.holderName ?? null, sub_id: cert.subId ?? null,
@@ -756,7 +986,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const now = new Date().toISOString();
     const updated = certifications.map(x => x.id === id ? { ...x, ...changes, updatedAt: now } : x);
     setCertifications(updated);
-    void saveLocal(keys.certifications, updated);
+    saveMine(keys.certifications, updated);
     if (canSync) {
       // These columns are all nullable, and the caller clears a field by passing
       // it as `undefined`. Detect KEY PRESENCE (not value) and coerce undefined→null
@@ -779,7 +1009,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const deleteCertification = useCallback((id: string) => {
     const updated = certifications.filter(x => x.id !== id);
     setCertifications(updated);
-    void saveLocal(keys.certifications, updated);
+    saveMine(keys.certifications, updated);
     if (canSync) void supabaseWrite('certifications', 'delete', { id });
   }, [certifications, canSync, keys]);
 
@@ -807,7 +1037,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const addTemplate = useCallback((template: SafetyFormTemplate) => {
     const updated = [template, ...templates];
     setTemplates(updated);
-    void saveLocal(keys.templates, updated);
+    saveMine(keys.templates, updated);
     if (canSync) void supabaseWrite('safety_templates', 'insert', {
       id: template.id, user_id: userId, name: template.name, category: template.category,
       fields: template.fields, created_by: template.createdBy, created_at: template.createdAt,
@@ -818,7 +1048,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     const now = new Date().toISOString();
     const updated = templates.map(x => x.id === id ? { ...x, ...changes, updatedAt: now } : x);
     setTemplates(updated);
-    void saveLocal(keys.templates, updated);
+    saveMine(keys.templates, updated);
     if (canSync) {
       const payload: Record<string, unknown> = { id };
       if (changes.name !== undefined) payload.name = changes.name;
@@ -831,7 +1061,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const deleteTemplate = useCallback((id: string) => {
     const updated = templates.filter(x => x.id !== id);
     setTemplates(updated);
-    void saveLocal(keys.templates, updated);
+    saveMine(keys.templates, updated);
     if (canSync) void supabaseWrite('safety_templates', 'delete', { id });
   }, [templates, canSync, keys]);
 
@@ -840,6 +1070,9 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     toolboxTalks, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk, getToolboxTalksForProject,
     incidents, addIncident, updateIncident, deleteIncident, getIncidentsForProject,
     isIncidentDeleted, clearIncidentTombstone,
+    // #122 (integration round 1): whether the injury log has loaded on this
+    // phone, and a case write that waits for it.
+    incidentsHydrated, fileCaseWhenHydrated,
     hazards, addHazard, updateHazard, deleteHazard, getHazardsForProject,
     // Wave B — inspections (project-scoped)
     inspections, getInspectionsForProject, addInspection, updateInspection, deleteInspection,
@@ -848,5 +1081,7 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     addCertification, updateCertification, deleteCertification,
     // Wave B — forms library (company-scoped)
     templates, addTemplate, updateTemplate, deleteTemplate,
+    // Wave 4 (#119) — re-read the five project-scoped tables (see refresh()).
+    refresh,
   };
 });

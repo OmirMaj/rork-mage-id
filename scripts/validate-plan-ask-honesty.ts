@@ -88,7 +88,7 @@ console.log('\n5. the run is reported, not swallowed');
 // Wave 3 (#75): the report also carries the title-block numbers it OFFERS
 // (PlanIndexRun = PlanIndexResult + titleBlockSuggestions) — still a report.
 ok('indexPlanSheets returns a report, not a count',
-  /Promise<PlanIndexRun>/.test(ayp) && /export type PlanIndexRun = PlanIndexResult & \{ titleBlockSuggestions: TitleBlockSuggestion\[\] \}/.test(ayp));
+  /Promise<PlanIndexRun>/.test(ayp) && /export type PlanIndexRun = PlanIndexResult & \{\s*titleBlockSuggestions: TitleBlockSuggestion\[\];/.test(ayp));
 ok('a refusal that would repeat stops the run', /PLAN_EXTRACT_STOP_CODES\.has/.test(ayp) && PLAN_EXTRACT_STOP_CODES.has('monthly_cap_reached'));
 ok('superseded sheets are left out of a run', /sheets\.filter\(s => !s\.superseded\)/.test(ayp));
 const panel = read('components/plans/AskPlansPanel.tsx');
@@ -156,7 +156,9 @@ ok('a successful answer clears it', /noneFound: matches\.length === 0, weakGroun
 ok('the panel says the SEARCH failed, not that the plans are silent',
   /Couldn&apos;t search your plans just now/.test(panel) && /Your plans may still hold the answer/.test(panel));
 ok('the panel keeps the two states apart',
-  /askState === 'error' && searchFailed/.test(panel) && /setAskState\(result\.searchFailed \? 'error' : 'answered'\)/.test(panel));
+  /askState === 'error' && searchFailed/.test(panel) && /setAskState\(result\.searchFailed \|\| result\.answerFailed \? 'error' : 'answered'\)/.test(panel)
+  // wave 4 #117: a failed ANSWER step is its own line, not "couldn't search".
+  && /askState === 'error' && answerFailed/.test(panel) && /Found matching sheets, but couldn&apos;t write the answer/.test(panel));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

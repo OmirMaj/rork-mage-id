@@ -401,7 +401,9 @@ function JobCostingInner() {
           <TouchableOpacity
             testID="job-cost-unpriced-labor"
             style={[styles.banner, { backgroundColor: themeColors.warningSoft, borderLeftColor: themeColors.warningLabel }]}
-            onPress={() => router.push({ pathname: '/time-tracking', params: { projectId } } as never)}
+            // #104: open the Labor rates sheet on the first trade with no rate,
+            // not just the screen — he used to land there and hunt for it.
+            onPress={() => router.push({ pathname: '/time-tracking', params: { projectId, openRates: '1', ...(summary.unpricedTrades[0] ? { rateTrade: summary.unpricedTrades[0] } : {}) } } as never)}
             accessibilityRole="link"
             activeOpacity={0.8}
           >

@@ -32,7 +32,7 @@ import {
   changeOrderTaxColumns, changeOrderTaxFromRow, chunkForAppend, coRealtimeShouldRefetch, dailyReportColumns,
   coAuditPendingFromStore, coIdsWrittenDuringRead, overlayPendingAudit,
   DAILY_REPORT_INSERT_ONLY, invoiceBillToColumns, invoiceBillToFromRow, mergeServerKeepingPending, newAuditEntries,
-  CO_AUDIT_APPEND_MAX,
+  CO_AUDIT_APPEND_MAX, classifyCoAuditError, coAuditRefusalIsFinal, withMarkedApproved, bearerTokenForRead,
 } from '../utils/projectContextPure';
 import {
   buildDeferredCoAuditEntry, buildUnanchoredCoAuditEntry, hasUnanchoredMarker, isCoScheduleReflowApplied, normalizeImpactDays,
@@ -198,8 +198,16 @@ async function main() {
     const writes: { table: string; op: string; data: Row }[] = [];
     const changeOrdersRef = { current: [{ id: 'c1', number: 1, projectId: 'p1', status: 'sent', auditTrail: [a] }] as CO[] };
     const pendingCoAuditRef = { current: new Map<string, { id: string }[]>() };
+    // wave 4 #40: a refusal is final only for a live bearer and a CO known to
+    // be on the server — this harness is that signed-in session, so the
+    // "not his CO" case below still exercises the final path.
+    const liveSession = { access_token: 'tok', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    Object.assign(supabase, { auth: { getSession: async () => ({ data: { session: liveSession } }) } });
+    let markSeq = 0;
     const scope: Scope = {
       supabase, changeOrdersRef, pendingCoAuditRef, newAuditEntries, chunkForAppend,
+      classifyCoAuditError, coAuditRefusalIsFinal, withMarkedApproved, bearerTokenForRead,
+      bearerStillLive: async () => true, queuedIdsFor: async () => new Set<string>(), unsavedWriteIds: async () => new Set<string>(), generateUUID: () => `mark${++markSeq}`,
       setChangeOrders: () => {}, saveChangeOrdersMutation: { mutate: () => {} },
       isCoScheduleReflowApplied, hasUnanchoredMarker, normalizeImpactDays, buildDeferredCoAuditEntry, buildUnanchoredCoAuditEntry,
       applyCoScheduleReflow: () => ({ plan: { status: 'no_impact', message: '' } }),
@@ -219,11 +227,17 @@ async function main() {
     const upd = runCallback<(id: string, u: Partial<CO>, r?: unknown) => Promise<string>>(CTX, 'updateChangeOrder', scope);
     await upd('c1', { status: 'approved', auditTrail: [a, b] });
     await new Promise(r => setTimeout(r, 5));
-    const trail = (server.get('c1')!.audit_trail as { id: string }[]).map(e => e.id);
+    const fullTrail = server.get('c1')!.audit_trail as { id: string; action: string; actor: string }[];
+    // wave 4 #79: the GC's own approval also appends a 'marked_approved' entry
+    // (checked on its own below); the seal/own-entry checks ignore it.
+    const trail = fullTrail.filter(e => e.action !== 'marked_approved').map(e => e.id);
     ok('an edit from a session loaded before the signature keeps the server\'s seal entry', trail.includes('seal'), trail.join());
     ok('…and its own new entry is appended', trail.join() === 'a,seal,b', trail.join());
     ok('…the UPDATE payload never carries audit_trail', writes.every(w => !('audit_trail' in w.data)));
-    ok('…and only the NEW entry went to co_append_audit', rpcCalls.length === 1 && rpcCalls[0].entries.map(e => e.id).join() === 'b');
+    ok('…and only the NEW entries went to co_append_audit (its own + the approval mark)',
+      rpcCalls.length === 1 && rpcCalls[0].entries.map(e => e.id).join() === 'b,mark1', JSON.stringify(rpcCalls));
+    const mark = fullTrail.find(e => e.action === 'marked_approved');
+    ok('#79 a non-portal approval appends marked_approved with the GC as actor', !!mark && mark.actor === 'gc@x.com', JSON.stringify(mark));
 
     // An append that could not go out waits, and goes with the next attempt.
     rpcMode = 'network';
@@ -234,7 +248,7 @@ async function main() {
     ok('a failed append is kept pending (not lost)', pendingCoAuditRef.current.get('c1')?.map(e => e.id).join() === 'c');
     rpcMode = 'ok';
     await (scope.appendCoAudit as (id: string, e: unknown[]) => Promise<void>)('c1', []);
-    ok('…and the retry lands it exactly once', (server.get('c1')!.audit_trail as { id: string }[]).map(e => e.id).join() === 'a,seal,b,c' && !pendingCoAuditRef.current.has('c1'));
+    ok('…and the retry lands it exactly once', (server.get('c1')!.audit_trail as { id: string }[]).map(e => e.id).join() === 'a,seal,b,mark1,c' && !pendingCoAuditRef.current.has('c1'));
     rpcMode = 'denied';
     await (scope.appendCoAudit as (id: string, e: unknown[]) => Promise<void>)('c1', [{ id: 'd', action: 'x', actor: 'y', timestamp: 'z' }]);
     ok('a refusal (not his CO) is final — nothing retries forever', !pendingCoAuditRef.current.has('c1'));
@@ -271,11 +285,14 @@ async function main() {
           applyCoScheduleReflow: () => ({ plan: { status: 'no_impact', message: '' } }),
           projects: [], projectsRef: { current: [] }, user: { email: 'gc@x.com' }, canSync: true, userId: 'u1',
           changeOrderInsertsRef: { current: new Map() }, getOfflineQueue: async () => queue,
+          classifyCoAuditError, coAuditRefusalIsFinal, withMarkedApproved, bearerTokenForRead,
+          bearerStillLive: async () => true, generateUUID: () => 'mark7',
           // The CO's INSERT is still queued (made offline), so the edit's UPDATE queues behind it.
           insertStillQueued: () => true,
           addToOfflineQueue: async (e: { table: string; operation: string; data: Row }) => { order.push('queue:update'); queue.push(e); },
           supabaseWriteDetailed: async () => 'synced',
           queuedIdsFor: async (t: string) => new Set(queue.filter(e => e.table === t).map(e => e.data.id as string)),
+          unsavedWriteIds: async () => new Set<string>(),
         };
         sc.changeOrderToRow = runCallback(CTX, 'changeOrderToRow', sc);
         sc.beginCoWrite = runCallback(CTX, 'beginCoWrite', sc);
@@ -297,7 +314,7 @@ async function main() {
       // KILL. A new provider starts from disk only.
       const p2 = mkProvider();
       const restored = coAuditPendingFromStore<{ id: string }>(await loadLocal('mageid_co_audit_pending', null), 'u1');
-      ok('relaunch: the owed entry is read back for this account', restored.get('c7')?.map(e => e.id).join() === 'sig');
+      ok('relaunch: the owed entry is read back for this account', restored.get('c7')?.map(e => e.id).join() === 'sig,mark7');
       ok('…and never for another account', coAuditPendingFromStore(await loadLocal('mageid_co_audit_pending', null), 'u2').size === 0);
       (p2.pendingCoAuditRef as { current: Map<string, unknown> }).current = restored;
       await (p2.retryPendingCoAudit as () => Promise<void>)();
@@ -306,8 +323,9 @@ async function main() {
       queue = []; // the flush lands the insert and the update
       await (p2.retryPendingCoAudit as () => Promise<void>)();
       await new Promise(r => setTimeout(r, 5));
-      ok('after the flush the signature entry reaches co_append_audit', rpc.length === 1 && rpc[0].entries.map(e => e.id).join() === 'sig'
-        && serverTrail.get('c7')!.map(e => e.id).join() === 'a,sig');
+      // (+ wave 4 #79's 'marked_approved' — the GC recorded the in-person signature himself)
+      ok('after the flush the signature entry reaches co_append_audit', rpc.length === 1 && rpc[0].entries.map(e => e.id).join() === 'sig,mark7'
+        && serverTrail.get('c7')!.map(e => e.id).join() === 'a,sig,mark7', JSON.stringify(rpc));
       ok('…and the disk copy is cleared once it landed', coAuditPendingFromStore(await loadLocal('mageid_co_audit_pending', null), 'u1').size === 0);
       ok('the account effect reads the store back through coAuditPendingFromStore and retries it',
         /coAuditPendingFromStore<COAuditEntry>\(await loadLocal<unknown>\(CO_AUDIT_PENDING_KEY, null\), owner\)/.test(CTX)
@@ -323,7 +341,7 @@ async function main() {
       ok('coIdsWrittenDuringRead: on the wire, or settled after the read went out — not before',
         [...coIdsWrittenDuringRead(touches, 100)].sort().join() === 'late,w');
       ok('the change_orders loader keeps those device copies and overlays the owed entries',
-        /const keepDevice = new Set\(\[\.\.\.await queuedIdsFor\('change_orders'\), \.\.\.coIdsWrittenDuringRead\(coWriteTouchRef\.current, coReadStartedAt\)\]\);/.test(CTX)
+        /const keepDevice = new Set\(\[\.\.\.await queuedIdsFor\('change_orders'\), \.\.\.await unsavedWriteIds\('change_orders'\), \.\.\.coIdsWrittenDuringRead\(coWriteTouchRef\.current, coReadStartedAt\)\]\);/.test(CTX)
           && /const kept = mergeServerKeepingPending\(mapped, await loadLocal<ChangeOrder\[\]>\(CHANGE_ORDERS_KEY, \[\]\), keepDevice(, \{ deletedIds: await queuedDeletesFor\('change_orders'\) \})?\);/.test(CTX)
           && /const merged = overlayPendingAudit\(kept, pendingCoAuditRef\.current\);/.test(CTX)
           && CTX.indexOf('const coReadStartedAt = Date.now();') < CTX.indexOf("await supabase.from('change_orders').select('*')"));
@@ -429,7 +447,11 @@ async function main() {
     const merged = mergeServerKeepingPending(server, local, new Set(['i1', 'i3']));
     ok('queued edit → device copy; no queued write → server (a Stripe payment arrives)', merged.find(r => r.id === 'i1')?.amountPaid === 5000 && merged.find(r => r.id === 'i2')?.amountPaid === 100);
     ok('a queued create the server lacks is kept', merged.some(r => r.id === 'i3') && merged.length === 3);
-    ok('the invoices and pay-app loaders use it', /mergeServerKeepingPending\(mapped, await loadLocal<Invoice\[\]>\(INVOICES_KEY/.test(CTX) && /mergeServerKeepingPending\(mapped, await loadLocal<SavedAIAPayApp\[\]>\(AIA_PAY_APPS_KEY/.test(CTX));
+    // Wave 4 #5: the device copy is read once into prior* (it also feeds the
+    // written-during-read keep set).
+    ok('the invoices and pay-app loaders use it',
+      /const priorInvoices = await loadLocal<Invoice\[\]>\(INVOICES_KEY, \[\]\);[\s\S]{0,600}mergeServerKeepingPending\(mapped, priorInvoices,/.test(CTX)
+      && /const priorAia = await loadLocal<SavedAIAPayApp\[\]>\(AIA_PAY_APPS_KEY, \[\]\);[\s\S]{0,300}mergeServerKeepingPending\(mapped, priorAia,/.test(CTX));
   }
 
   // ── awaitInvoiceInsert ─────────────────────────────────────────────────────

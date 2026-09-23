@@ -836,7 +836,9 @@ console.log('\nC. wiring (comment-stripped source)');
     ok('planSheetsLoaded is keyed by account and on the value',
       /const planSheetsLoaded = !authLoading && planSheetsLoadedFor === \(userId \?\? ''\)/.test(ctx) && /planSheets, planSheetsLoaded, addPlanSheet,/.test(ctx));
   }
-  ok('updatePunchItems takes the cleared pin columns', /const \{ next, changed, cleared \} = applyPunchBatchUpdate\(/.test(ctx));
+  // Other names may follow `cleared` (the patch-scoped update added `touched`,
+  // wave 4 #46); the cleared pin columns must still be taken.
+  ok('updatePunchItems takes the cleared pin columns', /const \{ next, changed, cleared(, \w+)* \} = applyPunchBatchUpdate\(/.test(ctx));
   ok('each row write is tracked for the refetch overlay', /changed\.forEach\(pi => \{ trackPinWrite\(/.test(ctx));
   ok('the loader stamps the SELECT start', /const fetchStartedAt = Date\.now\(\);\s*const \{ data, error \} = await supabase\.from\('punch_items'\)\.select\(/.test(ctx));
   ok('the loader keeps pending pins around mergeLocalOnly', /keepPendingPinFields\(\s*mergeLocalOnly\(mapped, priorPunch/.test(ctx));

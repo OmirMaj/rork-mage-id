@@ -1085,7 +1085,29 @@ export type ReminderBlockReason =
   // Nobody to email (#47): no billing address stored on the invoice and no
   // portal invitee on the project. The cron skips these every day; the card
   // says so up front instead of after a tap.
-  | 'no_recipient';
+  | 'no_recipient'
+  // #38: invoice-dunning only chases an invoice stored under the job owner's
+  // account (it sends under his company name). Server-only.
+  | 'not_project_owner'
+  // #83: the client's bank payment (ACH) is still settling — see
+  // paymentPendingHolds.
+  | 'payment_pending';
+
+/**
+ * #83 / #135 — mirror of supabase/functions/invoice-dunning's
+ * paymentPendingHolds (scripts/validate-w4-money-ledger-pending.ts runs both
+ * and requires identical answers). stripe-webhook stamps pay_pending_at when a
+ * client's bank payment completes Checkout unpaid; it settles in 3-5 business
+ * days. No reminder — cron or manual — while it is under 10 days old; a marker
+ * older than that (a lost async event) must not silence dunning for good.
+ */
+export const PAYMENT_PENDING_HOLD_MS = 10 * DAY_MS;
+export function paymentPendingHolds(pendingAt: string | null | undefined, nowMs: number): boolean {
+  if (!pendingAt) return false;
+  const t = new Date(pendingAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t < PAYMENT_PENDING_HOLD_MS;
+}
 
 export interface ReminderEligibilityInput {
   /** Stored invoice status. Never trusted alone — the math below rules. */
@@ -1123,6 +1145,8 @@ export interface ReminderEligibilityInput {
    * leaves the decision to the server, which resolves the address itself.
    */
   hasRecipient?: boolean;
+  /** invoices.pay_pending_at (Invoice.paymentPendingAt): a bank payment in flight. */
+  paymentPendingAt?: string | null;
   nowMs: number;
 }
 
@@ -1183,6 +1207,9 @@ export function reminderEligibility(input: ReminderEligibilityInput): ReminderEl
   if (status === 'paid') return base('paid', 0, 0);
   // Fully collected even if the stored status lagged behind.
   if (outstanding <= 0) return base('nothing_outstanding', 0, 0);
+  // #83: before anything overdue-related — the money is on its way, which is
+  // worth saying even on a current invoice, and the server refuses to send.
+  if (paymentPendingHolds(input.paymentPendingAt, input.nowMs)) return base('payment_pending', 0, 0);
   if (!Number.isFinite(input.dueMs)) return base('bad_due_date', 0, 0);
   // Before the overdue check ON PURPOSE: "reminders are off, there is no
   // client email" is worth knowing while the invoice is still current — that
@@ -1235,6 +1262,10 @@ export function reminderBlockMessage(reason: ReminderBlockReason, lastSentMs?: n
         : 24;
       return `A reminder already went out in the last 24 hours. You can send another in ${hoursLeft}h.`;
     }
+    case 'payment_pending':
+      return 'The client started a bank payment on this invoice and it is still processing (bank transfers take 3-5 business days). Reminders wait until it clears or fails.';
+    case 'not_project_owner':
+      return "Reminders go out under the job owner's name, and this invoice was not created from the owner's account — so no reminder is sent for it.";
     case 'no_recipient':
       return 'Automatic reminders are off — no client email on this invoice or project. Send the invoice to the client by email (or add a portal invitee) and reminders start.';
     // The server owns this string's input, so a value the client doesn't know
@@ -1303,8 +1334,96 @@ export const STRIPE_UNDER_MIN_REASON = 'Stripe cannot charge less than $0.50. Co
  * Payment Link" — that button would only hit the same wall.
  */
 export function payLinkReasonIsRetryable(reason: string): boolean {
-  return reason !== STRIPE_OVER_MAX_REASON && reason !== STRIPE_UNDER_MIN_REASON;
+  return reason !== STRIPE_OVER_MAX_REASON
+    && reason !== STRIPE_UNDER_MIN_REASON
+    // #39: the row is not on the server (queued behind the offline queue, or
+    // refused, or unconfirmed). "Tap Generate Payment Link" would 404 on a row
+    // the server does not have — the next step is the sync, not the button.
+    && reason !== INVOICE_INSERT_QUEUED_REASON
+    && reason !== INVOICE_INSERT_UNCONFIRMED_REASON
+    && reason !== PAYMENT_PENDING_MINT_REASON
+    && reason !== STRIPE_NOT_CONNECTED_REASON;
 }
+
+/** #36 — the PDF send's "no Pay button" when Stripe genuinely is not connected
+ *  (the check answered). Its next step is Payments setup, not a retry. */
+export const STRIPE_NOT_CONNECTED_REASON =
+  "your Stripe account isn't connected, so invoices go out without a Pay button — set it up in Settings → Payments";
+
+/**
+ * #39 / #36 — why a send carries no Pay button because the invoice row is not
+ * (yet) on the server. Constants so payLinkReasonIsRetryable can tell them
+ * apart from a Stripe failure a retry could fix.
+ *
+ * QUEUED is only said when it is true: the INSERT sits in the offline queue,
+ * which keeps it across restarts and lists it under "Not saved" if the server
+ * later refuses it (utils/offlineQueue, CONTRACT 1). A REFUSED insert is never
+ * sent at all — see invoiceInsertRefusedMessage.
+ */
+export const INVOICE_INSERT_QUEUED_REASON =
+  "the invoice is still waiting in this phone's sync queue and is not on the server yet — once it syncs, send it again (or add a payment link from the invoice) so the client gets a Pay button";
+export const INVOICE_INSERT_UNCONFIRMED_REASON =
+  "the invoice couldn't be confirmed on the server yet, so there was nothing to attach a payment link to — check the sync status, then send it again";
+
+/**
+ * #39: the server REFUSED the new invoice's insert. Nothing was emailed — an
+ * invoice the server does not have drops off his list, A/R, reminders and
+ * QuickBooks on the next refresh while the client holds it. The draft stays
+ * on screen so he can try again once the job has synced.
+ */
+export function invoiceInsertRefusedMessage(invoiceNumber: number): string {
+  return `Invoice #${invoiceNumber} was not sent. The server refused to save it — usually because this job is still syncing from when you were offline, or your access to it changed. Nothing went to your client. ${INVOICE_UNSAVED_NEXT_STEP}`;
+}
+
+/**
+ * #39 (review round 1): the refused write is kept in the sync ledger's
+ * "Not saved" list (utils/syncLedger, CONTRACT 1) and is resent ONLY from
+ * there — nothing resends it automatically. So "tap Send again" alone can
+ * never succeed while it sits there: every later send of this draft would
+ * email an invoice the server still does not have. The next step names the
+ * one path that fixes it.
+ */
+export const INVOICE_UNSAVED_NEXT_STEP =
+  "Tap the sync badge and Retry the invoice under \"Not saved\" (or Discard it). Once it saves, send it again.";
+
+/**
+ * #39: an EARLIER save of this invoice (its insert, or an edit) was refused
+ * and still sits in the sync ledger's "Not saved" list, so the server's copy
+ * is missing or behind the one on screen. Nothing is emailed until it saves.
+ */
+export function invoiceUnsavedOnServerMessage(invoiceNumber: number): string {
+  return `Invoice #${invoiceNumber} was not sent. An earlier save of it was refused by the server, so the server doesn't have the invoice you're looking at. Nothing went to your client. ${INVOICE_UNSAVED_NEXT_STEP}`;
+}
+
+/** #83 — the server-side refusal (create-payment-link 409 'payment_pending'). */
+export const PAYMENT_PENDING_MINT_REASON =
+  "the client's bank payment for this invoice is still processing — a new link now would invite a second payment";
+
+/**
+ * #36 — what the Stripe Connect status check actually answered. A FAILED
+ * check (offline, the function down) is not "not connected": treating it as
+ * one sent the invoice with no Pay button under a plain "sent" toast, or told
+ * him falsely that he had never connected Stripe (and burned the once-ever
+ * nudge doing it). connect-status answers success:true for "no account" and
+ * "charges disabled", so success:false is always "could not tell".
+ */
+export type StripeAccountState =
+  | { kind: 'connected'; accountId: string }
+  | { kind: 'not_connected' }
+  | { kind: 'unreachable'; error: string };
+
+export function stripeAccountStateFrom(status: {
+  success?: boolean; chargesEnabled?: boolean; accountId?: string | null; error?: string | null;
+} | null | undefined): StripeAccountState {
+  if (!status || status.success !== true) {
+    return { kind: 'unreachable', error: (status?.error ?? '').trim() || 'status check failed' };
+  }
+  if (status.chargesEnabled && status.accountId) return { kind: 'connected', accountId: status.accountId };
+  return { kind: 'not_connected' };
+}
+
+export const STRIPE_UNREACHABLE_REASON =
+  "we couldn't reach Stripe to check your payment setup (you may be offline)";
 
 /**
  * Plain-words reason for a failed mint, from the edge function's error text.
@@ -1315,6 +1434,7 @@ export function payLinkFailureReason(error: string | undefined | null): string {
   // Not "it will arrive": a queued insert is caught before the mint, so a 404
   // here is either an insert still on the wire or one the server rejected —
   // this screen cannot tell which, so the copy names both.
+  if (/payment_pending/i.test(e)) return PAYMENT_PENDING_MINT_REASON;
   if (/not found/i.test(e)) return "the server doesn't have this invoice yet — it may still be saving, or the save may have failed (check the sync status)";
   if (/maximum|999,999/i.test(e)) return STRIPE_OVER_MAX_REASON;
   if (/minimum|0\.50/i.test(e)) return STRIPE_UNDER_MIN_REASON;
@@ -1364,6 +1484,186 @@ export function nextInvoiceNumberFrom(list: readonly { number?: number | null }[
  */
 export function invoiceShownInPortal(portalState: { status?: string } | null | undefined): boolean {
   return portalState == null || portalState.status === 'sent';
+}
+
+/**
+ * #43 — whether this project's client portal shows invoices at all: it is on
+ * AND its Invoices section is not switched off. utils/portalSnapshot only
+ * writes invoices into the snapshot when showInvoices is set, so with it off
+ * "Also post to client portal", "pay via the portal" and a reminder's "View
+ * invoice" all promised a page with no invoice on it. `!== false`: a portal
+ * saved before the toggle existed carries no key and has always shown them.
+ */
+export function invoicesVisibleInPortal(
+  clientPortal: { enabled?: boolean | null; showInvoices?: boolean | null } | null | undefined,
+): boolean {
+  return clientPortal?.enabled === true && clientPortal.showInvoices !== false;
+}
+
+/** The one sentence for "the portal is on, its Invoices section is off" (#43). */
+export const PORTAL_INVOICES_HIDDEN_HINT =
+  "Invoices are hidden on this project's portal. Turn them on in Client Portal to post invoices there.";
+
+/**
+ * #43 — the pay-link copy may promise a portal Pay button only when the
+ * portal is on, shows invoices, AND shows this one.
+ */
+export function invoicePayableInPortal(
+  clientPortal: { enabled?: boolean | null; showInvoices?: boolean | null } | null | undefined,
+  portalState: { status?: string } | null | undefined,
+): boolean {
+  return invoicesVisibleInPortal(clientPortal) && invoiceShownInPortal(portalState);
+}
+
+/**
+ * #81 — whether `email` is one of the portal's invitees (trimmed, case-
+ * insensitive). Mirrors isPortalInvitee in supabase/functions/invoice-dunning,
+ * which withholds the project-wide portal link from a reminder addressed to
+ * anyone else: the stored bill-to address is often a lender's draw desk or an
+ * AP inbox the homeowner never invited, and that link opens his whole portal.
+ */
+export function isPortalInvitee(
+  email: string | null | undefined,
+  invites: readonly { email?: string | null }[] | null | undefined,
+): boolean {
+  const e = (email ?? '').trim().toLowerCase();
+  if (!e.includes('@')) return false;
+  return (invites ?? []).some(i => (i.email ?? '').trim().toLowerCase() === e);
+}
+
+/**
+ * #81 — will a reminder to this invoice's recipient carry the portal's
+ * "View invoice" link? Only when the recipient IS an invitee (the fallback
+ * recipient always is) and the portal shows invoices (#43). The Pay button is
+ * invoice-scoped and unaffected.
+ */
+export function reminderCarriesPortalLink(
+  billToEmail: string | null | undefined,
+  clientPortal: {
+    enabled?: boolean | null; showInvoices?: boolean | null;
+    invites?: readonly { email?: string | null }[] | null;
+  } | null | undefined,
+): boolean {
+  const recipient = reminderRecipient(billToEmail, clientPortal?.invites);
+  if (!recipient) return false;
+  if (!invoicesVisibleInPortal(clientPortal)) return false;
+  return isPortalInvitee(recipient, clientPortal?.invites);
+}
+
+// ─── #38: who may bill the client on a job ───────────────────────────
+//
+// An invoice is stored under the SENDER's user_id and its Pay link is minted
+// on the sender's Stripe account. From a collaborator's seat that meant an
+// invoice the GC never sees (invoices SELECT is own-rows only) whose money
+// lands in the collaborator's bank, while invoice-dunning chased the homeowner
+// under the GC's company name. Only the project owner bills — the same rule as
+// change orders (#41): the job's stored owner is the signed-in user, else the
+// resolved role is 'owner'. The server refuses the insert too
+// (20260920030000_invoices_owner_insert.sql).
+
+export const INVOICE_OWNER_ONLY_REASON =
+  "Only the job's owner bills the client — their invoices and Pay link go to their bank.";
+
+export type InvoiceRoleGate = 'open' | 'loading' | 'error' | 'paused' | 'collaborator' | 'no_access';
+
+/**
+ * The gating contract: spin only while the role is loading, retry on an
+ * error, a paused (offline) read says its reason — never a paywall — and a
+ * null role that is none of those is NO ACCESS, said, never spun. No job yet
+ * (the sidebar entry) is 'open': the screen's picker asks and the gate runs
+ * again on the picked job.
+ */
+export function invoiceRoleGate(o: {
+  hasProject: boolean;
+  role: string | null;
+  isLoading: boolean;
+  isError: boolean;
+  isPaused?: boolean;
+  /** Project.myRole — only ever stamped on a job shared WITH him. */
+  stampedRole?: string | null;
+  /** The device copy's ownerUserId === the signed-in user. */
+  ownedLocally?: boolean;
+}): InvoiceRoleGate {
+  if (!o.hasProject) return 'open';
+  if (o.stampedRole === 'editor' || o.stampedRole === 'viewer' || o.stampedRole === 'field') return 'collaborator';
+  // The owner never waits on the network: on a site with no signal the
+  // collaborator read fails or pauses, and he must still bill his own job.
+  if (o.ownedLocally) return 'open';
+  if (o.role === 'owner') return 'open';
+  if (o.role === 'editor' || o.role === 'viewer' || o.role === 'field') return 'collaborator';
+  if (o.isLoading) return 'loading';
+  if (o.isError) return 'error';
+  if (o.isPaused) return 'paused';
+  return 'no_access';
+}
+
+/** The blocked screen's words, per gate (the paused reason comes from the hook). */
+export function invoiceRoleBlockedCopy(
+  gate: Exclude<InvoiceRoleGate, 'open'>,
+  pausedReason?: string | null,
+): { title: string; body: string } {
+  switch (gate) {
+    case 'loading':
+      return { title: '', body: 'Checking your role on this job…' };
+    case 'error':
+      return {
+        title: 'Could not check your role on this job',
+        body: 'MAGE could not load who is on this project, so it cannot tell whether you may bill the client here. Check your connection and try again.',
+      };
+    case 'paused':
+      return {
+        title: 'Waiting for a connection',
+        body: `${(pausedReason ?? '').trim() || "You're offline and this phone has not seen your role on this job yet."} Invoices open once it can check who owns the job.`,
+      };
+    case 'collaborator':
+      return { title: 'Billing is the job owner’s', body: `${INVOICE_OWNER_ONLY_REASON} Ask the job's owner to send this invoice.` };
+    default:
+      return { title: 'You are not on this job', body: `This job is not shared with you. ${INVOICE_OWNER_ONLY_REASON}` };
+  }
+}
+
+// ─── #66: the tax on a new invoice, and where it came from ──────────
+
+export type InvoiceTaxSeed = { rate: number; source: 'invoice' | 'contract' | 'settings' | 'none' };
+
+/**
+ * A contract milestone bills the amount the contract names (deposit, draw,
+ * final) — the proposal, portal and contract all print it tax-free, so the
+ * homeowner pays exactly that and a 7-and-a-half-percent Settings default on
+ * top left the draw "partially paid" forever. So a NEW milestone invoice
+ * seeds 0% unless the contract itself states a rate. Every other new invoice
+ * seeds the Settings rate (0 when never set, MONEY-F3). An existing invoice
+ * keeps its own stored rate — once issued it is frozen; a draft may edit it.
+ */
+export function invoiceTaxSeed(o: {
+  existingTaxRate?: number | null;
+  isNew: boolean;
+  milestoneId?: string | null;
+  contractTaxRate?: number | null;
+  settingsTaxRate?: number | null;
+}): InvoiceTaxSeed {
+  if (!o.isNew) {
+    const r = Number(o.existingTaxRate);
+    return { rate: Number.isFinite(r) && r >= 0 ? r : 0, source: 'invoice' };
+  }
+  if (o.milestoneId) {
+    const c = Number(o.contractTaxRate);
+    if (o.contractTaxRate != null && Number.isFinite(c) && c > 0) return { rate: c, source: 'contract' };
+    return { rate: 0, source: 'none' };
+  }
+  const s = Number(o.settingsTaxRate);
+  return { rate: Number.isFinite(s) && s > 0 ? s : 0, source: 'settings' };
+}
+
+/** The line beside the tax rate saying where it came from (#66). */
+export function invoiceTaxSourceLabel(seed: InvoiceTaxSeed, touched: boolean): string {
+  if (touched) return 'set on this invoice';
+  switch (seed.source) {
+    case 'contract': return `${seed.rate}% — per contract`;
+    case 'none': return 'none — per contract (milestone billed as agreed)';
+    case 'settings': return seed.rate > 0 ? `from Settings (${seed.rate}%)` : 'none — no tax rate in Settings';
+    default: return 'saved on this invoice';
+  }
 }
 
 /**

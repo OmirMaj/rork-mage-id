@@ -31,6 +31,7 @@ import { punchListTypeOf } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
 import { documentTypeInfo } from '@/mocks/documents';
 import { loadActiveContract } from '@/utils/contractEngine';
+import { downloadSealedContractPdf } from '@/utils/contractSealing';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import type { ProjectDocument } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
@@ -439,6 +440,24 @@ export default function ClientViewScreen() {
     return out;
   }, [project, isSnapshotMode, hydrated, contractQ.data, closeoutQ.data, warranties]);
 
+  // #70: the sealed contract's fileUrl is signed_pdf_url — a PRIVATE
+  // secure-contracts storage path, not a URL, so Linking.openURL on it opened
+  // nothing. It goes through the same signed-URL helper the contract screen's
+  // "Download signed PDF" uses (utils/contractSealing), keyed by the GC's own
+  // folder (contract.userId). Everything else keeps opening its URL.
+  const openDocument = useCallback(async (doc: ProjectDocument) => {
+    const contract = contractQ.data;
+    if (contract && doc.id === contract.id && contract.signedPdfUrl) {
+      try {
+        await downloadSealedContractPdf({ contract, userId: contract.userId, supabase });
+      } catch (err) {
+        showAlert('Couldn’t open the signed PDF', err instanceof Error ? err.message : 'Try again from the contract screen.');
+      }
+      return;
+    }
+    if (doc.fileUrl) void Linking.openURL(doc.fileUrl);
+  }, [contractQ.data]);
+
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     messages: true, proposal: true, schedule: true, budget: true, invoices: true, changeOrders: false,
     photos: true, dailyReports: false, punchList: false, rfis: false, documents: false,
@@ -785,6 +804,14 @@ export default function ClientViewScreen() {
             consent_version: ESIGN_DISCLOSURE_VERSION,
             consent_accepted: approvalMode === 'approve' ? esignConsent : true,
             sealed_at: now,
+            // The send this decision answers — portal_co_send_stamp's exact
+            // text ("<sentVersion>@<sentAt>", 'unsent' with no portal_state).
+            // Stamped, the portal RPCs match it by equality; unstamped, the
+            // server fell back to comparing created_at with the GC device's
+            // sentAt clock (20260920060000). Needs that migration's column.
+            send_stamp: approvalCO.portalState
+              ? `${approvalCO.portalState.sentVersion ?? 0}@${approvalCO.portalState.sentAt ?? ''}`
+              : 'unsent',
           });
         if (insertError) throw insertError;
         serverPersisted = true;
@@ -1787,7 +1814,7 @@ export default function ClientViewScreen() {
                         key={doc.id}
                         style={styles.listRow}
                         activeOpacity={0.7}
-                        onPress={() => { void Linking.openURL(doc.fileUrl!); }}
+                        onPress={() => { void openDocument(doc); }}
                         accessibilityRole="button"
                         accessibilityLabel={`Open ${doc.title}`}
                       >

@@ -45,7 +45,7 @@ import { rateLimitCount } from '../_shared/auth.ts';
 // Only what the portal already shows, and nothing after handover — see the
 // header of clientVisible.ts (audit 2026-09-18 #18 and #23).
 import {
-  clientVisibleWeek, planHomeownerDigest, type PortalStateLike, type PortalSectionToggles,
+  clientVisibleWeek, planHomeownerDigest, digestPortalGate, type PortalStateLike, type PortalSectionToggles,
 } from './clientVisible.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -513,6 +513,10 @@ async function sendForProject(
   isPreview: boolean,
 ): Promise<{ sent: number; errors: string[] }> {
   const portal = project.client_portal;
+  // #134: Disable Portal revoked client access — nothing goes out, cron or
+  // preview, before any read or AI call.
+  const disabled = digestPortalGate(portal);
+  if (disabled) return { sent: 0, errors: [disabled] };
   const invites = (portal?.invites ?? []).filter(i => (i.email ?? '').includes('@'));
   if (invites.length === 0) return { sent: 0, errors: ['no_invites'] };
 
@@ -747,7 +751,12 @@ Deno.serve(async (req: Request) => {
       console.warn('[homeowner-weekly-digest] projects query failed', projectsRes.error);
       return jsonResponse({ success: false, error: 'projects_query_failed' }, 500);
     }
-    const projects = (projectsRes.data ?? []) as ProjectRow[];
+    // #134: a disabled portal is dropped here, before profiles or any per-
+    // project read. (Filtered in code, not with a PostgREST `.or()` on the
+    // jsonb path: `->>enabled <> 'false'` is NULL — and so excluded — for
+    // every legacy row that has no flag, and a malformed filter would 400
+    // the whole run. sendForProject re-checks.)
+    const projects = ((projectsRes.data ?? []) as ProjectRow[]).filter(p => !digestPortalGate(p.client_portal));
 
     // Bulk-fetch profiles for all the user_ids we'll touch.
     const ownerIds = Array.from(new Set(projects.map(p => p.user_id).filter(Boolean)));

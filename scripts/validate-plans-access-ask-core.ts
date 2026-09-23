@@ -74,7 +74,12 @@ console.log('\n#73 the plan screens open for the job, not only for the tier');
   ok('an editor may import and compare', planControlBlock('editor', 'import') === null && planControlBlock('editor', 'compare') === null);
   ok('only the owner deletes a sheet', planControlBlock('editor', 'delete') !== null && planControlBlock('owner', 'delete') === null);
   ok('field cannot start a room estimate', !!planControlBlock('field', 'estimate'));
-  ok('only the owner builds the Ask index', !!planControlBlock('editor', 'index') && planControlBlock('owner', 'index') === null);
+  // wave 4 #114: the server lets an editor index (planScope mayWritePlanIndex);
+  // viewer and field seats stay refused, in the server's own words.
+  ok('the owner or an editor builds the Ask index; viewer / field do not',
+    planControlBlock('editor', 'index') === null && planControlBlock('owner', 'index') === null
+    && !!planControlBlock('viewer', 'index') && !!planControlBlock('field', 'index')
+    && /owner or an editor indexes/.test(planControlBlock('field', 'index') ?? ''));
   ok('an unresolved role is refused as "checking", not waved through', /Checking/.test(planControlBlock(null, 'import') ?? ''));
   // Round 2: a null role is refused with the sentence true for WHY it is null.
   ok('a FAILED role read says so and points at Try again (not "checking")',
@@ -99,11 +104,11 @@ console.log('\n#73 the plan screens open for the job, not only for the tier');
   ok('Plans honours the loading / error / no-access states',
     /gate === 'loading'/.test(plans) && /onRetry=\{roleState\.refetch\}/.test(plans) && /don&apos;t have access to this project/.test(plans));
   ok('Plans import / delete / compare / estimate say why for this seat',
-    /if \(importBlock\) \{ showAlert/.test(plans) && /if \(deleteBlock\) \{ showAlert/.test(plans)
+    /if \(importBlock\) \{ showAlert/.test(plans) && /const block = deleteBlockFor\(sheet\);\s*if \(block\) \{ showAlert/.test(plans)
     && /if \(compareBlock\) \{ showAlert/.test(plans) && /if \(estimateBlock\) \{ showAlert/.test(plans));
   ok('Plans\' controls act on the owner-aware role and the read\'s status, with a Try again',
     /const seatRole = effectivePlanRole\(role, project, authUser\?\.id\);/.test(plans)
-    && /planControlBlock\(seatRole, 'delete', roleStatus\)/.test(plans)
+    && /sheetDeleteBlock\(seatRole, sheet, authUser\?\.id, roleStatus\)/.test(plans)
     && /seatRole === null && roleState\.isError \?/.test(plans) && /plans-role-banner-retry/.test(plans));
   // Round 2: the Ask sheet must not sit under the iOS keyboard.
   const askModal = plans.slice(plans.indexOf('<Modal visible={askOpen}'), plans.indexOf('</Modal>', plans.indexOf('<Modal visible={askOpen}')));
@@ -190,13 +195,15 @@ console.log('\n#77 / #164 a pin RFI says where, attaches the sheet, and is due i
   const pv = code('app/plan-viewer.tsx');
   const raise = pv.slice(pv.indexOf('const handleRaiseRfi'), pv.indexOf('const openLinkedRfi'));
   ok('the viewer raises pin RFIs through rfiFromPin with the sheet and photo',
-    /addRFI\(rfiFromPin\(/.test(raise) && /sheetImageUri: attachableSheetUri\(sheet\.imageUri\)/.test(raise) && /photo: linkedPhoto\?\.uri/.test(raise));
+    /addRFI\(rfiFromPin\(/.test(raise) && /sheetImageUri: sheetAttachmentFor\(sheet\)/.test(raise) && /photo: linkedPhoto\?\.uri/.test(raise));
   ok('#164: no 14 × 86_400_000 instant is written as a due date', !/86_400_000\)\.toISOString\(\)/.test(pv));
   const cd = code('app/compare-drawings.tsx');
   ok('Compare passes both drawings to the RFI',
     /rfiFromCandidate\(candidate, oldSheet, newPageLabel, new Date\(\), \{ newSheet: pairNew, sheetImages: comparedSheetImages \}\)/.test(cd)
     && /rfiFromChange\(change, oldSheet, newPageLabel, new Date\(\), \{ newSheet: pairNew, sheetImages: comparedSheetImages \}\)/.test(cd)
-    && /\[oldSheet\?\.imageUri, pairNew \? pairNew\.imageUri : newPageUrl\]/.test(cd));
+    // wave 4 #113: the DURABLE keys, never the signed urls the screen draws.
+    && /oldSheet \? sheetAttachmentFor\(oldSheet\) : ''/.test(cd)
+    && /pairNew \? sheetAttachmentFor\(pairNew\) : \(attachableSheetUri\(newPagePath\) \|\| newPageUrl\)/.test(cd));
 
   // The architect page: run its attachment filter, don't grep it.
   const html = read('marketing/architect/index.html');
@@ -213,7 +220,7 @@ console.log('\n#77 / #164 a pin RFI says where, attaches the sheet, and is due i
   ok('an unviewable attachment is still counted, pointing to the email', /1 more attachment was sent with the original email/.test(block([signed, 'file:///a.jpg'])));
   ok('with no tile, the count alone (no "more")', /^<div class="att-note">2 attachments were sent with the original email\.<\/div>$/.test(block(['file:///a.jpg', 'x'])));
   const rfiCard = html.slice(html.indexOf('function renderRFI'), html.indexOf('function', html.indexOf('function renderRFI') + 20));
-  ok('the RFI card renders the block and no second attachment count', /attachmentBlock\(rfi\.attachments(, rfi\.pin_marks)?\)/.test(rfiCard)
+  ok('the RFI card renders the block and no second attachment count', /attachmentBlock\(rfi\.attachments(, rfi\.pin_marks)?(, signedSheets)?\)/.test(rfiCard)
     && !/included with the original/.test(rfiCard) && !/attCount/.test(rfiCard));
 }
 

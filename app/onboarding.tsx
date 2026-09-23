@@ -145,9 +145,25 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
-    completeOnboarding, settings, updateSettings,
+    completeOnboarding, settings, updateSettings, hasSeenOnboarding,
     addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder,
   } = useProjects();
+
+  // #109: a user who has ALREADY finished first-run never belongs here. The
+  // root gate only ever routes TO /onboarding, never off it, so any stray
+  // navigation (Sign up with Apple/Google handing back an existing account
+  // used to land here explicitly) sat a contractor with live jobs on the
+  // first-run splash — whose sample-tour button can add a sample project to
+  // his real account, and whose company-name step overwrites his branding.
+  // Decided ONCE, on the first known value (null = still loading): the tour
+  // and the first-bid path set hasSeenOnboarding=true mid-flow and navigate
+  // themselves, and a guard that reacted to that flip would race them.
+  const firstKnownOnboardingRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (hasSeenOnboarding === null || firstKnownOnboardingRef.current !== null) return;
+    firstKnownOnboardingRef.current = hasSeenOnboarding;
+    if (hasSeenOnboarding === true) router.replace('/(tabs)/(home)' as never);
+  }, [hasSeenOnboarding, router]);
   const { addSeeds } = useCostSeeds();
   const { colors: themeColors } = useTheme();
 

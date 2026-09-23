@@ -24,7 +24,7 @@ import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-rou
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import {
   ChevronLeft, ChevronRight, MapPin, Pencil, Eraser, Camera, ClipboardList, X, Check,
-  Trash2, Undo2, Image as ImageIcon, Ruler, FileText, AlertTriangle, ArrowRight,
+  Trash2, Undo2, Image as ImageIcon, Ruler, FileText, AlertTriangle, ArrowRight, Link2,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -39,7 +39,7 @@ import { useProjectRoleState } from '@/hooks/useProjectRole';
 import Paywall from '@/components/Paywall';
 import { Button } from '@/components/ui';
 import { useLocalPlanSheetUri } from '@/utils/planSheetLocalFiles';
-import type { DrawingPin, DrawingPinKind, PunchItem, PunchItemStatus } from '@/types';
+import type { DrawingPin, DrawingPinKind, PunchItem, PunchItemStatus, RFI } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -47,7 +47,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { planRevisionStatus, staleBannerCopy } from '@/utils/planRevisionCore';
 import {
-  planRenumber, planScreenGate, planControlBlock, effectivePlanRole, rfiFromPin, attachableSheetUri,
+  planRenumber, planScreenGate, planControlBlock, effectivePlanRole, rfiFromPin, sheetAttachmentFor, attachmentsHaveSheet,
   type SheetPatch, type PlanRole, type PlanGate,
 } from '@/utils/plans/revisionActions';
 import { containImageRect, imageLoadAspectRatio, planViewerImageRatio } from '@/utils/punchPlanPin';
@@ -180,7 +180,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
     getMarkupsForPlan, addPlanMarkup, deletePlanMarkup,
     getPhotosForProject, getPunchItemsForProject, addProjectPhoto, addPunchItem,
     upsertPlanCalibration, getCalibrationForPlan,
-    addRFI, getRFIsForProject, getProject, refetchPlansFromServer,
+    addRFI, updateRFI, getRFIsForProject, getProject, refetchPlansFromServer, drawingPins,
   } = useProjects();
   // #74: re-read the plans (a newer revision, a pin the office moved) each
   // time the viewer comes into focus. No pull-to-refresh here — the canvas is
@@ -406,7 +406,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
       { x: selectedPin.x, y: selectedPin.y, label: selectedPin.label },
       new Date(),
       {
-        sheetImageUri: attachableSheetUri(sheet.imageUri),
+        // #93/#94: the durable key (storagePath, or the key recovered from the
+        // cached value) — offline the cached imageUri is a bare key and the
+        // old https-only rule dropped the sheet; a signed URL died in 24 h.
+        sheetImageUri: sheetAttachmentFor(sheet),
         photo: linkedPhoto?.uri ? { id: linkedPhoto.id, uri: linkedPhoto.uri } : null,
       },
     ));
@@ -415,6 +418,38 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
     setSelectedPinId(null);
     router.push({ pathname: '/rfi' as never, params: { projectId: sheet.projectId, rfiId: rfi.id } as never });
   }, [sheet, selectedPin, projectPhotos, addRFI, updateDrawingPin, router]);
+
+  // #95: RFIs this pin may link to — open (not closed/void) and not already on
+  // any pin, so one question never ends up with two pins or two RFIs.
+  const linkableRfis = useMemo(() => {
+    if (!sheet) return [];
+    const pinned = new Set(drawingPins.map(p => p.linkedRfiId).filter(Boolean));
+    return getRFIsForProject(sheet.projectId)
+      .filter(r => r.status !== 'closed' && r.status !== 'void' && !pinned.has(r.id))
+      .map(r => ({ id: r.id, subject: r.subject, number: r.number }));
+  }, [sheet, drawingPins, getRFIsForProject]);
+
+  // #95: an RFI raised elsewhere (a marked-up photo, the RFI screen) could never
+  // be put on the plan — the only RFI action here created a SECOND RFI. Link
+  // the existing one instead: the pin gets linkedRfiId (queued pin write), and
+  // an RFI not yet sent gets the sheet attached the way a pin-born RFI does. A
+  // sent one is not rewritten — app/rfi.tsx adds the pinned sheet on the next send.
+  const handleLinkRfi = useCallback((rfiId: string) => {
+    if (!sheet || !selectedPin) return;
+    updateDrawingPin(selectedPin.id, { linkedRfiId: rfiId, kind: 'rfi' });
+    const rfi = getRFIsForProject(sheet.projectId).find(r => r.id === rfiId);
+    const sheetValue = sheetAttachmentFor(sheet);
+    if (rfi) {
+      const sent = (rfi.handoffs ?? []).some(h => h.toParty === 'architect');
+      const updates: Partial<RFI> = {};
+      if (!sent && sheetValue && !attachmentsHaveSheet(rfi.attachments ?? [], sheetValue)) {
+        updates.attachments = [...(rfi.attachments ?? []), sheetValue];
+      }
+      if (!(rfi.linkedDrawing ?? '').trim()) updates.linkedDrawing = (sheet.sheetNumber ?? '').trim() || sheet.name;
+      if (Object.keys(updates).length > 0) updateRFI(rfi.id, updates);
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [sheet, selectedPin, getRFIsForProject, updateDrawingPin, updateRFI]);
 
   const openLinkedRfi = useCallback(() => {
     if (!sheet || !linkedRfi) return;
@@ -1064,8 +1099,10 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         photos={projectPhotos}
         punchItems={projectPunch}
         linkedRfi={linkedRfi}
+        linkableRfis={linkableRfis}
         readOnlyReason={markupBlock}
         onRaiseRfi={() => { if (refuseMarkup()) return; handleRaiseRfi(); }}
+        onLinkRfi={(id) => { if (refuseMarkup()) return; handleLinkRfi(id); }}
         onOpenRfi={openLinkedRfi}
         onCreatePunch={(d) => { if (refuseMarkup()) return; handleCreatePunchFromPin(d); }}
         onClose={() => setSelectedPinId(null)}
@@ -1192,14 +1229,16 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
 // Pin detail / edit
 
 function PinDetailModal({
-  pin, projectId, photos, punchItems, linkedRfi, readOnlyReason,
-  onClose, onUpdate, onDelete, onAddPhoto, onRaiseRfi, onOpenRfi, onCreatePunch,
+  pin, projectId, photos, punchItems, linkedRfi, linkableRfis, readOnlyReason,
+  onClose, onUpdate, onDelete, onAddPhoto, onRaiseRfi, onLinkRfi, onOpenRfi, onCreatePunch,
 }: {
   pin: DrawingPin | null;
   projectId: string;
   photos: { id: string; uri: string; tag?: string }[];
   punchItems: { id: string; description: string; location?: string; status: string }[];
   linkedRfi: { id: string; number: number; subject: string } | null;
+  /** #95: open RFIs on this project no pin carries yet. */
+  linkableRfis: { id: string; number: number; subject: string }[];
   /** Set for a seat that may not write pins (viewer): shown, and the label is read-only. */
   readOnlyReason?: string | null;
   onClose: () => void;
@@ -1207,13 +1246,14 @@ function PinDetailModal({
   onDelete: () => void;
   onAddPhoto: () => void;
   onRaiseRfi: () => void;
+  onLinkRfi: (rfiId: string) => void;
   onOpenRfi: () => void;
   onCreatePunch: (description: string) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [draftLabel, setDraftLabel] = useState<string>('');
-  const [view, setView] = useState<'main' | 'photo' | 'punch'>('main');
+  const [view, setView] = useState<'main' | 'photo' | 'punch' | 'rfi'>('main');
 
   React.useEffect(() => {
     if (pin) { setDraftLabel(pin.label ?? ''); setView('main'); }
@@ -1238,7 +1278,7 @@ function PinDetailModal({
                 <MapPin size={12} color={themeColors.surface} strokeWidth={1.75} />
               </View>
               <Text style={styles.modalTitle}>
-                {view === 'main' ? 'Pin' : view === 'photo' ? 'Link a photo' : 'Link a punch item'}
+                {view === 'main' ? 'Pin' : view === 'photo' ? 'Link a photo' : view === 'rfi' ? 'Link an existing RFI' : 'Link a punch item'}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -1300,11 +1340,24 @@ function PinDetailModal({
                   <ChevronRight size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.rfiBtn} onPress={onRaiseRfi} activeOpacity={0.85} testID="pin-raise-rfi">
-                  <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.rfiBtnText}>Raise RFI from this location</Text>
-                  <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity style={styles.rfiBtn} onPress={onRaiseRfi} activeOpacity={0.85} accessibilityRole="button" testID="pin-raise-rfi">
+                    <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.rfiBtnText}>Raise RFI from this location</Text>
+                    <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                  {/* #95: an RFI raised from a photo or the RFI screen goes on
+                      the plan HERE, instead of a second RFI for one question. */}
+                  <TouchableOpacity style={styles.linkedRow} onPress={() => setView('rfi')} activeOpacity={0.8} accessibilityRole="button" testID="pin-link-existing-rfi">
+                    <Link2 size={14} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.linkedText} numberOfLines={1}>
+                      {linkableRfis.length > 0
+                        ? `Link an existing RFI (${linkableRfis.length} open)`
+                        : 'Link an existing RFI \u2014 none open without a pin'}
+                    </Text>
+                    <ChevronRight size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                </>
               )}
 
               {linkedPhoto && (
@@ -1346,6 +1399,14 @@ function PinDetailModal({
             />
           )}
 
+          {view === 'rfi' && (
+            <RfiPicker
+              items={linkableRfis}
+              onPick={(id) => { onLinkRfi(id); setView('main'); }}
+              onBack={() => setView('main')}
+            />
+          )}
+
           {view === 'punch' && (
             <PunchPicker
               items={punchItems}
@@ -1368,7 +1429,7 @@ function PhotoPicker({ photos, onPick, onBack }: {
   const styles = useThemedStyles(makeStyles);
   return (
     <View>
-      <TouchableOpacity onPress={onBack} style={styles.backLink}>
+      <TouchableOpacity onPress={onBack} style={styles.backLink} accessibilityRole="button">
         <ChevronLeft size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.backLinkText}>Back</Text>
       </TouchableOpacity>
@@ -1387,6 +1448,42 @@ function PhotoPicker({ photos, onPick, onBack }: {
   );
 }
 
+/** #95: open RFIs no pin carries yet. Shown without a number: the list's
+ *  number is this device's copy, and the RFI screen shows the confirmed one. */
+function RfiPicker({ items, onPick, onBack }: {
+  items: { id: string; subject: string }[];
+  onPick: (id: string) => void;
+  onBack: () => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View>
+      <TouchableOpacity onPress={onBack} style={styles.backLink} accessibilityRole="button">
+        <ChevronLeft size={14} color={themeColors.accent} strokeWidth={1.75} />
+        <Text style={styles.backLinkText}>Back</Text>
+      </TouchableOpacity>
+      {items.length === 0 ? (
+        <Text style={styles.emptyHint} testID="pin-rfi-picker-empty">
+          No open RFIs to link {'\u2014'} every open RFI on this project is already on a pin, or there are none. Use {'\u201C'}Raise RFI from this location{'\u201D'} instead.
+        </Text>
+      ) : (
+        <ScrollView style={{ maxHeight: 260 }}>
+          {items.map(r => (
+            <TouchableOpacity key={r.id} onPress={() => onPick(r.id)} style={styles.punchRow} accessibilityRole="button" testID={`pin-rfi-pick-${r.id}`}>
+              <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.punchRowTitle} numberOfLines={2}>{r.subject || 'Untitled RFI'}</Text>
+              </View>
+              <Check size={14} color={themeColors.accent} strokeWidth={1.75} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 function PunchPicker({ items, onPick, onBack }: {
   items: { id: string; description: string; location?: string; status: string }[];
   onPick: (id: string) => void;
@@ -1397,7 +1494,7 @@ function PunchPicker({ items, onPick, onBack }: {
   const open = items.filter(i => i.status !== 'closed');
   return (
     <View>
-      <TouchableOpacity onPress={onBack} style={styles.backLink}>
+      <TouchableOpacity onPress={onBack} style={styles.backLink} accessibilityRole="button">
         <ChevronLeft size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.backLinkText}>Back</Text>
       </TouchableOpacity>

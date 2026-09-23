@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Megaphone, Plus, X, Trash2, PenLine, CheckCircle, Users, ChevronLeft, Lock, Mic, AlertTriangle, UserPlus,
 } from 'lucide-react-native';
-import { useCrew } from '@/contexts/CrewContext';
+import { useCrew, useProjectCrew } from '@/contexts/CrewContext';
 import { prefillAttendeesFromCrew } from '@/utils/safety/toolboxRoster';
 import { certFlagsForWorker, lapsedCertConfirmText } from '@/utils/safety/crewCerts';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -28,6 +28,10 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+import { savedCrewLine } from '@/utils/timeClockPayroll';
+import {
+  crewCardCheck, crewEmptyTitle, crewListNote, CREW_CARDS_LOADING, CREW_CARDS_UNAVAILABLE,
+} from '@/utils/safety/safetyRefresh';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay } from '@/utils/calendarDate';
@@ -62,11 +66,24 @@ function SafetyToolboxInner() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
   const seat = useSafetySeat(projectId);
-  const { getToolboxTalksForProject, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk, certifications } = useSafety();
+  const { getToolboxTalksForProject, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk, certifications: ownCertifications } = useSafety();
   // Read-only: who is assigned to this job (CrewMember.projectIds, written by
   // app/crew.tsx). Pre-fills the sign-in sheet — audit round 2 #5b.
   const { getCrewForProject } = useCrew();
-  const assignedCrew = useMemo(() => getCrewForProject(projectId ?? ''), [getCrewForProject, projectId]);
+  // Audit #120: on a crew seat useCrew / useSafety are the FOREMAN's own
+  // (empty) roster and certificates, so the GC's crew never pre-filled and a
+  // lapsed card signed in unflagged. The GC's roster + card dates come from
+  // useProjectCrew (the split Time Tracking uses). Only a roster row carries
+  // the crew id (subId) the card check joins on; a typed name has none.
+  const isCrewSeat = seat === 'crew';
+  const projectCrew = useProjectCrew(projectId, isCrewSeat);
+  const assignedCrew = useMemo(
+    () => (isCrewSeat ? projectCrew.crew : getCrewForProject(projectId ?? '')),
+    [isCrewSeat, projectCrew.crew, getCrewForProject, projectId],
+  );
+  const certifications = isCrewSeat ? projectCrew.certifications : ownCertifications;
+  // A failed or still-running read is "unknown", never "every card valid".
+  const cardCheck = crewCardCheck({ isCrewSeat, isLoading: projectCrew.isLoading, fetchedAt: projectCrew.fetchedAt });
   const today = useMemo(() => todayCalendarDay(), []);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -242,6 +259,11 @@ function SafetyToolboxInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Toolbox Talks — ${project.name}` }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+        {/* Audit #121: an invited crew seat reads only the talks he filed
+            (20260919130000); the GC's are not shown to him. */}
+        {isCrewSeat ? (
+          <Text style={styles.collabNote} testID="toolbox-collab-note">{crewListNote('toolbox')}</Text>
+        ) : null}
         {items.map(item => {
           const signed = item.attendees.filter(a => a.signedAt).length;
           return (
@@ -281,7 +303,7 @@ function SafetyToolboxInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<Megaphone size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No toolbox talks yet"
+              title={isCrewSeat ? crewEmptyTitle('toolbox') : 'No toolbox talks yet'}
               message="Log the pre-shift safety huddle: the topic, who presented, and who signed in. Keep a paper trail crews and inspectors can trust."
               actionLabel="Add first talk"
               onAction={openNew}
@@ -364,6 +386,19 @@ function SafetyToolboxInner() {
                     </TouchableOpacity>
                   ) : null}
                 </View>
+                {cardCheck === 'loading' || cardCheck === 'unavailable' ? (
+                  <View style={styles.cardCheckRow} testID="toolbox-card-check">
+                    <AlertTriangle size={12} color={themeColors.accentLabel} strokeWidth={2} />
+                    <Text style={styles.cardCheckText}>{cardCheck === 'loading' ? CREW_CARDS_LOADING : CREW_CARDS_UNAVAILABLE}</Text>
+                    {cardCheck === 'unavailable' ? (
+                      <TouchableOpacity onPress={projectCrew.refetch} accessibilityRole="button" hitSlop={8} testID="toolbox-card-check-retry">
+                        <Text style={styles.cardCheckRetry}>Retry</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : isCrewSeat && projectCrew.fromCache && projectCrew.fetchedAt ? (
+                  <Text style={styles.hintText}>{savedCrewLine(projectCrew.fetchedAt, projectCrew.offline || projectCrew.isPaused)}</Text>
+                ) : null}
                 {!editingTalk && assignedCrew.length > 0 ? (
                   <Text style={styles.hintText}>
                     Listed from the crew assigned to this project. Remove anyone who isn&apos;t here, then have each person sign.
@@ -467,6 +502,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   crewAddBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '12' },
   crewAddText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   hintText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
+  collabNote: { marginHorizontal: 20, marginTop: 12, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 19 },
+  cardCheckRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, flexWrap: 'wrap' as const, marginTop: 4 },
+  cardCheckText: { flexShrink: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16 },
+  cardCheckRetry: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   certChip: { flexDirection: 'row' as const, alignItems: 'center' as const, alignSelf: 'flex-start' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accentSoft },
   certChipExpired: { backgroundColor: themeColors.dangerSoft },
   certChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },

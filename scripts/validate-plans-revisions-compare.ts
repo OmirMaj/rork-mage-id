@@ -201,9 +201,10 @@ async function main() {
   ok('the render is dropped after a successful compare', run.indexOf('renderCache.current = null') > run.indexOf('recordAIUsage('));
 
   console.log('\n#166 a created RFI opens; every change can raise one');
-  ok('rfiByIndex keeps the id', /Record<number, \{ id: string; number: number \}>/.test(cd) && /\[index\]: \{ id: rfi\.id, number: rfi\.number \}/.test(cd));
+  // wave 4 #116: the id ONLY — a stored local number is what went stale.
+  ok('rfiByIndex keeps the id (and no local number)', /Record<number, \{ id: string \}>/.test(cd) && /\[index\]: \{ id: rfi\.id \}/.test(cd) && !/number: rfi\.number/.test(cd));
   ok('the done row opens /rfi with the id', /pathname: '\/rfi' as never, params: \{ projectId: project\.id, rfiId \}/.test(cd) && /openRfi\(rfiByIndex\[i\]\.id\)/.test(cd));
-  ok('it says what is left to do', /Open RFI #\{rfiByIndex\[i\]\.number\} to assign and send/.test(cd));
+  ok('it says what is left to do', /Open it to assign and send/.test(cd) && /Open \$\{label\} to assign and send/.test(cd));
   ok('each change has Raise RFI, via rfiFromChange', /handleRaiseChangeRfi\(i\)/.test(cd) && /rfiFromChange\(change, oldSheet, newPageLabel, new Date\(\), \{ newSheet: pairNew(, sheetImages: comparedSheetImages)? \}\)/.test(cd));
   ok('Done counts a change RFI as saved', /Object\.keys\(changeRfi\)\.length > 0/.test(callbackBody(cd, 'handleDone')));
   const cr = rfiFromChange({ type: 'modified', location: 'grid C/4', description: 'Door 104 widened to 3\'-6"' }, rev3, 'ASI.pdf', new Date(2026, 2, 2, 12));

@@ -13,9 +13,10 @@
 // composition is executed by scripts/validate-invoice-send-integrity.ts rather
 // than argued.
 
-import type { Invoice } from '@/types';
+import type { Invoice, InvoiceStatus } from '@/types';
 import { shouldFlipInvoiceToPaid } from '@/utils/projectContextPure';
 import { dueDateForTerms } from '@/utils/retainage';
+import { netBalanceDue, roundCents } from '@/utils/invoiceBilling';
 
 /**
  * Apply `updates` to invoice `id` in `list`. `prev` is the row before the edit
@@ -94,15 +95,19 @@ export function invoiceUpdatePayload(
   if ('dueDate' in updates && inv.dueDate) payload.due_date = inv.dueDate;
   if ('paymentTerms' in updates) payload.payment_terms = inv.paymentTerms ?? null;
   if ('progressPercent' in updates) payload.progress_percent = inv.progressPercent ?? null;
-  // Only write the webhook-owned reconciliation columns when this edit
-  // changed a payment field (or explicitly set status).
-  if ('amountPaid' in updates || 'payments' in updates) {
-    payload.amount_paid = inv.amountPaid;
-    payload.payments = inv.payments;
-    payload.status = inv.status;
-  } else if ('status' in updates) {
-    payload.status = inv.status;
-  }
+  // THE LEDGER IS NEVER WRITTEN FROM HERE (wave 4, #80 BLOCKER). amount_paid
+  // and payments used to be sent whole from the device's copy, and the offline
+  // queue replayed that UPDATE verbatim: a phone that had not seen the client's
+  // $20,000 Pay-link payment recorded a $300 check and, on reconnect, wrote
+  // [check] over the server's ledger — the Stripe entry, its PaymentIntent and
+  // the $20,000 gone. A payment is now ONE entry appended on the server under a
+  // row lock (invoice_append_payment, via ProjectContext.recordInvoicePayment),
+  // which recomputes amount_paid and status from the ledger itself.
+  // A status riding along with a payment field is dropped too: it was computed
+  // from the same stale balance. (The server's invoices_ledger_guard enforces
+  // all of this for writes queued by older builds.)
+  const touchesLedger = 'amountPaid' in updates || 'payments' in updates;
+  if ('status' in updates && !touchesLedger) payload.status = inv.status;
   // Retention (cloud-backed as of the 20260713 migration). Use ?? null,
   // NOT bare undefined: a cleared value must reach the DB as null, or
   // the omitted key leaves the old one in place on the next refetch.
@@ -126,6 +131,70 @@ export function invoiceUpdatePayload(
     payload.dunning_last_sent_at = inv.dunningLastSentAt ?? null;
   }
   return payload;
+}
+
+/**
+ * The invoice columns the server's answer is judged on after a recorded
+ * payment (what commitPayment reads back once invoice_append_payment landed).
+ */
+export interface ServerInvoiceSettlement {
+  total_due: number | string | null;
+  amount_paid: number | string | null;
+  subtotal: number | string | null;
+  retention_percent: number | string | null;
+  retention_amount: number | string | null;
+  retention_released: number | string | null;
+  status: string | null;
+  pay_pending_at?: string | null;
+}
+
+export interface RecordedPaymentFollowUp {
+  /** False only for 'failed': nothing was written and nothing may say it was. */
+  recorded: boolean;
+  /** The status to report: the server's when it answered, else the local guess. */
+  status: InvoiceStatus;
+  /** Re-mint the pay link for this amount (the SERVER's balance), or null = don't. */
+  remintFor: number | null;
+  /** The server's collectible balance, when it was read. */
+  serverBalance: number | null;
+}
+
+const toNum = (v: number | string | null | undefined): number => {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * What commitPayment does once recordInvoicePayment resolves (#80). The pay
+ * link re-mint used to be computed from the device's balance — stale in exactly
+ * the case this blocker is about — so it is now computed from the server's row,
+ * read after the append landed:
+ *  - 'failed'  → not recorded; no mint.
+ *  - 'queued'  → recorded on this phone only; the server's balance has not
+ *                moved, so there is nothing true to re-mint for — skip it.
+ *  - 'synced'  → re-mint for the server's net balance when a link existed and
+ *                money is still owed, never while a bank payment is processing
+ *                (#83: minting then invites a second payment).
+ * A server row that could not be read skips the mint rather than guessing.
+ */
+export function afterRecordedPayment(
+  outcome: 'synced' | 'queued' | 'failed',
+  server: ServerInvoiceSettlement | null,
+  ctx: { hadPayLink: boolean; localStatus: InvoiceStatus },
+): RecordedPaymentFollowUp {
+  if (outcome === 'failed') return { recorded: false, status: ctx.localStatus, remintFor: null, serverBalance: null };
+  if (outcome === 'queued' || !server) return { recorded: true, status: ctx.localStatus, remintFor: null, serverBalance: null };
+  const balance = roundCents(netBalanceDue({
+    totalDue: toNum(server.total_due),
+    amountPaid: toNum(server.amount_paid),
+    subtotal: server.subtotal == null ? undefined : toNum(server.subtotal),
+    retentionPercent: server.retention_percent == null ? undefined : toNum(server.retention_percent),
+    retentionAmount: server.retention_amount == null ? undefined : toNum(server.retention_amount),
+    retentionReleased: toNum(server.retention_released),
+  }));
+  const status = (server.status as InvoiceStatus | null) ?? ctx.localStatus;
+  const remintFor = ctx.hadPayLink && balance > 0.005 && !server.pay_pending_at ? balance : null;
+  return { recorded: true, status, remintFor, serverBalance: balance };
 }
 
 type QueueEntryLike = { table: string; operation: string; data?: Record<string, unknown> };

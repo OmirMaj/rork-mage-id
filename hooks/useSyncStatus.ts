@@ -53,8 +53,14 @@ import {
   ownFailures,
   parseFailures,
   acknowledgeSyncFailures,
+  discardUnsavedWrite,
+  humanDropReason,
+  isRetryableFailure,
+  onSyncLedgerChanged,
+  retryUnsavedWrite,
+  type SyncFailure,
 } from '@/utils/syncLedger';
-import { computeSyncStatus, type SyncStatus } from '@/utils/syncStatusCore';
+import { computeSyncStatus, unsavedLines, type SyncStatus, type UnsavedLine } from '@/utils/syncStatusCore';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -74,7 +80,27 @@ const EMPTY: SyncStatus = computeSyncStatus(
   { depths: { writes: 0, photos: 0, dictations: 0 }, failures: { count: 0, labels: [] }, readFailed: false, signedIn: false },
 );
 
+/** #1: the "not saved" sheet's rows, from this session's ledger entries. */
+function linesFrom(failures: readonly SyncFailure[]): UnsavedLine[] {
+  return unsavedLines(failures.map((f) => ({
+    id: f.id,
+    label: f.label,
+    reason: f.reason,
+    at: f.at,
+    canRetry: isRetryableFailure(f),
+    ...(f.operation ? { operation: f.operation } : {}),
+    ...(f.table && f.recordId ? { recordKey: `${f.table}:${f.recordId}` } : {}),
+  })));
+}
+
 export interface SyncStatusHandle extends SyncStatus {
+  /** One row per unsaved record, for the sheet behind a red badge. */
+  unsaved: UnsavedLine[];
+  /** Resend one record's unsaved writes (the only path that resends). */
+  retryUnsaved: (id: string) => Promise<'synced' | 'queued' | 'failed'>;
+  /** Remove one record's unsaved writes from this device's record — its row
+   *  is then dropped by the next list read. The only path that removes one. */
+  discardUnsaved: (id: string) => Promise<void>;
   /** Forget the recorded failures. An ACKNOWLEDGEMENT, not a recovery — the
    *  data is gone from the queue and the user has to re-enter it. Call sites
    *  must say so. Re-reads immediately so the badge clears at once. */
@@ -85,10 +111,12 @@ export interface SyncStatusHandle extends SyncStatus {
 
 export function useSyncStatus(): SyncStatusHandle {
   const [status, setStatus] = useState<SyncStatus>(EMPTY);
+  const [unsaved, setUnsaved] = useState<UnsavedLine[]>([]);
   const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
     let next: SyncStatus;
+    let lines: UnsavedLine[] = [];
     try {
       const userId = await currentSessionUserId();
       if (!userId) {
@@ -128,12 +156,20 @@ export function useSyncStatus(): SyncStatusHandle {
             .filter((t) => t.userId === userId && t.status === 'pending').length;
         } catch { readFailed = true; }
 
-        const failures = ownFailures(parseFailures(raw.get(SYNC_FAILURE_KEY)), userId);
+        // Internal drop phrases ("terminal error or retry exhaustion") read as
+        // plain words before they reach the badge's list or the sheet.
+        const failures = ownFailures(parseFailures(raw.get(SYNC_FAILURE_KEY)), userId)
+          .map((f) => ({ ...f, reason: humanDropReason(f.reason) }));
+        lines = linesFrom(failures);
 
         next = computeSyncStatus(
           {
             depths: { writes, photos, dictations },
-            failures: { count: failures.length, labels: failureLabels(failures) },
+            failures: {
+              count: failures.length,
+              labels: failureLabels(failures),
+              retryable: failures.filter(isRetryableFailure).length,
+            },
             readFailed,
             signedIn: true,
           },
@@ -148,11 +184,25 @@ export function useSyncStatus(): SyncStatusHandle {
         Platform.OS === 'web' ? 'web' : 'native',
       );
     }
-    if (mountedRef.current) setStatus(next);
+    if (mountedRef.current) {
+      setStatus(next);
+      setUnsaved(lines);
+    }
   }, []);
 
   const acknowledgeFailures = useCallback(async () => {
     await acknowledgeSyncFailures();
+    await refresh();
+  }, [refresh]);
+
+  const retryUnsaved = useCallback(async (id: string) => {
+    const out = await retryUnsavedWrite(id);
+    await refresh();
+    return out;
+  }, [refresh]);
+
+  const discardUnsaved = useCallback(async (id: string) => {
+    await discardUnsavedWrite(id);
     await refresh();
   }, [refresh]);
 
@@ -165,14 +215,16 @@ export function useSyncStatus(): SyncStatusHandle {
     });
     const offChanged = onQueueChanged(() => { void refresh(); });
     const offFlushed = onQueueFlushed(() => { void refresh(); });
+    const offLedger = onSyncLedgerChanged(() => { void refresh(); });
     return () => {
       mountedRef.current = false;
       clearInterval(interval);
       sub.remove();
       offChanged();
       offFlushed();
+      offLedger();
     };
   }, [refresh]);
 
-  return { ...status, acknowledgeFailures, refresh };
+  return { ...status, unsaved, acknowledgeFailures, retryUnsaved, discardUnsaved, refresh };
 }

@@ -12,7 +12,7 @@ import {
   Presentation,
   PieChart, LineChart, Coins, BellRing,
   Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap, Upload,
-  CalendarClock, Truck, Megaphone,
+  CalendarClock, Truck, Megaphone, Newspaper,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -93,6 +93,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'cost-xray',         label: 'Cost X-Ray',       icon: ScanEye,         route: '/cost-xray',                        section: 'WORKSPACE', feature: 'cost-xray' },
   // MAGE Copilot hub — the universal voice→build engine's front door.
   { key: 'copilot-hub',       label: 'MAGE Copilot',     icon: Mic,             route: '/copilot-hub',                      section: 'WORKSPACE', feature: 'copilot-hub' },
+  // Construction News — publisher-feed headlines (founder request 2026-09-22).
+  // Ungated (no `requires` in the registry row), so no tier chip.
+  { key: 'construction-news', label: 'Construction News', icon: Newspaper,      route: '/construction-news',                section: 'WORKSPACE', feature: 'construction-news' },
 
   // ── FIND WORK — marketplace / bids / suppliers
   { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK', feature: 'mage-id-bids' },

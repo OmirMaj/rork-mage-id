@@ -309,11 +309,14 @@ const ctx = read('contexts/ProjectContext.tsx');
     && loader.indexOf('const writeSeqAtRead') < loader.indexOf(".from('profiles')")
     && loader.indexOf('const rowInFlightAtRead') < loader.indexOf(".from('profiles')"));
   check('loader: a row goes through settingsAfterRead; the row is saved to the device only when it wins',
-    /settingsAfterRead\(\{\s*fromRow: s,\s*current: settingsRef\.current,\s*currentLoaded: settingsLoadedForRef\.current === ownerKey,\s*writeSeqAtStart: writeSeqAtRead,\s*writeSeqNow: settingsWriteSeqRef\.current,\s*rowWritesInFlightAtStart: rowInFlightAtRead,\s*rowWritesInFlightNow: settingsRowWritesInFlightRef\.current,\s*rowWriteQueued: rowQueued,\s*\}\)/.test(loader)
+    /settingsAfterRead\(\{\s*fromRow: s,\s*current: settingsRef\.current,\s*currentLoaded: settingsLoadedForRef\.current === ownerKey,\s*writeSeqAtStart: writeSeqAtRead,\s*writeSeqNow: settingsWriteSeqRef\.current,\s*rowWritesInFlightAtStart: rowInFlightAtRead,\s*rowWritesInFlightNow: settingsRowWritesInFlightRef\.current,\s*rowWriteQueued: rowQueued,\s*rowWriteUnsaved: rowUnsaved,\s*\}\)/.test(loader)
     && /if \(outcome\.persist\) \{\s*await saveLocal\(SETTINGS_KEY, s\);/.test(loader)
     && (loader.match(/saveLocal\(SETTINGS_KEY, s\)/g) ?? []).length === 1
     && /return handOver\(outcome\.settings\);/.test(loader)
-    && /settingsRowWritePending\(await getOfflineQueue\(\), userId\)/.test(loader));
+    // Integration round 3 (wave 4): queued OR under Not saved, queue first.
+    // Wave-4 final fix: the two kept APART — a queued save owes a re-read, a
+    // Not-saved one does not (owing one re-read the profile forever).
+    && /const rowQueue = await getOfflineQueue\(\);\s*const rowQueued = settingsRowWritePending\(rowQueue, userId\);\s*const rowUnsaved = settingsRowWritePending\(await unsavedAsQueueEntries\('profiles'\), userId\);/.test(loader));
   check('loader: every result is tagged with the write sequence it was built at',
     /const handOver = \(s: AppSettings\): AppSettings => \{\s*settingsDataSeqRef\.current\.set\(s, settingsWriteSeqRef\.current\);\s*return s;\s*\};/.test(loader)
     && (loader.replace(/const handOver = [\s\S]*?return s;\s*\};/, '').match(/\breturn\b[^;]*;/g) ?? []).every((r) => r.startsWith('return handOver(')));
@@ -546,7 +549,7 @@ console.log('\nsettings load — React Query behaviour the rules depend on');
     /if \(!input\.settingsLoaded\) return 'settings_not_loaded';/.test(lite)
     && /syncPortalSnapshotLite\(project\.id, \{[\s\S]{0,200}settingsLoaded/.test(pd)
     // data-session critic round 2: the server-read gate sits beside `project`.
-    && /\}, \[project, (?:portalListsServerRead, )?authUser\?\.id, settings, settingsLoaded,/.test(pd));
+    && /\}, \[project, (?:portalListsServerRead, )?(?:portalAiaListServerRead, )?authUser\?\.id, settings, settingsLoaded,/.test(pd));
   check('…and carries the published company / contact forward over a blank one',
     /company: snap\.company\?\.name && opts\.hasCompanyName \? snap\.company : \(prev\.company \?\? snap\.company\)/.test(lite)
     && /contactEmail: snap\.portalApi\.contactEmail \|\| prev\.portalApi\.contactEmail/.test(lite)

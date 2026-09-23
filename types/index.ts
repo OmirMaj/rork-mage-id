@@ -81,6 +81,8 @@ export interface EstimateBreakdown {
   pricePerSqFt: number;
   estimatedDuration: string;
   notes: string[];
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  quotedPaymentSplit?: PaymentSplit & { sharedAt: string };
 }
 
 export interface ProjectCollaborator {
@@ -445,6 +447,9 @@ export interface ContractSignature {
   signedAt: string;              // ISO
   signaturePaths?: string[];     // SVG paths from SignaturePad
   ipAddress?: string;            // best-effort capture for legal record
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  method?: 'portal' | 'in_person' | 'paper';
+  evidencePath?: string;
 }
 
 export interface ProjectContract {
@@ -1536,6 +1541,10 @@ export interface LinkedEstimate {
   // just before PDF/email generation. Seed/demo code must NOT set this to a
   // fabricated figure.
   bulkSavingsTotal?: number;
+  /** Wave 4 (CONTRACT 4): the payment split the shared estimate PDF printed,
+   *  stamped when it was shared. Wizard jobs carry it here (their legacy
+   *  `estimate` breakdown is null); utils/paymentTerms.quotedSplitOf reads both. */
+  quotedPaymentSplit?: PaymentSplit & { sharedAt: string };
 }
 
 export interface LinkedEstimateItem {
@@ -1619,6 +1628,8 @@ export interface ChangeOrderLineItem {
    *  line item to a CSI division instead of falling back to free-text matching
    *  on the CO description. */
   csiDivision?: string;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  priceSource?: 'ai_estimated' | 'needs_price';
 }
 
 export type ChangeOrderStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'revised' | 'void';
@@ -1713,6 +1724,8 @@ export interface ChangeOrder {
   updatedAt: string;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  revisesChangeOrderId?: string;
 }
 
 // ============================================================================
@@ -1982,6 +1995,9 @@ export interface Invoice {
    *  the first portal invitee only as a fallback (audit #47). */
   billToEmail?: string;
   billToName?: string;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  paymentPendingAt?: string;
+  paymentPendingAmount?: number;
 }
 
 // AIA G702/G703 progress pay application saved against a project. The portal
@@ -2070,6 +2086,9 @@ export interface SavedAIAPayApp {
   savedAt: string;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  paymentPendingAt?: string;
+  paymentPendingAmount?: number;
 }
 
 export interface ManpowerEntry {
@@ -2244,6 +2263,8 @@ export interface DailyFieldReport {
   updatedAt: string;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  filedByUserId?: string;
 }
 
 /**
@@ -3039,6 +3060,8 @@ export interface PunchItem {
   updatedAt: string;
   /** Cost X-Ray provenance for a field-verify task spawned from a hidden-condition scan. */
   xray?: CostXrayMeta;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  rejectedAt?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -3331,6 +3354,10 @@ export interface ProjectPhoto {
   createdAt: string;
   // Client portal send/recall lifecycle — Phase 1.
   portalState?: PortalState;
+  /** Who took it — photos.user_id, read back by the loader (wave 4 #17).
+   *  Read-only: the app never writes it from here (the insert stamps the
+   *  signed-in user). Absent on a device-made copy not yet re-read. */
+  userId?: string;
 }
 
 export interface PhotoMarkup {
@@ -3392,6 +3419,8 @@ export interface PlanSheet {
   superseded?: boolean;
   createdAt: string;
   updatedAt: string;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  userId?: string;
 }
 
 /**
@@ -4576,6 +4605,8 @@ export interface TimeEntry {
   gpsLat?: number;
   gpsLng?: number;
   date: string;
+  // wave-4 PRE-STEP: optional, additive — populated by later wave-4 lanes.
+  seenOnServerAt?: string;
 }
 
 export type DocumentType = 'lien_waiver' | 'coi' | 'contract' | 'proposal' | 'aia_billing' | 'permit' | 'other';

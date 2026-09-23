@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createAuthEventHold, holdAuthEvents, offerAuthEvent, releaseAuthEvents } from '../utils/authEventHold';
+import { signupMetadata } from '../utils/deepLinksInvite';
 
 declare const Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync(code: string): string } };
 
@@ -83,6 +84,13 @@ console.log('\n#72 signup() never touches local data for an existing address:');
         clearPhotoUploadQueue: async () => { calls.push('clearPhotoUploadQueue'); },
         clearAudioTranscribeQueue: async () => { calls.push('clearAudioTranscribeQueue'); },
         clearSyncFailures: async () => { calls.push('clearSyncFailures'); },
+        // #10 (wave 4): completeSignIn's tenant switch drops pending writes
+        // through the module-level dropPendingWrites() — the REAL one is
+        // extracted below and run against these spies.
+        AsyncStorage: { multiRemove: async (keys: string[]) => { calls.push(`multiRemove:${keys.join('|')}`); } },
+        OWNER_STAMPED_PENDING_KEYS: ['mageid_co_audit_pending'],
+        // CONTRACT 13: signup() builds its metadata with the real pure helper.
+        signupMetadata,
         readLastUser: async () => store.marker,
         writeLastUser: async (u: { id: string; email: string | null } | null) => {
           calls.push('writeLastUser');
@@ -97,7 +105,10 @@ console.log('\n#72 signup() never touches local data for an existing address:');
         __importStub: async () => { throw new Error('no email in the harness'); },
       };
       const names = Object.keys(deps);
+      const dropAt = AUTH.indexOf('async function dropPendingWrites(): Promise<void> {');
+      const dropSrc = dropAt < 0 ? '' : AUTH.slice(dropAt, AUTH.indexOf('\n}\n', dropAt) + 2);
       const body = `
+        ${dropSrc}
         const beginSignIn = ${beginSrc};
         const completeSignIn = ${completeSrc};
         const signup = ${signupSrc.replace(/await import\([^)]*\)/g, 'await __importStub()')};

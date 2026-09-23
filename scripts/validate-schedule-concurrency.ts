@@ -438,9 +438,11 @@ console.log('\nrealtime reaches the stamping base, not only the screen (integrat
   ok('diffed against the fed base: nothing blocked, only his progress is sent', d.blocked.length === 0 && d.patches.length === 1 && d.patches[0].id === 'f', JSON.stringify(d));
   ok('...and the reset copy keeps the GC\'s move', applyFieldTaskPatches(fBase, d.patches).find(x => x.id === 'd')?.startDay === 18);
 
-  const adoptFn = slice(PRO, 'const adoptServerCopy = useCallback(', '}, [livePeerProjectId, absorbServerSchedule]);');
+  // #86 (wave 4): the copy also carries its active baseline id, spread in only
+  // when the copy says (undefined = an older caller's shape, left alone).
+  const adoptFn = slice(PRO, 'const adoptServerCopy = useCallback(', '}, [livePeerProjectId, absorbServerSchedule, setActiveBaselineId]);');
   ok('every server copy the screen adopts reaches ProjectContext (with its stamp), so owner saves are stamped against it',
-    /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{ stamp: copy\.stamp, baselines: copy\.baselines \}\)/.test(adoptFn));
+    /absorbServerSchedule\(livePeerProjectId, copy\.tasks, \{\s*stamp: copy\.stamp,\s*baselines: copy\.baselines,\s*\.\.\.\(copy\.activeBaselineId !== undefined \? \{ activeBaselineId: copy\.activeBaselineId \} : \{\}\),\s*\}\)/.test(adoptFn));
   const peer = slice(PRO, 'const onPeerSchedule = useCallback(', 'useLiveSchedule(project?.id, onPeerSchedule, onLiveGap);');
   ok('a realtime echo is taken only through the gate — never merged into a save still waiting (it is busy then)',
     /takeScheduleCopy\(syncGateRef\.current, incoming, 'echo', syncBusy\(\)\)/.test(peer) && !/schedulePersist/.test(peer));
@@ -448,7 +450,7 @@ console.log('\nrealtime reaches the stamping base, not only the screen (integrat
   ok('ProjectContext.absorbServerSchedule merges with absorbServerScheduleTasks into projectsRef, locally only',
     /absorbServerScheduleTasks\(prevServer, tasks, localTasks\)/.test(abs) && /projectsRef\.current = updated;/.test(abs)
       && !/syncProjectToSupabase/.test(abs) && !/\.\.\.x, updatedAt|updatedAt: nowISO/.test(abs));
-  ok('...and is exposed on the stable actions', /absorbServerSchedule,\n    isProjectSyncUnconfirmed,\n    onProjectSyncSettled,\n  \}\), \[completeOnboarding, setUserRole, flushPendingProjectSyncs, writePortalMessage, absorbServerSchedule, isProjectSyncUnconfirmed, onProjectSyncSettled\]\);/.test(CTX));
+  ok('...and is exposed on the stable actions', /absorbServerSchedule,\n    requestPortalPublish,\n    refetchInvoicesNow,\n    countQueuedForProject,\n    countUnsavedForProject,\n    isProjectSyncUnconfirmed,\n    onProjectSyncSettled,\n  \}\), \[completeOnboarding, setUserRole, flushPendingProjectSyncs, writePortalMessage, absorbServerSchedule, requestPortalPublish, refetchInvoicesNow, countQueuedForProject, countUnsavedForProject, isProjectSyncUnconfirmed, onProjectSyncSettled\]\);/.test(CTX));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

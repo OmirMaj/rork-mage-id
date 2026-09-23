@@ -257,5 +257,23 @@ ok('anon loses EXECUTE on fire_notify; authenticated keeps it (SECURITY INVOKER 
   ok('per-GC cap matches send-email free tier (60/h), global 500/h', /const PORTAL_REPLY_HOURLY_CAP = 60;/.test(notify) && /const PORTAL_REPLY_GLOBAL_HOURLY_CAP = 500;/.test(notify));
 }
 
+// Wave 4 (#119): safety_incident_filed is raised only by its AFTER INSERT
+// trigger. A signed-in JWT (or the anon portal page) must never be able to
+// push "X filed an incident on your job" at a GC, and the payload must carry
+// no injury detail — it lands on a lock screen and in the outbox.
+{
+  const m = /SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set\(\[([\s\S]*?)\]\)/.exec(notify);
+  const members = new Set((m?.[1] ?? '').match(/'[a-z_]+'/g)?.map((x) => x.slice(1, -1)) ?? []);
+  ok('safety_incident_filed is service-only (trigger path)', members.has('safety_incident_filed') && /!isService && SERVICE_ONLY_EVENTS\.has\(event\)/.test(notify));
+  ok('anon may NOT raise safety_incident_filed', !ANON_ALLOWED_EVENTS.has('safety_incident_filed'));
+  const mig = read('supabase/migrations/20260920110000_safety_incident_realtime_notify.sql');
+  const call = /perform public\.fire_notify\(\s*'safety_incident_filed'[\s\S]*?\);/.exec(mig)?.[0] ?? '';
+  ok('the trigger payload is exactly {project_id, incident_id, author_name, severity}', call.length > 0
+    && ((/jsonb_build_object\(([\s\S]*?)\)\s*\)/.exec(call)?.[1] ?? '').match(/'[a-z_]+',\s*(NEW|v_)/g) ?? []).map((x) => x.split("'")[1]).sort().join(',') === 'author_name,incident_id,project_id,severity',
+    call);
+  ok('…with no description / people / treatment (no PHI)', !/description|people_involved|treatment|location/.test(call));
+  ok('the owner\'s own case never notifies him', /if v_owner is null or v_owner = NEW\.user_id then\s+return NEW;/.test(mig));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -9,8 +9,20 @@
 // The modal is driven from signup.tsx: on a successful `signup()` call we
 // open this instead of routing straight to /onboarding. The user's session
 // isn't valid until they click the email link (assuming Supabase's "Confirm
-// email" requirement is on) — navigation back to the app happens on the
-// `onAuthStateChange` SIGNED_IN event inside AuthProvider.
+// email" requirement is on). The confirmed session is routed by the root gate
+// in app/_layout.tsx (in the tab the link opened), and by signup.tsx's #108
+// watcher in this tab if the session is broadcast back to it.
+//
+// #131: when he signed up from an invite, one line says the invite waits for
+// him after confirming. It is true in any tab or device he confirms in: the
+// token rides the account (user_metadata.invite_token) and the root gate opens
+// the invite before the persona / onboarding questions. The project's name is
+// not known here (signup never receives it), so the line does not promise one.
+//
+// #108: `confirmedElsewhere` — he confirmed and the session reached this tab
+// from the tab the link opened, which opens the invite itself (signup.tsx's
+// watcher stands down so the invite is accepted exactly once). The modal then
+// says so instead of still asking him to check his inbox.
 // ============================================================================
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -31,6 +43,10 @@ import { Tokens } from '@/constants/designTokens';
 interface ConfirmEmailModalProps {
   visible: boolean;
   email: string;
+  /** He signed up from a collaboration invite (#131). */
+  inviteWaiting?: boolean;
+  /** #108: confirmed; the invite opened in the tab the confirmation link opened. */
+  confirmedElsewhere?: boolean;
   onClose: () => void;
   onChangeEmail?: () => void;
 }
@@ -38,7 +54,7 @@ interface ConfirmEmailModalProps {
 const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function ConfirmEmailModal({
-  visible, email, onClose, onChangeEmail,
+  visible, email, inviteWaiting = false, confirmedElsewhere = false, onClose, onChangeEmail,
 }: ConfirmEmailModalProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -103,6 +119,33 @@ export default function ConfirmEmailModal({
     }
   }, [resendConfirmation, email, secondsUntilResend]);
 
+  if (confirmedElsewhere) {
+    return (
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={styles.overlay}>
+          <View style={styles.card} testID="confirm-email-confirmed-elsewhere">
+            <View style={styles.iconWrap}>
+              <CheckCircle2 size={28} color={themeColors.accent} strokeWidth={2} />
+            </View>
+            <Text style={styles.title}>Email confirmed</Text>
+            <Text style={[styles.subtitle, styles.elsewhereBody]}>
+              Your invite opened in the tab the confirmation link opened. Carry on there. You can close this tab.
+            </Text>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={onClose}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              testID="confirm-email-close"
+            >
+              <Text style={styles.primaryBtnText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       visible={visible}
@@ -126,7 +169,9 @@ export default function ConfirmEmailModal({
             <Tip
               Icon={Inbox}
               title="Check your inbox"
-              body="Tap the link in the email we sent to finish setting up your account."
+              body={inviteWaiting
+                ? "Tap the link in the email we sent to finish setting up your account. After you confirm, your invite opens first, before any setup questions."
+                : 'Tap the link in the email we sent to finish setting up your account.'}
             />
             <Tip
               Icon={Shield}
@@ -257,6 +302,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     marginTop: 6,
     textAlign: 'center',
+  },
+  elsewhereBody: {
+    marginBottom: 18,
+    lineHeight: 20,
   },
   email: {
     fontSize: Type.subhead.fontSize,

@@ -11,6 +11,7 @@ import {
   emailDivider,
   escapeHtml,
   fmtMoney,
+  fmtMoneyCents,
   type UnsubscribeOpts,
 } from '@/utils/emailLayout';
 
@@ -563,7 +564,7 @@ export function buildInvoiceEmailHtml(opts: {
     ${emailStatRow('Project', projectName)}
     ${emailStatRow('Due date', formattedDue)}
     ${emailStatRow('Terms', paymentTerms)}
-    ${emailStatRow('Amount due', fmtMoney(totalDue), { emphasize: true })}
+    ${emailStatRow('Amount due', fmtMoneyCents(totalDue), { emphasize: true })}
   `;
 
   const bodyHtml = `
@@ -575,12 +576,12 @@ export function buildInvoiceEmailHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `Invoice #${invoiceNumber} for ${projectName} — ${fmtMoney(totalDue)} due ${formattedDue}.`,
+    preheader: `Invoice #${invoiceNumber} for ${projectName} — ${fmtMoneyCents(totalDue)} due ${formattedDue}.`,
     eyebrow: `Invoice #${invoiceNumber}`,
-    title: `${fmtMoney(totalDue)} due`,
+    title: `${fmtMoneyCents(totalDue)} due`,
     subtitle: `Invoice #${invoiceNumber} for ${projectName}.`,
     bodyHtml,
-    cta: payLinkUrl ? { label: `Pay securely · ${fmtMoney(totalDue)}`, href: payLinkUrl } : undefined,
+    cta: payLinkUrl ? { label: `Pay securely · ${fmtMoneyCents(totalDue)}`, href: payLinkUrl } : undefined,
     companyName,
     project: { name: projectName },
     contactName, contactEmail, contactPhone,
@@ -623,8 +624,9 @@ export function buildChangeOrderEmailHtml(opts: {
 
   const finite = (n: number | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
   // To the cent: emailLayout.fmtMoney rounds to whole dollars, which printed a
-  // $82.50 tax as "$83" beside a PDF and portal that say $82.50.
-  const money = (n: number) => `$${(Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // $82.50 tax as "$83" beside a PDF and portal that say $82.50. One cents
+  // formatter for this and the invoice email (#37), in emailLayout.
+  const money = (n: number) => fmtMoneyCents(n);
   const signed = (n: number) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n))}`;
   const taxAmount = finite(opts.taxAmount) ? opts.taxAmount : 0;
   const hasTax = taxAmount !== 0;

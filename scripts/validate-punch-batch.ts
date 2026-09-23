@@ -218,7 +218,13 @@ ok('punch-list bulkMove goes through runBulkUpdate with listType (no per-item up
 const bulkDelete = between(list, 'const bulkDelete = useCallback', '}, [selectedIdList');
 ok('punch-list bulkDelete calls deletePunchItems once', /deletePunchItems\(\s*ids\s*\)/.test(bulkDelete) && !/deletePunchItem\(/.test(bulkDelete));
 const bulkStatus = between(list, 'const bulkSetStatus = useCallback', '}, [');
-ok('punch-list bulkSetStatus goes through runBulkUpdate', /runBulkUpdate\(/.test(bulkStatus) && !/updatePunchItem\(/.test(bulkStatus));
+// Wave 4 (punch-gc): a bulk move out of Review is a reject for those items
+// (CONTRACT 12 — they carry rejectedAt), so the batch is split into at most
+// TWO batch writes (rejects, the rest) and ONE finish — still never a loop of
+// the single-item action.
+ok('punch-list bulkSetStatus writes in batches (updatePunchItems / runBulkUpdate), never per item',
+  /(runBulkUpdate|updatePunchItems)\(/.test(bulkStatus) && !/updatePunchItem\(/.test(bulkStatus)
+  && (bulkStatus.match(/finishBulk\(/g) ?? []).length <= 1);
 const bulkAssign = between(list, 'const bulkAssignTo = useCallback', '}, [');
 ok('punch-list bulkAssignTo goes through runBulkUpdate', /runBulkUpdate\(/.test(bulkAssign) && !/updatePunchItem\(/.test(bulkAssign));
 

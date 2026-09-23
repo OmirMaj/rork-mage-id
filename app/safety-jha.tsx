@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   HardHat, Plus, X, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive, Mic, AlertTriangle,
 } from 'lucide-react-native';
-import { useCrew } from '@/contexts/CrewContext';
+import { useCrew, useProjectCrew } from '@/contexts/CrewContext';
 import { certFlagsForWorker, lapsedCertConfirmText } from '@/utils/safety/crewCerts';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -30,6 +30,11 @@ import { generateUUID } from '@/utils/generateId';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
+import { savedCrewLine } from '@/utils/timeClockPayroll';
+import {
+  aiLimitAlertTitle, crewCardCheck, crewEmptyTitle, crewListNote, safetyAiBlockedReason, safetyAiServerRefusal,
+  CREW_CARDS_LOADING, CREW_CARDS_UNAVAILABLE,
+} from '@/utils/safety/safetyRefresh';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay } from '@/utils/calendarDate';
@@ -66,18 +71,32 @@ function SafetyJhaInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { tier } = useTierAccess();
+  const { tier, isBusinessOrAbove } = useTierAccess();
+  // Generate with AI runs on HIS own plan (safety-generate-jha requires
+  // Business on the caller), gated before the tap with the reason (#123).
+  const generateBlocked = safetyAiBlockedReason('jha_generate', isBusinessOrAbove);
   const { user } = useAuth();
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
   const seat = useSafetySeat(projectId);
-  const { getJhasForProject, addJha, updateJha, deleteJha, certifications } = useSafety();
+  const { getJhasForProject, addJha, updateJha, deleteJha, certifications: ownCertifications } = useSafety();
   const { getCrewForProject } = useCrew();
+  // Audit #120: on a crew seat, useCrew / useSafety hold the FOREMAN's own
+  // (empty) roster and certificates, so the GC's crew never listed and an
+  // expired SST signed off with no warning. The GC's roster and card dates
+  // come from useProjectCrew (project_crew_roster / project_crew_cert_flags,
+  // the same split Time Tracking uses). Only a PICK carries the crew id the
+  // card check joins on; a typed name has none.
+  const isCrewSeat = seat === 'crew';
+  const projectCrew = useProjectCrew(projectId, isCrewSeat);
   const assignedCrew = useMemo(
-    () => getCrewForProject(projectId ?? '').filter(m => m.status === 'active'),
-    [getCrewForProject, projectId],
+    () => (isCrewSeat ? projectCrew.crew : getCrewForProject(projectId ?? '')).filter(m => m.status === 'active'),
+    [isCrewSeat, projectCrew.crew, getCrewForProject, projectId],
   );
+  const certifications = isCrewSeat ? projectCrew.certifications : ownCertifications;
+  // A failed or still-running read is "unknown", never "every card valid".
+  const cardCheck = crewCardCheck({ isCrewSeat, isLoading: projectCrew.isLoading, fetchedAt: projectCrew.fetchedAt });
   const today = useMemo(() => todayCalendarDay(), []);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -177,8 +196,9 @@ function SafetyJhaInner() {
 
   const handleGenerate = useCallback(async () => {
     if (!taskDescription.trim()) { showAlert('Add a task', 'Describe the task first so AI can analyze it.'); return; }
+    if (generateBlocked) { showAlert('Business feature', generateBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { showAlert('AI limit reached', check.message ?? 'Daily AI limit reached.'); return; }
+    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Daily AI limit reached.'); return; }
     setGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -191,6 +211,8 @@ function SafetyJhaInner() {
         },
         body: JSON.stringify({ trade, taskDescription, projectContext: project?.name ?? '' }),
       });
+      const refusal = safetyAiServerRefusal('jha_generate', res.status);
+      if (refusal) { showAlert('Business feature', refusal); return; }
       const json = await res.json();
       if (!res.ok || !json.success) { showAlert('AI unavailable', json.error ?? 'Could not generate. Fill the JHA manually.'); return; }
       const aiSteps: JHAStep[] = (json.data.steps ?? []).map((s: { step: string; hazards: string[]; controls: string[] }) => ({
@@ -208,7 +230,7 @@ function SafetyJhaInner() {
     } finally {
       setGenerating(false);
     }
-  }, [taskDescription, trade, tier, project]);
+  }, [taskDescription, trade, tier, project, generateBlocked]);
 
   const handleSave = useCallback(() => {
     // Immutable once signed — a signed JHA can only be archived, never edited.
@@ -319,6 +341,11 @@ function SafetyJhaInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `JHAs — ${project.name}` }} />
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+        {/* Audit #121: an invited crew seat reads only the JHAs he filed
+            (20260919130000); the GC's are not shown to him. */}
+        {isCrewSeat ? (
+          <Text style={styles.collabNote} testID="jha-collab-note">{crewListNote('jha')}</Text>
+        ) : null}
         {items.map(item => {
           const sc = getStatusConfig(themeColors, item.status);
           return (
@@ -378,7 +405,7 @@ function SafetyJhaInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<HardHat size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No JHAs yet"
+              title={isCrewSeat ? crewEmptyTitle('jha') : 'No JHAs yet'}
               message="Break a task into steps, name the hazards, and lock in the controls before crews start. Let AI draft it from a task description, then edit and get sign-offs."
               actionLabel="Add first JHA"
               onAction={() => { resetForm(); setShowForm(true); }}
@@ -453,10 +480,15 @@ function SafetyJhaInner() {
                 />
 
                 {!isLocked ? (
-                  <TouchableOpacity style={styles.aiBtn} onPress={handleGenerate} disabled={generating} activeOpacity={0.85} testID="jha-generate">
-                    <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
-                    <Text style={styles.aiBtnText}>{generating ? 'Analyzing…' : 'Generate with AI'}</Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity style={[styles.aiBtn, generateBlocked ? styles.aiBtnDisabled : null]} onPress={handleGenerate} disabled={generating || !!generateBlocked} activeOpacity={0.85} testID="jha-generate">
+                      <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
+                      <Text style={styles.aiBtnText}>{generating ? 'Analyzing…' : 'Generate with AI'}</Text>
+                    </TouchableOpacity>
+                    {generateBlocked ? (
+                      <Text style={styles.cardCheckText} testID="jha-generate-blocked">{generateBlocked}</Text>
+                    ) : null}
+                  </>
                 ) : null}
 
                 <View style={styles.stepsHeader}>
@@ -569,6 +601,19 @@ function SafetyJhaInner() {
                 </ScrollView>
               </>
             ) : null}
+            {cardCheck === 'loading' || cardCheck === 'unavailable' ? (
+              <View style={styles.cardCheckRow} testID="jha-card-check">
+                <AlertTriangle size={12} color={themeColors.accentLabel} strokeWidth={2} />
+                <Text style={styles.cardCheckText}>{cardCheck === 'loading' ? CREW_CARDS_LOADING : CREW_CARDS_UNAVAILABLE}</Text>
+                {cardCheck === 'unavailable' ? (
+                  <TouchableOpacity onPress={projectCrew.refetch} accessibilityRole="button" hitSlop={8} testID="jha-card-check-retry">
+                    <Text style={styles.cardCheckRetry}>Retry</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : isCrewSeat && projectCrew.fromCache && projectCrew.fetchedAt ? (
+              <Text style={styles.cardCheckText}>{savedCrewLine(projectCrew.fetchedAt, projectCrew.offline || projectCrew.isPaused)}</Text>
+            ) : null}
             <Text style={styles.fieldLabel}>Name *</Text>
             <TextInput style={styles.input} value={sigName} onChangeText={(v) => { setSigName(v); setSigWorkerId(null); }} placeholder="Who is signing off" placeholderTextColor={themeColors.textMuted} />
             {sigFlags.map(f => (
@@ -625,6 +670,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   aiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, paddingVertical: 13, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill },
   aiBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  aiBtnDisabled: { opacity: 0.5 },
+  collabNote: { marginHorizontal: 20, marginTop: 12, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 19 },
+  cardCheckRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, flexWrap: 'wrap' as const, marginTop: 4 },
+  cardCheckText: { flexShrink: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16, marginTop: 4 },
+  cardCheckRetry: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   stepsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   addStepBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '12' },
   addStepText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },

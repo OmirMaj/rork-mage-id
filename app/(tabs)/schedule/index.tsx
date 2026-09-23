@@ -103,6 +103,8 @@ import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProj
 import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
+import { supabase } from '@/lib/supabase';
+import { liveScheduleCopyFromRow, useLiveSchedule, type LiveScheduleCopy } from '@/hooks/useLiveSchedule';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import {
   runCpm, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch,
@@ -398,7 +400,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const fabScroll = useBrainFabScroll();
   const layout = useResponsiveLayout();
   const router = useRouter();
-  const { projects, updateProject, addProject, contacts, subcontractors } = useProjects();
+  const { projects, updateProject, addProject, contacts, subcontractors, absorbServerSchedule } = useProjects();
   // Who locked a baseline — stamped on the capture and its audit row, the
   // same identity the phone schedule records.
   const { user } = useAuth();
@@ -514,6 +516,36 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const selectedProject = useMemo<Project | null>(() => {
     return projects.find(p => p.id === selectedProjectId) ?? null;
   }, [projects, selectedProjectId]);
+
+  // ── LIVE on the web too (#91). Only Schedule Pro and the phone tab were
+  // subscribed, so a GC on this tab in a browser kept the old percent and
+  // verdict until a refetch while the foreman saved progress. Same shape as
+  // MobileScheduleScreen: absorb into the shared project copy, which this
+  // screen renders straight from — the field-key 3-way merge in
+  // absorbServerSchedule keeps an older echo from undoing a newer save. Tasks
+  // only (no whole-copy adopt): Schedule Pro may be pushed over this tab with
+  // an Activate waiting in its debounce, and a store change from here must not
+  // move the active baseline under it. Its own topic suffix keeps its channel
+  // apart from Pro's. Called before any return, like every hook here.
+  const liveProjectId = selectedProject?.id;
+  const onPeerSchedule = useCallback((copy: LiveScheduleCopy) => {
+    if (liveProjectId) absorbServerSchedule(liveProjectId, copy.tasks);
+  }, [liveProjectId, absorbServerSchedule]);
+  // Realtime does not replay a gap (a sleeping laptop) — re-read the row.
+  const onLiveGap = useCallback(() => {
+    const pid = liveProjectId;
+    if (!pid) return;
+    void (async () => {
+      try {
+        const { data } = await supabase.from('projects').select('schedule').eq('id', pid).maybeSingle();
+        const fresh = liveScheduleCopyFromRow((data as { schedule?: unknown } | null)?.schedule);
+        if (fresh) absorbServerSchedule(pid, fresh.tasks);
+      } catch {
+        // Offline again — the next rejoin or the focus refetch catches up.
+      }
+    })();
+  }, [liveProjectId, absorbServerSchedule]);
+  useLiveSchedule(liveProjectId, onPeerSchedule, onLiveGap, 'schedule-tab-web');
 
   // Project chips are sorted so the GC's working set is on top: actively
   // running projects first, then estimated, draft, then anything else
@@ -1147,15 +1179,26 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     if (editing) {
       const progress = Math.max(0, Math.min(100, parseInt(draft.progress, 10) || 0));
       const startDayOverride = parseInt(draft.startDayOverride, 10);
+      // FIELD-OWNED VALUES FOLLOW THE STORED TASK unless he changed them in
+      // this modal (#91). The screen now takes the foreman's saves live, so a
+      // progress / status / notes value can move under an open editor; writing
+      // the draft's snapshot back would put the value from when the modal
+      // opened over the foreman's newer one (it spreads the stored task, stamps
+      // included, so the server trigger could not tell it was stale).
+      const draftNotes = draft.notes.trim();
+      const progressChanged = progress !== Math.max(0, Math.min(100, editing.progress ?? 0));
+      const statusChanged = draft.status !== editing.status;
+      const notesChanged = draftNotes !== (editing.notes ?? '').trim();
       const nextTasks: ScheduleTask[] = baseTasks.map(item => {
         if (item.id !== editing.id) return item;
+        const nextStatus = statusChanged ? draft.status : item.status;
         const updated: ScheduleTask = {
           ...item, title, phase: draft.phase, crew: draft.crew.trim() || 'General crew',
-          crewSize, durationDays, notes: draft.notes.trim(),
+          crewSize, durationDays, notes: notesChanged ? draftNotes : item.notes,
           isMilestone: draft.isMilestone, wbsCode: draft.wbsCode.trim() || undefined,
           isCriticalPath: draft.isCriticalPath, isWeatherSensitive: draft.isWeatherSensitive,
           dependencies: depIds, dependencyLinks: depLinks,
-          status: draft.status, progress,
+          status: nextStatus, progress: progressChanged ? progress : item.progress,
           assignedSubId: draft.assignedSubId || undefined,
           assignedSubName: draft.assignedSubName || undefined,
         };
@@ -1177,11 +1220,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         // Basis: todayScheduleDay(schedule.startDate) — the one shared sink
         // basis. NOT the screen's projectStartDate memo (noon anchor). Null
         // basis (no startDate) ⇒ ISO dates only, never invented day numbers.
-        if (draft.status !== item.status) {
+        if (nextStatus !== item.status) {
           // No retro start (audit #141): a task closed with no recorded start keeps
           // an EMPTY start — the same rule as the daily report — rather than a planned
           // day nobody observed. Pace samples need both stamps, so it is skipped there.
-          const stamp = stampActuals({ ...item, startDay: updated.startDay }, draft.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString(), { retroStartFromPlanned: false });
+          const stamp = stampActuals({ ...item, startDay: updated.startDay }, nextStatus, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString(), { retroStartFromPlanned: false });
           Object.assign(updated, stamp);
           // Morning-brief ledger: a real capture (stamp set an ISO date) is
           // a did-for-you moment. recordDidForYou is G4-safe by contract.

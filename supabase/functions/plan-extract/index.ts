@@ -223,7 +223,7 @@ serve(async (req) => {
       // Same generic 403 as an unreachable path (DB-F11): never say which.
       if (!scope) return jsonResponse({ success: false, error: "This plan sheet is not available on this account.", code: "sheet_unavailable" }, 403);
       if (!mayWritePlanIndex(scope.role)) {
-        return jsonResponse({ success: false, error: "The project owner indexes the plan set — you can ask questions of the sheets they indexed.", code: "index_owner_only" }, 403);
+        return jsonResponse({ success: false, error: "The project owner or an editor indexes the plan set — you can ask questions of the sheets they indexed.", code: "index_owner_only" }, 403);
       }
       if (scope.meterUserId !== auth.userId) {
         meter = { userId: scope.meterUserId, tier: await tierOfUser(scope.meterUserId) };

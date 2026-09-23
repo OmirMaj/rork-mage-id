@@ -139,6 +139,16 @@ export function useProjectCollaborators(projectId: string | undefined) {
      * including the financial blinding, on any transient error.
      */
     isError: query.isError,
+    /** The failed read's error (#126: useProjectRoleState tells a transport
+     *  failure — no signal — from an answer the server gave). */
+    error: query.error,
+    /** #129: the read is waiting for a network (react-query's paused fetch —
+     *  web offline). Neither loading nor failed, and `collaborators` is `[]`:
+     *  a roster that has not been read, not an empty team. */
+    isPaused: query.fetchStatus === 'paused',
+    /** #129: the server has answered at least once (data present). Only then
+     *  is an empty `collaborators` a real "no one on this job yet". */
+    hasData: query.data !== undefined,
     /** Re-run the collaborator read (the "Retry" behind a failed role lookup, audit RT-R2). */
     refetch: () => { void query.refetch(); },
     invite,

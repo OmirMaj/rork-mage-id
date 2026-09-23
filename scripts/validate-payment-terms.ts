@@ -866,8 +866,10 @@ check('savePaymentTerms validates through termsColumnsForWrite and refuses befor
 check('savePaymentTerms merges onto settingsRef.current and commits', /\.\.\.settingsRef\.current/.test(savePT) && /commitSettingsState\(next\)/.test(savePT));
 
 const loader = balanced(ctx, ctx.indexOf('const settingsQuery = useQuery('), '(', ')');
-check('the settings loader calls termsWritesPending(getOfflineQueue()) and spreads paymentTermsAfterLoad',
-  /termsWritesPending\(\s*await getOfflineQueue\(\)\s*,\s*userId\s*\)/.test(loader) && /\.\.\.paymentTermsAfterLoad\(/.test(loader)
+// Integration round 3 (wave 4): the queue, THEN this session's Not-saved
+// profile lines (a refused terms save is still his answer).
+check('the settings loader calls termsWritesPending(getOfflineQueue() + Not-saved profile lines) and spreads paymentTermsAfterLoad',
+  /const termsQueue = await getOfflineQueue\(\);\s*const termsPending = pendingWithInFlight\(termsWritesPending\(\[\.\.\.termsQueue, \.\.\.await unsavedAsQueueEntries\('profiles'\)\], userId\)/.test(loader) && /\.\.\.paymentTermsAfterLoad\(/.test(loader)
   && /loadLocal<AppSettings \| null>\(SETTINGS_KEY/.test(loader));
 // supabaseWrite tries the network before it queues, so the queue alone cannot
 // see a terms write that is still out: a refetch in that window would let the
@@ -875,7 +877,7 @@ check('the settings loader calls termsWritesPending(getOfflineQueue()) and sprea
 check('the loader also counts a terms write in flight at read start / at return, or started during the read',
   /const termsEpochAtRead = termsWriteEpochRef\.current;\s*const termsInFlightAtRead = termsWritesInFlightRef\.current;(?:\s*const \w+ = settings\w+Ref\.current;){0,2}\s*const \{ data, error \} = await supabase\.from\('profiles'\)/.test(loader)
   && /const termsInFlight = termsInFlightAtRead > 0\s*\|\| termsWritesInFlightRef\.current > 0\s*\|\| termsWriteEpochRef\.current !== termsEpochAtRead;/.test(loader)
-  && /const termsPending = pendingWithInFlight\(termsWritesPending\(await getOfflineQueue\(\), userId\), termsInFlight\);/.test(loader));
+  && /const termsPending = pendingWithInFlight\(termsWritesPending\(\[\.\.\.termsQueue, \.\.\.await unsavedAsQueueEntries\('profiles'\)\], userId\), termsInFlight\);/.test(loader));
 // The previous shape `termsWritesPending(...) || inFlight` type-checked and
 // never read inFlight (an object is always truthy). Forbid any `||` fold onto
 // the pending object, and pin the helper's BEHAVIOUR, not just its call site.

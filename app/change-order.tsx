@@ -8,7 +8,7 @@ import { useBrainFabScroll, useBrainFabLift } from '@/components/brain/brainFabS
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool, AlertTriangle,
+  Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool, AlertTriangle, Share2, RotateCcw,
 } from 'lucide-react-native';
 import { MageChangeOrder } from '@/components/icons';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -29,7 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
-import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
+import { StatusPipeline } from '@/components/StatusPipeline';
 import { parseCOFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { getLivePrices, resolvePricingMarket, catalogProvenanceLine, CATEGORY_META, type MaterialItem } from '@/constants/materials';
 import { sendEmail, buildChangeOrderEmailHtml, type SendEmailOutcome } from '@/utils/emailService';
@@ -47,19 +47,13 @@ import { changeOrderBillingState } from '@/utils/changeOrderBilling';
 import { portalShareUrl } from '@/utils/portalSnapshot';
 import { freezeForPortal } from '@/utils/portalFreeze';
 import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
+import { nextChangeOrderNumber } from '@/utils/coNumbering';
+import { coApprovalLine } from '@/utils/coApproval';
+import { generateChangeOrderPDF } from '@/utils/pdfGenerator';
+import { useServerChangeOrderNumber, coNumberHoldReason } from '@/hooks/useServerChangeOrderNumber';
 
-// Pipeline stages — happy path through the CO lifecycle. Side branches
-// (rejected, revised, void) live outside this visual; the user can still
-// flip into them via the status badge / approve-reject buttons elsewhere
-// on the screen. We map under_review → "Under Review" as the middle step
-// because in practice every submitted CO sits in review for a beat before
-// it gets approved or rejected.
-const CO_PIPELINE_STAGES: PipelineStage<ChangeOrderStatus>[] = [
-  { key: 'draft', label: 'Draft' },
-  { key: 'submitted', label: 'Submitted' },
-  { key: 'under_review', label: 'In Review' },
-  { key: 'approved', label: 'Approved', terminal: true },
-];
+// The CO pipeline (and its side branches) is coPipelineFor, in the co-w4
+// block below — it used to map rejected/void onto 'Submitted' (#73).
 
 // The turnarounds a residential/light-commercial owner is actually given on a
 // change-order decision. Offered as chips because typing a number into a modal
@@ -69,11 +63,6 @@ const CO_PIPELINE_STAGES: PipelineStage<ChangeOrderStatus>[] = [
 // which must stay reachable: it is a real answer, not a missing one.
 const CO_TURNAROUND_CHOICES = [3, 5, 7, 14] as const;
 
-function mapCOStatus(s: ChangeOrderStatus): ChangeOrderStatus {
-  if (s === 'rejected' || s === 'void') return 'submitted';
-  if (s === 'revised') return 'under_review';
-  return s;
-}
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
@@ -650,6 +639,280 @@ export function coPortalShare(o: {
 }
 // <<< co-wave3
 
+// >>> co-w4 (pure; scripts/validate-w4-co-workflow-screen.ts evaluates this block)
+type CoW4Status = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'revised' | 'void';
+type CoW4Line = { id: string; name: string; description?: string; quantity: number; unit?: string; unitPrice: number; total: number; priceSource?: 'ai_estimated' | 'needs_price' };
+
+/**
+ * The pipeline this CO shows, and whether it offers a one-tap advance.
+ * #73: rejected and void used to be drawn as "Submitted" (mapCOStatus) and the
+ * pipeline then offered "Mark in review" — one tap revived a declined or voided
+ * CO with no revision record. They are now drawn as what they are, a terminal
+ * side branch, with no advance. 'revised' is out for approval again: it sits
+ * at In Review and may only go on to Approved (through the confirm, #79).
+ */
+export function coPipelineFor(status: CoW4Status): {
+  stages: { key: CoW4Status; label: string; terminal?: boolean }[];
+  current: CoW4Status;
+  canAdvance: boolean;
+} {
+  const head: { key: CoW4Status; label: string; terminal?: boolean }[] = [
+    { key: 'draft', label: 'Draft' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'under_review', label: 'In Review' },
+  ];
+  if (status === 'rejected') return { stages: [...head, { key: 'rejected', label: 'Declined', terminal: true }], current: 'rejected', canAdvance: false };
+  if (status === 'void') return { stages: [...head, { key: 'void', label: 'Void', terminal: true }], current: 'void', canAdvance: false };
+  return {
+    stages: [...head, { key: 'approved', label: 'Approved', terminal: true }],
+    current: status === 'revised' ? 'under_review' : status,
+    canAdvance: status !== 'approved',
+  };
+}
+
+/** #79 — the confirm before a CO is marked approved from this screen. */
+export function coApproveConfirmCopy(number: number | null, amount: number, money: (n: number) => string): { title: string; message: string } {
+  const label = number != null ? `CO #${number}` : 'this change order';
+  return {
+    title: `Approve ${label}?`,
+    message: amount < 0
+      ? `This credits ${money(Math.abs(amount))} back to the contract. Mark it approved only if your client agreed to it — there is no client signature on this path.`
+      : `This commits ${money(amount)} to the contract. Mark it approved only if your client agreed to it — there is no client signature on this path.`,
+  };
+}
+
+/**
+ * #42 — the line under the tax rows, keyed on the CO's STATUS. The rate is
+ * frozen when the CO goes OUT (a send, or Mark submitted), not when the client
+ * approves it, so "your client approved this" was said of COs still waiting on
+ * them and of COs they declined. Two sentences say "at your Settings rate on
+ * that day" (the validator counts them): the approved and out-for-approval
+ * wordings share one variable, the draft wording carries the other.
+ */
+export function coTaxNote(status: CoW4Status | undefined, frozenRatePct: number | undefined, ratePct: number): string {
+  const billing = 'Tax is added when you bill it on a progress invoice, at your Settings rate on that day';
+  if (frozenRatePct == null || !status || status === 'draft') {
+    return 'Sales tax is added when you bill this change on a progress invoice, at your Settings rate on that day. The rate shown here is recorded on the change order when you send it, as the one your client is asked to approve.';
+  }
+  if (status === 'approved') {
+    return `Your client approved this change at ${ratePct}% sales tax. ${billing} — if that rate has changed, the invoice total will differ from the approved one.`;
+  }
+  if (status === 'rejected' || status === 'void') {
+    return `Sent at ${ratePct}% sales tax; your client did not approve it${status === 'void' ? ' (voided)' : ''}.`;
+  }
+  return `Sent at ${ratePct}% sales tax — the rate your client is being asked to approve. ${billing} — if that rate has changed, the invoice total will differ from the total you sent.`;
+}
+
+/**
+ * #76 — route param prefillLines (CONTRACT 9): a JSON array of
+ * { name, description, quantity, unit, unitPrice, priceSource? }, one CO line
+ * each. Anything malformed is dropped, never guessed. Legacy prefillAmount (a
+ * single lump line) is still honoured when no prefillLines came.
+ */
+export function coPrefillLines(
+  raw: string | undefined,
+  legacy: { amount?: string; reason?: string; description?: string },
+  newId: () => string,
+): CoW4Line[] | null {
+  if (raw) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    if (Array.isArray(parsed)) {
+      const lines: CoW4Line[] = [];
+      for (const p of parsed) {
+        if (!p || typeof p !== 'object') continue;
+        const o = p as Record<string, unknown>;
+        const name = typeof o.name === 'string' ? o.name.trim() : '';
+        if (!name) continue;
+        const qtyRaw = typeof o.quantity === 'number' ? o.quantity : Number(o.quantity);
+        const quantity = Number.isFinite(qtyRaw) && qtyRaw !== 0 ? qtyRaw : 1;
+        const priceRaw = typeof o.unitPrice === 'number' ? o.unitPrice : Number(o.unitPrice);
+        const unitPrice = Number.isFinite(priceRaw) ? Math.round(priceRaw * 100) / 100 : 0;
+        const src = o.priceSource === 'ai_estimated' || o.priceSource === 'needs_price' ? o.priceSource : undefined;
+        lines.push({
+          id: newId(), name,
+          description: typeof o.description === 'string' ? o.description : '',
+          quantity, unit: typeof o.unit === 'string' && o.unit.trim() ? o.unit.trim() : 'ls',
+          unitPrice, total: Math.round(quantity * unitPrice * 100) / 100,
+          // A $0 line from a prefill is unpriced whatever it was tagged.
+          ...(src ? { priceSource: src } : unitPrice === 0 ? { priceSource: 'needs_price' as const } : {}),
+        });
+      }
+      if (lines.length > 0) return lines;
+    }
+  }
+  const amt = Number(legacy.amount);
+  if (legacy.amount && Number.isFinite(amt) && amt > 0) {
+    return [{
+      id: 'overage-prefill',
+      name: legacy.reason === 'out_of_scope' ? 'Out-of-scope work' : 'Allowance overage',
+      description: legacy.description ?? 'Allowance overage',
+      quantity: 1, unit: 'ls', unitPrice: amt, total: amt,
+    }];
+  }
+  return null;
+}
+
+/**
+ * #76 — a CO may not go to the client while a line has no price or carries a
+ * price nobody confirmed. 'refuse' = cannot be sent at all (a line tagged
+ * needs_price, or a description still carrying an internal "NEEDS PRICE"
+ * note — drafts saved before this fix carry that text); 'confirm' = AI
+ * estimates he must accept first (same idea as the schedule-days confirm).
+ * A plain draft save runs neither. Credit lines (negative) are real prices.
+ */
+export function coUnconfirmedPriceBlocker(
+  lines: readonly CoW4Line[],
+  description: string,
+  money: (n: number) => string,
+): { kind: 'refuse'; title: string; message: string } | { kind: 'confirm'; title: string; message: string; lineIds: string[] } | null {
+  if (/needs\s*price/i.test(description)) {
+    return { kind: 'refuse', title: 'The description still says NEEDS PRICE', message: 'That note is internal and would go to your client as written. Price the work as line items and rewrite the description as the scope your client is approving.' };
+  }
+  // Only a line MAGE tagged 'needs_price' (a daily-report or leak-sweep draft
+  // line nobody priced) is refused. An untagged $0 line is one he typed on
+  // purpose — a time-extension-only CO or a "no charge" line — and must still
+  // be sendable: refusing every $0 total left a time-only CO with no way out
+  // ("remove the line" then trips coSaveBlocker's "at least one line item").
+  const unpriced = lines.find(l => l.priceSource === 'needs_price');
+  if (unpriced) {
+    const label = unpriced.name.trim() || `Line ${lines.indexOf(unpriced) + 1}`;
+    return { kind: 'refuse', title: `${label} has no price`, message: `Type a price for "${label}" (or remove the line) before this goes to your client.` };
+  }
+  const ai = lines.filter(l => l.priceSource === 'ai_estimated');
+  if (ai.length > 0) {
+    const list = ai.slice(0, 4).map(l => `${l.name.trim() || 'Line'} ${money(l.total)}`).join(', ') + (ai.length > 4 ? `, and ${ai.length - 4} more` : '');
+    return {
+      kind: 'confirm',
+      title: ai.length === 1 ? 'Keep the AI estimate?' : `Keep ${ai.length} AI estimates?`,
+      message: `${list} ${ai.length === 1 ? 'was' : 'were'} priced by MAGE from your cost book, not by you. ${ai.length === 1 ? 'It goes' : 'They go'} to your client as the price they approve.`,
+      lineIds: ai.map(l => l.id),
+    };
+  }
+  return null;
+}
+
+/**
+ * #78 — whether this write records the recipient and turnaround. A real send
+ * submits and records them; a send that fell back to his mail app
+ * ('composer_opened') records them too while the CO stays a draft, so "Mark
+ * submitted" inherits them. A failed or cancelled send records nothing.
+ */
+export function coRecordsRecipient(o: { status: CoW4Status; composerOpened: boolean; recipient: string; recipientAddr: string }): boolean {
+  return (o.status === 'submitted' || o.composerOpened) && (o.recipient.trim() !== '' || o.recipientAddr.trim() !== '');
+}
+
+/**
+ * #73 + #77/#141 — whether the portal control may share this CO, and why not.
+ * A declined or void CO is never re-shared as-is (the client got "New Change
+ * Order from your builder" for a CO with no sign button); nor is one whose
+ * number is still provisional, nor one with an unpriced line.
+ */
+export function coPortalSendGate(o: {
+  status: CoW4Status | undefined;
+  lineCount: number;
+  numberHold: string | null;
+  priceRefusal: string | null;
+}): { canSend: boolean; reason?: string } {
+  if (o.status === 'draft') {
+    return { canSend: false, reason: 'Submit this change order for approval first (Send & Save, or Mark submitted) — the portal only asks your client to sign a submitted change order.' };
+  }
+  if (o.status === 'rejected') return { canSend: false, reason: 'Your client declined this change order. Use Revise & re-issue to send them a new version.' };
+  if (o.status === 'void') return { canSend: false, reason: 'This change order is void, so it cannot go to your client.' };
+  if (o.lineCount === 0) return { canSend: false, reason: 'Add at least one line item before sending.' };
+  if (o.numberHold) return { canSend: false, reason: o.numberHold };
+  if (o.priceRefusal) return { canSend: false, reason: o.priceRefusal };
+  return { canSend: true };
+}
+
+/**
+ * #77/#141 — the provider's copy still carries the number this device guessed
+ * after the server gave the CO another. Anything built from that copy (the
+ * portal share, the e-sign record) would print the duplicate, so it waits.
+ */
+export function coStaleNumberHold(localNumber: number | undefined, confirmedNumber: number | null): string | null {
+  if (localNumber == null || confirmedNumber == null || localNumber === confirmedNumber) return null;
+  return `MAGE numbered this change order #${confirmedNumber} (#${localNumber} was already used on this job). Tap Save to Project to update it on this device, then share it.`;
+}
+
+/** #72 — the manual approval line as the viewer reads it: his own mark says
+ *  "by you"; anyone else's keeps the name from the audit trail. */
+export function coApprovalLineForViewer<L extends { kind: string; who?: string; text: string }>(line: L, viewer: readonly (string | null | undefined)[]): L {
+  if (line.kind !== 'manual' || !line.who) return line;
+  const who = line.who.trim().toLowerCase();
+  if (!viewer.some(v => !!v && v.trim().toLowerCase() === who)) return line;
+  return { ...line, text: line.text.replace(`by ${line.who}`, 'by you') };
+}
+
+/** #74 — the Share PDF control: always shown, and says why when it can't run. */
+export function coPdfAction(o: { saved: boolean; dirty: boolean; numberHold: string | null }): { enabled: boolean; label: string; reason?: string } {
+  if (!o.saved) return { enabled: false, label: 'Share PDF', reason: 'Save the change order first — the PDF prints the saved change order.' };
+  if (o.numberHold) return { enabled: false, label: 'Share PDF', reason: o.numberHold };
+  if (o.dirty) return { enabled: true, label: 'PDF of last saved version', reason: 'You have unsaved changes — the PDF prints the change order as last saved.' };
+  return { enabled: true, label: 'Share PDF' };
+}
+
+/** #74 — does the form differ from the saved CO (what the PDF would print)? */
+export function coFormDirty(
+  saved: { description: string; reason: string; scheduleImpactDays?: number; lineItems: readonly CoW4Line[] } | null | undefined,
+  form: { description: string; reason: string; scheduleImpactDays?: number; lineItems: readonly CoW4Line[] },
+): boolean {
+  if (!saved) return false;
+  if ((saved.description ?? '').trim() !== form.description.trim()) return true;
+  if ((saved.reason ?? '').trim() !== form.reason.trim()) return true;
+  if ((saved.scheduleImpactDays ?? undefined) !== (form.scheduleImpactDays ?? undefined)) return true;
+  if (saved.lineItems.length !== form.lineItems.length) return true;
+  return saved.lineItems.some((s, i) => {
+    const f = form.lineItems[i];
+    return s.name !== f.name || s.quantity !== f.quantity || Math.round(s.unitPrice * 100) !== Math.round(f.unitPrice * 100);
+  });
+}
+
+/**
+ * #73 — the NEW draft "Revise & re-issue" writes for a declined CO: the next
+ * number, the same description, reason, lines and days, and a link back to the
+ * declined one. Nothing the client saw is carried: no frozen tax (it re-freezes
+ * when this one is sent), no portal state, no approvers — and the declined CO
+ * keeps its own number, trail and decline.
+ */
+export function coRevisionDraft<L extends CoW4Line>(
+  source: {
+    id: string; number: number; projectId: string; description: string; reason: string;
+    lineItems: readonly L[]; scheduleImpactDays?: number; scheduleImpactTaskIds?: string[];
+    originalContractValue: number;
+  },
+  o: { id: string; number: number; nowIso: string; newId: () => string; actor: string },
+) {
+  const lineItems = source.lineItems.map(l => ({ ...l, id: o.newId() }));
+  const changeAmount = Math.round(lineItems.reduce((s, l) => s + (Number.isFinite(l.total) ? l.total : 0), 0) * 100) / 100;
+  return {
+    id: o.id,
+    number: o.number,
+    projectId: source.projectId,
+    date: o.nowIso,
+    description: source.description,
+    reason: source.reason,
+    lineItems,
+    originalContractValue: source.originalContractValue,
+    changeAmount,
+    newContractTotal: Math.round((source.originalContractValue + changeAmount) * 100) / 100,
+    status: 'draft' as const,
+    scheduleImpactDays: source.scheduleImpactDays,
+    scheduleImpactTaskIds: source.scheduleImpactTaskIds,
+    revisesChangeOrderId: source.id,
+    auditTrail: [{
+      id: o.newId(),
+      action: 'revision_of_declined',
+      actor: o.actor,
+      timestamp: o.nowIso,
+      detail: `Revises CO #${source.number}, which the client declined.`,
+    }],
+    createdAt: o.nowIso,
+    updatedAt: o.nowIso,
+  };
+}
+// <<< co-w4
+
 function ChangeOrderGate() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -733,13 +996,18 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // search or a deep link there is no projectId, so ToolProjectPicker sets one
   // locally (field-ticket pattern). A pick outranks the param so a STALE id in
   // the URL — deleted project, old shared link — can't make the picker inert.
-  const { projectId: paramProjectId, coId, prefillReason, prefillDescription, prefillAmount, prefillScheduleDays } = useLocalSearchParams<{
+  const { projectId: paramProjectId, coId, prefillReason, prefillDescription, prefillAmount, prefillLines, prefillScheduleDays, sendNext } = useLocalSearchParams<{
     projectId: string;
     coId?: string;
     prefillReason?: string;
     prefillDescription?: string;
     prefillAmount?: string;
+    /** CONTRACT 9 — JSON lines, one CO line each (#76). */
+    prefillLines?: string;
     prefillScheduleDays?: string;
+    /** '1' = a new CO was just saved from Send & Save; reopen the send sheet
+     *  once MAGE has confirmed its number (#77/#141). */
+    sendNext?: string;
   }>();
   const {
     getProject, getChangeOrdersForProject, getInvoicesForProject, addChangeOrder, updateChangeOrder, contacts,
@@ -781,11 +1049,27 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   const nextCoNumber = useMemo(() => {
     if (existingCO) return existingCO.number;
-    // max(existing) + 1, NOT length + 1: deleting a CO out of the middle would
-    // otherwise reissue an already-used number, producing duplicate CO numbers
-    // on signed, client-facing documents.
-    return existingCOs.reduce((max, c) => Math.max(max, c.number || 0), 0) + 1;
+    // A PROPOSAL (#77/#141): this device's max + 1. The server keeps it when
+    // no other CO of the job holds it and moves a collider (20260920050000);
+    // nothing client-facing prints it before useServerChangeOrderNumber has
+    // read the server's number back.
+    return nextChangeOrderNumber(existingCOs);
   }, [existingCOs, existingCO]);
+
+  // #77/#141 — the saved CO's number as the SERVER has it. 'pending' while
+  // its INSERT is still on this device; the email, the portal share and the
+  // PDF wait for 'confirmed'.
+  const serverNumber = useServerChangeOrderNumber(existingCO?.id, existingCO?.number);
+  /** The number every client-facing output uses: the server's once known. */
+  // 'edit_unsaved' (integration round 2): the CO is on MAGE with this number;
+  // only a later edit is under Not saved — the number stands, sending waits.
+  const confirmedNumber = existingCO ? ((serverNumber.state === 'confirmed' || serverNumber.state === 'edit_unsaved') ? serverNumber.number ?? existingCO.number : null) : null;
+  const numberHold = useCallback(
+    (action: 'email' | 'portal' | 'pdf') => (existingCO ? coNumberHoldReason(serverNumber.state, action) : null),
+    [existingCO, serverNumber.state],
+  );
+  /** The number the G701 "prior approved changes" base is computed against. */
+  const baseNumber = confirmedNumber ?? nextCoNumber;
 
   // #129 — AIA G701's three rows. This used to be ONE figure labelled
   // "Original Contract" that already carried every other approved CO, so CO #2
@@ -803,8 +1087,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     return project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
   }, [project]);
   const priorApprovedChanges = useMemo(
-    () => coPriorApprovedChanges(existingCOs, nextCoNumber, coId),
-    [existingCOs, nextCoNumber, coId],
+    // Against the CONFIRMED number once known (#141): a CO the server moved
+    // from #4 to #5 counts the approved #4 as prior. The send waits for it.
+    () => coPriorApprovedChanges(existingCOs, baseNumber, coId),
+    [existingCOs, baseNumber, coId],
   );
   const originalContractValue = useMemo(
     () => coRoundCents(originalContractSum + priorApprovedChanges),
@@ -865,21 +1151,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const [placePreviewCO, setPlacePreviewCO] = useState<ChangeOrder | null>(null);
   // Pre-seed line items: single overage line so the dollar amount
   // shows on the change order without manual entry.
-  const seedFromOverage: ChangeOrderLineItem[] | null = !existingCO && prefillAmount && Number(prefillAmount) > 0
-    ? [{
-        id: 'overage-prefill',
-        name: prefillReason === 'out_of_scope' ? 'Out-of-scope work' : 'Allowance overage',
-        description: prefillDescription ?? 'Allowance overage',
-        quantity: 1,
-        unit: 'ls',
-        unitPrice: Number(prefillAmount),
-        total: Number(prefillAmount),
-        isNew: true,
-      }]
-    : null;
-  const [lineItems, setLineItems] = useState<ChangeOrderLineItem[]>(
-    existingCO?.lineItems ?? seedFromOverage ?? []
-  );
+  // #76: prefillLines (one line per flagged item, each tagged with where its
+  // price came from) wins; the legacy single prefillAmount line still works.
+  const [lineItems, setLineItems] = useState<ChangeOrderLineItem[]>(() => {
+    if (existingCO) return existingCO.lineItems;
+    const seeded = coPrefillLines(prefillLines, { amount: prefillAmount, reason: prefillReason, description: prefillDescription }, () => createId('coli'));
+    return seeded?.map(l => ({ ...l, description: l.description ?? '', unit: l.unit ?? 'ls', isNew: true })) ?? [];
+  });
   const [showAddItem, setShowAddItem] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState('');
@@ -904,8 +1182,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const [overridePrice, setOverridePrice] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
   const [showSendRecipient, setShowSendRecipient] = useState(false);
-  const [sendRecipientName, setSendRecipientName] = useState('');
-  const [sendRecipientEmail, setSendRecipientEmail] = useState('');
+  // #78 — a recipient he already named (a send that fell back to his mail
+  // app, or a new CO saved on its way to Send) is on the CO as its pending
+  // Client approver; re-sending must not ask for it again.
+  const pendingClient = existingCO?.approvers?.find(a => a.role === 'Client' && a.status === 'pending');
+  const [sendRecipientName, setSendRecipientName] = useState(pendingClient?.name ?? '');
+  const [sendRecipientEmail, setSendRecipientEmail] = useState(pendingClient?.email ?? '');
   // The turnaround this owner gets. Prefilled from the CO when one was already
   // agreed (re-sending a saved draft is the common case), and left BLANK
   // otherwise — never a default. See ChangeOrder.approvalDeadlineDays: an
@@ -986,9 +1268,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // approved number matches what gets billed. Sign-aware for credit COs.
   // MONEY-F3: the persisted setting, 0 % when the GC never set one.
   // #131: a CO already sent carries the rate it was SENT at (frozen on the
-  // record) and that rate wins — the client approved it, and a later change in
-  // settings must not move the number on this screen away from the email,
-  // the portal and the invoice.
+  // record) and that rate wins — it is the rate the client was sent (and, once
+  // approved, approved), and a later change in settings must not move the
+  // number on this screen away from the email, the portal and the invoice.
   const liveTaxRatePct = settings.taxRate ?? 0;
   const existingFrozenTaxRate = (existingCO as (ChangeOrder & COFrozenFields) | null | undefined)?.taxRatePct;
   const taxRatePct = existingFrozenTaxRate ?? liveTaxRatePct;
@@ -1260,7 +1542,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     const price = coParseLineDraft(priceStr);
     if (price == null) return;
     setLineItems(prev => prev.map(item =>
-      item.id === id ? { ...item, unitPrice: price, total: coRoundCents(item.quantity * price) } : item
+      // #76 — a price he typed is his: the AI-estimate / needs-price tag goes.
+      item.id === id ? { ...item, unitPrice: price, total: coRoundCents(item.quantity * price), priceSource: undefined } : item
     ));
   }, [setLineDraft]);
 
@@ -1277,7 +1560,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
    * cannot run mid-send). Returns null when the form is refused (the refusal
    * has been shown), else the CO's number and the write outcome.
    */
-  const persistCO = useCallback((status: ChangeOrderStatus, recipientName?: string, recipientEmail?: string): { id: string; number: number; isUpdate: boolean; status: ChangeOrderStatus; pricedEditOnSentCO: boolean; write: Promise<RecordWriteOutcome> } | null => {
+  const persistCO = useCallback((status: ChangeOrderStatus, recipientName?: string, recipientEmail?: string, opts?: { recordRecipient?: boolean }): { id: string; number: number; isUpdate: boolean; status: ChangeOrderStatus; pricedEditOnSentCO: boolean; write: Promise<RecordWriteOutcome> } | null => {
     if (!projectId) return null;
     const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length })
       ?? coEmptyLineDraftBlocker(lineDrafts, lineItems);
@@ -1337,7 +1620,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     // approver, which breaks aiaBilling's last-signature rule.
     const recipient = (recipientName ?? '').trim();
     const recipientAddr = (recipientEmail ?? '').trim();
-    const sending = status === 'submitted' && (recipient !== '' || recipientAddr !== '');
+    // #78 — `sending` was keyed on status 'submitted' alone, so a send that
+    // fell back to his mail app (the CO stays a draft) threw away the name,
+    // email and turnaround he had just typed. coRecordsRecipient records them
+    // for 'composer_opened' too; the status logic is unchanged.
+    const sending = coRecordsRecipient({ status, composerOpened: opts?.recordRecipient === true, recipient, recipientAddr });
 
     const parsedDeadline = parseInt(approvalDeadlineStr, 10);
     /** undefined = no turnaround was agreed. NOT a default — see
@@ -1388,8 +1675,15 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         // must not wipe an approver or a turnaround already on the CO.
         ...(approversPatch ? { approvers: approversPatch } : {}),
         ...(sending ? { approvalDeadlineDays: deadlineDays } : {}),
+        // #77/#141 — the server renumbered this CO but the provider still holds
+        // the device's number (its re-pull has not landed, or kept this device
+        // copy because we are writing it). Stamp the server's number on the
+        // local record so the portal share and the e-sign record, which build
+        // from the provider's CO, never carry the duplicate. The server pins
+        // `number` on client updates (20260920050000 §2), so this is local-only.
+        ...(confirmedNumber != null && confirmedNumber !== existingCO.number ? { number: confirmedNumber } : {}),
       });
-      return { id: existingCO.id, number: existingCO.number, isUpdate: true, status: nextStatus, pricedEditOnSentCO, write };
+      return { id: existingCO.id, number: confirmedNumber ?? existingCO.number, isUpdate: true, status: nextStatus, pricedEditOnSentCO, write };
     }
     const co: ChangeOrder = {
       id: createId('co'),
@@ -1413,7 +1707,30 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     };
     const write = addChangeOrder(co);
     return { id: co.id, number: nextCoNumber, isUpdate: false, status: nextStatus, pricedEditOnSentCO: false, write };
-  }, [projectId, description, reason, parsedImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, lineDrafts, originalContractValue, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder]);
+  }, [projectId, description, reason, parsedImpactDays, approvalDeadlineStr, aiAffectedTaskIds, lineItems, lineDrafts, originalContractValue, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, existingCO, nextCoNumber, confirmedNumber, addChangeOrder, updateChangeOrder]);
+
+  /**
+   * #76 — run `proceed` only once no line is unpriced and every AI-estimated
+   * price is confirmed. Refusals name the line; the AI estimates get one
+   * confirm listing them, which clears their tags (the same rule the schedule
+   * days follow, #128). Only a SEND runs this — a draft save does not.
+   */
+  const withConfirmedPrices = useCallback((proceed: () => void) => {
+    const b = coUnconfirmedPriceBlocker(lineItems, description, formatCurrency);
+    if (!b) { proceed(); return; }
+    if (b.kind === 'refuse') { showAlert(b.title, b.message); return; }
+    showAlert(b.title, b.message, [
+      { text: 'Change them', style: 'cancel' },
+      {
+        text: 'Keep these prices',
+        onPress: () => {
+          const ids = new Set(b.lineIds);
+          setLineItems(prev => prev.map(l => (ids.has(l.id) ? { ...l, priceSource: undefined } : l)));
+          proceed();
+        },
+      },
+    ]);
+  }, [lineItems, description]);
 
   // Send & Save in flight: from the tap on Send until the screen pops. The
   // email await and then the write report (up to CO_WRITE_REPORT_TIMEOUT_MS on
@@ -1473,7 +1790,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       });
       showAlert(msg.title, msg.message);
     } else {
-      nailIt(status === 'submitted' ? `CO #${saved.number} submitted${recipientInfo}` : `CO #${saved.number} saved`);
+      // No number: a new CO's is provisional until the server has it (#141) —
+      // the change-order list shows "(pending #)" until then.
+      nailIt(status === 'submitted' ? `Change order submitted${recipientInfo}` : 'Change order saved');
     }
     // Safe back, as after Send: a cold-opened form must still leave.
     goBack();
@@ -1481,8 +1800,27 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   const handleSendPress = useCallback(() => {
     if (sendingRef.current) return;
-    withConfirmedImpactDays(() => setShowSendRecipient(true));
-  }, [withConfirmedImpactDays]);
+    // #77/#141 — a saved CO whose number MAGE has not confirmed is not sent:
+    // the email would carry a number another device may already have used.
+    const hold = numberHold('email');
+    if (hold) { showAlert('Not yet', hold); return; }
+    withConfirmedPrices(() => withConfirmedImpactDays(() => setShowSendRecipient(true)));
+  }, [withConfirmedImpactDays, withConfirmedPrices, numberHold]);
+
+  // #77/#141 — a NEW CO saved from Send & Save reopens here (sendNext=1) and
+  // the send sheet comes back, recipient prefilled, once its number is
+  // confirmed. Once only: closing the sheet must not re-open it.
+  const sendNextOpenedRef = useRef(false);
+  useEffect(() => {
+    if (sendNext !== '1' || sendNextOpenedRef.current || !existingCO) return;
+    if (serverNumber.state !== 'confirmed') return;
+    sendNextOpenedRef.current = true;
+    setShowSendRecipient(true);
+    // Clear the param: the ref lives per mount, so a remount (the gate going
+    // loading → editor on a refetch, a web reload of this URL) would otherwise
+    // reopen the send sheet unasked.
+    router.setParams({ sendNext: undefined });
+  }, [sendNext, existingCO, serverNumber.state, router]);
 
   // Issue as G714 — Construction Change Directive. The same change
   // content is rendered as a G714 PDF instead of (or in addition to)
@@ -1586,6 +1924,25 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     }
   }, [projectId]);
 
+  /**
+   * #77/#141 — Send & Save on a NEW change order. It has no confirmed number
+   * yet, and the email, the portal and the e-sign record must never carry a
+   * guess. It is saved as a draft WITH the recipient and turnaround (so nothing
+   * he typed is lost, #78) and the screen reopens on it: the send sheet comes
+   * back by itself once MAGE has confirmed the number — a moment online;
+   * offline it waits for the sync and the screen says so.
+   */
+  const saveNewForSend = useCallback(() => {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    setSendInFlight(true);
+    setShowSendRecipient(false);
+    const saved = persistCO('draft', sendRecipientName, sendRecipientEmail, { recordRecipient: true });
+    if (!saved) { releaseSending(); return; }
+    nailIt('Saved as a draft — send opens once MAGE confirms its number');
+    router.setParams({ coId: saved.id, sendNext: '1' });
+  }, [persistCO, sendRecipientName, sendRecipientEmail, releaseSending, router]);
+
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
       showAlert('Email Required', 'Please enter a recipient email address.');
@@ -1598,6 +1955,18 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       showAlert(blocked.title, blocked.message);
       return;
     }
+    // #76 — the send path's own check (handleSendPress confirmed the AI
+    // prices before this sheet opened; anything still unpriced is refused).
+    const unpriced = coUnconfirmedPriceBlocker(lineItems, description, formatCurrency);
+    if (unpriced) {
+      showAlert(unpriced.title, unpriced.kind === 'refuse' ? unpriced.message : `${unpriced.message} Close this and tap Send & Save again to confirm them.`);
+      return;
+    }
+    // #77/#141 — a NEW change order has no confirmed number yet: it is saved
+    // first and the send comes back once MAGE has numbered it (saveNewForSend).
+    if (!existingCO) { saveNewForSend(); return; }
+    const hold = numberHold('email');
+    if (hold) { showAlert('Not yet', hold); return; }
     if (sendingRef.current) return;
     sendingRef.current = true;
     setSendInFlight(true);
@@ -1633,7 +2002,8 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         companyName: branding.companyName,
         recipientName: sendRecipientName,
         projectName: project?.name ?? 'Project',
-        coNumber: existingCO?.number ?? nextCoNumber,
+        // The SERVER's number — the send is held until it is known (#141).
+        coNumber: confirmedNumber ?? nextCoNumber,
         description: description.trim(),
         changeAmount: sendAmount,
         newContractTotal: coRoundCents(originalContractValue + sendAmount),
@@ -1653,7 +2023,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       // up front so the homeowner knows before opening. Drops the
       // "{Company} - " prefix because the FROM personalization (handled
       // server-side via fromCompanyName) already shows the company.
-      const coNum = existingCO?.number ?? nextCoNumber;
+      const coNum = confirmedNumber ?? nextCoNumber;
       // #131 — the headline is what the client approves: incl. tax when a tax
       // rate applies (the body lists the pre-tax change and the tax).
       const headline = sendTax.taxAmount !== 0 ? sendTax.totalWithTax : sendAmount;
@@ -1701,7 +2071,15 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       const status = coStatusForSend(result.outcome, existingCO?.status);
       const sent = result.outcome === 'sent';
       const priorUpdatedAt = existingCO?.updatedAt ?? null;
-      const saved = persistCO(status, sent ? sendRecipientName : undefined, sent ? sendRecipientEmail : undefined);
+      // #78 — a send that fell back to his mail app records the recipient and
+      // turnaround on the draft too, so Mark submitted inherits them.
+      const composerOpened = result.outcome === 'composer_opened';
+      const saved = persistCO(
+        status,
+        sent || composerOpened ? sendRecipientName : undefined,
+        sent || composerOpened ? sendRecipientEmail : undefined,
+        { recordRecipient: composerOpened },
+      );
       if (!saved) { releaseSending(); return; }
       const write = await Promise.race<RecordWriteOutcome | 'pending'>([
         saved.write.catch((): RecordWriteOutcome => 'failed'),
@@ -1713,7 +2091,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         ? await shareSavedCOToPortal(saved.id, saved.isUpdate ? priorUpdatedAt : null)
         : undefined;
       const report = coSendReport({
-        number: saved.number,
+        number: confirmedNumber ?? saved.number,
         email: result.outcome,
         emailError: result.error,
         status,
@@ -1738,7 +2116,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     } else {
       releaseSending();
     }
-  }, [persistCO, releaseSending, goBack, navigation, lineItems, lineDrafts, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, reason, originalContractValue, originalContractSum, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, shareSavedCOToPortal]);
+  }, [persistCO, releaseSending, goBack, navigation, lineItems, lineDrafts, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, confirmedNumber, numberHold, router, description, reason, originalContractValue, originalContractSum, priorApprovedChanges, existingFrozenTaxRate, liveTaxRatePct, shareSavedCOToPortal]);
 
   // A locked CO hides the EDIT action bar — an approved one gets the billing
   // bar below instead, which lifts the FAB the same way.
@@ -1802,13 +2180,86 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   // #33 (app side) — the portal only signs a CO that is out for approval; a
   // draft shared there showed the client a change order with nothing to sign.
+  // #73 — never re-share a declined or void CO as-is; #77/#141 — never share
+  // one whose number is still provisional; #76 — never one with a line that
+  // has no price. coPortalSendGate says which.
   const portalSendGate = useMemo((): { canSend: boolean; reason?: string } => {
-    if (existingCO?.status === 'draft') {
-      return { canSend: false, reason: 'Submit this change order for approval first (Send & Save, or Mark submitted) — the portal only asks your client to sign a submitted change order.' };
+    const refusal = existingCO ? coUnconfirmedPriceBlocker(existingCO.lineItems, existingCO.description ?? '', formatCurrency) : null;
+    return coPortalSendGate({
+      status: existingCO?.status,
+      lineCount: lineItems.length,
+      // The portal share builds from the provider's CO, so it also waits until
+      // that copy carries the server's number (a save stamps it, see persistCO).
+      numberHold: numberHold('portal') ?? coStaleNumberHold(existingCO?.number, confirmedNumber),
+      priceRefusal: refusal ? (refusal.kind === 'refuse' ? refusal.message : 'Confirm the AI-estimated prices first: open Send & Save, which asks, or type the prices yourself and save.') : null,
+    });
+  }, [existingCO, lineItems.length, numberHold, confirmedNumber]);
+
+  // #72 — who approved it and how, for the approved card.
+  // On screen, the viewer's own mark reads "by you" (the PDF keeps the name).
+  const approvalLine = useMemo(() => {
+    const l = existingCO ? coApprovalLine(existingCO) : null;
+    return l ? coApprovalLineForViewer(l, [authUser?.email, authUser?.name]) : null;
+  }, [existingCO, authUser?.email, authUser?.name]);
+
+  // #74 — the CO PDF (G701 + frozen tax rows) from the SAVED record.
+  const formDirty = useMemo(() => coFormDirty(existingCO ?? null, {
+    description, reason, scheduleImpactDays: parsedImpactDays, lineItems,
+  }), [existingCO, description, reason, parsedImpactDays, lineItems]);
+  const pdfAction = coPdfAction({ saved: !!existingCO, dirty: formDirty, numberHold: numberHold('pdf') });
+  const pdfBusyRef = useRef(false);
+  const handleSharePdf = useCallback(async () => {
+    if (!existingCO || !project || pdfBusyRef.current) return;
+    const hold = numberHold('pdf');
+    if (hold) { showAlert('Not yet', hold); return; }
+    pdfBusyRef.current = true;
+    try {
+      const branding = settings.branding ?? { companyName: 'MAGE ID', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      // The server's number, if the provider has not adopted it yet.
+      const co = confirmedNumber != null && confirmedNumber !== existingCO.number ? { ...existingCO, number: confirmedNumber } : existingCO;
+      await generateChangeOrderPDF(co, project, branding);
+    } catch (err) {
+      showAlert('Could not make the PDF', err instanceof Error ? err.message : 'Try again.');
+    } finally {
+      pdfBusyRef.current = false;
     }
-    if (lineItems.length === 0) return { canSend: false, reason: 'Add at least one line item before sending.' };
-    return { canSend: true };
-  }, [existingCO?.status, lineItems.length]);
+  }, [existingCO, project, settings, confirmedNumber, numberHold]);
+
+  // #73 — "Revise & re-issue" on a declined CO: a NEW draft with the next
+  // number, prefilled, linked back. The declined CO keeps its number, trail
+  // and decline; the portal and the e-sign flow see only the new one.
+  const reviseBusyRef = useRef(false);
+  const handleReviseReissue = useCallback(() => {
+    if (!existingCO || existingCO.status !== 'rejected' || reviseBusyRef.current) return;
+    reviseBusyRef.current = true;
+    const nowIso = new Date().toISOString();
+    const draft = coRevisionDraft(existingCO, {
+      id: createId('co'),
+      number: nextChangeOrderNumber(existingCOs),
+      nowIso,
+      newId: () => createId('coli'),
+      actor: authUser?.email ?? 'you',
+    });
+    const co: ChangeOrder = { ...draft, lineItems: draft.lineItems.map(l => ({ ...l })) };
+    void addChangeOrder(co);
+    nailIt('Revision started as a new draft change order');
+    router.replace({ pathname: '/change-order', params: { projectId: existingCO.projectId, coId: co.id } });
+  }, [existingCO, existingCOs, authUser?.email, addChangeOrder, router]);
+
+  // #79 — Mark approved commits money: confirm first, as the project screen does.
+  const confirmApprove = useCallback((co: ChangeOrder) => {
+    const copy = coApproveConfirmCopy(confirmedNumber ?? co.number, co.changeAmount, formatCurrency);
+    showAlert(copy.title, copy.message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Approve',
+        onPress: () => {
+          updateChangeOrder(co.id, { status: 'approved' });
+          nailIt(`CO #${confirmedNumber ?? co.number} approved`);
+        },
+      },
+    ]);
+  }, [confirmedNumber, updateChangeOrder]);
 
   const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
 
@@ -1856,7 +2307,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       <Stack.Screen options={{ headerShown: false }} />
       <ToolHeader
         eyebrow="CHANGE ORDERS · MAGE ID"
-        title={existingCO ? `CO #${existingCO.number}` : 'New Change Order'}
+        title={existingCO ? (confirmedNumber != null ? `CO #${confirmedNumber}` : 'CO (pending #)') : 'New Change Order'}
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
@@ -1868,7 +2319,14 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.heroCard}>
-            <Text style={styles.heroLabel}>Change Order #{nextCoNumber}</Text>
+            {/* #77/#141 — never a guessed number shown as settled. */}
+            <Text style={styles.heroLabel} testID="co-number-label">
+              {!existingCO
+                ? `New change order · #${nextCoNumber} proposed`
+                : confirmedNumber != null
+                  ? `Change Order #${confirmedNumber}`
+                  : `Change Order (pending #${existingCO.number})`}
+            </Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             {existingCO && (
               <View style={[styles.statusBadge, { backgroundColor: getStatusBg(themeColors, existingCO.status) }]}>
@@ -1882,44 +2340,87 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
             )}
           </View>
 
-          {existingCO && (
-            <View style={styles.pipelineWrap}>
-              <StatusPipeline
-                stages={CO_PIPELINE_STAGES}
-                current={mapCOStatus(existingCO.status)}
-                startedAt={existingCO.createdAt}
-                onAdvance={(next) => {
-                  // Advancing to approved can now rewrite the Gantt. Same rule
-                  // as the project screen: preview first, never on the tap.
-                  if (
-                    next === 'approved' &&
-                    (existingCO.scheduleImpactDays ?? 0) > 0 &&
-                    !existingCO.scheduleImpactApplied &&
-                    (project?.schedule?.tasks?.length ?? 0) > 0
-                  ) {
-                    setReflowPreviewCO(existingCO);
-                    return;
-                  }
-                  // #131 — "Mark submitted" puts the CO out for approval too,
-                  // so it freezes the tax the same way Send & Save does (the
-                  // rate already frozen on the CO wins over today's setting).
-                  const freeze: COFrozenFields = next === 'submitted' && existingFrozenTaxRate == null
-                    ? coTaxFreeze(existingCO.changeAmount, liveTaxRatePct)
-                    : {};
-                  updateChangeOrder(existingCO.id, { status: next, ...freeze });
-                  if (next === 'approved') {
-                    nailIt(`CO #${existingCO.number} approved`);
-                  }
-                }}
-                advanceLabel={
-                  existingCO.status === 'draft' ? 'Mark submitted'
-                  : existingCO.status === 'submitted' ? 'Move to review'
-                  : existingCO.status === 'under_review' ? 'Mark approved'
-                  : undefined
-                }
-              />
+          {/* #77/#141 — say why the number is not settled, and say it when the
+              server moved it (another device had already used it). */}
+          {existingCO && serverNumber.state !== 'confirmed' && serverNumber.state !== 'checking' && (
+            <View style={styles.numberNote} testID="co-number-pending">
+              <Text style={styles.numberNoteText}>{coNumberHoldReason(serverNumber.state, 'email')}</Text>
             </View>
           )}
+          {existingCO && serverNumber.renumberedFrom != null && confirmedNumber != null && serverNumber.renumberedFrom !== confirmedNumber && (
+            <View style={styles.numberNote} testID="co-renumbered">
+              <Text style={styles.numberNoteText}>
+                {`This change order was #${serverNumber.renumberedFrom} on this device, but #${serverNumber.renumberedFrom} was already used on this job, so MAGE numbered it #${confirmedNumber}. Everything you send uses #${confirmedNumber}.`}
+              </Text>
+            </View>
+          )}
+
+          {/* #74 — the change order PDF (G701 build-up + frozen tax rows),
+              from the SAVED record. Always shown; says why when it can't run. */}
+          <View style={styles.pdfRow}>
+            <Button
+              label={pdfAction.label}
+              variant="secondary"
+              size="sm"
+              disabled={!pdfAction.enabled}
+              onPress={() => { void handleSharePdf(); }}
+              iconLeft={<Share2 size={14} color={themeColors.text} strokeWidth={1.75} />}
+              testID="co-share-pdf"
+            />
+            {!!pdfAction.reason && <Text style={styles.pdfReason}>{pdfAction.reason}</Text>}
+          </View>
+
+          {existingCO && (() => {
+            const pipe = coPipelineFor(existingCO.status);
+            return (
+              <View style={styles.pipelineWrap}>
+                <StatusPipeline
+                  stages={pipe.stages}
+                  current={pipe.current}
+                  startedAt={existingCO.createdAt}
+                  // #73 — no one-tap advance out of Declined or Void.
+                  onAdvance={pipe.canAdvance ? (next) => {
+                    // Advancing to approved can now rewrite the Gantt. Same rule
+                    // as the project screen: preview first, never on the tap.
+                    if (
+                      next === 'approved' &&
+                      (existingCO.scheduleImpactDays ?? 0) > 0 &&
+                      !existingCO.scheduleImpactApplied &&
+                      (project?.schedule?.tasks?.length ?? 0) > 0
+                    ) {
+                      setReflowPreviewCO(existingCO);
+                      return;
+                    }
+                    // #79 — every other approve (money-only, no schedule,
+                    // revised) asks first: it commits the money.
+                    if (next === 'approved') {
+                      confirmApprove(existingCO);
+                      return;
+                    }
+                    // #76 — "Mark submitted" means he sent it himself: an
+                    // unpriced line still may not go out as the price.
+                    if (next === 'submitted') {
+                      const refusal = coUnconfirmedPriceBlocker(existingCO.lineItems, existingCO.description ?? '', formatCurrency);
+                      if (refusal?.kind === 'refuse') { showAlert(refusal.title, refusal.message); return; }
+                    }
+                    // #131 — "Mark submitted" puts the CO out for approval too,
+                    // so it freezes the tax the same way Send & Save does (the
+                    // rate already frozen on the CO wins over today's setting).
+                    const freeze: COFrozenFields = next === 'submitted' && existingFrozenTaxRate == null
+                      ? coTaxFreeze(existingCO.changeAmount, liveTaxRatePct)
+                      : {};
+                    updateChangeOrder(existingCO.id, { status: next, ...freeze });
+                  } : undefined}
+                  advanceLabel={
+                    existingCO.status === 'draft' ? 'Mark submitted'
+                    : existingCO.status === 'submitted' ? 'Move to review'
+                    : existingCO.status === 'under_review' || existingCO.status === 'revised' ? 'Mark approved'
+                    : undefined
+                  }
+                />
+              </View>
+            );
+          })()}
 
           <View style={styles.totalsCard}>
             {/* AIA G701's rows (#129). "Original Contract" used to show the
@@ -2022,9 +2523,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       frozen rate (an invoice carries ONE rate — its own, from
                       Settings when it is created), so the note must not promise
                       the approved incl.-tax total is what gets billed. */}
-                  {existingFrozenTaxRate != null
-                    ? `Your client approved this change at ${taxRatePct}% sales tax. Tax is added when you bill it on a progress invoice, at your Settings rate on that day — if that rate has changed, the invoice total will differ from the approved one.`
-                    : 'Sales tax is added when you bill this change on a progress invoice, at your Settings rate on that day. The rate shown here is recorded on the change order when you send it, as the one your client approves.'}
+                  {/* #42 — keyed on STATUS: the rate freezes when the CO goes
+                      out, not when the client approves it. */}
+                  {coTaxNote(existingCO?.status, existingFrozenTaxRate, taxRatePct)}
                 </Text>
               </>
             )}
@@ -2182,6 +2683,34 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     </Text>
                   </View>
                 )}
+                {/* #73 — the way forward the decline email names. */}
+                {existingCO?.status === 'rejected' && (
+                  <Button
+                    label="Revise & re-issue"
+                    variant="primary"
+                    size="sm"
+                    onPress={handleReviseReissue}
+                    iconLeft={<RotateCcw size={14} color="#FFFFFF" strokeWidth={1.75} />}
+                    testID="co-revise-reissue"
+                  />
+                )}
+                {existingCO?.status === 'rejected' && (
+                  <Text style={styles.lockedSub}>
+                    Starts a new draft change order with the next number, these lines and days, linked to this one. This declined change order stays as it is.
+                  </Text>
+                )}
+                {/* #72 — who approved it and how: the client's portal
+                    signature (signer, day, record hash), or plainly that
+                    there is none. A signed CO no longer looks like one he
+                    marked approved himself. */}
+                {approvalLine && (
+                  <View style={[styles.approvalBox, approvalLine.kind === 'manual' && styles.approvalBoxManual]} testID="co-approval-line">
+                    <Text style={styles.approvalTitle}>
+                      {approvalLine.kind === 'client_signed' ? 'Client signature' : approvalLine.kind === 'manual' ? 'Approval' : 'Client approval'}
+                    </Text>
+                    <Text style={styles.lockedSub}>{approvalLine.text}</Text>
+                  </View>
+                )}
                 {/* "for change", so his own reason is never read as the client's. */}
                 {existingCO?.reason ? <Text style={styles.lockedSub}>Reason for change: {existingCO.reason}</Text> : null}
                 {existingCO?.scheduleImpactDays ? (
@@ -2311,6 +2840,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                         <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
                       </View>
                     </View>
+                    {/* #76 — a price nobody confirmed is marked, not sent. */}
+                    {item.priceSource === 'ai_estimated' && (
+                      <Text style={styles.linePriceTag} testID={`co-line-ai-${item.id}`}>AI estimate from your cost book — type a price, or confirm it when you send.</Text>
+                    )}
+                    {item.priceSource === 'needs_price' && (
+                      <Text style={styles.linePriceTag} testID={`co-line-needs-${item.id}`}>Needs a price — it cannot be sent at $0.</Text>
+                    )}
                     <View style={{ marginTop: 8 }}>
                       <CSIDivisionPicker
                         value={item.csiDivision}
@@ -2873,6 +3409,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   impactGuessText: { fontSize: Type.caption1.fontSize, color: themeColors.dangerLabel, marginTop: 6, fontWeight: '600' as const },
   declineBox: { borderLeftWidth: 3, borderLeftColor: themeColors.dangerLabel, paddingLeft: 10, marginVertical: 4, gap: 2 },
   declineTitle: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '600' as const },
+  approvalBox: { borderLeftWidth: 3, borderLeftColor: themeColors.success, paddingLeft: 10, marginVertical: 4, gap: 2 },
+  approvalBoxManual: { borderLeftColor: themeColors.line },
+  approvalTitle: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '600' as const },
+  numberNote: { marginHorizontal: 20, marginTop: 10, padding: 10, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line },
+  numberNoteText: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16 },
+  pdfRow: { marginHorizontal: 20, marginTop: 10, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, flexWrap: 'wrap' as const },
+  pdfReason: { flex: 1, minWidth: 160, fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
+  linePriceTag: { fontSize: Type.caption1.fontSize, color: themeColors.dangerLabel, marginTop: 6, fontWeight: '600' as const },
   pipelineWrap: pipelineWrapStyle,
   container: { flex: 1, backgroundColor: themeColors.bg },
   // Document-style form — cap kept, widened for desktop.

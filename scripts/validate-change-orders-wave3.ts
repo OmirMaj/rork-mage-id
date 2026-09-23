@@ -252,7 +252,9 @@ if (B) {
     /Original contract sum/.test(CODE) && /Net change by prior approved COs/.test(CODE) && /Contract sum prior to this CO/.test(CODE)
     && !/>Original Contract</.test(CODE));
   ok('the old "every other approved CO" filter is gone', !/c\.status === 'approved' && c\.id !== coId\)/.test(CODE)
-    && /coPriorApprovedChanges\(existingCOs, nextCoNumber, coId\)/.test(CODE));
+    // wave 4 #141: computed against the server-confirmed number once known.
+    && /coPriorApprovedChanges\(existingCOs, baseNumber, coId\)/.test(CODE)
+    && /const baseNumber = confirmedNumber \?\? nextCoNumber;/.test(CODE));
   ok('originalContractValue keeps its stored meaning (contract before this CO)', /coRoundCents\(originalContractSum \+ priorApprovedChanges\)/.test(CODE));
 }
 
@@ -355,7 +357,10 @@ console.log('\n#36 the portal send sits above Save / Send & Save, not under them
 
 // ── #33 (app side) no portal send of a draft ───────────────────────────────
 console.log('\n#33 the portal send waits for a submitted CO');
-ok('a draft cannot be sent to the portal, with the reason', /if \(existingCO\?\.status === 'draft'\) \{\s*return \{ canSend: false, reason: 'Submit this change order for approval first/.test(CODE)
+// wave 4 #73: the gate moved into the pure coPortalSendGate (co-w4 block),
+// which also refuses rejected/void — the draft rule is unchanged.
+ok('a draft cannot be sent to the portal, with the reason', /if \(o\.status === 'draft'\) \{\s*return \{ canSend: false, reason: 'Submit this change order for approval first/.test(CODE)
+  && /return coPortalSendGate\(\{/.test(CODE)
   && (CODE.match(/canSend=\{portalSendGate\.canSend\}/g) ?? []).length === 2);
 
 // ── the migration ──────────────────────────────────────────────────────────

@@ -97,10 +97,14 @@ const html = read('marketing', 'sub-portal', 'index.html');
 {
   // Boot: server first with ?t= and an id; hash only as the fallback.
   const boot = html.slice(html.indexOf('var hashData = decodeHash();'));
+  // wave 4 (#50): the server answer is tagged; the hash renders only when the
+  // server could not be reached or has nothing published — never over a
+  // denial. Behaviour is driven in validate-w4-punch-sub-portal-page.ts.
   check('#17 with ?t= and an id the page fetches the server copy BEFORE using the hash',
-    /if \(subPortalIdFromPath && getSubToken\(\)\) \{\s*fetchSubSnapshot\(subPortalIdFromPath\)\.then\(function \(fresh\) \{\s*if \(fresh\) \{ renderGated\(fresh\); return; \}\s*if \(hashData\) \{ renderGated\(hashData\); return; \}/.test(boot));
+    /if \(subPortalIdFromPath && getSubToken\(\)\) \{\s*showCard\('loading'\);\s*loadFromServer\(\);/.test(boot)
+    && /if \(res\.kind === 'ok'\) \{[\s\S]*?renderGated\(res\.data\);[\s\S]*?if \(hashData\) \{ renderGated\(withFrozenWhy\(hashData, res\.kind\)\); return; \}/.test(boot));
   check('#17 nothing renders the hash before the server read is tried',
-    /function renderGated\(d\) \{ runGate\(d, function \(\) \{ render\(d\); \}\); \}\s*if \(subPortalIdFromPath && getSubToken\(\)\) \{/.test(boot));
+    boot.indexOf("renderGated(withFrozenWhy(hashData, 'hash_only'))") > boot.indexOf('loadFromServer();\n  } else if (hashData)'));
   check('#17 the old "hash first, never ask the server" boot is gone', !/var data = decodeHash\(\);\s*if \(data\) \{/.test(html));
   check('#16 Mark fixed calls the token-gated RPC', /\/rest\/v1\/rpc\/sub_portal_mark_punch_ready/.test(html) && /p_access_token: token, p_punch_id: id/.test(html));
   check('#17 money is dated, not presented as live', /Contract, invoices and schedule as of <span id="snapshot-time">/.test(html));
@@ -138,11 +142,11 @@ const html = read('marketing', 'sub-portal', 'index.html');
   check('#113 a free-text due date is flagged, not printed as a date', /not a date, ask your contractor/.test(out) && /Due Oct 20, 2026/.test(out));
   check('#16 open rows get Mark fixed; the waiting row does not',
     (out.match(/data-punch-fix="/g) ?? []).length === 2 && !/data-punch-fix="c"/.test(out));
-  check('the sub note is escaped', /Your note: done &lt;b&gt;/.test(out));
+  check('the sub note is escaped (labelled as the note sent with his last mark, #47)', /Note sent with your last mark: done &lt;b&gt;/.test(out));
   check('#17 live rows say they are live', /Live from Acme Builders/.test(out));
   api.renderPunch({ company: { name: 'Acme' }, snapshotAt: '2026-09-01T00:00:00Z', punchItems: [{ id: 'z', description: 'x', status: 'open' }] });
-  check('#17 a hash-only (frozen) list says "As of <date>" and that it could not be refreshed',
-    /As of Sep 1, 2026 — this copy could not be refreshed/.test(sec.innerHTML) || /As of Aug 31, 2026 — this copy could not be refreshed/.test(sec.innerHTML), sec.innerHTML.slice(0, 300));
+  check('#17 a hash-only (frozen) list says "As of <date>" and that it is the copy in the link, not live',
+    /As of (Sep 1|Aug 31), 2026 — the copy saved in this link, not the live list/.test(sec.innerHTML), sec.innerHTML.slice(0, 300));
 }
 
 console.log('\napp/sub-portal-setup.tsx (#17):');

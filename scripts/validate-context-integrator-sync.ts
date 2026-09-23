@@ -90,21 +90,26 @@ console.log('\n#112 — a refetch never undoes a queued edit or delete:');
   ok('...and with no pin write of his own out, the pin overlay leaves the server pin', overlay[0].pinX === 0.3);
 
   // Every merge loader: deletes filtered, the empty read gate.
+  // Wave 4 #1: the keep set is the sync ledger's refused writes AND the queue — validate-w4-context-core-loaders runs it.
+  // Wave 4 #5: invoices, commitments and pay apps keep rows written during
+  // the read too (and treat a touched id gone from the device as deleted).
+  // Wave 4 review: the invoices keep set drops ids the ledger names only for
+  // a refused payment append (validate-w4-context-money-portal-ledger runs it).
   const loaders: [string, RegExp][] = [
     ['change_orders', /keepDevice, \{ deletedIds: await queuedDeletesFor\('change_orders'\) \}\)/],
-    ['invoices', /queuedIdsFor\('invoices'\), \{ deletedIds: await queuedDeletesFor\('invoices'\) \}\)/],
-    ['commitments', /queuedIdsFor\('commitments'\), \{ deletedIds: await queuedDeletesFor\('commitments'\) \}\)/],
+    ['invoices', /const keepInvoices = new Set\(\[\.\.\.await queuedIdsFor\('invoices'\), \.\.\.await unsavedWriteIds\('invoices'\)\]\);\s*const deletedInvoices = await queuedDeletesFor\('invoices'\);\s*await dropRpcOnlyLedgerIds\(keepInvoices, 'invoices', userId\);[^\n]*[\s\S]{0,300}new Set\(\[\.\.\.keepInvoices, \.\.\.invoiceInsertsRef\.current\.keys\(\), \.\.\.touchedInv\.keep\]\), \{ deletedIds: new Set\(\[\.\.\.deletedInvoices, \.\.\.touchedInv\.gone\]\) \}\)/],
+    ['commitments', /queuedIdsFor\('commitments'\), \.\.\.await unsavedWriteIds\('commitments'\), \.\.\.touchedCm\.keep\]\), \{ deletedIds: new Set\(\[\.\.\.await queuedDeletesFor\('commitments'\), \.\.\.touchedCm\.gone\]\) \}\)/],
     // data-session critic round 2: daily reports, photos (and permits /
     // warranties) are re-read on every foreground, so they keep rows written
     // during the read too — and treat a touched id gone from the device as deleted.
-    ['daily_reports', /queuedIdsFor\('daily_reports'\), \.\.\.touchedDr\.keep\]\), \{ deletedIds: new Set\(\[\.\.\.await queuedDeletesFor\('daily_reports'\), \.\.\.touchedDr\.gone\]\) \}\)/],
+    ['daily_reports', /queuedIdsFor\('daily_reports'\), \.\.\.await unsavedWriteIds\('daily_reports'\), \.\.\.touchedDr\.keep\]\), \{ deletedIds: new Set\(\[\.\.\.await queuedDeletesFor\('daily_reports'\), \.\.\.touchedDr\.gone\]\) \}\)/],
     // data-session critic: + rows written directly during the read (an INSERT
     // or whole-row UPDATE on the wire), as rfis / submittals already keep.
-    ['punch_items', /queuedIdsFor\('punch_items'\), \.\.\.idsWrittenDuringRead\(proDocWriteTouchRef\.current, fetchStartedAt\)\]\), \{ deletedIds: await queuedDeletesFor\('punch_items'\), combine: combinePunchPending \}\)/],
-    ['photos', /queuedIdsFor\('photos'\), \.\.\.touchedPh\.keep\]\), \{ deletedIds: new Set\(\[\.\.\.await queuedDeletesFor\('photos'\), \.\.\.touchedPh\.gone\]\) \}\)/],
-    ['rfis', /const keepDevice = new Set\(\[\.\.\.await queuedIdsFor\('rfis'\), \.\.\.idsWrittenDuringRead\(proDocWriteTouchRef\.current, readStartedAt\)\]\);\s*const merged = mergeLocalOnly\(mapped, await loadLocal<RFI\[\]>\(RFIS_KEY, \[\]\), keepDevice, \{ deletedIds: await queuedDeletesFor\('rfis'\) \}\)/],
-    ['submittals', /const keepDevice = new Set\(\[\.\.\.await queuedIdsFor\('submittals'\), \.\.\.idsWrittenDuringRead\(proDocWriteTouchRef\.current, readStartedAt\)\]\);\s*const merged = mergeLocalOnly\(mapped, await loadLocal<Submittal\[\]>\(SUBMITTALS_KEY, \[\]\), keepDevice, \{ deletedIds: await queuedDeletesFor\('submittals'\) \}\)/],
-    ['aia_pay_apps', /queuedIdsFor\('aia_pay_apps'\), \{ deletedIds: await queuedDeletesFor\('aia_pay_apps'\) \}\)/],
+    ['punch_items', /queuedIdsFor\('punch_items'\), \.\.\.await unsavedWriteIds\('punch_items'\), \.\.\.idsWrittenDuringRead\(proDocWriteTouchRef\.current, fetchStartedAt\)\]\), \{ deletedIds: await queuedDeletesFor\('punch_items'\), combine: combinePunchPending \}\)/],
+    ['photos', /queuedIdsFor\('photos'\), \.\.\.await unsavedWriteIds\('photos'\), \.\.\.touchedPh\.keep\]\), \{ deletedIds: new Set\(\[\.\.\.await queuedDeletesFor\('photos'\), \.\.\.touchedPh\.gone\]\) \}\)/],
+    ['rfis', /const keepDevice = new Set\(\[\.\.\.await queuedIdsFor\('rfis'\), \.\.\.await unsavedWriteIds\('rfis'\), \.\.\.idsWrittenDuringRead\(proDocWriteTouchRef\.current, readStartedAt\)\]\);\s*(?:\/\/[^\n]*\n\s*)*const merged = mergeLocalOnly\(mapped, await loadLocal<RFI\[\]>\(RFIS_KEY, \[\]\), keepDevice, \{ deletedIds: await queuedDeletesFor\('rfis'\), combine: withServerShareToken \}\)/],
+    ['submittals', /const keepDevice = new Set\(\[\.\.\.await queuedIdsFor\('submittals'\), \.\.\.await unsavedWriteIds\('submittals'\), \.\.\.idsWrittenDuringRead\(proDocWriteTouchRef\.current, readStartedAt\)\]\);\s*(?:\/\/[^\n]*\n\s*)*const merged = mergeLocalOnly\(mapped, await loadLocal<Submittal\[\]>\(SUBMITTALS_KEY, \[\]\), keepDevice, \{ deletedIds: await queuedDeletesFor\('submittals'\), combine: withServerShareToken \}\)/],
+    ['aia_pay_apps', /queuedIdsFor\('aia_pay_apps'\), \.\.\.await unsavedWriteIds\('aia_pay_apps'\), \.\.\.touchedAia\.keep\]\), \{ deletedIds: new Set\(\[\.\.\.await queuedDeletesFor\('aia_pay_apps'\), \.\.\.touchedAia\.gone\]\) \}\)/],
   ];
   for (const [table, re] of loaders) {
     const from = CTX.indexOf(`supabase.from('${table}').select`);
@@ -203,7 +208,7 @@ console.log('\n#55 — an edit writes only what changed, from the insert\'s own 
     /supabase\.rpc\('submittal_append_review_cycle', \{\s*p_submittal_id: submittalId,\s*p_cycle:/.test(arc));
   ok('...offline it rides the queue as a guarded review_cycles patch (the server appends and renumbers), a close-in-place is refused with why',
     /rowPatch\(submittalMutableRow\(current\), \['reviewCycles', 'currentStatus'\], SUBMITTAL_FIELD_COLUMNS, now\)/.test(arc)
-      && /if \(closesInPlace\) \{\s*return revert\(/.test(arc));
+      && /if \(closesInPlace\) \{\s*(?:\/\/[^\n]*\n\s*)*return revert\(closeCycleHoldReason\(hold, provisionalNo\)\);/.test(arc));
   ok('...a server refusal takes the provisional cycle back off and says why', /const revert = \(reason: string\)/.test(arc) && /showAlert\('Review cycle not saved', reason\)/.test(arc));
   ok('...and the server\'s number replaces the provisional one, then the list is re-read',
     /cycleNumber: serverNo/.test(arc) && /invalidateQueries\(\{ queryKey: \['submittals', userId\] \}\)/.test(arc));
@@ -305,9 +310,14 @@ console.log('\n#55 review round — load, edit, then reopen (executed):');
 // ─── #56 · realtime ───────────────────────────────────────────────────────
 console.log('\n#56 — the architect\'s answer reaches an open phone:');
 {
-  ok('NotificationContext listens for rfis UPDATEs on HIS rows and invalidates [\'rfis\']',
-    /table: 'rfis', filter: `user_id=eq\.\$\{user\.id\}` \},\s*\(\) => \{ void queryClient\.invalidateQueries\(\{ queryKey: \['rfis'\] \}\); \}/.test(NOTIF));
-  ok('...and submittals', /table: 'submittals', filter: `user_id=eq\.\$\{user\.id\}` \},\s*\(\) => \{ void queryClient\.invalidateQueries\(\{ queryKey: \['submittals'\] \}\); \}/.test(NOTIF));
+  // Wave 4 #33: NOT filtered to his user_id — a row a teammate raised carries
+  // the teammate's id, so the GC never heard the architect answer it.
+  // Realtime applies each subscriber's SELECT RLS (the collab select
+  // policies), so he still hears only rows he can read.
+  ok('NotificationContext listens for EVERY rfis UPDATE he can read and invalidates [\'rfis\']',
+    /\{ event: 'UPDATE', schema: 'public', table: 'rfis' \},\s*\(\) => \{ void queryClient\.invalidateQueries\(\{ queryKey: \['rfis'\] \}\); \}/.test(NOTIF));
+  ok('...and submittals', /\{ event: 'UPDATE', schema: 'public', table: 'submittals' \},\s*\(\) => \{ void queryClient\.invalidateQueries\(\{ queryKey: \['submittals'\] \}\); \}/.test(NOTIF));
+  ok('...and neither listener is narrowed back to user_id (#33)', !/table: '(?:rfis|submittals)', filter:/.test(NOTIF));
   const mig = read('supabase/migrations/20260919210000_realtime_rfis_submittals.sql');
   ok('the publication migration adds both tables, each only when missing',
     /alter publication supabase_realtime add table public\.rfis/.test(mig) && /alter publication supabase_realtime add table public\.submittals/.test(mig)
@@ -334,7 +344,7 @@ console.log('\n#74 — the plans re-read:');
       && /refetch \? idsWrittenDuringRead\(planWriteTouchRef\.current, readStartedAt\)/.test(pullSrc)
       && (pullSrc.match(/writtenDuringRead\(\)\)/g) ?? []).length === 4
       && !/supabaseWrite\('(plan_sheets|drawing_pins|plan_markups|plan_calibrations)'/.test(CTX)
-      && (CTX.match(/trackedWrite\(planWriteTouchRef, '(plan_sheets|drawing_pins|plan_markups|plan_calibrations)'/g) ?? []).length === 11);
+      && (CTX.match(/trackedWrite\(planWriteTouchRef, '(plan_sheets|drawing_pins|plan_markups|plan_calibrations)'/g) ?? []).length === 12); // wave 4 #118: + deletePlanSheet's un-supersede
   const rf = slice(CTX, 'const refetchPlansFromServer = useCallback(async (): Promise<void> => {', '}, [canSync, userId, pullPlansFromServer]);');
   ok('refetchPlansFromServer skips while plan writes are queued and never re-paints the disk copy',
     /if \(planWritesQueued\(await getOfflineQueue\(\)\)\) return;/.test(rf) && /pullPlansFromServer\(\{ refetch: true,/.test(rf)

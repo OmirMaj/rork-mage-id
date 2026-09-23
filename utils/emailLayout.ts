@@ -453,3 +453,19 @@ export function fmtMoney(n: number | string | null | undefined): string {
   if (isNaN(v)) return '—';
   return '$' + Math.round(v).toLocaleString('en-US');
 }
+
+/**
+ * Money to the cent — for any email that names an amount a Pay button or a
+ * signature commits to (#37). fmtMoney above rounds to whole dollars, which is
+ * right for an estimate summary and wrong for an invoice: "$1,251 due" over a
+ * Stripe charge and a subject line of $1,250.50. Same '—' for a non-number.
+ * Negative amounts keep their sign ("-$82.50"); callers that print a signed
+ * delta (the CO builder) pass the absolute value and add their own sign.
+ */
+export function fmtMoneyCents(n: number | string | null | undefined): string {
+  const v = typeof n === 'string' ? parseFloat(n) : (n ?? 0);
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
+  const cents = Math.round(v * 100) / 100;
+  const abs = Math.abs(cents).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${cents < 0 ? '-' : ''}$${abs}`;
+}

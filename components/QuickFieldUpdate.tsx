@@ -34,11 +34,12 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { supabase } from '@/lib/supabase';
 import {
-  applyFieldTaskPatches,
+  applyFieldTaskPatches, mergeWrittenStamps,
   scheduleWritePathForRole,
   sendFieldTaskPatches,
   type FieldTaskPatch,
 } from '@/utils/fieldScheduleUpdate';
+import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import QuickUpdateClarifier, {
   type ClarifierAction,
   type ClarifierResult,
@@ -207,12 +208,10 @@ export default function QuickFieldUpdate() {
         case 'mark_complete': {
           patch.progress = 100;
           patch.status = 'done';
-          patch.actualEndDate = new Date().toISOString();
           break;
         }
         case 'start_task': {
           patch.status = 'in_progress';
-          patch.actualStartDate = task.actualStartDate ?? new Date().toISOString();
           break;
         }
         case 'add_note': {
@@ -235,12 +234,27 @@ export default function QuickFieldUpdate() {
         }
       }
 
+      // AS-BUILT ACTUALS (#89), the same rule as the Schedule tab and the daily
+      // report: every status change stamps its actual day NUMBERS as well as
+      // the date. This used to hand-write only actualEndDate / actualStartDate,
+      // and a progress-to-100 wrote no actual at all, so Schedule Pro's Reflow
+      // from actuals ("No tasks have an actual start or finish logged yet"),
+      // its actual-date badges and bring-up-to-date ignored what he reported
+      // here. stampActuals never overwrites a finish already recorded (the old
+      // mark_complete line did), and records no start nobody observed.
+      if (patch.status && patch.status !== task.status) {
+        Object.assign(patch, stampActuals(task, patch.status, todayScheduleDay(schedule.startDate), new Date().toISOString(), { retroStartFromPlanned: false }));
+      }
+
       const writePath = scheduleWritePathForRole(project.myRole);
       if (writePath === 'none') {
         return { ok: false, message: `Not saved — you have view-only access to ${project.name}. Ask the project owner for field or editor access.` };
       }
+      // Field: a cleared actual (reopening a finished task) goes out as null —
+      // the RPC's "remove this key"; JSON would silently drop an undefined.
       if (writePath === 'field_rpc') {
-        const fieldPatch = { id: task.id, ...patch } as FieldTaskPatch;
+        const fieldPatch = { id: task.id } as FieldTaskPatch;
+        for (const [k, v] of Object.entries(patch)) (fieldPatch as Record<string, unknown>)[k] = v === undefined ? null : v;
         const sent = await sendFieldTaskPatches(supabase, project.id, [fieldPatch]);
         if (!sent.ok) return { ok: false, message: sent.message };
         if (sent.missing.includes(task.id)) {
@@ -250,7 +264,8 @@ export default function QuickFieldUpdate() {
         // row PATCH, which projects_update refuses for field (0 rows, nothing
         // written) — the RPC above is the write that counted.
         updateProject(project.id, {
-          schedule: { ...schedule, tasks: applyFieldTaskPatches(tasks, [fieldPatch]), updatedAt: new Date().toISOString() },
+          // With the stamps the RPC wrote (#87) — a later retry compares them.
+          schedule: { ...schedule, tasks: mergeWrittenStamps(applyFieldTaskPatches(tasks, [fieldPatch]), sent.stamps), updatedAt: new Date().toISOString() },
         });
       } else {
         const updatedTasks = tasks.map((t) => (t.id === task.id ? { ...t, ...patch } : t));

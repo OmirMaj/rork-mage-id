@@ -29,7 +29,7 @@ process.env.TZ = 'America/Chicago';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Invoice, ChangeOrder, Project, ClientPortalSettings, COAuditEntry, Permit, SelectionCategory } from '../types';
+import type { Invoice, ChangeOrder, Project, ClientPortalSettings, COAuditEntry, Permit, SelectionCategory, SavedAIAPayApp } from '../types';
 import { freezeForPortal } from '../utils/portalFreeze';
 import {
   buildPortalSnapshot, buildPortalProposal, latestPaymentDate, coTaxForPortal,
@@ -180,7 +180,7 @@ async function main() {
   check('…and says why a proposal is read-only', /data-proposal-read-only="1"/.test(html));
   const setup = read('app/client-portal-setup.tsx');
   check('the setup switch cannot be turned ON while acceptance is off, and says why',
-    /disabled=\{!canProposeToClient \|\| \(!PORTAL_PROPOSAL_ACCEPTANCE_LIVE && !portal\.proposalApprovalEnabled\)\}/.test(setup)
+    /disabled=\{!canProposeToClient \|\| \(!PORTAL_PROPOSAL_ACCEPTANCE_LIVE && !portal\.proposalApprovalEnabled\)( \|\| !!ownerOnlyReason)?\}/.test(setup)
     && /PROPOSAL_ACCEPTANCE_OFF_REASON/.test(setup)
     && /if \(!PORTAL_PROPOSAL_ACCEPTANCE_LIVE\) return;/.test(setup));
 
@@ -218,6 +218,11 @@ async function main() {
   const invoicesOff = { ...project, clientPortal: { ...portal, showInvoices: false } } as Project;
   const offMerged = mergeLiteSnapshot(fresh, prev, invoicesOff, { hasCompanyName: false, hasPassport: false });
   check('invoices switched off: the carried pay apps (and their Pay link) leave too', !('aiaPayApps' in offMerged.sections));
+  // wave-4 #15: a caller that PASSES the AIA list builds the section fresh —
+  // the published pay apps are no longer carried, so a recalled one leaves
+  // and (below, end to end) a newly sent one appears.
+  const freshAia = mergeLiteSnapshot(fresh, prev, portalProject, { hasCompanyName: false, hasPassport: false, aiaBuiltFresh: true });
+  check('#15: AIA list passed → the published pay apps are NOT carried (fresh build is authoritative)', !('aiaPayApps' in freshAia.sections));
 
   // ── #122 / #23 ─────────────────────────────────────────────────────────────
   console.log('\n#122 / #23 — the shared lite sync');
@@ -289,6 +294,31 @@ async function main() {
   const docs = ((published as unknown as PortalSnapshot).sections.documents ?? []) as { name: string }[];
   check('a lite push keeps the permit row in Documents (built fresh from the project\'s permits)',
     (docsOutcome === 'published' || docsOutcome === 'unchanged') && docs.length === 1 && /#123/.test(docs[0]?.name ?? ''), JSON.stringify(docs));
+
+  // wave-4 #15, end to end: a pay app SENT to the client (portalState shared)
+  // is published by a lite push that carries the device's AIA list; recalled,
+  // it leaves on the next push; a caller without the list carries the row.
+  const aiaApp = {
+    id: 'aia-3', projectId: 'p1', applicationNumber: 3, periodTo: '2026-09-15', portalState: { status: 'sent', sentAt: '2026-09-15T12:00:00Z' },
+    applicationDate: '2026-09-15', ownerName: 'Pat', contractorName: 'Acme', projectName: 'Maple',
+    originalContractSum: 100000, netChangeByCO: 0, contractSumToDate: 100000, retainagePercent: 10, lessPreviousCertificates: 0,
+    lines: [], totals: { totalScheduledValue: 100000, totalCompletedAndStored: 20000, totalRetainage: 2000, totalEarnedLessRetainage: 18000, currentPaymentDue: 18000, balanceToFinish: 82000, percentComplete: 20 },
+    createdAt: '2026-09-15T12:00:00.000Z',
+  } as unknown as SavedAIAPayApp;
+  const otherAia = { ...aiaApp, id: 'aia-x', projectId: 'p2' } as SavedAIAPayApp;
+  const aiaProject = { ...project, clientPortal: { ...portal, showInvoices: true } } as Project;
+  const aiaInput: PortalLiteSyncInput = { ...docsInput, project: aiaProject, aiaPayApps: [aiaApp, otherAia] };
+  const aiaOutcome = await syncPortalSnapshotLite('p1', aiaInput, io);
+  const pubAia = (((published as unknown as PortalSnapshot).sections as Record<string, unknown>).aiaPayApps ?? []) as { id: string }[];
+  check('#15: a pay app sent to the client reaches the portal on a lite push (only THIS project\'s)',
+    aiaOutcome === 'published' && pubAia.length === 1 && pubAia[0].id === 'aia-3', `${aiaOutcome} ${JSON.stringify(pubAia.map(a => a.id))}`);
+  await syncPortalSnapshotLite('p1', { ...aiaInput, aiaPayApps: [{ ...aiaApp, portalState: { status: 'recalled' } } as unknown as SavedAIAPayApp] }, io);
+  check('#15: recalled, it leaves on the next push (not carried)', !((published as unknown as PortalSnapshot).sections as Record<string, unknown>).aiaPayApps);
+  await syncPortalSnapshotLite('p1', aiaInput, io);
+  const beforeCarry = JSON.stringify(((published as unknown as PortalSnapshot).sections as Record<string, unknown>).aiaPayApps);
+  await syncPortalSnapshotLite('p1', { ...aiaInput, aiaPayApps: undefined }, io);
+  check('#15: a caller WITHOUT the list carries the published pay apps unchanged',
+    JSON.stringify(((published as unknown as PortalSnapshot).sections as Record<string, unknown>).aiaPayApps) === beforeCarry && beforeCarry !== undefined);
 
   // Review round 1: a selections read that lost its OPTIONS is a failed read.
   const cat = (id: string, n: number) => ({ id, options: Array.from({ length: n }, (_, i) => ({ id: `${id}-o${i}` })) }) as unknown as SelectionCategory;

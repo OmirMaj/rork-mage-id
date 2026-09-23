@@ -131,3 +131,17 @@ export function planHomeownerDigest(input: {
   if (!Number.isFinite(closesMs) || closesMs <= nowMs) return { kind: 'skip', reason: 'project_closed' };
   return { kind: 'final', linkClosesAt: new Date(closesMs).toISOString() };
 }
+
+// ── #134 (wave 4): a disabled portal sends nothing ─────────────────────────
+// "Disable Portal" is the GC revoking ALL client access (a dispute, a fired
+// client). The digest used to check only invites, expiry and handover, so the
+// homeowner kept getting the Friday recap — and the "project complete" note
+// telling them the binder "is in your portal". Checked FIRST in sendForProject
+// (so the cron AND the GC's preview, which emails for real, both honour it)
+// and in the cron loop before any read. Only an explicit `enabled === false`
+// is off: a portal row with no flag predates the switch and stays as it was.
+export const DIGEST_PORTAL_DISABLED = 'portal_disabled';
+
+export function digestPortalGate(portal: { enabled?: boolean } | null | undefined): typeof DIGEST_PORTAL_DISABLED | null {
+  return portal?.enabled === false ? DIGEST_PORTAL_DISABLED : null;
+}

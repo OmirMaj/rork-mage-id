@@ -23,6 +23,7 @@ import { __setSmokeSession } from '@/__tests__/mocks/supabase';
 import {
   addToOfflineQueue,
   clearOfflineQueue,
+  discardQueuedWrites,
   doomWatermark,
   expireDoomedProjectIds,
   getOfflineQueue,
@@ -32,9 +33,25 @@ import {
   processOfflineQueue,
   retainOfflineQueueForUser,
   supabaseWrite,
+  supabaseWriteDetailed,
+  supabaseRpcDetailed,
+  configureAutoDrain,
   takeDoomedProjectIds,
   type OfflineMutation,
 } from '@/utils/offlineQueue';
+import {
+  discardUnsavedWrite,
+  readSyncFailuresOrThrow,
+  retryUnsavedWrite,
+  unsavedWriteIds,
+  countOwnUnsavedRecords,
+  unsavedPaymentAppends,
+  onUnsavedRetried,
+  ownFailures,
+} from '@/utils/syncLedger';
+import { planProjectsLoad } from '@/utils/projectsLoadGuard';
+import { unsavedProjectIdsIn } from '@/utils/projectContextPure';
+import { settingsRowWritePending } from '@/utils/settingsLoadGuard';
 
 jest.mock('@/components/animations/NailItToast', () => ({
   __esModule: true,
@@ -56,9 +73,9 @@ const USER_A = 'user-a';
 const USER_B = 'user-b';
 const sessionFor = (id: string) => ({ user: { id }, access_token: `tok-${id}` });
 
-type Call = { table: string; op: 'insert' | 'upsert' | 'update' | 'delete'; data: Record<string, unknown> };
+type Call = { table: string; op: 'insert' | 'upsert' | 'update' | 'delete' | 'rpc'; data: Record<string, unknown> };
 type PgError = { message: string; code?: string };
-type Script = (call: Call) => Promise<{ error: PgError | null }>;
+type Script = (call: Call) => Promise<{ error: PgError | null; status?: number }>;
 
 const calls: Call[] = [];
 let script: Script = async () => ({ error: null });
@@ -68,11 +85,20 @@ async function run(call: Call) {
   return script(call);
 }
 
+// Wave 4 #122: after a primary-key duplicate the queue re-reads the id as the
+// caller. `visible` answers that read; by default every row is visible (the
+// SYNC-F4 "already landed" case).
+let visible: (table: string, id: string) => boolean = () => true;
+
 // A postgrest-shaped stand-in narrow enough to script per call. The repo mock's
 // builder resolves EMPTY for everything; the sync engine needs outcomes.
 function installScript(fn: Script) {
   script = fn;
+  (supabase as { rpc: unknown }).rpc = jest.fn((fn: string, args: Record<string, unknown>) => run({ table: `rpc:${fn}`, op: 'rpc', data: args }));
   (supabase as { from: unknown }).from = jest.fn((table: string) => ({
+    select: () => ({
+      eq: async (_col: string, id: string) => ({ data: visible(table, id) ? [{ id }] : [], error: null, status: 200 }),
+    }),
     insert: (data: Record<string, unknown>) => run({ table, op: 'insert', data }),
     upsert: (data: Record<string, unknown>) => run({ table, op: 'upsert', data }),
     update: (data: Record<string, unknown>) => ({
@@ -97,6 +123,7 @@ async function seed(entries: Seed[]): Promise<void> {
     operation: e.operation,
     data: e.data,
     ...(e.rlsRetried !== undefined ? { rlsRetried: e.rlsRetried } : {}),
+    ...(e.rpc ? { rpc: e.rpc } : {}),
     ...('userId' in e ? (e.userId ? { userId: e.userId } : {}) : { userId: USER_A }),
   }));
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(rows));
@@ -115,9 +142,16 @@ async function waitFor(cond: () => boolean, turns = 200): Promise<void> {
 const netFail = async () => { throw new TypeError('Network request failed'); };
 const rlsFor = (table: string) => pg(`new row violates row-level security policy for table "${table}"`, '42501');
 
+beforeAll(() => {
+  // A post-write drain on a 1 s timer would flush the NEXT test's seeded
+  // queue; the one test that exercises it turns it back on.
+  configureAutoDrain(null);
+});
+
 beforeEach(async () => {
   await AsyncStorage.clear();
   calls.length = 0;
+  visible = () => true;
   installScript(ok);
   __setSmokeSession(sessionFor(USER_A));
   // A7: the doomed-project handoff is module state (read-once, in memory). A
@@ -936,5 +970,914 @@ describe('offline queue — change listeners', () => {
     await addToOfflineQueue({ table: 'rfis', operation: 'insert', data: { id: 'r2' } });
 
     expect(seen).toEqual([1, 0]);
+  });
+});
+
+// ── Wave 4 (sync-queue lane) ────────────────────────────────────────────────
+// #2 transport errors, the ordering guard (#23/#24/#102/#138/#139), the #4
+// child backstop, the #1 unsaved-write ledger, #32 numbered creates, the rpc
+// op (CONTRACT 1) and the #122 not-visible conflict — each driven through the
+// real write path and the real flush.
+
+/** A gate a script can park on until the test releases it. */
+function gate() {
+  let open!: () => void;
+  const opened = new Promise<void>((r) => { open = r; });
+  return { opened, open };
+}
+const timedOut = async () => ({ error: { message: 'TypeError: Network request timed out', code: '' }, status: 0 });
+
+describe('wave 4 — a request that never got an answer is transient (#2)', () => {
+  test("live: postgrest's 'TypeError: Network request timed out' (status 0) is queued, not failed", async () => {
+    installScript(timedOut);
+    await expect(supabaseWriteDetailed('daily_reports', 'insert', { id: 'dr1', project_id: 'p1' })).resolves.toBe('queued');
+    const q = await getOfflineQueue();
+    expect(q.map((m) => m.data.id)).toEqual(['dr1']);
+    expect(oops).not.toHaveBeenCalled();
+  });
+
+  test('flush: the same timeout keeps the entry with NO retry spent', async () => {
+    await seed([{ table: 'daily_reports', operation: 'insert', data: { id: 'dr1', project_id: 'p1' } }]);
+    installScript(timedOut);
+    await processOfflineQueue();
+    const q = await getOfflineQueue();
+    expect(q).toHaveLength(1);
+    expect(q[0].retryCount).toBe(0);
+  });
+
+  test('a gateway 503 is transient; a plain 500 stays on the retry budget', async () => {
+    installScript(async () => ({ error: { message: 'upstream unavailable', code: '' }, status: 503 }));
+    await expect(supabaseWriteDetailed('warranties', 'insert', { id: 'w1' })).resolves.toBe('queued');
+    await AsyncStorage.clear();
+    await seed([{ table: 'warranties', operation: 'insert', data: { id: 'w1' } }]);
+    installScript(async () => ({ error: { message: 'internal error', code: 'XX000' }, status: 500 }));
+    await processOfflineQueue();
+    expect((await getOfflineQueue())[0].retryCount).toBe(1);
+  });
+
+  test("Postgres 57014 'statement timeout' is the server answering — it spends a retry", async () => {
+    await seed([{ table: 'warranties', operation: 'insert', data: { id: 'w1' } }]);
+    installScript(async () => ({ error: { message: 'canceling statement due to statement timeout', code: '57014' }, status: 500 }));
+    await processOfflineQueue();
+    expect((await getOfflineQueue())[0].retryCount).toBe(1);
+  });
+});
+
+describe('wave 4 — a later write never overtakes an earlier one of the same record', () => {
+  test('clock-out after an offline clock-in: the UPDATE queues behind the queued INSERT, nothing is sent', async () => {
+    await seed([{ id: 'in', table: 'time_entries', operation: 'insert', data: { id: 't1', status: 'clocked_in' } }]);
+
+    const out = await supabaseWriteDetailed('time_entries', 'update', { id: 't1', status: 'clocked_out' });
+
+    expect(out).toBe('queued');
+    expect(calls).toHaveLength(0);
+    const q = await getOfflineQueue();
+    expect(q.map((m) => m.operation)).toEqual(['insert', 'update']);
+
+    await processOfflineQueue();
+    expect(calls.map((c) => `${c.op}:${String(c.data.status)}`)).toEqual(['insert:clocked_in', 'update:clocked_out']);
+    expect(await getOfflineQueue()).toHaveLength(0);
+  });
+
+  test('an online edit behind a queued offline EDIT queues too (closed never reverts to answered)', async () => {
+    await seed([{ id: 'p1e', table: 'rfis', operation: 'update', data: { id: 'r4', status: 'answered' } }]);
+    await expect(supabaseWriteDetailed('rfis', 'update', { id: 'r4', status: 'closed' })).resolves.toBe('queued');
+    await processOfflineQueue();
+    expect(calls.map((c) => c.data.status)).toEqual(['answered', 'closed']);
+  });
+
+  test('a delete behind a queued insert queues (the record does not come back)', async () => {
+    await seed([{ table: 'punch_items', operation: 'insert', data: { id: 'pi1', project_id: 'p1' } }]);
+    await expect(supabaseWriteDetailed('punch_items', 'delete', { id: 'pi1' })).resolves.toBe('queued');
+    expect(calls).toHaveLength(0);
+    expect((await getOfflineQueue()).map((m) => m.operation)).toEqual(['insert', 'delete']);
+  });
+
+  // Integration round 1: still never SENT — but 'failed', not 'queued'. The
+  // round-0 'queued' came from an append that re-read the queue as [] and
+  // wrote the whole stored queue back as this one entry.
+  // Integration round 2: round 1 made an unreadable queue "hold" every write,
+  // so a device whose stored queue could not be read failed EVERY keyed save
+  // with perfect signal. Nothing in a queue no one can read can be flushed, so
+  // there is nothing to overtake: a queue that stays unreadable is sent past;
+  // a one-off read failure is read again and the ordering rule applies.
+  test('a queue that stays unreadable is not a queue holding an earlier write — sent, the stored queue untouched', async () => {
+    await seed([{ id: 'held', table: 'rfis', operation: 'insert', data: { id: 'r0' } }]);
+    const real = (AsyncStorage.getItem as jest.Mock).getMockImplementation();
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (k: string) => {
+      if (k === QUEUE_KEY) throw new Error('storage refused');
+      return real ? real(k) : null;
+    });
+    try {
+      const out = await supabaseWriteDetailed('rfis', 'update', { id: 'r1', status: 'closed' });
+      expect(out).toBe('synced');
+      expect(calls.map((c) => c.op)).toEqual(['update']);
+    } finally {
+      (AsyncStorage.getItem as jest.Mock).mockImplementation(real);
+    }
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['held']);
+  });
+
+  test('a one-off read failure is read again — an earlier queued write of the record still holds the new one', async () => {
+    await seed([{ id: 'held', table: 'rfis', operation: 'insert', data: { id: 'r1' } }]);
+    const real = (AsyncStorage.getItem as jest.Mock).getMockImplementation();
+    let refused = 0;
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (k: string) => {
+      if (k === QUEUE_KEY && refused === 0) { refused += 1; throw new Error('storage hiccup'); }
+      return real ? real(k) : null;
+    });
+    try {
+      await expect(supabaseWriteDetailed('rfis', 'update', { id: 'r1', status: 'closed' })).resolves.toBe('queued');
+      expect(calls).toHaveLength(0);
+    } finally {
+      (AsyncStorage.getItem as jest.Mock).mockImplementation(real);
+    }
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['held', expect.any(String)]);
+  });
+
+  test("another tenant's queued entry for the same id does not hold this user's write", async () => {
+    await seed([{ table: 'rfis', operation: 'insert', data: { id: 'r1' }, userId: USER_B }]);
+    await expect(supabaseWriteDetailed('rfis', 'update', { id: 'r1', status: 'closed' })).resolves.toBe('synced');
+    expect(calls.map((c) => c.op)).toEqual(['update']);
+  });
+
+  test('a write made while the INSERT is still on the wire waits for it, then follows it into the queue', async () => {
+    const g = gate();
+    installScript(async (c) => {
+      if (c.op === 'insert') { await g.opened; throw new TypeError('Network request failed'); }
+      return { error: null };
+    });
+    const insert = supabaseWriteDetailed('daily_reports', 'insert', { id: 'dr1', project_id: 'p1', notes: 'morning' });
+    const update = supabaseWriteDetailed('daily_reports', 'update', { id: 'dr1', notes: 'final' });
+    await waitFor(() => calls.length === 1);
+    expect(calls[0].op).toBe('insert'); // the update has NOT been sent past it
+    g.open();
+    await expect(insert).resolves.toBe('queued');
+    await expect(update).resolves.toBe('queued');
+    expect(calls).toHaveLength(1);
+    expect((await getOfflineQueue()).map((m) => m.data.notes)).toEqual(['morning', 'final']);
+  });
+
+  test("a direct write of a record the flush is sending waits for the flush's write-back", async () => {
+    await seed([{ table: 'time_entries', operation: 'insert', data: { id: 't1', status: 'clocked_in' } }]);
+    const g = gate();
+    installScript(async (c) => {
+      if (c.op === 'insert') await g.opened;
+      return { error: null };
+    });
+    const flush = processOfflineQueue();
+    await waitFor(() => calls.length === 1);
+    const direct = supabaseWriteDetailed('time_entries', 'update', { id: 't1', status: 'clocked_out' });
+    for (let i = 0; i < 50; i++) await Promise.resolve();
+    expect(calls).toHaveLength(1); // still parked behind the flush's group
+    g.open();
+    await flush;
+    await expect(direct).resolves.toBe('synced');
+    expect(calls.map((c) => c.op)).toEqual(['insert', 'update']);
+  });
+
+  test('a direct write that lands while this session still has queued work drains it soon', async () => {
+    configureAutoDrain(5);
+    try {
+      await seed([{ table: 'photos', operation: 'insert', data: { id: 'ph1', project_id: 'p1' } }]);
+      await expect(supabaseWriteDetailed('rfis', 'update', { id: 'r9', status: 'closed' })).resolves.toBe('synced');
+      await new Promise((r) => setTimeout(r, 40));
+      await waitFor(() => calls.some((c) => c.table === 'photos'), 2000);
+      expect(await getOfflineQueue()).toHaveLength(0);
+    } finally {
+      configureAutoDrain(null);
+    }
+  });
+});
+
+describe('wave 4 — a child made with its job waits for the job (#4)', () => {
+  test("a child refused by RLS while its job's write fell into the queue is queued behind it", async () => {
+    installScript(async (c) => {
+      if (c.table === 'projects') throw new TypeError('Network request failed');
+      if (c.table === 'invoices') return { error: { message: 'insert or update on table "invoices" violates foreign key constraint "invoices_project_id_fkey"', code: '23503' } };
+      return { error: null };
+    });
+    const job = supabaseWriteDetailed('projects', 'upsert', { id: 'p1', name: 'Sample' });
+    const child = supabaseWriteDetailed('invoices', 'insert', { id: 'i1', project_id: 'p1' });
+    await expect(job).resolves.toBe('queued');
+    await expect(child).resolves.toBe('queued');
+    expect(oops).not.toHaveBeenCalled();
+    const q = await getOfflineQueue();
+    expect(q.map((m) => m.table)).toEqual(['projects', 'invoices']);
+    expect(q[1].rlsRetried).toBeFalsy();
+  });
+
+  test('the child is sent only after the job write on the wire has settled', async () => {
+    const g = gate();
+    installScript(async (c) => {
+      if (c.table === 'projects') await g.opened;
+      return { error: null };
+    });
+    const job = supabaseWriteDetailed('projects', 'upsert', { id: 'p1' });
+    const child = supabaseWriteDetailed('daily_reports', 'insert', { id: 'dr1', project_id: 'p1' });
+    await waitFor(() => calls.length === 1);
+    for (let i = 0; i < 50; i++) await Promise.resolve();
+    expect(calls.map((c) => c.table)).toEqual(['projects']);
+    g.open();
+    await expect(job).resolves.toBe('synced');
+    await expect(child).resolves.toBe('synced');
+    expect(calls.map((c) => c.table)).toEqual(['projects', 'daily_reports']);
+  });
+
+  test('with no job write anywhere, an RLS refusal is a real failure — toasted AND recorded with its row', async () => {
+    installScript(rlsFor('punch_items'));
+    await expect(supabaseWriteDetailed('punch_items', 'insert', { id: 'pi1', project_id: 'p1', description: 'Loose fixture' })).resolves.toBe('failed');
+    expect(oops).toHaveBeenCalledTimes(1);
+    for (let i = 0; i < 20 && (await readSyncFailuresOrThrow()).length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({ table: 'punch_items', recordId: 'pi1', operation: 'insert', userId: USER_A });
+    expect(ledger[0].row).toMatchObject({ description: 'Loose fixture' });
+  });
+});
+
+describe('wave 4 — an unsaved write stays on the phone until Retry or Discard (#1)', () => {
+  async function failOne(): Promise<string> {
+    installScript(pg('null value in column "due_date" of relation "punch_items" violates not-null constraint', '23502'));
+    await supabaseWriteDetailed('punch_items', 'insert', { id: 'pi1', project_id: 'p1' });
+    for (let i = 0; i < 20 && (await readSyncFailuresOrThrow()).length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    return (await readSyncFailuresOrThrow())[0].id;
+  }
+
+  test('unsavedWriteIds names the record the server refused — the loaders keep it', async () => {
+    await failOne();
+    expect([...(await unsavedWriteIds('punch_items'))]).toEqual(['pi1']);
+    expect([...(await unsavedWriteIds('rfis'))]).toEqual([]);
+    const [entry] = await readSyncFailuresOrThrow();
+    expect(entry.reason).toBe('a required field was missing');
+  });
+
+  test("another user's unsaved write is not this session's to keep", async () => {
+    await failOne();
+    __setSmokeSession(sessionFor(USER_B));
+    try {
+      expect([...(await unsavedWriteIds('punch_items'))]).toEqual([]);
+    } finally {
+      __setSmokeSession(sessionFor(USER_A));
+    }
+  });
+
+  test('Retry resends the row exactly as it was and clears the line when it lands', async () => {
+    const id = await failOne();
+    calls.length = 0;
+    installScript(ok);
+    await expect(retryUnsavedWrite(id)).resolves.toBe('synced');
+    expect(calls).toEqual([{ table: 'punch_items', op: 'insert', data: { id: 'pi1', project_id: 'p1' } }]);
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+  });
+
+  test('Discard removes the line (and nothing is sent)', async () => {
+    const id = await failOne();
+    calls.length = 0;
+    await expect(discardUnsavedWrite(id)).resolves.toBe(1);
+    expect(calls).toHaveLength(0);
+    expect(await unsavedWriteIds('punch_items')).toEqual(new Set());
+  });
+
+  test('a flush drop is recorded with its row, so it can be retried too', async () => {
+    await seed([{ id: 'm-drop', table: 'daily_reports', operation: 'insert', data: { id: 'dr7', project_id: 'p1', notes: 'x' } }]);
+    installScript(pg('new row for relation "daily_reports" violates check constraint "x"', '23514'));
+    await processOfflineQueue();
+    for (let i = 0; i < 20 && (await readSyncFailuresOrThrow()).length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    const [entry] = await readSyncFailuresOrThrow();
+    expect(entry).toMatchObject({ id: 'm-drop', table: 'daily_reports', recordId: 'dr7', operation: 'insert' });
+    expect(entry.row).toMatchObject({ notes: 'x' });
+  });
+});
+
+describe('wave 4 — RFIs and submittals are created in the order he made them (#32)', () => {
+  test('the flush sends one project\'s RFI creates one at a time, oldest first', async () => {
+    await seed([
+      { table: 'rfis', operation: 'insert', data: { id: 'a', project_id: 'p1' }, timestamp: 1 },
+      { table: 'rfis', operation: 'insert', data: { id: 'b', project_id: 'p1' }, timestamp: 2 },
+      { table: 'rfis', operation: 'insert', data: { id: 'c', project_id: 'p1' }, timestamp: 3 },
+    ]);
+    let live = 0, peak = 0;
+    installScript(async () => {
+      live++; peak = Math.max(peak, live);
+      await new Promise((r) => setTimeout(r, 3));
+      live--;
+      return { error: null };
+    });
+    await processOfflineQueue();
+    expect(peak).toBe(1);
+    expect(calls.map((c) => c.data.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  test('once one create stays queued, the later creates of that project wait with it', async () => {
+    await seed([
+      { table: 'submittals', operation: 'insert', data: { id: 'a', project_id: 'p1' }, timestamp: 1 },
+      { table: 'submittals', operation: 'insert', data: { id: 'b', project_id: 'p1' }, timestamp: 2 },
+    ]);
+    installScript(netFail);
+    await processOfflineQueue();
+    expect(calls.map((c) => c.data.id)).toEqual(['a']);
+    expect(await getOfflineQueue()).toHaveLength(2);
+  });
+
+  test('live: a create behind a queued create of the same project queues instead of taking a lower number', async () => {
+    await seed([{ table: 'rfis', operation: 'insert', data: { id: 'a', project_id: 'p1' } }]);
+    await expect(supabaseWriteDetailed('rfis', 'insert', { id: 'b', project_id: 'p1' })).resolves.toBe('queued');
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('wave 4 — record-scoped rpc (CONTRACT 1)', () => {
+  test('a payment append behind a queued invoice INSERT queues and replays after it, in one group', async () => {
+    await seed([{ table: 'invoices', operation: 'insert', data: { id: 'inv1', project_id: 'p1' } }]);
+    const out = await supabaseRpcDetailed('invoices', 'inv1', 'invoice_append_payment', { p_invoice_id: 'inv1', p_entry: { amount: 100 } });
+    expect(out).toBe('queued');
+    const q = await getOfflineQueue();
+    expect(q[1]).toMatchObject({ table: 'invoices', operation: 'rpc', data: { id: 'inv1' }, rpc: { fn: 'invoice_append_payment' } });
+
+    await processOfflineQueue();
+    expect(calls.map((c) => c.op)).toEqual(['insert', 'rpc']);
+    expect(calls[1]).toMatchObject({ table: 'rpc:invoice_append_payment', data: { p_invoice_id: 'inv1' } });
+    expect(await getOfflineQueue()).toHaveLength(0);
+  });
+
+  test('an invoice UPDATE never overtakes a queued payment append', async () => {
+    await seed([{ table: 'invoices', operation: 'rpc', data: { id: 'inv1' }, rpc: { fn: 'invoice_append_payment', args: {} } }]);
+    await expect(supabaseWriteDetailed('invoices', 'update', { id: 'inv1', status: 'paid' })).resolves.toBe('queued');
+    expect(calls).toHaveLength(0);
+  });
+
+  test('a transient rpc failure is queued; a 42501 under a live bearer is dropped and reported', async () => {
+    installScript(timedOut);
+    await expect(supabaseRpcDetailed('invoices', 'inv1', 'invoice_append_payment', {})).resolves.toBe('queued');
+    installScript(pg('not_invoice_owner', '42501'));
+    await processOfflineQueue();
+    expect(await getOfflineQueue()).toHaveLength(0);
+    expect(oops).toHaveBeenCalledTimes(1);
+  });
+
+  // Integration round 1: the invoice screen owns a refused payment append (it
+  // takes the entry back and says "nothing was recorded"). A Not-saved line
+  // as well would offer a Retry that appends the same check a second time.
+  test('a refused append the caller owns is neither ledgered nor toasted; without the option it is both', async () => {
+    installScript(pg('invoice_not_found', 'P0002'));
+    await expect(supabaseRpcDetailed('invoices', 'inv1', 'invoice_append_payment', { p_invoice_id: 'inv1', p_entry: { id: 'pay1' } }, { callerOwnsRefusal: true }))
+      .resolves.toBe('failed');
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(oops).not.toHaveBeenCalled();
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+    expect(await unsavedWriteIds('invoices')).toEqual(new Set());
+
+    await expect(supabaseRpcDetailed('invoices', 'inv1', 'invoice_append_payment', { p_invoice_id: 'inv1', p_entry: { id: 'pay2' } }))
+      .resolves.toBe('failed');
+    for (let i = 0; i < 20 && (await readSyncFailuresOrThrow()).length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(oops).toHaveBeenCalledTimes(1);
+    expect(await readSyncFailuresOrThrow()).toHaveLength(1);
+  });
+});
+
+describe('wave 4 — a duplicate id he cannot see is a conflict, not "already landed" (#122)', () => {
+  test('flush: a _pkey 23505 on a row invisible to him is dropped as not_visible_conflict with its dependents', async () => {
+    await seed([
+      { id: 'ins', table: 'safety_incidents', operation: 'insert', data: { id: 'case1', project_id: 'p1' }, timestamp: 1 },
+      { id: 'upd', table: 'safety_incidents', operation: 'update', data: { id: 'case1', days_away: 3 }, timestamp: 2 },
+    ]);
+    visible = () => false;
+    installScript(pg('duplicate key value violates unique constraint "safety_incidents_pkey"', '23505'));
+    const res = await processOfflineQueue();
+    expect(calls.map((c) => c.op)).toEqual(['insert']); // the update is never sent onto someone else's row
+    expect(res.failed).toBe(2);
+    expect(await getOfflineQueue()).toHaveLength(0);
+    for (let i = 0; i < 20 && (await readSyncFailuresOrThrow()).length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger.map((f) => f.reason)).toEqual(['not_visible_conflict', 'not_visible_conflict']);
+  });
+
+  test('live: the same collision reports failed, never synced', async () => {
+    visible = () => false;
+    installScript(pg('duplicate key value violates unique constraint "safety_incidents_pkey"', '23505'));
+    await expect(supabaseWriteDetailed('safety_incidents', 'insert', { id: 'case1', project_id: 'p1' })).resolves.toBe('failed');
+  });
+
+  test('live: a visible duplicate (a re-send of a timed-out insert) is success', async () => {
+    installScript(pg('duplicate key value violates unique constraint "daily_reports_pkey"', '23505'));
+    await expect(supabaseWriteDetailed('daily_reports', 'insert', { id: 'dr1', project_id: 'p1' })).resolves.toBe('synced');
+  });
+
+  test('outside the author-scoped safety tables the old rule stands: a hidden _pkey duplicate is his landed re-send', async () => {
+    // portal_messages admits client-authored inserts its SELECT never shows
+    // back; a re-read there would call a real landing a conflict.
+    visible = () => false;
+    installScript(pg('duplicate key value violates unique constraint "portal_messages_pkey"', '23505'));
+    await expect(supabaseWriteDetailed('portal_messages', 'insert', { id: 'pm1', portal_id: 'x' })).resolves.toBe('synced');
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Integration round 1 (data-sync lens). Each case is a replay the critic ran
+// against the round-0 code, where it lost data.
+describe('integration round 1 — nothing overtakes an unsaved write of the same record', () => {
+  const settle = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const stmtTimeout = pg('canceling statement due to statement timeout', '57014');
+
+  test('an edit of a record whose INSERT was refused is parked, never sent as a 0-row update; Retry sends the insert WITH the edit', async () => {
+    installScript(stmtTimeout);
+    await expect(supabaseWriteDetailed('daily_reports', 'insert', { id: 'dr1', project_id: 'p1', notes: 'morning draft' })).resolves.toBe('failed');
+    calls.length = 0;
+    oops.mockClear();
+    installScript(ok);
+    await expect(supabaseWriteDetailed('daily_reports', 'update', { id: 'dr1', notes: 'final — crane delivery 2pm' })).resolves.toBe('failed');
+    expect(calls).toHaveLength(0); // round 0: a 0-row UPDATE reported 'synced'
+    expect(String(oops.mock.calls[0]?.[0])).toContain('Not sent yet (Daily report)');
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger).toHaveLength(1); // folded into the parked insert
+    expect(ledger[0]).toMatchObject({ operation: 'insert', recordId: 'dr1', reason: 'the server refused it' });
+    expect([...(await unsavedWriteIds('daily_reports'))]).toEqual(['dr1']);
+
+    await expect(retryUnsavedWrite(ledger[0].id)).resolves.toBe('synced');
+    expect(calls).toEqual([{ table: 'daily_reports', op: 'insert', data: { id: 'dr1', project_id: 'p1', notes: 'final — crane delivery 2pm' } }]);
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+  });
+
+  test('a delete behind a refused insert is appended; Retry replays insert then delete, oldest first', async () => {
+    installScript(stmtTimeout);
+    await supabaseWriteDetailed('punch_items', 'insert', { id: 'pi9', project_id: 'p1' });
+    installScript(ok);
+    calls.length = 0;
+    await expect(supabaseWriteDetailed('punch_items', 'delete', { id: 'pi9' })).resolves.toBe('failed');
+    expect(calls).toHaveLength(0);
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger.map((f) => f.operation).sort()).toEqual(['delete', 'insert']);
+    await expect(retryUnsavedWrite(ledger[0].id)).resolves.toBe('synced');
+    expect(calls.map((c) => c.op)).toEqual(['insert', 'delete']);
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+  });
+
+  test('the flush parks a queued write of a record whose earlier write is unsaved — it is not sent', async () => {
+    installScript(stmtTimeout);
+    await supabaseWriteDetailed('change_orders', 'insert', { id: 'co1', project_id: 'p1', amount: 5000 });
+    await seed([{ id: 'late', table: 'change_orders', operation: 'update', data: { id: 'co1', amount: 7500 }, timestamp: Date.now() + 5 }]);
+    installScript(ok);
+    calls.length = 0;
+    const res = await processOfflineQueue();
+    expect(calls).toHaveLength(0);
+    expect(res.failed).toBe(1);
+    expect(await getOfflineQueue()).toHaveLength(0);
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0].row).toMatchObject({ id: 'co1', amount: 7500, project_id: 'p1' });
+  });
+
+  test('a line leaves the ledger only after its resend lands; a refused Retry keeps the ONE line it had', async () => {
+    installScript(stmtTimeout);
+    await supabaseWriteDetailed('rfis', 'insert', { id: 'r1', project_id: 'p1' });
+    const [line] = await readSyncFailuresOrThrow();
+    let release!: (v: { error: PgError | null }) => void;
+    installScript(() => new Promise((r) => { release = r; }));
+    const retry = retryUnsavedWrite(line.id);
+    await waitFor(() => typeof release === 'function' && calls.length > 0, 2000);
+    // Mid-resend a list read must still keep the row (round 0 removed it first).
+    expect([...(await unsavedWriteIds('rfis'))]).toEqual(['r1']);
+    release({ error: { message: 'canceling statement due to statement timeout', code: '57014' } });
+    await expect(retry).resolves.toBe('failed');
+    const after = await readSyncFailuresOrThrow();
+    expect(after.map((f) => f.id)).toEqual([line.id]);
+  });
+
+  test('a payment append the caller owns, on an invoice with an unsaved write, fails without sending or adding a line', async () => {
+    installScript(stmtTimeout);
+    await supabaseWriteDetailed('invoices', 'update', { id: 'inv1', notes: 'x' });
+    installScript(ok);
+    calls.length = 0;
+    await expect(supabaseRpcDetailed('invoices', 'inv1', 'invoice_append_payment', { p_invoice_id: 'inv1', p_entry: { id: 'pay1', amount: 5000 } }, { callerOwnsRefusal: true }))
+      .resolves.toBe('failed');
+    expect(calls).toHaveLength(0);
+    expect(await readSyncFailuresOrThrow()).toHaveLength(1);
+  });
+
+  test('a queued append the flush drops is labelled with its amount, and the invoice screen can see it waiting', async () => {
+    await seed([{ id: 'ap', table: 'invoices', operation: 'rpc', data: { id: 'inv2' }, rpc: { fn: 'invoice_append_payment', args: { p_invoice_id: 'inv2', p_entry: { id: 'pay-A', amount: 5000 } } } }]);
+    installScript(pg('not_invoice_owner', '42501'));
+    await processOfflineQueue();
+    await settle();
+    const [entry] = await readSyncFailuresOrThrow();
+    expect(entry.label).toBe('Invoice payment of $5,000.00');
+    expect(await unsavedPaymentAppends('inv2')).toEqual([5000]);
+    expect(await countOwnUnsavedRecords()).toBe(1);
+  });
+});
+
+describe('integration round 1 — a write is tagged for the account that MADE it', () => {
+  test('a request in flight across a sign-out and another sign-in is never queued as the new user', async () => {
+    let release!: (v: { error: PgError | null; status?: number }) => void;
+    installScript(() => new Promise((r) => { release = r; }));
+    const out = supabaseWriteDetailed('punch_items', 'update', { id: 'pi1', title: 'A' });
+    await waitFor(() => typeof release === 'function' && calls.length > 0, 2000);
+    __setSmokeSession(sessionFor(USER_B));
+    Sentry.captureMessage.mockClear();
+    release({ error: { message: 'TypeError: Network request timed out' }, status: 0 });
+    // Integration round 3: with B signed in, A's write is dropped (Sentry
+    // note) instead of sitting in the queue for B's whole session.
+    await expect(out).resolves.toBe('failed');
+    expect(await getOfflineQueue()).toHaveLength(0);
+    expect(await getOwnOfflineQueue()).toHaveLength(0); // never B's to flush
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+  });
+
+  test('…while NO ONE is signed in, it is still queued for its writer', async () => {
+    let release!: (v: { error: PgError | null; status?: number }) => void;
+    installScript(() => new Promise((r) => { release = r; }));
+    const out = supabaseWriteDetailed('punch_items', 'update', { id: 'pi1', title: 'A' });
+    await waitFor(() => typeof release === 'function' && calls.length > 0, 2000);
+    __setSmokeSession(null);
+    release({ error: { message: 'TypeError: Network request timed out' }, status: 0 });
+    await expect(out).resolves.toBe('queued');
+    expect((await getOfflineQueue()).map((m) => m.userId)).toEqual([USER_A]);
+  });
+
+  test("a refusal that lands after B signed in is recorded nowhere in B's session — no line, no toast, a Sentry note", async () => {
+    let release!: (v: { error: PgError | null; status?: number }) => void;
+    installScript(() => new Promise((r) => { release = r; }));
+    const out = supabaseWriteDetailed('daily_reports', 'update', { id: 'dr2', notes: "A's report text" });
+    await waitFor(() => typeof release === 'function' && calls.length > 0, 2000);
+    __setSmokeSession(sessionFor(USER_B));
+    oops.mockClear();
+    (Sentry.captureMessage as jest.Mock).mockClear();
+    release({ error: { message: 'canceling statement due to statement timeout', code: '57014' }, status: 500 });
+    await expect(out).resolves.toBe('failed');
+    // Wave-4 final fix: round 3 wrote A's whole row (the report text) into
+    // B's session storage as A's line. Same rule as the transient path.
+    expect(await readSyncFailuresOrThrow()).toEqual([]);
+    expect(JSON.stringify(await readSyncFailuresOrThrow())).not.toContain("A's report text");
+    expect(await unsavedWriteIds('daily_reports')).toEqual(new Set());
+    expect(oops).not.toHaveBeenCalled();
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+  });
+
+  test("…while NO ONE is signed in, the refusal is still A's line, for A's next session", async () => {
+    let release!: (v: { error: PgError | null; status?: number }) => void;
+    installScript(() => new Promise((r) => { release = r; }));
+    const out = supabaseWriteDetailed('daily_reports', 'update', { id: 'dr3', notes: "A's report text" });
+    await waitFor(() => typeof release === 'function' && calls.length > 0, 2000);
+    __setSmokeSession(null);
+    oops.mockClear();
+    release({ error: { message: 'canceling statement due to statement timeout', code: '57014' }, status: 500 });
+    await expect(out).resolves.toBe('failed');
+    expect((await readSyncFailuresOrThrow()).map((f) => f.userId)).toEqual([USER_A]);
+    expect(oops).not.toHaveBeenCalled();
+  });
+});
+
+describe('integration round 1 — the queue is never rebuilt from an unreadable read', () => {
+  test('an enqueue while the stored queue cannot be read fails instead of overwriting it', async () => {
+    await seed([
+      { id: 'keep1', table: 'rfis', operation: 'insert', data: { id: 'r1' } },
+      { id: 'keep2', table: 'rfis', operation: 'insert', data: { id: 'r2' } },
+    ]);
+    const real = (AsyncStorage.getItem as jest.Mock).getMockImplementation();
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === QUEUE_KEY) throw new Error('CursorWindow: row too big');
+      return real ? real(key) : null;
+    });
+    try {
+      await expect(addToOfflineQueue({ table: 'rfis', operation: 'insert', data: { id: 'r3' } })).rejects.toThrow('CursorWindow');
+    } finally {
+      if (real) (AsyncStorage.getItem as jest.Mock).mockImplementation(real);
+    }
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['keep1', 'keep2']);
+  });
+
+  test('an operation this build does not know is kept, not counted as sent and dropped', async () => {
+    await seed([{ id: 'future', table: 'invoices', operation: 'frobnicate' as OfflineMutation['operation'], data: { id: 'inv1' } }]);
+    const res = await processOfflineQueue();
+    expect(calls).toHaveLength(0);
+    expect(res.processed).toBe(0);
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['future']);
+  });
+
+  test('writes swept for a job he left are recorded as notes — no Retry, the row is not kept', async () => {
+    await seed([{ id: 'gone', table: 'daily_reports', operation: 'update', data: { id: 'dr5', project_id: 'p-left' } }]);
+    await expect(discardQueuedWrites((m) => (m.data?.project_id === 'p-left' ? 'You left Henderson Remodel' : null))).resolves.toBe(1);
+    for (let i = 0; i < 20 && (await readSyncFailuresOrThrow()).length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    const [note] = await readSyncFailuresOrThrow();
+    expect(note).toMatchObject({ id: 'gone', reason: 'You left Henderson Remodel' });
+    expect(note.row).toBeUndefined();
+    expect(note.table).toBeUndefined();
+    expect(await unsavedWriteIds('daily_reports')).toEqual(new Set());
+    expect(await countOwnUnsavedRecords()).toBe(0);
+  });
+});
+
+describe('integration round 2 — a dropped write is in the queue or the ledger at every instant', () => {
+  const settle = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const CHECK = { error: { message: 'new row for relation "daily_reports" violates check constraint "daily_reports_weather_check"', code: '23514' }, status: 400 };
+
+  test('mid-flush, a group just dropped is already under Not saved: an edit then is parked, and Retry sends the INSERT with it', async () => {
+    await seed([
+      { id: 'q1', table: 'daily_reports', operation: 'insert', data: { id: 'dr1', project_id: 'p1', notes: 'morning draft' } },
+      { id: 'q2', table: 'daily_reports', operation: 'insert', data: { id: 'dr2', project_id: 'p1', notes: 'other report' } },
+    ]);
+    let open!: () => void;
+    const slow = new Promise<void>((r) => { open = r; });
+    installScript(async (c) => {
+      if (c.data.id === 'dr2') await slow;
+      return c.op === 'insert' && c.data.id === 'dr1' ? CHECK : { error: null, status: 201 };
+    });
+    const flush = processOfflineQueue();
+    await waitFor(() => calls.some((c) => c.data.id === 'dr2'), 2000);
+    await settle();
+    // dr1's group has written back; its line must already exist (round 1
+    // wrote it only after every tier finished, and did not wait for it).
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['q2']);
+    expect([...(await unsavedWriteIds('daily_reports'))]).toEqual(['dr1']);
+    calls.length = 0;
+    await expect(supabaseWriteDetailed('daily_reports', 'update', { id: 'dr1', notes: 'final — crane delivery 2pm' })).resolves.toBe('failed');
+    expect(calls).toHaveLength(0); // round 1: a 0-row UPDATE that said 'synced'
+    open();
+    await flush;
+    await settle();
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger).toHaveLength(1);
+    installScript(ok);
+    calls.length = 0;
+    await expect(retryUnsavedWrite(ledger[0].id)).resolves.toBe('synced');
+    expect(calls).toEqual([{ table: 'daily_reports', op: 'insert', data: { id: 'dr1', project_id: 'p1', notes: 'final — crane delivery 2pm' } }]);
+  });
+
+  test('the flush toast is still ONE per flush, and the lines are not written twice', async () => {
+    await seed([
+      { id: 'a', table: 'punch_items', operation: 'insert', data: { id: 'x1', project_id: 'p1' } },
+      { id: 'b', table: 'punch_items', operation: 'insert', data: { id: 'x2', project_id: 'p1' } },
+    ]);
+    installScript(pg('new row violates check constraint "punch_items_status_check"', '23514'));
+    await processOfflineQueue();
+    await settle();
+    expect(oops).toHaveBeenCalledTimes(1);
+    expect((await readSyncFailuresOrThrow()).map((f) => f.id).sort()).toEqual(['a', 'b']);
+  });
+});
+
+describe('integration round 2 — the writer is taken when the write is MADE, not after its waits', () => {
+  test("A's second edit, waiting on the record's slot across A → B, is never sent under B — nor left queued in B's session", async () => {
+    let release!: (v: { error: PgError | null; status?: number }) => void;
+    let n = 0;
+    installScript(() => { n += 1; return n === 1 ? new Promise((r) => { release = r; }) : Promise.resolve({ error: null, status: 204 }); });
+    const w1 = supabaseWriteDetailed('punch_items', 'update', { id: 'p1', description: 'A first edit' });
+    const w2 = supabaseWriteDetailed('punch_items', 'update', { id: 'p1', description: "A's second edit" });
+    await waitFor(() => typeof release === 'function', 2000);
+    __setSmokeSession(null);
+    __setSmokeSession(sessionFor(USER_B));
+    oops.mockClear();
+    release({ error: { message: 'TypeError: Network request timed out' }, status: 0 });
+    // Integration round 3: B is signed in — A's writes are dropped (the
+    // switch already dropped A's other queued entries), not queued for B's
+    // whole session where the loaders' queued-id reads would pin A's edit.
+    await expect(w1).resolves.toBe('failed');
+    await expect(w2).resolves.toBe('failed');
+    expect(calls.map((c) => c.data.description)).toEqual(['A first edit']); // round 1: sent again under B
+    expect(await getOfflineQueue()).toHaveLength(0);
+    expect(await getOwnOfflineQueue()).toHaveLength(0);
+    expect(oops).not.toHaveBeenCalled();
+  });
+
+  test("…and across a plain sign-out (no one live) A's waiting edit is queued as A's", async () => {
+    let release!: (v: { error: PgError | null; status?: number }) => void;
+    let n = 0;
+    installScript(() => { n += 1; return n === 1 ? new Promise((r) => { release = r; }) : Promise.resolve({ error: null, status: 204 }); });
+    const w1 = supabaseWriteDetailed('punch_items', 'update', { id: 'p1', description: 'A first edit' });
+    const w2 = supabaseWriteDetailed('punch_items', 'update', { id: 'p1', description: "A's second edit" });
+    await waitFor(() => typeof release === 'function', 2000);
+    __setSmokeSession(null);
+    release({ error: { message: 'TypeError: Network request timed out' }, status: 0 });
+    await expect(w1).resolves.toBe('queued');
+    await expect(w2).resolves.toBe('queued');
+    const q = await getOfflineQueue();
+    expect(q.map((m) => [m.userId, m.data.description])).toEqual([[USER_A, 'A first edit'], [USER_A, "A's second edit"]]);
+  });
+
+  test("…so a refusal can never put A's row into B's Not-saved ledger", async () => {
+    let release!: (v: { error: PgError | null; status?: number }) => void;
+    let n = 0;
+    installScript(() => {
+      n += 1;
+      return n === 1 ? new Promise((r) => { release = r; }) : Promise.resolve({ error: { message: 'new row violates row-level security policy for table "punch_items"', code: '42501' }, status: 403 });
+    });
+    const w1 = supabaseWriteDetailed('punch_items', 'update', { id: 'p2', description: 'A first edit' });
+    const w2 = supabaseWriteDetailed('punch_items', 'update', { id: 'p2', description: "A's private note" });
+    await waitFor(() => typeof release === 'function', 2000);
+    __setSmokeSession(null);
+    __setSmokeSession(sessionFor(USER_B));
+    release({ error: { message: 'TypeError: Network request timed out' }, status: 0 });
+    await w1;
+    await w2;
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger.filter((f) => f.userId === USER_B)).toEqual([]);
+    expect((await unsavedWriteIds('punch_items')).has('p2')).toBe(false);
+  });
+});
+
+describe('integration round 2 — rows keyed on project_id are one record in the ledger too', () => {
+  test('a refused project_financials upsert parks the next one; Retry sends the NEWEST budget, never the stale one over it', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await expect(supabaseWriteDetailed('project_financials', 'upsert', { project_id: 'p1', user_id: USER_A, target_budget: 100000 })).resolves.toBe('failed');
+    const [line] = await readSyncFailuresOrThrow();
+    expect(line).toMatchObject({ recordId: 'p1', label: 'Project budget & terms' });
+    installScript(ok);
+    calls.length = 0;
+    await expect(supabaseWriteDetailed('project_financials', 'upsert', { project_id: 'p1', user_id: USER_A, target_budget: 150000 })).resolves.toBe('failed');
+    expect(calls).toHaveLength(0); // round 1: sent, then Retry landed 100000 over it
+    await expect(retryUnsavedWrite(line.id)).resolves.toBe('synced');
+    expect(calls.map((c) => c.data.target_budget)).toEqual([150000]);
+  });
+
+  test('the flush parks a queued project_financials write behind its unsaved one', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await supabaseWriteDetailed('project_financials', 'upsert', { project_id: 'p1', target_budget: 1 });
+    await seed([{ id: 'pf2', table: 'project_financials', operation: 'upsert', data: { project_id: 'p1', target_budget: 2 }, timestamp: Date.now() + 5 }]);
+    installScript(ok);
+    calls.length = 0;
+    await processOfflineQueue();
+    expect(calls).toHaveLength(0);
+    expect(await getOfflineQueue()).toHaveLength(0);
+  });
+});
+
+describe('integration round 2 — an unreadable queue does not stop every save', () => {
+  const corrupt = () => AsyncStorage.setItem(QUEUE_KEY, '[{"id":"x"');
+
+  test('with the stored queue corrupt, a save with signal is sent directly', async () => {
+    await corrupt();
+    await expect(supabaseWriteDetailed('daily_reports', 'update', { id: 'dr1', notes: 'crane 2pm' })).resolves.toBe('synced');
+    expect(calls.map((c) => c.op)).toEqual(['update']);
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+  });
+
+  test('a Retry whose resend cannot be queued keeps its ONE line — no second line per tap', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await supabaseWriteDetailed('daily_reports', 'update', { id: 'dr1', notes: 'crane 2pm' });
+    const [line] = await readSyncFailuresOrThrow();
+    await corrupt();
+    installScript(netFail);
+    await expect(retryUnsavedWrite(line.id)).resolves.toBe('failed');
+    await expect(retryUnsavedWrite(line.id)).resolves.toBe('failed');
+    expect((await readSyncFailuresOrThrow()).map((f) => f.id)).toEqual([line.id]);
+  });
+});
+
+describe('integration round 3 — a record is keyed on its own table\'s primary key', () => {
+  const notice = (portal: string, body: string) => ({ portal_id: portal, project_id: 'p1', author_type: 'gc', body, created_at: new Date().toISOString() });
+
+  test('two id-less portal notices of one job are two records: a refused one holds nothing behind it, and Discard takes only itself', async () => {
+    installScript(async (c) => (c.data.portal_id === 'portal-OLD'
+      ? { error: { message: 'new row violates row-level security policy for table "portal_messages"', code: '42501' }, status: 403 }
+      : { error: null, status: 201 }));
+    await expect(supabaseWriteDetailed('portal_messages', 'insert', notice('portal-OLD', 'New daily report'))).resolves.toBe('failed');
+    await expect(supabaseWriteDetailed('portal_messages', 'insert', notice('portal-NEW', 'New invoice'))).resolves.toBe('synced');
+    await expect(supabaseWriteDetailed('portal_messages', 'insert', notice('portal-NEW', '3 new updates'))).resolves.toBe('synced');
+    const ledger = await readSyncFailuresOrThrow();
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0].recordId).toBeUndefined(); // no key → nothing parks behind it
+    await expect(discardUnsavedWrite(ledger[0].id)).resolves.toBe(1);
+  });
+
+  test('two sub portals of one job are two records: the plumber\'s page is sent, never folded over the electrician\'s refused one', async () => {
+    let first = true;
+    installScript(async () => {
+      if (first) { first = false; return { error: { message: 'canceling statement due to statement timeout', code: '57014' }, status: 500 }; }
+      return { error: null, status: 201 };
+    });
+    const snap = (sub: string, v: string) => ({ sub_portal_id: sub, project_id: 'p1', snapshot: { v }, updated_at: new Date().toISOString() });
+    await expect(supabaseWriteDetailed('sub_portal_snapshots', 'upsert', snap('sub-electrician', 'electrician'))).resolves.toBe('failed');
+    await expect(supabaseWriteDetailed('sub_portal_snapshots', 'upsert', snap('sub-plumber', 'plumber'))).resolves.toBe('synced');
+    const [line] = await readSyncFailuresOrThrow();
+    expect(line).toMatchObject({ recordId: 'sub-electrician', label: 'Sub portal page' });
+    expect(line.row?.sub_portal_id).toBe('sub-electrician');
+    calls.length = 0;
+    await expect(retryUnsavedWrite(line.id)).resolves.toBe('synced');
+    expect(calls.map((c) => c.data.sub_portal_id)).toEqual(['sub-electrician']);
+  });
+
+  test('the flush groups by the same key: a stuck sub portal page does not hold another sub\'s page of the job', async () => {
+    await seed([
+      { id: 's1', table: 'sub_portal_snapshots', operation: 'upsert', data: { sub_portal_id: 'sub-e', project_id: 'p1', snapshot: {} } },
+      { id: 's2', table: 'sub_portal_snapshots', operation: 'upsert', data: { sub_portal_id: 'sub-p', project_id: 'p1', snapshot: {} } },
+    ]);
+    installScript(async (c) => (c.data.sub_portal_id === 'sub-e' ? netFail() : { error: null, status: 201 }));
+    await processOfflineQueue();
+    expect((await getOfflineQueue()).map((m) => m.id)).toEqual(['s1']);
+    expect(calls.map((c) => c.data.sub_portal_id).sort()).toEqual(['sub-e', 'sub-p']);
+  });
+});
+
+describe('integration round 3 — a job under Not saved is kept whole by the projects load', () => {
+  test('refused budget 150k → the re-read keeps 150k → the next sync folds 150k → Retry lands 150k', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    const fin = (budget: number) => ({ project_id: 'p1', user_id: USER_A, target_budget: budget });
+    await expect(supabaseWriteDetailed('project_financials', 'upsert', fin(150000))).resolves.toBe('failed');
+    // The loader's pending set: the queue (empty), then the ledger.
+    const pending = unsavedProjectIdsIn(ownFailures(await readSyncFailuresOrThrow(), USER_A), new Set());
+    expect(pending.has('p1')).toBe(true);
+    const plan = planProjectsLoad([{ id: 'p1', targetBudget: 100000 }], [{ id: 'p1', targetBudget: 150000 }], { seq: 0, byId: new Map() } as never, 0, { pending });
+    expect(plan.projects[0].targetBudget).toBe(150000); // round 2: 100000 — the server's stale row
+    installScript(ok);
+    calls.length = 0;
+    await expect(supabaseWriteDetailed('project_financials', 'upsert', fin(plan.projects[0].targetBudget))).resolves.toBe('failed'); // parked
+    const [line] = await readSyncFailuresOrThrow();
+    expect(line.row?.target_budget).toBe(150000);
+    await expect(retryUnsavedWrite(line.id)).resolves.toBe('synced');
+    expect(calls.map((c) => c.data.target_budget)).toEqual([150000]);
+  });
+
+  test('a projects id named only for a refused rpc does not pin the row; a queued write of it does', () => {
+    const own = [{ kind: 'write', table: 'projects', recordId: 'p2', operation: 'rpc' }];
+    expect(unsavedProjectIdsIn(own, new Set()).has('p2')).toBe(false);
+    expect(unsavedProjectIdsIn(own, new Set(['p2'])).has('p2')).toBe(true);
+  });
+});
+
+describe('integration round 3 — a Retry that lands tells its listeners', () => {
+  test('a flush-refused payment append, then a Retry that lands: the listener hears the invoices line', async () => {
+    await seed([{ id: 'q-e1', table: 'invoices', operation: 'rpc', data: { id: 'inv1' }, rpc: { fn: 'invoice_append_payment', args: { p_invoice_id: 'inv1', p_entry: { id: 'e1', amount: 5000 } } } }]);
+    let refuse = true;
+    installScript(async () => (refuse
+      ? { error: { message: 'permission denied for function invoice_append_payment', code: '42501' }, status: 403 }
+      : { error: null, status: 200 }));
+    await processOfflineQueue();
+    const [line] = await readSyncFailuresOrThrow();
+    expect(line.label).toBe('Invoice payment of $5,000.00');
+    const heard: string[][] = [];
+    const off = onUnsavedRetried((sent, outcome) => { heard.push([outcome, ...sent.map((f) => `${f.table}:${f.recordId}`)]); });
+    refuse = false;
+    await expect(retryUnsavedWrite(line.id)).resolves.toBe('synced');
+    off();
+    expect(heard).toEqual([['synced', 'invoices:inv1']]); // round 2: nothing — the invoice stayed unpaid on the phone
+  });
+
+  test('a Retry refused again tells no one', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await supabaseWriteDetailed('daily_reports', 'update', { id: 'dr9', notes: 'x' });
+    const [line] = await readSyncFailuresOrThrow();
+    const heard: unknown[] = [];
+    const off = onUnsavedRetried((sent) => { heard.push(sent); });
+    await expect(retryUnsavedWrite(line.id)).resolves.toBe('failed');
+    off();
+    expect(heard).toEqual([]);
+  });
+});
+
+describe('integration round 3 — the profile row: one refused save does not hold every later profile write', () => {
+  const settingsRow = (tax: number) => ({ id: USER_A, location: 'Texas', tax_rate: tax });
+
+  test('a push-token write passes a refused settings save; a later settings write still parks behind it', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await expect(supabaseWriteDetailed('profiles', 'update', settingsRow(8.25))).resolves.toBe('failed');
+    const [line] = await readSyncFailuresOrThrow();
+    expect(line.label).toBe('Profile & settings');
+    installScript(ok);
+    calls.length = 0;
+    oops.mockClear();
+    await expect(supabaseWriteDetailed('profiles', 'update', { id: USER_A, push_token: 'ExponentPushToken[x]' })).resolves.toBe('synced');
+    expect(calls.map((c) => c.data.push_token)).toEqual(['ExponentPushToken[x]']);
+    expect(oops).not.toHaveBeenCalled();
+    await expect(supabaseWriteDetailed('profiles', 'update', settingsRow(9))).resolves.toBe('failed'); // shares tax_rate → parked
+    expect(calls).toHaveLength(1);
+    const lines = await readSyncFailuresOrThrow();
+    expect(lines).toHaveLength(1);
+    expect(lines[0].row?.tax_rate).toBe(9); // folded: Retry lands his newest
+  });
+
+  test('the flush sends a queued push token past the unsaved settings line and parks a queued settings edit', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await supabaseWriteDetailed('profiles', 'update', settingsRow(8.25));
+    await seed([
+      { id: 'pt', table: 'profiles', operation: 'update', data: { id: USER_A, push_token: 'tok' }, timestamp: Date.now() + 5 },
+      { id: 'st', table: 'profiles', operation: 'update', data: { id: USER_A, location: 'Ohio' }, timestamp: Date.now() + 6 },
+    ]);
+    installScript(ok);
+    calls.length = 0;
+    await processOfflineQueue();
+    expect(calls.map((c) => Object.keys(c.data).sort().join(','))).toEqual(['id,push_token']);
+    expect(await getOfflineQueue()).toHaveLength(0);
+    const lines = await readSyncFailuresOrThrow();
+    expect(lines).toHaveLength(1);
+    expect(lines[0].row).toMatchObject({ location: 'Ohio', tax_rate: 8.25 });
+  });
+
+  test('outside profiles the plain rule stands: a disjoint column edit of a refused record still parks', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await supabaseWriteDetailed('change_orders', 'update', { id: 'co1', status: 'approved' });
+    installScript(ok);
+    calls.length = 0;
+    await expect(supabaseWriteDetailed('change_orders', 'update', { id: 'co1', description: 'x' })).resolves.toBe('failed');
+    expect(calls).toHaveLength(0);
+  });
+
+  test('the settings load keeps the device copy while a settings save is under Not saved (not for a push-token line)', async () => {
+    installScript(pg('canceling statement due to statement timeout', '57014'));
+    await supabaseWriteDetailed('profiles', 'update', settingsRow(8.25));
+    const asEntries = (await readSyncFailuresOrThrow()).map((f) => ({ table: f.table!, operation: f.operation!, data: f.row! }));
+    expect(settingsRowWritePending(asEntries, USER_A)).toBe(true);
+    expect(settingsRowWritePending([{ table: 'profiles', operation: 'update', data: { id: USER_A, push_token: 't' } }], USER_A)).toBe(false);
   });
 });

@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import { HardHat, Megaphone, ShieldAlert, TriangleAlert, ChevronRight, ClipboardCheck, BadgeCheck, FileText, ArrowLeftRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -52,6 +52,22 @@ export function SafetyAccessBlocked({ roleState, onClose }: { roleState: Project
         <Text style={styles.gateText}>
           MAGE could not load who is on this project, so it cannot tell whether your GC invited you to its safety records. Check your connection and try again.
         </Text>
+        <Button label="Try again" onPress={() => { void roleState.refetch(); }} variant="secondary" />
+      </View>
+    );
+  }
+  // Offline with no role for this job on the phone (audit #125): the read is
+  // paused, not refused, so the Business paywall would be the wrong reason.
+  // roleState.reason already tells the two cases apart (job not on this phone
+  // / role unknown). Keyed on the REASON, not isPaused alone: a paused read
+  // that serves a cached role falls through to the normal allow / paywall
+  // answer. Try again does nothing until signal returns — react-query resumes
+  // the paused read by itself and this gate re-renders.
+  if (roleState.isPaused && roleState.role === null && roleState.reason) {
+    return (
+      <View style={[styles.gateWrap, { backgroundColor: t.bg }]} testID="safety-gate-offline">
+        <Text style={styles.gateTitle}>Waiting for signal</Text>
+        <Text style={styles.gateText}>{roleState.reason}</Text>
         <Button label="Try again" onPress={() => { void roleState.refetch(); }} variant="secondary" />
       </View>
     );
@@ -123,8 +139,12 @@ function SafetyHubInner() {
   const { canAccess: canAccessOwnTier } = useTierAccess();
   const {
     getJhasForProject, getToolboxTalksForProject, getIncidentsForProject, getHazardsForProject,
-    getInspectionsForProject, expiringCertifications, templates, incidents,
+    getInspectionsForProject, expiringCertifications, templates, incidents, refresh,
   } = useSafety();
+  // Re-read the job's safety records whenever the hub is shown (audit #119):
+  // a foreman's incident filed while this screen sat open used to stay out
+  // of the counts until a relaunch. refresh() rate-limits itself.
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   // His own Business tier covers every job and the company-wide records. An
   // invited foreman on a free account reaches the hub only through the jobs
@@ -233,7 +253,10 @@ function SafetyHubInner() {
               toolName="Safety"
               message={ownTier
                 ? 'JHAs, toolbox talks, incidents, the hazard log and inspections are tied to a job. Pick the job you are on.'
-                : 'Your plan does not include Safety, but your GC invited you to the jobs below, so you can run their JHAs, toolbox talks, hazard log and incident reports here.'}
+                // Audit #121: he cannot see a single JHA, talk or hazard the
+                // GC wrote (20260919130000 — author or project owner only), so
+                // this says what he CAN do rather than "run their" records.
+                : 'Your plan does not include Safety, but your GC invited you to the jobs below. You can file JHAs, toolbox talks, hazards and incident reports here. They go to the job\'s owner. You\'ll see the ones you file, not the GC\'s.'}
               projects={pickable}
               onPick={pickProject}
               staleProjectId={staleProjectId}

@@ -34,9 +34,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isPortalOwner } from '@/utils/portalLiteSync';
 
 /** What an editor (not the owner) is told after a send — exported so the
- *  validator pins the words. */
+ *  validator pins the words. #17 (wave 4): the owner's app now republishes
+ *  when a server read brings in another member's shared record, so "the next
+ *  time your GC's app is open" is when it lands — not only when he edits
+ *  this job. Shown only to an editor, whose send really does share it. */
 export const EDITOR_SEND_NOTE =
-  'Your GC\u2019s app adds it to the client\u2019s page the next time it syncs this job, so the client may not see it yet. A recall takes effect right away.';
+  'Your GC\u2019s app adds it to the client\u2019s page the next time your GC\u2019s app is open, so the client may not see it yet. A recall takes effect right away.';
 
 interface Props {
   kind: SendableItemKind;

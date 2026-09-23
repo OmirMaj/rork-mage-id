@@ -80,7 +80,7 @@ export default function CloseoutBinderScreen() {
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
-  const { projects, getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject, subcontractors } = useProjects() as any;
+  const { projects, getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject, subcontractors, requestPortalPublish } = useProjects() as any;
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -157,7 +157,7 @@ export default function CloseoutBinderScreen() {
 
   const persistBinder = useCallback(async (overrides: Partial<CloseoutBinder>) => {
     if (!projectId) return null;
-    return saveCloseoutBinder({
+    const saved = await saveCloseoutBinder({
       id: binderId,
       projectId,
       maintenanceSchedule: maintenance,
@@ -167,7 +167,13 @@ export default function CloseoutBinderScreen() {
       sentAt,
       ...overrides,
     });
-  }, [binderId, projectId, maintenance, notes, status, finalizedAt, sentAt]);
+    // #12 (wave 4): the binder reaches the homeowner's portal only inside a
+    // snapshot publish, and this write goes straight to closeout_binders — no
+    // tracked project save marks the job. Every successful save (save,
+    // finalize, send) asks the provider for one.
+    if (saved) (requestPortalPublish as (id: string) => void)(projectId);
+    return saved;
+  }, [binderId, projectId, maintenance, notes, status, finalizedAt, sentAt, requestPortalPublish]);
 
   const handleSave = useCallback(async () => {
     if (!projectId) return;
@@ -255,6 +261,8 @@ export default function CloseoutBinderScreen() {
       const baked: BakedHomePassport = { faq, summary: passport.summary, generatedAt };
       await saveBakedPassport(project.id, baked);
       setPassportBaked(baked);
+      // The baked passport rides the next snapshot publish (#12).
+      (requestPortalPublish as (id: string) => void)(project.id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       // Non-blocking by design — the binder flow is untouched.
@@ -264,7 +272,7 @@ export default function CloseoutBinderScreen() {
       setPassportBusy(false);
       setPassportStep('');
     }
-  }, [project, passportBusy, canAccess, router, commitments, warranties, projectPhotos, selections, subcontractors, maintenance]);
+  }, [project, passportBusy, canAccess, router, commitments, warranties, projectPhotos, selections, subcontractors, maintenance, requestPortalPublish]);
 
   const handleFinalize = useCallback(() => {
     showAlert(

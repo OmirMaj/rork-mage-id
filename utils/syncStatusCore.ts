@@ -53,6 +53,103 @@ export interface SyncFailureSummary {
   count: number;
   /** Human labels for the distinct things that failed, newest first, deduped. */
   labels: string[];
+  /** How many of `count` the ledger can resend as they were (#1, wave 4).
+   *  Absent = 0: a note recorded before payloads were kept, a photo or a
+   *  dictation can only be dismissed. */
+  retryable?: number;
+}
+
+/** One row of the "not saved" sheet: one record, whatever number of its
+ *  writes failed. */
+export interface UnsavedLine {
+  /** A ledger id of the record — what Retry / Discard are called with. */
+  id: string;
+  label: string;
+  /** "Not saved to MAGE — <reason>". */
+  line: string;
+  canRetry: boolean;
+  /** How many of the record's writes this line stands for. */
+  writes: number;
+  /** What Discard throws away — decides the confirm's words (a dropped edit
+   *  is not a lost record, and a dropped delete brings the record back). */
+  discards: UnsavedDiscardKind;
+}
+
+/**
+ * What discarding a record's unsaved writes means for it:
+ *   create  — some write was its INSERT: it never reached MAGE, and goes.
+ *   edit    — MAGE has the record; only this change is dropped.
+ *   delete  — the delete is dropped; the record stays on MAGE and comes back.
+ *   unknown — an upsert (create or edit, the ledger cannot tell) or a note
+ *             recorded without its operation.
+ */
+export type UnsavedDiscardKind = 'create' | 'edit' | 'delete' | 'unknown';
+
+/** Pure: the kind for one record's failed writes. An INSERT anywhere wins —
+ *  if the record itself never landed, every later edit of it goes with it. */
+export function discardKindFor(operations: readonly (string | undefined)[]): UnsavedDiscardKind {
+  if (operations.includes('insert')) return 'create';
+  if (operations.includes('delete')) return 'delete';
+  if (operations.length > 0 && operations.every((o) => o === 'update' || o === 'rpc')) return 'edit';
+  return 'unknown';
+}
+
+/** The body of the Discard confirm, per kind. Every sentence must be true. */
+export function discardConfirmBody(kind: UnsavedDiscardKind): string {
+  switch (kind) {
+    case 'create':
+      return 'It was never saved to MAGE. Discarding removes it from this phone and it cannot be recovered.';
+    case 'edit':
+      return 'Your change was not saved to MAGE. Discarding drops the change — MAGE keeps the last saved version, and this phone goes back to it.';
+    case 'delete':
+      return 'The delete was not saved to MAGE. Discarding cancels it — the record stays on MAGE and will reappear on this phone.';
+    default:
+      return 'This change was not saved to MAGE. Discarding drops it for good — if the record was never saved, it is removed from this phone; if it was, MAGE keeps the last saved version.';
+  }
+}
+
+/** The minimum a ledger entry must say for a line to be drawn from it. */
+export interface UnsavedSource {
+  id: string;
+  label: string;
+  reason: string;
+  at: number;
+  canRetry: boolean;
+  /** The write's operation ('insert' | 'update' | …); absent for a note. */
+  operation?: string;
+  /** table + record id; entries of one record share it. Absent = its own. */
+  recordKey?: string;
+}
+
+export const NOT_SAVED_LEAD = 'Not saved to MAGE — ';
+
+/**
+ * One line per record, newest first. A record is retryable only if EVERY
+ * write of it can be resent — a line offering Retry that silently skips the
+ * refused INSERT would resend the edit onto nothing.
+ */
+export function unsavedLines(sources: readonly UnsavedSource[]): UnsavedLine[] {
+  const byRecord = new Map<string, UnsavedSource[]>();
+  for (const f of sources) {
+    const key = f.recordKey ?? `id:${f.id}`;
+    const list = byRecord.get(key) ?? [];
+    list.push(f);
+    byRecord.set(key, list);
+  }
+  const lines: (UnsavedLine & { at: number })[] = [];
+  for (const list of byRecord.values()) {
+    const newest = [...list].sort((a, b) => b.at - a.at)[0];
+    lines.push({
+      id: newest.id,
+      label: newest.label,
+      line: `${NOT_SAVED_LEAD}${newest.reason}`,
+      canRetry: list.every((f) => f.canRetry),
+      writes: list.length,
+      discards: discardKindFor(list.map((f) => f.operation)),
+      at: newest.at,
+    });
+  }
+  return lines.sort((a, b) => b.at - a.at).map(({ at: _at, ...line }) => line);
 }
 
 export interface SyncStatusInput {
@@ -151,15 +248,25 @@ export function computeSyncStatus(
       : pending > 0
         ? `\n\n${describeDepths(depths)} ${pending === 1 ? 'is' : 'are'} still queued and will sync when you have signal.`
         : '';
+    // #1 (wave 4): the ledger now keeps what it takes to resend most
+    // failures, and the sheet behind this badge offers Retry for those. The
+    // copy says exactly that — and still says they will NOT be sent on their
+    // own, because nothing is ever resent without his tap.
+    const retryable = Math.min(failed, Math.max(0, input.failures.retryable ?? 0));
+    const one = failed === 1;
+    const action = retryable === failed
+      ? `Tap Retry to send ${one ? 'it' : 'them'} again, or Discard to remove ${one ? 'it' : 'them'} from ${where} for good.`
+      : retryable === 0
+        ? `You need to re-enter ${one ? 'it' : 'them'}.`
+        : `Tap Retry to send the ones that can be sent again; the rest you need to re-enter.`;
     return {
       tone: 'failed', pending: input.readFailed ? 0 : pending, failed, depths,
       visible: true,
       badge: `${failed} didn’t sync`,
-      title: `${failed} item${failed === 1 ? '' : 's'} couldn’t be saved`,
+      title: `${failed} item${one ? '' : 's'} not saved to MAGE`,
       detail:
-        `MAGE retried ${failed === 1 ? 'this' : 'these'} until the retry budget ran out and has stopped trying. `
-        + `${failed === 1 ? 'It is' : 'They are'} not on the server and will not be sent — you need to re-enter `
-        + `${failed === 1 ? 'it' : 'them'}.${what}${alsoPending}`,
+        `${one ? 'It is' : 'They are'} not on the server and will not be sent unless you retry — MAGE has stopped trying. `
+        + `${action}${what}${alsoPending}`,
     };
   }
 

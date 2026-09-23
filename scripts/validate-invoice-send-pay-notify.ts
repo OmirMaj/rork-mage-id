@@ -100,11 +100,17 @@ const checkout = WEBHOOK.slice(WEBHOOK.indexOf('async function handleCheckoutCom
 ok('the invoice path notifies AFTER the duplicate guard',
   checkout.indexOf('if (credit.duplicate) return') > -1 && checkout.indexOf('notifyGcInvoicePaid(supabase, invoiceId, credit)') > checkout.indexOf('if (credit.duplicate) return'));
 const aia = WEBHOOK.slice(WEBHOOK.indexOf('async function handleAiaPayAppCompleted('), WEBHOOK.indexOf('async function findInvoiceByPaymentIntent('));
-ok('the AIA path notifies only a credited, non-duplicate delivery', /if \(!credit\.duplicate\) void notifyGcInvoicePaid\(supabase, invoiceId, credit\)/.test(aia) && aia.indexOf('if (!credit.ok)') < aia.indexOf('notifyGcInvoicePaid'));
-ok('both are fire-and-forget (void) — a notify failure never makes Stripe retry a credited payment',
-  /void notifyGcInvoicePaid\(/.test(checkout) && !/await notifyGcInvoicePaid/.test(WEBHOOK));
+ok('the AIA path notifies only a credited, non-duplicate delivery', /if \(!credit\.duplicate\) afterCredit\(notifyGcInvoicePaid\(supabase, invoiceId, credit\)\)/.test(aia) && aia.indexOf('if (!credit.ok)') < aia.indexOf('notifyGcInvoicePaid'));
+// wave 4 #45: still never awaited inline (a notify failure never makes Stripe
+// retry a credited payment), but no longer `void`ed — registered with
+// afterCredit, whose flushSideEffects hands Promise.allSettled to
+// EdgeRuntime.waitUntil (or a bounded await) before markProcessed.
+// scripts/validate-w4-money-ledger-pending.ts executes that helper.
+ok('both are registered side effects, never awaited inline — a notify failure never makes Stripe retry a credited payment',
+  /afterCredit\(notifyGcInvoicePaid\(/.test(checkout) && !/await notifyGcInvoicePaid/.test(WEBHOOK)
+  && !/void notifyGcInvoicePaid\(/.test(WEBHOOK));
 ok('the service-role hop to notify (as award-rfp does)', /fetch\(`\$\{SUPABASE_URL\}\/functions\/v1\/notify`/.test(WEBHOOK) && /Bearer \$\{SUPABASE_SERVICE_ROLE_KEY\}/.test(WEBHOOK));
-ok('the payment_failed TODO is resolved: a bounced ACH session notifies', !/TODO: surface as a contractor notification/.test(WEBHOOK) && /event\.type === "checkout\.session\.async_payment_failed"[\s\S]{0,200}notifyGcPaymentFailed/.test(WEBHOOK));
+ok('the payment_failed TODO is resolved: a bounced ACH session notifies', !/TODO: surface as a contractor notification/.test(WEBHOOK) && /event\.type === "checkout\.session\.async_payment_failed"[\s\S]{0,900}notifyGcPaymentFailed/.test(WEBHOOK));
 ok('failure logs still never dump the Stripe object', /console\.log\("\[stripe-webhook\] Payment failed:", event\.type, obj\?\.id \?\? "\(no id\)"\)/.test(WEBHOOK));
 const m = /SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set\(\[([\s\S]*?)\]\)/.exec(NOTIFY);
 for (const e of ['client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready']) {
@@ -119,7 +125,9 @@ for (const e of ['client_invoice_paid', 'client_payment_failed', 'field_report_f
   const SETTINGS = read('app/notifications-settings.tsx');
   const block = NOTIFY.slice(NOTIFY.indexOf('function wave3NotifyText('), NOTIFY.indexOf('function wave3NotifyText(') + 12000);
   const keys = [...new Set([...block.matchAll(/prefKey: '([a-z_]+)'/g)].map(m => m[1]))];
-  ok('the wave-3 block sends under the four known prefKeys', keys.sort().join(',') === 'field_report,invoice_paid,pro_response,punch_ready', keys.join(','));
+  // Wave 4 (safety lane): safety_incident_filed sends under its own
+  // 'safety_incident' key — the per-key mute-row loop below still holds it.
+  ok('the wave-3 block sends under the five known prefKeys', keys.sort().join(',') === 'field_report,invoice_paid,pro_response,punch_ready,safety_incident', keys.join(','));
   for (const k of keys) {
     ok(`settings: prefKey ${k} has a mute row`, new RegExp(`\\n    key: '${k}',\\n    label: '`).test(SETTINGS) && new RegExp(`\\| '${k}'`).test(SETTINGS));
   }

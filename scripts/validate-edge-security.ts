@@ -535,6 +535,26 @@ ok('the error-body sweep is live (planted shapes are flagged, legit ones are not
   && leakyErrorBodies('return new Response(JSON.stringify({ error: `Model said: ${raw}` }), { status: 502 });').length === 1
   && leakyErrorBodies("return jsonResponse({ error: 'upstream raw message', code: 'upstream_error', errors: result.errors }, 502);").length === 0);
 
+// ── 19. signed-media-urls (wave 4, #14): a public signer of PRIVATE buckets ──
+// verify_jwt = false and the service role key: every URL it mints is an
+// unrevocable bearer token for a homeowner photo or a plan sheet. Its rules run
+// in scripts/validate-w4-portal-server-media.ts; these pin the controls.
+{
+  const sm = read('supabase/functions/signed-media-urls/index.ts');
+  const smCore = read('supabase/functions/signed-media-urls/core.ts');
+  ok('signed-media-urls authorises the portal through portal_project_for_token (never its own token compare)',
+    /svc\.rpc\("portal_project_for_token"/.test(sm) && !/client_portal->>'accessToken'|accessToken ===/.test(sm));
+  ok('signed-media-urls signs only snapshot-published, live, shared photos in the project folder',
+    /published\.has\(id\)/.test(sm) && /portalStateIsShared\(r\.portal_state\)/.test(sm) && /segs\[1\]\.toLowerCase\(\) !== projectId\.toLowerCase\(\)/.test(smCore));
+  ok('signed-media-urls scopes plan sheets to the share-token RFI\'s project folder',
+    /\.eq\("share_token", req\.shareToken\)/.test(sm) && /segs\[0\]\.toLowerCase\(\) !== projectId\.toLowerCase\(\)/.test(smCore));
+  ok('signed-media-urls mints for one hour, never the 24 h app TTL', /export const SIGNED_URL_TTL_SECONDS = 3600;/.test(smCore));
+  ok('signed-media-urls: one 401 {error:"denied"} for every auth failure; no error text echoed',
+    /json\(\{ error: "denied" \}, 401\)/.test(sm) && leakyErrorBodies(sm).length === 0);
+  ok('signed-media-urls keys its IP bucket on clientIpFrom(req.headers)',
+    /clientIpFrom\(req\.headers\)/.test(sm) && /import \{ clientIpFrom \} from ["']\.\.\/_shared\/notifyGuards\.ts["']/.test(sm));
+}
+
 Promise.resolve()
   .then(hmacSelfTest)
   .then(digestSanitizerTest)

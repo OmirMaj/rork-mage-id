@@ -26,6 +26,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { uploadProjectPhoto } from '@/utils/storage';
+import { noteSessionLocalUri } from '@/utils/deviceLocalCopy';
 // A4 (round 3): who is signed in comes from the same auth-feed-backed value
 // the text queue uses — never a per-call getSession() that can stall on a
 // captive network — and A1 reads that queue to hold photos whose project row
@@ -113,11 +114,15 @@ async function setPhotoUploadQueue(queue: PhotoUploadTask[]): Promise<void> {
  * job — surface it and forward to Sentry. Lazy requires keep this module
  * side-effect free at load (same pattern as offlineQueue.notifyDroppedWrites).
  */
-function notifyDroppedPhotos(count: number, reason: string): void {
+function notifyDroppedPhotos(count: number, reason: string, userReason?: string): void {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { oops } = require('@/components/animations/NailItToast');
-    oops(`${count} photo(s) couldn't be uploaded and were dropped. Please re-take them.`);
+    // A caller that KNOWS why (he left the job) says so; the generic line is
+    // for a flush that gave up.
+    oops(userReason
+      ? `${count} photo(s) not uploaded: ${userReason}`
+      : `${count} photo(s) couldn't be uploaded and were dropped. Please re-take them.`);
   } catch {/* toast host not mounted — nothing actionable */}
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -189,6 +194,64 @@ export async function cancelPhotoUpload(photoId: string): Promise<number> {
   // Outside the lock: unlinking is filesystem work and must not hold the queue.
   for (const t of removed) void discardPendingCopy(t);
   return removed.length;
+}
+
+/**
+ * #8/#128 carry (wave 4): how many of THIS session's photos for one job are
+ * still waiting to upload — what "Leave project" must count before it warns.
+ * Another tenant's tasks are never counted (see getOwnPhotoUploadQueue).
+ */
+export async function countQueuedPhotoUploadsForProject(projectId: string): Promise<number> {
+  if (!projectId) return 0;
+  return (await getOwnPhotoUploadQueue()).filter((t) => t.projectId === projectId).length;
+}
+
+/**
+ * The photo-queue twin of offlineQueue.discardQueuedWrites: take THIS
+ * session's queued photos out because the app has learned they can never land
+ * (he left the job — every upload would be refused under Storage RLS and
+ * surface a day later as a generic "couldn't be uploaded"). `reasonFor`
+ * returns the sentence to drop a task, or null to keep it. Dropped tasks are
+ * recorded in the sync ledger and reported — never silently — and their
+ * durable copies are unlinked. Another tenant's tasks are never touched.
+ * Runs under the queue lock. Returns how many were dropped.
+ */
+export async function discardQueuedPhotoUploads(reasonFor: (task: PhotoUploadTask) => string | null): Promise<number> {
+  const sessionUserId = await currentSessionUserId();
+  if (!sessionUserId) return 0;
+  const dropped: { task: PhotoUploadTask; reason: string }[] = [];
+  await withQueueLock(async () => {
+    let current: PhotoUploadTask[];
+    try { current = await readPhotoUploadQueueOrThrow(); } catch { return; }
+    const keep: PhotoUploadTask[] = [];
+    for (const t of current) {
+      let reason: string | null = null;
+      if (t.userId === sessionUserId) {
+        try { reason = reasonFor(t); } catch { reason = null; }
+      }
+      if (reason) dropped.push({ task: t, reason }); else keep.push(t);
+    }
+    if (dropped.length === 0) return;
+    if (keep.length === 0) await AsyncStorage.removeItem(PHOTO_QUEUE_KEY);
+    else await setPhotoUploadQueue(keep);
+  });
+  if (dropped.length === 0) return 0;
+  for (const d of dropped) void discardPendingCopy(d.task);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
+    void ledger.recordSyncFailures(dropped.map((d) => ({
+      id: d.task.id,
+      kind: 'photo' as const,
+      label: 'Photo',
+      reason: d.reason,
+      at: Date.now(),
+      userId: d.task.userId,
+    })));
+  } catch {/* a ledger write must never wedge the queue */}
+  const reasons = [...new Set(dropped.map((d) => d.reason))];
+  notifyDroppedPhotos(dropped.length, reasons.join('; '), reasons.length === 1 ? reasons[0] : undefined);
+  return dropped.length;
 }
 
 // Same lock discipline for AuthContext's marker-less keep path: keep only the
@@ -272,6 +335,11 @@ export interface QueuePhotoInput {
  * carry on rendering. Never throws.
  */
 export async function queuePhotoUpload(input: QueuePhotoInput): Promise<void> {
+  // Before any early return or await: a web blob: copy is only openable for
+  // this page session, and the loaders keep a blob: copy only when it was
+  // staged in THIS session (utils/deviceLocalCopy) — one from a previous tab
+  // is dead and must give way to the signed server object.
+  noteSessionLocalUri(input.localUri);
   if (!isSupabaseConfigured) return;
   if (!input.userId || !input.localUri || !input.storagePath) return;
   // A remote URL has nothing to upload (e.g. a photo rehydrated from the

@@ -21,6 +21,8 @@ import * as Crypto from 'expo-crypto';
 import { makeRedirectUri } from 'expo-auth-session';
 import type { Session, User } from '@supabase/supabase-js';
 import { showAlert } from '@/utils/alert';
+import { clearPlanSheetUrlCache } from '@/utils/planSheetUrls';
+import { inviteTokenFromMetadata, markInviteTokenHandled, sanitizeInviteToken, signupMetadata, INVITE_METADATA_FIELD } from '@/utils/deepLinksInvite';
 import { createAuthEventHold, holdAuthEvents, offerAuthEvent, releaseAuthEvents, type AuthEventHold } from '@/utils/authEventHold';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -246,6 +248,38 @@ const LOCAL_USER_CACHE_KEYS = [
   SIGNUP_INTENT_KEY,
 ] as const;
 
+// #10: EVERY pending write this device owes the server, dropped together.
+//
+// The four locked queues (text mutations, photo bytes, dictations, the ledger
+// of writes that already failed) plus the owner-stamped companion stores that
+// have no flush of their own — today the CO audit entries whose status UPDATE
+// rode the offline queue (OWNER_STAMPED_PENDING_KEYS). These travel as one
+// unit: an audit entry left behind without the UPDATE it belonged to can be
+// appended later by its owner and record a signature on a change order whose
+// status change was discarded. Wave 3 added the audit store and wired it into
+// the sign-out path only; the "a different user just signed in" path in
+// completeSignIn cleared the four queues and left it on disk for the whole of
+// the next user's session. One helper, two callers, so they cannot drift again.
+//
+// The queues go through their OWN clear functions (A2, review 2026-09-05 round
+// 3 — the lock the flush's write-back also takes). The owner-stamped keys are a
+// plain multiRemove in their own try, so a queue-clear failure cannot skip them.
+async function dropPendingWrites(): Promise<void> {
+  try {
+    await clearOfflineQueue();
+    await clearPhotoUploadQueue();
+    await clearAudioTranscribeQueue();
+    await clearSyncFailures();
+  } catch (err) {
+    console.log('[Auth] Failed to drop the offline queues:', err);
+  }
+  try {
+    await AsyncStorage.multiRemove([...OWNER_STAMPED_PENDING_KEYS]);
+  } catch (err) {
+    console.log('[Auth] Failed to clear pending CO audit entries:', err);
+  }
+}
+
 // The re-fetchable caches (mageid_*) are always safe to wipe —
 // they rehydrate from Supabase under the incoming JWT. The offline WRITE queue
 // (`mageid_offline_queue`) is the ONE cache that CANNOT be re-fetched, so
@@ -278,49 +312,27 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean; keepLastU
   // The marker lives under the swept prefix; read it first when the caller
   // needs the identity to outlive the wipe (pre-session wipe, session expiry).
   const marker = opts?.keepLastUserMarker ? await readLastUser() : null;
+  // #112 (CONTRACT 14): the plan-sheet signed-URL cache is module memory, not
+  // storage, so the sweep below cannot reach it. Every wipe is a tenant
+  // boundary (sign-out, a different account arriving, account deletion), and
+  // account B must never be handed a signed URL account A minted. A same-user
+  // re-auth only pays a re-sign.
+  clearPlanSheetUrlCache();
   if (dropOfflineQueue) {
-    try {
-      // The photo-upload queue is governed by the same rule and for the same
-      // reason: its entries are pending WRITES that cannot be re-fetched from
-      // anywhere. It rides the dropOfflineQueue flag so a same-user re-auth
-      // (magic link / password reset) keeps un-uploaded jobsite photos, while a
-      // deliberate sign-out still leaves nothing behind for the next tenant.
-      //
-      // A2 (review 2026-09-05, round 3): emptied through each queue's OWN
-      // clear function, never with a multiRemove of its key. Both run under the
-      // same lock as their flush's read-modify-write. Removing the key directly
-      // lost that race: `flushQueuesBeforeSignOut` is bounded by a 20 s ceiling,
-      // a flush that outlives it is still in its network phase holding a
-      // snapshot, and its write-back then RE-CREATED the key with the previous
-      // tenant's entries seconds after the wipe. Under the lock the write-back
-      // reconciles against an empty queue instead and persists nothing.
-      // clearPhotoUploadQueue also unlinks the durable copies in
-      // documentDirectory — the previous user's jobsite photos.
-      await clearOfflineQueue();
-      await clearPhotoUploadQueue();
-      // Same class as the photo queue: an untranscribed dictation exists nowhere
-      // else, and clearAudioTranscribeQueue also unlinks the staged recordings
-      // under documentDirectory — the previous tenant's voice, on this device.
-      await clearAudioTranscribeQueue();
-      // The record of writes that will NEVER be sent (utils/syncLedger.ts). It
-      // rides this flag with the queues because it is the only remaining trace
-      // of the work they lost: kept through a same-user re-auth so the red
-      // "didn't sync" notice survives the magic link, emptied here so the next
-      // contractor on a shared device inherits none of it. Locked, like the
-      // three above — its writer is the flush's drop path.
-      await clearSyncFailures();
-    } catch (err) {
-      console.log('[Auth] Failed to clear offline queue:', err);
-    }
-    // Owed-to-the-server records with no flush of their own (the CO audit
-    // entries whose UPDATE rode the queue just emptied). The sweep below keeps
-    // them for a same-user re-auth; a deliberate sign-out drops them with the
-    // queue they belong to.
-    try {
-      await AsyncStorage.multiRemove([...OWNER_STAMPED_PENDING_KEYS]);
-    } catch (err) {
-      console.log('[Auth] Failed to clear pending CO audit entries:', err);
-    }
+    // The photo-upload queue is governed by the same rule and for the same
+    // reason as the text queue: its entries are pending WRITES that cannot be
+    // re-fetched from anywhere. They ride the dropOfflineQueue flag so a
+    // same-user re-auth (magic link / password reset) keeps un-uploaded jobsite
+    // photos, while a deliberate sign-out leaves nothing behind for the next
+    // tenant. clearPhotoUploadQueue also unlinks the durable copies in
+    // documentDirectory (the previous user's jobsite photos), and
+    // clearAudioTranscribeQueue the staged recordings (their voice). The
+    // syncLedger rides along because it is the only remaining trace of the
+    // work they lost: kept through a same-user re-auth so the red "didn't sync"
+    // notice survives the magic link, emptied here. And the owed-to-the-server
+    // CO audit entries go with the queue their UPDATE rode. See
+    // dropPendingWrites for why the five always travel together.
+    await dropPendingWrites();
   }
   try {
     await AsyncStorage.multiRemove(LOCAL_USER_CACHE_KEYS as unknown as string[]);
@@ -821,19 +833,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         // the pre-session wipe was skipped, so wipe everything now.
         await wipeLocalUserCache();
       } else {
-        try {
-          // A2: same lock discipline as wipeLocalUserCache — this is the exact
-          // window a still-running flush lives in (gotrue's SIGNED_IN fires,
-          // and starts a drain, before signInWithPassword resolves here), so
-          // removing the keys unlocked is how the previous tenant's entries
-          // came back moments after being dropped.
-          await clearOfflineQueue();
-          await clearPhotoUploadQueue();
-          await clearAudioTranscribeQueue();
-          await clearSyncFailures();
-        } catch (err) {
-          console.log('[Auth] Failed to drop the previous user\'s offline queues:', err);
-        }
+        // A2: same lock discipline as wipeLocalUserCache — this is the exact
+        // window a still-running flush lives in (gotrue's SIGNED_IN fires, and
+        // starts a drain, before signInWithPassword resolves here), so removing
+        // the keys unlocked is how the previous tenant's entries came back
+        // moments after being dropped. #10: the SAME helper as the sign-out
+        // path, so the previous user's pending CO audit entries go with the
+        // queue their UPDATE rode instead of staying on disk for this session.
+        await dropPendingWrites();
       }
     }
     await writeLastUser(incoming);
@@ -1053,7 +1060,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     return authUser;
   }, [beginSignIn, completeSignIn]);
 
-  const signup = useCallback(async (email: string, password: string, name: string) => {
+  // CONTRACT 13: `opts.inviteToken` is the collaboration invite he opened
+  // before the account existed (/signup?invite=…). It is sanitized and stored
+  // on the new account as user_metadata.invite_token, where it survives the
+  // email-confirmation link — a new navigation, in any tab, browser or device —
+  // and the root gate sends him to accept it before the persona / onboarding
+  // gates (#107 / #131; utils/deepLinksInvite).
+  const signup = useCallback(async (email: string, password: string, name: string, opts?: { inviteToken?: string | null }) => {
     console.log('[Auth] Signing up');
     // emailRedirectTo controls where Supabase sends the user AFTER they click
     // the email-confirmation link. Without this, Supabase uses the project's
@@ -1081,7 +1094,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         email: email.toLowerCase().trim(),
         password,
         options: {
-          data: { name },
+          data: signupMetadata(name, opts?.inviteToken),
           emailRedirectTo,
         },
       });
@@ -1369,6 +1382,28 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Confirmation email resent');
   }, []);
 
+  // #107 / #131: the invite token signup() stored on the account has been
+  // answered for good (accepted, already used, or addressed to someone else),
+  // so it must stop steering the root gate. Marked handled in memory first —
+  // that alone ends any bounce for this session, even offline — then removed
+  // from user_metadata so the next launch does not try it again. Only the
+  // token that is actually on the account is cleared, never a different one.
+  // Best-effort: a failed update leaves a stale token whose next accept
+  // answers "already used", which clears it then.
+  const clearInviteToken = useCallback(async (token: string | null | undefined): Promise<void> => {
+    const t = sanitizeInviteToken(token);
+    if (!t) return;
+    markInviteTokenHandled(t);
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (inviteTokenFromMetadata(data.session?.user?.user_metadata) !== t) return;
+      const { error } = await supabase.auth.updateUser({ data: { [INVITE_METADATA_FIELD]: null } });
+      if (error) console.log('[Auth] Could not clear the invite token on the account:', error.message);
+    } catch (err) {
+      console.log('[Auth] Could not clear the invite token on the account:', err);
+    }
+  }, []);
+
   // Magic email link sign-in. The user enters their email; Supabase
   // emails them a one-tap login link. They tap, the app's deep-link
   // handler in _layout.tsx redeems the access token, and they're in.
@@ -1437,6 +1472,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       // Note: Google.signIn() needs to be called AFTER configure().
       // The configuration uses the iOS OAuth client ID we registered
       // in Google Cloud Console with the bundle ID com.mageid.app.
+      // #11: flipped once the native Google module has imported. On iOS the
+      // web redirect below is ONLY for binaries that lack that module (Android
+      // keeps it as the rescue for a real native failure — see the catch).
+      let nativeGoogleLoaded = false;
       if (Platform.OS !== 'web') {
         // The entire native flow is wrapped in try/catch — including the
         // import and configure calls. The module references native code
@@ -1448,7 +1487,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         // to the web OAuth path on any failure — including the
         // "module not found" / "native module is null" crash.
         try {
-          const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+          const { GoogleSignin, isCancelledResponse } = await import('@react-native-google-signin/google-signin');
+          // From here on the native module is present: any failure below is a
+          // real one to report, not a reason to try the supabase.co redirect.
+          nativeGoogleLoaded = true;
           GoogleSignin.configure({
             // The iOS OAuth client we registered (lives on our GCP project).
             iosClientId: '264795467031-qi8l5k0iliiqf5fg502jk94pbciu0bkt.apps.googleusercontent.com',
@@ -1460,11 +1502,23 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
           await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
           const result = await GoogleSignin.signIn();
+          // #11: SDK v13+ RESOLVES a cancel as { type: 'cancelled', data: null }
+          // instead of throwing. It used to fall through to "no ID token" →
+          // the catch below → the supabase.co redirect, so cancelling Google's
+          // sheet opened a second sign-in prompt naming the very host the
+          // native flow exists to hide. A cancel is a quiet false.
+          if (result && isCancelledResponse(result)) {
+            console.log('[Auth] Google sign-in cancelled');
+            return false;
+          }
           // SDK v13+ returns { type, data: { idToken, user, ... } }.
           // Older shapes returned { idToken, user, ... } directly.
           const idToken = (result as any)?.data?.idToken ?? (result as any)?.idToken;
           if (!idToken) {
-            throw new Error('Google did not return an ID token.');
+            // The native module is loaded and answered, so the web redirect
+            // would not fix this (a misconfigured webClientId, say) — it would
+            // only show supabase.co. Say it failed instead.
+            throw Object.assign(new Error('Google did not return an ID token.'), { nativeGoogleAnswered: true });
           }
           // SYNC-F13: the id token names the arriving account — wipe the
           // previous tenant BEFORE the session switches when it is not them.
@@ -1489,15 +1543,31 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           // Native module missing (older binary on top of newer JS bundle).
           // Logged once at info level — falls through to web OAuth which
           // works regardless of binary version.
-          if (
+          const moduleMissing =
             /native module|RNGoogleSignin|null is not an object|TurboModuleRegistry/i.test(msg)
-            || msg.includes('Cannot read property') && msg.includes('GoogleSignin')
-          ) {
+            || (msg.includes('Cannot read property') && msg.includes('GoogleSignin'));
+          if (moduleMissing && !(gErr as { nativeGoogleAnswered?: boolean })?.nativeGoogleAnswered) {
             console.log('[Auth] Google native module not present in this build — using web OAuth');
+          } else if (nativeGoogleLoaded && Platform.OS === 'ios') {
+            // #11: the native module IS in this binary and it failed for a
+            // real reason (no ID token, IN_PROGRESS, Supabase refusing the
+            // token). The supabase.co redirect would not fix any of those; it
+            // would only open a second prompt. Surface it — the outer catch
+            // shows "Sign In Failed".
+            //
+            // iOS only, on purpose. On Android the native sheet has no OAuth
+            // client of its own registered (configure() passes only the iOS
+            // and web client ids, and app.json's plugin sets only the iOS URL
+            // scheme), so DEVELOPER_ERROR there is expected and the web
+            // redirect is the path that actually signs him in. The cancel
+            // check above still returns a quiet false on both platforms.
+            throw gErr;
+          } else if (nativeGoogleLoaded) {
+            console.warn('[Auth] Google native sign-in failed on Android, falling back to web:', gErr);
           } else {
-            console.warn('[Auth] Google native sign-in failed, falling back to web:', gErr);
+            console.warn('[Auth] Google native sign-in failed before the module loaded, falling back to web:', gErr);
           }
-          // Fall through to web OAuth.
+          // Fall through to web OAuth (binaries without the native module, and Android).
         }
       }
 
@@ -1734,5 +1804,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     sendMagicLink,
     beginSessionFromToken,
     onNewSessionEstablished,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, sessionExpiredReason, signingOut, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink, beginSessionFromToken, onNewSessionEstablished]);
+    clearInviteToken,
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, sessionExpiredReason, signingOut, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink, beginSessionFromToken, onNewSessionEstablished, clearInviteToken]);
 });

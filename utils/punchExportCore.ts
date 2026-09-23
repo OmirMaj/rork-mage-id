@@ -48,6 +48,7 @@ import { pinSheetLabel, sheetAspectRatio } from '@/utils/punchPlanPin';
 import { planSheetImageState } from '@/utils/planSheetImageCore';
 import { isDeviceLocalUri, isHttpUrl, looksLikeStoragePath } from '@/utils/photoUploadCore';
 import { describeError } from '@/utils/errorCopy';
+import { punchLocationText } from '@/utils/punchGcCore';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Constants
@@ -90,6 +91,34 @@ export const PUNCH_EXPORT_PIN_CLUSTER_EPS = 0.02;
 export const PUNCH_EXPORT_PLAN_MAX_H_PX = 700;
 export const PUNCH_EXPORT_PLAN_MAX_H_LANDSCAPE_PX = 600;
 export const PUNCH_EXPORT_LANDSCAPE_MIN_ASPECT = 1.15;
+// ── Plan pages, founder 2026-09-22: "Fix punchlist when exporting. Plans look
+// terrible." Printed and read (scratchpad punch-export-before.pdf), the plans
+// were: a landscape sheet shrunk into a strip across the top 40 % of a portrait
+// page on the phone (room names unreadable), a portrait sheet on web capped at
+// 700 px of a 960 px page, the legend torn off onto the next page with no
+// heading, no revision on the caption, and nothing on the item itself showing
+// where its pin is — the plan pages sit at the back of the report.
+/** Web portrait sheet. Chrome lays the letter page out at 96 dpi: 960 px of
+ *  content height, less the section header and caption line. The native cap
+ *  (PUNCH_EXPORT_PLAN_MAX_H_PX) stays at 700: expo-print's iOS page is laid
+ *  out ~1 CSS px per point, so its content box is only ~720 px tall. */
+export const PUNCH_EXPORT_WEB_PLAN_MAX_H_PX = 840;
+/** Targets whose only page is portrait and whose image size we can verify:
+ *  there a landscape sheet is TURNED 90° so its long edge runs down the page —
+ *  a plan set's own convention for a sheet that is wider than the paper. Web
+ *  gets a real landscape page instead (@page pe-land); Android's print engine
+ *  gives no reliable oriented size, so it keeps the plain fit. */
+export const PUNCH_EXPORT_ROTATE_TARGETS: readonly PunchExportTarget[] = ['ios'];
+/** The native image size (from the OS) and the sheet's stored size must agree
+ *  this closely before anything is laid out on them — a turned sheet or a
+ *  close-up drawn on a wrong aspect puts every pin off its spot. */
+export const PUNCH_EXPORT_ASPECT_AGREE_TOLERANCE = 0.03;
+/** The per-item plan close-up (web: a real crop rendered on a canvas). */
+export const PUNCH_EXPORT_PIN_CROP_PX = 360;
+export const PUNCH_EXPORT_PIN_CROP_QUALITY = 0.82;
+/** Close-ups per export. Past this the item still names its sheet and pin;
+ *  the plan page still shows it. Bounds the canvas work and the print size. */
+export const PUNCH_EXPORT_PIN_CROP_CAP = 150;
 export const PUNCH_EXPORT_LOGO_MAX_BYTES = 1_500_000;
 /** Per-device convenience (format + photos). Under APP_STORAGE_PREFIXES. */
 export const PUNCH_EXPORT_PREF_KEY = 'mageid_punch_export_pref';
@@ -99,6 +128,9 @@ export const PUNCH_STATUS_ORDER: PunchItemStatus[] = ['open', 'in_progress', 're
 export const PUNCH_EXPORT_CSV_COLUMNS = [
   'Item #', 'Ref', 'Location', 'Plan Sheet', 'Description', 'Assigned To', 'Status', 'Priority',
   'Due Date', 'Days Overdue', 'List', 'Created', 'Closed', 'Days Open', 'Rejection Note',
+  // #57: what the sub wrote when he marked it fixed — right after the GC's
+  // own note so the walk-and-verify sheet reads the whole round.
+  'Sub Note',
   'Linked Task', 'Has Photo', 'Photo GPS', 'Last Updated', 'Project', 'Item ID',
 ] as const;
 
@@ -180,6 +212,8 @@ export interface PunchExportRow {
   updatedDay: string | null;
   daysOpen: number | null;
   rejectionNote: string;
+  /** The sub's words from his portal when he marked it fixed (sub_note, #57). */
+  subNote: string;
   linkedTaskName: string;
   photoGps: string;
   hasPhoto: boolean;
@@ -255,6 +289,8 @@ export interface PunchExportLegendRow {
 export interface PunchExportSheetPage {
   sheetId: string;
   label: string;
+  /** PlanSheet.revision when the sheet has one (legacy rows: null). */
+  revision: number | null;
   superseded: boolean;
   aspect: number | null;
   storagePath?: string;
@@ -313,9 +349,21 @@ export type PunchExportImageAsset =
   | { kind: 'image'; src: string; mime: PunchExportImageMime; width?: number; height?: number; bytes?: number; remote?: boolean }
   | { kind: 'unavailable'; reason: PunchExportUnavailableReason };
 
+/** A per-item plan close-up already cut to its square (web canvas). The pin is
+ *  where it sits inside the crop, 0..1. */
+export interface PunchExportPinCropAsset {
+  src: string;
+  mime: PunchExportImageMime;
+  pinX: number;
+  pinY: number;
+}
+
 export interface PunchExportAssets {
   photos: ReadonlyMap<string, PunchExportImageAsset>;
   sheets: ReadonlyMap<string, PunchExportImageAsset>;
+  /** Item id → its plan close-up (web). Optional: native draws the close-up
+   *  from the sheet itself (see planCropSource in punchExportHtml). */
+  pinCrops?: ReadonlyMap<string, PunchExportPinCropAsset>;
   approxBytes: number | null;
   remoteCount: number;
   includedPhotoCount: number;
@@ -526,8 +574,11 @@ export function describeFilters(filters: PunchExportFilters, activeList: PunchLi
   if (filters.sub) parts.push(`Sub: ${filters.sub}`);
   if (filters.priority !== 'all') parts.push(`${priorityLabel(filters.priority)} priority`);
   if (filters.locationKey) {
-    const loc = filters.locationLabel
-      || (filters.locationKey === UNPLACED_LOCATION_GROUP ? UNPLACED_LOCATION_LABEL : filters.locationKey);
+    // The unplaced group is worded by the document itself, so the filter line
+    // and the group header it filtered to say the same thing.
+    const loc = filters.locationKey === UNPLACED_LOCATION_GROUP
+      ? UNPLACED_LOCATION_LABEL
+      : (filters.locationLabel || filters.locationKey);
     parts.push(`Location: ${loc}`);
   }
   return parts.join(' · ');
@@ -869,7 +920,11 @@ export function buildPunchExportModel(input: BuildPunchExportModelInput): PunchE
   for (const s of input.sheets) if (s && s.id) sheetsById.set(s.id, s);
   const todayDay = toCalendarDayString(now);
 
+  // The legacy 'Unspecified' placeholder punch-walk used to save (#56) is no
+  // room: it is grouped with the unplaced items and printed as such, never as
+  // a room called "Unspecified" on the GC's walk sheet.
   const items = itemsInScope(scopeInput, scope, includeCrew)
+    .map(i => (i.location && punchLocationText(i.location) === null ? { ...i, location: '' } : i))
     .sort((a, b) => (numbers.get(a.id) ?? 0) - (numbers.get(b.id) ?? 0));
 
   const toRow = (item: PunchItem): PunchExportRow => {
@@ -906,6 +961,7 @@ export function buildPunchExportModel(input: BuildPunchExportModelInput): PunchE
       updatedDay: calendarDayOf(item.updatedAt),
       daysOpen: daysOpenRaw === null ? null : Math.max(0, daysOpenRaw),
       rejectionNote: str(item.rejectionNote).trim(),
+      subNote: str(item.subNote).trim(),
       linkedTaskName: str(item.linkedTaskName).trim(),
       photoGps: photoGpsText(item),
       hasPhoto: itemHasPhoto(item),
@@ -1035,6 +1091,7 @@ export function buildPunchExportModel(input: BuildPunchExportModelInput): PunchE
     const page: PunchExportSheetPage = {
       sheetId,
       label: pinSheetLabel(sheet),
+      revision: typeof sheet.revision === 'number' && Number.isFinite(sheet.revision) && sheet.revision >= 1 ? Math.floor(sheet.revision) : null,
       superseded: !!sheet.superseded,
       aspect: sheetAspectRatio(sheet),
       imageState: planSheetImageState(sheet),
@@ -1121,6 +1178,71 @@ export function buildPunchExportModel(input: BuildPunchExportModelInput): PunchE
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Plan layout
+// ───────────────────────────────────────────────────────────────────────────
+
+/** "A-101 · Floor Plan · Rev 2" — the caption a plan page and a close-up carry.
+ *  Revision only when the sheet has one; "older revision" when superseded. */
+export function sheetCaption(page: Pick<PunchExportSheetPage, 'label' | 'revision' | 'superseded'>): string {
+  const parts = [page.label];
+  if (page.revision !== null && page.revision !== undefined) parts.push(`Rev ${page.revision}`);
+  if (page.superseded) parts.push('older revision');
+  return parts.join(' · ');
+}
+
+/**
+ * The sheet image's width / height when it is safe to lay things out on it —
+ * else null. Web: the canvas re-encode's own size, which is the oriented image.
+ * Native: the OS-reported size, and only when it agrees with the size stored
+ * on the sheet (PUNCH_EXPORT_ASPECT_AGREE_TOLERANCE). Two independent sources
+ * agreeing is what makes a turned sheet or a close-up safe; one alone is not
+ * (a phone photo's raw pixels are sideways until EXIF is applied).
+ */
+export function verifiedSheetAspect(
+  asset: PunchExportImageAsset | undefined,
+  page: Pick<PunchExportSheetPage, 'aspect'>,
+  target: PunchExportTarget,
+): number | null {
+  if (!asset || asset.kind !== 'image') return null;
+  const { width, height } = asset;
+  if (typeof width !== 'number' || typeof height !== 'number' || !(width > 0) || !(height > 0)
+    || !Number.isFinite(width) || !Number.isFinite(height)) return null;
+  const a = width / height;
+  if (target === 'web') return asset.remote ? null : a;
+  // Only where the platform file asks the OS for an oriented size.
+  if (!PUNCH_EXPORT_ROTATE_TARGETS.includes(target)) return null;
+  const stored = page.aspect;
+  if (typeof stored !== 'number' || !Number.isFinite(stored) || !(stored > 0)) return null;
+  return Math.abs(a - stored) / stored <= PUNCH_EXPORT_ASPECT_AGREE_TOLERANCE ? a : null;
+}
+
+export type PunchExportPlanLayout =
+  /** The image at its own size, capped to the page — every pin sits on it
+   *  because the marker box IS the image box. The fallback for anything unsure. */
+  | { mode: 'natural'; landscapePage: boolean }
+  /** Turned 90° clockwise onto the portrait page (iOS, verified aspect). */
+  | { mode: 'rotated'; aspect: number };
+
+export function planLayoutFor(
+  asset: PunchExportImageAsset | undefined,
+  page: Pick<PunchExportSheetPage, 'aspect'>,
+  target: PunchExportTarget,
+): PunchExportPlanLayout {
+  if (target === 'web') {
+    const land = asset?.kind === 'image'
+      && typeof asset.width === 'number' && typeof asset.height === 'number'
+      && asset.width > 0 && asset.height > 0
+      && asset.width / asset.height >= PUNCH_EXPORT_LANDSCAPE_MIN_ASPECT;
+    return { mode: 'natural', landscapePage: !!land };
+  }
+  const a = verifiedSheetAspect(asset, page, target);
+  if (a !== null && a >= PUNCH_EXPORT_LANDSCAPE_MIN_ASPECT && PUNCH_EXPORT_ROTATE_TARGETS.includes(target)) {
+    return { mode: 'rotated', aspect: a };
+  }
+  return { mode: 'natural', landscapePage: false };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // CSV
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -1174,6 +1296,7 @@ export function buildPunchExportCsv(model: PunchExportModel): string {
       r.closedDay,
       r.daysOpen,
       r.rejectionNote,
+      r.subNote,
       r.linkedTaskName,
       r.hasPhoto ? 'Yes' : 'No',
       r.photoGps,

@@ -11,7 +11,7 @@ import {
   ChevronLeft, MessageSquare, HandCoins, CheckCircle2, Inbox, Bell,
   PenTool, ShoppingCart, HelpCircle, Hammer, Sunrise, MapPin, Clock,
   Mail, Smartphone, Send, CalendarCheck, History, Lock, FileWarning, Globe,
-  Banknote, ClipboardList, FileCheck, ListChecks,
+  Banknote, ClipboardList, FileCheck, ListChecks, ShieldAlert,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
@@ -46,7 +46,7 @@ interface CategoryDef {
     | 'portal_message' | 'budget_proposal' | 'co_approval' | 'sub_invoice'
     | 'contract_signed' | 'selection_chosen'
     | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted' | 'lead_received'
-    | 'invoice_paid' | 'field_report' | 'pro_response' | 'punch_ready';
+    | 'invoice_paid' | 'field_report' | 'pro_response' | 'punch_ready' | 'safety_incident';
   label: string;
   description: string;
   icon: React.ReactNode;
@@ -131,6 +131,16 @@ const CATEGORIES: CategoryDef[] = [
     label: 'RFI & submittal responses',
     description: 'An architect, engineer, or reviewer answers an RFI or submittal you sent.',
     icon: <FileCheck size={18} color={Colors.accent} strokeWidth={1.75} />,
+    group: 'team',
+  },
+  // notify's safety_incident_filed (wave 4, #119): an invited foreman filed an
+  // incident report on one of his jobs. The push names the job and the filer,
+  // never the injury — the case opens in Safety, behind RLS.
+  {
+    key: 'safety_incident',
+    label: 'Incident reports',
+    description: 'Someone you invited files an incident report on one of your projects.',
+    icon: <ShieldAlert size={18} color={Colors.accent} strokeWidth={1.75} />,
     group: 'team',
   },
   // ─── Sub → GC ───

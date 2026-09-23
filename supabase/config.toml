@@ -106,6 +106,12 @@ verify_jwt = false
 [functions.portal-mark-viewed]
 verify_jwt = false
 
+# Wave 4 (#14): signs portal photos (portal access token) and RFI plan sheets
+# (the RFI share token) per read, TTL 1 h — the homeowner and the architect
+# hold no Supabase session.
+[functions.signed-media-urls]
+verify_jwt = false
+
 [functions.seal-document]
 verify_jwt = false
 
@@ -154,6 +160,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.construction-answer]
+verify_jwt = true
+
+[functions.construction-news]
 verify_jwt = true
 
 [functions.convert-pdf-to-images]

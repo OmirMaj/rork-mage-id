@@ -25,7 +25,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { INVITE_PARAM, postSignInHref, sanitizeInviteToken } from '@/utils/deepLinksInvite';
+import {
+  INVITE_PARAM, postSignInHref, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
+} from '@/utils/deepLinksInvite';
 
 export default function SignupScreen() {
   const { colors: themeColors } = useTheme();
@@ -35,11 +37,13 @@ export default function SignupScreen() {
   // An invite opened before the account existed (utils/deepLinksInvite): an
   // OAuth sign-up with a live session goes straight back to it — accept-invite
   // is exempt from the persona / onboarding gates, which run after. Email
-  // sign-up has no session until the confirmation link; Home's pending-invite
-  // card picks the invite up then.
+  // sign-up has no session until the confirmation link, which opens a NEW
+  // navigation with no token on it — so signup() stores the token on the
+  // account (user_metadata.invite_token) and the root gate sends the confirmed
+  // account to accept it before the persona / onboarding gates (#107 / #131).
   const inviteParams = useLocalSearchParams<{ [INVITE_PARAM]?: string }>();
   const inviteToken = inviteParams[INVITE_PARAM];
-  const { signup, signInWithGoogle, signInWithApple, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { signup, signInWithGoogle, signInWithApple, isAuthenticated, isLoading: authLoading, session } = useAuth();
   // #93: same restored-session check as login.tsx — the root gate leaves an
   // authenticated user on an invite-bearing /signup to this screen.
   const restoredCheckedRef = useRef(false);
@@ -48,6 +52,74 @@ export default function SignupScreen() {
     restoredCheckedRef.current = true;
     if (isAuthenticated && sanitizeInviteToken(inviteToken)) router.replace(postSignInHref(inviteToken, '/(tabs)/(home)') as never);
   }, [authLoading, isAuthenticated, inviteToken, router]);
+
+  // True from the moment a sign-in/sign-up handler on THIS screen starts until
+  // it settles. A ref, not the loading state: the auth flip lands inside the
+  // handler's await, before a state update would be visible to the effect.
+  const localSignInRef = useRef(false);
+
+  // #108: the session arrived from somewhere else while this tab sat here —
+  // the classic case is web: he signed up in this tab, the confirmation link
+  // opened a NEW tab, and supabase-js broadcast SIGNED_IN back to this one,
+  // still showing "Confirm your email" over /signup?invite=…. The root gate
+  // leaves an invite-bearing auth screen to the screen (#93), and the check
+  // above only decides on the first settled read, so nothing ever moved it.
+  // Now a false→true flip after that first read, with a valid token and no
+  // sign-in of this screen's own in flight (those navigate themselves), closes
+  // the modal and finishes the invite from here — this tab still has the token.
+  //
+  // Unless the arriving account carries this SAME token (it will, when the
+  // account was created here: signup() writes it into user_metadata). Then the
+  // tab the confirmation link opened opens the invite itself, through its root
+  // gate — and two tabs accepting one token made the second one, usually the
+  // tab he is looking at, fail with "already used" (utils/deepLinksInvite
+  // signInElsewhereAction). This tab stands down: the modal turns into
+  // "Email confirmed — your invite opened in the other tab", and the token is
+  // marked handled here so this tab's own gate can never open it too.
+  const prevAuthRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (authLoading) return;
+    const was = prevAuthRef.current;
+    prevAuthRef.current = isAuthenticated;
+    if (was !== false || !isAuthenticated || localSignInRef.current) return;
+    const action = signInElsewhereAction({
+      routeToken: inviteToken,
+      accountMeta: session?.user?.user_metadata,
+      sharedOriginTabs: Platform.OS === 'web',
+    });
+    if (action === 'none') return;
+    markInviteTokenHandled(inviteToken);
+    if (action === 'opened_in_other_tab') {
+      setConfirmedElsewhere(true);
+      setShowConfirmModal(true);
+      return;
+    }
+    setShowConfirmModal(false);
+    try {
+      router.replace(postSignInHref(inviteToken, '/(tabs)/(home)') as never);
+    } catch (navErr) {
+      console.log('[Signup] Could not open the invite after a sign-in elsewhere:', navErr);
+    }
+  }, [authLoading, isAuthenticated, inviteToken, router, session]);
+
+  // #7: the account exists by the time this runs. A navigation failure here is
+  // not a failed sign-up — it must never reach the handler's error path (an
+  // error haptic straight after the success haptic, a banner on an unmounted
+  // screen). The root gate routes from wherever this leaves him.
+  //
+  // #109: the fallback is Home, not /onboarding. Apple and Google hand back an
+  // EXISTING account just as happily as a new one, and an explicit
+  // '/onboarding' put a returning user with live jobs back through first-run
+  // (the gate only ever routes TO onboarding, never off it). A genuinely new
+  // account still gets first-run: the gate sends a persona-less user to
+  // /persona-select from any route, then to /onboarding.
+  const goAfterOAuth = useCallback(() => {
+    try {
+      router.replace(postSignInHref(inviteToken, '/(tabs)/(home)') as never);
+    } catch (navErr) {
+      console.log('[Signup] Post-sign-up navigation failed; the root gate takes it from here:', navErr);
+    }
+  }, [router, inviteToken]);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -58,6 +130,8 @@ export default function SignupScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // #108: the session arrived in another tab that opens the invite itself.
+  const [confirmedElsewhere, setConfirmedElsewhere] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
 
   const buttonScale = useRef(new Animated.Value(1)).current;
@@ -78,6 +152,7 @@ export default function SignupScreen() {
   const handleGoogleSignup = useCallback(async () => {
     setIsGoogleLoading(true);
     setErrorMessage('');
+    localSignInRef.current = true;
     try {
       // #159: false = he closed the Google sheet. Stay on Sign-up — a
       // navigation with no session was bounced to Login by the root gate.
@@ -86,17 +161,19 @@ export default function SignupScreen() {
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      router.replace(postSignInHref(inviteToken, '/onboarding') as never);
+      goAfterOAuth();
     } catch (err) {
       console.log('[Signup] Google signup failed:', err);
     } finally {
+      localSignInRef.current = false;
       setIsGoogleLoading(false);
     }
-  }, [signInWithGoogle, router, inviteToken]);
+  }, [signInWithGoogle, goAfterOAuth]);
 
   const handleAppleSignup = useCallback(async () => {
     setIsAppleLoading(true);
     setErrorMessage('');
+    localSignInRef.current = true;
     try {
       // #159: false = he closed the Apple sheet. Stay on Sign-up — a
       // navigation with no session was bounced to Login by the root gate.
@@ -105,13 +182,14 @@ export default function SignupScreen() {
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      router.replace(postSignInHref(inviteToken, '/onboarding') as never);
+      goAfterOAuth();
     } catch (err) {
       console.log('[Signup] Apple signup failed:', err);
     } finally {
+      localSignInRef.current = false;
       setIsAppleLoading(false);
     }
-  }, [signInWithApple, router, inviteToken]);
+  }, [signInWithApple, goAfterOAuth]);
 
   const handleSignup = useCallback(async () => {
     setErrorMessage('');
@@ -140,16 +218,22 @@ export default function SignupScreen() {
     ]).start();
 
     setIsSubmitting(true);
+    localSignInRef.current = true;
 
     try {
-      await signup(email.trim(), password, name.trim());
+      // CONTRACT 13: the invite rides the new ACCOUNT (user_metadata), so the
+      // confirmation link — a new navigation that carries no token — still
+      // lands him on the invite (the root gate reads it; #107 / #131).
+      await signup(email.trim(), password, name.trim(), { inviteToken: sanitizeInviteToken(inviteToken) });
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       // Supabase fires a confirmation email. Show the "check your inbox" modal
       // instead of routing straight into the app — the session isn't valid
-      // until they tap the link. AuthProvider's SIGNED_IN listener navigates
-      // on confirmation, so we don't need to router.replace here.
+      // until they tap the link. Nothing here navigates on confirmation: the
+      // confirmed session in ANOTHER tab is routed by the root gate (the
+      // account's invite token first); THIS tab, if it gets the session
+      // broadcast, is moved by the #108 watcher above.
       setPendingEmail(email.trim());
       setShowConfirmModal(true);
     } catch (err: unknown) {
@@ -160,9 +244,10 @@ export default function SignupScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } finally {
+      localSignInRef.current = false;
       setIsSubmitting(false);
     }
-  }, [name, email, password, signup, buttonScale, shake]);
+  }, [name, email, password, signup, buttonScale, shake, inviteToken]);
 
   return (
     <View style={styles.container}>
@@ -382,6 +467,8 @@ export default function SignupScreen() {
       <ConfirmEmailModal
         visible={showConfirmModal}
         email={pendingEmail}
+        inviteWaiting={!!sanitizeInviteToken(inviteToken)}
+        confirmedElsewhere={confirmedElsewhere}
         onClose={() => setShowConfirmModal(false)}
         onChangeEmail={() => {
           setShowConfirmModal(false);

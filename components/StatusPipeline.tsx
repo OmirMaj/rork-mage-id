@@ -116,7 +116,13 @@ export function StatusPipeline<S extends string>({
   const handleAdvance = React.useCallback(() => {
     if (!nextStage || !onAdvance) return;
     if (Platform.OS !== 'web') {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // A terminal next stage (Approved, Closed) is usually confirmed by the
+      // caller first (change-order.tsx asks before "Mark approved" commits the
+      // money, wave 4 #79) — a success buzz before that question is a lie, so
+      // it gets a neutral tap and the caller celebrates on the real outcome.
+      void (nextStage.terminal
+        ? Haptics.selectionAsync()
+        : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)).catch(() => {});
     }
     onAdvance(nextStage.key);
   }, [nextStage, onAdvance]);

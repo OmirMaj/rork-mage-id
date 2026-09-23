@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView,
-  type LayoutChangeEvent,
+  ActivityIndicator, type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -46,7 +46,9 @@ import {
 import {
   billedAgainstMilestones, applyMilestoneBilling, sovFootingShortfall,
   nextInvoiceNumberFrom, sessionIssuedInvoiceMax, noteIssuedInvoiceNumber,
+  invoiceRoleGate, invoiceRoleBlockedCopy, INVOICE_OWNER_ONLY_REASON,
 } from '@/utils/billingFlowCore';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { billFromEstimateLine, billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
@@ -251,6 +253,20 @@ export default function BillFromEstimateScreen() {
   const projectId = pickedProjectId ?? paramProjectId ?? '';
 
   const project = useMemo(() => getProject(projectId), [projectId, getProject]);
+  // #38 — only the job's OWNER bills its client: an invoice written from a
+  // collaborator's seat is stored under his user_id (the GC never sees it) and
+  // its Pay link is minted on HIS Stripe account. Same rule as app/invoice.tsx
+  // and change orders (#41); runs on the URL's job and on a picked one alike.
+  const roleState = useProjectRoleState(project ? projectId : undefined);
+  const roleGate = invoiceRoleGate({
+    hasProject: !!project,
+    role: roleState.role,
+    isLoading: roleState.isLoading,
+    isError: roleState.isError,
+    isPaused: roleState.isPaused,
+    stampedRole: project?.myRole,
+    ownedLocally: !!project?.ownerUserId && !!user?.id && project.ownerUserId === user.id,
+  });
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId), [projectId, getInvoicesForProject]);
   // Max+1, not length+1 — a deleted invoice would otherwise reuse a
   // number that's already on a client-facing invoice. And past the highest
@@ -519,6 +535,10 @@ export default function BillFromEstimateScreen() {
   const handleCreateDraft = useCallback(async () => {
     if (!project || !projectId) return;
     if (creatingDraftRef.current) return;
+    if (roleGate !== 'open') {
+      showAlert('Only the job owner bills', INVOICE_OWNER_ONLY_REASON);
+      return;
+    }
     if (subtotal <= 0) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setBillingHint('Select at least one line with an amount to bill.');
@@ -650,7 +670,7 @@ export default function BillFromEstimateScreen() {
     // take them all the way back to the project detail they came from rather
     // than back to this picker.
     router.replace({ pathname: '/invoice' as any, params: { projectId, invoiceId: inv.id, termsOrigin: termsDefault.origin } });
-  }, [project, projectId, rows, selected, billPercents, amountsByKey, subtotal, taxRate, taxAmount, totalDue, nextInvoiceNumber, addInvoice, router, isProgressDefault, existingInvoices, getAIAPayAppsForProject]);
+  }, [project, projectId, roleGate, rows, selected, billPercents, amountsByKey, subtotal, taxRate, taxAmount, totalDue, nextInvoiceNumber, addInvoice, router, isProgressDefault, existingInvoices, getAIAPayAppsForProject]);
 
   if (!project) {
     return (
@@ -674,6 +694,33 @@ export default function BillFromEstimateScreen() {
             'Come back here to bill a percentage of each line.',
           ]}
         />
+      </View>
+    );
+  }
+
+  if (roleGate !== 'open') {
+    // #38: spin only while the role loads; retry after a failed read; a
+    // paused (offline) read shows its reason; otherwise say why — never a
+    // paywall and never a blank screen.
+    const copy = invoiceRoleBlockedCopy(roleGate, roleState.reason);
+    return (
+      <View style={styles.container} testID="bill-role-blocked">
+        <Stack.Screen options={{
+          title: 'Bill from Estimate',
+          headerStyle: { backgroundColor: themeColors.bg },
+          headerTintColor: themeColors.accent,
+          headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
+        }} />
+        <View style={styles.roleBlockedBody}>
+          {roleGate === 'loading' ? <ActivityIndicator size="small" color={themeColors.accent} /> : null}
+          {copy.title ? <Text style={styles.roleBlockedTitle}>{copy.title}</Text> : null}
+          <Text style={styles.roleBlockedText}>{copy.body}</Text>
+          {roleGate === 'error' || roleGate === 'paused' ? (
+            <TouchableOpacity style={styles.roleBlockedBtn} onPress={roleState.refetch} accessibilityRole="button" testID="bill-role-retry">
+              <Text style={styles.roleBlockedBtnText}>Try again</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
     );
   }
@@ -1078,6 +1125,12 @@ export default function BillFromEstimateScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  // #38: the owner-only block.
+  roleBlockedBody: { flex: 1, padding: 24, gap: 12, justifyContent: 'center' as const, maxWidth: 520, width: '100%', alignSelf: 'center' as const },
+  roleBlockedTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
+  roleBlockedText: { fontSize: Type.subhead.fontSize, color: t.textSecondary, lineHeight: 21 },
+  roleBlockedBtn: { alignSelf: 'flex-start' as const, minHeight: 44, paddingHorizontal: 18, justifyContent: 'center' as const, borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line },
+  roleBlockedBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
 
   hero: {
     backgroundColor: t.surface,

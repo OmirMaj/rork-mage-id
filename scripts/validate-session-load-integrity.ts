@@ -29,7 +29,7 @@ import {
   unconfirmedProjectSyncIds, withDeviceCopies, type ProjectWriteLog,
 } from '../utils/projectsLoadGuard';
 import { isAppStorageKey } from '../utils/localCacheKeys';
-import { revokedCachedProjectIds, revocationConfirmed } from '../utils/projectContextPure';
+import { projectsReloadOwedAfterLoad, revokedCachedProjectIds, revocationConfirmed } from '../utils/projectContextPure';
 import { openScheduleSyncGate, resetScheduleSyncGatesForTest, takeStoreScheduleCopy } from '../utils/scheduleMerge';
 
 declare const Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync(code: string): string } };
@@ -75,6 +75,8 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
     projectWriteLogRef: { current: logA } as Ref<ProjectWriteLog>,
     projectsLoadSinceRef: { current: sinceA } as Ref<number>,
     projectsLoadPendingRef: { current: new Set(['a1']) } as Ref<ReadonlySet<string>>,
+    // Wave-4 final fix: A's jobs kept only for a Not-saved line.
+    projectsLoadLedgerOnlyRef: { current: new Set(['a1']) } as Ref<ReadonlySet<string>>,
     projectsLoadBaseRef: { current: new Map([['a1', [t({ id: 'x' })]]]) } as Ref<Map<string, ScheduleTask[]>>,
     projectsLoadTasksRef: { current: new Map([['a1', [t({ id: 'x' })]]]) } as Ref<Map<string, ScheduleTask[]>>,
     projectsReloadOwedRef: { current: true } as Ref<boolean>,
@@ -145,7 +147,8 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
       && refs.projectsLoadSinceRef.current === logA.seq);
   ok('...server ids, schedule base, pending set, load snapshot and owed flag reset',
     refs.serverProjectIdsRef.current.size === 0 && refs.serverScheduleTasksRef.current.size === 0
-      && refs.projectsLoadPendingRef.current.size === 0 && refs.projectsLoadBaseRef.current.size === 0
+      && refs.projectsLoadPendingRef.current.size === 0 && refs.projectsLoadLedgerOnlyRef.current.size === 0
+      && refs.projectsLoadBaseRef.current.size === 0
       && refs.projectsLoadTasksRef.current.size === 0 && refs.projectsReloadOwedRef.current === false
       && refs.serverIdsSeededRef.current === false && refs.projectsLoadLandedRef.current === false
       && refs.projectsHydratedForRef.current === undefined);
@@ -510,7 +513,9 @@ console.log('\n#96 — an edit during the load does not hide what the load read:
   ok('the base is snapshotted before the reads', qf.indexOf('const baseAtStart = new Map(serverScheduleTasksRef.current);') > 0
     && qf.indexOf('const baseAtStart = new Map(serverScheduleTasksRef.current);') < qf.indexOf(".from('projects')"));
   ok('the base does not advance for a row kept whole — where a base exists',
-    /for \(const p of mapped\) \{\s*if \(plan\.keptWhole\.has\(p\.id\) && serverScheduleTasksRef\.current\.has\(p\.id\)\) continue;\s*serverScheduleTasksRef\.current\.set\(p\.id, p\.schedule\?\.tasks \?\? \[\]\);/.test(qf)
+    // Round 8: the tasks set are the SELECT's (selectedTasks), never a
+    // Not-saved line's schedule laid over the mapped row.
+    /for \(const p of mapped\) \{\s*if \(plan\.keptWhole\.has\(p\.id\) && serverScheduleTasksRef\.current\.has\(p\.id\)\) continue;\s*const serverTasks = selectedTasks\.get\(p\.id\) \?\? \[\];\s*serverScheduleTasksRef\.current\.set\(p\.id, serverTasks\);/.test(qf)
       && !/for \(const p of mapped\) serverScheduleTasksRef\.current\.set/.test(qf));
   // Review round 1, executed with the loader's REAL base loop: the launch's
   // first load (no base) kept P whole because the GC moved task A 1 → 3
@@ -518,9 +523,10 @@ console.log('\n#96 — an edit during the load does not hide what the load read:
   // foreman's Framing 60.
   {
     const loop = slice(qf, 'const loadedTasks = new Map<string, ScheduleTask[]>();', 'projectsLoadSinceRef.current = writeSeqAtStart;');
-    const runLoop = (baseRef: Map<string, ScheduleTask[]>, mapped: P[], keptWhole: Set<string>) => new Function('serverScheduleTasksRef', 'mapped', 'plan', 'pendingAtStart',
+    // selectedTasks: the SELECT's tasks per id (round 8) — here the mapped rows ARE the SELECT.
+    const runLoop = (baseRef: Map<string, ScheduleTask[]>, mapped: P[], keptWhole: Set<string>) => new Function('serverScheduleTasksRef', 'mapped', 'plan', 'pendingAtStart', 'selectedTasks',
       new Bun.Transpiler({ loader: 'ts' }).transformSync(loop.replace('projectsLoadSinceRef.current = writeSeqAtStart;', '')))(
-      { current: baseRef }, mapped, { keptWhole }, new Set<string>());
+      { current: baseRef }, mapped, { keptWhole }, new Set<string>(), new Map(mapped.map((p) => [p.id, p.schedule?.tasks ?? []] as const)));
     const serverP = proj('P', 'server', [t({ id: 'A', startDay: 1 }), t({ id: 'framing', progress: 0 })]);
     const mineTasks = [t({ id: 'A', startDay: 3 }), t({ id: 'framing', progress: 0 })];
     const event = [t({ id: 'A', startDay: 1 }), t({ id: 'framing', progress: 60 })];
@@ -551,7 +557,9 @@ console.log('\n#96 — an edit during the load does not hide what the load read:
   const sync = slice(CTX, 'const syncProjectToSupabase = useCallback(', 'const flushPendingProjectSyncs = useCallback(');
   ok('...fired when a direct sync reports (it never reaches the post-flush listener)',
     /finally \{\s*if \(syncDebounceMap\.current\.get\(project\.id\) === entry\) syncDebounceMap\.current\.delete\(project\.id\);\s*inFlightProjectSyncsRef\.current\.delete\(entry\);\s*\/\/[^\n]*\n\s*void settleOwedProjectsReload\(\);/.test(sync));
-  ok('...and after each hydration', /projectsReloadOwedRef\.current = plan\.keptWhole\.size > 0;\s*\}\s*void settleOwedProjectsReload\(\);/.test(CTX));
+  // Wave-4 final fix: a row kept whole ONLY for a Not-saved line owes no
+  // re-read (Retry / Discard re-read it) — owing one reloaded the list forever.
+  ok('...and after each hydration', /projectsReloadOwedRef\.current = projectsReloadOwedAfterLoad\(plan\.keptWhole, projectsLoadLedgerOnlyRef\.current\);\s*\}\s*void settleOwedProjectsReload\(\);/.test(CTX));
   ok('the hydration consumes the loaded tasks (one fold per load)', /const loadedTasks = projectsLoadTasksRef\.current;\s*projectsLoadTasksRef\.current = new Map\(\);/.test(CTX));
 }
 
@@ -583,16 +591,18 @@ console.log('\nReview round 2 — a cold launch, a skipped foreground refetch, a
   )() as Promise<{ merged: P[]; plan: { keptWhole: Set<string> }; revoked: Set<string> }>);
   // The hydration pass's REAL body.
   const runHydration = (env: { data: P[]; hydratedFor: Ref<string | null | undefined>; userId: string; projectsRef: P[]; log: ProjectWriteLog;
-    since: number; pending: Set<string>; landed: Ref<boolean>; owed: Ref<boolean>; settle: () => void; revoked?: Set<string> }) => {
+    since: number; pending: Set<string>; landed: Ref<boolean>; owed: Ref<boolean>; settle: () => void; revoked?: Set<string>; ledgerOnly?: Set<string> }) => {
     let set: P[] | null = null;
     new Function('projectsQuery', 'projectsLoadTasksRef', 'projectsHydratedForRef', 'userId', 'projectsRef', 'withDeviceCopies', 'projectWriteLogRef',
       'projectsLoadSinceRef', 'planProjectsLoad', 'projectsLoadPendingRef', 'foldServerSchedule', 'projectsLoadBaseRef', 'setProjects',
       'projectsLoadLandedRef', 'projectsReloadOwedRef', 'settleOwedProjectsReload',
-      'projectsLoadRevokedRef', 'revokedCleanupOwedRef', 'setRevokedCleanup', tr(`const __h = () => { ${hydSrc} };`) + '\nreturn __h;')(
+      'projectsLoadRevokedRef', 'revokedCleanupOwedRef', 'setRevokedCleanup', 'projectsReloadOwedAfterLoad', 'projectsLoadLedgerOnlyRef',
+      tr(`const __h = () => { ${hydSrc} };`) + '\nreturn __h;')(
       { data: env.data }, { current: new Map() }, env.hydratedFor, env.userId, { current: env.projectsRef }, withDeviceCopies, { current: env.log },
       { current: env.since }, planProjectsLoad, { current: env.pending }, foldServerSchedule, { current: new Map() }, (v: P[]) => { set = v; },
       env.landed, env.owed, env.settle,
       { current: env.revoked ?? new Set() }, { current: null }, () => undefined,
+      projectsReloadOwedAfterLoad, { current: env.ledgerOnly ?? new Set() },
     )();
     return set as P[] | null;
   };
@@ -714,6 +724,17 @@ console.log('\nReview round 2 — a cold launch, a skipped foreground refetch, a
     runHydration({ data: [proj('p1', 'mine')], hydratedFor, userId: 'u1', projectsRef: [proj('p1', 'mine')], log, since: log.seq,
       pending: new Set(['p1']), landed, owed, settle: () => undefined });
     ok('executed: a cache write re-running the hydration leaves the flag alone', owed.current === false);
+    // Wave-4 final fix: a row kept whole ONLY for a Not-saved line owes no
+    // re-read (the loop); a queue-pinned row beside it still owes one.
+    landed.current = true; owed.current = false;
+    runHydration({ data: [proj('p1', 'mine')], hydratedFor, userId: 'u1', projectsRef: [proj('p1', 'mine')], log, since: log.seq,
+      pending: new Set(['p1']), landed, owed, settle: () => undefined, ledgerOnly: new Set(['p1']) });
+    ok('executed: a row kept whole only for a Not-saved line owes NO re-read', (owed.current as boolean) === false && (landed.current as boolean) === false);
+    landed.current = true; owed.current = false;
+    runHydration({ data: [proj('p1', 'mine'), proj('p2', 'two')], hydratedFor, userId: 'u1', projectsRef: [proj('p1', 'mine'), proj('p2', 'two')], log, since: log.seq,
+      pending: new Set(['p1', 'p2']), landed, owed, settle: () => undefined, ledgerOnly: new Set(['p1']) });
+    ok('executed: ...but a queue-pinned row beside it still owes one', (owed.current as boolean) === true);
+    owed.current = false;
     // Only the newest load started marks that it landed.
     const landLine = 'if (loadSeq === projectsLoadSeqRef.current) projectsLoadLandedRef.current = true;';
     const seqRef = { current: 0 };

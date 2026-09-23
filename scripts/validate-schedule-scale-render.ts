@@ -146,12 +146,16 @@ console.log('\nwiring:');
     /const placementsDated = !!anchor\.iso;/.test(screen)
     && /const placements = useMemo\(\(\) => scheduledPlacements\(reportCpm, placementsDated\), \[reportCpm, placementsDated\]\);/.test(screen)
     && /scheduleStartDate: anchor\.iso \?\? undefined/.test(screen)
-    && (screen.match(/placements=\{placements\}/g) ?? []).length === 2);
+    // The list, the timeline — and (wave 4 #88) the task sheet, so it prints
+    // the dates of the row he tapped.
+    && (screen.match(/placements=\{placements\}/g) ?? []).length === 3);
   ok('...says why a moved bar snapped back', /startDaySnapBack\(nextTasks, stamped\.id, runCpm\(nextTasks, scheduleCalendar\), scheduleCalendar\)/.test(screen));
   ok('...and never writes an engine date back into startDay', !/startDay: (?:cpm|reportCpm|placed|placement)/.test(strip(screen)));
   ok('the phone tab subscribes live into absorbServerSchedule on its own scope',
     /useLiveSchedule\(liveProjectId, onPeerSchedule, onLiveGap, 'schedule-tab'\);/.test(screen)
-    && /absorbServerSchedule\(liveProjectId, copy\.tasks\)/.test(screen));
+    // wave 4 #86: with the whole copy (baselines + the active baseline id),
+    // held back to the tasks-only merge while a write of his is queued.
+    && /absorbServerSchedule\(liveProjectId, copy\.tasks, peerScheduleAdopt\(copy, queueBusyRef\.current\)\)/.test(screen));
   ok('...re-reads the row after a socket gap', /from\('projects'\)\.select\('schedule'\)\.eq\('id', pid\)/.test(screen));
   ok('...and the open sheet follows the stored task', /followStoredTask\(\s*open,/.test(screen));
   const hook = src('hooks/useLiveSchedule.ts');

@@ -11,11 +11,12 @@ import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
   SavedAIAPayApp, PortalState, ProjectSchedule, Permit, Warranty,
-  SendableItemKind, InvoicePayment, ScheduleTask,
+  SendableItemKind, InvoicePayment, ScheduleTask, ProjectContract,
 } from '@/types';
 import { portalLiveOverrides, PORTAL_MAX_INVOICE_LINES } from '@/utils/portalFreeze';
 import { punchListTypeOf } from '@/types';
-import { dayOrInstantDate, calendarDayOf, parseCalendarDay } from '@/utils/calendarDate';
+import { dayOrInstantDate, calendarDayOf, parseCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
+import { contractTimeline } from '@/utils/contractTimelineCore';
 import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
@@ -27,7 +28,7 @@ import {
 } from '@/utils/projectFinancials';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { toClientEstimateView } from '@/utils/clientEstimateView';
-import { isValidStamp, proposalPaymentLines } from '@/utils/paymentTerms';
+import { isValidStamp, proposalPaymentLines, milestoneDueText, hasWarrantyPlaceholder, printedScheduleAmounts } from '@/utils/paymentTerms';
 import { computeProjectProgress } from '@/utils/projectProgress';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import {
@@ -73,6 +74,32 @@ function renderSerialized<T>(
     } catch { /* malformed snapshot → fall through */ }
   }
   return serialize(item);
+}
+
+/**
+ * What a published photo may carry (#14): an http(s) `url` (a legacy public
+ * link) and/or the private-bucket `path`. Never a file:/blob:/data: value —
+ * those open only on the phone that took the picture. Pure; validator runs it.
+ */
+export function portalPhotoSource(photo: { uri?: string | null; storagePath?: string | null }): { url?: string; path?: string } {
+  const uri = typeof photo.uri === 'string' ? photo.uri.trim() : '';
+  const out: { url?: string; path?: string } = {};
+  if (/^https?:\/\//i.test(uri)) out.url = uri;
+  const stored = typeof photo.storagePath === 'string' ? photo.storagePath.trim() : '';
+  // A bare key (no scheme) in `uri` is the server's copy of the path.
+  const path = stored || (uri && !/^[a-z][a-z0-9+.-]*:/i.test(uri) ? uri : '');
+  if (path) out.path = path;
+  return out;
+}
+
+/** The device's IANA time zone, or undefined when the runtime cannot say. */
+function deviceTimeZone(): string | undefined {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof tz === 'string' && tz ? tz : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // v7 adds (Wave 5):
@@ -162,7 +189,11 @@ function renderSerialized<T>(
 // that was not already a row in the database, which is why the document the
 // signature covers is built here and re-hashed server-side rather than taken
 // from the browser. See the PROPOSAL block below.
-export const PORTAL_SNAPSHOT_VERSION = 12;
+// v13 (wave 4) adds the contract's TERMS (`contract.content`, #64 — see the
+// CONTRACT block below), photo `path` with `url` narrowed to http(s) and
+// `project.heroPhotoId` (#14 — the page signs private photos by id through
+// signed-media-urls), and top-level `timeZone` (#20).
+export const PORTAL_SNAPSHOT_VERSION = 13;
 
 export interface PortalSnapshot {
   v: number;
@@ -180,6 +211,8 @@ export interface PortalSnapshot {
    * matches `PortalUIStrings` in utils/portalLanguages.ts.
    */
   uiStrings?: Record<string, string>;
+  /** v13: the GC device's IANA zone (Intl), for day labels the server builds. */
+  timeZone?: string;
   requirePasscode?: boolean;
   // NOTE: passcode is intentionally NOT serialized into the snapshot.
   // It used to live here, but base64 in the URL fragment is trivially
@@ -243,16 +276,12 @@ export interface PortalSnapshot {
   coApprovalEnabled?: boolean;
   // Active project contract (when status >= 'sent'). Lets the homeowner
   // review + counter-sign their construction agreement directly in the
-  // static portal. Only the contract id + minimal metadata is bundled
-  // here; the full contract row is fetched from Supabase via the
-  // portalApi config (anon key + RLS gates the read).
-  contract?: {
-    id: string;
-    status: 'sent' | 'signed';
-    contractValue: number;
-    title: string;
-    needsSignature: boolean;   // true when GC has signed but homeowner hasn't
-  };
+  // static portal. Nothing else fetches the row for the page: the page has
+  // no read path to project_contracts, so what the homeowner reads before
+  // signing is exactly what `content` carries (#64). (This comment used to
+  // say the full row was fetched through portalApi — it never was, and the
+  // signer saw a title and a number.)
+  contract?: PortalContractBlock;
   // The most-recently-published homeowner summary. Pulled from the
   // newest daily report whose `homeownerSummaryPublished === true` —
   // the GC has reviewed the AI draft and explicitly pushed it out.
@@ -378,6 +407,9 @@ export interface PortalSnapshot {
     // photo. Lets the portal show the project visually instead of a flat
     // gradient.
     heroPhotoUrl?: string;
+    /** v13 (#14): the hero photo's row id — the page asks signed-media-urls
+     *  for it. heroPhotoUrl is then only a legacy http(s) link. */
+    heroPhotoId?: string;
     // v2: optional schedule anchors. If we have a schedule we surface the
     // project start date and the SCHEDULED FINISH so the portal can show
     // "Mar 14 → Aug 22".
@@ -574,7 +606,11 @@ export interface PortalSnapshot {
        *  a photo recalled from ANY device on read, and needs the id to find
        *  its row. Absent on snapshots built before 2026-09-19 (matched by url). */
       id?: string;
-      url: string;
+      /** v13 (#14): http(s) only — never file:/blob:/data:. Absent for a
+       *  photo that lives in the private bucket: the page signs it by id. */
+      url?: string;
+      /** The private-bucket key (photos.uri on the server). */
+      path?: string;
       caption?: string;
       timestamp?: string;
       // Markup primitives drawn over the photo by the GC. Coords are
@@ -631,6 +667,134 @@ export interface PortalSnapshot {
       expiresOn?: string;
     }[];
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v13 — THE CONTRACT THE HOMEOWNER SIGNS (#64)
+//
+// The portal asked a homeowner to sign a binding construction agreement with
+// nothing on screen but its title and its value, and told them to review the
+// scope, payment schedule and warranty "in the app" — homeowners have no app.
+// The deposit invoice that followed then billed an amount they had never been
+// shown on the page they signed.
+//
+// `content` is the agreement itself, built HERE on the GC's device from the
+// saved contract row, the same row the sealed PDF (utils/pdfGenerator
+// buildContractHtml) prints:
+//   - paymentSchedule: each milestone's label, when it is due, and its amount
+//     TO THE CENT, taken from the saved milestone. The portal never works a
+//     percentage out on its own; a row with neither an amount nor a percent is
+//     published with `amount: null`, and the page refuses to draw a sign box
+//     under an unpriced milestone.
+//   - scopeText (falling back to the project description, as the PDF does),
+//     termsText, warrantyText, the allowances, and the timeline — only when
+//     both halves resolve (utils/contractTimelineCore.contractTimeline), never a
+//     completion date derived from a blank.
+// The server overlay (portal_overlay_live) keeps this object for the SAME
+// contract id and lays the live status over it; for a contract the device has
+// not published yet it sends a minimal block with contentPending:true. Either
+// way, whether the terms are complete enough to sign is the page's check
+// (contractTermsMissing in marketing/portal/index.html mirrors
+// portalContractTermsMissing below).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PortalContractPaymentLine {
+  label: string;
+  /** "Due at signing", "Billed as work is completed", "Due Oct 1, 2026"… */
+  dueText: string;
+  /** Dollars to the cent; null when the saved milestone has no price. */
+  amount: number | null;
+}
+
+export interface PortalContractContent {
+  paymentSchedule: PortalContractPaymentLine[];
+  scopeText: string;
+  termsText: string;
+  warrantyText: string;
+  /** Calendar days (YYYY-MM-DD); all three present or none. */
+  startDate?: string;
+  durationDays?: number;
+  completionDate?: string;
+  allowances: { category: string; amount: number; description?: string }[];
+}
+
+export interface PortalContractBlock {
+  id: string;
+  status: 'sent' | 'signed';
+  contractValue: number;
+  title: string;
+  needsSignature: boolean;   // true when GC has signed but homeowner hasn't
+  /** v13 (#64) — what the homeowner reads before (and after) signing. */
+  content?: PortalContractContent;
+  // Written ONLY by the server overlay, never by this builder: who signed and
+  // how ('in_person' / 'paper' are recorded by the GC — app/contract.tsx), and
+  // whether the device has published this contract's terms yet.
+  homeownerSignerName?: string;
+  homeownerSignedAt?: string;
+  homeownerSignatureMethod?: 'portal' | 'in_person' | 'paper';
+  contentPending?: boolean;
+}
+
+// One milestone's dollars: paymentTerms printedScheduleAmounts (percent wins,
+// the rounding cent on the row retieContractSchedule gives it) — the same
+// column the sealed contract PDF prints (pdfGenerator buildContractHtml).
+
+/** The client-safe terms of a sent/signed contract. Pure; the validator runs it. */
+export function buildPortalContractContent(
+  contract: Pick<ProjectContract, 'contractValue' | 'scopeText' | 'termsText' | 'warrantyText' | 'paymentSchedule' | 'allowances' | 'startDate' | 'durationDays'>,
+  projectDescription?: string,
+): PortalContractContent {
+  const value = Number(contract.contractValue) || 0;
+  const schedule = (Array.isArray(contract.paymentSchedule) ? contract.paymentSchedule : []).filter(m => !!m);
+  const printedAmounts = printedScheduleAmounts(schedule, value);
+  const allowances = Array.isArray(contract.allowances) ? contract.allowances : [];
+  const scope = typeof contract.scopeText === 'string' && contract.scopeText.trim()
+    ? contract.scopeText
+    : (projectDescription ?? '');
+  const timeline = contractTimeline(contract.startDate, contract.durationDays);
+  return {
+    // Every row the sealed PDF prints, in its order — the portal and the
+    // signed copy must not disagree about what was agreed (a row's billing
+    // status is not part of the agreement).
+    paymentSchedule: schedule
+      .map((m, i) => ({
+        label: typeof m.label === 'string' && m.label.trim() ? m.label.trim() : 'Payment',
+        // The sealed PDF prints a row's date when it has one, else
+        // milestoneDueText — the same words here.
+        dueText: m.triggerDate ? `Due ${formatCalendarDay(m.triggerDate)}` : milestoneDueText(m),
+        amount: printedAmounts[i] ?? null,
+      })),
+    scopeText: scope,
+    termsText: typeof contract.termsText === 'string' ? contract.termsText : '',
+    warrantyText: typeof contract.warrantyText === 'string' ? contract.warrantyText : '',
+    ...(timeline
+      ? { startDate: timeline.startDate, durationDays: timeline.durationDays, completionDate: timeline.completionDate }
+      : {}),
+    allowances: allowances
+      .filter(a => a && typeof a.category === 'string')
+      .map(a => ({
+        category: a.category,
+        amount: Math.round((Number(a.amount) || 0) * 100) / 100,
+        ...(a.description ? { description: a.description } : {}),
+      })),
+  };
+}
+
+/**
+ * Why these terms cannot be signed yet, or null when they can. The page's
+ * contractTermsMissing is the same rule; a sign box under a contract with no
+ * payment schedule, an unpriced milestone, no scope, or the warranty
+ * placeholder would bind the homeowner to terms nobody showed them.
+ */
+export function portalContractTermsMissing(content: PortalContractContent | undefined | null):
+  'no_content' | 'no_schedule' | 'unpriced_milestone' | 'no_scope' | 'warranty_placeholder' | null {
+  if (!content || typeof content !== 'object') return 'no_content';
+  const schedule = Array.isArray(content.paymentSchedule) ? content.paymentSchedule : [];
+  if (schedule.length === 0) return 'no_schedule';
+  if (schedule.some(l => typeof l.amount !== 'number' || !Number.isFinite(l.amount))) return 'unpriced_milestone';
+  if (typeof content.scopeText !== 'string' || !content.scopeText.trim()) return 'no_scope';
+  if (hasWarrantyPlaceholder(content.warrantyText) || hasWarrantyPlaceholder(content.termsText)) return 'warranty_placeholder';
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1750,7 +1914,11 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       });
       sections.photos = (sorted.slice(0, maxPhotos).map(p => renderSerialized('photo', p, (photo) => ({
         id: p.id, // the live row's id, never a frozen copy's
-        url: photo.uri ?? '',
+        // #14: `uri` on the GC's own phone is the local file:// original (and
+        // a 24-hour signed link everywhere else), so publishing it gave the
+        // homeowner a broken image. The page asks signed-media-urls for the
+        // id; `url` survives only as a legacy http(s) link.
+        ...portalPhotoSource(photo),
         caption: photo.tag ?? photo.location,
         timestamp: photo.timestamp,
         markup: (photo.markup ?? []).length > 0
@@ -1761,7 +1929,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
               text: m.text,
             }))
           : undefined,
-      }))) as PortalSnapshot['sections']['photos'])?.filter(p => p != null && (p as { url?: string }).url);
+      }))) as PortalSnapshot['sections']['photos'])?.filter(p => p != null && (!!p.id || !!p.url));
     }
   }
 
@@ -1864,14 +2032,20 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // v2 hero meta — pick a hero photo (newest project photo we'll already
   // surface in the portal's photos section) and derive start / target dates
   // from the schedule if present.
+  // #14: the hero is named by the photo's id (signed per read by
+  // signed-media-urls); `heroPhotoUrl` only ever carries an http(s) link, never
+  // the file:// original on the GC's phone.
   let heroPhotoUrl: string | undefined;
+  let heroPhotoId: string | undefined;
   if (portal.showPhotos && photos.length) {
     const sorted = [...photos.filter(p => isShared(p.portalState))].sort((a, b) => {
       const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
       const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
       return tb - ta;
     });
-    heroPhotoUrl = sorted.find(p => !!p.uri)?.uri;
+    const hero = sorted.find(p => !!p.id || !!p.uri);
+    heroPhotoId = hero?.id || undefined;
+    heroPhotoUrl = hero ? portalPhotoSource(hero).url : undefined;
   }
 
   let startDate: string | undefined;
@@ -2117,7 +2291,11 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       contract: opts.contract && opts.contract.status === 'sent'
         ? {
             status: 'sent',
-            needsSignature: !opts.contract.homeownerSignature,
+            // Not "waiting on you" while the terms cannot be signed (#64): the
+            // page draws no sign box under them, so the row would point at a
+            // card with nothing to do.
+            needsSignature: !opts.contract.homeownerSignature
+              && portalContractTermsMissing(buildPortalContractContent(opts.contract, project.description)) === null,
             sentAt: opts.contract.sentAt ?? opts.contract.updatedAt,
             title: opts.contract.title,
           }
@@ -2147,6 +2325,9 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     snapshotAt: new Date().toISOString(),
     language,
     uiStrings,
+    // #20: the GC's zone — the overlay labels the latest update's day in it,
+    // not in UTC (portal_safe_time_zone falls back to UTC when absent/invalid).
+    timeZone: deviceTimeZone(),
     requirePasscode: portal.requirePasscode,
     // passcode intentionally omitted — validated server-side, never bundled.
     welcomeMessage: portal.welcomeMessage,
@@ -2261,13 +2442,18 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           : undefined,
       };
     })(),
-    // Contract — only emit when GC has actually sent it to the homeowner.
+    // Contract — only emit when GC has actually sent it to the homeowner, and
+    // with its TERMS (#64): the homeowner signs what `content` shows, and
+    // keeps reading it after signing. Built from `opts.contract` alone, so the
+    // lite writer (utils/portalLiteSync, which passes the same row) publishes
+    // the identical block.
     contract: opts.contract && (opts.contract.status === 'sent' || opts.contract.status === 'signed') ? {
       id: opts.contract.id,
       status: opts.contract.status,
       contractValue: opts.contract.contractValue,
       title: opts.contract.title,
       needsSignature: !opts.contract.homeownerSignature && opts.contract.status === 'sent',
+      content: buildPortalContractContent(opts.contract, project.description),
     } : undefined,
     // Selections — every category with at least 1 option, plus the chosen
     // one (if any). Skip pending categories and non-shared items.
@@ -2285,6 +2471,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       address: project.location,
       status: project.status,
       heroPhotoUrl,
+      heroPhotoId,
       startDate,
       targetDate,
       targetBudget: projectTargetBudget,

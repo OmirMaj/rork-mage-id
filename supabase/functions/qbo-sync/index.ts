@@ -20,6 +20,44 @@ interface Body {
   listedAmount?: number;
 }
 
+/**
+ * Integration round 1 · a stamp on invoices.payments (a push failure, a
+ * QuickBooks match, a reversal marked recorded) patched onto a fresh read by
+ * entry id — and now written ONLY if the row is still the one read: the UPDATE
+ * is conditional on its updated_at, which invoice_append_payment and the
+ * webhook's refund / dispute writes bump. Without it an append landing between
+ * the read and the write was erased (service_role passes invoices_ledger_guard).
+ * On a miss the row is re-read and the patch re-applied. The stamp sends no
+ * updated_at of its own, but the table's invoices_updated_at BEFORE UPDATE
+ * trigger (update_updated_at) bumps it on every UPDATE, this one included —
+ * so a writer that raced the stamp misses its own swap and re-reads too, and
+ * the sweep (which pages invoices by updated_at) sees the invoice again next
+ * run, which is harmless: a stamped entry is never pushed twice.
+ */
+async function patchInvoiceLedger(
+  s: ReturnType<typeof svc>,
+  invoiceId: string,
+  userId: string,
+  patch: (payments: unknown) => unknown[] | null,
+  tries = 4,
+): Promise<{ wrote: boolean; error?: string }> {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const read: { data: unknown; error: { message: string } | null } = await s
+      .from("invoices").select("payments, updated_at").eq("id", invoiceId).eq("user_id", userId).maybeSingle();
+    if (read.error) return { wrote: false, error: read.error.message };
+    const row = read.data as { payments?: unknown; updated_at?: string | null } | null;
+    if (!row) return { wrote: false };
+    const next = patch(row.payments);
+    if (!next) return { wrote: false };
+    let upd = s.from("invoices").update({ payments: next }).eq("id", invoiceId).eq("user_id", userId);
+    upd = row.updated_at ? upd.eq("updated_at", row.updated_at) : upd.is("updated_at", null);
+    const res: { data: unknown; error: { message: string } | null } = await upd.select("id");
+    if (res.error) return { wrote: false, error: res.error.message };
+    if (Array.isArray(res.data) && res.data.length > 0) return { wrote: true };
+  }
+  return { wrote: false, error: "invoice changed during the ledger stamp" };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'POST')   return json({ success: false, error: 'Method not allowed' }, 405);
@@ -74,15 +112,14 @@ serve(async (req) => {
     const [invoiceId, entryId] = String(body.objectId).split('::');
     if (!invoiceId || !entryId) return json({ success: false, error: 'bad reversal id' }, 400);
     const s = svc();
-    const { data: fresh, error: rErr } = await s.from('invoices').select('payments').eq('id', invoiceId).eq('user_id', auth.userId).maybeSingle();
-    if (rErr) return json({ success: false, error: rErr.message }, 500);
     // The amount he was SHOWN, not the entry's size now — a refund that grew
     // between the list and the tap stays listed (markReversalRecorded).
     const listed = typeof body.listedAmount === 'number' ? body.listedAmount : undefined;
-    const next = markReversalRecorded((fresh as { payments?: unknown } | null)?.payments, entryId, new Date().toISOString(), listed);
-    if (!next) return json({ success: true, skipped: 'not-a-pending-reversal' });
-    const { error: wErr } = await s.from('invoices').update({ payments: next }).eq('id', invoiceId).eq('user_id', auth.userId);
-    if (wErr) return json({ success: false, error: wErr.message }, 500);
+    const stampedAt = new Date().toISOString();
+    const out = await patchInvoiceLedger(s, invoiceId, auth.userId,
+      (payments) => markReversalRecorded(payments, entryId, stampedAt, listed));
+    if (out.error) return json({ success: false, error: out.error }, 500);
+    if (!out.wrote) return json({ success: true, skipped: 'not-a-pending-reversal' });
     return json({ success: true });
   }
 
@@ -127,13 +164,11 @@ serve(async (req) => {
         const [invoiceId, paymentId] = body.objectId.split('::');
         if (invoiceId && paymentId) {
           const s = svc();
-          const { data: fresh } = await s.from('invoices').select('payments').eq('id', invoiceId).eq('user_id', auth.userId).maybeSingle();
           // An outage (503, 429, timeout) is not this payment's fault: record
           // why, but do not spend one of its attempts on it.
-          const next = markPushFailure((fresh as { payments?: unknown } | null)?.payments, paymentId, errMsg, {
-            countAttempt: !isQboOutageError(e),
-          });
-          if (next) await s.from('invoices').update({ payments: next }).eq('id', invoiceId).eq('user_id', auth.userId);
+          const countAttempt = !isQboOutageError(e);
+          await patchInvoiceLedger(s, invoiceId, auth.userId,
+            (payments) => markPushFailure(payments, paymentId, errMsg, { countAttempt }));
         }
       } catch { /* secondary failure — swallow */ }
     }

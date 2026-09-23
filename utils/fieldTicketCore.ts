@@ -37,6 +37,7 @@ import type {
   FieldTicketMaterialRow,
 } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { nextChangeOrderNumber } from '@/utils/coNumbering';
 import { normalizeTradeKey, type LaborRateMap } from '@/utils/laborSamples';
 import type { ProjectRole } from '@/utils/projectRole';
 import { EQUIPMENT_HOURS_PER_DAY } from '@/utils/jobCostEngine';
@@ -880,7 +881,8 @@ export function buildChangeOrderFromTicket(input: BuildCOFromTicketInput): Chang
   const totals = computeFieldTicketTotals(ticket);
   const auth = ticket.authorization;
 
-  const nextNumber = existingCOs.reduce((max, c) => Math.max(max, c.number || 0), 0) + 1;
+  // Provisional: the server keeps it when free and moves a collider (#77/#141).
+  const nextNumber = nextChangeOrderNumber(existingCOs);
 
   const approvedCOsTotal = existingCOs
     .filter(c => c.status === 'approved')

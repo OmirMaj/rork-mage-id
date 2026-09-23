@@ -39,12 +39,34 @@
 // A DFR row's overtime is therefore "so far this payroll week" until the week
 // ends; the caller that knows the GC's rule passes it (default: federal).
 //
+// ── A FORGOTTEN CLOCK-OUT IS NOBODY'S HOURS (#41) ───────────────────────────
+// An open shift the time clock calls a missed clock-out (utils/overtime
+// isMissedOpenShift: clocked in on an earlier local day, or past
+// max(alert + 2, 14) net hours) has no real end. It used to count here at its
+// full running time — Monday's report opened on Wednesday said ~53 h for one
+// man — and to feed the live overtime split, so Tuesday's and Wednesday's
+// ordinary shifts read as overtime. It now counts toward neither the crew
+// hours nor anyone's overtime until its out time is entered on Time Tracking.
+// `alertHours` is the GC's shift-alert setting (default 8, the app default).
+//
+// The MAN still counts (integration round 1). #41 was about his phantom hours,
+// not his presence: a super filling in yesterday's report this morning found
+// the worker who forgot to clock out simply gone from the headcount, and when
+// he was the only clock-in the roster fell back to the schedule with "no
+// clock-ins … have reached this phone" — false. He now stays in the headcount
+// with 0 hours and no overtime, `missedCount` says how many such clock-outs
+// are missing, and the source line tells the super where to enter them.
+//
 // Pure — no storage, no network. Pinned by scripts/validate-dfr-field-sources.ts.
 
 import type { TimeEntry } from '@/types';
 import { isEligibleLaborEntry, normalizeTradeKey } from '@/utils/laborSamples';
 import { toCalendarDayString } from '@/utils/calendarDate';
-import { computeOvertime, openShiftHours, overtimeFor, DEFAULT_OVERTIME_RULE, type OvertimeRule } from '@/utils/overtime';
+import { computeOvertime, isMissedOpenShift, openShiftHours, overtimeFor, DEFAULT_OVERTIME_RULE, type OvertimeRule } from '@/utils/overtime';
+
+/** The app's default shift-alert hours (hooks/useTimeEntries), used when the
+ *  caller does not pass the GC's own setting. */
+const DEFAULT_ALERT_HOURS = 8;
 
 /** Company label for clocked rows when the GC has not set a company name. */
 export const OWN_CREW_FALLBACK_COMPANY = 'Own crew';
@@ -61,6 +83,8 @@ export interface ClockCrewRow {
   overtimeHours: number;
   /** Workers whose shift is still open — their hours are "so far". */
   liveCount: number;
+  /** Workers counted with 0 hours because their clock-out was never entered (#41). */
+  missedCount: number;
 }
 
 export interface ClockCrew {
@@ -69,6 +93,9 @@ export interface ClockCrew {
   totalHours: number;
   overtimeHours: number;
   liveCount: number;
+  /** Workers on the clock this day whose clock-out was never entered — in
+   *  the headcount, left out of the hours until it is entered (#41). */
+  missedCount: number;
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -97,15 +124,17 @@ export function clockCrewForDay(
   companyName: string | null | undefined,
   nowMs: number = Date.now(),
   overtimeRule: OvertimeRule = DEFAULT_OVERTIME_RULE,
+  alertHours: number = DEFAULT_ALERT_HOURS,
 ): ClockCrew | null {
   if (!projectId || projectId === 'unassigned' || !day) return null;
   const company = (companyName ?? '').trim() || OWN_CREW_FALLBACK_COMPANY;
-  const ot = computeOvertime(entries ?? [], overtimeRule, { liveNowMs: nowMs });
+  const ot = computeOvertime(entries ?? [], overtimeRule, { liveNowMs: nowMs, missedAlertHours: alertHours });
 
-  interface Group { trade: string; workers: Set<string>; live: Set<string>; total: number; overtime: number }
+  interface Group { trade: string; workers: Set<string>; live: Set<string>; missed: Set<string>; total: number; overtime: number }
   const groups = new Map<string, Group>();
   const everyone = new Set<string>();
   const liveEveryone = new Set<string>();
+  const missedEveryone = new Set<string>();
 
   for (const e of entries ?? []) {
     if (!e || e.projectId !== projectId) continue;
@@ -113,12 +142,16 @@ export function clockCrewForDay(
     const open = (e.status === 'clocked_in' || e.status === 'break') && !e.clockOut;
     let total: number;
     let overtime: number;
+    let missed = false;
     if (isEligibleLaborEntry(e)) {
       total = e.totalHours;
       overtime = Math.min(total, overtimeFor(ot, e.id));
     } else if (open) {
-      total = openShiftHours(e, nowMs);
-      overtime = Math.min(total, overtimeFor(ot, e.id));
+      // #41: a missed clock-out is not evidence of HOURS on this day — but it
+      // is evidence he was here, so he stays in the headcount at 0 h.
+      missed = isMissedOpenShift(e, nowMs, alertHours);
+      total = missed ? 0 : openShiftHours(e, nowMs);
+      overtime = missed ? 0 : Math.min(total, overtimeFor(ot, e.id));
     } else {
       continue; // a finished shift with no hours is not evidence of anyone
     }
@@ -127,14 +160,15 @@ export function clockCrewForDay(
     const key = normalizeTradeKey(e.trade);
     let g = groups.get(key);
     if (!g) {
-      g = { trade: key === 'general' ? 'General labor' : (e.trade ?? '').trim(), workers: new Set(), live: new Set(), total: 0, overtime: 0 };
+      g = { trade: key === 'general' ? 'General labor' : (e.trade ?? '').trim(), workers: new Set(), live: new Set(), missed: new Set(), total: 0, overtime: 0 };
       groups.set(key, g);
     }
     g.workers.add(who);
     g.total += total;
     g.overtime += overtime;
     everyone.add(who);
-    if (open) { g.live.add(who); liveEveryone.add(who); }
+    if (missed) { g.missed.add(who); missedEveryone.add(who); }
+    else if (open) { g.live.add(who); liveEveryone.add(who); }
   }
 
   if (groups.size === 0) return null;
@@ -146,6 +180,7 @@ export function clockCrewForDay(
     totalHours: round2(g.total),
     overtimeHours: round2(g.overtime),
     liveCount: g.live.size,
+    missedCount: g.missed.size,
   }));
   return {
     rows,
@@ -153,6 +188,7 @@ export function clockCrewForDay(
     totalHours: round2(rows.reduce((s, r) => s + r.totalHours, 0)),
     overtimeHours: round2(rows.reduce((s, r) => s + r.overtimeHours, 0)),
     liveCount: liveEveryone.size,
+    missedCount: missedEveryone.size,
   };
 }
 
@@ -162,6 +198,8 @@ export function clockCrewSourceLine(crew: ClockCrew, subRowsFromSchedule: number
   let line = `From the time clock: ${crew.people} ${crew.people === 1 ? 'person' : 'people'}, ${fmt(crew.totalHours)} h`;
   if (crew.overtimeHours > 0) line += ` (${fmt(crew.overtimeHours)} h overtime)`;
   if (crew.liveCount > 0) line += ` · ${crew.liveCount} still on the clock, hours so far`;
+  const missed = crew.missedCount ?? 0;
+  if (missed > 0) line += ` · ${missed} ${missed === 1 ? 'clock-out' : 'clock-outs'} not entered — their hours are left out until entered on Time Tracking`;
   if (subRowsFromSchedule > 0) line += ` · sub crews from today's schedule plan`;
   return `${line}. Tap a row to correct it.`;
 }

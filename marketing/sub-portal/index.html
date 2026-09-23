@@ -590,6 +590,21 @@
   .punch-err { font-size: 12px; font-weight: 600; color: var(--error); }
   .punch-row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .punch-asof { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+  .punch-sentback {
+    margin-top: 8px; font-size: 12.5px; font-weight: 600; color: var(--error);
+    background: var(--surface); border-left: 3px solid var(--error); border-radius: 8px; padding: 6px 10px;
+  }
+  .punch-retry-btn {
+    font-family: inherit; font-weight: 700; font-size: 12px; margin-left: 6px;
+    border-radius: 8px; padding: 4px 10px; cursor: pointer;
+    background: transparent; color: var(--ink); border: 1px solid var(--bone);
+  }
+  .fallback-retry {
+    display: block; width: 100%; background: var(--ink); color: #fff; border: none;
+    font-family: inherit; font-weight: 700; padding: 15px 20px; border-radius: var(--radius-md);
+    font-size: 15px; margin-bottom: 10px; cursor: pointer;
+  }
+  .fallback-retry:disabled { opacity: 0.55; cursor: default; }
 
   /* ───────── Schedule slice (Wave 5) ───────── */
   .sched-list { display: flex; flex-direction: column; gap: 12px; }
@@ -647,12 +662,16 @@
     </div>
   </div>
 
+  <!-- One card, four honest states (#50): loading, no signal (Retry), link
+       turned off / replaced, nothing published yet, and a link that carries
+       nothing at all. showCard() fills it; the text below is the last case. -->
   <div id="fallback" class="fallback" style="display:none">
     <div class="fallback-card">
       <div class="gate-logo" style="margin-bottom:18px">M</div>
-      <h1>Sub portal link expired</h1>
-      <p>This link doesn't include any data. Ask your contractor for a fresh link from the MAGE ID app.</p>
-      <a class="cta" href="mailto:help@mageid.app?subject=Sub%20Portal%20Help">Contact support</a>
+      <h1 id="fallback-title">This link is incomplete</h1>
+      <p id="fallback-text">This link doesn't include a portal to open. Ask your contractor to send it again from the MAGE ID app.</p>
+      <button type="button" id="fallback-retry" class="fallback-retry" style="display:none">Try again</button>
+      <a class="cta" id="fallback-help" href="mailto:help@mageid.app?subject=Sub%20Portal%20Help">Contact support</a>
     </div>
   </div>
 
@@ -1044,8 +1063,10 @@
   // Where the rows come from: sub_portal_get_snapshot replaces the stored
   // punchItems with the LIVE punch_items rows for this link at read time
   // (migration 20260919200000 — punchLiveAt is set). Only a hash-only fallback
-  // (the server could not be reached) shows the copy frozen into the link, and
-  // then the section says so with its date.
+  // shows the copy frozen into the link, and then the section says so with its
+  // date AND why (punchState.frozenWhy): no signal (with Retry), nothing
+  // published on the server yet, or a link that only ever carried its copy.
+  // A link that was turned off never renders its frozen copy at all (#50).
   //
   // Two groups, never blended: open / in progress are still on the sub;
   // Ready for Review is waiting on the contractor to verify. The rows arrive
@@ -1056,9 +1077,18 @@
   // it is pinned on ("On sheet A-101", or "Not pinned on a plan"). The photo is
   // NOT drawn here yet — it sits in a private bucket and needs a signed link —
   // so a row with a photo says the contractor has one.
-  var punchState = { items: [], total: 0, liveAt: null, frozenAt: null, contractor: 'your contractor', subPortalId: null };
+  var punchState = { items: [], total: 0, liveAt: null, frozenAt: null, frozenWhy: null, contractor: 'your contractor', subPortalId: null };
   var punchOpenNote = {};   // id -> true while the note box is open
   var punchPending = {};    // id -> 'sending' | 'sent' | error text
+  var punchSentText = {};   // id -> what the server actually did with the mark (#49)
+  // #48 What the sub is typing, per item. Every click redraws the section
+  // (innerHTML), so the textarea is rebuilt from this map — a Mark fixed on
+  // another row, a Cancel elsewhere or a failed send never erases a note.
+  // Cleared only when that note was sent, or that row's own Cancel.
+  var punchDraft = {};
+
+  // The app's default reason when the GC typed none (app/punch-list.tsx).
+  var GENERIC_REJECT_RE = /^rejected\s*[—–-]\s*needs rework$/i;
 
   function punchIsOnSub(p) { var s = p.status || 'open'; return s === 'open' || s === 'in_progress'; }
 
@@ -1073,20 +1103,37 @@
       // than print it like one.
       dueLine = '<span class="punch-bad-due">Due “' + esc(p.dueDate) + '” — not a date, ask your contractor</span>';
     }
-    var locLine = p.location ? '<span class="punch-loc">' + esc(p.location) + '</span>' : '';
+    // #56 'Unspecified' is the walk's "no room given", not a room (the server
+    // already nulls it; an older frozen copy may still carry it).
+    var loc = p.location && String(p.location).trim().toLowerCase() !== 'unspecified' ? String(p.location).trim() : '';
+    var locLine = loc ? '<span class="punch-loc">' + esc(loc) + '</span>'
+      : p.planSheetId ? '<span class="punch-loc">No room given — check the sheet</span>' : '';
+    // No invented 'Plan': a pin whose sheet has no name (or isn't synced) says so.
     var pinLine = p.planSheetId
-      ? '<span class="punch-sheet">On sheet ' + esc(p.sheetLabel || 'Plan') + '</span>'
+      ? (p.sheetLabel && p.sheetLabel !== 'Plan'
+          ? '<span class="punch-sheet">On sheet ' + esc(p.sheetLabel) + '</span>'
+          : '<span class="punch-nopin">Pinned on a plan (sheet not available)</span>')
       : '<span class="punch-nopin">Not pinned on a plan</span>';
     var photoLine = p.photoStoragePath ? '<span class="punch-photo-note">Photo on file with ' + esc(punchState.contractor) + '</span>' : '';
-    var noteLine = p.subNote ? '<div class="punch-note">Your note: ' + esc(p.subNote) + '</div>' : '';
+    // #47/#55 Why it came back — only on a row back on him. The app's default
+    // text is not a reason, so it reads as none given.
+    var gcNote = punchIsOnSub(p) && p.gcNote ? String(p.gcNote).trim() : '';
+    var sentBackLine = gcNote
+      ? '<div class="punch-sentback">' + (GENERIC_REJECT_RE.test(gcNote)
+          ? 'Sent back by ' + esc(punchState.contractor) + ' — no reason given'
+          : 'Sent back by ' + esc(punchState.contractor) + ': ' + esc(gcNote)) + '</div>'
+      : '';
+    // Labelled by what it is, not "Your note": after a reassignment an older
+    // copy could hold another sub's words. Never under a sent-back reason.
+    var noteLine = p.subNote && !gcNote ? '<div class="punch-note">Note sent with your last mark: ' + esc(p.subNote) + '</div>' : '';
     var actions = '';
     var pend = punchPending[p.id];
     if (pend === 'sent') {
-      actions = '<div class="punch-actions"><span class="punch-sent">Sent to ' + esc(punchState.contractor) + ' for review</span></div>';
+      actions = '<div class="punch-actions"><span class="punch-sent">' + esc(punchSentText[p.id] || ('Sent to ' + punchState.contractor + ' for review')) + '</span></div>';
     } else if (punchIsOnSub(p) && getSubToken() && punchState.subPortalId) {
       if (punchOpenNote[p.id]) {
         actions = '<div class="punch-actions">' +
-          '<textarea class="punch-note-input" data-note-for="' + esc(p.id) + '" maxlength="1000" placeholder="Optional note for your contractor, e.g. swapped the cover plate"></textarea>' +
+          '<textarea class="punch-note-input" data-note-for="' + esc(p.id) + '" maxlength="1000" placeholder="Optional note for your contractor, e.g. swapped the cover plate"' + (pend === 'sending' ? ' disabled' : '') + '>' + esc(punchDraft[p.id] || '') + '</textarea>' +
           '<div class="punch-row-btns">' +
             '<button type="button" class="punch-send-btn" data-punch-send="' + esc(p.id) + '"' + (pend === 'sending' ? ' disabled' : '') + '>' + (pend === 'sending' ? 'Sending…' : 'Send for review') + '</button>' +
             '<button type="button" class="punch-cancel-btn" data-punch-cancel="' + esc(p.id) + '">Cancel</button>' +
@@ -1106,7 +1153,7 @@
             '<span class="punch-status">' + esc(statusText) + '</span>' +
             locLine + dueLine + pinLine + photoLine +
           '</div>' +
-          noteLine + actions +
+          sentBackLine + noteLine + actions +
         '</div>' +
       '</div>';
   }
@@ -1121,9 +1168,15 @@
     var total = Math.max(punchState.total || 0, items.length);
     var head = onYou.length + ' still on you' + (waiting.length ? ' · ' + waiting.length + ' waiting on ' + punchState.contractor + ' to verify' : '');
     var capLine = total > items.length ? '<p class="punch-asof">Showing ' + items.length + ' of ' + total + ' — the most urgent first. Ask ' + esc(punchState.contractor) + ' for the full list.</p>' : '';
+    // A frozen copy says WHY it is frozen — "back online" only when it was
+    // actually the signal (#50).
     var asOf = punchState.liveAt
       ? '<p class="punch-asof">Live from ' + esc(punchState.contractor) + '’s punch list.</p>'
-      : '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — this copy could not be refreshed. Reload when you are back online.</p>';
+      : punchState.frozenWhy === 'network'
+        ? '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — couldn’t reach the server to refresh it. Check your signal.<button type="button" class="punch-retry-btn" data-portal-retry="1">Retry</button></p>'
+        : punchState.frozenWhy === 'missing'
+          ? '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — the copy saved in this link. ' + esc(punchState.contractor) + ' hasn’t published a live one yet.</p>'
+          : '<p class="punch-asof">As of ' + esc(fmtDate(punchState.frozenAt)) + ' — the copy saved in this link, not the live list.</p>';
     var html = '';
     if (onYou.length) html += '<div class="punch-group-title">Still on you</div><div class="punch-list">' + onYou.map(renderPunchRow).join('') + '</div>';
     if (waiting.length) html += '<div class="punch-group-title">Waiting on ' + esc(punchState.contractor) + ' to verify</div><div class="punch-list">' + waiting.map(renderPunchRow).join('') + '</div>';
@@ -1142,6 +1195,7 @@
     punchState.total = typeof data.punchTotal === 'number' ? data.punchTotal : punchState.items.length;
     punchState.liveAt = data.punchLiveAt || null;
     punchState.frozenAt = data.snapshotAt || null;
+    punchState.frozenWhy = data.__frozenWhy || null;
     punchState.contractor = (data.company && data.company.name) || 'your contractor';
     punchState.subPortalId = (data.submitInvoice && data.submitInvoice.subPortalId) || parseSubPortalIdFromPath();
     renderPunchSection();
@@ -1153,10 +1207,21 @@
   function markPunchReady(id, note) {
     var token = getSubToken();
     var url = SUPABASE_URL_PUBLIC + '/rest/v1/rpc/sub_portal_mark_punch_ready';
+    // A dead zone must fail in seconds with words he can act on, not hang on
+    // "Sending…" or print the browser's "Failed to fetch".
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, 15000) : null;
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
       body: JSON.stringify({ p_sub_portal_id: punchState.subPortalId, p_access_token: token, p_punch_id: id, p_note: note || null }),
+      signal: ctl ? ctl.signal : undefined,
+    }).then(function (r) {
+      if (timer) clearTimeout(timer);
+      return r;
+    }, function () {
+      if (timer) clearTimeout(timer);
+      throw new Error('Could not send it just now. Check your signal and try again — your note is kept.');
     }).then(function (r) {
       if (r.ok) return r.json();
       return r.text().then(function (t) {
@@ -1169,6 +1234,27 @@
     });
   }
 
+  // #48 keep what he types, per item, across every redraw.
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (!t || !t.getAttribute) return;
+    var id = t.getAttribute('data-note-for');
+    if (id) punchDraft[id] = t.value;
+  });
+
+  // What to tell him once the server answered (#49): it may already have
+  // been in Review (a colleague marked it, or an earlier send landed but its
+  // answer was lost). The RPC saves a new note in that case (note_added); an
+  // older server that doesn't say so is not claimed to have kept it.
+  function punchSentMessage(res, note) {
+    var gc = punchState.contractor;
+    if (!res || res.already !== true) return 'Sent to ' + gc + ' for review';
+    if (!note) return 'Already marked fixed — waiting on ' + gc + ' to verify';
+    return res.note_added === true
+      ? 'Already marked fixed — your note was added for ' + gc
+      : 'Already marked fixed — your note was not added';
+  }
+
   document.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || !t.getAttribute) return;
@@ -1176,24 +1262,31 @@
     var send = t.getAttribute('data-punch-send');
     var cancel = t.getAttribute('data-punch-cancel');
     if (fix) { punchOpenNote[fix] = true; delete punchPending[fix]; renderPunchSection(); return; }
-    if (cancel) { delete punchOpenNote[cancel]; delete punchPending[cancel]; renderPunchSection(); return; }
+    if (cancel) { delete punchOpenNote[cancel]; delete punchPending[cancel]; delete punchDraft[cancel]; renderPunchSection(); return; }
     if (!send || punchPending[send] === 'sending') return;
     var box = document.querySelector('[data-note-for="' + send.replace(/"/g, '') + '"]');
-    var note = box ? String(box.value || '').trim() : '';
+    var note = String((punchDraft[send] != null ? punchDraft[send] : (box ? box.value : '')) || '').trim();
     var item = null;
     for (var i = 0; i < punchState.items.length; i++) if (punchState.items[i].id === send) item = punchState.items[i];
     if (!item) return;
-    var prev = { status: item.status, subNote: item.subNote };
+    var prev = { status: item.status, subNote: item.subNote, gcNote: item.gcNote };
     punchPending[send] = 'sending';
     renderPunchSection();
-    markPunchReady(send, note).then(function () {
+    markPunchReady(send, note).then(function (res) {
+      var already = !!(res && res.already === true);
       item.status = 'ready_for_review';
-      if (note) item.subNote = note;
+      item.gcNote = undefined;
+      // Only what the server kept: a fresh mark stores this round's note (or
+      // none); an already-in-Review mark stores it only when note_added.
+      if (!already) item.subNote = note || undefined;
+      else if (note && res.note_added === true) item.subNote = note;
+      punchSentText[send] = punchSentMessage(res, note);
       punchPending[send] = 'sent';
       delete punchOpenNote[send];
+      delete punchDraft[send];
       renderPunchSection();
     }).catch(function (err) {
-      item.status = prev.status; item.subNote = prev.subNote;
+      item.status = prev.status; item.subNote = prev.subNote; item.gcNote = prev.gcNote;
       punchPending[send] = (err && err.message) || 'Could not send it just now. Try again.';
       renderPunchSection();
     });
@@ -1488,17 +1581,44 @@
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') attempt(); });
   }
 
-  function showFallback() {
-    document.getElementById('fallback').style.display = 'flex';
+  // #50 One card, told apart by kind. 'nodata' is the markup's own text: a
+  // link with no id + token and no copy in it.
+  var CARD_COPY = {
+    loading: { title: 'Opening your portal…', text: 'Getting the latest from your contractor.' },
+    network: { title: 'Couldn’t reach the server', text: 'Check your signal and try again. The link itself is fine.', retry: true },
+    denied: { title: 'This link was turned off or replaced', text: 'Ask {gc} for the new link. Anything this page showed before is no longer current.' },
+    missing: { title: 'Nothing published yet', text: '{gc} hasn’t published this portal yet. Try again later, or ask them to open your portal in the MAGE ID app.', retry: true },
+    nodata: null,
+  };
+  var cardDefault = null;
+  function showCard(kind, gcName) {
+    var fb = document.getElementById('fallback');
+    var titleEl = document.getElementById('fallback-title');
+    var textEl = document.getElementById('fallback-text');
+    var retryEl = document.getElementById('fallback-retry');
+    var helpEl = document.getElementById('fallback-help');
+    if (!cardDefault) cardDefault = { title: titleEl.textContent, text: textEl.textContent };
+    var c = CARD_COPY[kind] || cardDefault;
+    var gc = gcName || 'your contractor';
+    titleEl.textContent = c.title;
+    textEl.textContent = c.text.replace(/\{gc\}/g, gc).replace(/^your contractor/, 'Your contractor');
+    retryEl.style.display = c.retry ? 'block' : 'none';
+    retryEl.disabled = false;
+    retryEl.textContent = 'Try again';
+    helpEl.style.display = kind === 'loading' ? 'none' : 'block';
+    fb.style.display = 'flex';
   }
+  function hideCard() { document.getElementById('fallback').style.display = 'none'; }
+  function showFallback() { showCard('nodata'); }
 
   // Load order. The SERVER copy first whenever the link carries its `?t=`
   // token and an id: sub_portal_get_snapshot returns the contractor's latest
   // published snapshot with the punch list merged LIVE from punch_items. The
-  // `#d=` hash is only a fallback for when that read fails (offline, link
-  // turned off) — it is frozen at the moment the link was copied, so it used
-  // to show yesterday's punch list forever when it was read first. A link
-  // with no token can only be the hash. Fallback page only if both fail.
+  // `#d=` hash is only a fallback for when that read cannot reach the server
+  // (or nothing is published there yet) — it is frozen at the moment the link
+  // was copied, so it used to show yesterday's punch list forever when it was
+  // read first. A link that was turned off or replaced shows that, never its
+  // frozen copy. A link with no token can only be the hash.
   var SUPABASE_URL_PUBLIC  = 'https://nteoqhcswappxxjlpvap.supabase.co';
   var SUPABASE_ANON_PUBLIC = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
@@ -1512,32 +1632,97 @@
 
   // Reads the sub-portal snapshot through the token-gated sub_portal_get_snapshot
   // RPC (sub_portal_snapshots is no longer anon-readable — cross-tenant leak fix).
+  //
+  // #50 The answer is TAGGED — it used to collapse into one null, so a flaky
+  // connection on the short (hash-less) link read "link expired", and a link
+  // the GC turned off read "reload when you are back online" over its frozen
+  // copy:
+  //   ok      2xx with a snapshot
+  //   missing 2xx with null (nothing published on the server yet)
+  //   denied  sub_portal_denied (errcode 42501 → 401/403, or the message)
+  //   network the request failed, timed out (~10 s), or the server erred (5xx
+  //           or any other refusal — never read as "turned off")
+  var SNAPSHOT_TIMEOUT_MS = 10000;
   function fetchSubSnapshot(subPortalId) {
-    if (!subPortalId) return Promise.resolve(null);
     var token = getSubToken();
-    if (!token) return Promise.resolve(null);
+    if (!subPortalId || !token) return Promise.resolve({ kind: 'missing', data: null });
     var url = SUPABASE_URL_PUBLIC + '/rest/v1/rpc/sub_portal_get_snapshot';
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, SNAPSHOT_TIMEOUT_MS) : null;
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
       body: JSON.stringify({ p_sub_portal_id: subPortalId, p_access_token: token }),
+      signal: ctl ? ctl.signal : undefined,
     })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (snapshot) { return snapshot || null; })
-      .catch(function () { return null; });
+      .then(function (r) {
+        if (r.ok) {
+          return r.json().then(function (snapshot) {
+            return snapshot ? { kind: 'ok', data: snapshot } : { kind: 'missing', data: null };
+          });
+        }
+        return r.text().then(function (t) {
+          var denied = r.status === 401 || r.status === 403 || /sub_portal_denied|"42501"/.test(t || '');
+          return { kind: denied ? 'denied' : 'network', data: null };
+        });
+      })
+      .catch(function () { return { kind: 'network', data: null }; })
+      .then(function (res) { if (timer) clearTimeout(timer); return res; });
   }
 
   var hashData = decodeHash();
   var subPortalIdFromPath = parseSubPortalIdFromPath();
-  function renderGated(d) { runGate(d, function () { render(d); }); }
-  if (subPortalIdFromPath && getSubToken()) {
-    fetchSubSnapshot(subPortalIdFromPath).then(function (fresh) {
-      if (fresh) { renderGated(fresh); return; }
-      if (hashData) { renderGated(hashData); return; }
-      showFallback();
+  var portalRendered = false;
+  function renderGated(d) { hideCard(); runGate(d, function () { portalRendered = true; render(d); }); }
+  function gcNameOf(d) { return (d && d.company && d.company.name) || null; }
+  function withFrozenWhy(d, why) { var c = {}; for (var k in d) c[k] = d[k]; c.__frozenWhy = why; return c; }
+
+  // The server read, then what to show for each answer. Called at boot and by
+  // both Retry buttons.
+  function loadFromServer() {
+    return fetchSubSnapshot(subPortalIdFromPath).then(function (res) {
+      if (res.kind === 'ok') {
+        // render() binds the invoice form's listeners, so it runs ONCE per
+        // page: a Retry after the frozen copy is up reloads the page instead
+        // (the server just answered, so the reload reads it live).
+        if (portalRendered) { window.location.reload(); return; }
+        renderGated(res.data);
+        return;
+      }
+      if (res.kind === 'denied') {
+        // Never the frozen copy as if it were current.
+        if (portalRendered) { window.location.reload(); return; }
+        showCard('denied', gcNameOf(hashData));
+        return;
+      }
+      if (portalRendered) {
+        // Retry from the frozen copy, still no answer: say so on the section.
+        punchState.frozenWhy = res.kind;
+        renderPunchSection();
+        return;
+      }
+      if (hashData) { renderGated(withFrozenWhy(hashData, res.kind)); return; }
+      showCard(res.kind === 'missing' ? 'missing' : 'network', null);
     });
+  }
+
+  document.getElementById('fallback-retry').addEventListener('click', function () {
+    var btn = document.getElementById('fallback-retry');
+    btn.disabled = true; btn.textContent = 'Trying…';
+    loadFromServer();
+  });
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.getAttribute || !t.getAttribute('data-portal-retry')) return;
+    t.disabled = true; t.textContent = 'Trying…';
+    loadFromServer();
+  });
+
+  if (subPortalIdFromPath && getSubToken()) {
+    showCard('loading');
+    loadFromServer();
   } else if (hashData) {
-    renderGated(hashData);
+    renderGated(withFrozenWhy(hashData, 'hash_only'));
   } else {
     showFallback();
   }

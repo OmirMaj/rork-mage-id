@@ -178,6 +178,39 @@ export function settingsRowWritePending(
 }
 
 /**
+ * Wave-4 final fix (round 8) · The profiles row with this session's Not-saved
+ * settings lines laid over it — the same rule as the projects loader
+ * (utils/projectContextPure overlayUnsavedRow): the columns a refused
+ * whole-row save carries win, every other column is the server's. Lines are
+ * applied oldest to newest (a later line's column wins, as Retry replays
+ * them). Only SETTINGS_ROW_COLUMNS: payment terms keep their own rule
+ * (paymentTermsAfterLoad, which already counts a Not-saved terms line).
+ *
+ * Why: the device copy kept for a Not-saved save (settingsAfterRead
+ * rowWriteUnsaved) lives in memory and the AsyncStorage cache, and a
+ * same-user re-auth sweep empties the cache. The next cold launch then read
+ * the row alone — the server's 7.5 % over his refused 8.25 % — and his next
+ * settings save, even an unrelated one, folded 7.5 % into the line. The
+ * ledger survives the sweep, so the row read through it keeps his answer.
+ */
+export function settingsRowWithUnsaved(
+  row: Record<string, unknown>,
+  lines: readonly { operation: string; data: Record<string, unknown>; queuedAt?: number }[],
+  userId: string | null | undefined,
+): Record<string, unknown> {
+  if (!userId) return row;
+  const mine = lines
+    .filter((l) => l.operation === 'update' && l.data?.id === userId)
+    .sort((a, b) => (a.queuedAt ?? 0) - (b.queuedAt ?? 0));
+  if (mine.length === 0) return row;
+  const out: Record<string, unknown> = { ...row };
+  for (const l of mine) {
+    for (const c of SETTINGS_ROW_COLUMNS) if (c in l.data) out[c] = l.data[c];
+  }
+  return out;
+}
+
+/**
  * A row read landed. Whether it may replace the settings on this device.
  *
  * It may NOT when a settings write on this device could be newer than the row:
@@ -192,6 +225,14 @@ export function settingsRowWritePending(
  * Only while this account's settings are loaded. Before that the device holds
  * DEFAULT, and writes are HELD rather than sent (they land on the row via
  * applyHeldSettings), so the row always wins.
+ *
+ * Wave-4 final fix · `rowWriteUnsaved`: a whole-row save of this session sits
+ * under Not saved. The device copy is kept (it is the only copy of his edit)
+ * but NO re-read is owed: nothing will land it but his Retry, and Retry and
+ * Discard re-read 'settings' themselves (ProjectContext rereadLedgerTables).
+ * Counting the line as "queued" owed a re-read that the queue-only readiness
+ * check always passed — the re-read was held by the line again and owed
+ * another, a select('*') of his profile row per pass, forever.
  */
 export function settingsAfterRead(input: {
   fromRow: AppSettings;
@@ -202,6 +243,7 @@ export function settingsAfterRead(input: {
   rowWritesInFlightAtStart: number;
   rowWritesInFlightNow: number;
   rowWriteQueued: boolean;
+  rowWriteUnsaved?: boolean;
 }): { settings: AppSettings; kept: 'row' | 'device'; persist: boolean; rereadOwed: boolean } {
   const raced = input.writeSeqNow !== input.writeSeqAtStart
     || input.rowWritesInFlightAtStart > 0
@@ -209,6 +251,9 @@ export function settingsAfterRead(input: {
     || input.rowWriteQueued;
   if (input.currentLoaded && raced) {
     return { settings: { ...input.current }, kept: 'device', persist: false, rereadOwed: true };
+  }
+  if (input.currentLoaded && input.rowWriteUnsaved) {
+    return { settings: { ...input.current }, kept: 'device', persist: false, rereadOwed: false };
   }
   return { settings: input.fromRow, kept: 'row', persist: true, rereadOwed: false };
 }

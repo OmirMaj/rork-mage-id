@@ -53,10 +53,14 @@ export default function SelectionsScreen() {
   // (field-ticket pattern). A pick outranks the param so a STALE id in the URL
   // — deleted project, old shared link — can't make the picker inert.
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, projects } = useProjects();
+  const { getProject, projects, requestPortalPublish } = useProjects();
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
   const project = projectId ? getProject(projectId) : undefined;
+  // #12 (wave 4): selections reach the homeowner's portal only inside a
+  // snapshot publish, and these writes go straight to the selection tables —
+  // no tracked project save marks the job. Every successful save asks for one.
+  const publishPortal = useCallback(() => { if (projectId) requestPortalPublish(projectId); }, [projectId, requestPortalPublish]);
   /** The URL named a project that doesn't exist — different from "no id". */
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
 
@@ -114,11 +118,12 @@ export default function SelectionsScreen() {
     if (saved) {
       setCategories(prev => [...prev, saved]);
       setAddModal(false);
+      publishPortal();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
       showAlert('Save failed', 'Could not save the category.');
     }
-  }, [projectId, categories.length]);
+  }, [projectId, categories.length, publishPortal]);
 
   const handleCurate = useCallback(async (cat: SelectionCategory) => {
     setCurating(cat.id);
@@ -145,12 +150,13 @@ export default function SelectionsScreen() {
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refresh();
+      publishPortal();
     } catch (e) {
       showAlert('Curation failed', e instanceof Error ? e.message : 'Try again in a moment.');
     } finally {
       setCurating(null);
     }
-  }, [refresh]);
+  }, [refresh, publishPortal]);
 
   // Manual override: GC pastes a product URL and we pull its og:image.
   // iOS-only (Alert.prompt is iOS-only); other platforms re-curate to refresh.
@@ -166,8 +172,9 @@ export default function SelectionsScreen() {
       await saveSelectionOption({ id: option.id, categoryId: option.categoryId, productName: option.productName, unitPrice: option.unitPrice, productUrl: url.trim(), imageUrl });
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
       await refresh();
+      publishPortal();
     }, 'plain-text');
-  }, [refresh]);
+  }, [refresh, publishPortal]);
 
   // Set or clear a category's pick-by date. This date is what ranks the
   // selection in the owner's "Waiting on you" list and lights the portal's
@@ -181,20 +188,21 @@ export default function SelectionsScreen() {
     }
     setCategories(prev => prev.map(c => (c.id === cat.id ? { ...c, dueDate: day ?? undefined } : c)));
     if (outcome === 'queued') pendingDueRef.current[cat.id] = day;
-    else delete pendingDueRef.current[cat.id];
+    else { delete pendingDueRef.current[cat.id]; publishPortal(); }
     if (outcome === 'queued') {
       showAlert('Saved offline', 'The pick-by date will reach the homeowner\'s portal once you are back online.');
     }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, []);
+  }, [publishPortal]);
 
   const handleChoose = useCallback(async (categoryId: string, option: SelectionOption) => {
     const ok = await chooseSelectionOption(categoryId, option.id, 'gc');
     if (ok) {
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
       await refresh();
+      publishPortal();
     }
-  }, [refresh]);
+  }, [refresh, publishPortal]);
 
   const handleDelete = useCallback((cat: SelectionCategory) => {
     showAlert(
@@ -209,13 +217,14 @@ export default function SelectionsScreen() {
             const ok = await deleteSelectionCategory(cat.id);
             if (ok) {
               setCategories(prev => prev.filter(c => c.id !== cat.id));
+              publishPortal();
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
           },
         },
       ],
     );
-  }, []);
+  }, [publishPortal]);
 
   // Connector: when the homeowner picks an option that exceeds the
   // allowance, the GC needs a clean way to bill the difference. This

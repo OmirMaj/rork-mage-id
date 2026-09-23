@@ -102,7 +102,7 @@ export function useBrainFabPresentation(): BrainFabPresentation {
 /**
  * Hide the FAB for as long as the calling component is mounted.
  *
- * Used by the client-facing estimate: a homeowner reading a fixed-price
+ * Used by the client-facing estimate: a homeowner reading a
  * proposal should not be shown the contractor's AI assistant at all, and
  * suppressing it is the only thing that guarantees the payment amounts can
  * never be covered — for an estimate of ANY length, at any scroll position.

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, TextInput, ActivityIndicator} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, TextInput, ActivityIndicator, RefreshControl} from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -20,15 +20,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { Project, TimeEntry } from '@/types';
 import {
   useTimeEntries, buildTimeEntriesCSV, computeShiftHours, timeEntryDay, mergeTimeEntriesMirror,
-  costingTeamRows, teamLoggedByLabel, type TeamTimeEntry,
+  costingTeamRows, teamLoggedByLabel, teamLoggedByName, type TeamTimeEntry,
 } from '@/hooks/useTimeEntries';
+import { rateDraftBatch, reseedUntouchedDrafts, seedRateDrafts, type RateDrafts } from '@/utils/laborRateDraft';
 import { useLaborRates } from '@/hooks/useLaborRates';
 import { deliverTextFile } from '@/utils/platformFile';
 import {
   liveNetHours, formatHoursMinutes, breakMinutesAt, isMissedClockOut, defaultMissedOutMs, outTimeProblem,
   parseClockTime, outMsOnClockInDay, formatClockTime, isAdjustedEntry, punchedHours, payWeekRange,
   selectPayrollEntries, payrollFileName, payrollTitle, payrollBlockedReason, openShiftsNote, csvToTsv, isUuid,
-  type PayrollRow,
+  savedCrewLine, type PayrollRow,
 } from '@/utils/timeClockPayroll';
 import { computeLaborStats, normalizeTradeKey, normalizeOvertimeMultiplier, DEFAULT_OVERTIME_MULTIPLIER } from '@/utils/laborSamples';
 import {
@@ -51,8 +52,18 @@ import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 /** A shift on the Live list: his own clock-in, or (#63) one his foreman
- *  clocked on a job he OWNS — shown read-only, tagged with who logged it. */
-type LiveRow = { entry: TimeEntry; team: boolean; loggedBy?: string };
+ *  clocked on a job he OWNS — its one action the owner's close — or (#99) one
+ *  someone else has on the clock on a job he holds a seat on: shown so he
+ *  never clocks that worker in twice, with no action at all (readOnly).
+ *  `loggedBy` is the tag ("Logged by …"); `loggedByName` the bare name for a
+ *  sentence (#106). */
+type LiveRow = { entry: TimeEntry; team: boolean; loggedBy?: string; loggedByName?: string; readOnly?: boolean };
+
+/** "a teammate" → "A teammate" where the name starts a sentence (#106). An
+ *  email stays as typed. */
+function sentenceName(name: string): string {
+  return name === 'a teammate' ? 'A teammate' : name;
+}
 
 function LiveTimeCard({
   entry,
@@ -60,6 +71,7 @@ function LiveTimeCard({
   alertThresholdHours,
   missed,
   loggedBy,
+  readOnly,
 }: {
   entry: TimeEntry;
   onAction: (entry: TimeEntry, action: string) => void;
@@ -68,6 +80,8 @@ function LiveTimeCard({
   missed: boolean;
   /** #63: set on a team row — its only action is the owner's close. */
   loggedBy?: string;
+  /** #99: someone else's shift on a job he does not own — shown, never acted on. */
+  readOnly?: boolean;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -148,7 +162,9 @@ function LiveTimeCard({
           <View style={[styles.thresholdBanner, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}>
             <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
             <Text style={[styles.thresholdBannerText, { color: themeColors.dangerLabel }]}>
-              Still on the clock from an earlier shift — enter the time he actually left. Not counted On Site.
+              {readOnly
+                ? 'Still on the clock from an earlier shift — whoever logged it has to enter when he left. Not counted On Site.'
+                : 'Still on the clock from an earlier shift — enter the time he actually left. Not counted On Site.'}
             </Text>
           </View>
         ) : entry.status !== 'clocked_out' && (overThreshold || approachingThreshold) && (
@@ -168,7 +184,13 @@ function LiveTimeCard({
           </View>
         )}
 
-        {entry.status !== 'clocked_out' && (
+        {entry.status !== 'clocked_out' && readOnly ? (
+          // #99: not his record and not his job — only whoever logged it (or
+          // the job's owner) can end it. Said, not a dead button.
+          <Text style={styles.loggedByTag} testID={`time-entry-readonly-${entry.id}`}>
+            On the clock on this job. Only the person who logged it, or the job&apos;s owner, can clock him out.
+          </Text>
+        ) : entry.status !== 'clocked_out' && (
           <View style={styles.liveCardActions}>
             {loggedBy || missed ? (
               // A team row (#63) has one action — the owner closing the shift,
@@ -280,7 +302,10 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // Deep-link param: project-detail links here with { projectId }. When it
   // matches a real project we default the clock-in picker to it so hours land
   // on the job the GC navigated from, not silently on projects[0].
-  const { projectId: routeProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  // #104: the unpriced-labor banners (Job Costing, Living Estimate) also pass
+  // openRates=1 and the trade missing a rate, so the sheet opens on it.
+  const { projectId: routeProjectId, openRates: routeOpenRates, rateTrade: routeRateTrade } =
+    useLocalSearchParams<{ projectId?: string; openRates?: string; rateTrade?: string }>();
   // Real backend hook (created May 2026 to replace MOCK_TIME_ENTRIES).
   // Data is persisted to AsyncStorage immediately and synced to Supabase
   // `time_entries` table via the offline queue. Cross-device sync works
@@ -289,13 +314,13 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     entries, teamEntries, liveEntries, historyEntries,
     clockIn: doClockIn, startBreak, resumeFromBreak, clockOut: doClockOut, closeTeamShift,
     updateEntry, deleteEntry,
-    shiftAlertHours, setShiftAlertHours, refresh: refreshEntries,
+    shiftAlertHours, setShiftAlertHours, refresh: refreshEntries, pulling, pullFailed,
   } = useTimeEntries();
   // The entries live in one app-wide store now (contexts/TimeEntriesContext),
   // which pulls from Supabase once per sign-in. Opening this screen asks for a
   // fresh pull, as mounting the old per-screen hook did, so a shift clocked
   // out on another device shows here.
-  useEffect(() => { refreshEntries(); }, [refreshEntries]);
+  useEffect(() => { void refreshEntries(); }, [refreshEntries]);
   // One screen clock (#152 / #66): Hours Today counts the live net hours of
   // open shifts and a shift turns "Missed clock-out" as time passes, neither of
   // which a memo over the entries alone would notice between writes.
@@ -314,9 +339,18 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // overtime: the multiplier (#153) and the rule (#65).
   const {
     rates, setRates, overtimeMultiplier, overtimeRule, setOvertimeSettings, overtimeIsDefault, ratesFromAccount,
+    isLoading: ratesLoading,
   } = useLaborRates();
   const [showRatesModal, setShowRatesModal] = useState(false);
-  const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
+  // The fields, and (#101) what each was opened — or last re-seeded — with.
+  // Closing writes only what moved away from the baseline (utils/
+  // laborRateDraft). One state, so a re-seed moves both in one update.
+  const [rateSheet, setRateSheet] = useState<{ drafts: RateDrafts; baseline: RateDrafts }>({ drafts: {}, baseline: {} });
+  const rateDrafts = rateSheet.drafts;
+  const rateBaseline = rateSheet.baseline;
+  const setRateDraft = useCallback((key: string, value: string) => {
+    setRateSheet(prev => ({ ...prev, drafts: { ...prev.drafts, [key]: value } }));
+  }, []);
   const [otMultiplierDraft, setOtMultiplierDraft] = useState('');
   const [otDailyDraft, setOtDailyDraft] = useState(false);
   const [otWeekStartDraft, setOtWeekStartDraft] = useState<Weekday>(overtimeRule.weekStartsOn);
@@ -404,7 +438,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // THAT job (CrewContext useProjectCrew — read-only, never merged into his
   // own list), and the cert chips are the GC's certificates for them. On his
   // own job it is his own roster, as before.
-  const projectCrew = useProjectCrew(gateProjectId, isSeat);
+  // #100: the job's crew is saved on this phone for a clock-in with no
+  // signal; once his role on the job RESOLVES to none (removed from it), the
+  // saved copy of the GC's crew is deleted.
+  const crewAccessRevoked = !!gateProjectId && !roleState.isLoading && !roleState.isError && !roleState.isPaused && role === null;
+  const projectCrew = useProjectCrew(gateProjectId, isSeat, { revoked: crewAccessRevoked });
 
   // Roster for the clock-in modal, sourced from real crew. Crew assigned to
   // the selected project surface first; the rest of the GC's roster follows.
@@ -461,10 +499,25 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     [viewProjectId, allProjects],
   );
 
+  // #99: shifts someone else has on the clock on a job he holds a SEAT on
+  // (the GC's own clock-ins, another foreman's) — the phone already holds
+  // them (the team read covers field / editor / viewer seats). They are shown
+  // in Live and counted On Site, read-only, so he can see the worker is
+  // already on the clock; they never reach costing, the export, History or
+  // closeTeamShift, which stay on ownedTeam.
+  const seatTeamOpen = useMemo(
+    () => teamEntries.filter(e => e.onOwnedProject !== true && e.status !== 'clocked_out' && !e.clockOut),
+    [teamEntries],
+  );
   const liveRows: LiveRow[] = useMemo(() => [
     ...liveEntries.map(e => ({ entry: e, team: false })),
-    ...ownedTeam.filter(e => e.status !== 'clocked_out').map(e => ({ entry: e as TimeEntry, team: true, loggedBy: teamLoggedByLabel(e) })),
-  ].filter(r => onView(r.entry)), [liveEntries, ownedTeam, onView]);
+    ...ownedTeam.filter(e => e.status !== 'clocked_out').map(e => ({
+      entry: e as TimeEntry, team: true, loggedBy: teamLoggedByLabel(e), loggedByName: teamLoggedByName(e),
+    })),
+    ...seatTeamOpen.map(e => ({
+      entry: e as TimeEntry, team: true, loggedBy: teamLoggedByLabel(e), loggedByName: teamLoggedByName(e), readOnly: true,
+    })),
+  ].filter(r => onView(r.entry)), [liveEntries, ownedTeam, seatTeamOpen, onView]);
   // #66: a forgotten shift is flagged, leaves On Site, and stops blocking a
   // new clock-in for that worker today.
   const isMissed = useCallback(
@@ -474,20 +527,68 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const activeLiveRows = useMemo(() => liveRows.filter(r => !isMissed(r.entry)), [liveRows, isMissed]);
   const missedLiveRows = useMemo(() => liveRows.filter(r => isMissed(r.entry)), [liveRows, isMissed]);
 
-  type HistoryRow = { entry: TimeEntry; team: boolean; loggedBy?: string };
+  type HistoryRow = { entry: TimeEntry; team: boolean; loggedBy?: string; loggedByName?: string };
   const historyRows: HistoryRow[] = useMemo(() => [
     ...historyEntries.map(e => ({ entry: e, team: false })),
-    ...ownedTeam.filter(e => e.status === 'clocked_out').map(e => ({ entry: e as TimeEntry, team: true, loggedBy: teamLoggedByLabel(e) })),
+    ...ownedTeam.filter(e => e.status === 'clocked_out').map(e => ({
+      entry: e as TimeEntry, team: true, loggedBy: teamLoggedByLabel(e), loggedByName: teamLoggedByName(e),
+    })),
   ]
     .filter(r => onView(r.entry))
     .sort((a, b) => timeEntryDay(b.entry).localeCompare(timeEntryDay(a.entry)) || b.entry.clockIn.localeCompare(a.entry.clockIn)),
   [historyEntries, ownedTeam, onView]);
 
+  // #99: who is already on the clock — on ANY job this phone can see, logged
+  // by ANYONE (his own clock-ins, his foreman's, the GC's on a job he holds a
+  // seat on). It used to check only his own and his OWNED jobs' team rows, so
+  // a foreman was offered a worker the GC had already clocked in, and the GC
+  // then paid that man twice in Job Costing and the payroll CSV. A missed
+  // clock-out (#66) still does not block a new shift.
+  const openShiftByWorker = useMemo(() => {
+    const out = new Map<string, { entry: TimeEntry; who: string | null }>();
+    for (const e of liveEntries) {
+      if (e.status !== 'clocked_out' && !isMissed(e) && !out.has(e.workerId)) out.set(e.workerId, { entry: e, who: null });
+    }
+    for (const e of teamEntries) {
+      if (e.status !== 'clocked_out' && !e.clockOut && !isMissed(e) && !out.has(e.workerId)) {
+        out.set(e.workerId, { entry: e, who: teamLoggedByName(e) });
+      }
+    }
+    return out;
+  }, [liveEntries, teamEntries, isMissed]);
   const availableRoster = useMemo(
-    () => roster.filter(m => ![...liveEntries, ...ownedTeam].some(e =>
-      e.workerId === m.id && e.status !== 'clocked_out' && !isMissed(e))),
-    [roster, liveEntries, ownedTeam, isMissed],
+    () => roster.filter(m => !openShiftByWorker.has(m.id)),
+    [roster, openShiftByWorker],
   );
+  // Shown under the available names, greyed, with the reason — a blocked
+  // name says why, never silently missing. The pull behind it can be a few
+  // minutes old (the GC may have just clocked him out); the sheet re-pulls on
+  // open and says when that pull failed.
+  const onClockRoster = useMemo(
+    () => roster
+      .filter(m => openShiftByWorker.has(m.id))
+      .map(m => {
+        const hit = openShiftByWorker.get(m.id)!;
+        const where = hit.entry.projectId !== selectedProject?.id && hit.entry.projectName ? ` on ${hit.entry.projectName}` : '';
+        return { ...m, reason: `On the clock${where} — ${hit.who ? `logged by ${hit.who}` : 'you clocked him in'}` };
+      }),
+    [roster, openShiftByWorker, selectedProject],
+  );
+  // #99: two devices offline (or two seats that can't see each other) can
+  // still both clock the same man in. Every open, non-missed shift per worker
+  // is counted here, and two or more is said out loud before costing and the
+  // export pay him twice. No server unique index: a rejected insert from the
+  // offline queue would be dropped without the foreman ever seeing it.
+  const doubleClocked = useMemo(() => {
+    const byWorker = new Map<string, TimeEntry[]>();
+    for (const e of [...liveEntries, ...teamEntries] as TimeEntry[]) {
+      if (!e.workerId || e.workerId === 'self' || e.status === 'clocked_out' || e.clockOut || isMissed(e)) continue;
+      const list = byWorker.get(e.workerId) ?? [];
+      if (!list.some(x => x.id === e.id)) list.push(e);
+      byWorker.set(e.workerId, list);
+    }
+    return [...byWorker.values()].filter(list => list.length > 1);
+  }, [liveEntries, teamEntries, isMissed]);
 
   // Overtime by the GC's rule (#65), worked out per worker across every
   // shift this device knows about for them — his own clock-ins AND the
@@ -501,9 +602,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
   // The same allocation with the shifts still on the clock counted at their
   // hours so far — the OT tile is live, like Hours Today (#152).
+  // #41: a missed clock-out is left out of the split — a forgotten Monday
+  // shift used to count ~53 h "so far" by Wednesday and turn Tuesday's and
+  // Wednesday's ordinary shifts into overtime on this tile.
   const liveOvertime = useMemo(
-    () => computeOvertime(mergeTimeEntriesMirror(entries, teamEntries), overtimeRule, { liveNowMs: nowMs }),
-    [entries, teamEntries, overtimeRule, nowMs],
+    () => computeOvertime(mergeTimeEntriesMirror(entries, teamEntries), overtimeRule, { liveNowMs: nowMs, missedAlertHours: shiftAlertHours }),
+    [entries, teamEntries, overtimeRule, nowMs, shiftAlertHours],
   );
 
   const todayStats = useMemo(() => {
@@ -530,7 +634,13 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
   // Honesty surface: how many finished shifts are actually feeding the cost
   // book, and which trades are stuck waiting on a rate.
-  const laborStats = useMemo(() => computeLaborStats(entries, rates), [entries, rates]);
+  // #104: over the same rows the cost book learns from — his own shifts plus
+  // the team's on jobs he OWNS (ownedTeam; never a seat on another company's
+  // job) — so "Feeding your labor rates" counts his foreman's clock-ins too.
+  const laborStats = useMemo(
+    () => computeLaborStats(mergeTimeEntriesMirror(entries, ownedTeam), rates),
+    [entries, ownedTeam, rates],
+  );
 
   // Trades the rates modal offers: everything seen in entries or on the
   // roster, plus anything already priced. Keyed by normalized trade; display
@@ -544,21 +654,26 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       }
     };
     entries.forEach(e => offer(e.trade));
+    // #104: his foreman's shifts on his own jobs — the rest of what Job
+    // Costing prices (the costing mirror is exactly entries + ownedTeam), so
+    // every trade its "No rate for:" banner names is listed here.
+    ownedTeam.forEach(e => offer(e.trade));
     roster.forEach(m => offer(m.trade));
     Object.keys(rates).forEach(k => offer(k === 'general' ? undefined : k.charAt(0).toUpperCase() + k.slice(1)));
+    // …and the trade the banner sent him here for, even if this phone's copy
+    // of the hours has not caught up yet.
+    if (routeRateTrade) offer(routeRateTrade === 'general' ? undefined : routeRateTrade.charAt(0).toUpperCase() + routeRateTrade.slice(1));
     return [...byKey.entries()]
       .map(([key, label]) => ({ key, label }))
       .sort((a, b) => (a.key === 'general' ? 1 : b.key === 'general' ? -1 : a.label.localeCompare(b.label)));
-  }, [entries, roster, rates]);
+  }, [entries, ownedTeam, roster, rates, routeRateTrade]);
+  const focusRateKey = routeRateTrade ? normalizeTradeKey(routeRateTrade) : null;
 
   const openRatesModal = useCallback(() => {
-    // Seed drafts from stored rates so the inputs show what's on file.
-    const drafts: Record<string, string> = {};
-    for (const t of rateTrades) {
-      const r = rates[t.key];
-      drafts[t.key] = Number.isFinite(r) && (r as number) > 0 ? String(r) : '';
-    }
-    setRateDrafts(drafts);
+    // Seed drafts from stored rates so the inputs show what's on file, and
+    // keep the seed as the baseline closing compares against (#101).
+    const drafts = seedRateDrafts(rateTrades.map(t => t.key), rates);
+    setRateSheet({ drafts, baseline: drafts });
     // Overtime: the stored multiplier, shown as a number he can see is his
     // (or the 1.5 default, labelled as the default in the sheet), and the rule.
     setOtMultiplierDraft(overtimeIsDefault ? '' : String(overtimeMultiplier));
@@ -567,19 +682,38 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     setShowRatesModal(true);
   }, [rateTrades, rates, overtimeIsDefault, overtimeMultiplier, overtimeRule]);
 
+  // #101: the book can change under the open sheet — the account sync lands
+  // a few seconds after a sign-in or on a phone with an older copy. A field he
+  // has not touched follows it (draft and baseline both move), so it shows the
+  // account's rate and closing can never write the stale one back; a field he
+  // typed in stays his.
+  useEffect(() => {
+    if (!showRatesModal) return;
+    const fresh = seedRateDrafts(rateTrades.map(t => t.key), rates);
+    setRateSheet(prev => reseedUntouchedDrafts(prev.drafts, prev.baseline, fresh) ?? prev);
+  }, [rates, rateTrades, showRatesModal]);
+
+  // #104: arriving from an unpriced-labor banner opens the sheet on that
+  // trade — once, after the device's rate book has loaded (a sheet seeded
+  // from a book still loading would show blanks).
+  const openedFromBannerRef = useRef(false);
+  useEffect(() => {
+    if (openedFromBannerRef.current || routeOpenRates !== '1' || !ownTier || ratesLoading) return;
+    openedFromBannerRef.current = true;
+    openRatesModal();
+  }, [routeOpenRates, ownTier, ratesLoading, openRatesModal]);
+
   const commitRateDrafts = useCallback(() => {
-    // Persist every draft on close (iOS modals don't reliably blur inputs).
-    // Lenient parse ("$34", "34.50") via the shared money-input helper;
-    // blank or unparseable clears the rate — no silent garbage.
+    // Commit on close (iOS modals don't reliably blur inputs). Lenient parse
+    // ("$34", "34.50") via the shared money-input helper; blank or
+    // unparseable clears the rate — no silent garbage.
     // ONE batched setRates call, not a setRate-per-trade loop: per-key
     // mutations all read the same stale cache snapshot and race — only one
     // of a multi-trade edit would survive (lost-update bug).
-    const batch: Record<string, number | null> = {};
-    for (const [key, raw] of Object.entries(rateDrafts)) {
-      const n = raw.trim() === '' ? null : parseLenientNumber(raw);
-      batch[key] = n !== null && n > 0 ? n : null;
-    }
-    setRates(batch);
+    // #101: ONLY the trades he changed in the sheet. Sending every field let
+    // an untouched, stale field clear or roll back a rate he had set on
+    // another device, on every device (newest edit wins).
+    setRates(rateDraftBatch(rateDrafts, rateBaseline));
     // #153 / #65: the overtime settings save on the SAME close as the rates.
     // A blank multiplier keeps whatever is stored (the default until he types
     // one); the hook writes only when something actually changed.
@@ -592,7 +726,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       },
     });
     setShowRatesModal(false);
-  }, [rateDrafts, setRates, otMultiplierDraft, otDailyDraft, otWeekStartDraft, setOvertimeSettings]);
+  }, [rateDrafts, rateBaseline, setRates, otMultiplierDraft, otDailyDraft, otWeekStartDraft, setOvertimeSettings]);
 
   /** Echo the clamped multiplier back into the field the moment he leaves it,
    *  so a typed "15" visibly becomes 3 instead of looking accepted (#153). */
@@ -611,17 +745,17 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // booked ~74 h. It now asks when he actually left: the default is clock-in
   // + the alert hours + his break, on the clock-in day; it can't be before the
   // clock-in or after now. The time is saved as the real clock-out stamp.
-  const [outFor, setOutFor] = useState<{ entry: TimeEntry; team: boolean; loggedBy?: string } | null>(null);
+  const [outFor, setOutFor] = useState<{ entry: TimeEntry; team: boolean; loggedBy?: string; loggedByName?: string } | null>(null);
   const [outText, setOutText] = useState('');
   const [outNextDay, setOutNextDay] = useState(false);
-  const openOutSheet = useCallback((entry: TimeEntry, team: boolean, loggedBy?: string) => {
+  const openOutSheet = useCallback((entry: TimeEntry, team: boolean, loggedBy?: string, loggedByName?: string) => {
     const now = Date.now();
     const def = isMissedClockOut(entry, now, shiftAlertHours) ? defaultMissedOutMs(entry, shiftAlertHours, now) : now;
     const inDay = new Date(entry.clockIn);
     const defDay = new Date(def);
     setOutNextDay(defDay.toDateString() !== inDay.toDateString());
     setOutText(formatClockTime(def));
-    setOutFor({ entry, team, loggedBy });
+    setOutFor({ entry, team, loggedBy, loggedByName });
   }, [shiftAlertHours]);
   const setOutToNow = useCallback(() => {
     if (!outFor) return;
@@ -642,7 +776,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const handleSaveOutTime = useCallback(() => {
     if (!outFor || !outPreview) return;
     if (outPreview.problem) { showAlert('Check the out time', outPreview.problem); return; }
-    const { entry, team, loggedBy } = outFor;
+    const { entry, team, loggedByName } = outFor;
     const outIso = new Date(outPreview.outMs).toISOString();
     const summary = `${entry.workerName}: out at ${formatClockTime(outPreview.outMs)}${outNextDay ? ' (next day)' : ''} — records ${outPreview.hours.toFixed(2)} hours${outPreview.breakMinutes > 0 ? ` after a ${outPreview.breakMinutes}-min break` : ''}.`;
     if (!team) {
@@ -657,7 +791,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // A team row is the foreman's record: say so before changing it.
     showAlert(
       'Clock out a shift you didn\u2019t log?',
-      `${summary} ${loggedBy ?? 'Someone else'} logged this shift; it stays theirs, and their copy updates too.`,
+      // #106: the bare name — the label read "Logged by jose@… logged this shift".
+      `${summary} ${sentenceName(loggedByName ?? 'a teammate')} logged this shift; it stays theirs, and their copy updates too.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -679,8 +814,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // A team row (#63) or a missed clock-out (#66) ends through the out-time
     // sheet — never a one-tap "now".
     const teamRow = ownedTeam.find(t => t.id === entry.id);
+    // #99: a shift that is neither his nor on a job he owns has no action here
+    // (its card shows none; this is the belt to that).
+    if (!teamRow && !entries.some(x => x.id === entry.id)) return;
     if (action === 'clock_out' && (teamRow || isMissedClockOut(entry, Date.now(), shiftAlertHours))) {
-      openOutSheet(entry, !!teamRow, teamRow ? teamLoggedByLabel(teamRow) : undefined);
+      openOutSheet(entry, !!teamRow, teamRow ? teamLoggedByLabel(teamRow) : undefined, teamRow ? teamLoggedByName(teamRow) : undefined);
       return;
     }
     if (teamRow) return;
@@ -723,7 +861,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         ],
       );
     }
-  }, [startBreak, resumeFromBreak, doClockOut, ownedTeam, shiftAlertHours, openOutSheet]);
+  }, [startBreak, resumeFromBreak, doClockOut, ownedTeam, entries, shiftAlertHours, openOutSheet]);
 
   // ── Correcting a finished entry ───────────────────────────────────────
   // hooks/useTimeEntries has exported updateEntry and deleteEntry since it was
@@ -740,16 +878,17 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // out-time sheet and saved as the stamp (#66). Hours are what the payroll
   // CSV and computeLaborStats' cost-book samples read.
   const [correcting, setCorrecting] = useState<TimeEntry | null>(null);
-  // #63: a team row on his own job, corrected through closeTeamShift.
+  // #63: a team row on his own job, corrected through closeTeamShift. The
+  // bare name of whoever logged it (#106 — for the sentences), or null.
   const [correctingTeam, setCorrectingTeam] = useState<string | null>(null);
   const [correctHours, setCorrectHours] = useState('');
   const [correctBreak, setCorrectBreak] = useState('');
   const [correctNote, setCorrectNote] = useState('');
 
-  const openCorrection = useCallback((entry: TimeEntry, loggedBy?: string) => {
+  const openCorrection = useCallback((entry: TimeEntry, loggedByName?: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setCorrecting(entry);
-    setCorrectingTeam(loggedBy ?? null);
+    setCorrectingTeam(loggedByName ?? null);
     setCorrectHours(entry.totalHours.toFixed(2).replace(/\.?0+$/, ''));
     setCorrectBreak(entry.breakMinutes > 0 ? String(entry.breakMinutes) : '');
     setCorrectNote(entry.notes ?? '');
@@ -783,7 +922,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       const entry = correcting;
       showAlert(
         'Change a shift you didn\u2019t log?',
-        `${entry.workerName}: ${totalHours.toFixed(2)} hours${breakMinutes > 0 ? `, ${breakMinutes}-min break` : ''}. ${correctingTeam} logged this shift; it stays theirs, and their copy updates too.`,
+        `${entry.workerName}: ${totalHours.toFixed(2)} hours${breakMinutes > 0 ? `, ${breakMinutes}-min break` : ''}. ${sentenceName(correctingTeam)} logged this shift; it stays theirs, and their copy updates too.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -864,16 +1003,56 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // (safety #2). Clock-in is the moment a person is put on the job; the
     // super may have a renewed card in hand that nobody has entered yet, so
     // he decides — but he decides having been told which card and when.
-    const warn = lapsedCertConfirmText(member.name, certFlagsByMember[member.id] ?? [], 'Clock them in');
-    if (warn) {
-      showAlert('Certification lapsed', warn, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clock in anyway', style: 'destructive', onPress: commit },
-      ]);
+    const certCheck = () => {
+      const warn = lapsedCertConfirmText(member.name, certFlagsByMember[member.id] ?? [], 'Clock them in');
+      if (warn) {
+        showAlert('Certification lapsed', warn, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clock in anyway', style: 'destructive', onPress: commit },
+        ]);
+        return;
+      }
+      commit();
+    };
+
+    // #105: the list he tapped can be older than the moment he tapped it (the
+    // pull that just landed may have put this man on the clock elsewhere). A
+    // worker already on the clock is a confirm naming who has him — a second
+    // open shift is paid twice in job cost and payroll.
+    const already = openShiftByWorker.get(member.id);
+    if (already) {
+      const who = already.who ? `logged by ${already.who}` : 'you clocked him in';
+      showAlert(
+        'Already on the clock',
+        `${member.name} is already on the clock${already.entry.projectName ? ` on ${already.entry.projectName}` : ''} (${who}, ${formatClockTime(Date.parse(already.entry.clockIn))}). Clocking him in again opens a second shift, and both are paid unless one is closed.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clock in again', style: 'destructive', onPress: certCheck },
+        ],
+      );
       return;
     }
-    commit();
-  }, [clockGate.kind, doClockIn, selectedProject, roster, certFlagsByMember]);
+    certCheck();
+  }, [clockGate.kind, doClockIn, selectedProject, roster, certFlagsByMember, openShiftByWorker]);
+
+  // #105: pull-to-refresh waits for the real pulls (own + team) to settle.
+  const [userPulling, setUserPulling] = useState(false);
+  const onPullToRefresh = useCallback(async () => {
+    setUserPulling(true);
+    try {
+      if (isSeat) projectCrew.refetch();
+      await refreshEntries();
+    } finally {
+      setUserPulling(false);
+    }
+  }, [refreshEntries, isSeat, projectCrew]);
+  const openClockInSheet = useCallback(() => {
+    if (clockInDisabledReason) return;
+    // #105: the sheet decides who is available from the team's live rows; a
+    // screen left open since 7:00 never saw the foreman's 7:05 clock-ins.
+    void refreshEntries();
+    setShowClockInModal(true);
+  }, [clockInDisabledReason, refreshEntries]);
 
   // ── Payroll export (#64, #68, #63, #151) ─────────────────────────────
   // One pay period at a time — this payroll week by default, last week one tap
@@ -972,7 +1151,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
-      <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        {...fabScroll}
+        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        showsVerticalScrollIndicator={false}
+        // #105: pull down to see the clock-ins made on other phones since the
+        // screen opened (the foreground re-pull is throttled to 5 minutes).
+        refreshControl={<RefreshControl refreshing={userPulling} onRefresh={onPullToRefresh} tintColor={themeColors.accent} />}
+      >
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.accent + '14' }]}>
@@ -1008,7 +1194,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               refuses. */}
           <TouchableOpacity
             style={[styles.clockInButton, { flex: 1, marginHorizontal: 0, marginVertical: 0 }, clockInDisabledReason ? { opacity: 0.5 } : null]}
-            onPress={() => { if (!clockInDisabledReason) setShowClockInModal(true); }}
+            onPress={openClockInSheet}
             disabled={!!clockInDisabledReason}
             accessibilityState={{ disabled: !!clockInDisabledReason }}
             accessibilityHint={clockInDisabledReason ?? undefined}
@@ -1144,6 +1330,18 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           </TouchableOpacity>
         </View>
 
+        {/* #99: one worker on the clock twice (two phones offline, or two
+            seats that can't see each other's rows) is paid twice unless one
+            shift is closed. Said here, before costing and the export count it. */}
+        {doubleClocked.length > 0 ? (
+          <View style={[styles.thresholdBanner, { marginHorizontal: 16, marginBottom: 8, backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]} testID="time-tracking-double-clocked">
+            <AlertTriangle size={13} color={themeColors.warningLabel} strokeWidth={1.75} />
+            <Text style={[styles.thresholdBannerText, { color: themeColors.warningLabel }]}>
+              {doubleClocked.map(list => `${list[0].workerName} has ${list.length} open shifts`).join('; ')} — close the extra one so he isn&apos;t paid twice.
+            </Text>
+          </View>
+        ) : null}
+
         {selectedTab === 'live' ? (
           liveRows.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1168,13 +1366,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   alertThresholdHours={shiftAlertHours}
                   missed={isMissed(r.entry)}
                   loggedBy={r.loggedBy}
+                  readOnly={r.readOnly}
                 />
               ))}
             </View>
           )
         ) : (
           <View style={styles.listSection}>
-            {historyRows.map(({ entry, loggedBy }) => {
+            {historyRows.map(({ entry, loggedBy, loggedByName }) => {
               // #151: corrected hours that no longer match the punch stamps.
               const adjusted = isAdjustedEntry(entry);
               const punched = adjusted ? punchedHours(entry) : null;
@@ -1182,7 +1381,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               <TouchableOpacity
                 key={entry.id}
                 style={styles.historyCard}
-                onPress={() => openCorrection(entry, loggedBy)}
+                onPress={() => openCorrection(entry, loggedByName)}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={`${entry.workerName}, ${entry.totalHours.toFixed(1)} hours on ${formatCalendarDay(timeEntryDay(entry))}${loggedBy ? `, ${loggedBy}` : ''}${adjusted ? ', adjusted' : ''}. Tap to correct${loggedBy ? '' : ' or delete'}.`}
@@ -1347,16 +1546,38 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 <ActivityIndicator size="small" color={themeColors.accent} />
                 <Text style={styles.rosterEmptyBody}>Loading the crew on this job…</Text>
               </View>
+            ) : isSeat && projectCrew.crew.length === 0 && (projectCrew.isPaused || (projectCrew.isError && projectCrew.offline)) ? (
+              // #100: offline with nothing saved yet. Never "No crew assigned"
+              // — that would state as fact something this phone can't know.
+              <View style={styles.rosterEmpty} testID="clock-in-crew-offline">
+                <AlertTriangle size={24} color={themeColors.warningLabel} strokeWidth={1.75} />
+                <Text style={styles.rosterEmptyBody}>You&apos;re offline, and this job&apos;s crew hasn&apos;t been loaded on this phone yet. Open Time Tracking on this job once you have signal and the crew list is saved for next time.</Text>
+                <TouchableOpacity style={styles.rosterEmptyBtn} onPress={projectCrew.refetch} activeOpacity={0.85} accessibilityRole="button">
+                  <Text style={styles.rosterEmptyBtnText}>Try again</Text>
+                </TouchableOpacity>
+              </View>
             ) : isSeat && projectCrew.isError ? (
               <View style={styles.rosterEmpty} testID="clock-in-crew-error">
                 <AlertTriangle size={24} color={themeColors.warningLabel} strokeWidth={1.75} />
                 <Text style={styles.rosterEmptyBody}>Couldn&apos;t load the crew your GC assigned to this job. Check your connection and try again.</Text>
-                <TouchableOpacity style={styles.rosterEmptyBtn} onPress={projectCrew.refetch} activeOpacity={0.85}>
+                <TouchableOpacity style={styles.rosterEmptyBtn} onPress={projectCrew.refetch} activeOpacity={0.85} accessibilityRole="button">
                   <Text style={styles.rosterEmptyBtnText}>Try again</Text>
                 </TouchableOpacity>
               </View>
             ) : (
             <ScrollView style={{ maxHeight: 400 }}>
+              {/* #100: the saved copy is on screen — say from when. */}
+              {isSeat && projectCrew.fromCache && projectCrew.fetchedAt ? (
+                <Text style={styles.memberTrade} testID="clock-in-crew-saved">
+                  {savedCrewLine(projectCrew.fetchedAt, projectCrew.offline || projectCrew.isPaused)}
+                </Text>
+              ) : null}
+              {/* #105: who is on the clock comes from the team's pull. */}
+              {pulling ? (
+                <Text style={styles.memberTrade} testID="clock-in-pulling">Checking who is already on the clock…</Text>
+              ) : pullFailed ? (
+                <Text style={styles.memberTrade} testID="clock-in-pull-failed">Couldn&apos;t reach the server to check who your team has on the clock — the list may be out of date.</Text>
+              ) : null}
               {availableRoster.map(member => (
                 <TouchableOpacity
                   key={member.id}
@@ -1419,6 +1640,26 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               ) : availableRoster.length === 0 ? (
                 <Text style={styles.allClockedIn}>All crew members are currently clocked in</Text>
               ) : null}
+              {/* #99: already on the clock — greyed, with who has him, never
+                  silently missing. */}
+              {onClockRoster.map(member => (
+                <View
+                  key={member.id}
+                  style={[styles.memberRow, { opacity: 0.55 }]}
+                  accessibilityState={{ disabled: true }}
+                  accessibilityLabel={`${member.name}. ${member.reason}.`}
+                  testID={`clock-in-member-on-clock-${member.id}`}
+                >
+                  <View style={styles.memberAvatar}>
+                    <Text style={styles.memberAvatarText}>{member.name.charAt(0)}</Text>
+                  </View>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName}>{member.name}</Text>
+                    <Text style={styles.memberTrade}>{member.reason}</Text>
+                  </View>
+                  <Clock size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                </View>
+              ))}
             </ScrollView>
             )}
           </View>
@@ -1498,7 +1739,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                         <TextInput
                           style={styles.rateInput}
                           value={rateDrafts[t.key] ?? ''}
-                          onChangeText={(v) => setRateDrafts(prev => ({ ...prev, [t.key]: v }))}
+                          onChangeText={(v) => setRateDraft(t.key, v)}
+                          autoFocus={t.key === focusRateKey}
                           keyboardType="decimal-pad"
                           placeholder="—"
                           placeholderTextColor={themeColors.textMuted}
@@ -1673,7 +1915,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   Adjusted here and in the payroll export. Hours are what payroll and your
                   cost book read — overtime is worked out from each worker&apos;s week under
                   your overtime rule ({describeOvertimeRule(overtimeRule)}).
-                  {correctingTeam ? ` ${correctingTeam} — it stays theirs; only its hours change.` : ''}
+                  {correctingTeam ? ` This shift was logged by ${correctingTeam}; it stays theirs, only its hours change.` : ''}
                 </Text>
 
                 <TouchableOpacity

@@ -18,6 +18,7 @@ import type { HomeownerBidResponse } from '@/types';
 import { computeEstimateActuals } from '@/utils/estimateActuals';
 import { realizedMarginPct } from '@/utils/judges/typeMargin';
 import { isWorkingDay, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
+import { actualCalendarDay } from '@/utils/scheduleOps';
 
 // ─── Grading context ─────────────────────────────────────────────────────────
 
@@ -97,9 +98,12 @@ export function gradePace(
     const tasks = project.schedule?.tasks ?? [];
     const task = tasks.find(t => t.id === taskId);
     if (!task) continue;
-    // Needs both actuals to be gradeable
-    if (task.actualStartDay == null || task.actualEndDay == null) return null;
-    const actualDays = workingDaySpan(task.actualStartDay, task.actualEndDay, project.schedule);
+    // Needs both actuals to be gradeable — by day number, or the recorded date
+    // read on the anchor (#89: Home / the mic used to stamp only the date).
+    const aStart = actualCalendarDay(task, 'start', project.schedule?.startDate);
+    const aEnd = actualCalendarDay(task, 'end', project.schedule?.startDate);
+    if (aStart == null || aEnd == null) return null;
+    const actualDays = workingDaySpan(aStart, aEnd, project.schedule);
     const paceErr = Math.abs(actualDays - paceDays);
     const aiErr = Math.abs(actualDays - aiOriginalDays);
     const diff = paceErr - aiErr;
@@ -157,7 +161,8 @@ export function gradeDelayRipple(
 
   for (const hit of hits) {
     const task = tasks.find(t => t.id === hit.taskId);
-    if (!task || task.actualEndDay == null) {
+    const taskEnd = task ? actualCalendarDay(task, 'end', project.schedule?.startDate) : null;
+    if (!task || taskEnd == null) {
       allResolved = false;
       continue;
     }
@@ -171,7 +176,7 @@ export function gradeDelayRipple(
     // actualEndDay is a CALENDAR index (utils/pace/stampActuals.ts — the one
     // scale for actuals); the planned ends here are WORKING ordinals. Convert
     // before subtracting, or every weekend since the start reads as a slip.
-    const actualEndOrdinal = calendarIndexToWorkingOrdinal(task.actualEndDay, {
+    const actualEndOrdinal = calendarIndexToWorkingOrdinal(taskEnd, {
       scheduleStartDate: project.schedule?.startDate,
       workingDaysPerWeek: project.schedule?.workingDaysPerWeek,
       nonWorkingDates: project.schedule?.nonWorkingDates,
@@ -200,11 +205,8 @@ export function gradeDelayRipple(
   let finishErrDays: number | null = null;
   if (predictedFinishDay != null && project.schedule) {
     const lastActualEnd = tasks
-      .filter(t => t.actualEndDay != null)
-      .reduce<number | null>((max, t) => {
-        const v = t.actualEndDay!;
-        return max == null || v > max ? v : max;
-      }, null);
+      .map(t => actualCalendarDay(t, 'end', project.schedule?.startDate))
+      .reduce<number | null>((max, v) => (v == null ? max : max == null || v > max ? v : max), null);
     if (lastActualEnd != null) {
       finishErrDays = lastActualEnd - predictedFinishDay;
     }

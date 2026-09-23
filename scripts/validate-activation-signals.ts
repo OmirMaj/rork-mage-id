@@ -690,8 +690,11 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
     saveMut.slice(0, 200));
   const loadQ = callbackBody(ctx, 'settingsQuery');
   ok('the settings load maps both columns back onto branding',
-    /licenseState: licenceStateColumnValue\(data\.license_state/.test(loadQ)
-    && /licenseExpiry: licenceExpiryColumnValue\(data\.license_expiry/.test(loadQ));
+    // Wave-4 final fix round 8: the settings columns are mapped off `row` —
+    // the profiles row with his Not-saved settings save laid over it.
+    /licenseState: licenceStateColumnValue\(row\.license_state/.test(loadQ)
+    && /licenseExpiry: licenceExpiryColumnValue\(row\.license_expiry/.test(loadQ)
+    && /const row = settingsRowWithUnsaved\(data as Record<string, unknown>,/.test(loadQ));
   for (const [file, src] of [
     ['app/company-profile.tsx', stripComments(read('app/company-profile.tsx'))],
     ['app/(tabs)/settings/index.tsx', stripComments(read('app/(tabs)/settings/index.tsx'))],

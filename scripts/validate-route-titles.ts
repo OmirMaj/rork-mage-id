@@ -102,6 +102,11 @@ assert(pathToDocumentTitle('/invoice/abc-123') === 'Invoice', 'detail route inhe
 // exact table also broke (the fallback at the bottom looks up '/estimate').
 assert(pathToDocumentTitle('/estimate/anything-new') === 'Estimate', 'unmapped estimate child inherits Estimate');
 
+// ── 5b. Construction News (wave 4, founder request F3) ───────────────────
+// A root-stack route, so section 1 does not enumerate it. Pinned by name: the
+// label is the one the Stack header, the Tools tile and the sidebar row use.
+assert(pathToDocumentTitle('/construction-news') === 'Construction News', "/construction-news → 'Construction News'");
+
 // ── 6. Unknown routes still return null — the fallback must stay honest ──
 // app/_layout.tsx renders plain "MAGE ID" for null. Inventing a label from the
 // slug would put wrong words in the tab, which is worse than a generic one.

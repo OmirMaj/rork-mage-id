@@ -58,11 +58,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { useProjectRole } from '@/hooks/useProjectRole';
+import { rosterView, inviteBlockedReason, ROSTER_ERROR_LINE, ROSTER_OFFLINE_LINE } from '@/utils/projectRole';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, FIELD_ROLE_SCOPE_NOTE, isFinancialsBlinded } from '@/utils/roleBlinding';
 import { useAccountSeats } from '@/hooks/useAccountSeats';
 import { isBillableSeat } from '@/utils/seatModel';
 import type { ProjectCollaborator } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { Button } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -72,7 +74,12 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
   const { canAccess } = useTierAccess();
   const role = useProjectRole(projectId);
   const isOwner = role === 'owner';
-  const { collaborators, isLoading, invite, revoke, changeRole, getLink } = useProjectCollaborators(projectId);
+  const { collaborators, isLoading, isError, isPaused, hasData, refetch, invite, revoke, changeRole, getLink } = useProjectCollaborators(projectId);
+  // #129: a failed or offline read is NOT an empty team. Only a read that has
+  // answered may say "No collaborators yet"; until then the invite form is
+  // off with its reason (the "already on this job" check needs the list).
+  const view = rosterView({ isLoading, isError, isPaused, hasData, count: collaborators.length });
+  const inviteBlocked = inviteBlockedReason(view);
   // Account-wide, not per-project: one person on six jobs is one seat.
   const seats = useAccountSeats();
 
@@ -94,6 +101,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
 
   const onInvite = useCallback(() => {
     if (!validEmail) return;
+    if (inviteBlocked) { showAlert("Can't send the invite yet", inviteBlocked); return; }
     // Someone already active on this job is never re-invited: the invite
     // resets his row to 'pending' and he loses the project until he accepts
     // again. Point at the row's role picker instead.
@@ -151,7 +159,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
       return;
     }
     send();
-  }, [validEmail, canAccess, router, invite, email, inviteRole, seatPreview, seats, collaborators]);
+  }, [validEmail, inviteBlocked, canAccess, router, invite, email, inviteRole, seatPreview, seats, collaborators]);
 
   // Change an existing collaborator's role from the row picker.
   const requestRoleChange = useCallback((c: ProjectCollaborator, next: 'editor' | 'viewer' | 'field') => {
@@ -326,14 +334,20 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
           </Text>
           <TouchableOpacity
             onPress={onInvite}
-            disabled={!validEmail || invite.isPending}
-            style={[styles.inviteBtn, { backgroundColor: t.accentFill }, (!validEmail || invite.isPending) && { opacity: 0.5 }]}
+            disabled={!validEmail || invite.isPending || !!inviteBlocked}
+            style={[styles.inviteBtn, { backgroundColor: t.accentFill }, (!validEmail || invite.isPending || !!inviteBlocked) && { opacity: 0.5 }]}
             accessibilityRole="button"
+            accessibilityState={{ disabled: !validEmail || invite.isPending || !!inviteBlocked }}
+            accessibilityHint={inviteBlocked ?? undefined}
             testID="collab-invite"
           >
             {invite.isPending ? <ActivityIndicator color="#FFF" /> : <UserPlus size={16} color="#FFF" strokeWidth={2} />}
             <Text style={styles.inviteBtnText}>Send invite</Text>
           </TouchableOpacity>
+          {/* #129: a blocked control says why. */}
+          {inviteBlocked ? (
+            <Text style={[styles.roleHint, { color: t.textSecondary }]} testID="collab-invite-blocked">{inviteBlocked}</Text>
+          ) : null}
           {invite.isError ? <Text style={[styles.errText, { color: t.danger }]}>{(invite.error as Error)?.message}</Text> : null}
           {/* #177: say what happened to the email — never "Invited" alone. */}
           {lastSend ? (
@@ -360,9 +374,16 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
       ) : null}
 
       {/* Roster */}
-      {isLoading ? (
+      {view === 'loading' ? (
         <ActivityIndicator color={t.accent} />
-      ) : collaborators.length === 0 ? (
+      ) : view === 'error' || view === 'offline' ? (
+        <View style={styles.rosterUnknown} testID={`collab-roster-${view}`}>
+          <Text style={[styles.empty, { color: t.textSecondary }]}>{view === 'error' ? ROSTER_ERROR_LINE : ROSTER_OFFLINE_LINE}</Text>
+          {view === 'error' ? (
+            <Button label="Retry" size="sm" variant="secondary" onPress={refetch} testID="collab-roster-retry" />
+          ) : null}
+        </View>
+      ) : view === 'empty' ? (
         <Text style={[styles.empty, { color: t.textMuted }]}>No collaborators yet{isOwner ? ' — invite your first above.' : '.'}</Text>
       ) : (
         collaborators.map((c) => (
@@ -466,6 +487,7 @@ const styles = StyleSheet.create({
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   linkText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '700' },
   empty: { fontSize: Type.subhead.fontSize, paddingVertical: 8 },
+  rosterUnknown: { gap: 8, alignItems: 'flex-start' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: Tokens.radius.card, padding: 12 },
   rowEmail: { fontSize: Type.subhead.fontSize, fontWeight: '700' },
   rowMeta: { fontSize: Type.caption1.fontSize, marginTop: 1 },

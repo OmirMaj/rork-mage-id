@@ -67,6 +67,8 @@ import {
 // buttons on, so the pay application cannot disagree with them about whether
 // the period has been collected.
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { paymentPendingHolds } from '@/utils/billingFlowCore';
+import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
@@ -541,7 +543,22 @@ function AIAPayAppScreenInner() {
   // MONEY-F2 / F16: `paidAt` is set by the Stripe webhook and hydrated by the
   // context mapper; read defensively so an older local record reads "unpaid".
   const savedPaidAt = (savedForThisAppNumber as (SavedAIAPayApp & { paidAt?: string }) | null)?.paidAt || null;
-  const isLocked = !!savedForThisAppNumber?.payLinkUrl || !!savedPaidAt;
+  // CARRY #83 / #135 (wave 4): the client's BANK payment is settling (3-5
+  // business days). stripe-webhook stamped pay_pending_at and nulled the dead
+  // link — which on its own would UNLOCK this certificate (isLocked keyed on
+  // payLinkUrl) and let the next Save mint a second link, inviting a second
+  // payment. So a pending payment locks the period and mints nothing. Same
+  // 10-day window as invoice-dunning (billingFlowCore.paymentPendingHolds), so
+  // a lost Stripe event cannot lock the period for good.
+  const pendingBankPayment = useMemo(() => {
+    const since = savedForThisAppNumber?.paymentPendingAt;
+    if (!since || !paymentPendingHolds(since, Date.now())) return null;
+    const amount = savedForThisAppNumber?.paymentPendingAmount;
+    const known = typeof amount === 'number' && Number.isFinite(amount);
+    const day = formatCalendarDay(calendarDayOf(since));
+    return { since, line: `Bank payment${known ? ` of ${formatMoney(amount as number, 2)}` : ''} processing since ${day || 'recently'}` };
+  }, [savedForThisAppNumber?.paymentPendingAt, savedForThisAppNumber?.paymentPendingAmount]);
+  const isLocked = !!savedForThisAppNumber?.payLinkUrl || !!savedPaidAt || !!pendingBankPayment;
 
   /**
    * REVIEW MODE — what the GC sent, as it was sent.
@@ -952,6 +969,10 @@ function AIAPayAppScreenInner() {
     // UNLOCK a certificate that has already been through Stripe.
     const sourceInvoiceSettled = !!invoice && invoiceOutstanding(invoice) <= 0.01;
     // MONEY-F2: never mint a Pay button for a pay app that is already paid.
+    // CARRY #83: never while the client's bank payment is settling (the
+    // screen is locked then anyway; this is the belt — create-payment-link
+    // refuses too, 409 payment_pending).
+    if (!pendingBankPayment)
     if (!payLinkUrl && due > 0 && !savedPaidAt && !sourceInvoiceSettled && user?.id) {
       try {
         const status = await fetchStripeConnectStatus(user.id);
@@ -1027,7 +1048,7 @@ function AIAPayAppScreenInner() {
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, isReadOnly, savedPaidAt, tier, invoice]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, isReadOnly, savedPaidAt, pendingBankPayment, tier, invoice]);
 
   /**
    * PERSIST THE ARCHITECT'S RESPONSE, and nothing else.
@@ -1308,7 +1329,9 @@ function AIAPayAppScreenInner() {
               Period #{app.applicationNumber} locked
             </Text>
             <Text style={styles.lockedBannerBody}>
-              {savedPaidAt
+              {pendingBankPayment && !savedPaidAt
+                ? `${pendingBankPayment.line}. The payment link is retired while it settles, and no new one is made — a new link would invite a second payment. If the bank payment fails, you can send a new pay link from the invoice.`
+                : savedPaidAt
                 ? `This pay application was paid on ${new Date(savedPaidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. The portal no longer shows a Pay button for it. To bill the next period, create the next application — carry-forward will seed it from this period's billed-through totals.`
                 : `This pay application has been generated with a payment link active for ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. To revise the numbers, create the next period instead — carry-forward will seed the next pay-app from this period's billed-through totals.`}
             </Text>
@@ -2334,7 +2357,7 @@ function AIAPayAppScreenInner() {
         </View>
         )}
         <Text style={styles.bottomBarHint}>
-          Saved pay applications appear in your client portal so owners and architects can review and download.
+          A pay application reaches your client portal after you send it there and the portal updates — then owners and architects can review and download it.
         </Text>
       </View>
 

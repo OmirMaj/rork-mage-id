@@ -25,7 +25,7 @@ import {
   stampActuals, todayScheduleDay, ganttLogFinishPatch, ganttLogStartPatch, asBuiltVariance,
 } from '../utils/pace/stampActuals';
 import { runCpm, calendarDayToDate, calendarIndexToWorkingOrdinal } from '../utils/cpm';
-import { reflowFromActuals, exportTasksToCsv } from '../utils/scheduleOps';
+import { reflowFromActuals, exportTasksToCsv, actualCalendarDay } from '../utils/scheduleOps';
 import { parseCalendarDay } from '../utils/calendarDate';
 import type { ScheduleTask } from '../types';
 
@@ -185,7 +185,11 @@ console.log('\nFinish today on an unstarted, late task still reflows (review r3)
   const gate = pro.match(/const withActuals = workingTasks\.filter\((t => [^;]*)\);/);
   ok('handleReflow counts a start OR a finish', !!gate, gate?.[1]);
   // eslint-disable-next-line no-new-func
-  const filter = gate ? (new Function(`return (${gate[1]})`)() as (t: ScheduleTask) => boolean) : () => false;
+  // wave 4 #89: the gate reads actualCalendarDay (a date-only actual counts
+  // too), so it is evaluated with the real helper and the schedule calendar.
+  const filter = gate
+    ? (new Function('actualCalendarDay', 'summaryScale', `return (${gate[1]})`)(actualCalendarDay, cal) as (t: ScheduleTask) => boolean)
+    : () => false;
   eq("handleReflow's gate is non-empty after Finish today", [finished, drywall].filter(filter).length, 1);
   ok("the empty-state copy says 'actual start or finish'", /No tasks have an actual start or finish logged yet/.test(pro));
   const out = reflowFromActuals([finished, drywall], cal);
@@ -222,7 +226,7 @@ console.log('\nwiring:');
   const sinks: [string, RegExp][] = [
     ['components/schedule/mobile/MobileScheduleScreen.tsx', /stampActuals\(prev, next\.status, todayScheduleDay\(activeSchedule\?\.startDate\), new Date\(\)\.toISOString\(\), \{ retroStartFromPlanned: false \}\)/],
     ['app/schedule-pro.tsx', /stampActuals\(before, patch\.status, todayScheduleDay\(startDateRef\.current\), new Date\(\)\.toISOString\(\), \{ retroStartFromPlanned: false \}\)/],
-    ['app/(tabs)/schedule/index.tsx', /stampActuals\(\{ \.\.\.item, startDay: updated\.startDay \}, draft\.status, todayScheduleDay\(activeSchedule\?\.startDate\), new Date\(\)\.toISOString\(\), \{ retroStartFromPlanned: false \}\)/],
+    ['app/(tabs)/schedule/index.tsx', /stampActuals\(\{ \.\.\.item, startDay: updated\.startDay \}, nextStatus, todayScheduleDay\(activeSchedule\?\.startDate\), new Date\(\)\.toISOString\(\), \{ retroStartFromPlanned: false \}\)/],
     ['app/(tabs)/schedule/index.tsx', /stampActuals\(item, nextStatus, todayScheduleDay\(activeSchedule\?\.startDate\), new Date\(\)\.toISOString\(\), \{ retroStartFromPlanned: false \}\)/],
   ];
   for (const [f, re] of sinks) ok(`${f}: status sink stamps today's calendar day with no retro start`, re.test(src(f)));
@@ -233,10 +237,13 @@ console.log('\nwiring:');
     && /ganttLogStartPatch\(task, stampDay\(\)/.test(gantt) && /ganttLogFinishPatch\(stampDay\(\)/.test(gantt)
     && !/todayOrdinal/.test(gantt));
   ok('Gantt overlay draws actuals on the axis unconverted',
-    /const aStart = bar\.task\.actualStartDay;/.test(gantt) && /const aEnd = bar\.task\.actualEndDay \?\? todayDayNumber;/.test(gantt)
+    // wave 4 #89: read through actualCalendarDay on the stamp basis (a
+    // date-only actual is drawn too) — still calendar indices, unconverted.
+    /const aStart = actualCalendarDay\(bar\.task, 'start', stampBasis\);/.test(gantt)
+    && /const recordedEnd = actualCalendarDay\(bar\.task, 'end', stampBasis\);\s*const aEnd = recordedEnd \?\? todayDayNumber;/.test(gantt)
     && !/toCal\(aStartOrd\)|toCal\(bar\.task\.actualEndDay\)/.test(gantt));
   ok('Gantt badge goes through asBuiltVariance (converts before subtracting)',
-    /asBuiltVariance\(bar\.task, baseStart, baseEnd, dayScale\)/.test(gantt) && !/const v = aEnd - baseEnd;/.test(gantt));
+    /asBuiltVariance\(\s*\{ actualStartDay: actualStart \?\? undefined, actualEndDay: actualEnd \?\? undefined \},\s*baseStart, baseEnd, dayScale,\s*\)/.test(gantt) && !/const v = aEnd - baseEnd;/.test(gantt));
   ok('Schedule Pro reflows with the schedule calendar', /reflowFromActuals\(workingTasks, summaryScale\)/.test(src('app/schedule-pro.tsx')));
   ok('the AI as-built parser does not back-fill a planned start', !/patch\.actualStartDay = t\.startDay/.test(src('utils/scheduleAI.ts')));
   ok('gradeDelayRipple converts the calendar finish before comparing with ordinal plans',

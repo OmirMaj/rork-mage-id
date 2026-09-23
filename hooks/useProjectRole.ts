@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCachedProjectRoleHint } from '@/contexts/ProjectContext';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { resolveRoleState, type ProjectRole } from '@/utils/projectRole';
+import { isTransportError } from '@/utils/networkErrors';
 
 export type { ProjectRole } from '@/utils/projectRole';
 
@@ -36,7 +37,7 @@ export interface ProjectRoleState {
 export function useProjectRoleState(projectId: string | undefined): ProjectRoleState {
   const { user } = useAuth();
   const hint = useCachedProjectRoleHint(projectId);
-  const { collaborators, isLoading, isError, refetch } = useProjectCollaborators(projectId);
+  const { collaborators, isLoading, isError, error, refetch } = useProjectCollaborators(projectId);
   const queryClient = useQueryClient();
   // react-query's isLoading is pending AND fetching: a read PAUSED offline is
   // pending but not fetching, so it looked settled with an empty list — which
@@ -56,6 +57,10 @@ export function useProjectRoleState(projectId: string | undefined): ProjectRoleS
     // create", and a read truly paused offline says why instead of spinning.
     inCache: !!hint,
     fetchPaused: queryState?.fetchStatus === 'paused',
+    // #126: a read that never reached the server (no signal on native, where
+    // react-query does not pause) serves the stamped field/editor role as
+    // paused, instead of a paywall on the job he was invited to.
+    errorIsTransport: !!projectId && isError && isTransportError(error),
   });
   return { ...resolved, refetch };
 }

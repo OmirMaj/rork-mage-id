@@ -26,7 +26,7 @@ import { join } from 'node:path';
 import {
   payLinkAmountBlock, payLinkFailureReason, sentWithoutPayButtonMessage,
   nextInvoiceNumberFrom, invoiceShownInPortal, reminderRecipient,
-  reminderEligibility, reminderBlockMessage,
+  reminderEligibility, reminderBlockMessage, INVOICE_INSERT_UNCONFIRMED_REASON,
 } from '../utils/billingFlowCore';
 import { invoiceBillToColumns } from '../utils/projectContextPure';
 
@@ -113,7 +113,9 @@ ok('unknown recipient (cron parity) is not blocked here', reminderEligibility({ 
 ok('the card copy says reminders are off and why', /Automatic reminders are off — no client email/.test(reminderBlockMessage('no_recipient')));
 
 console.log('\nthe screen is wired to the rules');
-const confirm = handler('handleConfirmSend');
+// Wave 4 #34: the send body is runConfirmSend; handleConfirmSend only wraps it
+// in the one-send-at-a-time lock (pinned by validate-w4-invoice-send-screen).
+const confirm = handler('runConfirmSend');
 const pdf = handler('handleSendPDF');
 const mint = handler('mintPayLinkFor');
 ok('handleConfirmSend / handleSendPDF / mintPayLinkFor found', !!confirm && !!pdf && !!mint);
@@ -123,8 +125,9 @@ ok('a new invoice\'s queued insert is checked before minting',
   /pendingIdsForTable\(await getOfflineQueue\(\), 'invoices'\)\.has\(workingInvoice\.id\)/.test(confirm)
   && confirm.indexOf('pendingIdsForTable') < confirm.indexOf('mintPayLinkFor('));
 ok('an unreadable queue skips the mint, with copy that does not claim he is offline',
-  /catch \{ insertState = 'unknown'; \}/.test(confirm)
-  && /insertState === 'unknown'\) \{\s*noPayButtonReason = "the invoice couldn't be confirmed on the server yet";/.test(confirm));
+  /catch \{ return 'unknown'; \}/.test(confirm)
+  && /insertState === 'unknown'\) \{\s*noPayButtonReason = INVOICE_INSERT_UNCONFIRMED_REASON;/.test(confirm)
+  && !/offline/i.test(INVOICE_INSERT_UNCONFIRMED_REASON));
 for (const [name, src] of [['handleConfirmSend', confirm], ['handleSendPDF', pdf]] as const) {
   ok(`${name}: a non-ok mint sets the no-Pay-button reason`, /noPayButtonReason = minted\.message \?\? payLinkFailureReason\(minted\.error\)/.test(src));
   ok(`${name}: a THROWN mint sets it too`, /catch \(err\) \{[\s\S]{0,160}noPayButtonReason = payLinkFailureReason\(/.test(src));
@@ -132,7 +135,7 @@ for (const [name, src] of [['handleConfirmSend', confirm], ['handleSendPDF', pdf
   ok(`${name}: the subject is exact to the cent`, /subject: `Invoice #\$\{[a-zA-Z]+\.number\}: \$\{formatCurrency\(/.test(src) && !/\/ 1_000\)\}K/.test(src));
 }
 ok('handleConfirmSend: the no-Pay-button result REPLACES the "sent" toast',
-  /if \(noPayButtonReason\) \{[\s\S]{0,400}router\.back\(\);\s*return;/.test(confirm)
+  /if \(noPayButtonReason\) \{[\s\S]{0,400}router\.back\(\);\s*return 'left';/.test(confirm)
   && confirm.indexOf('if (noPayButtonReason)') < confirm.indexOf('nailIt(`Invoice #${workingInvoice.number} sent'));
 ok('handleConfirmSend: the portal post uses the latest-callback ref, after the email succeeded',
   /await sendToClientPortalRef\.current\(\{ kind: 'invoice', itemId: workingInvoice\.id/.test(confirm)
@@ -152,9 +155,9 @@ ok('the PDF send clears the previous recipient\'s name with the address', /\{ bi
   ok('…and that patch writes bill_to_name null', cols.bill_to_email === 'ap@lender.com' && 'bill_to_name' in cols && cols.bill_to_name === null, JSON.stringify(cols));
 }
 ok('the pay-link card promises the portal only when the portal shows it',
-  /invoiceShownInPortal\(existingInvoice\.portalState\)\s*\?\s*'Clients can pay by card or ACH via the portal\.'/.test(SCREEN));
+  /invoicePayableInPortal\(project\.clientPortal, existingInvoice\.portalState\)\s*\?\s*'Clients can pay by card or ACH via the portal\.'/.test(SCREEN));
 ok('"Payment Link Ready" promises the portal only when the portal shows it',
-  /invoiceShownInPortal\(existingInvoice\.portalState\)\s*\?\s*'A Stripe payment link has been generated and attached to this invoice\. Your client will see a Pay Now button in the portal\.'/.test(SCREEN));
+  /invoicePayableInPortal\(project\.clientPortal, existingInvoice\.portalState\)\s*\?\s*'A Stripe payment link has been generated and attached to this invoice\. Your client will see a Pay Now button in the portal\.'/.test(SCREEN));
 ok('no unconditional portal promise is left', (SCREEN.match(/Pay Now button in the portal/g) ?? []).length === 1);
 ok('the reminder card passes hasRecipient from the cron\'s own order', /hasRecipient: reminderRecipient\(/.test(SCREEN));
 // Reviewer major: the card renders only for invoices already sent, so its fix

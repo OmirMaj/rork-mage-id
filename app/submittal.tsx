@@ -51,14 +51,18 @@ import {
   safeAttachmentFileName, submittalAttachmentObjectPath, toStoredAttachment, storedAttachmentObjectPath,
   attachmentDisplayName, attachmentUploadBlock, submittalSendGate, submittalEmailIntro, submittalSendOutcome,
   submittalFileSizeBlock, submittalPackageSizeBlock, attachmentsTooLargeMessage,
+  deriveSubmittalRequiredDateForTask,
 } from '@/utils/submittalAttachments';
 
 // ── #57: product data on the submittal ──────────────────────────────────────
 // The bytes go straight to Storage while he has signal — a multi-MB PDF cannot
 // ride utils/offlineQueue (AsyncStorage JSON; see utils/photoUploadCore.ts for
 // the budget it would blow), and pretending an upload is queued would lose it
-// silently. The PATH is then saved through updateSubmittal, which does go
-// through the offline queue. A failed upload says so and attaches nothing.
+// silently. The PATH is then saved through updateSubmittal, whose write goes
+// through utils/offlineQueue and — since wave 4 (#23) — waits behind any
+// queued or in-flight write of this submittal, its create included, so it
+// lands after the row exists instead of matching 0 rows. A failed upload
+// says so and attaches nothing.
 async function uploadSubmittalFile(o: {
   projectId: string; submittalId: string; uri: string; fileName: string; contentType: string;
   /** Why this many bytes may not go on the reviewer email, or null. Checked
@@ -429,6 +433,12 @@ function SubmittalForm() {
     if ('requiredDate' in changed) { updates.requiredDate = requiredDate; updates.requiredDateSource = 'manual'; }
     // #144: cleared = undefined, which the row mapper writes as null.
     if ('linkedTaskId' in changed) updates.linkedTaskId = linkedTaskId || undefined;
+    // #96: the stored date was counted back from the OLD task. Relinked or
+    // unlinked, it is no longer "from the schedule" — it stays as his date
+    // (never silently moved), and the label stops claiming a source.
+    if ('linkedTaskId' in changed && !('requiredDate' in changed) && base.requiredDateSource === 'schedule') {
+      updates.requiredDateSource = 'manual';
+    }
     if (Object.keys(updates).length > 0) updateSubmittal(existingSubmittal.id, updates);
     const saved: Submittal = { ...existingSubmittal, ...updates };
     // Form and baseline both become the saved record, so a save reads clean.
@@ -714,6 +724,27 @@ function SubmittalForm() {
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
 
+  // #96: a schedule-sourced Required date, checked against TODAY's schedule —
+  // the stored date was counted back once, when the spec book was read. Only
+  // while the saved link is still the one on screen and the task still
+  // exists; relinked, unlinked or gone, nothing claims "from the schedule".
+  const scheduleSource = useMemo(() => {
+    const s = existingSubmittal;
+    if (!s || s.requiredDateSource !== 'schedule' || !linkedTask) return null;
+    if (requiredDate !== s.requiredDate || (s.linkedTaskId ?? '') !== linkedTaskId) return null;
+    const live = deriveSubmittalRequiredDateForTask({ schedule: project?.schedule, taskId: linkedTaskId, leadDays: s.leadDays });
+    return { live, stored: s.requiredDate };
+  }, [existingSubmittal, linkedTask, linkedTaskId, requiredDate, project?.schedule]);
+  const leadWords = typeof existingSubmittal?.leadDays === 'number' ? `the ${existingSubmittal.leadDays}-day` : 'the';
+  // One tap takes the schedule's new date (through updateSubmittal → the
+  // offline queue); the stored date never moves behind his back — the chase
+  // list reads it.
+  const takeScheduleDate = useCallback(() => {
+    if (!existingSubmittal || !scheduleSource?.live.requiredDate) return;
+    updateSubmittal(existingSubmittal.id, { requiredDate: scheduleSource.live.requiredDate, requiredDateSource: 'schedule' });
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [existingSubmittal, scheduleSource, updateSubmittal]);
+
   const handleSave = useCallback(() => {
     if (!title.trim()) {
       showAlert('Missing Title', 'Please enter a title.');
@@ -957,10 +988,27 @@ function SubmittalForm() {
         />
         {requiredDate ? (
           <View style={styles.dateMetaRow}>
-            {existingSubmittal?.requiredDateSource === 'schedule' && requiredDate === existingSubmittal.requiredDate ? (
-              <Text style={[styles.cycleHint, { flex: 1 }]} testID="submittal-required-source">
-                {`From the schedule: the linked task's start, less ${typeof existingSubmittal.leadDays === 'number' ? `the ${existingSubmittal.leadDays}-day` : 'the'} estimated lead (AI). Change it if the architect needs it sooner.`}
-              </Text>
+            {scheduleSource && linkedTask ? (
+              !scheduleSource.live.requiredDate ? (
+                <Text style={[styles.cycleHint, { flex: 1 }]} testID="submittal-required-source">
+                  {`Counted back from "${linkedTask.title}" when it was set. The schedule has no start date now, so it can't be checked against it.`}
+                </Text>
+              ) : scheduleSource.live.requiredDate === scheduleSource.stored ? (
+                <Text style={[styles.cycleHint, { flex: 1 }]} testID="submittal-required-source">
+                  {`From the schedule: "${linkedTask.title}" starts ${formatCalendarDay(scheduleSource.live.taskStart ?? '')}, less ${leadWords} estimated lead (AI). Change it if the architect needs it sooner.`}
+                </Text>
+              ) : (
+                <View style={{ flex: 1, gap: 6 }} testID="submittal-required-moved">
+                  <Text style={styles.cycleHint}>
+                    {`Schedule moved: was ${formatCalendarDay(scheduleSource.stored)}, now ${formatCalendarDay(scheduleSource.live.requiredDate)} — "${linkedTask.title}" starts ${formatCalendarDay(scheduleSource.live.taskStart ?? '')}, less ${leadWords} estimated lead (AI).`}
+                  </Text>
+                  <Button
+                    label={`Update to ${formatCalendarDay(scheduleSource.live.requiredDate)}`}
+                    variant="secondary" size="sm" onPress={takeScheduleDate}
+                    testID="submittal-required-take-schedule"
+                  />
+                </View>
+              )
             ) : <View style={{ flex: 1 }} />}
             <TouchableOpacity onPress={() => setRequiredDate('')} accessibilityRole="button" testID="submittal-required-clear">
               <Text style={styles.cycleHint}>Clear date</Text>

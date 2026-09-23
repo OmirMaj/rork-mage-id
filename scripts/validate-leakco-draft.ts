@@ -207,8 +207,12 @@ console.log('\nbuildDraftCO — description format');
 const co = buildDraftCO(candidates[0]!, [], '2026-07-26');
 assert(co.description.includes('Out-of-scope work from daily report'), 'description prefix correct');
 assert(co.description.includes('Jul 24'), 'description includes report date');
-assert(co.description.includes('Extra framing'), 'description includes item name');
-assert(co.description.includes('~$1,200'), 'description includes price');
+// Wave 4 #76: the description is client-facing — no AI price guesses, no
+// quotes, no NEEDS PRICE. The item is a line item tagged with its source.
+assert(!co.description.includes('~$') && !/NEEDS PRICE/i.test(co.description) && !co.description.includes('"'),
+  'description carries no price guess, quote or NEEDS PRICE note');
+assert(co.lineItems.length === 1 && co.lineItems[0]!.name === 'Extra framing' && co.lineItems[0]!.total === 1200
+  && co.lineItems[0]!.priceSource === 'ai_estimated', 'the priced item is its own line, marked ai_estimated');
 assert(co.status === 'draft', 'status is draft');
 assert(co.changeAmount === 1200, 'changeAmount is 1200');
 
@@ -252,8 +256,11 @@ assert(mixedCandidates.length === 1, 'mixed report (has priced item) is candidat
 
 const mixedCO = buildDraftCO(mixedCandidates[0]!, [], '2026-07-26');
 assert(mixedCO.changeAmount === 800, 'changeAmount = only priced items total');
-assert(mixedCO.description.includes('NEEDS PRICE:'), 'unpriced items appear as NEEDS PRICE');
-assert(mixedCO.description.includes('Extra material'), 'unpriced item name in description');
+assert(!/NEEDS PRICE/i.test(mixedCO.description) && !mixedCO.description.includes('Extra material'),
+  'unpriced items stay out of the client-facing description');
+const needs = mixedCO.lineItems.find(l => l.name === 'Extra material');
+assert(!!needs && needs.total === 0 && needs.priceSource === 'needs_price', 'the unpriced item is a $0 line marked needs_price');
+assert(mixedCO.lineItems.length === 2, 'one line per flagged item');
 
 // ─── Test 12: same-project multi-candidate sweep — strictly increasing
 //     numbers when drafts are accumulated (the hook's loop contract) ───────

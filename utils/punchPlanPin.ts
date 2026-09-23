@@ -96,6 +96,58 @@ export function containImageRect(
   return { w, h, left: (container.w - w) / 2, top: (container.h - h) / 2 };
 }
 
+/** The pin close-up's side, as a fraction of the sheet's LONG edge. A room
+ *  or two on a house plan; enough of the neighbourhood (walls, door swings,
+ *  the room name) that the sub can find the spot without the full sheet. */
+export const PIN_CROP_FRACTION = 0.2;
+
+export interface PinCropWindow {
+  /** The crop, as fractions of the image (0..1). */
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  /** The pin, as fractions of the CROP (0..1) — not always 0.5: a pin near
+   *  the sheet edge keeps the crop inside the sheet and slides off-centre. */
+  pinX: number;
+  pinY: number;
+}
+
+/**
+ * The square close-up around a pin, for the export's per-item plan crop and
+ * the web edit panel's plan thumbnail. `aspect` is the image's width / height
+ * (the REAL image's, oriented — never guessed). The window is a square in
+ * image PIXELS whose side is `fraction` of the long edge, clamped to the sheet
+ * so it never shows paper that is not there. Null for a pin or aspect that is
+ * not a real number — the caller then shows no close-up rather than a wrong one.
+ */
+export function pinCropWindow(
+  x: number,
+  y: number,
+  aspect: number | null | undefined,
+  fraction: number = PIN_CROP_FRACTION,
+): PinCropWindow | null {
+  if (!finitePositive(aspect) || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (!finitePositive(fraction)) return null;
+  const px = clamp01(x);
+  const py = clamp01(y);
+  // Work in units where the image is `aspect` wide and 1 tall. The side is
+  // `fraction` of the long edge, but never more than the short edge — so the
+  // window is always a true square in pixels (the close-up box is square, and
+  // a non-square window drawn into it would stretch the plan under the pin).
+  const f = Math.min(1, fraction);
+  const side = Math.min(f * Math.max(aspect, 1), Math.min(aspect, 1));
+  const cw = side / aspect;   // fraction of the width
+  const ch = side;            // fraction of the height
+  const left = Math.max(0, Math.min(1 - cw, px - cw / 2));
+  const top = Math.max(0, Math.min(1 - ch, py - ch / 2));
+  return {
+    left, top, width: cw, height: ch,
+    pinX: clamp01((px - left) / cw),
+    pinY: clamp01((py - top) / ch),
+  };
+}
+
 /**
  * A touch inside the image box (unscaled content coordinates) → a normalised
  * pin. Clamped to the sheet so a thumb that lands on the edge still pins the

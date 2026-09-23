@@ -76,6 +76,11 @@ import DatePickerModal from '@/components/DatePickerModal';
 import {
   saveDraft, loadDraft, clearDraft, isWorthSaving, draftMatchesEntry, savedAgoLabel,
 } from '@/utils/scheduleDraft';
+import { useProjectRole } from '@/hooks/useProjectRole';
+import { showAlert } from '@/utils/alert';
+import {
+  SCHEDULE_NOT_SAVED_TITLE, scheduleWriteBlockedReason, scheduleWritePathForRole,
+} from '@/utils/fieldScheduleUpdate';
 
 // Step 3 is the calendar preview. It used to be called "Schedule", which made
 // the CTA read "Next: Schedule" inside a screen called Create Schedule.
@@ -227,6 +232,14 @@ export default function ScheduleWizardScreen() {
     () => (pickedProjectId ? getProject(pickedProjectId) : null),
     [pickedProjectId, getProject],
   );
+  // WHO MAY SAVE HERE (#90). The wizard saves through updateProject — the
+  // projects-row PATCH, which RLS refuses for a field or viewer seat with 200
+  // and zero rows. His phone then showed the new plan as saved, the GC never
+  // got it, and the next reload put the old plan back. Same gate as
+  // schedule-review's Accept: the live role (null while resolving → 'row', and
+  // the database still refuses) falling back to the cached myRole.
+  const projectRole = useProjectRole(project?.id);
+  const saveBlockedReason = scheduleWriteBlockedReason(scheduleWritePathForRole(projectRole ?? project?.myRole));
 
   const [pickedTemplateId, setPickedTemplateId] = useState<string>(seedTemplateId);
   const template = useMemo(
@@ -496,6 +509,9 @@ export default function ScheduleWizardScreen() {
   // ── Save ───────────────────────────────────────────────────────
   const handleSave = useCallback(() => {
     if (!project) return;
+    // Backstop for any caller that reaches the save directly: refuse BEFORE
+    // updateProject, clearDraft and the haptic, so his draft survives.
+    if (saveBlockedReason) { showAlert(SCHEDULE_NOT_SAVED_TITLE, saveBlockedReason); return; }
     // Map TemplateTask → ScheduleTask. We preserve template ids inside the
     // dependency arrays by translating to fresh UUIDs — Supabase requires
     // UUIDs as primary keys, but the predecessor refs are internal to the
@@ -584,11 +600,14 @@ export default function ScheduleWizardScreen() {
         params: { projectId: project.id, focus: String(Date.now()) } as never,
       });
     }
-  }, [project, isoStart, totalDays, scheduledTasks, tasks, updateProject, router, wideEnoughForPro]);
+  }, [project, isoStart, totalDays, scheduledTasks, tasks, updateProject, router, wideEnoughForPro, saveBlockedReason]);
 
   // Confirmation guard — overwrites an existing schedule.
   const onSavePressed = useCallback(() => {
     if (!project) return;
+    // FIRST, before the replace confirm: a field or viewer seat must never be
+    // asked to confirm losing progress "for good" for a save that cannot land.
+    if (saveBlockedReason) { showAlert(SCHEDULE_NOT_SAVED_TITLE, saveBlockedReason); return; }
     // The same count of what a replace loses as schedule-review's Accept
     // (#52) — this confirm used to say only "Saving replaces it", never that
     // the foreman's progress and the locked baselines went with it.
@@ -604,7 +623,7 @@ export default function ScheduleWizardScreen() {
       destructive: true,
       onConfirm: handleSave,
     });
-  }, [project, handleSave]);
+  }, [project, handleSave, saveBlockedReason]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -977,6 +996,7 @@ function ProjectStep(props: {
                 <Text style={styles.projectSub} numberOfLines={1}>
                   {displayText(p.location, 'No location')} · {p.type}
                 </Text>
+                <SeatNote role={p.myRole} />
               </View>
               <ChevronRight size={17} color={themeColors.textMuted} strokeWidth={2} />
             </TouchableOpacity>
@@ -1055,6 +1075,7 @@ function ProjectStep(props: {
                 <Text style={styles.projectSub} numberOfLines={1}>
                   {displayText(p.location, 'No location')} · {p.type}
                 </Text>
+                <SeatNote role={p.myRole} />
               </View>
               {active && <Check size={18} color={themeColors.accent} strokeWidth={2.5} />}
             </TouchableOpacity>
@@ -1081,6 +1102,23 @@ function ProjectStep(props: {
         )}
       </View>
     </View>
+  );
+}
+
+// A shared job he cannot save a schedule to, said in the picker (#90) so he
+// learns it before building a whole plan — not hidden, since he may be
+// looking for it. The save-time alert stays: myRole can be missing while the
+// collaborator read is still loading.
+function SeatNote({ role }: { role: string | null | undefined }) {
+  const styles = useThemedStyles(makeStyles);
+  const path = scheduleWritePathForRole(role);
+  if (path === 'row') return null;
+  return (
+    <Text style={styles.projectSub} numberOfLines={2}>
+      {path === 'field_rpc'
+        ? 'Field access — ask the owner for editor access to build its schedule'
+        : 'View-only — ask the owner for editor access to build its schedule'}
+    </Text>
   );
 }
 

@@ -287,7 +287,7 @@ console.log('\n#25 screen wiring:');
     (DFR_CODE.match(/buildDailyReportEmailHtml\(/g) ?? []).length === 1);
   ok('the project-files copy renders buildDFRHtml with resolved photos + the classification',
     /const docPhotos = await resolveDfrPhotosForDocument\(doc\.photos, galleryPhotos\);/.test(DFR_CODE)
-      && /const html = buildDFRHtml\(doc, project, branding, \{ photos: docPhotos, incidentClassification \}\);/.test(DFR_CODE));
+      && /const html = buildDFRHtml\(doc, project, branding, \{ photos: docPhotos, incidentClassification, filedByName: filedBy\.document \?\? undefined \}\);/.test(DFR_CODE));
   ok('the file is saved BEFORE the email, so the email links it',
     DFR_CODE.indexOf('await saveDailyReportToProjectFiles(') > -1
       && DFR_CODE.indexOf('await saveDailyReportToProjectFiles(') < DFR_CODE.indexOf('const result = await sendEmail('));

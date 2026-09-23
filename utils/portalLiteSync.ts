@@ -41,7 +41,7 @@
 
 import type {
   Project, AppSettings, Invoice, ChangeOrder, DailyFieldReport, PunchItem,
-  ProjectPhoto, RFI, Warranty, ProjectContract, SelectionCategory, Permit,
+  ProjectPhoto, RFI, Warranty, ProjectContract, SelectionCategory, Permit, SavedAIAPayApp, ClientPortalSettings,
 } from '@/types';
 import { buildPortalSnapshot, type PortalSnapshot } from '@/utils/portalSnapshot';
 import type { CloseoutBinder } from '@/utils/closeoutBinderEngine';
@@ -82,6 +82,12 @@ export interface PortalLiteSyncInput {
    *  round 1): they must be built fresh here, never carried, because a
    *  carried Documents section would keep a recalled warranty on the portal. */
   permits: Permit[];
+  /** The project's AIA pay apps (#15). PRESENT = the caller holds the list
+   *  (server-read like the rest), so the section is built FRESH from it — a
+   *  pay app sent to the client appears, a recalled one leaves. ABSENT = the
+   *  caller has no AIA list, so the published section is carried as before
+   *  (a caller that cannot see the list must never publish it as "none"). */
+  aiaPayApps?: SavedAIAPayApp[];
 }
 
 export type LiteSyncOutcome =
@@ -103,6 +109,33 @@ export function isPortalOwner(
   if (!userId) return false;
   if (project.ownerUserId) return project.ownerUserId === userId;
   return !project.myRole;
+}
+
+/**
+ * #18: do the switches on screen differ from what is SAVED (and so live)?
+ * Compared over what handleSave writes — the section and gate switches, the
+ * passcode, the language, the welcome text, the recap, auto-share and the
+ * invite list. The token, the portal id, the link lifetime (Generate saves
+ * it) and the proposal keys (saved as you toggle) are not "unsaved changes".
+ * A portal never saved counts as unsaved only once there is something in it.
+ */
+const SAVE_ONLY_KEYS = [
+  'showSchedule', 'showBudgetSummary', 'showInvoices', 'showChangeOrders', 'showPhotos',
+  'showDailyReports', 'showPunchList', 'showRFIs', 'showDocuments',
+  'requirePasscode', 'passcode', 'welcomeMessage', 'clientCanSetBudget', 'coApprovalEnabled',
+  'homeownerLanguage', 'weeklyDigest', 'autoShare',
+] as const;
+export function portalSettingsDiffer(local: ClientPortalSettings, saved: ClientPortalSettings | undefined | null): boolean {
+  if (!saved?.enabled) return (local.invites ?? []).length > 0;
+  const norm = (v: unknown) => JSON.stringify(v ?? null);
+  for (const k of SAVE_ONLY_KEYS) {
+    const a = k === 'weeklyDigest' ? !!local.weeklyDigest?.enabled : local[k];
+    const b = k === 'weeklyDigest' ? !!saved.weeklyDigest?.enabled : saved[k];
+    // Missing and default-false / empty are the same setting.
+    if (norm(a || null) !== norm(b || null)) return true;
+  }
+  const ids = (xs: ClientPortalSettings['invites']) => (xs ?? []).map(i => `${i.id}:${i.email ?? ''}`).sort().join('|');
+  return ids(local.invites) !== ids(saved.invites);
 }
 
 type PortalOpenBook = PortalSnapshot['openBook'];
@@ -135,12 +168,13 @@ export function carriedOpenBook(
 }
 
 /**
- * The `sections` keys the lite writer NEVER builds, so a missing one means
- * "not mine", not "gone" (#44). aiaPayApps: it passes `aiaPayApps: []` — the
- * pay apps are only published by the rich writer in client-portal-setup.
- * Every other section comes from the fresh build, so a recalled CO, a section
- * switched off, or the last shared photo deleted leaves the portal on this
- * push. (messages and openBook are top-level and carried separately.)
+ * The `sections` keys the lite writer may not build, so a missing one means
+ * "not mine", not "gone" (#44). aiaPayApps: carried ONLY when the caller did
+ * not pass the AIA list (#15 — a caller that has it builds the section fresh,
+ * see `aiaBuiltFresh` in mergeLiteSnapshot). Every other section comes from
+ * the fresh build, so a recalled CO, a section switched off, or the last
+ * shared photo deleted leaves the portal on this push. (messages and openBook
+ * are top-level and carried separately.)
  */
 export const LITE_CARRIED_SECTIONS = ['aiaPayApps'] as const;
 
@@ -161,12 +195,16 @@ export function mergeLiteSnapshot(
   snap: PortalSnapshot,
   prev: PortalSnapshot | null | undefined,
   project: Pick<Project, 'contractMode' | 'gmpCap' | 'contractorFeePercent' | 'contractorFeeAmount' | 'clientPortal'>,
-  opts: { hasCompanyName: boolean; hasPassport: boolean },
+  opts: { hasCompanyName: boolean; hasPassport: boolean; aiaBuiltFresh?: boolean },
 ): PortalSnapshot {
   if (!prev || typeof prev !== 'object' || !prev.sections) return snap;
   const carried: Record<string, unknown> = {};
   const prevSections = prev.sections as Record<string, unknown>;
   for (const key of LITE_CARRIED_SECTIONS) {
+    // #15: the AIA list was passed, so the fresh build is authoritative — an
+    // absent section there means "none shared", and carrying the old one
+    // would keep a recalled pay app (and its Pay link) on the portal.
+    if (key === 'aiaPayApps' && opts.aiaBuiltFresh) continue;
     if (prevSections[key] !== undefined && carriedSectionIsOn(key, project.clientPortal)) carried[key] = prevSections[key];
   }
   // The closeout block's trade contacts come from commitments, which this
@@ -266,8 +304,9 @@ async function runOnce(input: PortalLiteSyncInput, io: PortalLiteSyncIO): Promis
     selections: selections.value,
     closeoutBinder: closeoutBinder.value ?? undefined,
     homePassport: homePassport ?? undefined,
-    // Not built by the lite writer — carried from the rich row (see merge).
-    aiaPayApps: [],
+    // #15: built fresh when the caller passed the AIA list; otherwise carried
+    // from the published row (see merge).
+    aiaPayApps: input.aiaPayApps ? mine(input.aiaPayApps) : [],
     commitments: [],
     messages: [],
     supabaseUrl: io.supabaseUrl,
@@ -280,6 +319,7 @@ async function runOnce(input: PortalLiteSyncInput, io: PortalLiteSyncIO): Promis
   const snapshotToWrite = mergeLiteSnapshot(snap, prev, project, {
     hasCompanyName: !!settings?.branding?.companyName?.trim(),
     hasPassport: !!homePassport,
+    aiaBuiltFresh: Array.isArray(input.aiaPayApps),
   });
   if (sameSnapshot(snapshotToWrite, prev)) return 'unchanged';
 

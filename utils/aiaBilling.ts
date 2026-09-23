@@ -19,6 +19,7 @@ import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 // The namespaced key an approved change order rides on an invoice line, so a
 // CO billed through either entry point lands on the right G703 row.
 import { changeOrderBillKey, CO_BILL_KEY_PREFIX } from '@/utils/changeOrderBilling';
+import { CO_APPROVAL_ACTIONS } from '@/utils/coApproval';
 
 // Re-exported so the pay-app module keeps offering the retainage rule it is the
 // reference implementation of, and existing importers (utils/portalSnapshot)
@@ -768,8 +769,9 @@ export type DatableChangeOrder = Pick<ChangeOrder, 'status' | 'date' | 'updatedA
  * When was this change order approved?
  *
  * Best evidence first: an approver's own recorded response, then the audit
- * trail entry that names an approval, then `updatedAt` (the row last changed
- * when it was approved, on a CO nobody has touched since), then the CO's own
+ * trail's approval entries in CO_APPROVAL_ACTIONS order, then `updatedAt`
+ * (the row last changed when it was approved, on a CO nobody has touched
+ * since), then the CO's own
  * date. Returns null only when the CO carries no usable date at all.
  */
 export function changeOrderApprovalDate(co: DatableChangeOrder): string | null {
@@ -780,11 +782,21 @@ export function changeOrderApprovalDate(co: DatableChangeOrder): string | null {
   // The LAST approver to sign is when the CO became approved — an earlier
   // signature on a sequential chain is not the approval of the change order.
   if (responses.length) return responses[responses.length - 1];
-  const audit = (co.auditTrail ?? [])
-    .filter(e => /approve/i.test(e.action) && e.timestamp)
-    .map(e => e.timestamp)
-    .sort();
-  if (audit.length) return audit[audit.length - 1];
+  // #75 (wave 4): an ORDERED allow-list of approval actions (utils/coApproval
+  // CO_APPROVAL_ACTIONS), not /approve/i. The regex missed the portal e-sign
+  // — the sealed 'client_signed_via_portal', whose timestamp is the server's
+  // sealed_at — so a client-signed CO fell through to updatedAt, which moves
+  // on every later edit (placing its days, the reconciler's own write), and
+  // landed on the wrong G702 period. It also matched 'unapproved' /
+  // 'disapproved'. Strongest evidence first; within one action the newest
+  // entry (approved → reverted → approved again dates from the last one).
+  for (const action of CO_APPROVAL_ACTIONS) {
+    const stamps = (co.auditTrail ?? [])
+      .filter(e => e && e.action === action && e.timestamp)
+      .map(e => e.timestamp)
+      .sort();
+    if (stamps.length) return stamps[stamps.length - 1];
+  }
   return co.updatedAt || co.date || null;
 }
 

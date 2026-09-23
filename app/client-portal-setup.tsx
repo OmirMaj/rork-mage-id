@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Platform, Share,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -43,7 +43,7 @@ import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { loadActiveContract } from '@/utils/contractEngine';
-import { defaultPortalLiteSyncIO } from '@/utils/portalLiteSync';
+import { defaultPortalLiteSyncIO, portalSettingsDiffer, isPortalOwner } from '@/utils/portalLiteSync';
 import { LANGUAGES } from '@/utils/portalLanguages';
 import {
   linkState, expiresAtFromDuration, expiresAtForPolicy, durationLabel, isHandedOver,
@@ -286,7 +286,13 @@ function ClientPortalSetupScreenInner() {
     getAIAPayAppsForProject,
     getCommitmentsForProject, getWarrantiesForProject, getPermitsForProject,
     equipment, permits, subcontractors,
+    portalListsServerRead, settingsLoaded, requestPortalPublish,
   } = useProjects();
+  // #16: the persist timer below re-reads these when it FIRES. The provider
+  // drops portalListsServerRead the moment the app returns to the foreground
+  // (the lists are re-reading), so a pass armed before that must not publish.
+  const publishGateRef = useRef({ portalListsServerRead, settingsLoaded });
+  publishGateRef.current = { portalListsServerRead, settingsLoaded };
   // The actual-cost streams the open-book / GMP block discloses. Without them
   // an open-book client is shown a cost-to-date built from subcontracts alone
   // (audit round 2, #16).
@@ -454,6 +460,24 @@ function ClientPortalSetupScreenInner() {
   //     screen's state would publish once here and vanish on the next open.
   //   · Replacing a stamp awaits a FRESH acceptance read in the handler. The
   //     cached list above can be stale by the time he taps.
+  const localOwnership = portalOwnershipOf(project?.ownerUserId, userId);
+  // Filled in by the heal when the local cache cannot say (no ownerUserId).
+  const [confirmedOwnership, setConfirmedOwnership] = useState<PortalOwnership>('unknown');
+  const ownership: PortalOwnership = localOwnership !== 'unknown' ? localOwnership : confirmedOwnership;
+  const isCollaborator = ownership === 'collaborator';
+  // #19: only the OWNER changes what the client sees. A collaborator's sync
+  // PATCH never carries client_portal (AUTH-F5), so an editor's "Saved" was
+  // stored nowhere and published by no one. Ownership still unknown = Save
+  // held until it is confirmed, never a "Saved" that did nothing.
+  // A cache predating ownerUserId is decided by the lite writer's own rule
+  // (isPortalOwner: owned exactly when it carries no collaborator role), so
+  // "unknown" means only "no session yet" — not a Save that never unlocks.
+  const isOwner = ownership === 'owner'
+    || (ownership === 'unknown' && !!project && isPortalOwner(project, userId));
+  const ownerOnlyReason = isCollaborator
+    ? 'Only the project owner can change what the client sees on the portal.'
+    : !isOwner ? 'Checking who owns this project — Save is available once that is confirmed.' : null;
+
   const gate = useClientDocumentGate();
   const proposalTotal = useMemo(() => {
     const est = project?.linkedEstimate;
@@ -479,6 +503,8 @@ function ClientPortalSetupScreenInner() {
   }, [savedStamp]);
 
   const handleProposalSwitch = useCallback((val: boolean) => {
+    // #19: only the owner changes what the client sees (said at the top).
+    if (ownerOnlyReason) { showAlert('Not changed', ownerOnlyReason); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     if (!val) {
       // Off keeps the stamp: switching back on must print what the client
@@ -504,7 +530,7 @@ function ClientPortalSetupScreenInner() {
         persistProposalKeys({ proposalApprovalEnabled: true, proposalPaymentTerms: next.stamp });
       },
     );
-  }, [portal.proposalPaymentTerms, gate, proposalTotal, project?.type, persistProposalKeys]);
+  }, [portal.proposalPaymentTerms, gate, proposalTotal, project?.type, persistProposalKeys, ownerOnlyReason]);
 
   const [replacingTerms, setReplacingTerms] = useState(false);
   /** "Use 30 / 60 / 10 on this proposal" — replace the stamp with his current
@@ -667,11 +693,11 @@ function ClientPortalSetupScreenInner() {
   // Build a fresh snapshot every render so toggle changes / new data flow through
   // immediately. Snapshot is built only from sections the GC has toggled on,
   // then base64url-encoded into the URL's hash fragment (never sent to server).
-  const snapshot = useMemo(() => {
+  const buildSnapshotFor = useCallback((forPortal: ClientPortalSettings) => {
     if (!project) return null;
     return buildPortalSnapshot({
       project,
-      portal,
+      portal: forPortal,
       settings,
       invoices: getInvoicesForProject(project.id),
       changeOrders: getChangeOrdersForProject(project.id),
@@ -703,7 +729,7 @@ function ClientPortalSetupScreenInner() {
       costSources,
     });
   }, [
-    project, portal, settings,
+    project, settings,
     getInvoicesForProject, getChangeOrdersForProject,
     getDailyReportsForProject, getPunchItemsForProject,
     getPhotosForProject, getRFIsForProject,
@@ -712,6 +738,64 @@ function ClientPortalSetupScreenInner() {
     getCommitmentsForProject, getWarrantiesForProject, getPermitsForProject,
     homePassport, costSources,
   ]);
+  // On-screen PREVIEW only: the local, unsaved switches (#18).
+  const snapshot = useMemo(() => buildSnapshotFor(portal), [buildSnapshotFor, portal]);
+  // #18: what the HOMEOWNER gets — the published row and every hash / invite
+  // link — is built from the SAVED portal settings. A switch flipped "just to
+  // look" changed the live page 1.5 s later and stayed changed after he backed
+  // out; a "Require passcode" turned on without saving (so without the >= 4
+  // character check handleSave runs) put up a gate no saved code could open.
+  // The access token and portal id come from local state only because the
+  // heal adopts the server's token there; everything else is the saved row.
+  const savedPortal = project?.clientPortal;
+  const publishPortal = useMemo<ClientPortalSettings | null>(() => {
+    if (!savedPortal?.enabled) return null;
+    // The token: the saved row's, else the one local state READ BACK from the
+    // server (the heal and the adopt effect above — this screen never makes
+    // one). Copied by key so no token value is ever written by hand here
+    // (scripts/validate-portal-token-heal.ts).
+    const readBackToken = savedPortal.accessToken
+      ? {}
+      : Object.fromEntries(Object.entries(portal).filter(([k, v]) => k === 'accessToken' && !!v));
+    return {
+      ...DEFAULT_PORTAL,
+      ...readBackToken,
+      ...savedPortal,
+      invites: savedPortal.invites ?? [],
+      portalId: savedPortal.portalId || portal.portalId,
+    };
+    // Keyed on the token alone: the switches must not rebuild the published
+    // snapshot (that is the whole point of #18).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedPortal, portal.portalId, portal.accessToken]);
+  const publishedSnapshot = useMemo(
+    () => (publishPortal ? buildSnapshotFor(publishPortal) : null),
+    [buildSnapshotFor, publishPortal],
+  );
+  // #18: are the switches on screen different from what is saved (= live)?
+  // Drives the "Unsaved changes" line and the leave-without-saving prompt.
+  const hasUnsavedPortalChanges = useMemo(
+    () => portalSettingsDiffer(portal, savedPortal),
+    [portal, savedPortal],
+  );
+  // #18: leaving with unsaved switches asks first — they never reached the
+  // client, and without this he got no sign they were thrown away.
+  const navigation = useNavigation();
+  const allowLeaveRef = useRef(false);
+  const unsavedPortalRef = useRef(false);
+  unsavedPortalRef.current = hasUnsavedPortalChanges;
+  useEffect(() => navigation.addListener('beforeRemove', (e) => {
+    if (allowLeaveRef.current || !unsavedPortalRef.current) return;
+    e.preventDefault();
+    showAlert(
+      'Discard portal changes?',
+      "Your changes aren't saved, so your client's page hasn't changed. Leave without saving?",
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => { allowLeaveRef.current = true; navigation.dispatch(e.data.action); } },
+      ],
+    );
+  }), [navigation]);
 
   // Short, share-friendly URL — `mageid.app/portal/<id>`. The static
   // portal HTML fetches the snapshot from `portal_snapshots` keyed by
@@ -756,12 +840,6 @@ function ClientPortalSetupScreenInner() {
     const serverToken = persistedToken;
     setPortal(p => (p.accessToken ? p : { ...p, accessToken: serverToken }));
   }, [persistedToken, portal.accessToken]);
-
-  const localOwnership = portalOwnershipOf(project?.ownerUserId, userId);
-  // Filled in by the heal when the local cache cannot say (no ownerUserId).
-  const [confirmedOwnership, setConfirmedOwnership] = useState<PortalOwnership>('unknown');
-  const ownership: PortalOwnership = localOwnership !== 'unknown' ? localOwnership : confirmedOwnership;
-  const isCollaborator = ownership === 'collaborator';
 
   const [tokenHeal, setTokenHeal] = useState<'idle' | 'working' | 'failed'>('idle');
   // Bumped by Retry; the ref makes one attempt per (project, retry) pair so a
@@ -899,9 +977,11 @@ function ClientPortalSetupScreenInner() {
     // No snapshot yet: fall back to the SHORT link, which carries `?t=`. The
     // old fallback concatenated the portalId alone — a URL that opens a portal
     // the homeowner cannot sign or approve anything in.
-    if (!snapshot) return portalLink;
-    return buildPortalUrl(PORTAL_BASE_URL, portal.portalId, snapshot);
-  }, [snapshot, portal.portalId, portalLink]);
+    // #16/#18: the hash freezes the snapshot into the URL for good, so it is
+    // the SAVED one, and only from lists the server has confirmed.
+    if (!publishedSnapshot || !portalListsServerRead) return portalLink;
+    return buildPortalUrl(PORTAL_BASE_URL, portal.portalId, publishedSnapshot);
+  }, [publishedSnapshot, portalListsServerRead, portal.portalId, portalLink]);
 
   const snapshotSizeKb = useMemo(() => {
     return snapshot ? estimateSnapshotSizeKb(snapshot) : 0;
@@ -920,9 +1000,22 @@ function ClientPortalSetupScreenInner() {
   // RICH version (includes message thread, AIA, contract, etc) and
   // overwrites the lite version on next save.
   const hasPersistedRef = useRef(false);
+  // #16: 'held' = waiting on the lists / profile / ownership (said on screen),
+  // 'refused' = the upsert came back with an error (said on screen — it used
+  // to be a console.warn, so a refused publish looked like a published one).
+  const [publishState, setPublishState] = useState<'idle' | 'held' | 'published' | 'refused'>('idle');
+  const isOwnerRef = useRef(isOwner);
+  isOwnerRef.current = isOwner;
   useEffect(() => {
-    if (!snapshot || !project?.id || !portal.portalId) return;
+    if (!publishedSnapshot || !publishPortal || !project?.id || !publishPortal.portalId) return;
     if (!isSupabaseConfigured) return;
+    // #16: this is a FULL replace built from the device's lists. Never from
+    // lists the server has not confirmed since the last foreground (a stale
+    // cache would pull shared invoices / COs off the homeowner's page), never
+    // from a profile that has not loaded (#104 — "MAGE ID" and a blank
+    // contact), and never from a device that does not own the project (the
+    // owner-only RLS refuses it anyway).
+    if (!portalListsServerRead || !settingsLoaded || !isOwner) { setPublishState('held'); return; }
     // #122: this is a FULL replace of the row, so publishing before the
     // contract / selections / closeout reads have succeeded would drop the
     // contract card (and bring the proposal back) on a flaky connection — or
@@ -937,12 +1030,18 @@ function ClientPortalSetupScreenInner() {
     // table empty. Subsequent updates still debounce.
     const initialDelay = hasPersistedRef.current ? 1500 : 200;
     const t = setTimeout(() => {
+      // Re-checked when the timer FIRES (#16): a foreground during the delay
+      // drops the server-read flag, and that pass must not publish.
+      const g = publishGateRef.current;
+      if (!g.portalListsServerRead || !g.settingsLoaded || !isOwnerRef.current) { setPublishState('held'); return; }
+      // #18: everything below is the SAVED portal, never the local switches.
+      const portal = publishPortal;
       void supabase
         .from('portal_snapshots')
         .upsert({
           portal_id: portal.portalId,
           project_id: project.id,
-          snapshot: snapshot as unknown as Record<string, unknown>,
+          snapshot: publishedSnapshot as unknown as Record<string, unknown>,
           updated_at: new Date().toISOString(),
           // Link lifetime rides along with every snapshot push rather than
           // needing its own write — so it MUST be the policy's answer, not the
@@ -952,6 +1051,7 @@ function ClientPortalSetupScreenInner() {
           // (portal_snapshots_link_expiry_policy) that computes the same rule.
           // link_duration_days stays NULL for until-handover: that NULL is how
           // the database knows the date is its to compute.
+          // #18: the SAVED lifetime — an unsaved duration edit is not live.
           expires_at: expiresAtForPolicy({
             linkDurationDays: portal.linkDurationDays,
             linkExpiresAt: portal.linkExpiresAt,
@@ -961,12 +1061,17 @@ function ClientPortalSetupScreenInner() {
           link_duration_days: portal.linkDurationDays ?? null,
         }, { onConflict: 'portal_id' })
         .then(({ error }) => {
-          if (error) console.warn('[portal-snapshot] persist failed:', error.message);
-          else { hasPersistedRef.current = true; console.log('[portal-snapshot] persisted (rich) for portalId', portal.portalId); }
-        });
+          if (error) {
+            console.warn('[portal-snapshot] persist failed:', error.message);
+            setPublishState('refused');
+          } else {
+            hasPersistedRef.current = true;
+            setPublishState('published');
+          }
+        }, () => setPublishState('refused'));
     }, initialDelay);
     return () => clearTimeout(t);
-  }, [snapshot, project?.id, project?.status, project?.closedAt, project?.contractMode, costSourcesReady, richReadsReady, portal.portalId, portal.linkExpiresAt, portal.linkDurationDays]);
+  }, [publishedSnapshot, publishPortal, project?.id, project?.status, project?.closedAt, project?.contractMode, costSourcesReady, richReadsReady, portalListsServerRead, settingsLoaded, isOwner]);
 
   // The hash link carries the snapshot itself and has no ?t= token, so the
   // page never refreshes it from the server. On a GMP / open-book job, one
@@ -976,6 +1081,11 @@ function ClientPortalSetupScreenInner() {
   const snapshotHeldForCosts = (project?.contractMode === 'gmp' || project?.contractMode === 'open_book') && !costSourcesReady;
   const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
     // Same rule as portalLinkWithHash: the fallback keeps the access token.
+    // #16/#18: the hash link is built from the SAVED settings and only from
+    // server-confirmed lists — otherwise the short link, which always reads
+    // the published row.
+    const snapshot = publishedSnapshot;
+    if (!portalListsServerRead) return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id, portal.accessToken);
     if (!snapshot || snapshotHeldForCosts) return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id, portal.accessToken);
     // Include invite.id so the portal page can greet the client by name + mark viewed
     const inviteSnapshot = invite
@@ -987,7 +1097,7 @@ function ClientPortalSetupScreenInner() {
       inviteSnapshot,
       invite?.id,
     );
-  }, [snapshot, snapshotHeldForCosts, portal.portalId, portal.accessToken]);
+  }, [publishedSnapshot, snapshotHeldForCosts, portalListsServerRead, portal.portalId, portal.accessToken]);
 
   // Short, shareable URL — `mageid.app/portal/<id>?inviteId=...` with no
   // base64 hash. Use this for SMS, email body, and anywhere the long
@@ -1002,9 +1112,11 @@ function ClientPortalSetupScreenInner() {
   // a fallback when Resend is unavailable — see below.)
 
   const handleToggle = useCallback((key: keyof ClientPortalSettings, value: boolean) => {
+    // #19: the switches are disabled for a non-owner; this is the belt.
+    if (ownerOnlyReason) return;
     setPortal(p => ({ ...p, [key]: value }));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, []);
+  }, [ownerOnlyReason]);
 
   // Accept a client's budget proposal: marks it accepted in Supabase AND
   // writes the amount to project.targetBudget so the portal stat picks it up.
@@ -1034,6 +1146,8 @@ function ClientPortalSetupScreenInner() {
 
   const handleSave = useCallback(async () => {
     if (!id) return;
+    // #19: never "Saved" for a save that reaches no one.
+    if (ownerOnlyReason) { showAlert('Not saved', ownerOnlyReason); return; }
     if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < 4)) {
       showAlert('Passcode Required', 'Please enter a passcode of at least 4 characters, or disable passcode protection.');
       return;
@@ -1041,12 +1155,17 @@ function ClientPortalSetupScreenInner() {
     setIsSaving(true);
     try {
       updateProject(id, { clientPortal: portal });
+      // The provider republishes the lite snapshot for this job too, so the
+      // saved switches reach the homeowner even if he leaves right away.
+      requestPortalPublish(id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Saved', 'Portal settings updated.');
+      showAlert('Saved', portalListsServerRead
+        ? 'Portal settings updated.'
+        : 'Portal settings saved. Your client\'s page will update when your lists finish syncing.');
     } finally {
       setIsSaving(false);
     }
-  }, [id, portal, updateProject]);
+  }, [id, portal, updateProject, ownerOnlyReason, requestPortalPublish, portalListsServerRead]);
 
   // Send modal state — replaces the old web "Share" Alert that just
   // showed the message text and couldn't actually dispatch anything.
@@ -1138,7 +1257,12 @@ function ClientPortalSetupScreenInner() {
       linkGeneratedAt: new Date().toISOString(),
     };
     setPortal(next);
-    if (id) updateProject(id, { clientPortal: next });
+    // #18: persist ONLY the link keys onto the SAVED portal — writing the
+    // whole local portal here published every unsaved switch with it.
+    if (id) {
+      const base = project?.clientPortal?.enabled ? project.clientPortal : next;
+      updateProject(id, { clientPortal: { ...base, linkDurationDays: durationChoice, linkExpiresAt: nextExpiry ?? undefined, linkGeneratedAt: next.linkGeneratedAt } });
+    }
     void AsyncStorage.setItem(
       LINK_DURATION_PREF_KEY,
       durationChoice === null ? UNTIL_HANDOVER_PREF : String(durationChoice),
@@ -1367,12 +1491,24 @@ function ClientPortalSetupScreenInner() {
       {
         text: 'Disable', style: 'destructive', onPress: () => {
           if (!id) return;
-          updateProject(id, { clientPortal: { ...portal, enabled: false } });
+          // #134: revoking access also turns the weekly recap OFF, so turning
+          // the portal back on never silently restarts emails he didn't
+          // re-choose (the digest itself also refuses a disabled portal).
+          // Built on the SAVED portal (#18) — unsaved switches are not kept.
+          const base = project?.clientPortal ?? portal;
+          allowLeaveRef.current = true;
+          updateProject(id, {
+            clientPortal: {
+              ...base,
+              enabled: false,
+              ...(base.weeklyDigest ? { weeklyDigest: { ...base.weeklyDigest, enabled: false } } : {}),
+            },
+          });
           router.back();
         },
       },
     ]);
-  }, [id, portal, updateProject, router]);
+  }, [id, portal, project?.clientPortal, updateProject, router]);
 
   if (!project) {
     return (
@@ -1406,7 +1542,14 @@ function ClientPortalSetupScreenInner() {
             </TouchableOpacity>
           ),
           headerRight: () => (
-            <TouchableOpacity onPress={handleSave} disabled={isSaving} style={styles.headerSaveBtn}>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={isSaving || !!ownerOnlyReason}
+              style={[styles.headerSaveBtn, !!ownerOnlyReason && { opacity: 0.5 }]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isSaving || !!ownerOnlyReason }}
+              testID="portal-setup-save"
+            >
               <Text style={styles.headerSaveBtnText}>{isSaving ? 'Saving…' : 'Save'}</Text>
             </TouchableOpacity>
           ),
@@ -1418,6 +1561,28 @@ function ClientPortalSetupScreenInner() {
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >
+        {/* #19 / #16 / #18: why a control is blocked, or why the client's page
+            has not changed yet — said on the page, never a silent hold. */}
+        {!!ownerOnlyReason && (
+          <View style={styles.linkCard} testID="portal-setup-owner-only">
+            <Text style={styles.expiryHint}>{ownerOnlyReason}</Text>
+          </View>
+        )}
+        {!ownerOnlyReason && hasUnsavedPortalChanges && (
+          <View style={styles.linkCard} testID="portal-setup-unsaved">
+            <Text style={styles.expiryHint}>Unsaved changes — your client&apos;s page is unchanged until you tap Save.</Text>
+          </View>
+        )}
+        {!ownerOnlyReason && !!project?.clientPortal?.enabled && publishState === 'held' && (
+          <View style={styles.linkCard} testID="portal-setup-publish-held">
+            <Text style={styles.expiryHint}>Portal will update when your lists finish syncing.</Text>
+          </View>
+        )}
+        {!ownerOnlyReason && publishState === 'refused' && (
+          <View style={styles.linkCard} testID="portal-setup-publish-refused">
+            <Text style={styles.expiryHint}>Not published — the server refused this update, so your client still sees the last version. Check your connection and reopen this screen.</Text>
+          </View>
+        )}
         {/* Portal Link */}
         <View style={styles.linkCard}>
           <View style={styles.linkCardHeader}>
@@ -1603,6 +1768,7 @@ function ClientPortalSetupScreenInner() {
                 </View>
               </View>
               <Switch
+                disabled={!!ownerOnlyReason}
                 value={!!portal.requirePasscode}
                 onValueChange={val => setPortal(p => ({ ...p, requirePasscode: val }))}
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}
@@ -1616,12 +1782,13 @@ function ClientPortalSetupScreenInner() {
                 style={[styles.welcomeInput, { minHeight: 48, textAlign: 'center' as const, letterSpacing: 2, fontSize: Type.callout.fontSize, marginTop: 10 }]}
                 value={portal.passcode ?? ''}
                 onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
+                editable={!ownerOnlyReason}
                 placeholder="Enter a passcode (4-12 chars)"
                 placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="none"
                 maxLength={20}
               />
-              <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} disabled={!!ownerOnlyReason} activeOpacity={0.8}>
                 <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.resetPasscodeText}>Generate New Passcode</Text>
               </TouchableOpacity>
@@ -1642,6 +1809,7 @@ function ClientPortalSetupScreenInner() {
                 <TouchableOpacity
                   key={l.code}
                   style={[styles.langChip, active && styles.langChipActive]}
+                  disabled={!!ownerOnlyReason}
                   onPress={() => {
                     setPortal(p => ({ ...p, homeownerLanguage: l.code }));
                     if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
@@ -1668,6 +1836,7 @@ function ClientPortalSetupScreenInner() {
             style={styles.welcomeInput}
             value={portal.welcomeMessage}
             onChangeText={val => setPortal(p => ({ ...p, welcomeMessage: val }))}
+            editable={!ownerOnlyReason}
             placeholder="e.g. Hi! Here's a live view of your project. Feel free to reach out with any questions."
             placeholderTextColor={themeColors.textMuted}
             multiline
@@ -1692,6 +1861,7 @@ function ClientPortalSetupScreenInner() {
                 </View>
               </View>
               <Switch
+                disabled={!!ownerOnlyReason}
                 value={!!portal.clientCanSetBudget}
                 onValueChange={val => handleToggle('clientCanSetBudget', val)}
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}
@@ -1774,6 +1944,7 @@ function ClientPortalSetupScreenInner() {
                 </View>
               </View>
               <Switch
+                disabled={!!ownerOnlyReason}
                 value={!!portal.weeklyDigest?.enabled}
                 onValueChange={val => handleToggle('weeklyDigest', { ...(portal.weeklyDigest ?? {}), enabled: val } as never)}
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}
@@ -1797,7 +1968,10 @@ function ClientPortalSetupScreenInner() {
                 // A preview that sent nothing says WHY: the function now skips
                 // a closed job and an ended portal link, and a per-invite send
                 // failure is not "no invites" either.
-                if (sent > 0) {
+                if (errs.includes('portal_disabled')) {
+                  // #134: the function refuses a disabled portal outright.
+                  showAlert('Portal is off', 'Nothing was emailed. Turn the portal on to email your client.');
+                } else if (sent > 0) {
                   showAlert('Preview sent', `Sent the recap to ${sent} portal invite${sent === 1 ? '' : 's'}. Check your inbox or your client's.`);
                 } else if (errs.includes('project_closed')) {
                   // The closing email only goes out through the weekly recap's
@@ -1974,6 +2148,7 @@ function ClientPortalSetupScreenInner() {
                 </View>
               </View>
               <Switch
+                disabled={!!ownerOnlyReason}
                 value={!!portal.coApprovalEnabled}
                 onValueChange={val => handleToggle('coApprovalEnabled', val)}
                 trackColor={{ false: themeColors.line, true: themeColors.accent }}
@@ -2122,6 +2297,7 @@ function ClientPortalSetupScreenInner() {
                 <View key={key} style={[styles.toggleRow, index < arr.length - 1 && styles.toggleRowBorder]}>
                   <Text style={[styles.toggleLabel, { flex: 1 }]}>{label}</Text>
                   <Switch
+                    disabled={!!ownerOnlyReason}
                     value={enabled}
                     onValueChange={(v) => {
                       setPortal(p => ({
@@ -2162,6 +2338,7 @@ function ClientPortalSetupScreenInner() {
                   </View>
                 </View>
                 <Switch
+                  disabled={!!ownerOnlyReason}
                   value={portal[item.key] as boolean}
                   onValueChange={val => handleToggle(item.key, val)}
                   trackColor={{ false: themeColors.line, true: themeColors.accent }}
@@ -2193,7 +2370,7 @@ function ClientPortalSetupScreenInner() {
               keyboardType="email-address"
               autoCapitalize="none"
             />
-            <TouchableOpacity style={styles.inviteBtn} onPress={handleAddInvite}>
+            <TouchableOpacity style={[styles.inviteBtn, !!ownerOnlyReason && { opacity: 0.5 }]} onPress={handleAddInvite} disabled={!!ownerOnlyReason}>
               <Plus size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.inviteBtnText}>Add Client</Text>
             </TouchableOpacity>
@@ -2257,7 +2434,12 @@ function ClientPortalSetupScreenInner() {
         </TouchableOpacity>
 
         {/* Danger Zone */}
-        <TouchableOpacity style={styles.disableBtn} onPress={handleDisablePortal}>
+        <TouchableOpacity
+          style={[styles.disableBtn, !!ownerOnlyReason && { opacity: 0.5 }]}
+          onPress={handleDisablePortal}
+          disabled={!!ownerOnlyReason}
+          accessibilityState={{ disabled: !!ownerOnlyReason }}
+        >
           <EyeOff size={16} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.disableBtnText}>Disable Client Portal</Text>
         </TouchableOpacity>

@@ -123,9 +123,23 @@ console.log('\noffline queue ordering, idempotent re-sends, record keys:');
 // record key fell back to the per-mutation id, so two project_financials /
 // building_access_rules upserts for ONE project (payloads carry project_id,
 // never id) ran concurrently and the older could win. Pin the widened fallback.
-ok('the record key falls back through project_id / portal_id / sub_portal_id before mutation.id (SYNC-F6)',
-  /d\.id \?\? d\.project_id \?\? d\.portal_id \?\? d\.sub_portal_id \?\? mutation\.id/.test(code),
-  'rows keyed by project_id / portal_id must serialize per record, not race per mutation');
+// Integration round 3 (wave 4): the fallback is now PER TABLE —
+// utils/syncRecordKey.recordIdOf: id, else that table's own primary key — so
+// an id-less row of an id-keyed table (a portal notice) is no longer grouped
+// with every other row of its job. The SYNC-F6 guarantee is unchanged: two
+// project_financials / building_access_rules / snapshot upserts of one record
+// share a group. Checked by running the real rule.
+{
+  const keySrc = readFileSync(join(__dirname, '..', 'utils', 'syncRecordKey.ts'), 'utf8');
+  const map = /export const RECORD_KEY_BY_TABLE[^=]*= \{([\s\S]*?)\};/.exec(keySrc)?.[1] ?? '';
+  const keyOf = (t: string) => new RegExp(`\\b${t}: '([a-z_]+)'`).exec(map)?.[1];
+  ok('the record key falls back to the table\'s own key (project_id / portal_id / sub_portal_id) before mutation.id (SYNC-F6)',
+    /const recordKey = `\$\{mutation\.table\}:\$\{recordIdOf\(mutation\.table, mutation\.data\) \?\? mutation\.id\}`;/.test(code)
+      && keyOf('project_financials') === 'project_id' && keyOf('building_access_rules') === 'project_id'
+      && keyOf('portal_snapshots') === 'portal_id' && keyOf('sub_portal_snapshots') === 'sub_portal_id'
+      && /const k = d\.id \?\? \(keyCol \? d\[keyCol\] : undefined\);/.test(keySrc),
+    'rows keyed by project_id / portal_id must serialize per record, not race per mutation');
+}
 
 // SYNC-F1 — every child table's INSERT policy needs the project row to exist
 // and Postgres evaluates it before the FK, so projects groups must finish
@@ -159,9 +173,14 @@ console.log('\noffline queue is bound to one session; children wait for their pa
 // queue) or anonymously (after the 20 s sign-out ceiling). Pin every piece:
 // the tag at enqueue, the no-session early return, the foreign-tag skip, the
 // legacy-marker rule, and the re-check before every batch AND every send.
+// Integration round 1: a direct write that falls into the queue is tagged for
+// the WRITER it captured when it started (a request in flight across a
+// sign-out + someone else's sign-in must not become the new user's).
 ok('every enqueue records the signed-in user (B1a)',
-  /const userId = \(await currentSessionUser\(\)\)\?\.id;/.test(code)
-    && /\.\.\.\(userId \? \{ userId \} : \{\}\)/.test(code),
+  /const userId = writer \? writer\.userId : \(await currentSessionUser\(\)\)\?\.id;/.test(code)
+    && /\.\.\.\(userId \? \{ userId \} : \{\}\)/.test(code)
+    && (code.match(/return enqueueOrFail\(m, writerId, dropNoticeFor\(opts\)\);/g) ?? []).length === 4
+    && !/return enqueueOrFail\(m\);/.test(code),
   'an untagged entry cannot be told apart from another tenant\'s');
 ok('a flush with no session sends nothing and keeps everything (B1b)',
   /const flushUser = await currentSessionUser\(\);\s*if \(!flushUser\) \{[\s\S]{0,300}?return \{ processed: 0, failed: 0, remaining: 0, foreign: queue\.length \};/.test(code),
@@ -215,8 +234,8 @@ ok('a lost session is sticky for the rest of the flush',
 // insert reaches the server both times) dropped the child as terminal. Now a
 // child whose parent stayed queued or was dropped is not dispatched at all.
 ok('projects groups that did not land are collected after tier 0 (B2)',
-  /const landed = result\.remaining\.length === 0 && result\.dropped\.length === 0;\s*if \(result\.doomsChildren\) parentDoomed\.add\(pid\);\s*else if \(!landed\) parentPending\.add\(pid\);/.test(code),
-  '"remaining OR dropped" — both mean the child cannot succeed yet; a doomed ' +
+  /const landed = result\.remaining\.length === 0 && result\.dropped\.length === 0 && result\.failed === 0;\s*if \(result\.doomsChildren\) parentDoomed\.add\(pid\);\s*else if \(!landed\) parentPending\.add\(pid\);/.test(code),
+  '"remaining OR dropped OR parked (failed)" — all mean the child cannot succeed yet; a doomed ' +
   'parent (A5) is classified first because its children never get another turn');
 ok('a child of a pending parent is held untouched — no dispatch, no rlsRetried, no retry budget (B2)',
   /if \(pid && parentPending\.has\(pid\)\) \{\s*heldForParent \+= group\.length;\s*continue;\s*\}/.test(code),
@@ -242,10 +261,11 @@ ok('only a drop that PROVES the children cannot land dooms them (A5)',
   'an upsert dropped for its PAYLOAD is often an edit of a project that DOES ' +
   'exist on the server — those children keep the B2 hold');
 ok('doomed children leave storage without a dispatch and are counted as failed (A5)',
-  /if \(pid && parentDoomed\.has\(pid\)\) \{[\s\S]{0,500}?dropped: group, processedTables: new Set\(\), doomsChildren: false \}\);\s*doomedChildren\.push\(\.\.\.group\);/.test(code)
+  // Integration round 2: ledgered under the child's slot BEFORE the write-back.
+  /if \(pid && parentDoomed\.has\(pid\)\) \{[\s\S]{0,300}?dropped: group, processedTables: new Set\(\), doomsChildren: false \};[\s\S]{0,300}?await recordGroupDrops\(doomed\);\s*await writeBackGroup\(group, doomed\);\s*\}\);\s*doomedChildren\.push\(\.\.\.group\);/.test(code)
     && /failed \+= doomedChildren\.length;/.test(code));
 ok('…and are reported in the SAME toast as the parent that took them down (A5)',
-  /dropped\.push\(\.\.\.doomedChildren\);[\s\S]{0,200}?if \(dropped\.length > 0\) \{\s*notifyDroppedWrites\(dropped, /.test(code),
+  /dropped\.push\(\.\.\.doomedChildren\);[\s\S]{0,500}?if \(dropped\.length > 0\) \{\s*await notifyDroppedWrites\(dropped, /.test(code),
   'one report per flush — a rejected project and its children are one loss, not four');
 
 // A3 — `remaining` is the OWN-tenant count. Counting another tenant's leftovers
@@ -494,8 +514,11 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
   ok('usePortalThread sends through writePortalMessage, not a direct insert',
     /await writePortalMessage\(\{ \.\.\.row \}\)/.test(pt) && !/supabaseWriteDetailed\('portal_messages'/.test(pt));
   const oq = readFileSync(join(ROOT, 'utils', 'offlineQueue.ts'), 'utf8');
+  // Wave 4 (#1): the default toast now says the plain reason and where to
+  // retry (the refusal is recorded in the sync ledger), but a caller's own
+  // words still win.
   ok('supabaseWriteDetailed lets the caller word a refusal',
-    /oops\(plain \?\? `Couldn't save \(\$\{table\}\)\. \$\{msg\.slice\(0, 80\)\}`\)/.test(oq));
+    /try \{ plain = opts\?\.describeFailure\?\.\(msg, code\); \} catch \{ plain = undefined; \}\s*oops\(plain \?\? `Couldn't save \(/.test(oq));
 }
 
 if (fail > 0) {

@@ -35,6 +35,8 @@ import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { daysUntilCalendarDay } from '@/utils/calendarDate';
+import { paymentReceivedAt, type RecordedPaymentFields } from '@/utils/billingFlowCore';
+import type { InvoicePayment } from '@/types';
 
 type WindowKey = 'thisWeek' | 'lastWeek' | 'last30';
 
@@ -180,7 +182,16 @@ export default function WeeklySnapshotScreen() {
     const totalUnpaid = invoices.reduce((s, i) => s + invoiceOutstanding(i), 0); // MONEY-F5: net of held retention
     const paidThisWindow = invoices
       .flatMap(i => i.payments ?? [])
-      .filter(p => inRange(p.date))
+      // #85: the day the money was RECEIVED (a check keyed in Monday for
+      // Friday's deposit counts in Friday's week), the same date Payments,
+      // QuickBooks, cash flow and the portal use. paymentReceivedAt, not the
+      // bare day: new Date('YYYY-MM-DD') is UTC midnight — the previous
+      // evening across the Americas — and would drop a first-day-of-window
+      // payment into the week before.
+      .filter(p => {
+        const t = paymentReceivedAt(p as InvoicePayment & RecordedPaymentFields).getTime();
+        return Number.isFinite(t) && t >= range.start && t <= range.end;
+      })
       .reduce((s, p) => s + (p.amount ?? 0), 0);
     return { issuedCount: issuedThisWindow.length, totalIssued, totalUnpaid, paidThisWindow };
   }, [invoices, range]);

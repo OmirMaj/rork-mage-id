@@ -86,9 +86,13 @@ console.log('\n1 · #23 portal publish waits for a SERVER read of every portal-f
   ok('portalSyncReady requires portalListsFromServer(portalServerReads, userId)',
     /portalListsFromServer\(portalServerReads, userId\)/.test(gate), gate.slice(0, 400));
   const publish = slice(CTX, 'const publishOwnedPortals = useCallback(', '// A new account starts with nothing published');
+  // The gate may carry further stop conditions after it (wave 4 added
+  // `|| epochMoved()`), but the server-read check must lead the condition and
+  // still come before any mark is settled.
+  const gateRe = /if \(!portalListsServerRef\.current\b[^\n]*?\) return;/;
+  const gateHit = gateRe.exec(publish);
   ok('publishOwnedPortals stops (settling nothing) when a list is the cache\'s at publish time',
-    /if \(!portalListsServerRef\.current\) return;/.test(publish)
-    && publish.indexOf('if (!portalListsServerRef.current) return;') < publish.indexOf('const marks = new Map('));
+    !!gateHit && gateHit.index < publish.indexOf('const marks = new Map('));
   for (const l of PORTAL_FED_LISTS) {
     ok(`${l}: stamped on the server branch AND cleared on the cache fallback (with the read's epoch)`,
       CTX.includes(`notePortalRead('${l}', userId, true, readEpoch)`) && CTX.includes(`notePortalRead('${l}', userId, false, readEpoch)`));
@@ -206,13 +210,13 @@ console.log('\n6 · #23 round 2 · a publish uses only lists read since the late
     /setWarrantiesReload\(n => n \+ 1\);/.test(slice(CTX, 'const retryRemoteReads = useCallback(', '}, [queryClient, userId]);')));
   const publish = slice(CTX, 'const publishOwnedPortals = useCallback(', '// A new account starts with nothing published');
   ok('publishOwnedPortals re-checks the gate before EACH project\'s write (a foreground mid-pass stops it)',
-    /if \(!portalListsServerRef\.current\) return;\s*const outcome = await syncPortalSnapshotLite\(/.test(publish));
+    /if \(!portalListsServerRef\.current\b[^\n]*?\) return;\s*const outcome = await syncPortalSnapshotLite\(/.test(publish));
   // Lists now re-read with edits out keep this device's in-flight rows.
   for (const [table, tag] of [['daily_reports', 'Dr'], ['photos', 'Ph'], ['permits', 'Pm'], ['warranties', 'Wr']] as const) {
     ok(`${table}: every direct write is tracked, and the loader keeps rows written during its read`,
       !new RegExp(`void supabaseWrite\\('${table}'`).test(CTX)
         && new RegExp(`touched${tag} = deviceRowsWrittenDuringRead\\(proDocWriteTouchRef\\.current, readStartedAt,`).test(CTX)
-        && new RegExp(`queuedIdsFor\\('${table}'\\), \\.\\.\\.touched${tag}\\.keep\\]\\)`).test(CTX));
+        && new RegExp(`queuedIdsFor\\('${table}'\\), \\.\\.\\.await unsavedWriteIds\\('${table}'\\), \\.\\.\\.touched${tag}\\.keep\\]\\)`).test(CTX));
   }
 }
 
@@ -279,8 +283,16 @@ console.log('\n4 · CO audit stash follows the queue it belongs to');
   ok('it is swept when the queue is dropped', selectTenantKeysToWipe(['mageid_co_audit_pending']).length === 1);
   ok('it is not smuggled into the lock-checked write-queue list', !OFFLINE_WRITE_QUEUE_KEYS.includes('mageid_co_audit_pending'));
   const wipe = slice(AUTH, 'async function wipeLocalUserCache(', 'try {\n    await AsyncStorage.multiRemove(LOCAL_USER_CACHE_KEYS');
+  // #10 (wave 4): both drop sites go through ONE helper, which removes the
+  // owner-stamped keys with the queues (validate-storage-hygiene executes the
+  // tenant-switch site).
+  const dropHelper = slice(AUTH, 'async function dropPendingWrites(): Promise<void> {', '\n}\n');
   ok('a deliberate sign-out (dropOfflineQueue) removes it explicitly',
-    /if \(dropOfflineQueue\) \{[\s\S]*multiRemove\(\[\.\.\.OWNER_STAMPED_PENDING_KEYS\]\)/.test(wipe));
+    /if \(dropOfflineQueue\) \{[\s\S]*await dropPendingWrites\(\);/.test(wipe)
+    && /multiRemove\(\[\.\.\.OWNER_STAMPED_PENDING_KEYS\]\)/.test(dropHelper));
+  const complete = slice(AUTH, 'const completeSignIn = useCallback(', '\n  }, [');
+  ok('…and so does a different user signing in (completeSignIn\'s tenant switch, #10)',
+    /\} else \{[\s\S]*?await dropPendingWrites\(\);/.test(complete));
 }
 
 console.log('\n5 · auth events held while the tenant handoff runs');

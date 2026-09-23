@@ -47,6 +47,8 @@
 // Response:
 //   { success: true, url: string, id: string }
 //   { success: false, error: string }
+//   409 { success: false, error: 'payment_pending' } — a bank payment through
+//       the previous link is still settling (#83); no new link is minted.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 // EDGE-F8 / MONEY-F8: identity + tier are server-resolved (GoTrue-verified JWT,
@@ -65,6 +67,18 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+// >>> payment-pending-hold (pure; same rule as invoice-dunning and
+// utils/billingFlowCore.paymentPendingHolds — scripts/validate-w4-invoice-send-
+// core.ts executes all three and requires identical answers)
+const PAYMENT_PENDING_HOLD_MS = 10 * 24 * 60 * 60 * 1000;
+function paymentPendingHolds(pendingAt: string | null | undefined, nowMs: number): boolean {
+  if (!pendingAt) return false;
+  const t = new Date(pendingAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t < PAYMENT_PENDING_HOLD_MS;
+}
+// <<< payment-pending-hold
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -301,21 +315,61 @@ serve(async (req) => {
     // invoice credited twice. aia_pay_apps.pay_link_id lands in migration
     // 20260904100100: apply it BEFORE deploying this function (HARD ordering
     // gate; stripe-webhook carries the same dependency).
-    const ownRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(body.invoiceId)}&select=id,user_id,pay_link_id&limit=1`,
-      { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+    // #38 / #83: also read project_id (the project must be the caller's own)
+    // and pay_pending_at (a bank payment still settling). pay_pending_at lands
+    // with migration 20260920020000 — apply it BEFORE deploying this function;
+    // if it is missing anyway, the lookup is retried without it (PostgREST
+    // refuses the whole select on an unknown column) so minting keeps working.
+    const headers = { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` };
+    const lookup = (cols: string) => fetch(
+      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(body.invoiceId)}&select=${cols}&limit=1`,
+      { headers },
     );
+    let ownRes = await lookup("id,user_id,project_id,pay_link_id,pay_pending_at");
+    if (!ownRes.ok && ownRes.status === 400) {
+      console.warn("[create-payment-link] pay_pending_at not readable (migration 20260920020000 not applied?) — checking without it");
+      ownRes = await lookup("id,user_id,project_id,pay_link_id");
+    }
     if (!ownRes.ok) {
       console.error("[create-payment-link]", recordType, "lookup failed:", ownRes.status);
       return jsonResponse({ success: false, error: "Could not verify invoice ownership" }, 500);
     }
-    const ownRows = await ownRes.json() as { id: string; user_id: string; pay_link_id?: string | null }[];
+    const ownRows = await ownRes.json() as {
+      id: string; user_id: string; project_id?: string | null; pay_link_id?: string | null; pay_pending_at?: string | null;
+    }[];
     if (ownRows.length === 0) {
       return jsonResponse({ success: false, error: "Invoice not found" }, 404);
     }
     if (ownRows[0].user_id !== callerSub) {
       console.warn("[create-payment-link] caller", callerSub, "tried to create link for", recordType, "owned by", ownRows[0].user_id);
       return jsonResponse({ success: false, error: "Invoice does not belong to caller" }, 403);
+    }
+    // #38: only the PROJECT OWNER bills the project's client. A row a
+    // collaborator inserted before the owner-only insert policy (or from a
+    // stale build's offline queue) is his own, so the check above passes —
+    // but its link would pay HIS Stripe account for the GC's job.
+    const projectId = ownRows[0].project_id ?? null;
+    if (projectId) {
+      const projRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(projectId)}&select=user_id&limit=1`,
+        { headers },
+      );
+      if (!projRes.ok) {
+        console.error("[create-payment-link] project lookup failed:", projRes.status);
+        return jsonResponse({ success: false, error: "Could not verify project ownership" }, 500);
+      }
+      const projRows = await projRes.json() as { user_id: string | null }[];
+      if (!projRows[0] || projRows[0].user_id !== callerSub) {
+        console.warn("[create-payment-link] caller", callerSub, "is not the owner of project", projectId);
+        return jsonResponse({ success: false, error: "Only the project owner can bill this project's client" }, 403);
+      }
+    }
+    // #83 / #135: the client's bank payment (ACH) through the last link is
+    // still settling. A new link now invites a second payment. Same 10-day
+    // window as invoice-dunning's paymentPendingHolds: a lost Stripe event
+    // cannot block minting for good.
+    if (paymentPendingHolds(ownRows[0].pay_pending_at ?? null, Date.now())) {
+      return jsonResponse({ success: false, error: "payment_pending" }, 409);
     }
     previousLinkId = ownRows[0].pay_link_id ?? null;
   } catch (e) {

@@ -1678,7 +1678,9 @@ const H = () => (globalThis as any).__QBO_HARNESS;
 export async function qboFetch(_c: unknown, path: string, init: any) { return H().fetch(path, init); }
 export async function qboHash(_o: unknown) { return 'HASH'; }
 function thenable() {
-  const o: any = { eq: () => o, then: (r: (v: any) => void) => r({ error: null }) };
+  // is / select: payment.ts's ledger stamp is a compare-and-swap on updated_at
+  // and reads back the rows it wrote (always one here — no race modelled).
+  const o: any = { eq: () => o, is: () => o, select: () => ({ then: (r: (v: any) => void) => r({ data: [{ id: 'row' }], error: null }) }), then: (r: (v: any) => void) => r({ error: null }) };
   return o;
 }
 export function svc() {

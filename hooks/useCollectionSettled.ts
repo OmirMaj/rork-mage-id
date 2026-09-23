@@ -19,6 +19,15 @@
 //        read the server's number back it shows "(pending #)", and the
 //        architect email waits — a guessed "RFI #7" is never printed as fact.
 //
+// Wave 4, lane rfi-core (audit 2026-09-19):
+//   #25  A live refresh that brings a DIFFERENT answer into a Response he is
+//        typing is a conflict, not a silent keep-mine: rebaseFormOnLiveWith-
+//        Conflicts reports it and the RFI screen blocks Save until he picks.
+//   #29  Only a queued INSERT means "no number yet" — a queued edit of a record
+//        the server numbered weeks ago no longer reads "(pending #)".
+//   #31  Reopening is refused only when an answer is actually on record; a
+//        closed RFI with none reopens, and the ball comes back to the GC.
+//
 // The pure block below is executed by scripts/validate-rfi-core-screens.ts.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,7 +36,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
-import { pendingIdsForTable } from '@/utils/projectContextPure';
+// Frozen CONTRACT 1 helper: "is this record's INSERT still waiting in the queue".
+import { insertStillQueued } from '@/utils/invoiceWrites';
 
 // >>> rfi-core-pure
 /** What a record screen may render right now. */
@@ -98,6 +108,12 @@ export function rfiBallAfterSave(p: {
   if (p.status === 'closed' && prev !== 'closed') {
     return { ball: 'closed', added: [{ at: p.now, fromParty: prev, toParty: 'closed', note: 'RFI closed by GC' }] };
   }
+  // #31: a reopen (closed → open / answered) hands the ball back to the GC —
+  // otherwise the RFI reads Open while the ball stays 'closed', and the hold
+  // clock and chase list both treat it as done. Void keeps it closed.
+  if (prev === 'closed' && p.status !== 'closed' && p.status !== 'void') {
+    return { ball: 'gc', added: [{ at: p.now, fromParty: 'closed', toParty: 'gc', note: 'RFI reopened by GC' }] };
+  }
   if (prev === 'gc' || prev === 'closed') return { ball: prev, added: [] };
   let answeredAfterSend = false;
   if (p.status === 'answered' && p.dateResponded) {
@@ -113,10 +129,19 @@ export function rfiBallAfterSave(p: {
 }
 
 /** Why this save would undo an answer (#55) — the server refuses it, so the
- *  screen says so first instead of letting it silently revert. */
-export function rfiRegressionReason(opened: { status: string; response?: string }, form: { status: string; response: string }): string | null {
-  if ((opened.status === 'answered' || opened.status === 'closed') && form.status === 'open') {
-    return 'An answered RFI stays answered — the response is on record. Void it, or raise a follow-up RFI.';
+ *  screen says so first instead of letting it silently revert. #31: only an
+ *  answer actually ON RECORD (a response, or the day one was given) locks
+ *  Open. A closed RFI with nothing recorded — one tap on Mark complete — can
+ *  be reopened; the reason never claims a response that isn't there. */
+export function rfiRegressionReason(
+  opened: { status: string; response?: string; dateResponded?: string },
+  form: { status: string; response: string },
+): string | null {
+  const answerOnRecord = !!(opened.response ?? '').trim() || !!opened.dateResponded;
+  if ((opened.status === 'answered' || opened.status === 'closed') && form.status === 'open' && answerOnRecord) {
+    return (opened.response ?? '').trim()
+      ? 'An answered RFI stays answered — the response is on record. Void it, or raise a follow-up RFI.'
+      : 'An answered RFI stays answered — the day it was answered is on record. Void it, or raise a follow-up RFI.';
   }
   if ((opened.response ?? '').trim() && !form.response.trim()) {
     return 'The recorded response can\'t be cleared. Edit it instead, or void the RFI.';
@@ -215,12 +240,37 @@ export function manualCycleBlockedReason(cycles: CycleLike[] | undefined): strin
  * unsaved edit forever — Send stayed blocked and Save was refused.
  */
 export function rebaseFormOnLive<T extends Record<string, unknown>>(opened: T, form: T, live: T): T {
-  const out = { ...live };
-  for (const k of Object.keys(form) as (keyof T)[]) {
-    if (formValueKey(form[k]) !== formValueKey(opened[k])) out[k] = form[k];
-  }
-  return out;
+  return rebaseFormOnLiveWithConflicts(opened, form, live).next;
 }
+
+/**
+ * #25: the same rebase, and the fields it could NOT settle — ones he touched
+ * that the live row ALSO changed, to a value different from his. His edit is
+ * still what `next` holds (nothing is thrown away), but a caller must not let
+ * it save silently: for an RFI Response that is the architect's reply-link
+ * answer arriving while he typed, and saving would replace it.
+ */
+export function rebaseFormOnLiveWithConflicts<T extends Record<string, unknown>>(
+  opened: T, form: T, live: T,
+): { next: T; conflicts: (keyof T)[] } {
+  const next = { ...live };
+  const conflicts: (keyof T)[] = [];
+  for (const k of Object.keys(form) as (keyof T)[]) {
+    const mine = formValueKey(form[k]);
+    const base = formValueKey(opened[k]);
+    if (mine === base) continue;
+    next[k] = form[k];
+    const theirs = formValueKey(live[k]);
+    if (theirs !== base && theirs !== mine) conflicts.push(k);
+  }
+  return { next, conflicts };
+}
+
+/** #25: what the RFI screen says while the architect's incoming answer and his
+ *  typed one disagree — Save waits for his choice. */
+export const RFI_RESPONSE_CONFLICT_REASON =
+  'The architect answered through the reply link while you were typing — keep theirs, or replace it with yours.';
+
 
 /**
  * #147 (review round 3): what a reviewer send does to the cycle log. With a
@@ -292,8 +342,8 @@ export function useRefetchCollectionOnOpen(key: CollectionKey): void {
 
 /**
  * #148: the number the SERVER gave this record. Reads it back directly (a
- * read — writes still go through the offline queue). While the insert is
- * queued it is 'pending'; once the server's number is known and differs from
+ * read — writes still go through the offline queue). While the INSERT is
+ * queued it is 'pending' (#29: a queued edit is not); once the server's number is known and differs from
  * the local guess, the collection is refetched so the provider adopts it.
  */
 export function useServerRecordNumber(
@@ -316,7 +366,8 @@ export function useServerRecordNumber(
     const mine = ++seq.current;
     void (async () => {
       let queued = false;
-      try { queued = pendingIdsForTable(await getOfflineQueue(), table).has(id); } catch { queued = false; }
+      // #29: the INSERT only — an edit waiting in the queue is not "no number".
+      try { queued = insertStillQueued(await getOfflineQueue(), table, id); } catch { queued = false; }
       if (mine !== seq.current) return;
       if (queued) { setState('pending'); setServerNumber(undefined); return; }
       if (!isSupabaseConfigured) { setState('local'); return; }

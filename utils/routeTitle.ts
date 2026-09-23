@@ -51,6 +51,7 @@ export function pathToDocumentTitle(pathname: string): string | null {
     '/building-access': 'Building Access',
     '/business': 'Your Business',
     '/copilot-hub': 'MAGE Copilot',
+    '/construction-news': 'Construction News',
     '/cost-seed': 'Seed Your Rates',
     '/cost-xray': 'Cost X-Ray',
     '/deliveries': 'Deliveries',

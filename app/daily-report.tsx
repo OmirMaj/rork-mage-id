@@ -30,7 +30,7 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles, resolveDfrPhotosForDocument, DFR_FILED_PDF_LINK_DAYS } from '@/utils/projectDocuments';
-import { buildDFRHtml, dfrPrintablePhotoSplit } from '@/utils/pdfGenerator';
+import { buildDFRHtml, dfrPrintablePhotoSplit, generateDFRPDF } from '@/utils/pdfGenerator';
 import { openPrintWindowAfterOrThrow } from '@/utils/platformFile';
 import { FolderOpen, FileSignature, ChevronRight } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -40,7 +40,7 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
-import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, LeakScanRecord, ScheduleTask } from '@/types';
+import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, LeakScanRecord, SafetyIncident, ScheduleTask } from '@/types';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
 import { parseCalendarDay, calendarDayOf, daysUntilCalendarDay, formatCalendarDay, todayCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
@@ -83,6 +83,7 @@ import { receiptLinesForDay, mergeReceiptLines, carryIssuesText } from '@/utils/
 import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, photoExtFromUri } from '@/utils/photoUploadCore';
 import { queuePhotoUpload } from '@/utils/photoUploadQueue';
 import {
@@ -755,6 +756,182 @@ export function dfrPhotoMarkupTarget(o: { photoId: string; galleryIds: readonly 
 }
 // <<< dfr-document-pure
 
+// >>> dfr-w4-pure (pure; scripts/validate-w4-dfr-fixes.ts evaluates this block — no imports in here)
+/**
+ * #59/#133 (founder decision pending — this is the interim he was offered): a
+ * field or viewer seat's report, and the photos it mirrors into the gallery,
+ * land as a DRAFT the GC reviews — whatever the owner's auto-share says. The
+ * server forces the same (migration 20260920140000); passing it here keeps
+ * the foreman's own copy and the offline-queued insert agreeing with the
+ * server, so his phone never shows "Shared" for a row the server holds back.
+ * A publisher (owner / editor) gets undefined → the context's auto-share
+ * default, exactly as before.
+ */
+export function dfrNewPortalState(canPublish: boolean): { status: 'draft' } | undefined {
+  return canPublish ? undefined : { status: 'draft' };
+}
+
+/**
+ * #17/#59 — what a field or viewer seat is told about the homeowner. Every
+ * branch is what is true for HIS row: a job with no portal says so; a row
+ * the GC already shared says so; anything else waits on the GC. Null for a
+ * publisher (his SendToClientButton states it).
+ */
+export function dfrPortalSeatNote(o: { canPublish: boolean; portalEnabled: boolean; status?: string | null; isNew: boolean }): string | null {
+  if (o.canPublish) return null;
+  if (!o.portalEnabled) return 'This job has no homeowner portal, so nothing in this report reaches the homeowner.';
+  if (!o.isNew && o.status === 'sent') return 'Shared in the homeowner’s portal by your GC. The project owner decides what the homeowner sees.';
+  return 'Your GC reviews this report and its photos before anything reaches the homeowner.';
+}
+
+/**
+ * #63 — who filed a report, said only from what this device knows. The id
+ * comes off the row (daily_reports.user_id → filedByUserId). A collaborator
+ * sees only his own collaborator row, so the owner is named by role ("the
+ * project owner"), a collaborator by the name or invited email the owner's
+ * list holds, and anyone else is "a team member" — never a guessed name.
+ *   hero       — "Filed by …" on the report (null when it is his own)
+ *   banner     — for the same-day banner ("by you" on his own)
+ *   document   — the PDF's "Filed by" value
+ *   possessive — "<who>'s", for "This case is in <who>'s injury log"
+ * No id at all (a row from before the mapping) → all null / neutral.
+ */
+export function dfrFiledBy(o: {
+  filedByUserId?: string | null; viewerId?: string | null; viewerName?: string | null;
+  ownerUserId?: string | null; people?: { userId?: string | null; name?: string | null; email?: string | null }[];
+}): { hero: string | null; banner: string | null; document: string | null; possessive: string } {
+  const id = o.filedByUserId ?? null;
+  if (!id) return { hero: null, banner: null, document: null, possessive: 'the report author’s' };
+  if (o.viewerId && id === o.viewerId) {
+    return { hero: null, banner: 'by you', document: (o.viewerName ?? '').trim() || 'A team member', possessive: 'your' };
+  }
+  if (o.ownerUserId && id === o.ownerUserId) {
+    return { hero: 'Filed by the project owner', banner: 'by the project owner', document: 'The project owner', possessive: 'the project owner’s' };
+  }
+  const p = (o.people ?? []).find(x => x.userId && x.userId === id);
+  const who = (p?.name ?? '').trim() || (p?.email ?? '').trim();
+  if (who) return { hero: `Filed by ${who}`, banner: `by ${who}`, document: who, possessive: `${who}’s` };
+  return { hero: 'Filed by a team member', banner: 'by a team member', document: 'A team member', possessive: 'the report author’s' };
+}
+
+/**
+ * #122 (founder decision pending — interim): a foreman re-saving a report
+ * someone else wrote cannot see that author's injury case (own-row SELECT on
+ * safety_incidents), so the screen used to insert a blank-classified case
+ * under the same id — a pkey duplicate the queue counted as success — and
+ * his treatment / days-away change vanished while his phone showed it filed.
+ * Now: the case is not visible, the report is not his, and he is not the
+ * owner → the classification is blocked with this reason and no case is
+ * written. The report's own incident fields still save. Null = go ahead.
+ *
+ * `savedHadIncident`: the case under the derived id is only ever written when
+ * a save carried an incident, so if the SAVED report never had one there is
+ * no case to collide with — the foreman adding an injury to the GC's clean
+ * report classifies and files it as before (his insert is allowed by the
+ * safety RLS). Locking there lost the injury from Incidents / OSHA 300 behind
+ * false "it's in the GC's log" copy. Left open: the author saved an incident
+ * and then unticked it — that case exists; a duplicate insert then falls to
+ * the queue's not_visible_conflict drop (sync-queue), not a silent success.
+ */
+export function dfrCaseNotYoursReason(o: {
+  caseVisible: boolean; caseDeleted: boolean; isOwner: boolean; savedHadIncident: boolean;
+  filedByUserId?: string | null; viewerId?: string | null; authorPossessive: string;
+}): string | null {
+  if (o.caseVisible || o.caseDeleted || o.isOwner) return null;
+  if (!o.savedHadIncident) return null;
+  if (!o.filedByUserId || !o.viewerId || o.filedByUserId === o.viewerId) return null;
+  return `This case is in ${o.authorPossessive} injury log — tell the GC. Treatment and days away changed here won’t reach it, so they are locked.`;
+}
+
+/**
+ * #122 (integration round 1): true while "this report's case is not on this
+ * phone" can only mean "the injury log has not loaded yet". Only a SAVED
+ * report with an incident can have a case under its derived id, so a new
+ * report never waits. While true the classification shows as loading (not
+ * locked) and the case write is held (SafetyContext.fileCaseWhenHydrated).
+ */
+export function dfrCaseLogLoading(o: { incidentsHydrated: boolean; caseVisible: boolean; savedHadIncident: boolean }): boolean {
+  return !o.incidentsHydrated && !o.caseVisible && o.savedHadIncident;
+}
+
+/** The classification a filed case already holds, as the DFR's builder input. */
+export function dfrClassOfCase(c: Pick<SafetyIncident, 'type' | 'treatment' | 'daysAway' | 'daysRestricted' | 'restrictedDuty' | 'lostConsciousness' | 'fatality' | 'oshaIllnessType'>): IncidentClassInput {
+  return {
+    type: c.type, treatment: c.treatment, daysAway: c.daysAway, daysRestricted: c.daysRestricted,
+    restrictedDuty: c.restrictedDuty, lostConsciousness: c.lostConsciousness, fatality: c.fatality,
+    ...(c.oshaIllnessType ? { oshaIllnessType: c.oshaIllnessType } : {}),
+  };
+}
+
+/**
+ * #61 — the report "Copy from" offers: the newest report on a calendar day
+ * STRICTLY before this report's day. Newest-of-all copied Wednesday's work,
+ * sub crews and delay note back into a missed Monday opened from Home. Same-
+ * day reports are the same-day banner's business, never a carry source.
+ */
+export function dfrCopySource<T extends { id: string; date: string }>(
+  reports: readonly T[], day: string | null, excludeId: string | null, dayOf: (v: string) => string | null,
+): T | undefined {
+  if (!day) return undefined;
+  let best: { r: T; d: string } | undefined;
+  for (const r of reports) {
+    if (r.id === excludeId) continue;
+    const d = dayOf(r.date);
+    if (!d || d >= day) continue;
+    // Same day: the later stamp wins (ISO strings of one shape order as text).
+    if (!best || d > best.d || (d === best.d && r.date > best.r.date)) best = { r, d };
+  }
+  return best?.r;
+}
+
+/** #61 — the project photos taken on the REPORT's calendar day (they fed the
+ *  photo draft and the voice parser from today, whatever day was open). */
+export function dfrReportDayPhotos<T extends { timestamp?: string | null }>(
+  photos: readonly T[], day: string | null, dayOf: (v: string) => string | null,
+): T[] {
+  if (!day) return [];
+  return photos.filter(p => !!p.timestamp && dayOf(p.timestamp) === day);
+}
+
+/**
+ * #58 — the homeowner update on a SUBMITTED report is its own decision: an
+ * owner or editor can still write, publish or take it down. What "Save
+ * update" would change, compared with what is saved.
+ */
+export function dfrHomeownerUpdateDirty(o: { summary: string; savedSummary?: string | null; published: boolean; savedPublished: boolean }): boolean {
+  return o.summary.trim() !== (o.savedSummary ?? '').trim() || o.published !== o.savedPublished;
+}
+
+/**
+ * #76 — the Draft-CO handoff. The description the CLIENT reads is a neutral
+ * scope sentence (no "~$" AI guesses, no quotes from the internal report, no
+ * "NEEDS PRICE"); each flagged item is its own line (CONTRACT 9 prefillLines),
+ * tagged with where its price came from so the CO screen refuses to send an
+ * unpriced line and asks him to confirm an AI estimate.
+ */
+export function dfrLeakCoPrefill(
+  items: readonly { description: string; estimatedPrice?: number | null }[],
+  whenLabel: string,
+): { prefillDescription: string; prefillLines: string; unpricedCount: number } {
+  const lines = items.filter(it => (it.description ?? '').trim()).map(it => {
+    const priced = typeof it.estimatedPrice === 'number' && Number.isFinite(it.estimatedPrice) && it.estimatedPrice > 0;
+    return {
+      name: it.description.trim().slice(0, 120),
+      description: '',
+      quantity: 1,
+      unit: 'ls',
+      unitPrice: priced ? Math.round((it.estimatedPrice as number) * 100) / 100 : 0,
+      priceSource: priced ? 'ai_estimated' as const : 'needs_price' as const,
+    };
+  });
+  return {
+    prefillDescription: `Additional work outside the original scope, observed ${whenLabel}.`,
+    prefillLines: JSON.stringify(lines),
+    unpricedCount: lines.filter(l => l.priceSource === 'needs_price').length,
+  };
+}
+// <<< dfr-w4-pure
+
 export default function DailyReportScreen() {
   // Safe back, not router.back(): this gate is exactly what a push cold start
   // or a fresh web tab lands on, where there is nothing to pop (UX-F18).
@@ -854,12 +1031,15 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // `entries` hold nobody, so the roster fell back to the schedule plan and
   // guessed 8-hour days for a crew the clock had measured. Read-only merge
   // (mergeTimeEntriesMirror) — this screen never writes a time entry.
-  const { entries: ownTimeEntries, teamEntries, refresh: refreshTimeEntries } = useTimeEntries();
+  // shiftAlertHours (#41, time-labor handoff): the GC's "still on the clock"
+  // alert window. A shift left open past it is a missed clock-out, not hours
+  // worked, so the roster keeps it out of totals and overtime.
+  const { entries: ownTimeEntries, teamEntries, refresh: refreshTimeEntries, shiftAlertHours } = useTimeEntries();
   const timeEntries = useMemo(() => mergeTimeEntriesMirror(ownTimeEntries, teamEntries), [ownTimeEntries, teamEntries]);
   // DFR-OSHA-BRIDGE — an injury written on the daily report has to land on the
   // safety register, or it never reaches the OSHA 300 that gets pulled months
   // later for an insurance renewal or a prequal.
-  const { incidents: safetyIncidents, addIncident, updateIncident, isIncidentDeleted, clearIncidentTombstone } = useSafety();
+  const { incidents: safetyIncidents, addIncident, updateIncident, isIncidentDeleted, clearIncidentTombstone, incidentsHydrated, fileCaseWhenHydrated } = useSafety();
   const { user } = useAuth();
   /** Who filed it. The register requires a reporter; SafetyContext defaults
    *  this on insert but not on update, so resolve it here for both paths. */
@@ -928,15 +1108,6 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   }), [project?.ownerUserId, project?.myRole, user?.id, roleState.role, roleState.isLoading]);
   const existingReports = useMemo(() => getDailyReportsForProject(projectId ?? ''), [projectId, getDailyReportsForProject]);
 
-  // Photos taken on the same calendar day this DFR is for (or today if new).
-  // These feed both the voice parser (as additional context) and the
-  // dedicated "Generate from photos" component.
-  const todaysProjectPhotos = useMemo(() => {
-    const all = getPhotosForProject(projectId ?? '');
-    const ref = existingReports.find(r => r.id === reportId)?.date ?? new Date().toISOString();
-    const refDay = dayOrInstantDate(ref).toDateString();
-    return all.filter(p => p.timestamp && new Date(p.timestamp).toDateString() === refDay);
-  }, [projectId, reportId, existingReports, getPhotosForProject]);
   const existingReport = useMemo(() => reportId ? existingReports.find(r => r.id === reportId) : null, [reportId, existingReports]);
 
   const [weather, setWeather] = useState<DFRWeather>(
@@ -1062,7 +1233,16 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // before or after in any US zone. Anything unparseable falls back to now.
     const asked = !reportId && typeof paramDate === 'string' ? parseCalendarDay(paramDate) : null;
     if (asked) { asked.setHours(12, 0, 0, 0); return asked.toISOString(); }
-    return new Date().toISOString();
+    // Today's report is stamped at local noon too, not the filing instant.
+    // The "filed the report for <day>" push (#60) reads this instant in the
+    // GC's digest zone, not the foreman's: a 9:30 pm Pacific filing was
+    // 00:30 Eastern and named TOMORROW. Local noon is the same calendar day
+    // in every US zone. Gives up: same-day reports no longer order by filing
+    // time on `date` — nothing reads the hour ('last saved' uses updatedAt,
+    // and backdated / picked days were already noon).
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    return today.toISOString();
   });
   // The date a BRAND-NEW report starts on. The unsaved-work baseline below
   // needs it: `reportDate` is seeded from the clock, so without a fixed
@@ -1084,6 +1264,15 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // and a raw prefix match on it names tomorrow after ~5–8 pm in the US — the
   // receipts and clocked shifts below are joined on this instead.
   const reportCalendarDay = useMemo(() => calendarDayOf(reportDate), [reportDate]);
+  // Photos taken on the calendar day this DFR is FOR (#61). They feed the
+  // voice parser and "Generate from photos"; keyed on the report's day, so a
+  // missed Monday opened from Home on Wednesday is drafted from Monday's
+  // pictures — the old test used today for every new report — and a date
+  // change re-picks them.
+  const todaysProjectPhotos = useMemo(
+    () => dfrReportDayPhotos(getPhotosForProject(projectId ?? ''), reportCalendarDay, v => calendarDayOf(v)),
+    [projectId, getPhotosForProject, reportCalendarDay],
+  );
   // This day's receipts from the Deliveries screen, as report lines
   // (field-ops #11). Matched on the REPORT's day, so a Friday report filled in
   // on Monday picks up Friday's loads.
@@ -1166,6 +1355,32 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   );
   /** #89: the owner deleted this report's case in Incidents (tombstoned). */
   const caseDeletedInLog = !linkedIncident && isIncidentDeleted(dfrCaseId);
+  // #63: who filed this report. The collaborator read shares its cache with
+  // useProjectRoleState's (same query key), so this costs no extra request.
+  // A new report is the viewer's own.
+  const { collaborators: projectPeople } = useProjectCollaborators(projectId || undefined);
+  const filedBy = useMemo(() => dfrFiledBy({
+    filedByUserId: existingReport ? existingReport.filedByUserId : user?.id,
+    viewerId: user?.id, viewerName: user?.name, ownerUserId: project?.ownerUserId, people: projectPeople,
+  }), [existingReport, user?.id, user?.name, project?.ownerUserId, projectPeople]);
+  const savedHadIncident = existingReport?.incident?.hasIncident === true;
+  // #122 (integration round 1): before the injury log has loaded on this
+  // phone (cold start, second device) a saved report's case is "not loaded
+  // yet", not "not visible" — the lock below used to fire in that window,
+  // telling the foreman his OWN case was in the GC's log and skipping his
+  // classification change on save. Until it loads: the classification shows
+  // as loading (not locked) and the case write is held, not skipped.
+  const caseLogLoading = dfrCaseLogLoading({ incidentsHydrated, caseVisible: !!linkedIncident, savedHadIncident });
+  // #122 (interim): someone else's report whose case this seat cannot see —
+  // the classification is locked with the reason and no case is written.
+  const caseNotYoursReason = caseLogLoading ? null : dfrCaseNotYoursReason({
+    caseVisible: !!linkedIncident, caseDeleted: caseDeletedInLog, isOwner: isProjectOwner,
+    savedHadIncident,
+    filedByUserId: existingReport?.filedByUserId, viewerId: user?.id, authorPossessive: filedBy.possessive,
+  });
+  /** The 1904 determination on screen is only a fact when it came from inputs
+   *  this seat could see; otherwise the saved report's flags stand. */
+  const classificationKnown = !caseNotYoursReason && !caseLogLoading;
   /**
    * #87: the storage path a DFR photo will have, staged now. Same helper
    * inputs as ProjectContext's stageDfrPhotos (signed-in user, project, photo
@@ -1302,10 +1517,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // happens without navigating away when the delay-event handoff below saves
   // silently. Keyed on reportId, the screen would offer "Copy from earlier
   // today" for the report currently open.
-  const lastReport = useMemo(() => {
-    const others = existingReports.filter(r => r.id !== stableReportId);
-    return [...others].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0];
-  }, [existingReports, stableReportId]);
+  // #61: only a report on a day STRICTLY before this one — the newest of all
+  // copied a later day's work, crews and delay note back into an earlier day.
+  const lastReport = useMemo(
+    () => dfrCopySource(existingReports, reportCalendarDay, stableReportId, v => calendarDayOf(v)),
+    [existingReports, stableReportId, reportCalendarDay],
+  );
 
   const [carryFormFromId, setCarryFormFromId] = useState<string | null>(null);
 
@@ -1366,10 +1583,16 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const [carryLabelDay, setCarryLabelDay] = useState(() => todayCalendarDay());
   useFocusEffect(useCallback(() => { setCarryLabelDay(todayCalendarDay()); }, []));
 
-  const lastReportLabel = useMemo(() => {
+  // #61: relative words ("yesterday") only on today's report, where they mean
+  // what they say; a backdated report names the source day ("Fri, Sep 12"),
+  // never "2 days ago" measured from today.
+  const lastReportRelativeLabel = useMemo(() => {
     if (!lastReport) return '';
     return carrySourceDayLabel(lastReport.date, parseCalendarDay(carryLabelDay) ?? new Date());
   }, [lastReport, carryLabelDay]);
+  const lastReportLabel = lastReport && reportCalendarDay && reportCalendarDay !== carryLabelDay
+    ? carrySourceDayAbsolute(lastReport.date)
+    : lastReportRelativeLabel;
 
   // ─── DFR-WEATHER-DAY ──────────────────────────────────────────────────
   // "Is this report's date today?" — the one question the weather path never
@@ -1577,9 +1800,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const { overtimeRule } = useLaborRates();
   const clockCrew = useMemo(
     () => (project && reportCalendarDay
-      ? clockCrewForDay(timeEntries, project.id, reportCalendarDay, settings?.branding?.companyName, liveNowMs, overtimeRule)
+      ? clockCrewForDay(timeEntries, project.id, reportCalendarDay, settings?.branding?.companyName, liveNowMs, overtimeRule, shiftAlertHours)
       : null),
-    [timeEntries, project, reportCalendarDay, settings?.branding?.companyName, liveNowMs, overtimeRule],
+    [timeEntries, project, reportCalendarDay, settings?.branding?.companyName, liveNowMs, overtimeRule, shiftAlertHours],
   );
   const hasLiveShifts = (clockCrew?.liveCount ?? 0) > 0;
   useEffect(() => {
@@ -2072,36 +2295,28 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // Guarded here too, not just on the button (#41): only the owner writes COs.
     if (!isProjectOwner) { showAlert('Change orders', DFR_GC_CREATES_COS); return; }
 
-    const pricedItems = leakScan.items.filter(it => it.estimatedPrice !== null && it.estimatedPrice !== undefined);
-    const unpricedItems = leakScan.items.filter(it => it.estimatedPrice === null || it.estimatedPrice === undefined);
-    const totalPriced = pricedItems.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
-
+    // #76: the description the CLIENT reads is a neutral scope sentence; each
+    // flagged item is its own line tagged with where its price came from
+    // (CONTRACT 9). The internal quotes, the "~$" AI guesses and the "NEEDS
+    // PRICE" notes used to go into the description — and so to the client.
     const when = dayOrInstantDate(reportDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const pricedLines = pricedItems.map(it =>
-      `${it.description} (~$${(it.estimatedPrice ?? 0).toLocaleString('en-US')}${it.reportQuote ? ` — "${it.reportQuote}"` : ''})`
-    );
-    const unpricedLines = unpricedItems.map(it =>
-      `NEEDS PRICE: ${it.description}${it.reportQuote ? ` ("${it.reportQuote}")` : ''}`
-    );
-    const description = `Out-of-scope work from daily report ${when}: ` +
-      [...pricedLines, ...unpricedLines].join('; ');
-
-    // Warn the GC when any flagged item has no learned price so they know to
-    // fill in those line items before sending the CO.
+    const prefill = dfrLeakCoPrefill(leakScan.items, when);
     const doNavigate = () => router.push({
       pathname: '/change-order' as any,
       params: {
         projectId,
         prefillReason: 'out_of_scope',
-        prefillDescription: description,
-        prefillAmount: String(totalPriced),
+        prefillDescription: prefill.prefillDescription,
+        prefillLines: prefill.prefillLines,
       },
     });
 
-    if (unpricedItems.length > 0) {
+    // Warn the GC when any flagged item has no learned price: it arrives as a
+    // $0 line the change order refuses to send until it is priced.
+    if (prefill.unpricedCount > 0) {
       showAlert(
-        `${unpricedItems.length} flagged item${unpricedItems.length === 1 ? '' : 's'} have no learned price`,
-        'Add their prices in the change order before sending. They are marked "NEEDS PRICE" in the description.',
+        `${prefill.unpricedCount} flagged item${prefill.unpricedCount === 1 ? '' : 's'} have no learned price`,
+        'Each one is a $0 line marked "needs price" in the change order. It can\u2019t go to your client until you price it. The priced lines are AI estimates you confirm before sending.',
         [
           { text: 'Review anyway', onPress: doNavigate },
           { text: 'Cancel', style: 'cancel' },
@@ -2507,9 +2722,19 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           // are now outputs of the classifier rather than checkboxes: the super
           // answers what happened (type, treatment, days, restriction) and the
           // app answers whether 1904 records it.
-          injuriesReported: incidentClassInput.type === 'injury',
-          medicalTreatment: incidentClassInput.treatment === 'medical_beyond_first_aid',
-          oshaRecordable: recordability.recordable,
+          // #122: with the classification locked (someone else's case) the
+          // blank pickers decide nothing — the saved report's flags stand.
+          ...(classificationKnown
+            ? {
+                injuriesReported: incidentClassInput.type === 'injury',
+                medicalTreatment: incidentClassInput.treatment === 'medical_beyond_first_aid',
+                oshaRecordable: recordability.recordable,
+              }
+            : {
+                injuriesReported: savedRecord?.incident?.injuriesReported,
+                medicalTreatment: savedRecord?.incident?.medicalTreatment,
+                oshaRecordable: savedRecord?.incident?.oshaRecordable,
+              }),
         }
       : undefined;
 
@@ -2530,8 +2755,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // #89: the owner deleted this report's case in Incidents. Re-saving the
     // report must not quietly file it again (addIncident refuses a tombstoned
     // id anyway); the Safety block says so and offers "File it again".
-    if (incident.hasIncident && projectId && !caseDeletedInLog) {
-      const caseRecord = buildSafetyIncidentFromDfr({
+    // #122: never a blind insert under another author's case id — the pkey
+    // duplicate was counted as success and his change vanished.
+    if (incident.hasIncident && projectId && !caseDeletedInLog && !caseNotYoursReason) {
+      const buildCase = (linked: SafetyIncident | null, classification: IncidentClassInput, daysRestricted: number) => buildSafetyIncidentFromDfr({
         reportId: stableReportId,
         projectId,
         // The day the report is FOR, not "now" — a backfilled report must not
@@ -2551,20 +2778,41 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         // storage path (never a file:// the office can't open). The builder
         // merges them into what the case already holds (#83).
         photoUrls: dfrIncidentPhotoUrls(photos as DfrPhotoWithFlag[], stageIncidentPhoto, MAX_INCIDENT_PHOTOS),
-        classification: incidentClassInput,
-        daysRestricted: Math.max(0, parseInt(incidentClass.daysRestricted, 10) || 0),
+        classification,
+        daysRestricted,
         author: incidentAuthor,
         now,
-        existingCreatedAt: linkedIncident?.createdAt,
+        existingCreatedAt: linked?.createdAt,
         // A case the safety manager has already moved to 'investigating' must
         // not snap back to 'open' because the super fixed a typo in the report.
-        existingStatus: linkedIncident?.status,
+        existingStatus: linked?.status,
       // #83: merge INTO the case the log already holds — people, actions,
       // photos and the illness column the safety manager added survive a
       // re-save of the report.
-      }, linkedIncident);
-      if (linkedIncident) updateIncident(caseRecord.id, caseRecord);
-      else addIncident(caseRecord);
+      }, linked);
+      if (caseLogLoading) {
+        // #122: held until the log loads, then decided with the case in hand
+        // — never an insert over a case this phone simply hasn't read yet.
+        // The pickers were loading (not editable), so a case the log holds
+        // keeps its own classification; the report's text, photos and status
+        // are what this save changes.
+        const isOwner = isProjectOwner;
+        const filedByUserId = existingReport?.filedByUserId;
+        const viewerId = user?.id;
+        const authorPossessive = filedBy.possessive;
+        const screenClass = incidentClassInput;
+        const screenDaysRestricted = Math.max(0, parseInt(incidentClass.daysRestricted, 10) || 0);
+        fileCaseWhenHydrated(dfrCaseId, (linked) => {
+          if (dfrCaseNotYoursReason({ caseVisible: !!linked, caseDeleted: false, isOwner, savedHadIncident, filedByUserId, viewerId, authorPossessive })) return null;
+          return linked
+            ? buildCase(linked, dfrClassOfCase(linked), linked.daysRestricted)
+            : buildCase(null, screenClass, screenDaysRestricted);
+        });
+      } else {
+        const caseRecord = buildCase(linkedIncident, incidentClassInput, Math.max(0, parseInt(incidentClass.daysRestricted, 10) || 0));
+        if (linkedIncident) updateIncident(caseRecord.id, caseRecord);
+        else addIncident(caseRecord);
+      }
     }
 
     if (savedRecord) {
@@ -2600,6 +2848,8 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           timestamp: p.timestamp,
           tag: 'Daily Report',
           createdAt: p.timestamp,
+          // #59: a field/viewer seat's photos wait for the GC's review too.
+          portalState: dfrNewPortalState(publishAccess.allowed),
         });
       }
       if (!silent) {
@@ -2630,6 +2880,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         leakScan: leakScan ?? undefined,
         createdAt: now,
         updatedAt: now,
+        // #59/#133 (interim): a field/viewer seat's report lands as a draft the
+        // GC reviews — the server forces the same (20260920140000).
+        portalState: dfrNewPortalState(publishAccess.allowed),
       };
       addDailyReport(report);
       // Sync DFR photos into project photo gallery
@@ -2641,6 +2894,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           timestamp: p.timestamp,
           tag: 'Daily Report',
           createdAt: p.timestamp,
+          portalState: dfrNewPortalState(publishAccess.allowed),
         });
       }
       if (!silent) {
@@ -2658,7 +2912,8 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   }, [projectId, reportId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, persistedSelf, homeownerSummary, hsGeneratedAt, hsPublished, publishAccess.allowed, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, goBack, reportDate, stableReportId, draftKey,
       incidentClassInput, incidentClass.daysRestricted, recordability.recordable, linkedIncident,
       addIncident, updateIncident, incidentAuthor, project?.location, liveHoursWarning,
-      caseDeletedInLog, stageIncidentPhoto]);
+      caseDeletedInLog, stageIncidentPhoto, caseNotYoursReason, classificationKnown,
+      caseLogLoading, fileCaseWhenHydrated, dfrCaseId, savedHadIncident, isProjectOwner, user?.id, filedBy.possessive]);
 
   /**
    * "Log this as a delay event" — hand the register what this screen already
@@ -2815,13 +3070,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       status: 'draft',
       createdAt: now,
       updatedAt: now,
+      portalState: dfrNewPortalState(publishAccess.allowed),
     };
     addDailyReport(report);
     void AsyncStorage.removeItem(draftKey).catch(() => {});
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     nailIt('Logged as a no-work day. The record has no gap.');
     goBack();
-  }, [projectId, reportDate, weather, stableReportId, addDailyReport, goBack, draftKey]);
+  }, [projectId, reportDate, weather, stableReportId, addDailyReport, goBack, draftKey, publishAccess.allowed]);
 
   // Only offer it on a brand-new report the user has not started filling in —
   // once anything is entered, the day plainly had something on it.
@@ -2896,20 +3152,36 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       materialsDelivered,
       issuesAndDelays: issuesAndDelays.trim(),
       photos,
-      status: 'draft',
+      // #62: a submitted report's copy is the submitted report (buildDFRHtml
+      // prints no status, but the record handed to it should not lie).
+      status: existingReport?.status === 'sent' ? 'sent' : 'draft',
       incident: incident.hasIncident
         ? {
             ...incident,
-            injuriesReported: incidentClassInput.type === 'injury',
-            medicalTreatment: incidentClassInput.treatment === 'medical_beyond_first_aid',
-            oshaRecordable: recordability.recordable,
+            ...(classificationKnown
+              ? {
+                  injuriesReported: incidentClassInput.type === 'injury',
+                  medicalTreatment: incidentClassInput.treatment === 'medical_beyond_first_aid',
+                  oshaRecordable: recordability.recordable,
+                }
+              : {
+                  injuriesReported: existingReport?.incident?.injuriesReported,
+                  medicalTreatment: existingReport?.incident?.medicalTreatment,
+                  oshaRecordable: existingReport?.incident?.oshaRecordable,
+                }),
           }
         : undefined,
       createdAt: existingReport?.createdAt ?? now,
       updatedAt: now,
+      filedByUserId: existingReport?.filedByUserId,
     };
   }, [stableReportId, projectId, reportDate, weather, manpower, workPerformed, workProgress, materialsDelivered,
-      issuesAndDelays, photos, incident, incidentClassInput, recordability.recordable, existingReport?.createdAt]);
+      issuesAndDelays, photos, incident, incidentClassInput, recordability.recordable, existingReport?.createdAt,
+      existingReport?.status, existingReport?.incident, existingReport?.filedByUserId, classificationKnown]);
+
+  /** What the document prints as the 1904 determination — only a computed
+   *  verdict this seat could actually see the inputs of (#122). */
+  const documentClassification = incident.hasIncident && classificationKnown ? recordability.reason : undefined;
 
   const brandingOrBlank = useCallback(
     () => settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' },
@@ -2927,11 +3199,42 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     // prints its photos.
     openPrintWindowAfterOrThrow(async () => buildDFRHtml(doc, project, brandingOrBlank(), {
       photos: await resolveDfrPhotosForDocument(doc.photos, galleryPhotos),
-      incidentClassification: incident.hasIncident ? recordability.reason : undefined,
+      incidentClassification: documentClassification,
+      filedByName: filedBy.document ?? undefined,
     })).catch((e: unknown) => {
       showAlert('Print did not open', (e as Error).message);
     });
-  }, [project, documentReport, brandingOrBlank, galleryPhotos, incident.hasIncident, recordability.reason]);
+  }, [project, documentReport, brandingOrBlank, galleryPhotos, documentClassification, filedBy.document]);
+
+  /**
+   * #62 — a SUBMITTED report can be printed or shared again. The only Print
+   * lived in the Send sheet, which a sent report can no longer open, and
+   * generateDFRPDF had no caller — so the PDF the owner's rep asks for a week
+   * later existed nowhere. Web prints (a synchronous tab, handlePrintCopy);
+   * the phone builds the same document the send path files — documentReport()
+   * plus the resolved photos and the classification — and opens the share
+   * sheet. Nothing is saved and the status is untouched.
+   */
+  const [sharingPdf, setSharingPdf] = useState(false);
+  const handlePrintOrShareLocked = useCallback(() => {
+    if (Platform.OS === 'web') { handlePrintCopy(); return; }
+    if (!project || sharingPdf) return;
+    const doc = documentReport();
+    setSharingPdf(true);
+    void (async () => {
+      try {
+        await generateDFRPDF(doc, project, brandingOrBlank(), {
+          photos: await resolveDfrPhotosForDocument(doc.photos, galleryPhotos),
+          incidentClassification: documentClassification,
+          filedByName: filedBy.document ?? undefined,
+        });
+      } catch (e) {
+        showAlert('Could not make the PDF', e instanceof Error && e.message ? e.message : 'Try again.');
+      } finally {
+        setSharingPdf(false);
+      }
+    })();
+  }, [handlePrintCopy, project, sharingPdf, documentReport, brandingOrBlank, galleryPhotos, documentClassification, filedBy.document]);
 
   const handleConfirmSend = useCallback(async () => {
     // Email is optional when the project-files copy is on — a GC who just
@@ -2954,7 +3257,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       : '';
     const branding = brandingOrBlank();
     const doc = documentReport();
-    const incidentClassification = incident.hasIncident ? recordability.reason : undefined;
+    const incidentClassification = documentClassification;
 
     // The project-files copy goes FIRST, so the email can link the filed
     // record (#25) — the full document with the crew table, materials, the
@@ -2968,7 +3271,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       try {
         if (!project) throw new Error('This project is not loaded on this device.');
         const docPhotos = await resolveDfrPhotosForDocument(doc.photos, galleryPhotos);
-        const html = buildDFRHtml(doc, project, branding, { photos: docPhotos, incidentClassification });
+        const html = buildDFRHtml(doc, project, branding, { photos: docPhotos, incidentClassification, filedByName: filedBy.document ?? undefined });
         const dateLabel = calendarDayOf(reportDate) ?? todayCalendarDay(); // the LOCAL day, not the UTC one
         const saved = await saveDailyReportToProjectFiles({
           projectId,
@@ -3069,7 +3372,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // which does, is the dep that carries it; documentReport carries createdAt).
   }, [handleSave, sendRecipientName, sendRecipientEmail, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays,
       manpower, materialsDelivered, photos, reportDate, saveToProjectFiles, projectId, isFree, goBack, stableReportId,
-      brandingOrBlank, documentReport, galleryPhotos, incident.hasIncident, recordability.reason]);
+      brandingOrBlank, documentReport, galleryPhotos, documentClassification, filedBy.document]);
 
 
   // ─── Unsaved-work guard: a dirty check and a debounced draft ──────────────
@@ -3181,6 +3484,37 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     ? `This update is live in the homeowner\u2019s portal. ${DFR_OWNER_DECIDES_HOMEOWNER}`
     : null;
 
+  // ─── #58: the homeowner update on a SUBMITTED report ───
+  // Submitting locks the technical record (intended), but the homeowner update
+  // is its own decision: the GC opening his foreman's report from the "Review
+  // it" push had no way to publish the update the foreman drafted, fix it, or
+  // take a live one down. An owner/editor keeps the block and gets its own
+  // "Save update", which writes ONLY the three homeowner fields — never
+  // handleSave, which rewrites the form and refuses a draft save on a sent
+  // report. The server trigger lets owner/editor change these columns.
+  const hsEditableWhenLocked = reportIsSent && publishAccess.allowed;
+  const hsUpdateDirty = hsEditableWhenLocked && dfrHomeownerUpdateDirty({
+    summary: homeownerSummary, savedSummary: existingReport?.homeownerSummary,
+    published: hsPublished, savedPublished: hsPublishedSaved,
+  });
+  const handleSaveHomeownerUpdate = useCallback((after?: () => void) => {
+    if (!existingReport || existingReport.status !== 'sent' || !publishAccess.allowed) return;
+    const text = homeownerSummary.trim();
+    // Nothing to show → nothing published, whatever the toggle said.
+    const publish = hsPublished && text.length > 0;
+    updateDailyReport(existingReport.id, {
+      homeownerSummary: text || undefined,
+      homeownerSummaryGeneratedAt: hsGeneratedAt,
+      homeownerSummaryPublished: publish,
+    });
+    if (hsPublished !== publish) setHsPublished(publish);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    nailIt(publish
+      ? 'Homeowner update saved \u2014 the portal shows it once the report has synced.'
+      : hsPublishedSaved ? 'Homeowner update taken down.' : 'Homeowner update saved.');
+    after?.();
+  }, [existingReport, publishAccess.allowed, homeownerSummary, hsPublished, hsGeneratedAt, hsPublishedSaved, updateDailyReport]);
+
   /**
    * Whether the screen knows enough about what is SAVED to judge what is
    * unsaved.
@@ -3288,6 +3622,20 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
    * "Discard" is the only path that throws work away and it says so.
    */
   const handleBack = useCallback(() => {
+    // #58: an unsaved homeowner update on a SUBMITTED report is the one edit a
+    // sent report can hold — asked about with its own save, never "Save draft".
+    if (hsUpdateDirty) {
+      showAlert(
+        'Leave without saving the homeowner update?',
+        'Your changes to the homeowner update aren\u2019t saved. The submitted report itself is unchanged.',
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: goBack },
+          { text: 'Save update', onPress: () => handleSaveHomeownerUpdate(goBack) },
+        ],
+      );
+      return;
+    }
     // A submitted report is read-only: there is nothing to save, and offering
     // "Save draft" there would downgrade the sent record (see handleSave).
     if (!isDirty || existingReport?.status === 'sent') { goBack(); return; }
@@ -3313,7 +3661,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         },
       ],
     );
-  }, [isDirty, existingReport?.status, draftKey, goBack, handleSave]);
+  }, [isDirty, existingReport?.status, draftKey, goBack, handleSave, hsUpdateDirty, handleSaveHomeownerUpdate]);
 
   if (!project) {
     return (
@@ -3337,6 +3685,24 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   }
 
   const isLocked = existingReport?.status === 'sent';
+  /** The homeowner-update controls: an open report, or (#58) a submitted one
+   *  for an owner/editor. A field/viewer seat on a submitted report reads it. */
+  const hsEditable = !isLocked || hsEditableWhenLocked;
+  // #17/#59: a field/viewer seat is told what is true of HIS report (and the
+  // photos it mirrors): the GC reviews it first, or it is already shared, or
+  // this job has no portal. A publisher's state is his SendToClientButton.
+  const portalSeatNote = dfrPortalSeatNote({
+    canPublish: publishAccess.allowed,
+    portalEnabled: project.clientPortal?.enabled === true,
+    status: existingReport?.portalState?.status ?? null,
+    isNew: !existingReport,
+  });
+  const sameDayFiledBy = sameDayReports.length > 0
+    ? dfrFiledBy({
+        filedByUserId: sameDayReports[0].filedByUserId, viewerId: user?.id, viewerName: user?.name,
+        ownerUserId: project.ownerUserId, people: projectPeople,
+      }).banner
+    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -3399,6 +3765,16 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               <View style={[styles.statusBadge, { backgroundColor: themeColors.successSoft, marginTop: 0 }]}>
                 <Text style={[styles.statusText, { color: themeColors.success }]}>Sent</Text>
               </View>
+              {/* #62: the submitted report's PDF, again — print on web, the
+                  share sheet on the phone. Nothing is saved or re-stamped. */}
+              <Button
+                label={sharingPdf ? 'Making PDF…' : 'Print / Share PDF'}
+                onPress={handlePrintOrShareLocked}
+                variant="secondary"
+                size="sm"
+                disabled={sharingPdf}
+                testID="dfr-locked-print-share"
+              />
             </View>
           )}
         </View>
@@ -3561,6 +3937,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               <AIDailyReportGen
                 projectName={project.name}
                 tasks={project.schedule.tasks}
+                reportDay={reportCalendarDay}
                 weatherStr={dfrAiWeatherStr([weather.conditions, weather.temperature])}
                 isLocked={voiceBlocked}
                 onLockedPress={openVoiceUpgrade}
@@ -3599,7 +3976,8 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <View style={styles.sameDayBanner} testID="dfr-same-day-banner">
               <Text style={styles.sameDayText}>
                 This day already has {sameDayReports.length === 1 ? 'a report' : `${sameDayReports.length} reports`} (
-                {sameDayReports[0].status === 'sent' ? 'submitted' : 'draft'}, last saved{' '}
+                {sameDayReports[0].status === 'sent' ? 'submitted' : 'draft'}
+                {sameDayFiledBy ? `, ${sameDayFiledBy}` : ''}, last saved{' '}
                 {dayOrInstantDate(sameDayReports[0].updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}).
                 {' '}Several reports a day are fine — one per crew or shift.
               </Text>
@@ -3617,6 +3995,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <Text style={styles.heroLabel}>Daily Field Report</Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             <Text style={styles.heroDate}>{reportDateStr}</Text>
+            {filedBy.hero && (
+              <View style={styles.heroDayRow} testID="dfr-filed-by">
+                <User size={13} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.heroDayText}>{filedBy.hero}</Text>
+              </View>
+            )}
             {projectDayInfo && (
               <View style={styles.heroDayRow}>
                 <CalendarDays size={13} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -4425,11 +4809,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               A short, jargon-free summary of today for the homeowner&apos;s portal. AI writes a draft from your notes above — review, edit, then publish.
             </Text>
 
-            {!isLocked && hsTextLockedReason && (
+            {hsEditable && hsTextLockedReason && (
               <Text style={hsStyles.blockedNote} testID="hs-text-locked">{hsTextLockedReason}</Text>
             )}
 
-            {!isLocked && !hsTextLockedReason && (
+            {hsEditable && !hsTextLockedReason && (
               <TouchableOpacity
                 style={[hsStyles.aiBtn, hsGenerating && hsStyles.aiBtnDisabled]}
                 onPress={handleGenerateHomeownerSummary}
@@ -4450,7 +4834,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </TouchableOpacity>
             )}
 
-            {!isLocked && !hsTextLockedReason ? (
+            {hsEditable && !hsTextLockedReason ? (
               <TextInput
                 style={[styles.textArea, { marginTop: 10 }]}
                 value={homeownerSummary}
@@ -4494,7 +4878,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </Text>
             )}
 
-            {!isLocked && homeownerSummary.trim().length > 0 && (
+            {hsEditable && homeownerSummary.trim().length > 0 && (
               <>
                 <TouchableOpacity
                   style={[
@@ -4531,6 +4915,24 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   </Text>
                 ) : null}
               </>
+            )}
+
+            {/* #58: a submitted report's homeowner update saves on its own —
+                only these three fields, never the locked report. */}
+            {hsEditableWhenLocked && hsUpdateDirty && (
+              <View style={{ alignSelf: 'flex-start', marginTop: 10 }}>
+                <Button
+                  label={hsPublishedSaved && !hsPublished ? 'Save — take it down' : 'Save update'}
+                  onPress={() => handleSaveHomeownerUpdate()}
+                  size="sm"
+                  testID="hs-save-update"
+                />
+              </View>
+            )}
+            {isLocked && !publishAccess.allowed && (
+              <Text style={hsStyles.blockedNote} testID="hs-locked-owner-decides">
+                {publishAccess.reason ?? DFR_OWNER_DECIDES_HOMEOWNER}
+              </Text>
             )}
           </View>
 
@@ -4572,8 +4974,21 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         severity cannot supply it. Inferring it from a severity
                         of 'near_miss' is exactly how a genuine near-miss ends up
                         a candidate 300 case. */}
+                    {/* #122 (interim): someone else's report whose case this
+                        seat cannot see — the classification is locked with
+                        the reason and saving writes no case. */}
+                    {caseNotYoursReason && (
+                      <Text style={styles.incidentRegisterNote} testID="dfr-incident-case-not-yours">{caseNotYoursReason}</Text>
+                    )}
+                    {caseLogLoading && (
+                      <Text style={styles.incidentRegisterNote} testID="dfr-incident-case-loading">Loading the injury log on this phone — the classification unlocks when it has loaded. Saving now files the case once it has.</Text>
+                    )}
                     <Text style={styles.incidentLabel}>What kind of incident?</Text>
-                    <View style={styles.severityRow}>
+                    <View
+                      style={[styles.severityRow, !classificationKnown && { opacity: 0.5 }]}
+                      pointerEvents={classificationKnown ? 'auto' : 'none'}
+                      accessibilityState={{ disabled: !classificationKnown }}
+                    >
                       {(['injury', 'near_miss', 'property', 'environmental'] as IncidentType[]).map(t => {
                         const active = incidentClass.type === t;
                         return (
@@ -4657,7 +5072,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         sat unused. What he can actually answer is below; the
                         determination is computed and shown with its reason. */}
                     {incidentClass.type === 'injury' && (
-                      <>
+                      <View
+                        style={!classificationKnown ? { opacity: 0.5 } : undefined}
+                        pointerEvents={classificationKnown ? 'auto' : 'none'}
+                        accessibilityState={{ disabled: !classificationKnown }}
+                        testID="dfr-incident-classification"
+                      >
                         <Text style={styles.incidentLabel}>Treatment given</Text>
                         <View style={styles.severityRow}>
                           {(['none', 'first_aid', 'medical_beyond_first_aid'] as Treatment[]).map(tr => {
@@ -4689,6 +5109,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                               placeholder="0"
                               placeholderTextColor={themeColors.textMuted}
                               keyboardType="number-pad"
+                              editable={classificationKnown}
                               testID="dfr-incident-days-away"
                             />
                           </View>
@@ -4701,6 +5122,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                               placeholder="0"
                               placeholderTextColor={themeColors.textMuted}
                               keyboardType="number-pad"
+                              editable={classificationKnown}
                               testID="dfr-incident-days-restricted"
                             />
                           </View>
@@ -4740,13 +5162,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                             <Text style={styles.checkboxLabel}>Fatality</Text>
                           </TouchableOpacity>
                         </View>
-                      </>
+                      </View>
                     )}
 
                     {/* The determination, shown rather than asked for. Grounded
                         (it names the 1904 criterion that decided it) and honest
                         (it is the same value stored on the case, taken from the
                         classifier, not re-derived here). */}
+                    {classificationKnown && (
                     <View
                       style={[styles.oshaVerdict, recordability.recordable && styles.oshaVerdictHot]}
                       testID="dfr-incident-recordability"
@@ -4764,6 +5187,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         </Text>
                       </View>
                     </View>
+                    )}
 
                     <Text style={styles.incidentLabel}>Corrective action</Text>
                     <TextInput
@@ -4789,7 +5213,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         default — a delivery or progress shot is not injury
                         evidence — and each one marked goes on the case as a
                         synced storage path, never a phone-only file. */}
-                    {photos.length > 0 && (
+                    {photos.length > 0 && classificationKnown && (
                       <>
                         <Text style={styles.incidentLabel}>Incident photos</Text>
                         <View style={styles.incidentPhotoRow}>
@@ -4837,7 +5261,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                         already, or filed on save. Neither claims the OSHA 300
                         will list it — only a recordable case reaches the 300,
                         and the verdict above says whether this one is. */}
-                    {caseDeletedInLog ? null : linkedIncident && isProjectOwner && canAccessOnProject('safety_management') ? (
+                    {caseDeletedInLog || caseNotYoursReason ? null : linkedIncident && isProjectOwner && canAccessOnProject('safety_management') ? (
                       <TouchableOpacity
                         style={styles.incidentRegisterChip}
                         onPress={() => router.push({ pathname: '/safety-incidents', params: { projectId } })}
@@ -4885,7 +5309,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 </Text>
                 {/* A sent report is the version anyone else reads, so it has to
                     carry the determination too — not just the description. */}
-                {incident.hasIncident && (
+                {incident.hasIncident && classificationKnown && (
                   <Text style={styles.incidentRegisterNote}>{recordability.reason}</Text>
                 )}
               </>
@@ -4980,13 +5404,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               canSend — but a plain statement of where the report stands: with
               the owner's auto-share on it is already shared, with it off,
               sending is the owner's call (the server keeps portal_state too). */}
-          {existingReport && !publishAccess.allowed && (
+          {portalSeatNote && (
             <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
               <Text style={hsStyles.blockedNote} testID="dfr-portal-owner-decides">
-                {existingReport.portalState?.status === 'sent'
-                  ? 'Shared in the homeowner\u2019s portal. '
-                  : 'Not in the homeowner\u2019s portal. '}
-                {publishAccess.reason ?? DFR_OWNER_DECIDES_HOMEOWNER}
+                {portalSeatNote}
               </Text>
             </View>
           )}

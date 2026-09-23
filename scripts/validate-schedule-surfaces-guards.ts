@@ -293,7 +293,9 @@ console.log('\n#137 — one active baseline for every reader:');
     /const after = activeBaselineAfterChange\(activeBaselineIdRef\.current, prevList, next\);/.test(SP)
       && /if \(after\.reapply && next\.length < prevList\.length\) \{[\s\S]{0,200}commit\(prev => reapplyBaselineToTasks\(prev, after\.active\)\);/.test(SP));
   ok('Schedule Pro: a stored id change (project switch, the phone\'s lock) is adopted',
-    /useEffect\(\(\) => \{\s*setActiveBaselineId\(storedActiveBaselineId\);\s*\}, \[project\?\.id, storedActiveBaselineId, setActiveBaselineId\]\);/.test(SP));
+    // wave 4 #86: …except over an Activate still waiting in the persist
+    // debounce (a project switch always adopts).
+    /useEffect\(\(\) => \{[\s\S]{0,600}const switched = activeIdProjectRef\.current !== project\?\.id;[\s\S]{0,120}if \(!switched && persistPendingRef\.current\) return;\s*setActiveBaselineId\(storedActiveBaselineId\);[\s\S]{0,120}\}, \[project\?\.id, storedActiveBaselineId, setActiveBaselineId\]\);/.test(SP));
   ok('phone: the slip reads the same resolver', /\(\) => getActiveBaseline\(activeSchedule\),/.test(MSS) && !/list\[list\.length - 1\] as unknown as NamedBaseline/.test(MSS));
   ok('tab: variance and ghost bars read the same resolver', /function activeNamedBaseline\(schedule: ProjectSchedule \| null\): NamedBaseline \| null \{\s*return getActiveBaseline\(schedule\);/.test(TAB));
   ok('a phone lock and a tab lock make the new capture THE yardstick',

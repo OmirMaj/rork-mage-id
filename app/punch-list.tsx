@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image,
-  FlatList, Keyboard, type ListRenderItemInfo,
+  FlatList, Keyboard, type ListRenderItemInfo, RefreshControl, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -24,6 +26,11 @@ import { useProjects } from '@/contexts/ProjectContext';
 // invited to do, even though their own tier is free. See
 // utils/collaboratorAccess.
 import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import {
+  punchStatusPatch, punchRejectionBox, punchLocationText, invitedPunchProjects, latestRejectedAt,
+  punchGateAnswer, punchFocusStep, punchItemFromQueryCache, punchItemsQueryKey, type PunchFocusApplied, isPunchReject, PUNCH_NO_ROOM_TEXT,
+} from '@/utils/punchGcCore';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -45,7 +52,17 @@ import { cardSurface, Button, EyebrowLabel } from '@/components/ui';
 import PlanPinStep from '@/components/punch/PlanPinStep';
 import { usePunchPinWriter } from '@/hooks/usePunchPinWriter';
 import { punchItemNumbers } from '@/utils/punchExportCore';
-import { pinSheetLabel, punchPinFields, type WalkPin } from '@/utils/punchPlanPin';
+import { pinSheetLabel, punchPinFields, sheetAspectRatio, type WalkPin } from '@/utils/punchPlanPin';
+// Web ≥ 900 px: the add/edit sheet is a centred 75 / 25 panel — the form, and
+// the photo large beside it (founder, 2026-09-22). Guard:
+// scripts/validate-w4-punch-web-edit-layout.ts.
+import {
+  punchEditLayout, punchEditPanelSize, punchPhotoActionBlocked, punchPhotoPatch, punchReplacementUpload,
+  PUNCH_EDIT_FORM_FLEX, PUNCH_EDIT_PHOTO_FLEX, type PunchPhotoEdit, type PunchReplacementUpload,
+} from '@/utils/punchEditLayout';
+import { queuePhotoUpload } from '@/utils/photoUploadQueue';
+import { PunchEditPhotoPane, type PunchEditPinThumb } from '@/components/punch/PunchEditPanes';
+import PunchPhotoViewer from '@/components/punch/PunchPhotoViewer';
 import {
   CLEAR_PIN_PATCH, pinRefOf, pinSeedFor, pinWriteBlockedReason, planPinStats, removePinConfirmCopy, sheetsByIdOf,
 } from '@/utils/punchPinQueue';
@@ -330,6 +347,8 @@ type PunchRowData =
       canDelete: boolean;
       /** The sub column is a bare trade word, not a sub (isTradeWordOnly). */
       subIsTradeWord: boolean;
+      /** The item a "ready for review" notification opened (#51). */
+      focused: boolean;
     };
 
 type PunchStyles = ReturnType<typeof makeStyles>;
@@ -419,7 +438,7 @@ const PunchRow = React.memo(function PunchRow({
   themeColors: ThemeColors;
   actions: PunchRowActions;
 }) {
-  const { item, selected, selectMode, photoFailed, variant, onPlan, canDelete, subIsTradeWord } = row;
+  const { item, selected, selectMode, photoFailed, variant, onPlan, canDelete, subIsTradeWord, focused } = row;
   const dueUnreadable = dueDateUnreadable(item.dueDate);
   const sc = getStatusConfig(themeColors, item.status);
   const pc = getPriorityConfig(themeColors, item.priority);
@@ -427,6 +446,8 @@ const PunchRow = React.memo(function PunchRow({
   const dueIn = daysUntilDue(item);
   const overdue = dueIn !== null && dueIn < 0;
   const moveTo = otherList(variant);
+  const locationText = punchLocationText(item.location);
+  const rejection = punchRejectionBox(item);
   return (
     <View style={[
       styles.punchCard,
@@ -436,7 +457,8 @@ const PunchRow = React.memo(function PunchRow({
       formal ? styles.punchCardFormal : styles.punchCardCrew,
       formal && overdue && styles.punchCardFormalOverdue,
       selected && styles.punchCardSelected,
-    ]}>
+      focused && styles.punchCardFocused,
+    ]} testID={focused ? 'punch-focused-item' : undefined}>
       <View style={styles.punchCardTop}>
         {/* In selection mode the checkbox replaces the priority dot rather than
             crowding beside it — one hand, gloves, and the dot is decoration
@@ -508,7 +530,11 @@ const PunchRow = React.memo(function PunchRow({
             testID={`punch-item-${item.id}`}
           >
             <Text style={[styles.punchDesc, !formal && styles.punchDescCrew]}>{item.description}</Text>
-            {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
+            {/* #56: '' (and the legacy 'Unspecified' walk placeholder) is "no
+                room given", worded here at render time — never saved. */}
+            {locationText
+              ? <Text style={styles.punchLocation}>{locationText}</Text>
+              : <Text style={[styles.punchLocation, styles.punchLocationNone]}>{PUNCH_NO_ROOM_TEXT}</Text>}
           </TouchableOpacity>
           {/* Where the PHONE was when the photo was taken — written by
               punch-walk and ai-punch on every stamped capture and, until now,
@@ -627,11 +653,21 @@ const PunchRow = React.memo(function PunchRow({
         </View>
       ) : null}
 
-      {item.rejectionNote ? (
-        <View style={styles.rejectionBox}>
-          <MessageSquare size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
-          <Text style={styles.rejectionText}>{item.rejectionNote}</Text>
-        </View>
+      {/* Red only while the item is back on the sub (Open / In progress). Once
+          he marks it fixed again the old reason is history, shown muted —
+          not a live send-back sitting over his new note. */}
+      {rejection ? (
+        rejection.tone === 'active' ? (
+          <View style={styles.rejectionBox}>
+            <MessageSquare size={12} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.rejectionText}>{rejection.text}</Text>
+          </View>
+        ) : (
+          <View style={styles.rejectionHistory} testID={`punch-previously-returned-${item.id}`}>
+            <MessageSquare size={12} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.rejectionHistoryText}>{rejection.text}</Text>
+          </View>
+        )
       ) : null}
 
       {/* The per-row action rail is hidden while selecting. Fourteen small
@@ -707,23 +743,87 @@ export default function PunchListScreen() {
   const router = useRouter();
   // Read the project from params here (not just in Inner) so the gate can
   // ask 'were they invited to THIS project?' before paywalling.
-  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { canAccess } = useProjectAccess(gateProjectId);
-  const { colors: themeColors } = useTheme();
+  const { projectId: rawGateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const gateProjectId = rawGateProjectId || undefined;
+  const { canAccess, canAccessOwnTier, requiredTierFor } = useProjectAccess(gateProjectId);
+  const roleState = useProjectRoleState(gateProjectId);
+  const { projects } = useProjects();
+  // #127: the same gate as Safety and RFIs. Tools and the web sidebar open
+  // this screen with NO project, where useProjectAccess(undefined) can only
+  // answer with his own tier — so an invited free-plan foreman got the Business
+  // paywall over the job he was invited to. With no project he gets in when he
+  // is an accepted collaborator on any cached job (the picker lists only
+  // those); with a project he waits for, or retries, the role read instead of
+  // being paywalled while it is in flight.
+  const invited = useMemo(() => invitedPunchProjects(projects), [projects]);
+  const ownTier = canAccessOwnTier('punch_list_closeout');
   if (!canAccess('punch_list_closeout')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="Punch List & Closeout"
-        requiredTier="business"
-        onClose={() => router.back()}
-      />
-    );
+    const answer = punchGateAnswer({
+      projectId: gateProjectId,
+      ownTier,
+      projectAllowed: false,
+      invitedCount: invited.length,
+      role: roleState.role,
+      isLoading: roleState.isLoading,
+      isError: roleState.isError,
+      isPaused: roleState.isPaused,
+      reason: roleState.reason,
+    });
+    if (answer === 'allow') return <PunchListScreenInner ownTier={ownTier} />;
+    if (answer === 'paywall') {
+      return (
+        <Paywall
+          visible={true}
+          feature="Punch List & Closeout"
+          // Derived from featureTiers.ts, never typed: the price on the wall is
+          // the price on the door.
+          requiredTier={requiredTierFor('punch_list_closeout')}
+          onClose={() => router.back()}
+        />
+      );
+    }
+    return <PunchGateView state={answer} reason={roleState.reason} onRetry={() => { void roleState.refetch(); }} />;
   }
-  return <PunchListScreenInner />;
+  return <PunchListScreenInner ownTier={ownTier} />;
 }
 
-function PunchListScreenInner() {
+/** The access wall's non-paywall answers (#127): checking, couldn't check,
+ *  offline with no role on this phone, not on this job. Never a spinner that
+ *  cannot end, never a paywall over a job he was invited to. */
+function PunchGateView({ state, reason, onRetry }: {
+  state: 'loading' | 'error' | 'paused' | 'missing';
+  reason?: string;
+  onRetry: () => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const copy = state === 'error'
+    ? { title: 'Could not check your access to this job', body: 'MAGE could not load who is on this project, so it cannot tell whether you were invited to its punch list. Check your connection and try again.' }
+    : state === 'paused'
+      ? { title: 'Waiting for signal', body: reason ?? 'This job is not saved on this phone yet. It opens once there is signal.' }
+      : { title: 'Not on this job', body: 'You don\'t have access to this project\'s punch list. Ask the project owner to invite you.' };
+  return (
+    <View style={[styles.gateWrap, { backgroundColor: themeColors.bg }]} testID={`punch-gate-${state}`}>
+      <Stack.Screen options={{ title: 'Punch List' }} />
+      {state === 'loading' ? (
+        <>
+          <ActivityIndicator color={themeColors.accent} />
+          <Text style={styles.gateText}>Checking your access to this job…</Text>
+        </>
+      ) : (
+        <>
+          <Text style={styles.gateTitle}>{copy.title}</Text>
+          <Text style={styles.gateText}>{copy.body}</Text>
+          {state === 'missing' ? null : (
+            <Button label="Try again" variant="secondary" onPress={onRetry} testID="punch-gate-retry" />
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
+function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -731,11 +831,14 @@ function PunchListScreenInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId: paramProjectId, prefillPhotoUri, prefillPhotoId } = useLocalSearchParams<{
+  const { projectId: paramProjectId, prefillPhotoUri, prefillPhotoId, itemId: focusItemId } = useLocalSearchParams<{
     projectId: string;
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
+    /** #51/#54: the item a "ready for review" notification is about. */
+    itemId?: string;
   }>();
+  const queryClient = useQueryClient();
   const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded } = useProjects();
   const { user } = useAuth();
 
@@ -745,6 +848,7 @@ function PunchListScreenInner() {
   // shared link — can't make the picker inert.
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
+  const pickableProjects = useMemo(() => (ownTier ? projects : invitedPunchProjects(projects)), [ownTier, projects]);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   // The sub chips (edit sheet, bulk assign). On his own job: his directory. On
@@ -765,7 +869,16 @@ function PunchListScreenInner() {
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   /** Both lists. Closeout ("is every item done?") and selection resolution
    *  read this — a crew touch-up left open is still work left on the job. */
-  const allItems = useMemo(() => getPunchItemsForProject(projectId ?? ''), [projectId, getPunchItemsForProject]);
+  // The legacy 'Unspecified' placeholder punch-walk used to SAVE (#56) is read
+  // here as what it always meant — no room — so it joins the one unplaced
+  // group, never shows up as a room chip, and an edit saves '' over it. Items
+  // with a real room keep their identity (no copy).
+  const allItems = useMemo(
+    () => getPunchItemsForProject(projectId ?? '').map(i => (
+      i.location && punchLocationText(i.location) === null ? { ...i, location: '' } : i
+    )),
+    [projectId, getPunchItemsForProject],
+  );
 
   // ── Which list is showing ────────────────────────────────────────────────
   // Defaults to the formal punch list: it is the list with consequences, and
@@ -837,6 +950,14 @@ function PunchListScreenInner() {
   const [formPin, setFormPin] = useState<WalkPin | null>(null);
   const [formPinOpen, setFormPinOpen] = useState(false);
   const [pinSavedInSheet, setPinSavedInSheet] = useState(false);
+  // ── The web panel's photo pane ────────────────────────────────────────────
+  // An EXISTING item's photo change is held here and written on Update (it is
+  // a field of the form, like the description — Cancel throws it away). A new
+  // item's photo is `attachedPhotoUri`, as it always was.
+  const [photoEdit, setPhotoEdit] = useState<PunchPhotoEdit>({ kind: 'keep' });
+  const [paneViewerOpen, setPaneViewerOpen] = useState(false);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const editLayout = punchEditLayout(windowWidth, Platform.OS);
 
   // Photo walk — the burst-capture path. `walkShots` is a staging area, not the
   // punch list: nothing here exists as an item until it has a description.
@@ -986,6 +1107,8 @@ function PunchListScreenInner() {
     setAttachedSourcePhotoId(undefined);
     setFormPin(null);
     setPinSavedInSheet(false);
+    setPhotoEdit({ kind: 'keep' });
+    setPaneViewerOpen(false);
   }, [activeList]);
 
   // The only path that puts a REAL item in `editingItem`. Before this every
@@ -1020,14 +1143,17 @@ function PunchListScreenInner() {
     setPriority(item.priority);
     setFormListType(punchListTypeOf(item));
     setLinkedTaskId(item.linkedTaskId ?? '');
-    // The sheet has no photo control — only a preview for the annotator's
-    // "Add to Punch List" prefill — and handleSave's update branch does not
-    // touch photoUri. Clearing avoids showing a previous prefill's photo (with
-    // a remove button that would do nothing) on top of someone else's item.
+    // The phone sheet has no photo control for an existing item — only a
+    // preview for the annotator's "Add to Punch List" prefill. Clearing avoids
+    // showing a previous prefill's photo on top of someone else's item. The web
+    // panel edits the item's OWN photo through `photoEdit`, which starts at
+    // 'keep' so an untouched Update writes the photo exactly as before.
     setAttachedPhotoUri(undefined);
     setAttachedSourcePhotoId(undefined);
     setFormPin(null);
     setPinSavedInSheet(false);
+    setPhotoEdit({ kind: 'keep' });
+    setPaneViewerOpen(false);
     setShowForm(true);
   }, [pickerSubs, ownsThisProject]);
 
@@ -1086,7 +1212,7 @@ function PunchListScreenInner() {
   );
   const filterLocationLabel = useMemo(() => {
     if (!filterLocationKey) return '';
-    if (filterLocationKey === UNPLACED_LOCATION_GROUP) return 'No location given';
+    if (filterLocationKey === UNPLACED_LOCATION_GROUP) return PUNCH_NO_ROOM_TEXT;
     return filterableLocations.find(o => o.key === filterLocationKey)?.label ?? filterLocationKey;
   }, [filterLocationKey, filterableLocations]);
   /** Items captured with no location at all — they get their own filter chip
@@ -1146,6 +1272,9 @@ function PunchListScreenInner() {
   // chooseList is declared below the selection block — switching lists has to
   // drop the selection, and that state lives there.
 
+  /** Set once a notification's item has picked the list (see the focus block). */
+  const focusListLockRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -1161,7 +1290,9 @@ function PunchListScreenInner() {
       if (stored) {
         setGrouped(stored.grouped);
         setGroupOrder(stored.order);
-        setActiveList(stored.list);
+        // A notification's item already chose the list it is on (#51) — the
+        // remembered list must not land late and hide it again.
+        if (!focusListLockRef.current) setActiveList(stored.list);
       }
       viewPrefSettled.current = true;
     })();
@@ -1240,6 +1371,113 @@ function PunchListScreenInner() {
     setActiveList(next);
   }, [activeList]);
 
+  // ── Opened from a "ready for review" notification (#51 / #54) ─────────────
+  // The list in memory was read at launch. A tap on the push (or the inbox
+  // row) used to land on it as-is: the item still said Open with Start, no
+  // sub's note, one row among a hundred on whatever list he last used. So:
+  // re-read the list first and SAY it is refreshing until the read settles,
+  // then switch to the item's own list, filter to its status, scroll to it
+  // and mark it. Offline, the read cannot settle — that is said too, and the
+  // focus is applied to the list on the phone, then re-aimed once the read
+  // comes back (punchFocusStep).
+  //
+  // The status is taken from the query CACHE when the read settles, never
+  // from `allItems`: the provider copies the fresh rows into its state one
+  // render later, so `allItems` at that moment is still the launch copy — the
+  // old code filtered to Open and the item, Ready for Review a render later,
+  // vanished from the filter chosen to show it (punchItemFromQueryCache).
+  //
+  // Only the signed-in user's query is read, refetched and pause-checked
+  // (punchItemsQueryKey): a launch-time ['punchItems', null] entry lingers in
+  // the cache un-refetched and used to answer first. The key is in the deps,
+  // so when auth resolves after a cold-start tap the whole focus runs again
+  // against the real account's query.
+  //
+  // KNOWN LIMIT (tied to #126's native build): on iPhone react-query never
+  // pauses (its onlineManager is not wired to NetInfo), and the provider's
+  // loader answers a failed SELECT with the phone's copy — so with no signal
+  // the read "settles" and 'No signal' only ever shows on web. The query data
+  // does not say which source it came from; only ProjectContext knows.
+  const punchKey = useMemo(() => punchItemsQueryKey(user?.id), [user?.id]);
+  const [refreshState, setRefreshState] = useState<'idle' | 'refreshing' | 'offline' | 'done'>(focusItemId ? 'refreshing' : 'idle');
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [focusMissing, setFocusMissing] = useState(false);
+  const [freshFocus, setFreshFocus] = useState<{ known: boolean; item?: PunchItem } | null>(null);
+  /** Bumped by the banner's Refresh / Try again: runs the whole focus again. */
+  const [focusNonce, setFocusNonce] = useState(0);
+  const focusAppliedRef = useRef<PunchFocusApplied>(null);
+  const focusScrolledRef = useRef(false);
+  useEffect(() => {
+    if (!focusItemId) return;
+    let live = true;
+    focusAppliedRef.current = null;
+    focusScrolledRef.current = false;
+    setFocusMissing(false);
+    setFreshFocus(null);
+    setRefreshState('refreshing');
+    const pausedNow = () => queryClient.getQueryCache().findAll({ queryKey: punchKey, exact: true })
+      .some(q => q.state.fetchStatus === 'paused');
+    const unsub = queryClient.getQueryCache().subscribe(() => {
+      if (live && pausedNow()) setRefreshState(prev => (prev === 'refreshing' ? 'offline' : prev));
+    });
+    void queryClient.invalidateQueries({ queryKey: punchKey, exact: true })
+      .catch(() => { /* the loader already falls back to the phone's copy */ })
+      .finally(() => {
+        if (!live) return;
+        setFreshFocus(punchItemFromQueryCache(queryClient.getQueryData(punchKey), focusItemId, projectId ?? ''));
+        setRefreshState('done');
+      });
+    return () => { live = false; unsub(); };
+  }, [focusItemId, queryClient, projectId, focusNonce, punchKey]);
+
+  useEffect(() => {
+    if (!focusItemId) return;
+    const step = punchFocusStep({
+      phase: refreshState,
+      loaded: punchItemsLoaded,
+      applied: focusAppliedRef.current,
+      view: { list: activeList, status: filterStatus },
+      fresh: freshFocus,
+      phoneItem: allItems.find(i => i.id === focusItemId),
+    });
+    if (step.kind === 'none') return;
+    if (step.kind === 'settle') {
+      const prev = focusAppliedRef.current;
+      if (prev) focusAppliedRef.current = { ...prev, from: 'fresh' };
+      return;
+    }
+    if (step.kind === 'missing') {
+      focusAppliedRef.current = { from: step.from, missing: true };
+      setFocusedId(null);
+      setFocusMissing(true);
+      return;
+    }
+    focusAppliedRef.current = { from: step.from, list: step.list, status: step.status };
+    focusListLockRef.current = true;
+    setFocusMissing(false);
+    setSelectedIds({});
+    setSelectMode(false);
+    setActiveList(step.list);
+    // Only its status; any other filter could hide the very item he tapped.
+    setFilterStatus(step.status);
+    setFilterSub('');
+    setFilterPriority('all');
+    setFilterLocationKey('');
+    setCollapsed({});
+    if (focusedId !== step.itemId) focusScrolledRef.current = false;
+    setFocusedId(step.itemId);
+  }, [focusItemId, refreshState, punchItemsLoaded, allItems, freshFocus, activeList, filterStatus, focusedId]);
+  const retryFocus = useCallback(() => setFocusNonce(n => n + 1), []);
+
+  // Pull to refresh — also his way back when the tap-refresh found nothing.
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const onPullRefresh = useCallback(() => {
+    setPullRefreshing(true);
+    void queryClient.invalidateQueries({ queryKey: ['punchItems'] })
+      .catch(() => { /* the loader already falls back to the phone's copy */ })
+      .finally(() => setPullRefreshing(false));
+  }, [queryClient]);
+
   // ── The rows ─────────────────────────────────────────────────────────────
   // Grouping is done by the shared module so this screen and punch-walk can
   // never disagree about which items belong to which room.
@@ -1279,6 +1517,7 @@ function PunchListScreenInner() {
       variant: activeList,
       canDelete: canDeleteItem(item),
       subIsTradeWord: isTradeWordOnly(item.assignedSub, pickerSubNames),
+      focused: item.id === focusedId,
     });
 
     if (!grouped) {
@@ -1291,7 +1530,10 @@ function PunchListScreenInner() {
         kind: 'section',
         key: `section:${section.key}`,
         sectionKey: section.key,
-        label: section.label,
+        // One wording for "no room" on this screen (#56): the row, this
+        // header, the chip and the filter summary all say PUNCH_NO_ROOM_TEXT.
+        // (Legacy 'Unspecified' items were folded into this group above.)
+        label: section.isUnplaced ? PUNCH_NO_ROOM_TEXT : section.label,
         onPlan: !section.isUnplaced && onPlanKeys.has(section.key),
         openCount: section.openCount,
         total: section.total,
@@ -1303,7 +1545,28 @@ function PunchListScreenInner() {
       for (const item of section.items) out.push(itemRow(item));
     }
     return out;
-  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById, canDeleteItem, pickerSubNames]);
+  }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById, canDeleteItem, pickerSubNames, focusedId]);
+
+  // Scroll the notification's item into view once its row exists (#51).
+  const listRef = useRef<FlatList<PunchRowData>>(null);
+  useEffect(() => {
+    if (!focusedId || focusScrolledRef.current) return;
+    const index = rows.findIndex(r => r.kind === 'item' && r.key === focusedId);
+    if (index < 0) return;
+    focusScrolledRef.current = true;
+    const t = setTimeout(() => {
+      try { listRef.current?.scrollToIndex({ index, viewPosition: 0.2, animated: true }); } catch { /* onScrollToIndexFailed retries */ }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [focusedId, rows]);
+  const onScrollToIndexFailed = useCallback((info: { index: number; averageItemLength: number }) => {
+    // Rows past the first render window have no measured position yet: jump
+    // near it by the average, then aim again once those rows have mounted.
+    listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+    setTimeout(() => {
+      try { listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0.2, animated: true }); } catch { /* best effort */ }
+    }, 300);
+  }, []);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
@@ -1321,6 +1584,24 @@ function PunchListScreenInner() {
     const linkedTaskName = linkedTask?.title;
     const commit = () => {
       if (editingItem) {
+        // A replaced photo uploads under its OWN new key, queued here on
+        // Update (Cancel never uploads). Under the item's `punch-<id>` key the
+        // upload would collide with the old photo's object, be dropped as
+        // "already uploaded", and leave every other device on the old picture
+        // — see punchReplacementUpload.
+        let replacementUpload: PunchReplacementUpload | null = null;
+        if (photoEdit.kind === 'replace') {
+          replacementUpload = punchReplacementUpload({
+            userId: user?.id, projectId: editingItem.projectId, itemId: editingItem.id,
+            uri: photoEdit.uri, mimeType: photoEdit.mimeType, nowMs: Date.now(),
+          });
+          if (replacementUpload && user?.id) {
+            void queuePhotoUpload({
+              photoId: replacementUpload.photoId, userId: user.id, projectId: editingItem.projectId,
+              localUri: photoEdit.uri, storagePath: replacementUpload.storagePath, contentType: replacementUpload.contentType,
+            });
+          }
+        }
         updatePunchItem(editingItem.id, {
           description: desc, location: location.trim(), assignedSub: assignedSub.trim(),
           // Always sent, so the name and the id change together — undefined
@@ -1330,6 +1611,8 @@ function PunchListScreenInner() {
           listType: formListType,
           linkedTaskId: linkedTaskId || undefined,
           linkedTaskName: linkedTaskName || undefined,
+          // Only the web panel can change it; 'keep' adds no keys at all.
+          ...punchPhotoPatch(photoEdit, replacementUpload),
         });
       } else {
         const item: PunchItem = {
@@ -1381,7 +1664,7 @@ function PunchListScreenInner() {
       return;
     }
     commit();
-  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin, user?.id]);
+  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin, user?.id, photoEdit]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -1508,9 +1791,10 @@ function PunchListScreenInner() {
   useEffect(() => { filingWalkRef.current = false; }, [walkShots]);
 
   const handleStatusChange = useCallback((item: PunchItem, newStatus: PunchItemStatus) => {
-    const updates: Partial<PunchItem> = { status: newStatus };
-    if (newStatus === 'closed') updates.closedAt = new Date().toISOString();
-    updatePunchItem(item.id, updates);
+    // punchStatusPatch: the status named explicitly, closedAt on a close, and
+    // rejectedAt + the note on any move back out of Review (CONTRACT 12 — the
+    // server neutralises an un-review that carries no later rejected_at).
+    updatePunchItem(item.id, punchStatusPatch(item, newStatus, new Date().toISOString()));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
 
     // Auto-suggest project closeout when this close zeros out the open
@@ -1563,12 +1847,15 @@ function PunchListScreenInner() {
   }, [handleStatusChange]);
 
   const handleReject = useCallback((itemId: string) => {
-    const note = rejectionNote.trim();
-    updatePunchItem(itemId, { status: 'open', rejectionNote: note || 'Rejected — needs rework' });
+    // A real reject (CONTRACT 12): rejectedAt is stamped now, so the server
+    // tells this send-back from a stale queued write even when the note text
+    // is the same as last round's — which the old note-only write could not.
+    const item = allItems.find(i => i.id === itemId);
+    updatePunchItem(itemId, punchStatusPatch({ status: item?.status ?? 'ready_for_review', rejectedAt: item?.rejectedAt }, 'open', new Date().toISOString(), rejectionNote));
     setShowRejectModal(null);
     setRejectionNote('');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [rejectionNote, updatePunchItem]);
+  }, [rejectionNote, updatePunchItem, allItems]);
 
   const handleCloseProject = useCallback(() => {
     if (!allClosed) {
@@ -1632,14 +1919,35 @@ function PunchListScreenInner() {
     if (selectedIdList.length === 0) return;
     setShowBulkStatusPicker(false);
     const cfg = getStatusConfig(themeColors, next);
-    runBulkUpdate(
-      [...selectedIdList],
-      // Stamped once for the whole batch: these were closed in one gesture, and
-      // thirty closedAt values a millisecond apart is noise in the closeout.
-      { status: next, ...(next === 'closed' ? { closedAt: new Date().toISOString() } : {}) },
-      `moved to ${cfg.label}`,
+    // Stamped once for the whole batch: these were closed in one gesture, and
+    // thirty closedAt values a millisecond apart is noise in the closeout.
+    const nowIso = new Date().toISOString();
+    // Items waiting in Review that this move sends back to work are REJECTS
+    // (CONTRACT 12): they carry rejectedAt + a note, or the server keeps them
+    // in Review. The rest get the plain move. Two batch writes, one gesture.
+    const rejectItems = selectedItems.filter(i => isPunchReject(i.status, next));
+    const rejects = rejectItems.map(i => i.id);
+    const rest = selectedIdList.filter(id => !rejects.includes(id));
+    const run = () => {
+      // One stamp later than every selected item's previous reject, so a phone
+      // clock behind an earlier reject's stamp cannot neutralise this one.
+      if (rejects.length > 0) updatePunchItems(rejects, punchStatusPatch({ status: 'ready_for_review', rejectedAt: latestRejectedAt(rejectItems) }, next, nowIso));
+      if (rest.length > 0) updatePunchItems(rest, punchStatusPatch({ status: 'open' }, next, nowIso));
+      finishBulk(selectedIdList.length, `moved to ${cfg.label}`);
+    };
+    if (rejects.length === 0) { run(); return; }
+    // Sending a sub's marked-fixed work back is a verdict on it — said first,
+    // with the count, and that the sub sees it with no reason given.
+    const n = rejects.length;
+    showAlert(
+      `Send ${n} item${n === 1 ? '' : 's'} back to the sub?`,
+      `${n} of these ${n === 1 ? 'is' : 'are'} waiting for your review. Moving ${n === 1 ? 'it' : 'them'} to ${cfg.label} sends ${n === 1 ? 'it' : 'them'} back as not done, with no reason given. To say why, use Reject on the item instead.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send back', style: 'destructive', onPress: run },
+      ],
     );
-  }, [selectedIdList, themeColors, runBulkUpdate]);
+  }, [selectedIdList, selectedItems, themeColors, updatePunchItems, finishBulk]);
 
   /** Move every selected item to the OTHER list in one batch write, like every
    *  other bulk verb — never a loop of updatePunchItem. Confirmed first, with
@@ -1893,6 +2201,94 @@ function PunchListScreenInner() {
     ]);
   }, [editingItem, removalFor, itemNumbers, writePin]);
 
+  // ── The web panel's photo pane (split layout only) ─────────────────────────
+  // What is in front of him: the photo he just chose, nothing (removed in this
+  // sheet), or the saved one. For a new item, the attached / prefilled photo.
+  const paneShowingSaved = !!editingItem && photoEdit.kind === 'keep';
+  const panePhotoUri = editingItem
+    ? (photoEdit.kind === 'replace' ? photoEdit.uri : photoEdit.kind === 'remove' ? undefined : editingItem.photoUri)
+    : attachedPhotoUri;
+  const paneMarkup = useMemo(() => {
+    if (editingItem) {
+      // A photo chosen here is a fresh file: no markup belongs to it.
+      return photoEdit.kind === 'keep' ? markupForSource(projectPhotos, sourcePhotoIdOf(editingItem), editingItem.photoUri) : [];
+    }
+    return markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri);
+  }, [editingItem, photoEdit.kind, projectPhotos, attachedSourcePhotoId, attachedPhotoUri]);
+  const paneBlocked = (action: 'add' | 'replace' | 'remove') => punchPhotoActionBlocked({
+    action,
+    editing: !!editingItem,
+    linkedSourcePhotoId: editingItem?.sourcePhotoId,
+    showingSavedPhoto: paneShowingSaved,
+  });
+  const attachNewItemPhoto = useCallback((uri: string | undefined, sourcePhotoId: string | undefined) => {
+    setAttachedPhotoUri(uri);
+    setAttachedSourcePhotoId(sourcePhotoId);
+  }, []);
+  const pickPanePhoto = useCallback(async () => {
+    // On web this is the browser's file chooser (expo-image-picker's web
+    // build); the result is a blob: URL (session-scoped: it dies with the tab,
+    // so the upload must drain before he closes it — the queue tries within
+    // seconds while online). A new item's photo is staged by ProjectContext's
+    // stagePunchPhoto; a replacement is queued by handleSave under a new key.
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false });
+    } catch {
+      showAlert('Couldn’t open your files', 'The browser didn’t open the file chooser. Try again.');
+      return;
+    }
+    const asset = !result.canceled ? result.assets?.[0] : undefined;
+    const uri = asset?.uri;
+    if (!uri) return;
+    if (editingItem) {
+      setPhotoEdit({ kind: 'replace', uri, mimeType: asset?.mimeType ?? null });
+    } else {
+      // The photo and its gallery link move together: a chosen file is not
+      // the gallery photo the prefill came from, so that photo's markup must
+      // not be drawn over it (nor its id saved onto the new item).
+      attachNewItemPhoto(uri, undefined);
+    }
+  }, [editingItem, attachNewItemPhoto]);
+  const removePanePhoto = useCallback(() => {
+    if (editingItem) {
+      // Nothing saved had a photo and he removes the one he just chose: back
+      // to keep, not a remove of a photo that never existed.
+      setPhotoEdit(editingItem.photoUri ? { kind: 'remove' } : { kind: 'keep' });
+    } else {
+      setAttachedPhotoUri(undefined);
+      setAttachedSourcePhotoId(undefined);
+    }
+  }, [editingItem]);
+  const panePendingNote = editingItem
+    ? photoEdit.kind === 'replace'
+      ? 'New photo — saved when you tap Update.'
+      : photoEdit.kind === 'remove'
+        ? 'The photo is removed when you tap Update.'
+        : null
+    : attachedPhotoUri && paneMarkup.length > 0
+      // Same caveat the phone sheet prints under a marked-up prefill.
+      ? 'Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark — describe the mark in the description.'
+      : null;
+  const panePin = useMemo((): PunchEditPinThumb | null => {
+    const ref = editingItem ? pinRefOf(editingItem, sheetsById) : null;
+    const spot = ref?.state === 'pinned'
+      ? { sheetId: ref.sheetId, x: ref.x, y: ref.y }
+      : !editingItem && formPin ? formPin : null;
+    if (!spot) return null;
+    const sheet = sheetsById.get(spot.sheetId);
+    if (!sheet?.imageUri) return null;
+    const n = editingItem ? itemNumbers.get(editingItem.id) ?? null : null;
+    return {
+      imageUri: sheet.imageUri,
+      storedAspect: sheetAspectRatio(sheet),
+      x: spot.x,
+      y: spot.y,
+      number: n,
+      label: `${pinSheetLabel(sheet)}${sheet.superseded ? ' · older revision' : ''}${n !== null ? ` — pin ${n}` : ''}${editingItem ? '' : ' · pinned when you add it'}`,
+    };
+  }, [editingItem, sheetsById, formPin, itemNumbers]);
+
   const [showExport, setShowExport] = useState(false);
   const openExport = useCallback(() => setShowExport(true), []);
   const closeExport = useCallback(() => setShowExport(false), []);
@@ -1915,8 +2311,13 @@ function PunchListScreenInner() {
         <Stack.Screen options={stackOptions} />
         <ToolProjectPicker
           toolName="Punch List"
-          message="Punch lists are tied to a project so each item links to its trade and location."
-          projects={projects}
+          message={ownTier
+            ? 'Punch lists are tied to a project so each item links to its trade and location.'
+            // #127: in on an invite, not his own plan — only the jobs whose
+            // invite opens the punch list, or a pick would open a Business
+            // feature on one of his own free-plan jobs.
+            : 'Your plan does not include the punch list, but your GC invited you to the jobs below. Pick the one you are on.'}
+          projects={pickableProjects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
           icon={<MagePunch size={36} color={themeColors.accent} />}
@@ -1938,6 +2339,31 @@ function PunchListScreenInner() {
   const crewStats = listStats.crew;
   const listHeader = (
     <View>
+      {/* #54: while a notification's re-read is in flight the rows below are
+          the copy from launch — said, not passed off as current. */}
+      {refreshState === 'refreshing' || refreshState === 'offline' || focusMissing ? (
+        <View style={styles.refreshBanner} testID={`punch-focus-${refreshState === 'refreshing' ? 'refreshing' : refreshState === 'offline' ? 'offline' : 'missing'}`}>
+          {refreshState === 'refreshing' ? <ActivityIndicator size="small" color={themeColors.accent} /> : null}
+          <Text style={styles.refreshBannerText}>
+            {refreshState === 'refreshing'
+              ? 'Refreshing… loading the sub’s latest mark. Statuses below may be out of date until this finishes.'
+              : refreshState === 'offline'
+                ? 'No signal — this is the list saved on this phone, so the sub’s latest mark may not be on it yet.'
+                : 'That item isn’t on this punch list. It may have been deleted, or it isn’t shared with you.'}
+          </Text>
+          {/* A real control, not "pull down": pull-to-refresh does nothing on
+              the web app, and this re-runs the whole focus, not just a read. */}
+          {refreshState !== 'refreshing' ? (
+            <Button
+              label={refreshState === 'offline' ? 'Try again' : 'Refresh'}
+              variant="secondary"
+              size="sm"
+              onPress={retryFocus}
+              testID="punch-focus-retry"
+            />
+          ) : null}
+        </View>
+      ) : null}
       {/* ── Punch | Crew list ────────────────────────────────────────────
           The first thing on the screen, because it decides what every number
           below it means. Each side carries its open count so he can see the
@@ -2383,11 +2809,357 @@ function PunchListScreenInner() {
     </View>
   );
 
+  // ── The add/edit sheet, in pieces ──────────────────────────────────────────
+  // The same pieces compose two shapes (utils/punchEditLayout): the phone's
+  // bottom sheet — header, stage, photo preview, fields, actions, in exactly
+  // the order and markup it always had — and, on a wide web window, the
+  // centred 75 / 25 panel: header, stage and fields in a scrolling left
+  // column with the actions pinned under it, the photo pane on the right.
+  const formHeaderEl = (
+    <>
+      <View style={styles.formHeader}>
+        <Text style={styles.formTitle}>
+          {editingItem ? 'Edit Item' : formListType === 'punch' ? 'New Punch Item' : 'New Crew List Item'}
+        </Text>
+        <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
+          <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+  const formPipelineEl = (
+    <>
+      {/* Only when EDITING an existing item — a new one has no lifecycle
+          to show yet, and the list cards already carry a status badge
+          plus the Start / Submit / Close actions. Same gate
+          app/permits.tsx uses (`editingPermit &&`): the breadcrumb
+          belongs in single-item context, not once per row. */}
+      {editingItem && (
+        <View style={{ marginBottom: 14 }}>
+          <StatusPipeline
+            stages={stagesFor('punch')}
+            current={visualStageFor('punch', editingItem.status)}
+            startedAt={editingItem.createdAt}
+            dueAt={editingItem.dueDate || undefined}
+            onAdvance={(next) => {
+              const nowIso = new Date().toISOString();
+              // Stamp closedAt exactly as handleStatusChange does. This
+              // path used to close an item with no close date, so the
+              // export's Closed / Days Open columns and the closeout
+              // packet had nothing to print for it.
+              const patch: Partial<PunchItem> = {
+                ...punchStatusPatch(editingItem, next as PunchItem['status'], nowIso),
+                updatedAt: nowIso,
+              };
+              updatePunchItem(editingItem.id, patch);
+              setEditingItem({ ...editingItem, ...patch });
+            }}
+          />
+        </View>
+      )}
+    </>
+  );
+  const formPhotoPreviewEl = (
+    <>
+      {attachedPhotoUri ? (
+        <View style={styles.photoPreview}>
+          <View style={styles.photoImgWrap}>
+            <Image source={{ uri: attachedPhotoUri }} style={styles.photoImg} resizeMode="cover" />
+            {/* The circle he drew round the defect, drawn over the
+                photo on THIS screen. It is stored beside the photo,
+                not burned into it, and the sub portal shows neither
+                the photo nor the mark yet (only the description,
+                location, due date and plan sheet) — so the note
+                below says so. */}
+            <PhotoMarkupOverlay markup={markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri)} />
+          </View>
+          <TouchableOpacity
+            style={styles.photoRemove}
+            onPress={() => { setAttachedPhotoUri(undefined); setAttachedSourcePhotoId(undefined); }}
+            accessibilityRole="button"
+            accessibilityLabel="Remove attached photo"
+            testID="punch-remove-photo"
+          >
+            <X size={12} color="#fff" strokeWidth={1.75} />
+          </TouchableOpacity>
+          <View style={styles.photoBadge}>
+            <Text style={styles.photoBadgeText}>Photo attached</Text>
+          </View>
+        </View>
+      ) : null}
+      {attachedPhotoUri && markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri).length > 0 ? (
+        // The sub's portal does not draw the photo yet (it is in a
+        // private bucket and needs a signed link), let alone the mark,
+        // so he must describe it in words.
+        <Text style={styles.formListNote}>
+          Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark — describe the mark in the description.
+        </Text>
+      ) : null}
+    </>
+  );
+  const formFieldsEl = (
+    <>
+      {/* Which list — chosen explicitly, seeded from the list showing.
+          The line under it says the consequence in words, so the
+          choice is never a silent one. */}
+      <Text style={styles.fieldLabel}>List</Text>
+      <View style={styles.formListRow} accessibilityRole="radiogroup">
+        {(['punch', 'crew'] as const).map(list => {
+          const on = formListType === list;
+          return (
+            <TouchableOpacity
+              key={list}
+              style={[styles.formListBtn, on && styles.formListBtnOn]}
+              onPress={() => setFormListType(list)}
+              activeOpacity={0.8}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={LIST_LABEL[list]}
+              testID={`punch-form-list-${list}`}
+            >
+              {list === 'punch'
+                ? <Eye size={14} color={on ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
+                : <Wrench size={14} color={on ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />}
+              <Text style={[styles.formListBtnText, on && styles.formListBtnTextOn]}>{LIST_LABEL[list]}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={styles.formListNote}>
+        {formListType === 'crew'
+          ? 'Internal — never shown in the client portal.'
+          : clientSeesPunch
+            ? 'Shown to your client in their portal until it is closed.'
+            : 'Formal punch list. Punch list sharing is off in the client portal, so your client does not see it yet.'}
+      </Text>
+
+      <Text style={styles.fieldLabel}>Description *</Text>
+      <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
+
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.fieldLabel}>Location/Area</Text>
+          <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Kitchen, Room 3B" placeholderTextColor={themeColors.textMuted} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.fieldLabel}>Due Date</Text>
+          {/* A picker, not a text box: a typed "9/25" saved, never
+              went overdue and printed raw (#113). Stored as the
+              calendar day picked (utils/calendarDate), never a UTC
+              slice. Optional, so it can be cleared. */}
+          <TouchableOpacity
+            style={[styles.input, styles.dueField]}
+            onPress={() => setShowDuePicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel={dueDate ? `Due date ${dueDate}. Change` : 'Pick a due date'}
+            testID="punch-due-field"
+          >
+            <CalendarClock size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            <Text
+              style={[styles.dueFieldText, !dueDate && { color: themeColors.textMuted }, dueDate && !parseCalendarDay(dueDate.slice(0, 10)) && { color: themeColors.warningLabel }]}
+              numberOfLines={1}
+            >
+              {!dueDate
+                ? 'No due date'
+                : parseCalendarDay(dueDate.slice(0, 10))
+                  ? formatCalendarDay(dueDate.slice(0, 10))
+                  : `“${dueDate}” — not a date`}
+            </Text>
+          </TouchableOpacity>
+          {dueDate ? (
+            <TouchableOpacity onPress={() => setDueDate('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear due date" testID="punch-due-clear">
+              <Text style={styles.dueClear}>Clear</Text>
+            </TouchableOpacity>
+          ) : null}
+          <DatePickerModal
+            visible={showDuePicker}
+            value={dueDate && parseCalendarDay(dueDate.slice(0, 10)) ? (parseCalendarDay(dueDate.slice(0, 10))?.toISOString() ?? '') : ''}
+            allowFuture
+            title="Due date"
+            onClose={() => setShowDuePicker(false)}
+            // The picker hands back noon-UTC of the day he picked;
+            // calendarDayOf keeps that local calendar day as YYYY-MM-DD.
+            onChange={(iso) => setDueDate(calendarDayOf(iso) ?? '')}
+          />
+        </View>
+      </View>
+
+      {/* Where it is on the plan. The row says the export's verdict
+          in words; an existing item's pin is saved the moment it is
+          placed or removed. */}
+      <Text style={styles.fieldLabel}>On the plan</Text>
+      {(() => {
+        const ref = editingItem ? pinRefOf(editingItem, sheetsById) : null;
+        const formSheet = formPin ? sheetsById.get(formPin.sheetId) : undefined;
+        const saved = pinSavedInSheet ? ' · saved' : '';
+        const pinnedHere = editingItem ? ref?.state === 'pinned' : !!formPin;
+        const rowText = editingItem
+          ? ref?.state === 'pinned'
+            ? `Pinned on ${ref.sheetLabel}${sheetsById.get(ref.sheetId)?.superseded ? ' · older revision' : ''}${saved}`
+            : ref?.state === 'no-position'
+              ? `On ${ref.sheetLabel}, but its spot is missing${saved}`
+              : ref?.state === 'sheet-missing'
+                ? `Its plan sheet is no longer on this job${saved}`
+                : `Not pinned — the export lists it as not pinned${saved}`
+          : formPin
+            ? `Will be pinned on ${formSheet ? pinSheetLabel(formSheet) : 'the plan'} when you add it`
+            : 'Not pinned yet';
+        return (
+          <View style={styles.formPinBlock} testID="punch-form-pin">
+            <View style={styles.formPinRow}>
+              <MapPin size={14} color={pinnedHere ? themeColors.accentLabel : themeColors.textMuted} strokeWidth={2} />
+              <Text style={styles.formPinText} testID="punch-form-pin-state">{rowText}</Text>
+            </View>
+            <View style={styles.formPinActions}>
+              {pinnedHere ? (
+                <>
+                  <Button size="md" variant="secondary" label="Move pin" onPress={openFormPinStep} disabled={!!pinBlocked} testID="punch-form-pin-move" />
+                  <Button size="md" variant="ghost" label="Remove pin" onPress={handleFormPinRemove} disabled={!!pinBlocked} testID="punch-form-pin-remove" />
+                </>
+              ) : (
+                <Button
+                  size="md"
+                  variant="secondary"
+                  label="Pin on plan"
+                  onPress={openFormPinStep}
+                  disabled={!!pinBlocked}
+                  iconLeft={<MapPinPlus size={14} color={themeColors.text} strokeWidth={2} />}
+                  testID="punch-form-pin-open"
+                />
+              )}
+            </View>
+            {pinBlocked ? <Text style={styles.formListNote}>{pinBlocked}</Text> : null}
+          </View>
+        );
+      })()}
+
+      <Text style={styles.fieldLabel}>Assigned Sub</Text>
+      {/* Unassigned, the subs, and Other…. Tapping the active chip
+          also clears it. Every choice sets the name AND the id
+          together: a chip gives its sub's id; Unassigned and Other…
+          clear it (the update sends null — see punchItemToUpdateRow),
+          so no earlier sub's portal keeps the item (#18/#19). */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
+        <TouchableOpacity
+          style={[styles.subChip, !assignedSub.trim() && !subOther && styles.subChipActive]}
+          onPress={() => { setAssignedSub(''); setFormSubId(undefined); setSubOther(false); }}
+          accessibilityRole="button"
+          accessibilityState={{ selected: !assignedSub.trim() && !subOther }}
+          testID="punch-sub-unassigned"
+        >
+          <Text style={[styles.subChipText, !assignedSub.trim() && !subOther && styles.subChipTextActive]}>Unassigned</Text>
+        </TouchableOpacity>
+        {pickerSubs.map(s => {
+          const on = !subOther && assignedSub === s.companyName;
+          return (
+            <TouchableOpacity
+              key={s.id}
+              style={[styles.subChip, on && styles.subChipActive]}
+              onPress={() => {
+                setSubOther(false);
+                if (on) { setAssignedSub(''); setFormSubId(undefined); return; }
+                setAssignedSub(s.companyName); setFormSubId(s.id);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              accessibilityHint={on ? 'Tap again to unassign' : undefined}
+            >
+              <Text style={[styles.subChipText, on && styles.subChipTextActive]}>{s.companyName}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity
+          style={[styles.subChip, subOther && styles.subChipActive]}
+          onPress={() => { setSubOther(true); setAssignedSub(''); setFormSubId(undefined); }}
+          accessibilityRole="button"
+          accessibilityState={{ selected: subOther }}
+          testID="punch-sub-other"
+        >
+          <Text style={[styles.subChipText, subOther && styles.subChipTextActive]}>Other…</Text>
+        </TouchableOpacity>
+      </ScrollView>
+      {subOther ? (
+        <TextInput
+          style={[styles.input, { marginTop: 8 }]}
+          value={assignedSub}
+          onChangeText={t => { setAssignedSub(t); setFormSubId(undefined); }}
+          placeholder="Company name"
+          placeholderTextColor={themeColors.textMuted}
+          autoFocus
+          testID="punch-sub-other-input"
+        />
+      ) : null}
+      {!projectSubs.isOwner && (projectSubs.isLoading || projectSubs.isError || pickerSubs.length === 0) ? (
+        <Text style={styles.formListNote}>
+          {projectSubs.isLoading
+            ? 'Loading your GC’s subs on this job…'
+            : projectSubs.isError
+              ? 'Couldn’t load your GC’s subs on this job. Leave it unassigned and your GC assigns it.'
+              : 'Your GC has no subs on this job yet. Leave it unassigned and your GC assigns it.'}
+        </Text>
+      ) : null}
+      {editingItem?.subNote ? (
+        <Text style={styles.formListNote}>Sub’s note from the portal: {editingItem.subNote}</Text>
+      ) : null}
+
+      <Text style={styles.fieldLabel}>Priority</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {(['low', 'medium', 'high'] as PunchItemPriority[]).map(p => {
+          const pc = getPriorityConfig(themeColors, p);
+          return (
+            <TouchableOpacity
+              key={p}
+              style={[styles.priorityBtn, priority === p && { backgroundColor: pc.color }]}
+              onPress={() => setPriority(p)}
+            >
+              <Text style={[styles.priorityBtnText, priority === p && { color: '#fff' }]}>{pc.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {scheduleTasks.length > 0 ? (
+        <>
+          <Text style={styles.fieldLabel}>Link to Schedule Task (optional)</Text>
+          <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
+            <Link2 size={14} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={[styles.pickerBtnText, !linkedTask && { color: themeColors.textMuted }]} numberOfLines={1}>
+              {linkedTask ? linkedTask.title : 'No task linked'}
+            </Text>
+            {linkedTask ? (
+              <TouchableOpacity onPress={() => setLinkedTaskId('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            ) : (
+              <ChevronDown size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+            )}
+          </TouchableOpacity>
+        </>
+      ) : null}
+    </>
+  );
+  const formActionsEl = (
+    <>
+      <View style={styles.formActions}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-punch-item">
+          <Text style={styles.saveBtnText}>{editingItem ? 'Update' : 'Add Item'}</Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={stackOptions} />
       <FlatList
         {...fabScroll}
+        ref={listRef}
+        onScrollToIndexFailed={onScrollToIndexFailed}
+        // #54: pull down to re-read the list (the sub's latest marks).
+        refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} tintColor={themeColors.accent} />}
         data={rows}
         keyExtractor={keyExtractor}
         renderItem={renderRow}
@@ -2639,335 +3411,51 @@ function PunchListScreenInner() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); resetForm(); }}>
+      <Modal visible={showForm} transparent animationType={editLayout === 'split' ? 'fade' : 'slide'} onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
-                <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>
-                    {editingItem ? 'Edit Item' : formListType === 'punch' ? 'New Punch Item' : 'New Crew List Item'}
-                  </Text>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
-                  </TouchableOpacity>
+          {editLayout === 'split' ? (
+            <View style={[styles.modalOverlay, styles.splitOverlay]} testID="punch-edit-split">
+              <View style={[styles.splitPanel, punchEditPanelSize(windowWidth, windowHeight)]}>
+                <View style={[styles.splitForm, { flex: PUNCH_EDIT_FORM_FLEX }]}>
+                  <View style={styles.splitFormHead}>{formHeaderEl}</View>
+                  <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.splitFormBody} keyboardShouldPersistTaps="handled">
+                    {formPipelineEl}
+                    {formFieldsEl}
+                  </ScrollView>
+                  <View style={styles.splitFormFoot}>{formActionsEl}</View>
                 </View>
-
-                {/* Only when EDITING an existing item — a new one has no lifecycle
-                    to show yet, and the list cards already carry a status badge
-                    plus the Start / Submit / Close actions. Same gate
-                    app/permits.tsx uses (`editingPermit &&`): the breadcrumb
-                    belongs in single-item context, not once per row. */}
-                {editingItem && (
-                  <View style={{ marginBottom: 14 }}>
-                    <StatusPipeline
-                      stages={stagesFor('punch')}
-                      current={visualStageFor('punch', editingItem.status)}
-                      startedAt={editingItem.createdAt}
-                      dueAt={editingItem.dueDate || undefined}
-                      onAdvance={(next) => {
-                        const nowIso = new Date().toISOString();
-                        // Stamp closedAt exactly as handleStatusChange does. This
-                        // path used to close an item with no close date, so the
-                        // export's Closed / Days Open columns and the closeout
-                        // packet had nothing to print for it.
-                        const closing = next === 'closed';
-                        const patch: Partial<PunchItem> = {
-                          status: next as PunchItem['status'],
-                          updatedAt: nowIso,
-                          ...(closing ? { closedAt: nowIso } : {}),
-                        };
-                        updatePunchItem(editingItem.id, patch);
-                        setEditingItem({ ...editingItem, ...patch });
-                      }}
-                    />
-                  </View>
-                )}
-
-                {attachedPhotoUri ? (
-                  <View style={styles.photoPreview}>
-                    <View style={styles.photoImgWrap}>
-                      <Image source={{ uri: attachedPhotoUri }} style={styles.photoImg} resizeMode="cover" />
-                      {/* The circle he drew round the defect, drawn over the
-                          photo on THIS screen. It is stored beside the photo,
-                          not burned into it, and the sub portal shows neither
-                          the photo nor the mark yet (only the description,
-                          location, due date and plan sheet) — so the note
-                          below says so. */}
-                      <PhotoMarkupOverlay markup={markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri)} />
-                    </View>
-                    <TouchableOpacity
-                      style={styles.photoRemove}
-                      onPress={() => { setAttachedPhotoUri(undefined); setAttachedSourcePhotoId(undefined); }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Remove attached photo"
-                      testID="punch-remove-photo"
-                    >
-                      <X size={12} color="#fff" strokeWidth={1.75} />
-                    </TouchableOpacity>
-                    <View style={styles.photoBadge}>
-                      <Text style={styles.photoBadgeText}>Photo attached</Text>
-                    </View>
-                  </View>
-                ) : null}
-                {attachedPhotoUri && markupForSource(projectPhotos, attachedSourcePhotoId, attachedPhotoUri).length > 0 ? (
-                  // The sub's portal does not draw the photo yet (it is in a
-                  // private bucket and needs a signed link), let alone the mark,
-                  // so he must describe it in words.
-                  <Text style={styles.formListNote}>
-                    Your markup shows here only. The sub portal shows the description, location and plan sheet, not the photo or the mark — describe the mark in the description.
-                  </Text>
-                ) : null}
-
-                {/* Which list — chosen explicitly, seeded from the list showing.
-                    The line under it says the consequence in words, so the
-                    choice is never a silent one. */}
-                <Text style={styles.fieldLabel}>List</Text>
-                <View style={styles.formListRow} accessibilityRole="radiogroup">
-                  {(['punch', 'crew'] as const).map(list => {
-                    const on = formListType === list;
-                    return (
-                      <TouchableOpacity
-                        key={list}
-                        style={[styles.formListBtn, on && styles.formListBtnOn]}
-                        onPress={() => setFormListType(list)}
-                        activeOpacity={0.8}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: on }}
-                        accessibilityLabel={LIST_LABEL[list]}
-                        testID={`punch-form-list-${list}`}
-                      >
-                        {list === 'punch'
-                          ? <Eye size={14} color={on ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />
-                          : <Wrench size={14} color={on ? themeColors.accentLabel : themeColors.textSecondary} strokeWidth={1.75} />}
-                        <Text style={[styles.formListBtnText, on && styles.formListBtnTextOn]}>{LIST_LABEL[list]}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <Text style={styles.formListNote}>
-                  {formListType === 'crew'
-                    ? 'Internal — never shown in the client portal.'
-                    : clientSeesPunch
-                      ? 'Shown to your client in their portal until it is closed.'
-                      : 'Formal punch list. Punch list sharing is off in the client portal, so your client does not see it yet.'}
-                </Text>
-
-                <Text style={styles.fieldLabel}>Description *</Text>
-                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
-
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Location/Area</Text>
-                    <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Kitchen, Room 3B" placeholderTextColor={themeColors.textMuted} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Due Date</Text>
-                    {/* A picker, not a text box: a typed "9/25" saved, never
-                        went overdue and printed raw (#113). Stored as the
-                        calendar day picked (utils/calendarDate), never a UTC
-                        slice. Optional, so it can be cleared. */}
-                    <TouchableOpacity
-                      style={[styles.input, styles.dueField]}
-                      onPress={() => setShowDuePicker(true)}
-                      accessibilityRole="button"
-                      accessibilityLabel={dueDate ? `Due date ${dueDate}. Change` : 'Pick a due date'}
-                      testID="punch-due-field"
-                    >
-                      <CalendarClock size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-                      <Text
-                        style={[styles.dueFieldText, !dueDate && { color: themeColors.textMuted }, dueDate && !parseCalendarDay(dueDate.slice(0, 10)) && { color: themeColors.warningLabel }]}
-                        numberOfLines={1}
-                      >
-                        {!dueDate
-                          ? 'No due date'
-                          : parseCalendarDay(dueDate.slice(0, 10))
-                            ? formatCalendarDay(dueDate.slice(0, 10))
-                            : `“${dueDate}” — not a date`}
-                      </Text>
-                    </TouchableOpacity>
-                    {dueDate ? (
-                      <TouchableOpacity onPress={() => setDueDate('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear due date" testID="punch-due-clear">
-                        <Text style={styles.dueClear}>Clear</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                    <DatePickerModal
-                      visible={showDuePicker}
-                      value={dueDate && parseCalendarDay(dueDate.slice(0, 10)) ? (parseCalendarDay(dueDate.slice(0, 10))?.toISOString() ?? '') : ''}
-                      allowFuture
-                      title="Due date"
-                      onClose={() => setShowDuePicker(false)}
-                      // The picker hands back noon-UTC of the day he picked;
-                      // calendarDayOf keeps that local calendar day as YYYY-MM-DD.
-                      onChange={(iso) => setDueDate(calendarDayOf(iso) ?? '')}
-                    />
-                  </View>
-                </View>
-
-                {/* Where it is on the plan. The row says the export's verdict
-                    in words; an existing item's pin is saved the moment it is
-                    placed or removed. */}
-                <Text style={styles.fieldLabel}>On the plan</Text>
-                {(() => {
-                  const ref = editingItem ? pinRefOf(editingItem, sheetsById) : null;
-                  const formSheet = formPin ? sheetsById.get(formPin.sheetId) : undefined;
-                  const saved = pinSavedInSheet ? ' · saved' : '';
-                  const pinnedHere = editingItem ? ref?.state === 'pinned' : !!formPin;
-                  const rowText = editingItem
-                    ? ref?.state === 'pinned'
-                      ? `Pinned on ${ref.sheetLabel}${sheetsById.get(ref.sheetId)?.superseded ? ' · older revision' : ''}${saved}`
-                      : ref?.state === 'no-position'
-                        ? `On ${ref.sheetLabel}, but its spot is missing${saved}`
-                        : ref?.state === 'sheet-missing'
-                          ? `Its plan sheet is no longer on this job${saved}`
-                          : `Not pinned — the export lists it as not pinned${saved}`
-                    : formPin
-                      ? `Will be pinned on ${formSheet ? pinSheetLabel(formSheet) : 'the plan'} when you add it`
-                      : 'Not pinned yet';
-                  return (
-                    <View style={styles.formPinBlock} testID="punch-form-pin">
-                      <View style={styles.formPinRow}>
-                        <MapPin size={14} color={pinnedHere ? themeColors.accentLabel : themeColors.textMuted} strokeWidth={2} />
-                        <Text style={styles.formPinText} testID="punch-form-pin-state">{rowText}</Text>
-                      </View>
-                      <View style={styles.formPinActions}>
-                        {pinnedHere ? (
-                          <>
-                            <Button size="md" variant="secondary" label="Move pin" onPress={openFormPinStep} disabled={!!pinBlocked} testID="punch-form-pin-move" />
-                            <Button size="md" variant="ghost" label="Remove pin" onPress={handleFormPinRemove} disabled={!!pinBlocked} testID="punch-form-pin-remove" />
-                          </>
-                        ) : (
-                          <Button
-                            size="md"
-                            variant="secondary"
-                            label="Pin on plan"
-                            onPress={openFormPinStep}
-                            disabled={!!pinBlocked}
-                            iconLeft={<MapPinPlus size={14} color={themeColors.text} strokeWidth={2} />}
-                            testID="punch-form-pin-open"
-                          />
-                        )}
-                      </View>
-                      {pinBlocked ? <Text style={styles.formListNote}>{pinBlocked}</Text> : null}
-                    </View>
-                  );
-                })()}
-
-                <Text style={styles.fieldLabel}>Assigned Sub</Text>
-                {/* Unassigned, the subs, and Other…. Tapping the active chip
-                    also clears it. Every choice sets the name AND the id
-                    together: a chip gives its sub's id; Unassigned and Other…
-                    clear it (the update sends null — see punchItemToUpdateRow),
-                    so no earlier sub's portal keeps the item (#18/#19). */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
-                  <TouchableOpacity
-                    style={[styles.subChip, !assignedSub.trim() && !subOther && styles.subChipActive]}
-                    onPress={() => { setAssignedSub(''); setFormSubId(undefined); setSubOther(false); }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: !assignedSub.trim() && !subOther }}
-                    testID="punch-sub-unassigned"
-                  >
-                    <Text style={[styles.subChipText, !assignedSub.trim() && !subOther && styles.subChipTextActive]}>Unassigned</Text>
-                  </TouchableOpacity>
-                  {pickerSubs.map(s => {
-                    const on = !subOther && assignedSub === s.companyName;
-                    return (
-                      <TouchableOpacity
-                        key={s.id}
-                        style={[styles.subChip, on && styles.subChipActive]}
-                        onPress={() => {
-                          setSubOther(false);
-                          if (on) { setAssignedSub(''); setFormSubId(undefined); return; }
-                          setAssignedSub(s.companyName); setFormSubId(s.id);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: on }}
-                        accessibilityHint={on ? 'Tap again to unassign' : undefined}
-                      >
-                        <Text style={[styles.subChipText, on && styles.subChipTextActive]}>{s.companyName}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                  <TouchableOpacity
-                    style={[styles.subChip, subOther && styles.subChipActive]}
-                    onPress={() => { setSubOther(true); setAssignedSub(''); setFormSubId(undefined); }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: subOther }}
-                    testID="punch-sub-other"
-                  >
-                    <Text style={[styles.subChipText, subOther && styles.subChipTextActive]}>Other…</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-                {subOther ? (
-                  <TextInput
-                    style={[styles.input, { marginTop: 8 }]}
-                    value={assignedSub}
-                    onChangeText={t => { setAssignedSub(t); setFormSubId(undefined); }}
-                    placeholder="Company name"
-                    placeholderTextColor={themeColors.textMuted}
-                    autoFocus
-                    testID="punch-sub-other-input"
+                <View style={[styles.splitPhoto, { flex: PUNCH_EDIT_PHOTO_FLEX }]}>
+                  <PunchEditPhotoPane
+                    photoUri={panePhotoUri}
+                    markup={paneMarkup}
+                    pendingNote={panePendingNote}
+                    onOpenPhoto={() => setPaneViewerOpen(true)}
+                    onPickPhoto={() => { void pickPanePhoto(); }}
+                    onRemovePhoto={removePanePhoto}
+                    addBlocked={paneBlocked('add')}
+                    replaceBlocked={paneBlocked('replace')}
+                    removeBlocked={paneBlocked('remove')}
+                    pin={panePin}
+                    pinText={editingItem ? 'Not pinned — the export lists it as not pinned.' : 'Not pinned yet — use Pin on plan in the form.'}
+                    onOpenPin={openFormPinStep}
+                    pinBlocked={pinBlocked || null}
                   />
-                ) : null}
-                {!projectSubs.isOwner && (projectSubs.isLoading || projectSubs.isError || pickerSubs.length === 0) ? (
-                  <Text style={styles.formListNote}>
-                    {projectSubs.isLoading
-                      ? 'Loading your GC’s subs on this job…'
-                      : projectSubs.isError
-                        ? 'Couldn’t load your GC’s subs on this job. Leave it unassigned and your GC assigns it.'
-                        : 'Your GC has no subs on this job yet. Leave it unassigned and your GC assigns it.'}
-                  </Text>
-                ) : null}
-                {editingItem?.subNote ? (
-                  <Text style={styles.formListNote}>Sub’s note from the portal: {editingItem.subNote}</Text>
-                ) : null}
-
-                <Text style={styles.fieldLabel}>Priority</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {(['low', 'medium', 'high'] as PunchItemPriority[]).map(p => {
-                    const pc = getPriorityConfig(themeColors, p);
-                    return (
-                      <TouchableOpacity
-                        key={p}
-                        style={[styles.priorityBtn, priority === p && { backgroundColor: pc.color }]}
-                        onPress={() => setPriority(p)}
-                      >
-                        <Text style={[styles.priorityBtnText, priority === p && { color: '#fff' }]}>{pc.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                {scheduleTasks.length > 0 ? (
-                  <>
-                    <Text style={styles.fieldLabel}>Link to Schedule Task (optional)</Text>
-                    <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
-                      <Link2 size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={[styles.pickerBtnText, !linkedTask && { color: themeColors.textMuted }]} numberOfLines={1}>
-                        {linkedTask ? linkedTask.title : 'No task linked'}
-                      </Text>
-                      {linkedTask ? (
-                        <TouchableOpacity onPress={() => setLinkedTaskId('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                          <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                        </TouchableOpacity>
-                      ) : (
-                        <ChevronDown size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                      )}
-                    </TouchableOpacity>
-                  </>
-                ) : null}
-
-                <View style={styles.formActions}>
-                  <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-punch-item">
-                    <Text style={styles.saveBtnText}>{editingItem ? 'Update' : 'Add Item'}</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
-            </ScrollView>
-          </View>
+            </View>
+          ) : (
+            <View style={styles.modalOverlay}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
+                <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
+                  {formHeaderEl}
+                  {formPipelineEl}
+                  {formPhotoPreviewEl}
+                  {formFieldsEl}
+                  {formActionsEl}
+                </View>
+              </ScrollView>
+            </View>
+          )}
         </KeyboardAvoidingView>
         {/* Nested INSIDE the sheet's Modal: iOS only presents a second Modal
             from within the first one's tree. No PDF import from here —
@@ -2989,6 +3477,14 @@ function PunchListScreenInner() {
           onNext={handleFormPinNext}
           onSkip={() => setFormPinOpen(false)}
           onClose={() => setFormPinOpen(false)}
+        />
+        {/* The pane's photo, full size — nested for the same iOS reason. */}
+        <PunchPhotoViewer
+          visible={paneViewerOpen && editLayout === 'split'}
+          uri={panePhotoUri}
+          markup={paneMarkup}
+          caption={[description.trim(), location.trim()].filter(Boolean).join('  ·  ')}
+          onClose={() => setPaneViewerOpen(false)}
         />
       </Modal>
 
@@ -3265,14 +3761,14 @@ function PunchListScreenInner() {
                       )}
                       accessibilityRole="button"
                       accessibilityState={{ selected: filterLocationKey === UNPLACED_LOCATION_GROUP }}
-                      accessibilityLabel={`No location given, ${unplacedCount} items`}
+                      accessibilityLabel={`${PUNCH_NO_ROOM_TEXT}, ${unplacedCount} items`}
                       testID="punch-loc-unplaced"
                     >
                       <Text style={[
                         styles.filterDrawerChipText,
                         filterLocationKey === UNPLACED_LOCATION_GROUP && styles.filterDrawerChipTextActive,
                       ]}>
-                        No location ({unplacedCount})
+                        {PUNCH_NO_ROOM_TEXT} ({unplacedCount})
                       </Text>
                     </TouchableOpacity>
                   ) : null}
@@ -3396,6 +3892,9 @@ function PunchListScreenInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  gateWrap: { flex: 1, padding: 24, justifyContent: 'center' as const, alignItems: 'center' as const, gap: 12 },
+  gateTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: themeColors.text, textAlign: 'center' as const },
+  gateText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const, marginTop: 60 },
   progressSection: { marginHorizontal: 20, marginTop: 16, marginBottom: 16 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
@@ -3533,6 +4032,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   sectionSelectBtn: { paddingLeft: 12, paddingVertical: 2 },
   rowCheckbox: { marginTop: 1 },
   punchCardSelected: { borderColor: themeColors.accent, backgroundColor: themeColors.accentSoft },
+  // #51/#54: the item a "ready for review" notification opened.
+  punchCardFocused: { borderColor: themeColors.accent, borderWidth: 2 },
+  refreshBanner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, padding: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accentSoft },
+  refreshBannerText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
   geoChip: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
     alignSelf: 'flex-start' as const, marginTop: 4,
@@ -3658,6 +4161,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   punchThumb: { width: 44, height: 44, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt },
   punchDesc: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text, lineHeight: 21 },
   punchLocation: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 2 },
+  punchLocationNone: { color: themeColors.textMuted, fontStyle: 'italic' as const },
   onPlanChip: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 3,
     alignSelf: 'flex-start' as const, marginTop: 6,
@@ -3681,6 +4185,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   punchMetaText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
   rejectionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: themeColors.dangerSoft, borderRadius: Tokens.radius.sm, padding: 10, marginLeft: 18 },
   rejectionText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.dangerLabel, lineHeight: 17 },
+  rejectionHistory: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 18 },
+  rejectionHistoryText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17 },
   punchActions: { flexDirection: 'row', gap: 8, paddingLeft: 18, flexWrap: 'wrap' },
   punchActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
   punchActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
@@ -3727,6 +4233,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   projectClosedNoteText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.success },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
   formCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
+  // Web ≥ 900 px: the centred 75 / 25 panel (utils/punchEditLayout).
+  splitOverlay: { justifyContent: 'center', alignItems: 'center' },
+  splitPanel: { ...cardSurface(themeColors, { radius: 'panel', pad: 'none' }), flexDirection: 'row', overflow: 'hidden' },
+  splitForm: { minWidth: 0 },
+  splitFormHead: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 4 },
+  splitFormBody: { paddingHorizontal: 24, paddingBottom: 12, gap: 8 },
+  splitFormFoot: { paddingHorizontal: 24, paddingBottom: 18, borderTopWidth: 1, borderTopColor: themeColors.line },
+  splitPhoto: { minWidth: 0 },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   photoPreview: { position: 'relative' as const, alignSelf: 'flex-start' as const, marginBottom: 4, borderRadius: Tokens.radius.md, overflow: 'hidden' as const },

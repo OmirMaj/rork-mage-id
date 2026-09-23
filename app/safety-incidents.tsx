@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ShieldAlert, Plus, X, Trash2, AlertTriangle, ChevronLeft, Check, Mic,
@@ -47,6 +47,7 @@ import {
 } from '@/utils/photoUploadCore';
 import { resolvePhotoUrls } from '@/utils/storage';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { aiLimitAlertTitle, safetyAiBlockedReason, safetyAiServerRefusal } from '@/utils/safety/safetyRefresh';
 import { showAlert } from '@/utils/alert';
 
 /** Photos one incident report can carry. Eight is a scene, a hazard, the
@@ -134,7 +135,10 @@ function SafetyIncidentsInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
-  const { tier } = useTierAccess();
+  const { tier, isBusinessOrAbove } = useTierAccess();
+  // Draft with AI runs on HIS own plan (safety-draft-incident requires
+  // Business on the caller) — gated before the tap, with the reason (#123).
+  const draftBlocked = safetyAiBlockedReason('incident_draft', isBusinessOrAbove);
   const { user } = useAuth();
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId, incidentId, prefillDescription, prefillTreatment, prefillType, prefillLocation } = useLocalSearchParams<{
@@ -148,7 +152,16 @@ function SafetyIncidentsInner() {
     prefillLocation?: string;
   }>();
   const { getProject } = useProjects();
-  const { getIncidentsForProject, addIncident, updateIncident, deleteIncident } = useSafety();
+  const { getIncidentsForProject, addIncident, updateIncident, deleteIncident, refresh } = useSafety();
+  // Audit #119: a foreman's case filed while this list was open never showed
+  // up. Focus re-reads (refresh() rate-limits itself); pulling the list down
+  // re-reads now. Realtime (SafetyContext) covers the screen sitting open.
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  const [pulling, setPulling] = useState(false);
+  const onPull = useCallback(() => {
+    setPulling(true);
+    void refresh({ force: true }).finally(() => setPulling(false));
+  }, [refresh]);
   const seat = useSafetySeat(projectId);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -440,8 +453,9 @@ function SafetyIncidentsInner() {
 
   const handleDraftAI = useCallback(async () => {
     if (!draftNotes.trim()) { showAlert('Add notes', 'Type or dictate what happened first.'); return; }
+    if (draftBlocked) { showAlert('Business feature', draftBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { showAlert('AI limit reached', check.message ?? 'Daily AI limit reached.'); return; }
+    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Daily AI limit reached.'); return; }
     setDrafting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -450,6 +464,8 @@ function SafetyIncidentsInner() {
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session?.access_token ?? ''}` },
         body: JSON.stringify({ voiceTranscript: draftNotes, notes: draftNotes }),
       });
+      const refusal = safetyAiServerRefusal('incident_draft', res.status);
+      if (refusal) { showAlert('Business feature', refusal); return; }
       const json = await res.json();
       if (!res.ok || !json.success) { showAlert('AI unavailable', json.error ?? 'Fill the incident manually.'); return; }
       // Only apply AI enums when they match the union — otherwise keep the
@@ -465,7 +481,7 @@ function SafetyIncidentsInner() {
     } finally {
       setDrafting(false);
     }
-  }, [draftNotes, tier]);
+  }, [draftNotes, tier, draftBlocked]);
 
   // One fact, two inputs: the day count and the toggle. A counted day of
   // restriction turns the toggle on — shown, classified and stored — so the
@@ -601,7 +617,13 @@ function SafetyIncidentsInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Incidents — ${project.name}` }} />
-      <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        {...fabScroll}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={themeColors.accent} />}
+        testID="incidents-list"
+      >
         {/* An invited crew member sees only the cases HE filed: injury detail
             is private to the worker's employer (1904.29), so the safety policy
             (20260919130000) never shows him anyone else's. Says what is true
@@ -720,10 +742,13 @@ function SafetyIncidentsInner() {
                       placeholderTextColor={themeColors.textMuted}
                       multiline
                     />
-                    <TouchableOpacity style={styles.aiBtn} onPress={handleDraftAI} disabled={drafting} activeOpacity={0.85} testID="incident-draft">
+                    <TouchableOpacity style={[styles.aiBtn, draftBlocked ? styles.aiBtnDisabled : null]} onPress={handleDraftAI} disabled={drafting || !!draftBlocked} activeOpacity={0.85} testID="incident-draft">
                       <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
                       <Text style={styles.aiBtnText}>{drafting ? 'Drafting…' : 'Draft with AI'}</Text>
                     </TouchableOpacity>
+                    {draftBlocked ? (
+                      <Text style={styles.aiBlockedText} testID="incident-draft-blocked">{draftBlocked}</Text>
+                    ) : null}
                   </>
                 ) : null}
 
@@ -1021,6 +1046,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   aiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, paddingVertical: 13, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill },
   aiBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  aiBtnDisabled: { opacity: 0.5 },
+  aiBlockedText: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18, marginTop: 6 },
   segRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   segBtn: { flexGrow: 1, minWidth: 70, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line },
   segBtnActive: { backgroundColor: themeColors.accent + '18', borderColor: themeColors.accent },

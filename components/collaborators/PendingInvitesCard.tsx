@@ -29,6 +29,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Card, Button, IconWrapper } from '@/components/ui';
 import { ROLE_DESCRIPTIONS } from '@/utils/roleBlinding';
 import { parsePendingInvites, pendingInviteHeadline, type PendingInvite } from '@/utils/deepLinksInvite';
+import { settleWithin } from '@/utils/projectRole';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -72,13 +73,29 @@ export default function PendingInvitesCard() {
         return;
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Everything on Home was read before he was a member of this job.
-      void qc.invalidateQueries();
-      router.push({ pathname: '/project-detail', params: { id: body.projectId ?? inv.projectId } });
+      // #130: the project list first, with the Accept spinner still up — the
+      // job he just joined is not in the list Home read before he was a
+      // member, and opening it before the re-read lands said "Project not
+      // found". Bounded (~8 s) so a weak signal cannot hang the card.
+      const projectsRead = await settleWithin(qc.refetchQueries({ queryKey: ['projects', userId] }, { throwOnError: true }), 8000);
+      // Everything else on Home was read before he was a member too — after
+      // the projects read, so those refetches do not compete with it.
+      void qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'projects' });
+      if (projectsRead === 'failed') {
+        // Accepted on the server, list not re-read: say so here rather than
+        // open a screen that cannot show the job yet.
+        setErrorById((m) => ({ ...m, [inv.collaboratorId]: "Invite accepted — the job appears in your list when you're back online." }));
+        void query.refetch();
+        return;
+      }
+      // Still out after the wait: open it anyway; project-detail holds its
+      // loader while the list is re-reading and never says "not found" for a
+      // job he just joined (justJoined).
+      router.push({ pathname: '/project-detail', params: { id: body.projectId ?? inv.projectId, justJoined: '1' } });
     } finally {
       setAcceptingId(null);
     }
-  }, [qc, query, router]);
+  }, [qc, query, router, userId]);
 
   const invites = query.data ?? [];
   if (!userId || invites.length === 0) return null;

@@ -357,10 +357,39 @@ export function deriveSubmittalRequiredDate(o: {
   if (!anchor) return { requiredDate: '' };
   const task = matchScheduleTaskForTrade(o.trade, o.schedule.tasks ?? []);
   if (!task) return { requiredDate: '' };
-  const lead = typeof o.leadDays === 'number' && Number.isFinite(o.leadDays) ? Math.max(0, Math.round(o.leadDays)) : 0;
+  return requiredDateFromTask(o.schedule, anchor, task, o.leadDays);
+}
+
+/**
+ * #96: the same date, for the task the submittal is LINKED to now (by id) —
+ * so the screen can recompute it from today's schedule instead of trusting
+ * the date stored when the spec book was read. '' when the task is gone or
+ * the schedule has no start date to count from.
+ */
+export function deriveSubmittalRequiredDateForTask(o: {
+  schedule: Pick<ProjectSchedule, 'startDate' | 'workingDaysPerWeek' | 'nonWorkingDates' | 'tasks'> | null | undefined;
+  taskId: string | null | undefined;
+  leadDays: number | null | undefined;
+}): DerivedRequiredDate {
+  if (!o.schedule || !o.taskId) return { requiredDate: '' };
+  const anchor = resolveScheduleAnchor(o.schedule).date;
+  if (!anchor) return { requiredDate: '' };
+  const task = (o.schedule.tasks ?? []).find(t => t.id === o.taskId);
+  if (!task) return { requiredDate: '' };
+  return requiredDateFromTask(o.schedule, anchor, task, o.leadDays);
+}
+
+/** The task's first calendar day, less the lead, in calendar days. */
+function requiredDateFromTask(
+  schedule: Pick<ProjectSchedule, 'workingDaysPerWeek' | 'nonWorkingDates'>,
+  anchor: NonNullable<ReturnType<typeof resolveScheduleAnchor>['date']>,
+  task: ScheduleTask,
+  leadDays: number | null | undefined,
+): DerivedRequiredDate {
+  const lead = typeof leadDays === 'number' && Number.isFinite(leadDays) ? Math.max(0, Math.round(leadDays)) : 0;
   const start = taskCalendarRange(
     { startDay: Math.floor(task.startDay ?? 1), durationDays: 1 },
-    anchor, o.schedule.workingDaysPerWeek, o.schedule.nonWorkingDates,
+    anchor, schedule.workingDaysPerWeek, schedule.nonWorkingDates,
   ).start;
   return {
     requiredDate: toCalendarDayString(addCalendarDays(start, -lead)),

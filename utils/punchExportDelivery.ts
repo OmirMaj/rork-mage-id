@@ -24,7 +24,7 @@
 //     no script is ever written into the print tab.
 //   • Signed-URL tokens never reach a log or the UI (scrubMessage).
 
-import { Platform } from 'react-native';
+import { Image as RNImage, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CompanyBranding } from '@/types';
@@ -46,7 +46,11 @@ import {
   PUNCH_EXPORT_NATIVE_CHECK_CONCURRENCY,
   PUNCH_EXPORT_NATIVE_INLINE_BUDGET_BYTES,
   PUNCH_EXPORT_NATIVE_REMOTE_BUDGET_BYTES,
+  PUNCH_EXPORT_PIN_CROP_CAP,
+  PUNCH_EXPORT_PIN_CROP_PX,
+  PUNCH_EXPORT_PIN_CROP_QUALITY,
   PUNCH_EXPORT_PREF_KEY,
+  PUNCH_EXPORT_ROTATE_TARGETS,
   PUNCH_EXPORT_UNKNOWN_PHOTO_BYTES,
   PUNCH_EXPORT_WEB_CONCURRENCY,
   PUNCH_EXPORT_WEB_PLAN_MAX_PX,
@@ -58,6 +62,7 @@ import {
   type PunchExportImageMime,
   type PunchExportModel,
   type PunchExportPhotoSlot,
+  type PunchExportPinCropAsset,
   type PunchExportPref,
   type PunchExportProgress,
   type PunchExportStage,
@@ -69,6 +74,7 @@ import {
   PUNCH_EXPORT_STATUS_ELEMENT_ID,
   safeLogoSrc,
 } from '@/utils/punchExportHtml';
+import { pinCropWindow } from '@/utils/punchPlanPin';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Plumbing
@@ -320,6 +326,86 @@ async function webImageToJpeg(
   }
 }
 
+/**
+ * The web export's per-item plan close-ups, cut from the sheet JPEGs this
+ * export already made (data: URLs — same origin, so the canvas is never
+ * tainted). One image load per sheet, one small canvas per item, document
+ * order, capped at PUNCH_EXPORT_PIN_CROP_CAP. Never throws: a sheet that will
+ * not load or a crop that fails just leaves that item without a close-up (it
+ * still names its sheet and pin, and the plan page still shows it).
+ */
+async function webPinCrops(
+  model: PunchExportModel,
+  sheets: ReadonlyMap<string, PunchExportImageAsset>,
+  signal?: AbortSignal,
+): Promise<Map<string, PunchExportPinCropAsset>> {
+  const out = new Map<string, PunchExportPinCropAsset>();
+  const docRows = model.sections.flatMap(s => s.groups.flatMap(g => g.rows)).filter(r => r.plan.state === 'pinned');
+  const bySheet = new Map<string, typeof docRows>();
+  for (const r of docRows.slice(0, PUNCH_EXPORT_PIN_CROP_CAP)) {
+    if (r.plan.state !== 'pinned') continue;
+    const arr = bySheet.get(r.plan.sheetId) ?? [];
+    arr.push(r);
+    bySheet.set(r.plan.sheetId, arr);
+  }
+  for (const [sheetId, rows] of bySheet) {
+    throwIfAborted(signal);
+    const asset = sheets.get(sheetId);
+    if (!asset || asset.kind !== 'image' || asset.remote || !/^data:image\//i.test(asset.src.slice(0, 11))) continue;
+    let img: HTMLImageElement | null = null;
+    const canvas = document.createElement('canvas');
+    try {
+      img = await withTimeout(loadImageElement(asset.src), PUNCH_EXPORT_FETCH_TIMEOUT_MS);
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx || !(iw > 0 && ih > 0)) continue;
+      canvas.width = PUNCH_EXPORT_PIN_CROP_PX;
+      canvas.height = PUNCH_EXPORT_PIN_CROP_PX;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      for (const r of rows) {
+        if (r.plan.state !== 'pinned') continue;
+        const w = pinCropWindow(r.plan.x, r.plan.y, iw / ih);
+        if (!w) continue;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, PUNCH_EXPORT_PIN_CROP_PX, PUNCH_EXPORT_PIN_CROP_PX);
+        ctx.drawImage(img, w.left * iw, w.top * ih, w.width * iw, w.height * ih, 0, 0, PUNCH_EXPORT_PIN_CROP_PX, PUNCH_EXPORT_PIN_CROP_PX);
+        out.set(r.id, { src: canvas.toDataURL('image/jpeg', PUNCH_EXPORT_PIN_CROP_QUALITY), mime: 'image/jpeg', pinX: w.pinX, pinY: w.pinY });
+      }
+    } catch (e) {
+      if (e instanceof PunchExportError && e.stage !== 'timeout') throw e;
+      /* this sheet's items print without a close-up */
+    } finally {
+      if (img) img.src = '';
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }
+  return out;
+}
+
+/**
+ * The OS's size for an image, oriented (iOS applies EXIF before it reports).
+ * Null on any failure or after `ms`. The export only USES it when it agrees
+ * with the size stored on the sheet (punchExportCore.verifiedSheetAspect).
+ */
+function nativeImageSize(uri: string, ms: number): Promise<{ width: number; height: number } | null> {
+  return new Promise(resolve => {
+    let done = false;
+    const t = setTimeout(() => { if (!done) { done = true; resolve(null); } }, ms);
+    try {
+      RNImage.getSize(
+        uri,
+        (width, height) => { if (!done) { done = true; clearTimeout(t); resolve(width > 0 && height > 0 ? { width, height } : null); } },
+        () => { if (!done) { done = true; clearTimeout(t); resolve(null); } },
+      );
+    } catch {
+      if (!done) { done = true; clearTimeout(t); resolve(null); }
+    }
+  });
+}
+
 function isCorsLike(err: unknown): boolean {
   const name = (err as { name?: string } | null)?.name;
   return name === 'TypeError' || name === 'SecurityError';
@@ -350,6 +436,7 @@ export async function resolveExportAssets(
   const allowed = exportAllowedOrigins();
   const photos = new Map<string, PunchExportImageAsset>();
   const sheets = new Map<string, PunchExportImageAsset>();
+  let pinCrops: Map<string, PunchExportPinCropAsset> | undefined;
   let approxBytes: number | null = target === 'web' ? null : 0;
   let inlineUsed = 0;
 
@@ -487,7 +574,16 @@ export async function resolveExportAssets(
           if (target !== 'web') {
             if (isAllowedHttps(remote, allowed)) {
               const check = await verifyRemote(remote as string, signal);
-              if (check.ok) asset = { kind: 'image', src: remote as string, mime: check.mime };
+              if (check.ok) {
+                asset = { kind: 'image', src: remote as string, mime: check.mime };
+                // Where the page is portrait-only (iOS), a landscape sheet is
+                // turned to fit and each item gets a close-up — both laid out
+                // on the image's true shape, so ask the OS for it.
+                if (PUNCH_EXPORT_ROTATE_TARGETS.includes(target)) {
+                  const size = await nativeImageSize(remote as string, PUNCH_EXPORT_CHECK_TIMEOUT_MS);
+                  if (size) asset = { ...asset, width: size.width, height: size.height };
+                }
+              }
             }
             if (asset.kind !== 'image' && local && /^file:/i.test(local)) {
               const size = await localFileSize(local);
@@ -498,6 +594,12 @@ export async function resolveExportAssets(
                   const mime = mimeFromExt(local);
                   inlineUsed += size;
                   asset = { kind: 'image', src: `data:${mime};base64,${b64}`, mime };
+                  // The size lets an inlined landscape sheet turn to fit too
+                  // (no close-ups: a data: sheet is never repeated per item).
+                  if (PUNCH_EXPORT_ROTATE_TARGETS.includes(target)) {
+                    const size = await nativeImageSize(local, PUNCH_EXPORT_CHECK_TIMEOUT_MS);
+                    if (size) asset = { ...asset, width: size.width, height: size.height };
+                  }
                 } catch {/* stays unavailable */}
               }
             }
@@ -525,6 +627,8 @@ export async function resolveExportAssets(
         done += 1;
         onProgress?.({ step: 'plans', done, total: pages.length });
       }
+      // The close-ups print on the item cards, which only exist with photos on.
+      if (target === 'web' && opts.includePhotos) pinCrops = await webPinCrops(model, sheets, signal);
     }
   } catch (e) {
     if (e instanceof PunchExportError) throw e;
@@ -538,7 +642,7 @@ export async function resolveExportAssets(
     if (a.kind === 'image') { includedPhotoCount += 1; if (a.remote) remoteCount += 1; }
   }
   for (const a of sheets.values()) if (a.kind === 'image' && a.remote) remoteCount += 1;
-  return { photos, sheets, approxBytes, remoteCount, includedPhotoCount };
+  return { photos, sheets, approxBytes, remoteCount, includedPhotoCount, ...(pinCrops && pinCrops.size > 0 ? { pinCrops } : {}) };
 }
 
 /** A logo the PDF can actually draw. Never throws; a logo it cannot use is

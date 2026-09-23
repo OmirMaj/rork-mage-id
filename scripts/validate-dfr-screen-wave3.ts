@@ -138,7 +138,10 @@ console.log('\n#116 only owner/editor publish; field reports notify the GC:');
   ok('the live role outranks a stale stamp (field → editor promotion)', a({ ownerUserId: 'x', userId: 'u1', role: 'editor', myRole: 'field' }).allowed);
   ok('the publish toggle is disabled with the reason', /disabled=\{!!hsPublishBlockedReason\}/.test(code) && /!publishAccess\.allowed\s*\?\s*publishAccess\.reason/.test(code) && /testID="hs-publish-blocked"/.test(code));
   ok('SendToClientButton renders only for publishers (its Recall ignores canSend)', /\{existingReport && publishAccess\.allowed && \(\s*<View[^>]*>\s*<SendToClientButton/.test(code));
-  ok('field/viewer see where the report stands and why', /\{existingReport && !publishAccess\.allowed && \(/.test(code) && /testID="dfr-portal-owner-decides"/.test(code));
+  // Wave 4 #17/#59: the note now covers a NEW report too (the foreman is told
+  // the GC reviews it before he files), through dfrPortalSeatNote — which is
+  // null for a publisher, so it still never renders for owner/editor.
+  ok('field/viewer see where the report stands and why', /const portalSeatNote = dfrPortalSeatNote\(\{\s*canPublish: publishAccess\.allowed,/.test(code) && /\{portalSeatNote && \(/.test(code) && /testID="dfr-portal-owner-decides"/.test(code));
   ok('a field seat may not edit a PUBLISHED summary', /const hsTextLockedReason: string \| null = !publishAccess\.allowed && hsPublishedSaved/.test(code));
   ok('save writes the SAVED flag/text for a non-publisher (mirrors the trigger)',
     /const hsPublishedOut = publishAccess\.allowed \? hsPublished : savedPublished;/.test(code)
@@ -218,8 +221,13 @@ console.log('\n#87 #83 #89 #82 incident from the report:');
   ok('the case is built from marked, staged photos', /photoUrls: dfrIncidentPhotoUrls\(photos as DfrPhotoWithFlag\[\], stageIncidentPhoto, MAX_INCIDENT_PHOTOS\)/.test(code) && !/photoUrls: photos\.map\(p => p\.uri\)/.test(code));
   ok('staging uses the same deterministic path + queue as stageDfrPhotos',
     /buildPhotoStoragePath\(uid, projectId, p\.id, ext\)/.test(code) && /queuePhotoUpload\(\{ photoId: p\.id, userId: uid, projectId, localUri: p\.uri, storagePath, contentType: contentTypeForExt\(ext\) \}\)/.test(code));
-  ok('#83: the builder merges into the linked case', /\}, linkedIncident\);\s*if \(linkedIncident\) updateIncident\(caseRecord\.id, caseRecord\);/.test(code));
-  ok('#89: a case deleted in Incidents is not re-filed on save', /const caseDeletedInLog = !linkedIncident && isIncidentDeleted\(dfrCaseId\);/.test(code) && /if \(incident\.hasIncident && projectId && !caseDeletedInLog\)/.test(code));
+  // (wave 4 integration round 1: the builder takes the linked case as a
+  // parameter so a write held until the injury log loads merges into the
+  // case the log then holds — same merge, both paths.)
+  ok('#83: the builder merges into the linked case',
+    /\}, linked\);/.test(code)
+      && /const caseRecord = buildCase\(linkedIncident, incidentClassInput, [^;]+\);\s*if \(linkedIncident\) updateIncident\(caseRecord\.id, caseRecord\);/.test(code));
+  ok('#89: a case deleted in Incidents is not re-filed on save', /const caseDeletedInLog = !linkedIncident && isIncidentDeleted\(dfrCaseId\);/.test(code) && /if \(incident\.hasIncident && projectId && !caseDeletedInLog && !caseNotYoursReason\)/.test(code));
   ok('#89: the report says so and offers "File it again"', /The case from this report was deleted in Incidents, so saving will not file it again\./.test(code) && /clearIncidentTombstone\(dfrCaseId\)/.test(code));
   ok('#82: a collaborator is not promised "your" record or the OSHA 300', P.dfrIncidentFileNote(false) === 'Filed with this report. Only you and the job\u2019s owner can see it; the owner keeps the OSHA 300.' && !/your/i.test(P.dfrIncidentFileNote(false)));
   ok('#82: the will-file note reads the owner rule', /\{dfrIncidentFileNote\(isProjectOwner\)\}/.test(code));

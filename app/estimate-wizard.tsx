@@ -23,7 +23,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, Platform, KeyboardAvoidingView, Modal,
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -45,7 +45,7 @@ import { estimateGroundingProps } from '@/utils/activationSignals';
 import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
 import { PROFILE_FAILED_TITLE } from '@/utils/settingsLoadGuard';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
-import { acceptanceSentence, paymentStageRows, resolvePaymentSplit, sameSplit, splitLabel } from '@/utils/paymentTerms';
+import { acceptanceSentence, paymentStageRows, resolvePaymentSplit, sameSplit, splitLabel, quotedSplitOf } from '@/utils/paymentTerms';
 import {
   EMPTY_GROUNDING, buildGroundingFacts, estimateThinkingSteps, groundingChipLabel, selectGroundingEntries,
   type GroundingBundle, type ScopeHints,
@@ -72,7 +72,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage, getFreeTrialsRemaining, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
-import type { Commitment, CompanyBranding, PaymentSplit, Project, ProjectType, QualityTier } from '@/types';
+import type { Commitment, CompanyBranding, LinkedEstimate, PaymentSplit, Project, ProjectType, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, SCOPE_STEPS, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
   estimateSchema, QUALITY_LABELS, stepBlockReason, jobsiteLocationFor, typedPricingLocation,
@@ -370,9 +370,13 @@ function EstimateWizardScreenInner() {
   // UNaccepted one should give way to newer profile terms is the founder's
   // call, and until he makes it the stamp wins and the card says so. A wizard
   // run with no ?projectId has no job, so it has no stamp and uses the profile.
+  // #69 (wave 4): with no portal stamp, the split printed on the last
+  // proposal PDF shared for this job (quotedSplitOf) — so a re-sent PDF keeps
+  // the split the homeowner has already seen.
   const jobStamp = useMemo<PaymentSplit | null>(
-    () => (projectId ? resolvePaymentSplit({ record: scopedProject?.clientPortal?.proposalPaymentTerms }).split : null),
-    [projectId, scopedProject?.clientPortal?.proposalPaymentTerms],
+    () => (projectId ? resolvePaymentSplit({ record: scopedProject?.clientPortal?.proposalPaymentTerms }).split : null)
+      ?? (projectId ? resolvePaymentSplit({ record: quotedSplitOf(scopedProject) }).split : null),
+    [projectId, scopedProject],
   );
   const [newProjectName, setNewProjectName] = useState('');
   // The jobsite address for a project created from the Save sheet (#157).
@@ -384,6 +388,16 @@ function EstimateWizardScreenInner() {
   // closure — on the first answer that is still the pre-answer value (see
   // requireMarkup). Its signature is held by validate-activation-signals.
   const sharePctRef = useRef<number | null>(null);
+  // #68/#69 (wave 4): the last successful share of THIS result — the split the
+  // PDF printed and when. Stamped onto the project the estimate is saved to
+  // (quotedPaymentSplit) so the contract seeds from what the homeowner saw,
+  // and read by the leave/reset confirm to say "you already sent this".
+  const lastShareRef = useRef<(PaymentSplit & { sharedAt: string }) | null>(null);
+  const [sharedUnsavedAt, setSharedUnsavedAt] = useState<string | null>(null);
+  // The project this result is written to, updated SYNCHRONOUSLY by
+  // persistNewProject so the leave guard never fires on the onboarding
+  // share's own navigation one tick after the save.
+  const attachedIdRef = useRef<string | null>(null);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   // The project the estimate was ACTUALLY written to by the ?projectId
   // link-back, set inside commitAutoLink after updateProject has run — not
@@ -838,6 +852,21 @@ function EstimateWizardScreenInner() {
     setShowMarkupSheet(false);
   }, []);
 
+  // #69: the linked estimate carries the split the shared PDF printed (see
+  // lastShareRef). estimatesEqual ignores the key, so it never mints a revision.
+  const withQuotedSplit = useCallback((le: LinkedEstimate): LinkedEstimate => (
+    lastShareRef.current ? { ...le, quotedPaymentSplit: lastShareRef.current } as LinkedEstimate : le
+  ), []);
+  // #69: stamp an ALREADY-SAVED job with the split its shared PDF printed,
+  // through updateProject (the offline queue). project.estimate when the job
+  // has a legacy breakdown, else its linked estimate — see quotedSplitOf.
+  const writeQuotedSplit = useCallback((id: string, q: PaymentSplit & { sharedAt: string }) => {
+    const p = getProject(id);
+    if (!p) return;
+    if (p.estimate) updateProject(id, { estimate: { ...p.estimate, quotedPaymentSplit: q } });
+    else if (p.linkedEstimate) updateProject(id, { linkedEstimate: { ...p.linkedEstimate, quotedPaymentSplit: q } as LinkedEstimate });
+  }, [getProject, updateProject]);
+
   /**
    * Write a NEW project from the wizard answers with this estimate folded in,
    * and return its id. No navigation and no push ask — createAt (the Save
@@ -881,7 +910,7 @@ function EstimateWizardScreenInner() {
     // project starts with an estimate revision (rev 1), not a bare project.
     // buildQuickLinkedEstimate prices each row exactly as the PDF does
     // (utils/estimateMarkup.pricedLine), so the saved grandTotal is the PDF's.
-    const linkedEstimate = buildQuickLinkedEstimate(costResult, pct, generateUUID);
+    const linkedEstimate = withQuotedSplit(buildQuickLinkedEstimate(costResult, pct, generateUUID));
     const withEstimate = { ...baseProject, ...commitEstimatePatch(baseProject, linkedEstimate, { reason: 'pre_overwrite' }) };
     addProject(withEstimate);
     // G4: fire-and-forget capture — ledger failure must never break project create
@@ -899,8 +928,9 @@ function EstimateWizardScreenInner() {
       }
     } catch { /* G4 */ }
     setSavedProjectId(id);
+    attachedIdRef.current = id;
     return id;
-  }, [costResult, answers, homeMarketSeed, addProject, projects, commitments, receipts, laborSamples, seeds]);
+  }, [costResult, answers, homeMarketSeed, addProject, projects, commitments, receipts, laborSamples, seeds, withQuotedSplit]);
 
   // The PDF actually goes out from here, and ONLY from here. It takes the
   // branding and the payment split as arguments rather than reading `settings`
@@ -919,6 +949,14 @@ function EstimateWizardScreenInner() {
     setSharingPdf(true);
     try {
       await shareQuickEstimatePDF(priced, answers, branding, split);
+      // #69: what the homeowner was just shown. A job this result is already
+      // written to is stamped now; an unsaved result carries it into the
+      // project it is saved to later (persistNewProject / attachAt).
+      const quoted = { depositPct: split.depositPct, progressPct: split.progressPct, finalPct: split.finalPct, sharedAt: new Date().toISOString() };
+      lastShareRef.current = quoted;
+      const alreadyAttached = committedProjectId ?? savedProjectId;
+      if (alreadyAttached) writeQuotedSplit(alreadyAttached, quoted);
+      else setSharedUnsavedAt(quoted.sharedAt);
       // Activation funnel: the final funnel step — priced estimate sent to client.
       track(AnalyticsEvents.ESTIMATE_SHARED, {
         method: 'pdf_share',
@@ -961,7 +999,7 @@ function EstimateWizardScreenInner() {
       sharingRef.current = false;
       setSharingPdf(false);
     }
-  }, [answers, isOnboarding, router, maybeAskForPush, committedProjectId, savedProjectId, persistNewProject, markupPct]);
+  }, [answers, isOnboarding, router, maybeAskForPush, committedProjectId, savedProjectId, persistNewProject, markupPct, writeQuotedSplit]);
 
   const share = useCallback(() => {
     if (!costResult) return;
@@ -1003,7 +1041,7 @@ function EstimateWizardScreenInner() {
     go(markupPct as number);
   }, [costResult, gate, scopedProject?.type, jobStamp, generateAndSharePdf, requireMarkup, markupPct]);
 
-  const reset = useCallback(() => {
+  const doReset = useCallback(() => {
     // Same seed as mount: "start over" must not un-learn his market.
     setAnswers(!projectId && homeMarketSeed ? { ...INITIAL_SCOPE, location: homeMarketSeed } : INITIAL_SCOPE);
     setCostResult(null);
@@ -1014,14 +1052,57 @@ function EstimateWizardScreenInner() {
     setAutoLinkParked(false);
     setJobsiteAddress('');
     pendingAutoLinkRef.current = null;
+    lastShareRef.current = null;
+    setSharedUnsavedAt(null);
+    attachedIdRef.current = null;
   }, [projectId, homeMarketSeed]);
+
+  // #68 (product-decision interim — no auto-save): an estimate that exists
+  // and is not written to any project is confirmed before it is thrown away,
+  // by "Start a new estimate" AND by leaving the screen (header back, web
+  // back, router.back). Save to a project / Discard / Cancel; the copy says
+  // when the PDF has already gone to a client. Swipe-down is already off
+  // (gestureEnabled:false in app/_layout.tsx).
+  attachedIdRef.current = committedProjectId ?? savedProjectId ?? attachedIdRef.current;
+  const unsavedRef = useRef(false);
+  unsavedRef.current = !!costResult && !attachedIdRef.current;
+  const sharedUnsavedRef = useRef<string | null>(null);
+  sharedUnsavedRef.current = sharedUnsavedAt;
+  const confirmDiscard = useCallback((onDiscard: () => void) => {
+    const sharedAt = sharedUnsavedRef.current;
+    showAlert(
+      sharedAt ? 'You sent this estimate but haven\'t saved it' : 'This estimate isn\'t saved',
+      sharedAt
+        ? 'The PDF went to your client, but the line items and price are not on any project. Discard them and you cannot build the contract from what they were quoted.'
+        : 'The line items and price are not on any project yet. Discarding loses them.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: onDiscard },
+        { text: 'Save to a project', onPress: () => setShowSaveModal(true) },
+      ],
+    );
+  }, []);
+  const reset = useCallback(() => {
+    if (!unsavedRef.current || attachedIdRef.current) { doReset(); return; }
+    confirmDiscard(doReset);
+  }, [doReset, confirmDiscard]);
+  const navigation = useNavigation();
+  const allowLeaveRef = useRef(false);
+  useEffect(() => navigation.addListener('beforeRemove', (e) => {
+    // attachedIdRef is re-read here (not only via unsavedRef, which is set at
+    // render): the onboarding share saves and navigates in the same tick.
+    if (allowLeaveRef.current || !unsavedRef.current || attachedIdRef.current) return;
+    e.preventDefault();
+    confirmDiscard(() => { allowLeaveRef.current = true; navigation.dispatch(e.data.action); });
+  }), [navigation, confirmDiscard]);
 
   // Attach the just-generated estimate to an EXISTING project, then jump to
   // it. Reuses commitEstimatePatch (same revision-history behavior as the
   // ?projectId link-back and the drawing analyzer).
   const attachAt = useCallback((targetId: string, pct: MarkupPct) => {
     if (!costResult) return;
-    const linkedEstimate = buildQuickLinkedEstimate(costResult, pct, generateUUID);
+    const linkedEstimate = withQuotedSplit(buildQuickLinkedEstimate(costResult, pct, generateUUID));
+    attachedIdRef.current = targetId;
     const targetProject = getProject(targetId);
     updateProject(targetId, commitEstimatePatch(targetProject, linkedEstimate, { reason: 'pre_overwrite' }));
     // G4: fire-and-forget capture — ledger failure must never break project link
@@ -1052,7 +1133,7 @@ function EstimateWizardScreenInner() {
     if (!isOnboarding) {
       router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
     }
-  }, [costResult, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding]);
+  }, [costResult, updateProject, getProject, router, projects, commitments, receipts, laborSamples, seeds, isOnboarding, withQuotedSplit]);
 
   /** The gated entry point the save modal calls. A project must never receive
    *  an at-cost estimate from a contractor who was simply never asked: the

@@ -43,7 +43,7 @@ export function EstimateClientView({ view, projectName, paymentSchedule }: { vie
 
       <Text style={styles.totalLabel}>PROJECT TOTAL</Text>
       <Text style={styles.total}>{money(view.projectTotal)}</Text>
-      {!!projectName && <Text style={styles.prep}>Fixed-price proposal · {projectName}</Text>}
+      {!!projectName && <Text style={styles.prep}>Proposal · {projectName}</Text>}
 
       <Text style={styles.sectionLabel}>SCOPE OF WORK</Text>
       <View style={styles.card}>

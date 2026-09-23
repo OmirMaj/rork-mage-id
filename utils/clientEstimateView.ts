@@ -1,7 +1,7 @@
 // utils/clientEstimateView.ts
 //
 // The client-facing projection of a contractor's estimate. This is a SAFETY
-// boundary: a contractor shows a client a clean fixed-price proposal, never
+// boundary: a contractor shows a client a clean proposal, never
 // their internal cost buildup. The produced ClientEstimateView therefore
 // carries ONLY client-appropriate numbers — the project total, scope rolled
 // up by CSI division (markup baked in), and allowances — and deliberately
@@ -41,7 +41,7 @@ export interface PaymentMilestone {
 }
 
 export interface ClientEstimateView {
-  /** The fixed price the client pays (= estimate grand total, to the cent). */
+  /** The proposal price the client is quoted (= estimate grand total, to the cent). */
   projectTotal: number;
   /** Scope grouped by system; group totals sum EXACTLY to projectTotal. */
   scopeGroups: ClientScopeGroup[];
@@ -61,7 +61,7 @@ const fromCents = (c: number): number => c / 100;
  * Markup is distributed proportionally so each group's client price includes
  * its share of markup and the groups sum to the grand total the client
  * actually pays. Any rounding remainder is folded into the largest group so a
- * fixed-price proposal ties out to the penny.
+ * proposal ties out to the penny.
  *
  * TO THE CENT, NOT THE DOLLAR (audit 2026-09-18, #118). projectTotal was
  * `Math.round(grandTotal)`, and the portal proposal priced its payment lines

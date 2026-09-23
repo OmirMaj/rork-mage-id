@@ -156,14 +156,63 @@ export function dunningLinks(
   invoice: { portal_state?: { status?: string } | null; pay_link_url?: string | null; pay_link_amount?: number | string | null },
   portalUrl: string | null,
   outstanding: number,
+  /** #43: the project's client_portal. With its Invoices section switched off
+   *  the snapshot carries no invoices at all, so 'View invoice' is a dead end.
+   *  Optional so an older caller keeps its behaviour. */
+  clientPortal?: { showInvoices?: boolean | null } | null,
 ): { viewUrl: string | null; payUrl: string | null } {
-  const shown = invoice.portal_state == null || invoice.portal_state.status === 'sent';
+  const shown = (invoice.portal_state == null || invoice.portal_state.status === 'sent')
+    && clientPortal?.showInvoices !== false;
   const url = (invoice.pay_link_url ?? '').trim();
   const amt = invoice.pay_link_amount == null || invoice.pay_link_amount === '' ? NaN : Number(invoice.pay_link_amount);
   // Compared in whole cents: 77484.87 vs 77484.88 is a one-cent float gap
   // (0.0100000…05) that a dollar tolerance would wrongly reject.
   const payMatches = !!url && Number.isFinite(amt) && Math.abs(Math.round(amt * 100) - Math.round(outstanding * 100)) <= 1;
   return { viewUrl: shown ? portalUrl : null, payUrl: payMatches ? url : null };
+}
+
+/**
+ * #81 — whether `email` is one of the portal's invitees (trimmed, case-
+ * insensitive). Mirrored by utils/billingFlowCore.isPortalInvitee.
+ */
+export function isPortalInvitee(
+  email: string | null | undefined,
+  invites: ReadonlyArray<{ email?: string | null }> | null | undefined,
+): boolean {
+  const e = (email ?? '').trim().toLowerCase();
+  if (!e.includes('@')) return false;
+  return (invites ?? []).some(i => (i.email ?? '').trim().toLowerCase() === e);
+}
+
+/**
+ * #81 — the project-wide portal link (portalId + ?t=accessToken) opens the
+ * homeowner's WHOLE portal: every invoice, the budget, photos, messages. A
+ * reminder addressed to the stored bill-to address — often a lender's draw
+ * desk or an AP inbox the homeowner never invited — must not carry it. Only a
+ * portal invitee gets it (the fallback recipient always is one). The Pay
+ * button is invoice-scoped and stays either way.
+ */
+export function portalUrlForRecipient(
+  portalUrl: string | null,
+  recipient: { email: string; source: 'bill_to' | 'portal_invite' },
+  invites: ReadonlyArray<{ email?: string | null }> | null | undefined,
+): string | null {
+  if (!portalUrl) return null;
+  if (recipient.source === 'portal_invite' || isPortalInvitee(recipient.email, invites)) return portalUrl;
+  return null;
+}
+
+/**
+ * #38 — a reminder goes out under the PROJECT OWNER's company name. An
+ * invoice stored under anyone else's user_id (a collaborator billed from the
+ * GC's job before the owner-only insert policy) is not his to chase: its Pay
+ * link pays the collaborator. Skipped, never sent under his name.
+ */
+export function invoiceOwnedByProjectOwner(
+  invoice: { user_id?: string | null },
+  project: { user_id?: string | null },
+): boolean {
+  return !!invoice.user_id && !!project.user_id && invoice.user_id === project.user_id;
 }
 // <<< dunning-recipient
 
@@ -176,6 +225,8 @@ interface ProjectRow {
     portalId?: string | null;
     accessToken?: string | null;
     invites?: Array<{ email?: string; name?: string }>;
+    /** #43: the portal's Invoices section toggle (absent = shown). */
+    showInvoices?: boolean | null;
   } | null;
 }
 
@@ -214,7 +265,30 @@ function nextDunningStage(currentStage: number | null | undefined, targetStage: 
 type SkipReason =
   | 'draft' | 'paid' | 'nothing_outstanding' | 'bad_due_date' | 'not_overdue'
   | 'unsubscribed' | 'stage_already_sent' | 'too_soon' | 'no_recipient' | 'send_failed'
-  | 'closed_in_quickbooks';
+  | 'closed_in_quickbooks'
+  // #38: the invoice's user_id is not the project owner's.
+  | 'not_project_owner'
+  // #83: the client started a bank payment (ACH) that has not settled yet.
+  | 'payment_pending';
+
+// >>> payment-pending-hold (pure; mirrored in utils/billingFlowCore.ts and
+// executed against it by scripts/validate-w4-money-ledger-pending.ts)
+/**
+ * #83 / #135. stripe-webhook stamps invoices.pay_pending_at when the client's
+ * bank payment (ACH) completes Checkout UNPAID; it settles 3-5 business days
+ * later. Until then a reminder is a lie — "Second notice / FINAL NOTICE" to a
+ * client who has paid, with a "Pay $X now" button onto Stripe's "already used"
+ * page. Hold for 10 days: a settled or failed payment clears the marker, and a
+ * marker older than that (a lost async event) must not silence dunning forever.
+ */
+const PAYMENT_PENDING_HOLD_MS = 10 * 24 * 60 * 60 * 1000;
+function paymentPendingHolds(pendingAt: string | null | undefined, nowMs: number): boolean {
+  if (!pendingAt) return false;
+  const t = new Date(pendingAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t < PAYMENT_PENDING_HOLD_MS;
+}
+// <<< payment-pending-hold
 
 /**
  * Return whether the invoice should receive a dunning email right now.
@@ -355,6 +429,18 @@ function buildDunningHtml(opts: {
 
 // ── Process a single invoice ─────────────────────────────────────────
 
+/** invoices.pay_pending_at for one row; null when unset, unreadable, or the
+ *  column does not exist yet (see the call site). */
+async function paymentPendingSince(client: SupabaseClient, invoiceId: string): Promise<string | null> {
+  const { data, error } = await client.from('invoices').select('pay_pending_at').eq('id', invoiceId).maybeSingle();
+  if (error) {
+    if (!isMissingColumn(error)) console.warn('[invoice-dunning] pay_pending_at read failed', invoiceId, error.message);
+    return null;
+  }
+  const v = (data as { pay_pending_at?: string | null } | null)?.pay_pending_at;
+  return typeof v === 'string' ? v : null;
+}
+
 interface ProcessResult {
   outcome: 'sent' | 'skipped' | 'error';
   reason?: SkipReason;
@@ -417,6 +503,13 @@ async function processInvoice(
     // Not yet overdue.
     return skip('not_overdue');
   }
+  // #83: a bank payment in flight holds the cron AND the manual button. Read
+  // here, not in the two invoice selects: this function may be deployed before
+  // migration 20260920020000, and a missing column must not stop every
+  // reminder — it reads as "no marker".
+  if (paymentPendingHolds(await paymentPendingSince(client, invoice.id), nowMs)) {
+    return skip('payment_pending');
+  }
   // The bookkeeper closed this invoice in QuickBooks with a credit memo,
   // journal entry or write-off. MAGE rightly does not count that as cash, so
   // the balance above still reads open — but a client chased toward a FINAL
@@ -449,6 +542,10 @@ async function processInvoice(
   }
 
   const project = projRes.data as ProjectRow;
+  if (!invoiceOwnedByProjectOwner(invoice, project)) {
+    console.warn('[invoice-dunning] invoice not owned by the project owner — not chased under their name', invoice.id);
+    return skip('not_project_owner');
+  }
   // #47: the address the invoice was emailed to first; the first portal
   // invitee only when none was stored (resolveDunningRecipient above).
   const recipient = resolveDunningRecipient(invoice, project.client_portal?.invites);
@@ -520,9 +617,17 @@ async function processInvoice(
       ? `Second notice — Invoice #${invoice.number} is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue`
       : `Friendly reminder — Invoice #${invoice.number} is past due`;
 
-  // #45: 'View invoice' only when the portal shows this invoice; the pay
-  // link only while it charges exactly the outstanding amount.
-  const links = dunningLinks(invoice, portalUrl, outstanding);
+  // #81: the portal link only to a portal invitee — a bill-to address the
+  // homeowner never invited gets the Pay button, not his whole portal.
+  const portalUrlBeforeInviteeCheck = portalUrl;
+  portalUrl = portalUrlForRecipient(portalUrl, recipient, project.client_portal?.invites);
+  if (portalUrlBeforeInviteeCheck && !portalUrl) {
+    console.log('[invoice-dunning] portal_link_withheld_non_invitee', invoice.id);
+  }
+  // #45: 'View invoice' only when the portal shows this invoice; #43: and only
+  // when its Invoices section is on; the pay link only while it charges
+  // exactly the outstanding amount.
+  const links = dunningLinks(invoice, portalUrl, outstanding, project.client_portal);
   const html = buildDunningHtml({
     companyName,
     projectName: project.name,

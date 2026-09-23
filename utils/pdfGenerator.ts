@@ -6,8 +6,10 @@ import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtm
 import { netBalanceDue, effectiveRetentionHeld, pendingRetentionHeld } from './invoiceBilling';
 import { calendarDayStart, dayOrInstantDate, formatCalendarDay } from './calendarDate';
 import { contractTimeline, contractTimelineSentence } from './contractTimelineCore';
-import { acceptanceSentence, milestoneDueText, paymentStageRows } from './paymentTerms';
+import { acceptanceSentence, milestoneDueText, paymentStageRows, printedScheduleAmounts } from './paymentTerms';
 import { openPrintWindowOrThrow } from './platformFile';
+import { coApprovalLine } from './coApproval';
+import { homeownerSignatureMethodLabel } from './contractSignatureCore';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
@@ -921,12 +923,24 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
     </div>
   </div>`;
 
-  const sigBlock = `<div class="no-break" style="margin-top:36px;padding-top:24px;border-top:1px solid ${D.PDF_PALETTE.bone}">
-    <div style="font-size:9px;font-weight:700;color:${D.PDF_PALETTE.textMuted};letter-spacing:1px;text-transform:uppercase;margin-bottom:24px">Client approval</div>
-    <table style="width:100%"><tr>
+  // #72 — who approved it and how (utils/coApproval, CONTRACT 6). A CO the
+  // homeowner e-signed in the portal used to print the same empty signature
+  // line as one the GC marked approved himself, so the one document a
+  // disputed extra is settled with carried no trace of the signature. The
+  // sealed e-signature REPLACES the blank line (it is the signature); any
+  // other approval is stated above the blank line, which stays for a wet
+  // signature. Null (not approved) prints the blank line as before.
+  const approval = coApprovalLine(co);
+  const blankSigLines = `<table style="width:100%"><tr>
       <td style="width:65%;padding-right:24px"><div style="border-bottom:1px solid ${D.PDF_PALETTE.text};height:36px"></div><div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:6px">Client signature</div></td>
       <td><div style="border-bottom:1px solid ${D.PDF_PALETTE.text};height:36px"></div><div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:6px">Date</div></td>
-    </tr></table>
+    </tr></table>`;
+  const approvalLineHtml = approval
+    ? `<div data-co-approval="${D.escHtml(approval.kind)}" style="font-size:12px;color:${D.PDF_PALETTE.text};line-height:1.55;margin-bottom:${approval.kind === 'client_signed' ? '0' : '18px'}">${D.escHtml(approval.text)}</div>`
+    : '';
+  const sigBlock = `<div class="no-break" style="margin-top:36px;padding-top:24px;border-top:1px solid ${D.PDF_PALETTE.bone}">
+    <div style="font-size:9px;font-weight:700;color:${D.PDF_PALETTE.textMuted};letter-spacing:1px;text-transform:uppercase;margin-bottom:${approval ? '10px' : '24px'}">Client approval</div>
+    ${approvalLineHtml}${approval?.kind === 'client_signed' ? '' : blankSigLines}
   </div>`;
 
   return D.pdfShell({
@@ -1076,6 +1090,10 @@ export interface DfrDocumentExtras {
   photos?: DfrDocumentPhoto[];
   /** The OSHA 1904 determination, worded (utils/safety/osha.describeRecordability). */
   incidentClassification?: string;
+  /** #63 — who filed the report, as the caller resolved it from the job's
+   *  people ("A team member" when the author can't be named — never a guess).
+   *  Omitted → no "Filed by" row (an older caller). */
+  filedByName?: string;
 }
 
 /** The most photos one filed PDF embeds; the rest are named, not dropped.
@@ -1202,6 +1220,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
       { label: 'Location', value: project.location || '—' },
       { label: 'Crew', value: `${totalWorkers} on site` },
       { label: 'Man-hours', value: `${totalHours} hrs` },
+      ...(extras?.filedByName?.trim() ? [{ label: 'Filed by', value: extras.filedByName.trim() }] : []),
     ],
   });
 
@@ -1541,6 +1560,14 @@ export async function generateChangeOrderPDFUri(
 // (homeowner-side counter-sign via the portal RPC, which captures only
 // a typed name), render the typed name + signedAt timestamp instead.
 // Both forms record the signer's name and the time they signed.
+// #67 (wave 4): a homeowner signature the GC RECORDED (method 'in_person' on
+// his phone, or 'paper' from a printed copy) says so on the sealed PDF. A
+// paper signature has no strokes, and the typed name in the cursive signature
+// font read exactly like a portal e-signature — the legal artifact the lender
+// gets must never present a paper signature as one. Paper prints the name in
+// the body font, the calendar day written on the page (signedAt is that day at
+// noon UTC — never re-zoned), and whether the page photo is on file (the photo
+// itself stays in the secure bucket; the PDF names it, it does not embed it).
 // ──────────────────────────────────────────────────────────────────────
 
 function buildSignatureBlock(label: string, sig: ContractSignature | undefined): string {
@@ -1551,17 +1578,37 @@ function buildSignatureBlock(label: string, sig: ContractSignature | undefined):
         <div>Not signed.</div>
       </div>`;
   }
+  const paper = sig.method === 'paper';
   const sigVisual = (sig.signaturePaths && sig.signaturePaths.length > 0)
     ? `<svg viewBox="0 0 400 120" preserveAspectRatio="xMinYMid meet" style="width:100%;max-width:360px;height:90px;background:#FFF">
          ${sig.signaturePaths.map((d) => `<path d="${escHtml(d)}" stroke="#0B0D10" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />`).join('')}
        </svg>`
-    : `<div style="font-family:'Caveat',cursive,Georgia,serif;font-size:30px;color:#0B0D10;line-height:1.05;padding:6px 0">${escHtml(sig.name)}</div>`;
+    : paper
+      ? `<div style="font-size:15px;font-weight:600;color:#0B0D10;padding:6px 0">${escHtml(sig.name)}</div>`
+      : `<div style="font-family:'Caveat',cursive,Georgia,serif;font-size:30px;color:#0B0D10;line-height:1.05;padding:6px 0">${escHtml(sig.name)}</div>`;
+  const when = paper ? formatCalendarDay(sig.signedAt.slice(0, 10), { year: 'numeric', month: 'long', day: 'numeric' }) : fmtDate(sig.signedAt);
+  // The label promises the page photo; a paper record without one (not
+  // reachable from the screen, which refuses it) must not claim it.
+  const how = paper && !sig.evidencePath
+    ? 'Signed on paper — no photo of the signed page on file'
+    : homeownerSignatureMethodLabel(sig);
   return `
     <div style="border:1px solid ${PDF_PALETTE.bone};padding:14px;border-radius:8px">
       <div style="font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${PDF_PALETTE.text2};font-size:11px;margin-bottom:6px">${escHtml(label)}</div>
       ${sigVisual}
-      <div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:6px">${escHtml(sig.name)} · ${escHtml(fmtDate(sig.signedAt))}</div>
+      <div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:6px">${escHtml(sig.name)} · ${escHtml(when)}</div>
+      ${how ? `<div data-sig-method="${escHtml(sig.method ?? '')}" style="font-size:11px;color:${PDF_PALETTE.text2};margin-top:4px">${escHtml(how)}</div>` : ''}
     </div>`;
+}
+
+/** #67: "electronically signed" is only true when the homeowner signed on a
+ *  screen. A paper signature was recorded by the contractor from a printed
+ *  copy — the seal covers the record, not an e-signature. */
+function sealStatement(homeowner: ContractSignature | undefined): string {
+  if (homeowner?.method === 'paper') {
+    return 'The homeowner signed a printed copy on paper; the contractor recorded that signature in MAGE ID, which sealed this record.';
+  }
+  return 'This document was electronically signed and sealed via MAGE ID.';
 }
 
 function buildContractHtml(contract: ProjectContract, project: Project, branding: CompanyBranding): string {
@@ -1569,6 +1616,23 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
   const milestones = Array.isArray(contract.paymentSchedule) ? contract.paymentSchedule : [];
   const allowances = Array.isArray(contract.allowances) ? contract.allowances : [];
   const scopeText = contract.scopeText && contract.scopeText.trim() ? contract.scopeText : (project.description ?? '');
+  // The Amount cell prints what the portal publishes and billing invoices
+  // (contractMilestoneAmount): a percent row is its percent of the contract
+  // value, to the cent — it printed $0 here for a percent-only row while the
+  // portal showed the real draw. The value line and the allowances print to
+  // the cent too, as the portal does, so the rows and the value on this page
+  // are stated in the same units.
+  // printedScheduleAmounts: the same per-row rule, except the rounding cent
+  // stays on the row retieContractSchedule gave it, so the rows add up to the
+  // contract value printed above them.
+  const contractValue = Number(contract.contractValue) || 0;
+  const printedAmounts = printedScheduleAmounts(milestones, contractValue);
+  const milestoneAmountText = (i: number): string => {
+    const amount = printedAmounts[i] ?? null;
+    // To the cent: a percent row is rarely whole dollars, and a draw the
+    // homeowner signs for must not be rounded.
+    return amount === null ? 'Amount not set' : fmtMoney(amount, { decimals: 2 });
+  };
 
   // The Due cell printed only a triggerDate, so the sealed PDF left "when" blank
   // for the deposit, progress and final rows — the three rows every schedule
@@ -1583,10 +1647,10 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
         <th style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone};white-space:nowrap">Due</th>
       </tr></thead>
       <tbody>
-        ${milestones.map((m) => `
+        ${milestones.map((m, i) => `
           <tr>
             <td style="padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(m.label)}</td>
-            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(fmtMoney(Number(m.amount ?? 0)))}</td>
+            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(milestoneAmountText(i))}</td>
             <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(m.triggerDate ? fmtDate(m.triggerDate) : milestoneDueText(m))}</td>
           </tr>`).join('')}
       </tbody>
@@ -1603,7 +1667,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
         ${allowances.map((a) => `
           <tr>
             <td style="padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(a.category)}${a.description ? ` — ${escHtml(a.description)}` : ''}</td>
-            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(fmtMoney(Number(a.amount ?? 0)))}</td>
+            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(fmtMoney(Number(a.amount ?? 0), { decimals: 2 }))}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -1644,7 +1708,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
       <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:18px 0 8px">Scope</h2>
       <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};white-space:pre-wrap">${escHtml(scopeText)}</div>` : ''}
     <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:18px 0 8px">Contract value</h2>
-    <div style="font-size:14px"><strong>${escHtml(fmtMoney(Number(contract.contractValue ?? 0)))}</strong></div>
+    <div style="font-size:14px"><strong>${escHtml(fmtMoney(Number(contract.contractValue ?? 0), { decimals: 2 }))}</strong></div>
     ${timelineHtml}
     ${milestonesHtml}
     ${allowancesHtml}
@@ -1655,7 +1719,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
       <div style="flex:1;min-width:260px">${buildSignatureBlock('Homeowner', contract.homeownerSignature)}</div>
     </div>
     <div style="margin-top:18px;padding:10px 12px;border:1px solid ${PDF_PALETTE.bone};border-radius:6px;background:#FAFAF7;font-size:11px;color:${PDF_PALETTE.text2}">
-      This document was electronically signed and sealed via MAGE ID. The cryptographic hash recorded with this contract makes any subsequent byte-level change detectable. Sealed at ${escHtml(sealedAt)}.
+      ${escHtml(sealStatement(contract.homeownerSignature))} The cryptographic hash recorded with this contract makes any subsequent byte-level change detectable. Sealed at ${escHtml(sealedAt)}.
     </div>`;
 
   return pdfShell({ title, bodyHtml, branding });

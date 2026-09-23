@@ -32,6 +32,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { notificationRefreshPlan } from '../utils/notificationTapRefresh';
 
 const ROOT = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -502,7 +503,11 @@ async function main() {
   ok('ProjectContext: leadsLoaded is keyed by account, and false while auth resolves', /setLeadsLoadedFor\(userId \?\? ''\)/.test(PC) && /const leadsLoaded = !authLoading && leadsLoadedFor === \(userId \?\? ''\);/.test(PC));
   ok('ProjectContext: refreshLeads refetches THIS account\'s leads', /const refreshLeads = useCallback\(async \(\) => \{\s*await queryClient\.refetchQueries\(\{ queryKey: \['leads', userId\] \}\);/.test(PC));
   const NCTX = stripComments(read('contexts/NotificationContext.tsx'));
-  ok('tapping a lead_received push invalidates the lead list', /kind === 'lead_received'\) void queryClient\.invalidateQueries\(\{ queryKey: \['leads'\] \}\)/.test(NCTX));
+  // Wave 4 #82: the tap re-reads through the shared utils/notificationTapRefresh
+  // table (refreshThenOpen, before the route opens); lead_received → ['leads'].
+  ok('tapping a lead_received push invalidates the lead list',
+    /void refreshThenOpen\(kind, data as Record<string, unknown>, refreshDeps, \(\) => \{\s*router\.push\(routeHref\(route\) as Href\);/.test(NCTX)
+    && JSON.stringify(notificationRefreshPlan('lead_received', {}).queryKeys) === '[["leads"]]');
 
   // ── Integration round 1: a CO edit never overtakes its own queued create ──
   console.log('\nupdateChangeOrder queues behind a queued insert of the same CO');
@@ -516,8 +521,10 @@ async function main() {
   }
   const ucoBody = callbackBody(PC, 'updateChangeOrder');
   const qCheck = ucoBody.indexOf("insertStillQueued(await getOfflineQueue(), 'change_orders', id)");
-  const qAdd = ucoBody.indexOf("addToOfflineQueue({ table: 'change_orders', operation: 'update', data: coPayload })");
-  const direct = ucoBody.indexOf("supabaseWriteDetailed('change_orders', 'update', coPayload)");
+  // Integration round 2 (data-sync): the write carries this edit's audit ids
+  // (`rides`) so a Discard drops exactly them — same calls, one more argument.
+  const qAdd = ucoBody.indexOf("addToOfflineQueue({ table: 'change_orders', operation: 'update', data: coPayload, ...(rides.length > 0 ? { rides } : {}) })");
+  const direct = ucoBody.indexOf("supabaseWriteDetailed('change_orders', 'update', coPayload, rides.length > 0 ? { rides } : undefined)");
   ok('updateChangeOrder checks the queue for its own create before the direct UPDATE', qCheck > 0 && direct > qCheck, `${qCheck} / ${direct}`);
   ok('…queues the update behind it and reports queued, never synced', qAdd > qCheck && qAdd < direct && /return 'queued';/.test(ucoBody.slice(qAdd, direct)));
   ok('…and an unreadable queue counts as holding the create', /catch \{ createQueued = true; \}/.test(ucoBody));
@@ -532,21 +539,29 @@ async function main() {
   ok('addChangeOrders holds each insert by id until it reports',
     /changeOrderInsertsRef\.current\.set\(finalCo\.id, insert\)/.test(addCoBody) && /changeOrderInsertsRef\.current\.delete\(finalCo\.id\)/.test(addCoBody));
   ok('the account reset drops them with the other mirror refs', /changeOrderInsertsRef\.current = new Map\(\);/.test(PC));
-  const tailEnd = "return supabaseWriteDetailed('change_orders', 'update', coPayload);";
+  const tailEnd = "return supabaseWriteDetailed('change_orders', 'update', coPayload, rides.length > 0 ? { rides } : undefined);";
   const tailFrom = (body: string, start: string) => {
     const a = body.indexOf(start); const b = body.indexOf(tailEnd);
     return a < 0 || b < 0 ? '' : body.slice(a, b + tailEnd.length);
   };
   type WOutcome = 'synced' | 'queued' | 'failed';
-  const runTail = async (tail: string, insert: Promise<WOutcome> | undefined, queueAfter: () => { table: string; operation: string; data?: Record<string, unknown> }[]) => {
+  // `ledgerHolds`: the insert was refused and its payload is under Not saved.
+  // The stub then answers as the REAL supabaseWriteDetailed does since data-sync
+  // round 1 (offlineQueue's ledger-first guard, executed in
+  // __tests__/sync/offline-queue.test.ts): parked behind it — 'failed', nothing
+  // sent.
+  const runTail = async (tail: string, insert: Promise<WOutcome> | undefined, queueAfter: () => { table: string; operation: string; data?: Record<string, unknown> }[], ledgerHolds = false) => {
     const log: string[] = [];
-    const fn = new Function('id', 'changeOrderInsertsRef', 'insertStillQueued', 'getOfflineQueue', 'addToOfflineQueue', 'supabaseWriteDetailed', 'coPayload',
+    const fn = new Function('id', 'changeOrderInsertsRef', 'insertStillQueued', 'getOfflineQueue', 'addToOfflineQueue', 'supabaseWriteDetailed', 'coPayload', 'rides',
       `${transpile(`const __t = async () => { ${tail} };`)}\nreturn __t();`);
     const refs = { current: new Map<string, Promise<WOutcome>>(insert ? [['co1', insert]] : []) };
     const out = await fn('co1', refs, iw!.insertStillQueued, async () => queueAfter(),
       async (e: { operation: string }) => { log.push(`queue:${e.operation}`); },
-      async (_t: string, op: string) => { log.push(`direct:${op}`); return 'synced'; },
-      { id: 'co1' }) as WOutcome;
+      async (_t: string, op: string) => {
+        if (ledgerHolds) { log.push(`parked:${op}`); return 'failed'; }
+        log.push(`direct:${op}`); return 'synced';
+      },
+      { id: 'co1' }, []) as WOutcome;
     return { out, log };
   };
   const deferred = () => { let resolve!: (o: WOutcome) => void; const p = new Promise<WOutcome>(r => { resolve = r; }); return { p, resolve }; };
@@ -583,13 +598,17 @@ async function main() {
       const { out, log } = await run;
       ok('…insert landed → the direct UPDATE follows it', out === 'synced' && log.join() === 'direct:update', `${out} ${log.join()}`);
     }
-    // Insert refused / could not be queued → the row does not exist: say so.
+    // Insert refused / could not be queued → the row does not exist. Data-sync
+    // round 1: the edit is no longer dropped with a bare 'failed' (Retry then
+    // landed the pre-edit draft) — it goes to the write path, which parks it
+    // behind the refused insert under Not saved. Still 'failed', still never
+    // SENT (never a 0-row "saved").
     {
       const d = deferred();
-      const run = runTail(newTail, d.p, () => []);
+      const run = runTail(newTail, d.p, () => [], true);
       d.resolve('failed');
       const { out, log } = await run;
-      ok('…insert failed → the update reports failed and sends nothing (never a 0-row "saved")', out === 'failed' && log.length === 0, `${out} ${log.join()}`);
+      ok('…insert failed → the update is parked behind it (reports failed, sends nothing — never a 0-row "saved")', out === 'failed' && log.join() === 'parked:update', `${out} ${log.join()}`);
     }
     // No insert of this CO on this device → unchanged direct path.
     {

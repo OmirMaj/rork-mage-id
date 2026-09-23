@@ -23,8 +23,11 @@
 //   charge.dispute.created / charge.dispute.closed
 //     → invoices.payment_disputed_at set / cleared; a LOST dispute is booked
 //       in the ledger like a refund (MONEY-F17).
+//     A session that completes UNPAID (bank debit in flight) stamps
+//     pay_pending_{at,amount,session} and nulls the spent link (#83).
 //   payment_intent.payment_failed / checkout.session.async_payment_failed
-//     → Logged — type + object id only, never the object (card/customer PII).
+//     → Logged — type + object id only, never the object (card/customer PII);
+//       async_payment_failed clears the pending marker and tells the GC.
 //   account.updated / account.application.deauthorized
 //     → Connect status mirrored into profiles.
 //
@@ -427,7 +430,11 @@ async function handleAccountUpdated(
 // either and every row silently falls back to the stored `retention_amount`,
 // which on pre-MISS-04 invoices is retainage taken on the tax-inclusive total.
 // That is the difference between charging a client $77,484.88 and $77,201.39.
-const INVOICE_COLS = "id, total_due, amount_paid, payments, status, subtotal, retention_percent, retention_amount, retention_released, pay_link_id";
+// pay_pending_session (#83): the bank payment in flight, so the credit that
+// settles it can clear the marker it left.
+// updated_at: the compare-and-swap token for the refund / dispute ledger
+// writes (writeInvoiceLedgerCas) — every server writer of `payments` bumps it.
+const INVOICE_COLS = "id, total_due, amount_paid, payments, status, subtotal, retention_percent, retention_amount, retention_released, pay_link_id, pay_pending_session, updated_at";
 
 interface InvoiceRow {
   id: string;
@@ -440,6 +447,8 @@ interface InvoiceRow {
   retention_amount: number | string | null;
   retention_released: number | string | null;
   pay_link_id: string | null;
+  pay_pending_session?: string | null;
+  updated_at?: string | null;
 }
 
 type HandlerResult = { ok: true; reason?: string } | { ok: false; reason: string };
@@ -534,37 +543,66 @@ async function creditInvoice(
     ].filter(Boolean).join(" · ") || undefined,
   };
 
-  const applied = applyLedgerEntry(ledgerFrom(inv.payments), entry);
-  if (!applied.applied) {
+  // #80 (wave 4): the append happens on the SERVER, under the row lock, through
+  // the same function the app records a check with. The old read-then-UPDATE
+  // here wrote back the whole ledger it had read, so a device payment landing
+  // between the read and the write was erased — the mirror of the app's stale
+  // whole-array write. invoice_append_payment is keyed by the entry id (a
+  // Stripe retry answers already:true) and recomputes amount_paid as the ledger
+  // sum and status by the retention-net settled rule (settlementStatus's SQL
+  // twin).
+  const { data: appended, error: rpcError } = await supabase.rpc("invoice_append_payment", {
+    p_invoice_id: invoiceId,
+    p_entry: entry,
+  });
+  if (rpcError) {
+    console.error("[stripe-webhook] invoice_append_payment failed:", invoiceId, rpcError.code ?? rpcError.message);
+    // P0002 = the row went away between the read above and the lock. Anything
+    // else is transient: the append is idempotent, so Stripe's retry is safe.
+    if (rpcError.code === "P0002" || isNotFound(rpcError.code)) return { ok: false, reason: "invoice not found" };
+    return { ok: false, reason: "db update failed" };
+  }
+  const answer = (appended ?? {}) as { already?: boolean; amount_paid?: number | string; status?: string };
+  const newAmountPaid = toCents2(Number(answer.amount_paid ?? inv.amount_paid ?? 0));
+  const newStatus = typeof answer.status === "string" ? answer.status : settlementStatus(inv.status, newAmountPaid, inv);
+
+  // #83: the bank payment this session started has now settled (or this is a
+  // card session and there is no marker) — drop the marker it left. Keyed on
+  // the session so a later, different pending payment is never cleared.
+  const pendingIsThisSession = !!inv.pay_pending_session && inv.pay_pending_session === session.id;
+
+  if (answer.already) {
     console.log("[stripe-webhook] Duplicate session, not re-credited:", session.id);
+    if (pendingIsThisSession) {
+      const { error: clearErr } = await supabase
+        .from("invoices")
+        .update({ pay_pending_at: null, pay_pending_amount: null, pay_pending_session: null })
+        .eq("id", invoiceId);
+      if (clearErr) console.error("[stripe-webhook] pending-marker clear failed:", invoiceId, clearErr.message);
+    }
     return {
       ok: true, duplicate: true, amountReceived,
-      newAmountPaid: Number(inv.amount_paid ?? 0), totalDue, newStatus: inv.status ?? "",
+      newAmountPaid, totalDue, newStatus,
       retentionAmount, retentionReleased,
     };
   }
 
-  const newAmountPaid = toCents2(Number(inv.amount_paid ?? 0) + applied.delta);
-  const newStatus = settlementStatus(inv.status, newAmountPaid, inv);
-
+  // MONEY-F2: the link on this row was minted for the OLD balance — spent or
+  // stale either way. The portal must not offer it again. The money is already
+  // on the ledger, so a failure here is logged, not retried (a retry would
+  // answer already:true and skip this block anyway); the portal hides a link
+  // whose amount no longer equals the balance.
   const { error: updateError } = await supabase
     .from("invoices")
     .update({
-      amount_paid: newAmountPaid,
-      payments: applied.ledger,
-      status: newStatus,
-      updated_at: now,
-      // MONEY-F2: the link on this row was minted for the OLD balance — spent
-      // or stale either way. The portal must not offer it again.
       pay_link_url: null,
       pay_link_id: null,
       pay_link_amount: null,
+      ...(pendingIsThisSession ? { pay_pending_at: null, pay_pending_amount: null, pay_pending_session: null } : {}),
     })
     .eq("id", invoiceId);
-
   if (updateError) {
-    console.error("[stripe-webhook] Failed to update invoice:", invoiceId, updateError.message);
-    return { ok: false, reason: "db update failed" };
+    console.error("[stripe-webhook] Failed to clear pay link on invoice:", invoiceId, updateError.message);
   }
 
   console.log(
@@ -643,6 +681,36 @@ async function creditInvoice(
 }
 // --- END creditInvoice ---
 
+// ── Side effects that must outlive the response (#45) ───────────────────
+//
+// The GC's "client paid" / "payment failed" notices and the client's receipt
+// were `void`ed: the handler marked the event processed and answered 200, and
+// a worker reclaimed after the response dropped them — with the event already
+// processed, no Stripe retry would ever re-send them. Each is registered here
+// and flushSideEffects hands Promise.allSettled of them to
+// EdgeRuntime.waitUntil (the runtime keeps the worker alive until they settle)
+// or, where that is unavailable, awaits them for at most 5 s before the event
+// is marked processed. Every helper swallows its own errors, so settling them
+// can never turn a credited payment into a 500 and a Stripe retry.
+const sideEffects: Promise<unknown>[] = [];
+function afterCredit(p: Promise<unknown>): void {
+  sideEffects.push(p);
+}
+const SIDE_EFFECT_BUDGET_MS = 5_000;
+async function flushSideEffects(): Promise<void> {
+  const tasks = sideEffects.splice(0, sideEffects.length);
+  if (tasks.length === 0) return;
+  const all = Promise.allSettled(tasks);
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  if (typeof runtime?.waitUntil === "function") {
+    runtime.waitUntil(all);
+    return;
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([all, new Promise<void>((resolve) => { timer = setTimeout(resolve, SIDE_EFFECT_BUDGET_MS); })]);
+  if (timer !== undefined) clearTimeout(timer);
+}
+
 // ── Tell the GC (#48) ─────────────────────────────────────────────────
 //
 // A client paying through Stripe used to reach only the CLIENT (the receipt
@@ -657,8 +725,8 @@ async function creditInvoice(
 // under the validator's fake Db. Callers fire these only when credit.ok and
 // NOT a duplicate delivery, so a Stripe retry never re-notifies.
 //
-// Fire-and-forget: nothing here may turn the webhook non-2xx (Stripe would
-// retry an event whose money has already been credited).
+// Never awaited inline (afterCredit): nothing here may turn the webhook
+// non-2xx (Stripe would retry an event whose money has already been credited).
 
 /** The notify request for a credited payment. Pure: executed by the validator. */
 // >>> client-paid-notify
@@ -768,6 +836,137 @@ async function notifyGcPaymentFailed(supabase: Db, session: StripeCheckoutSessio
   }
 }
 
+// ── A bank payment in flight (#83 / #135) ─────────────────────────────────
+//
+// Bank debit (ACH) completes the Checkout Session UNPAID and settles 3-5
+// business days later with checkout.session.async_payment_succeeded (or
+// _failed). Every MAGE link is single-use (completed_sessions.limit = 1), so
+// Stripe has ALREADY killed the link by then — yet it stayed on the row: the
+// portal drew a Pay button that opened Stripe's "already used" page, and
+// invoice-dunning mailed "Pay $X now" to a client who had just paid.
+//
+// markPaymentPending stamps pay_pending_{at,amount,session} on the record the
+// session paid (and, for an AIA pay app, on the invoice it bills — dunning and
+// the invoice screen read invoices) and nulls the dead link — only when the row
+// still holds THAT link, so a link the GC minted since is never clobbered.
+// clearPaymentPending drops the marker on async_payment_failed, keyed on the
+// session id, so a later pending payment is never cleared by an old failure.
+// The success path clears it inside creditInvoice / handleAiaPayAppCompleted.
+// Both are idempotent (a Stripe retry rewrites the same values).
+// --- BEGIN pending bank payment ---
+async function markPaymentPending(
+  supabase: Db,
+  session: StripeCheckoutSession,
+): Promise<HandlerResult> {
+  const isAia = session.metadata?.record_type === "aia_pay_app";
+  const recordId = isAia
+    ? (session.metadata?.record_id ?? session.metadata?.invoice_id ?? "")
+    : (session.metadata?.invoice_id ?? "");
+  if (!recordId) return { ok: false, reason: "session has no MAGE record id" };
+  const marker = {
+    pay_pending_at: new Date().toISOString(),
+    pay_pending_amount: toCents2(Number(session.amount_total ?? 0) / 100),
+    pay_pending_session: session.id,
+  };
+  const targets: { table: "invoices" | "aia_pay_apps"; id: string }[] = [
+    { table: isAia ? "aia_pay_apps" : "invoices", id: recordId },
+  ];
+  if (isAia) {
+    const { data: app, error } = await supabase.from("aia_pay_apps").select("invoice_id, paid_at").eq("id", recordId).single();
+    if (error && !isNotFound(error.code)) return { ok: false, reason: "db fetch failed" };
+    // Integration round 1: a late redelivery of the 'unpaid' completion can
+    // arrive AFTER async_payment_succeeded credited this session. A marker
+    // stamped then is never cleared (creditInvoice already ran) and for ten
+    // days holds dunning and refuses every pay-link mint on the row.
+    if (app?.paid_at) {
+      console.log("[stripe-webhook] pending marker skipped — pay app already credited:", recordId, session.id);
+      return { ok: true, reason: "already credited" };
+    }
+    const invoiceId = typeof app?.invoice_id === "string" ? app.invoice_id.trim() : "";
+    if (invoiceId) targets.push({ table: "invoices", id: invoiceId });
+  }
+  for (const t of targets) {
+    const marked = t.table === "invoices"
+      ? await markInvoicePendingUnlessCredited(supabase, t.id, session.id, marker)
+      : await (async () => {
+        // paid_at in the filter: the credit that lands between the read above
+        // and this write wins, atomically.
+        const { error: markErr } = await supabase.from(t.table).update(marker).eq("id", t.id).is("paid_at", null);
+        return markErr ? { error: markErr } : { marked: true as const };
+      })();
+    if ("skipped" in marked) continue;
+    if ("error" in marked) {
+      const markErr = marked.error;
+      console.error("[stripe-webhook] pending marker failed:", t.table, t.id, markErr.message);
+      if (isNotFound(markErr.code)) continue;
+      return { ok: false, reason: "db update failed" };
+    }
+    // The dead link comes off only the row that still holds it.
+    if (session.payment_link) {
+      const { error: linkErr } = await supabase
+        .from(t.table)
+        .update({ pay_link_url: null, pay_link_id: null, pay_link_amount: null })
+        .eq("id", t.id)
+        .eq("pay_link_id", session.payment_link);
+      if (linkErr) {
+        console.error("[stripe-webhook] dead-link clear failed:", t.table, t.id, linkErr.message);
+        return { ok: false, reason: "db update failed" };
+      }
+    }
+  }
+  console.log("[stripe-webhook] Bank payment pending:", session.id, "→", targets.map(t => `${t.table}/${t.id}`).join(", "));
+  return { ok: true, reason: "payment pending" };
+}
+
+/**
+ * The invoice half of markPaymentPending: never stamp a session that the
+ * ledger already holds (`stripe-<session id>` — creditInvoice's entry id). The
+ * stamp is conditional on the updated_at it read, and invoice_append_payment
+ * bumps updated_at, so a credit that lands between the read and the write
+ * makes the write miss; the re-read then finds the entry and skips.
+ */
+async function markInvoicePendingUnlessCredited(
+  supabase: Db,
+  invoiceId: string,
+  sessionId: string,
+  marker: Record<string, unknown>,
+): Promise<{ marked: true } | { skipped: true } | { error: { message: string; code?: string } }> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data: row, error: readErr } = await supabase
+      .from("invoices").select("payments, updated_at").eq("id", invoiceId).maybeSingle();
+    if (readErr) return { error: readErr };
+    if (!row) return { skipped: true };
+    const credited = ledgerFrom((row as { payments?: unknown }).payments)
+      .some((e) => (e as { id?: unknown }).id === `stripe-${sessionId}`);
+    if (credited) {
+      console.log("[stripe-webhook] pending marker skipped — session already credited:", invoiceId, sessionId);
+      return { skipped: true };
+    }
+    const stamp = (row as { updated_at?: string | null }).updated_at ?? null;
+    let upd = supabase.from("invoices").update(marker).eq("id", invoiceId);
+    upd = stamp ? upd.eq("updated_at", stamp) : upd.is("updated_at", null);
+    const { data, error } = await upd.select("id");
+    if (error) return { error };
+    if (Array.isArray(data) && data.length > 0) return { marked: true };
+  }
+  return { error: { message: "invoice changed during the pending stamp; retrying" } };
+}
+
+async function clearPaymentPending(supabase: Db, session: StripeCheckoutSession): Promise<HandlerResult> {
+  for (const table of ["invoices", "aia_pay_apps"] as const) {
+    const { error } = await supabase
+      .from(table)
+      .update({ pay_pending_at: null, pay_pending_amount: null, pay_pending_session: null })
+      .eq("pay_pending_session", session.id);
+    if (error) {
+      console.error("[stripe-webhook] pending marker clear failed:", table, session.id, error.message);
+      return { ok: false, reason: "db update failed" };
+    }
+  }
+  return { ok: true };
+}
+// --- END pending bank payment ---
+
 async function handleCheckoutCompleted(
   supabase: Db,
   session: StripeCheckoutSession,
@@ -776,6 +975,10 @@ async function handleCheckoutCompleted(
   const invoiceId = session.metadata?.invoice_id;
   if (!invoiceId) {
     return { ok: false, reason: "session has no metadata.invoice_id" };
+  }
+  // #83: bank debit in flight — record it as pending, retire the dead link.
+  if (session.payment_status === "unpaid" && session.status === "complete") {
+    return markPaymentPending(supabase, session);
   }
   if (session.payment_status !== "paid") {
     return { ok: false, reason: `session.payment_status is ${session.payment_status}, not paid` };
@@ -786,12 +989,13 @@ async function handleCheckoutCompleted(
   if (credit.duplicate) return { ok: true, reason: "duplicate" };
 
   // #48: the GC hears about it — once, on the delivery that moved the money.
-  void notifyGcInvoicePaid(supabase, invoiceId, credit);
+  // #45: registered, not `void`ed — see afterCredit.
+  afterCredit(notifyGcInvoicePaid(supabase, invoiceId, credit));
 
-  // Best-effort receipt email — fire-and-forget so a Resend hiccup never
+  // Best-effort receipt email — never awaited inline so a Resend hiccup never
   // fails the webhook (Stripe retries on non-2xx and the duplicate-payment
   // guard above would refuse the second run).
-  void sendReceiptEmail(supabase, {
+  afterCredit(sendReceiptEmail(supabase, {
     invoiceId,
     amountReceived: credit.amountReceived,
     newAmountPaid: credit.newAmountPaid,
@@ -803,7 +1007,7 @@ async function handleCheckoutCompleted(
     customerEmail: (session as unknown as { customer_email?: string; customer_details?: { email?: string } })
       .customer_email
       ?? (session as unknown as { customer_details?: { email?: string } }).customer_details?.email,
-  });
+  }));
 
   return { ok: true };
 }
@@ -824,14 +1028,18 @@ async function handleAiaPayAppCompleted(
   session: StripeCheckoutSession,
   eventAccount: string | undefined,
 ): Promise<HandlerResult> {
+  if (!recordId) return { ok: false, reason: "session has no metadata.record_id" };
+  // #83 (AIA, the identical early return): pending, not "not paid".
+  if (session.payment_status === "unpaid" && session.status === "complete") {
+    return markPaymentPending(supabase, session);
+  }
   if (session.payment_status !== "paid") {
     return { ok: false, reason: `session.payment_status is ${session.payment_status}, not paid` };
   }
-  if (!recordId) return { ok: false, reason: "session has no metadata.record_id" };
 
   const { data: app, error: fetchError } = await supabase
     .from("aia_pay_apps")
-    .select("id, invoice_id, paid_at, pay_link_id")
+    .select("id, invoice_id, paid_at, pay_link_id, pay_pending_session")
     .eq("id", recordId)
     .single();
   if (fetchError) {
@@ -852,6 +1060,10 @@ async function handleAiaPayAppCompleted(
       pay_link_url: null,
       pay_link_id: null,
       pay_link_amount: null,
+      // #83: the bank payment this session started has settled.
+      ...(app.pay_pending_session === session.id
+        ? { pay_pending_at: null, pay_pending_amount: null, pay_pending_session: null }
+        : {}),
     })
     .eq("id", recordId);
 
@@ -890,7 +1102,7 @@ async function handleAiaPayAppCompleted(
     return credit;
   }
   // #48: same notice as the invoice path, once per credited session.
-  if (!credit.duplicate) void notifyGcInvoicePaid(supabase, invoiceId, credit);
+  if (!credit.duplicate) afterCredit(notifyGcInvoicePaid(supabase, invoiceId, credit));
   return { ok: true };
 }
 
@@ -928,26 +1140,63 @@ async function findInvoiceByPaymentIntent(
  * status back. See applyChargeRefund for the two event shapes and the
  * idempotency keys.
  */
+/**
+ * Integration round 1 · a read-modify-write of invoices.payments that cannot
+ * erase a payment landed between its read and its write. invoice_append_payment
+ * (the app's Record Payment, the webhook's own credit) takes a row lock the
+ * refund / dispute writes never took, and invoices_ledger_guard lets
+ * service_role through — so a refund computed from a ledger read a moment
+ * before an append wrote that older ledger back, and the payment was gone.
+ * Now the UPDATE is conditional on the updated_at it read (every server writer
+ * of `payments` that changes money bumps it: the RPC and these writes); on
+ * 0 rows the row is re-read and `plan` re-run on the fresh ledger, so the
+ * merge is by entry id against what is really there. `plan` returns null when
+ * there is nothing to write (a duplicate event). After `tries` misses it
+ * reports a failure — the handler 500s and Stripe redelivers the event.
+ */
+async function writeInvoiceLedgerCas(
+  supabase: Db,
+  first: InvoiceRow,
+  plan: (row: InvoiceRow, nowIso: string) => Record<string, unknown> | null,
+  tries = 4,
+): Promise<{ ok: true; wrote: Record<string, unknown> | null } | { ok: false; reason: string }> {
+  let row: InvoiceRow | null = first;
+  for (let attempt = 0; attempt < tries && row; attempt++) {
+    const now = new Date().toISOString();
+    const patch = plan(row, now);
+    if (!patch) return { ok: true, wrote: null };
+    let upd = supabase.from("invoices").update({ ...patch, updated_at: now }).eq("id", row.id);
+    upd = row.updated_at ? upd.eq("updated_at", row.updated_at) : upd.is("updated_at", null);
+    const { data, error } = await upd.select("id");
+    if (error) return { ok: false, reason: `db update failed: ${error.message}` };
+    if (Array.isArray(data) && data.length > 0) return { ok: true, wrote: patch };
+    const reread: { data: unknown; error: { message: string } | null } =
+      await supabase.from("invoices").select(INVOICE_COLS).eq("id", row.id).maybeSingle();
+    if (reread.error) return { ok: false, reason: "db fetch failed" };
+    row = (reread.data as InvoiceRow | null) ?? null;
+  }
+  return row ? { ok: false, reason: "invoice changed during the write; retrying" } : { ok: false, reason: "invoice not found" };
+}
+
 async function handleChargeRefunded(supabase: Db, charge: StripeCharge): Promise<HandlerResult> {
   const found = await findInvoiceByPaymentIntent(supabase, charge.payment_intent);
   if (found === "db fetch failed") return { ok: false, reason: "db fetch failed" };
   if (!found) return { ok: false, reason: `no invoice for charge ${charge.id}` };
 
-  const now = new Date().toISOString();
-  const refund = applyChargeRefund(ledgerFrom(found.payments), charge, now);
-  if (!refund.changed) return { ok: true, reason: "duplicate" };
-
-  const newAmountPaid = toCents2(Math.max(0, Number(found.amount_paid ?? 0) + refund.delta));
-  const newStatus = settlementStatus(found.status, newAmountPaid, found);
-  const { error } = await supabase
-    .from("invoices")
-    .update({ amount_paid: newAmountPaid, payments: refund.ledger, status: newStatus, updated_at: now })
-    .eq("id", found.id);
-  if (error) {
-    console.error("[stripe-webhook] Failed to apply refund to invoice:", found.id, error.message);
-    return { ok: false, reason: "db update failed" };
+  let delta = 0;
+  const res = await writeInvoiceLedgerCas(supabase, found, (row, now) => {
+    const refund = applyChargeRefund(ledgerFrom(row.payments), charge, now);
+    if (!refund.changed) return null;
+    delta = refund.delta;
+    const newAmountPaid = toCents2(Math.max(0, Number(row.amount_paid ?? 0) + refund.delta));
+    return { amount_paid: newAmountPaid, payments: refund.ledger, status: settlementStatus(row.status, newAmountPaid, row) };
+  });
+  if (!res.ok) {
+    console.error("[stripe-webhook] Failed to apply refund to invoice:", found.id, res.reason);
+    return { ok: false, reason: res.reason };
   }
-  console.log("[stripe-webhook] Refund", charge.id, "→ invoice", found.id, newStatus, "amount_paid:", newAmountPaid, "delta:", refund.delta);
+  if (!res.wrote) return { ok: true, reason: "duplicate" };
+  console.log("[stripe-webhook] Refund", charge.id, "→ invoice", found.id, res.wrote.status, "amount_paid:", res.wrote.amount_paid, "delta:", delta);
   return { ok: true };
 }
 
@@ -962,35 +1211,35 @@ async function handleDispute(supabase: Db, dispute: StripeDispute, closed: boole
   if (found === "db fetch failed") return { ok: false, reason: "db fetch failed" };
   if (!found) return { ok: false, reason: `no invoice for dispute ${dispute.id}` };
 
-  const now = new Date().toISOString();
-  const patch: Record<string, unknown> = closed
-    ? { payment_disputed_at: null, updated_at: now }
-    : { payment_disputed_at: now, updated_at: now };
-
-  if (closed && dispute.status === "lost") {
-    const applied = applyLedgerEntry(ledgerFrom(found.payments), {
-      id: `stripe-dispute-${dispute.id}`,
-      amount: -toCents2(Number(dispute.amount ?? 0) / 100),
-      method: "stripe",
-      kind: "dispute",
-      date: now,
-      receivedAt: now,
-      reference: dispute.charge ?? dispute.id,
-      paymentIntentId: dispute.payment_intent ?? undefined,
-      notes: `chargeback lost (${dispute.reason ?? "unspecified"})`,
-    });
-    if (applied.applied) {
-      const newAmountPaid = toCents2(Math.max(0, Number(found.amount_paid ?? 0) + applied.delta));
-      patch.payments = applied.ledger;
-      patch.amount_paid = newAmountPaid;
-      patch.status = settlementStatus(found.status, newAmountPaid, found);
+  // The ledger part rides the same compare-and-swap as a refund
+  // (writeInvoiceLedgerCas): a lost chargeback booked from a stale read would
+  // otherwise write back a ledger missing a payment appended meanwhile.
+  const res = await writeInvoiceLedgerCas(supabase, found, (row, now) => {
+    const patch: Record<string, unknown> = { payment_disputed_at: closed ? null : now };
+    if (closed && dispute.status === "lost") {
+      const applied = applyLedgerEntry(ledgerFrom(row.payments), {
+        id: `stripe-dispute-${dispute.id}`,
+        amount: -toCents2(Number(dispute.amount ?? 0) / 100),
+        method: "stripe",
+        kind: "dispute",
+        date: now,
+        receivedAt: now,
+        reference: dispute.charge ?? dispute.id,
+        paymentIntentId: dispute.payment_intent ?? undefined,
+        notes: `chargeback lost (${dispute.reason ?? "unspecified"})`,
+      });
+      if (applied.applied) {
+        const newAmountPaid = toCents2(Math.max(0, Number(row.amount_paid ?? 0) + applied.delta));
+        patch.payments = applied.ledger;
+        patch.amount_paid = newAmountPaid;
+        patch.status = settlementStatus(row.status, newAmountPaid, row);
+      }
     }
-  }
-
-  const { error } = await supabase.from("invoices").update(patch).eq("id", found.id);
-  if (error) {
-    console.error("[stripe-webhook] Failed to record dispute on invoice:", found.id, error.message);
-    return { ok: false, reason: "db update failed" };
+    return patch;
+  });
+  if (!res.ok) {
+    console.error("[stripe-webhook] Failed to record dispute on invoice:", found.id, res.reason);
+    return { ok: false, reason: res.reason };
   }
   console.log("[stripe-webhook] Dispute", dispute.id, closed ? `closed (${dispute.status})` : "opened", "→ invoice", found.id);
   return { ok: true };
@@ -1242,7 +1491,12 @@ async function dispatchEvent(supabase: Db, event: StripeWebhookEvent): Promise<O
       // not ours to retire — the terminal "no metadata.invoice_id" outcome
       // above must not turn into a deactivation.
       const isMageLink = !!(session.metadata?.record_id || session.metadata?.invoice_id);
-      if (isMageLink && session.payment_status === "paid" && session.payment_link) {
+      // #83: an UNPAID completion (bank debit in flight) spent the link too —
+      // retire it, so a pre-limit link cannot take a second payment while the
+      // first settles.
+      const spent = session.payment_status === "paid"
+        || (session.payment_status === "unpaid" && session.status === "complete");
+      if (isMageLink && spent && session.payment_link) {
         const d = await deactivatePaymentLink(session.payment_link, event.account);
         if (d === "retry") return { retry: true, reason: "payment link deactivation failed" };
       }
@@ -1273,7 +1527,14 @@ async function dispatchEvent(supabase: Db, event: StripeWebhookEvent): Promise<O
       if (event.type === "checkout.session.async_payment_failed") {
         const failed = event.data.object as StripeCheckoutSession;
         if (failed?.metadata?.record_id || failed?.metadata?.invoice_id) {
-          void notifyGcPaymentFailed(supabase, failed);
+          // #83: the bank payment is no longer in flight. The link died when
+          // the session completed unpaid (and was nulled then), so the portal
+          // shows the balance with no Pay button and the GC's Send / Regenerate
+          // mints a fresh link. A failed clear is retried — left set, dunning
+          // would stay silent on an unpaid invoice for up to 10 days.
+          const cleared = outcomeOf(event.type, await clearPaymentPending(supabase, failed));
+          if (cleared.retry) return cleared;
+          afterCredit(notifyGcPaymentFailed(supabase, failed));
         }
       }
       return { retry: false };
@@ -1395,6 +1656,9 @@ serve(async (req) => {
     console.error("[stripe-webhook] handler threw:", event.type, event.id, err);
     outcome = { retry: true, reason: "handler threw" };
   }
+
+  // #45: before the event is marked processed — after that, nothing re-runs it.
+  await flushSideEffects();
 
   if (outcome.retry) {
     console.warn("[stripe-webhook] transient failure, releasing claim for retry:", event.id, outcome.reason);

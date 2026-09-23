@@ -131,7 +131,7 @@ console.log('\n#10 crew roster from the time clock:');
     && /if \(!silent && liveHoursWarning\) showAlert\('Saved with hours so far', liveHoursWarning\);/.test(DFR)
     && /if \(liveHoursWarning\) \{\s*showAlert\('Crew still on the clock'/.test(DFR));
   ok('open-shift hours keep counting while the screen is open',
-    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule\)/.test(DFR)
+    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule, shiftAlertHours\)/.test(DFR)
     && /setInterval\(\(\) => setLiveNowMs\(Date\.now\(\)\), 60_000\)/.test(DFR));
   ok('a finished shift with zero hours is not evidence of anyone',
     clockCrewForDay([shift({ workerId: 'w9', clockIn: inAt, clockOut: inAt, totalHours: 0, overtimeHours: 0 })], P, '2026-09-17', 'X') === null);
@@ -154,13 +154,13 @@ console.log('\n#10 crew roster from the time clock:');
   ok('crewPresence keeps GC and sub framing crews apart by company', JSON.stringify(fr?.companies) === '["Ortiz Builders","Acme Framing"]' && fr?.manHours === 43, JSON.stringify(fr));
 
   // Screen wiring.
-  ok('the screen reads the ONE time-entry store', /const \{ entries: ownTimeEntries, teamEntries, refresh: refreshTimeEntries \} = useTimeEntries\(\);/.test(DFR));
+  ok('the screen reads the ONE time-entry store', /const \{ entries: ownTimeEntries, teamEntries, refresh: refreshTimeEntries, shiftAlertHours \} = useTimeEntries\(\);/.test(DFR));
   // #28 × #10: the crew a foreman clocked in lives in teamEntries. Reading only
   // the GC's own entries sent the roster to the schedule plan's 8-hour guess.
   ok('…and the roster counts the crew\'s shifts, not only the signed-in user\'s',
     /const timeEntries = useMemo\(\(\) => mergeTimeEntriesMirror\(ownTimeEntries, teamEntries\), \[ownTimeEntries, teamEntries\]\);/.test(DFR));
   ok('the roster is built from clockCrewForDay on the report\'s calendar day',
-    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule\)/.test(DFR));
+    /clockCrewForDay\(timeEntries, project\.id, reportCalendarDay, settings\?\.branding\?\.companyName, liveNowMs, overtimeRule, shiftAlertHours\)/.test(DFR));
   ok('clock rows keep their measured hours (no hardcoded 8 on them)',
     /clockCrew\.rows\.map\(\(r, i\) => \(\{\s*id: clockIds\[i\], trade: r\.trade, company: r\.company, headcount: r\.headcount, hoursWorked: r\.hoursWorked,/.test(DFR));
   ok('only the plan\'s SUB rows (a company other than the GC) join the clocked crew',

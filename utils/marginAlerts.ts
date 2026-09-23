@@ -43,6 +43,9 @@ export interface MarginAlert {
   marginPct: number;
   erosionPoints: number;
   asOf: string;
+  /** unpriced_labor only: the first trade with no rate (#104), so the card
+   *  can open the Labor rates sheet on it. Absent on every other kind. */
+  unpricedTrade?: string;
 }
 
 /** The per-project snapshot we persist to detect the next transition. */
@@ -89,6 +92,8 @@ export interface MarginBaseline {
    * baselines stored before this field (read as 0).
    */
   unpricedLaborHours?: number;
+  /** The first unpriced trade (normalized key), for the alert's deep link. */
+  unpricedTrade?: string;
   asOf: string;
 }
 
@@ -160,6 +165,7 @@ export function computeCurrentBaselines(input: PortfolioInput): {
     const le = computeLivingEstimate({ project, changeOrders, commitments, invoices, costSources });
     if (!le.hasMarginBasis) continue;
     const risk = computeMarginRisk({ project, changeOrders, commitments, invoices, costSources });
+    const unpriced = unpricedLaborFor(project.id, costSources?.timeEntries, costSources?.laborRates);
     baselines[project.id] = {
       projectId: project.id,
       health: le.health,
@@ -170,7 +176,8 @@ export function computeCurrentBaselines(input: PortfolioInput): {
       erosionStep: erosionStepOf(le.marginErosionPoints),
       bidAtCost: le.bidAtCost,
       costBasis: costSources ? 'all_sources' : 'committed_only',
-      unpricedLaborHours: unpricedLaborFor(project.id, costSources?.timeEntries, costSources?.laborRates).hours,
+      unpricedLaborHours: unpriced.hours,
+      ...(unpriced.trades[0] ? { unpricedTrade: unpriced.trades[0] } : {}),
       asOf: le.asOf,
     };
     names[project.id] = project.name;
@@ -336,9 +343,10 @@ export function computeAlerts(
     const unpricedSeen = prev?.unpricedLaborHours ?? 0;
     if (unpricedNow > 0 && unpricedNow > unpricedSeen + 0.005) {
       const name = names[id] ?? 'Project';
-      alerts.push(makeAlert(current[id], name, 'unpriced_labor', 'open', 'worsened', 'warning',
+      const alert = makeAlert(current[id], name, 'unpriced_labor', 'open', 'worsened', 'warning',
         unpricedLaborLine(unpricedNow, name),
-        'Their labor is not in this job\'s margin. Set labor rates in Time Tracking so these hours are priced.'));
+        'Their labor is not in this job\'s margin. Set labor rates in Time Tracking so these hours are priced.');
+      alerts.push(current[id].unpricedTrade ? { ...alert, unpricedTrade: current[id].unpricedTrade } : alert);
     }
     const cands = candidatesFor(prev, current[id], names[id] ?? 'Project');
     if (cands.length === 0) continue;

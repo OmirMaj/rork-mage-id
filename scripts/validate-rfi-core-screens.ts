@@ -60,7 +60,7 @@ interface Pure {
   recordGate: (i: { wantsRecord: boolean; foundInContext: boolean; foundInQuery: boolean; settled: boolean; failed: boolean }) => Gate;
   changedFields: (a: Record<string, unknown>, b: Record<string, unknown>) => Record<string, unknown>;
   rfiBallAfterSave: (p: { prevBall?: string; handoffs?: H[]; status: string; responseTyped: boolean; dateResponded?: string; now: string }) => { ball: string; added: H[] };
-  rfiRegressionReason: (o: { status: string; response?: string }, f: { status: string; response: string }) => string | null;
+  rfiRegressionReason: (o: { status: string; response?: string; dateResponded?: string }, f: { status: string; response: string }) => string | null;
   openCycleOf: (c: unknown[] | undefined) => unknown;
   nextCycleNumber: (c: unknown[] | undefined) => number;
   manualCycleProblem: (c: { reviewer: string; status: string; sentDay: string; returnDay: string }) => string | null;
@@ -97,8 +97,9 @@ if (P) {
   const d = P.changedFields(opened, { ...opened, subject: 'Beam at C/4', attachments: ['a', 'b'] });
   ok('a changed subject and a new attachment are the whole patch', JSON.stringify(Object.keys(d).sort()) === '["attachments","subject"]', JSON.stringify(d));
   ok('…so a stale status/response is never in it', !('status' in d) && !('response' in d));
-  ok('reopening an answered RFI is refused with a reason', /stays answered/.test(P.rfiRegressionReason({ status: 'answered' }, { status: 'open', response: 'x' }) ?? ''));
-  ok('…a closed one too', !!P.rfiRegressionReason({ status: 'closed' }, { status: 'open', response: 'x' }));
+  // wave 4 #31: the lock needs an answer ON RECORD (response or its day).
+  ok('reopening an answered RFI is refused with a reason', /stays answered/.test(P.rfiRegressionReason({ status: 'answered', response: 'Drop 6in' }, { status: 'open', response: 'x' }) ?? ''));
+  ok('…a closed one with an answer on record too', !!P.rfiRegressionReason({ status: 'closed', dateResponded: '2026-09-18' }, { status: 'open', response: 'x' }));
   ok('clearing a recorded response is refused with a reason', /can't be cleared/.test(P.rfiRegressionReason({ status: 'answered', response: 'Drop 6in' }, { status: 'answered', response: '  ' }) ?? ''));
   ok('closing an answered RFI is fine', P.rfiRegressionReason({ status: 'answered', response: 'x' }, { status: 'closed', response: 'x' }) === null);
 }
@@ -170,7 +171,7 @@ console.log('\nthe architect page uses the same cycle rule (executed)');
   ok('the form banner uses the rule, not length + 1', /cycleSentence\(doc\.review_cycles\)/.test(ARCH) && !/review_cycles\.length \|\| 0\) \+ 1/.test(ARCH));
   ok('the submittal header uses the rule', /var cycleNum = nextCycleNumber\(sub\.review_cycles\);/.test(ARCH));
   ok('#56 the old "has been notified" / "They\'ll get a notification" lines are gone', !/contractor has been notified/.test(ARCH) && !/They\\'ll get a notification/.test(ARCH));
-  ok('#77 the RFI card circles the pin on its sheet', /attachmentBlock\(rfi\.attachments, rfi\.pin_marks\)/.test(ARCH) && /class="att-pin"/.test(ARCH));
+  ok('#77 the RFI card circles the pin on its sheet', /attachmentBlock\(rfi\.attachments, rfi\.pin_marks(, signedSheets)?\)/.test(ARCH) && /class="att-pin"/.test(ARCH));
   // Execute the tile builder with a pin.
   const a = ARCH.indexOf('function viewableAttachments');
   const b = ARCH.indexOf('function renderRFI');
@@ -209,8 +210,15 @@ console.log('\nRFI screen wiring');
   ok('#146 dropped attachments are reported, not "RFI Sent"', /result\.attachmentsDropped \?\? 0/.test(send) && /RFI sent without/.test(send));
   ok('#56 the dialog says answers come back through the link', /existingRFI\?\.shareToken\s*\?\s*"They'll get a formatted email with the question and a reply link/.test(RFI));
   ok('#56 the old paste-only dialog copy is not unconditional', !/<Text style=\{styles\.sendCardHelper\}>\s*They'll get a formatted email with the question\. Their reply/.test(RFI));
-  ok('#77 plan-sheet links are re-minted, emailed, and stored with the hand-off', /planSheetStoragePath\(u\) \? resolvePlanSheetUrl\(u\)/.test(send) && /mintedChanged \? \{ \.\.\.existingRFI, attachments: minted \}/.test(send) && /\.\.\.\(mintedChanged \? \{ attachments: minted \} : \{\}\)/.test(send));
-  ok('#77 the email names where the pin is', /Marked location:/.test(send));
+  // wave 4 #93/#113 (plans): the signed links are minted for the EMAIL only;
+  // the row keeps the durable keys (plus a missing pinned sheet, #94). The old
+  // pin — "stored with the hand-off" — encoded the bug: a stored signed URL
+  // died 24 h after send.
+  ok('#77/#93 plan-sheet links are minted for the email, the row keeps the keys',
+    /const minted = await resolvePlanSheetUrls\(durable\.filter\(isPlanSheetAttachment\)\)/.test(send)
+    && /\.\.\.\(durableChanged \? \{ attachments: durable \} : \{\}\)/.test(send)
+    && !/attachments: minted/.test(send));
+  ok('#77 the email names where the pin is', /pinLocationLine\(\{/.test(send));
   ok('#77 a manual attach control exists', /testID="rfi-attach-photo"/.test(RFI) && /launchImageLibraryAsync/.test(RFI));
   ok('#164 the due-day readers resolve instants to the local day', /formatCalendarDay\(calendarDayOf\(dateRequired\) \?\? dateRequired\)/.test(RFI) && /parseCalendarDay\(calendarDayOf\(dateRequired\)\)/.test(RFI));
   ok('gating contract: role loading waits, error retries, null says why', /roleState\.isLoading/.test(RFI) && /roleState\.isError/.test(RFI) && /roleState\.role === null/.test(RFI) && /useProjectRoleState\(gateProjectId\)/.test(RFI));
@@ -241,7 +249,9 @@ if (P) {
 }
 {
   const eff = RFI.slice(RFI.indexOf('const lastLiveRef = useRef(existingRFI)'), RFI.indexOf('const lastLiveRef = useRef(existingRFI)') + 600);
-  ok('rfi: a newer record identity re-bases the form and the baseline', /if \(!existingRFI \|\| existingRFI === lastLiveRef\.current\) return;/.test(eff) && /applyFormValues\(rebaseFormOnLive\(base, formRef\.current, rfiFormValuesOf\(existingRFI\)\)\);\s*setOpened\(existingRFI\);/.test(eff) && /\}, \[existingRFI, applyFormValues\]\);/.test(eff));
+  // wave 4 #25: the rebase also reports conflicts (the effect grew; slice wider).
+  const eff4 = RFI.slice(RFI.indexOf('const lastLiveRef = useRef(existingRFI)'), RFI.indexOf('const lastLiveRef = useRef(existingRFI)') + 2400);
+  ok('rfi: a newer record identity re-bases the form and the baseline', /if \(!existingRFI \|\| existingRFI === lastLiveRef\.current\) return;/.test(eff4) && /rebaseFormOnLiveWithConflicts\(base, formRef\.current, live\)/.test(eff4) && /applyFormValues\(next\);[\s\S]{0,900}setOpened\(existingRFI\);/.test(eff4) && /\}, \[existingRFI, applyFormValues\]\);/.test(eff4) && eff.length > 0);
   const pf = RFI.slice(RFI.indexOf('const persistForm = useCallback'), RFI.indexOf('const navigation = useNavigation()'));
   ok('rfi: a save re-seeds the form from the saved record', /applyFormValues\(rfiFormValuesOf\(saved\)\);\s*setOpened\(saved\);/.test(pf));
   ok('rfi: the architect send re-seeds the form too', /applyFormValues\(rfiFormValuesOf\(afterSend\)\);\s*setOpened\(afterSend\);/.test(RFI));

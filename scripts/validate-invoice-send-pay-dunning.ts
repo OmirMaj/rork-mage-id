@@ -102,7 +102,7 @@ async function main() {
   ok('processInvoice resolves the recipient through resolveDunningRecipient', /const recipient = resolveDunningRecipient\(invoice, project\.client_portal\?\.invites\)/.test(SRC));
   ok('invites[0] is no longer taken blindly', !/invites\[0\]/.test(SRC));
   ok('unsubscribe is checked on the address actually used', /const recipientEmail = recipient\.email;/.test(SRC) && /isEmailUnsubscribed\(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, recipientEmail, 'payment_reminders'\)/.test(SRC));
-  ok('the email gets View invoice / Pay from dunningLinks', /const links = dunningLinks\(invoice, portalUrl, outstanding\)/.test(SRC) && /portalUrl: links\.viewUrl/.test(SRC) && /payUrl: links\.payUrl/.test(SRC));
+  ok('the email gets View invoice / Pay from dunningLinks', /const links = dunningLinks\(invoice, portalUrl, outstanding(, project\.client_portal)?\)/.test(SRC) && /portalUrl: links\.viewUrl/.test(SRC) && /payUrl: links\.payUrl/.test(SRC));
   ok('the notice\'s amount is exact to the cent (not the shared whole-dollar fmtMoney)', /const amountFormatted = fmtMoneyCents\(opts\.outstanding\)/.test(SRC) && !/\bfmtMoney\(/.test(SRC));
   ok('the Pay button prints the exact amount it charges', /emailButton\(`Pay \$\{amountFormatted\} now`, opts\.payUrl\)/.test(SRC));
 

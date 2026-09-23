@@ -393,6 +393,10 @@ const publicObjectUrlOffenders: string[] = [];
 const OBJECT_PUBLIC_ALLOWED = new Map<string, string>([
   ['utils/planSheetUrls.ts', 'OBJECT_URL_MARKERS — strips the prefix off a legacy row to recover its path'],
   ['supabase/functions/_shared/planSheetBytes.ts', 'mintLegacyViewUrl refuses a value containing it'],
+  // Wave 4 (CONTRACT 14): the third recovery site. keyFromStorageUrl reduces a
+  // stored URL (public, sign or authenticated) to its object key, which is then
+  // re-signed for 3600 s — it never returns or builds a public link.
+  ['supabase/functions/signed-media-urls/core.ts', 'keyFromStorageUrl — strips the prefix off a stored URL to recover its key for re-signing'],
 ]);
 
 for (const f of files) {
@@ -435,9 +439,9 @@ ok('convert-pdf-to-images calls no getPublicUrl',
 ok('NO file that touches the plan-sheets bucket builds an /object/public/ url',
   publicObjectUrlOffenders.length === 0,
   `offenders: ${publicObjectUrlOffenders.join(', ')}\n      A hand-rolled \`\${SUPABASE_URL}/storage/v1/object/public/plan-sheets/…\` leaks exactly like getPublicUrl did.`);
-ok('and the allowlist for that scan is still only the two path-RECOVERY sites',
+ok('and the allowlist for that scan is still only the three path-RECOVERY sites',
   [...OBJECT_PUBLIC_ALLOWED.keys()].join('|')
-    === 'utils/planSheetUrls.ts|supabase/functions/_shared/planSheetBytes.ts',
+    === 'utils/planSheetUrls.ts|supabase/functions/_shared/planSheetBytes.ts|supabase/functions/signed-media-urls/core.ts',
   [...OBJECT_PUBLIC_ALLOWED.keys()].join(', '));
 
 // HINT, NOT COVERAGE — labelled so nobody mistakes it for the real fence. This

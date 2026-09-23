@@ -57,6 +57,7 @@ import {
   workingDaysInSpan, type CpmResult, type DayScaleOptions,
 } from '@/utils/cpm';
 import { asBuiltVariance, ganttLogFinishPatch, ganttLogStartPatch, todayScheduleDay } from '@/utils/pace/stampActuals';
+import { actualCalendarDay } from '@/utils/scheduleOps';
 import { toCalendarDayString } from '@/utils/calendarDate';
 import { colorForTask as canonicalColorForTask, statusColorForTask, statusColor, statusLabel, STATUS_KEYS, barLabelColorFor, type GanttColorMode } from '@/utils/scheduleColors';
 import { useGanttColorMode } from '@/hooks/useGanttColorMode';
@@ -1511,12 +1512,16 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   // fallback). They are NOT lifted through toCal the way the
                   // baseline ghosts are: that would push an on-time as-built
                   // bar about two columns right per weekend (audit #50).
-                  const aStart = bar.task.actualStartDay;
+                  // The day number, or the recorded date read on the
+                  // schedule's own anchor (#89) — Quick Field Update and the
+                  // mic used to stamp only the date.
+                  const aStart = actualCalendarDay(bar.task, 'start', stampBasis);
                   if (aStart == null) return null;
-                  const aEnd = bar.task.actualEndDay ?? todayDayNumber;
+                  const recordedEnd = actualCalendarDay(bar.task, 'end', stampBasis);
+                  const aEnd = recordedEnd ?? todayDayNumber;
                   const ax = (aStart - 1) * pxPerDay;
                   const aw = Math.max(MIN_BAR_PX_WIDTH, (aEnd - aStart + 1) * pxPerDay);
-                  const finished = bar.task.actualEndDay != null;
+                  const finished = recordedEnd != null;
                   const fillColor = finished
                     ? themeColors.success
                     : 'rgba(52,199,89,0.55)';  // translucent green for in-progress
@@ -1601,6 +1606,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     linkInvalid={!!linkDrag?.invalid && linkDrag.hoverTargetId === bar.task.id}
                     todayDayNumber={todayDayNumber}
                     dayScale={dayScale}
+                    actualBasis={stampBasis}
                     dimmed={!inPath}
                     isFocusTarget={isFocusedBar}
                     isDownstream={dragSuccessorIds.has(bar.task.id)}
@@ -2047,6 +2053,9 @@ interface BarViewProps {
   /** The schedule calendar — the as-built badge converts calendar actuals to
    *  working ordinals through it before comparing them with the plan. */
   dayScale: DayScaleOptions;
+  /** The schedule's own day-1 (the stamp basis), for reading an actual that
+   *  was recorded as a date only (#89). Undefined on an undated schedule. */
+  actualBasis?: string;
   /** When true, render at reduced opacity — outside current task-path focus. */
   dimmed?: boolean;
   /** When true, this bar is the focused task head (MAGE accent outline). */
@@ -2077,7 +2086,7 @@ interface BarViewProps {
 }
 
 function BarView({
-  bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber, dayScale,
+  bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber, dayScale, actualBasis,
   dimmed, isFocusTarget, isLastMilestone, isDownstream, showCrewAvatar,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
@@ -2155,7 +2164,17 @@ function BarView({
   // the difference is a working-day count, the unit the label claims.
   const baseStart = bar.task.baselineStartDay ?? bar.planStartOrdinal;
   const baseEnd = bar.task.baselineEndDay ?? bar.planEndOrdinal;
-  const variance = asBuiltVariance(bar.task, baseStart, baseEnd, dayScale);
+  // Actuals by day number OR recorded date (#89): a task the foreman started
+  // or finished from Home / the mic carried only the date, and the Gantt still
+  // offered "Start today" / "Finish today" on it with no badge.
+  const actualStart = actualCalendarDay(bar.task, 'start', actualBasis);
+  const actualEnd = actualCalendarDay(bar.task, 'end', actualBasis);
+  const startRecorded = actualStart != null || !!bar.task.actualStartDate;
+  const finishRecorded = actualEnd != null || !!bar.task.actualEndDate;
+  const variance = asBuiltVariance(
+    { actualStartDay: actualStart ?? undefined, actualEndDay: actualEnd ?? undefined },
+    baseStart, baseEnd, dayScale,
+  );
   const varianceLabel: string | null = variance?.label ?? null;
   const varianceColor = !variance ? themeColors.textSecondary
     : variance.tone === 'late' ? themeColors.danger
@@ -2508,7 +2527,7 @@ function BarView({
           zIndex: 16,
         }}
       >
-        {bar.task.actualStartDay == null && (
+        {!startRecorded && (
           <TouchableOpacity
             onPress={onLogStartToday}
             style={styles.chipBtn}
@@ -2517,7 +2536,7 @@ function BarView({
             <Text style={styles.chipBtnText}>▶ Start today</Text>
           </TouchableOpacity>
         )}
-        {bar.task.actualEndDay == null && (
+        {!finishRecorded && (
           <TouchableOpacity
             onPress={onLogFinishToday}
             style={[styles.chipBtn, styles.chipBtnDone]}

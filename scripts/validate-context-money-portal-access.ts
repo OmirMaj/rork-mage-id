@@ -15,7 +15,10 @@
 //        OWNED portal-enabled project THIS DEVICE CHANGED (never because a
 //        refetch moved a list — the other lists may be the stale ones), plus
 //        once after load — debounced, never dropped, retried until an outcome
-//        settles it, and not before every list has loaded.
+//        settles it, and not before every list has loaded. (Wave 4: #17 also
+//        marks a job when server reads bring in another member's shared
+//        record, #15 adds the AIA list, #21 the epoch — their cases live in
+//        scripts/validate-w4-context-money-portal-publish.ts.)
 //   #48  the invoices / pay apps are re-read when the app returns to the
 //        foreground (a client's Stripe payment), never over a write still out.
 //   #121 the settings are re-read on foreground too (guarded like the owed
@@ -154,6 +157,8 @@ async function main() {
         { id: 'C', ownerUserId: 'gc', myRole: 'field', clientPortal: { enabled: true } },
       ],
       invoices, changeOrders: [], dailyReports: dfrs, punchItems: [], photos: [], rfis: [], warranties: [], permits: [],
+      // wave 4: #15 the AIA list rides with the others; #21 the epoch the lists were read in.
+      aiaPayApps: [], epoch: 0,
     });
     const portalDirtyRef = { current: new Map<string, number>([['*', 1]]) };
     const portalListsServerRef = { current: true };
@@ -165,6 +170,9 @@ async function main() {
       liveUserIdRef: { current: 'u1' }, portalDirtyRef,
       // data-session critic: every portal-fed list's last load was the server's.
       portalListsServerRef,
+      // wave 4: #21 the foreground epoch (unchanged here — scripts/validate-w4-
+      // context-money-portal-publish.ts moves it); #15 the AIA list's server read.
+      portalReadEpochRef: { current: 0 }, portalAiaFreshRef: { current: true },
       isPortalOwner: (p: { ownerUserId?: string; myRole?: string }, uid: string) => (p.ownerUserId ? p.ownerUserId === uid : !p.myRole),
       portalLiteSignature, portalLiteOutcomeSettles,
       syncPortalSnapshotLite: async (id: string, input: { dailyReports: unknown[] }) => {
@@ -260,7 +268,7 @@ async function main() {
       /const delay = Math\.max\(0, Math\.min\(PORTAL_SYNC_DEBOUNCE_MS, PORTAL_SYNC_MAX_WAIT_MS - waited\)\);/.test(CTX)
         && /if \(portalSyncTimerRef\.current\) clearTimeout\(portalSyncTimerRef\.current\);\s*portalSyncTimerRef\.current = setTimeout\(/.test(CTX));
     ok('the change keys include permits (client-portal round 2) and settings',
-      /\}, \[portalSyncReady, userId, settings, settingsLoaded, projects, invoices, changeOrders, dailyReports, punchItems, projectPhotos, rfis, warranties, permits, publishOwnedPortals\]\);/.test(CTX));
+      /\}, \[portalSyncReady, portalAiaFresh, portalServerReads\.epoch, userId, settings, settingsLoaded, projects, invoices, changeOrders, dailyReports, punchItems, projectPhotos, rfis, warranties, permits, aiaPayApps, schedulePortalPass, markPortalDirty\]\);/.test(CTX));
   }
 
   // ── #48 / #121 foreground re-read ──────────────────────────────────────────

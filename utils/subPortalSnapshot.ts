@@ -135,12 +135,32 @@ export interface SubPortalPunchEntry {
   dueDate?: string;
   photoStoragePath?: string;
   planSheetId?: string;
-  /** "A-101 · Level 2" — utils/punchPlanPin.pinSheetLabel's rule. */
+  /** "A-101 · Level 2" — utils/punchPlanPin.pinSheetLabel's rule. Absent
+   * when the sheet has no name or isn't on the server yet: the page then says
+   * "Pinned on a plan (sheet not available)" instead of inventing "Plan". */
   sheetLabel?: string;
   pinX?: number;
   pinY?: number;
-  /** The sub's own note from "Mark fixed" (punch_items.sub_note). */
+  /** The sub's own note from "Mark fixed" (punch_items.sub_note). The
+   * server clears it when the GC sends the item back or hands it to another
+   * sub (punch_items_guard, migration 20260920120000). */
   subNote?: string;
+  /** The GC's reason for sending it back (punch_items.rejection_note), only
+   * on a row back on the sub (open / in progress). The app's default
+   * 'Rejected — needs rework' reads as "no reason given" on the page. */
+  gcNote?: string;
+}
+
+/**
+ * The walk's "no room given" placeholder is not a room (#56). Rows saved
+ * before punch-walk stopped writing it still carry 'Unspecified'; the portal
+ * shows "No room given — check the sheet" instead of printing it as a place.
+ * Same rule as sub_portal_live_punch.
+ */
+export function portalPunchLocation(location: string | undefined | null): string | undefined {
+  const v = String(location ?? '').trim();
+  if (!v || v.toLowerCase() === 'unspecified') return undefined;
+  return v;
 }
 
 /** Keep equal to the cap in sub_portal_live_punch (migration 20260919200000). */
@@ -196,7 +216,9 @@ function sheetLabelOf(sheet: { name?: string | null; sheetNumber?: string | null
   const num = String(sheet.sheetNumber ?? '').trim();
   const name = String(sheet.name ?? '').trim();
   if (num && name && num !== name) return `${num} · ${name}`;
-  return num || name || 'Plan';
+  // No 'Plan' fallback (#56): a sheet with no number and no name has no
+  // label, and the page says so rather than print an invented one.
+  return num || name || undefined;
 }
 
 interface BuildOpts {
@@ -319,21 +341,27 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
       const sheets = new Map(planSheets.map(sh => [sh.id, sh]));
       const entries: SubPortalPunchEntry[] = scoped.slice(0, SUB_PORTAL_PUNCH_CAP).map(p => {
         const pinned = !!p.planSheetId;
+        // Back on the sub with a reason = the GC sent it back. The server
+        // cleared last round's note at that moment (punch_items_guard); this
+        // device's copy may still hold it until the next pull, so drop it
+        // here too rather than show the sub his old "done" under the reason.
+        const gcNote = punchIsOnSub(p) ? (p.rejectionNote ?? '').trim() || undefined : undefined;
         return {
           id: p.id,
           description: p.description,
-          location: p.location || undefined,
+          location: portalPunchLocation(p.location),
           priority: p.priority,
           status: p.status,
           dueDate: p.dueDate || undefined,
           photoStoragePath: durablePhotoPath(p),
           ...(pinned ? {
             planSheetId: p.planSheetId,
-            sheetLabel: sheetLabelOf(sheets.get(p.planSheetId as string)) ?? 'Plan',
+            sheetLabel: sheetLabelOf(sheets.get(p.planSheetId as string)),
             pinX: p.pinX,
             pinY: p.pinY,
           } : {}),
-          subNote: p.subNote || undefined,
+          subNote: gcNote ? undefined : (p.subNote || '').trim() || undefined,
+          gcNote,
         };
       });
       return { punchItems: entries, punchTotal: scoped.length };

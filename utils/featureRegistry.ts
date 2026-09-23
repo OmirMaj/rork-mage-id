@@ -181,6 +181,9 @@ const REGISTRY = [
   { id: 'summary', title: 'Summary', synonyms: ['dashboard', 'overview', 'today'], route: '/(tabs)/summary', icon: 'MageSummary', group: 'workspace' },
   { id: 'ask-mage', title: 'Ask MAGE', synonyms: ['chat', 'assistant', 'ai', 'question', 'help'], route: '/ask', icon: 'MageAIMark', group: 'workspace' },
   { id: 'copilot-hub', title: 'MAGE Copilot', synonyms: ['voice', 'dictate', 'hands free', 'talk'], route: '/copilot-hub', icon: 'Mic', group: 'workspace' },
+  // Construction News (founder request 2026-09-22): publisher-feed headlines.
+  // "news" is kept off Morning Brief so the two never tie on that word.
+  { id: 'construction-news', title: 'Construction News', synonyms: ['news', 'industry news', 'headlines', 'construction headlines', 'trade news', 'market news', 'articles'], route: '/construction-news', icon: 'Newspaper', group: 'workspace' },
   { id: 'brief', title: 'Morning Brief', synonyms: ['briefing', 'digest', 'daily brief'], route: '/brief', requires: 'brain_accuracy', icon: 'Newspaper', group: 'workspace' },
   { id: 'week-close', title: 'Week Close', synonyms: ['friday', 'friday close', 'weekly review', 'wrap up'], route: '/week-close', requires: 'brain_accuracy', icon: 'CalendarCheck', group: 'workspace' },
   { id: 'business', title: 'Your Business', synonyms: ['brain', 'company health', 'accuracy', 'predictions'], route: '/business', requires: 'brain_accuracy', icon: 'Briefcase', group: 'workspace' },

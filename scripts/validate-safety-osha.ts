@@ -251,7 +251,7 @@ console.log('\nOSHA 300A summary:');
     /confirmed \? osha300ARates\(totals, hoursNum\) : null/.test(oshaSrc),
     'TRIR/DART must not render from an unconfirmed time-tracking pre-fill — it runs low and inflates the rate.');
   ok('the hours pre-fill follows the screen\'s project filter',
-    oshaSrc.includes('prefillHoursFromTimeEntries(timeEntries, est.year, projectId || undefined)'),
+    /prefillHoursFromTimeEntries\(\s*hoursEntriesForOwnEstablishment\(timeEntries, projects, user\?\.id\),\s*est\.year,\s*projectId \|\| undefined,\s*\)/.test(oshaSrc),
     'dividing one project\'s cases by company-wide hours prints a wrong rate.');
   ok('the PDF only gets a 300A page from confirmed numbers',
     oshaSrc.includes('exportOsha300Pdf(scopedIncidents, est, summaryInput)') && /summaryInput = useMemo<Osha300ASummaryInput \| undefined>\(\(\) => \(confirmed \?/.test(oshaSrc),
@@ -556,7 +556,9 @@ ok('the case is actually written through SafetyContext',
 ok('the case write is keyed on hasIncident, not on Send',
   // dfr-screen #89 (wave 3) adds `&& !caseDeletedInLog` — a case the owner
   // deleted in Incidents is not re-filed — which is still keyed on hasIncident.
-  /if \(incident\.hasIncident && projectId( && !caseDeletedInLog)?\)/.test(dfrSrc),
+  // wave 4 #122 (dfr) adds `&& !caseNotYoursReason` — another author's case
+  // this seat cannot see is never blind-inserted; still keyed on hasIncident.
+  /if \(incident\.hasIncident && projectId( && !caseDeletedInLog)?( && !caseNotYoursReason)?\)/.test(dfrSrc),
   'a draft daily report is still a contemporaneous record of an injury; gating the case on a ' +
   'sent report is how it goes missing.');
 ok('the OSHA determination is no longer a self-ticked checkbox',

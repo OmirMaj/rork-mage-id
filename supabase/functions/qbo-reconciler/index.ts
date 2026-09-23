@@ -82,6 +82,44 @@ const PAYMENT_PUSH_LIMIT = 25;
  * audit #11). Payments the ledger names are never fetched, so the common
  * path — MAGE pushed the payment itself and holds its qboId — makes no request.
  */
+/**
+ * Integration round 1 · a stamp on invoices.payments (a push failure, a
+ * QuickBooks match, a reversal marked recorded) patched onto a fresh read by
+ * entry id — and now written ONLY if the row is still the one read: the UPDATE
+ * is conditional on its updated_at, which invoice_append_payment and the
+ * webhook's refund / dispute writes bump. Without it an append landing between
+ * the read and the write was erased (service_role passes invoices_ledger_guard).
+ * On a miss the row is re-read and the patch re-applied. The stamp sends no
+ * updated_at of its own, but the table's invoices_updated_at BEFORE UPDATE
+ * trigger (update_updated_at) bumps it on every UPDATE, this one included —
+ * so a writer that raced the stamp misses its own swap and re-reads too, and
+ * the sweep (which pages invoices by updated_at) sees the invoice again next
+ * run, which is harmless: a stamped entry is never pushed twice.
+ */
+async function patchInvoiceLedger(
+  s: ReturnType<typeof svc>,
+  invoiceId: string,
+  userId: string,
+  patch: (payments: unknown) => unknown[] | null,
+  tries = 4,
+): Promise<{ wrote: boolean; error?: string }> {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const read: { data: unknown; error: { message: string } | null } = await s
+      .from("invoices").select("payments, updated_at").eq("id", invoiceId).eq("user_id", userId).maybeSingle();
+    if (read.error) return { wrote: false, error: read.error.message };
+    const row = read.data as { payments?: unknown; updated_at?: string | null } | null;
+    if (!row) return { wrote: false };
+    const next = patch(row.payments);
+    if (!next) return { wrote: false };
+    let upd = s.from("invoices").update({ payments: next }).eq("id", invoiceId).eq("user_id", userId);
+    upd = row.updated_at ? upd.eq("updated_at", row.updated_at) : upd.is("updated_at", null);
+    const res: { data: unknown; error: { message: string } | null } = await upd.select("id");
+    if (res.error) return { wrote: false, error: res.error.message };
+    if (Array.isArray(res.data) && res.data.length > 0) return { wrote: true };
+  }
+  return { wrote: false, error: "invoice changed during the ledger stamp" };
+}
+
 async function fetchUnknownLinkedPayments(
   conn: QboConnectionRow,
   qInv: QboPulledInvoice,
@@ -305,20 +343,8 @@ serve(async (req) => {
           // entry id, so a payment written since our read is never dropped.
           const recordFailure = async (entryId: string, e: unknown) => {
             errors++;
-            const { data: fresh } = await s
-              .from("invoices")
-              .select("payments")
-              .eq("id", inv.id)
-              .eq("user_id", row.user_id)
-              .maybeSingle();
-            const next = markPushFailure(
-              (fresh as { payments?: unknown } | null)?.payments,
-              entryId,
-              String((e as Error)?.message ?? e),
-            );
-            if (next) {
-              await s.from("invoices").update({ payments: next }).eq("id", inv.id).eq("user_id", row.user_id);
-            }
+            await patchInvoiceLedger(s, inv.id, row.user_id,
+              (payments) => markPushFailure(payments, entryId, String((e as Error)?.message ?? e)));
           };
 
           // Refresh the QuickBooks invoice first (a no-op when its hash is
@@ -360,16 +386,7 @@ serve(async (req) => {
           }
           const { matches } = matchUnpushedPayments(ledger, unknown);
           if (matches.length > 0) {
-            const { data: fresh } = await s
-              .from("invoices")
-              .select("payments")
-              .eq("id", inv.id)
-              .eq("user_id", row.user_id)
-              .maybeSingle();
-            const next = applyQboMatches((fresh as { payments?: unknown } | null)?.payments, matches);
-            if (next) {
-              await s.from("invoices").update({ payments: next }).eq("id", inv.id).eq("user_id", row.user_id);
-            }
+            await patchInvoiceLedger(s, inv.id, row.user_id, (payments) => applyQboMatches(payments, matches));
           }
           const matchedIds = new Set(matches.map((x) => x.entryId));
 

@@ -465,7 +465,9 @@ console.log('\n  6. qbo-reconciler and qbo-sync use them');
   check('qbo-sync records a failed payment push on the entry',
     /if \(body\.kind === 'payment'\) \{[\s\S]{0,700}markPushFailure\(/.test(sync));
   check('qbo-sync does not spend a payment attempt on a QuickBooks outage',
-    /markPushFailure\([^;]*paymentId, errMsg, \{\s*countAttempt: !isQboOutageError\(e\),\s*\}\)/.test(sync));
+    // Integration round 1: the flag is computed once, then the stamp rides
+    // patchInvoiceLedger (conditional on updated_at).
+    /const countAttempt = !isQboOutageError\(e\);\s*await patchInvoiceLedger\(s, invoiceId, auth\.userId,\s*\(payments\) => markPushFailure\(payments, paymentId, errMsg, \{ countAttempt \}\)\);/.test(sync));
   {
     const base = [{ id: 'o1', amount: 100, date: '2026-09-10', qboAttempts: 2 }];
     const out = L.markPushFailure(base, 'o1', 'QBO 503 /payment: down', { countAttempt: false });
@@ -623,27 +625,51 @@ export function svc() {
       const q: any = {
         select: () => q, eq: () => q,
         maybeSingle: async () => ({ data: H().read(table), error: null }),
-        update: (patch: any) => { const filters: [string, unknown][] = []; H().updates.push({ table, patch, filters }); const t: any = { eq: (c: string, v: unknown) => { filters.push([c, v]); return t; }, then: (r: any) => r({ error: null }) }; return t; },
+        update: (patch: any) => {
+          const filters: [string, unknown][] = []; const u = { table, patch, filters, landed: false }; H().updates.push(u);
+          const t: any = {
+            eq: (c: string, v: unknown) => { filters.push([c, v]); return t; },
+            is: (c: string, v: unknown) => { filters.push([c, v]); return t; },
+            // The swap: the UPDATE lands only while the row's updated_at is the one filtered on.
+            select: () => ({ then: (r: any) => { u.landed = H().land(filters); return r({ data: u.landed ? [{ id: 'inv-1' }] : [], error: null }); } }),
+            then: (r: any) => { u.landed = true; return r({ error: null }); },
+          };
+          return t;
+        },
       };
       return q;
     },
   };
 }
 `);
-  type Harness = { reads: number; updates: { table: string; patch: { payments?: Entry[] } }[]; read: (t: string) => unknown; fetch: (p: string, i: { method?: string }) => unknown };
-  const run = async (later: Entry[] | null) => {
+  type Harness = { reads: number; stamp: number; posts: number; updates: { table: string; patch: { payments?: Entry[] }; filters: [string, unknown][]; landed: boolean }[]; read: (t: string) => unknown; land: (f: [string, unknown][]) => boolean; fetch: (p: string, i: { method?: string }) => unknown };
+  // `later` is the ledger every re-read returns; `race`, when given, is what a
+  // write landing between the re-read and the UPDATE puts there (once).
+  // `alwaysMoves`: every UPDATE finds the row already moved (a writer lands
+  // between each re-read and each swap) — the retry bound's case.
+  const run = async (later: Entry[] | null, race?: Entry[], alwaysMoves = false) => {
     const base = { id: 'inv-1', project_id: 'p1', user_id: 'u1', number: 7, qbo_id: 'Q-INV' };
     const first = [{ ...stripe('stripe-cs_1', 400), qboError: 'QBO 503 earlier' }];
+    let current = later;
+    let raced = false;
     const h: Harness = {
-      reads: 0, updates: [],
+      reads: 0, stamp: 0, posts: 0, updates: [],
       read(t) {
         if (t === 'projects') return { qbo_customer_id: 'CUST-1' };
         h.reads++;
-        return { ...base, payments: h.reads === 1 ? first : later };
+        return { ...base, payments: h.reads === 1 ? first : current, updated_at: `t${h.stamp}` };
+      },
+      land(filters) {
+        if (alwaysMoves) { h.stamp++; return false; }
+        if (race && !raced) { raced = true; current = race; h.stamp++; }
+        const swap = filters.find(([c]) => c === 'updated_at');
+        if (!swap || swap[1] !== `t${h.stamp}`) return false;
+        h.stamp++;
+        return true;
       },
       fetch(path, init) {
         if (init?.method === 'GET' && path.startsWith('/invoice/')) return { Invoice: { Balance: 1000 } };
-        if (path === '/payment') return { Payment: { Id: 'P-77' } };
+        if (path === '/payment') { h.posts++; return { Payment: { Id: 'P-77' } }; }
         return {};
       },
     };
@@ -652,7 +678,7 @@ export function svc() {
       { upsertPaymentForInvoice: (c: unknown, id: string, u: string) => Promise<void> };
     let threw = '';
     try { await mod.upsertPaymentForInvoice({}, 'inv-1::stripe-cs_1', 'u1'); } catch (e) { threw = (e as Error).message; }
-    return { h, threw, written: h.updates.filter((u) => u.table === 'invoices').at(-1)?.patch.payments };
+    return { h, threw, written: h.updates.filter((u) => u.table === 'invoices' && u.landed).at(-1)?.patch.payments };
   };
   const warn = console.warn; console.warn = () => {};
   const concurrent = await run([stripe('stripe-cs_1', 400), stripe('stripe-cs_2', 250)]);
@@ -664,6 +690,28 @@ export function svc() {
   const removed = await run([stripe('stripe-cs_2', 250)]);
   check('an entry deleted mid-push is not written back (no resurrection, no throw)', removed.threw === '' && removed.written === undefined,
     removed.threw || JSON.stringify(removed.written));
+  // Wave-4 final fix: the write-back is a compare-and-swap on updated_at. A
+  // $250 check appended AFTER the re-read (the millisecond window left) moves
+  // the row; the stamp's UPDATE lands on 0 rows, re-reads, and keeps it.
+  const cas = await run([stripe('stripe-cs_1', 400)], [stripe('stripe-cs_1', 400), stripe('stripe-cs_3', 250)]);
+  check('the stamp\'s UPDATE is conditional on the updated_at it re-read',
+    cas.h.updates.filter((u) => u.table === 'invoices').every((u) => u.filters.some(([c]) => c === 'updated_at')), JSON.stringify(cas.h.updates.map((u) => u.filters)));
+  check('a check appended between the re-read and the write survives: the missed swap re-reads and re-stamps',
+    cas.threw === '' && cas.written?.some((e) => e.id === 'stripe-cs_3' && e.amount === 250) === true
+      && cas.written?.find((e) => e.id === 'stripe-cs_1')?.qboId === 'P-77'
+      && cas.h.updates.filter((u) => u.table === 'invoices').length === 2,
+    cas.threw || JSON.stringify(cas.written));
+  // Wave-4 final fix r2: the retry bound. A row that moves under every swap
+  // gets exactly 4 conditional UPDATEs (none lands), ONE QuickBooks POST (no
+  // second push), and a THROW naming the payment already posted — a silent
+  // return would leave the entry unstamped with no qboError and qbo-sync
+  // would answer success.
+  const moving = await run([stripe('stripe-cs_1', 400)], undefined, true);
+  const invUpdates = moving.h.updates.filter((u) => u.table === 'invoices');
+  check('a row that moves under every swap: exactly 4 conditional UPDATEs, none landed',
+    invUpdates.length === 4 && invUpdates.every((u) => !u.landed && u.filters.some(([c]) => c === 'updated_at')), JSON.stringify(invUpdates.map((u) => [u.landed, u.filters])));
+  check('...exactly one QuickBooks POST (the retry never pushes again)', moving.h.posts === 1, String(moving.h.posts));
+  check('...and it THROWS, naming the QuickBooks payment already posted (P-77)', moving.threw.includes('P-77'), moving.threw || '(returned silently)');
   console.warn = warn;
 }
 
@@ -929,7 +977,9 @@ console.log('\n  9. post-ship: credit is not cash, a payment goes once, the righ
       /enabled: !!user\?\.id && qboConnected,/.test(screen) && /queryKey: \['qbo-setup-connection', user\?\.id \?\? 'anon', qboConnected \?/.test(screen));
   }
   check('#97: qbo-sync stamps a reversal on a fresh read by id (markReversalRecorded)',
-    /body\.kind === 'reversal' && body\.op === 'upsert'[\s\S]{0,700}markReversalRecorded\(\(fresh as/.test(sync));
+    /body\.kind === 'reversal' && body\.op === 'upsert'[\s\S]{0,900}patchInvoiceLedger\(s, invoiceId, auth\.userId,\s*\(payments\) => markReversalRecorded\(payments, entryId, stampedAt, listed\)\)/.test(sync)
+      // …and patchInvoiceLedger re-reads by id and writes only over the row it read.
+      && /\.select\("payments, updated_at"\)\.eq\("id", invoiceId\)[\s\S]{0,600}upd\.eq\("updated_at", row\.updated_at\)/.test(sync));
   const mig = read('supabase/migrations/20260918190000_qbo_connections_timezone.sql');
   check('#98: the migration adds qbo_connections.timezone without opening the table to clients',
     /add column if not exists timezone text/.test(mig) && !/create policy|grant /i.test(mig.replace(/--.*$/gm, '')));
@@ -956,7 +1006,7 @@ export function svc() {
       const q: any = {
         select: () => q, eq: () => q,
         maybeSingle: async () => ({ data: H().read(table), error: null }),
-        update: (patch: any) => { const filters: [string, unknown][] = []; H().updates.push({ table, patch, filters }); const t: any = { eq: (c: string, v: unknown) => { filters.push([c, v]); return t; }, then: (r: any) => r({ error: null }) }; return t; },
+        update: (patch: any) => { const filters: [string, unknown][] = []; H().updates.push({ table, patch, filters }); const t: any = { eq: (c: string, v: unknown) => { filters.push([c, v]); return t; }, is: (c: string, v: unknown) => { filters.push([c, v]); return t; }, select: () => ({ then: (r: any) => r({ data: [{ id: 'row' }], error: null }) }), then: (r: any) => r({ error: null }) }; return t; },
       };
       return q;
     },

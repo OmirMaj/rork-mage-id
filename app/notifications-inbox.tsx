@@ -9,7 +9,7 @@ import {
   ChevronLeft, Bell, MessageSquare, HandCoins, CheckCircle2, Inbox,
   Trash2, X, CheckCheck, Settings,
   PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package, Sunrise, CalendarCheck, UserPlus,
-  Banknote, AlertTriangle, FileText, ListChecks,
+  Banknote, AlertTriangle, FileText, ListChecks, ShieldAlert,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -20,6 +20,11 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useProjectActions } from '@/contexts/ProjectContext';
+import { useQueryClient } from '@tanstack/react-query';
+// #82 · the one "this notice makes that list stale" table, shared with the
+// push tap / received listeners and the outbox realtime callback.
+import { refreshThenOpen, fieldReportNoticeBody } from '@/utils/notificationTapRefresh';
 // The one event -> screen table, shared with the push-tap handler and the
 // notify edge function's email buttons (audit round 2, #12).
 import { notificationRoute, routeHref } from '@/supabase/functions/notify/routes';
@@ -49,6 +54,7 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
   field_report_filed:    { icon: <FileText    size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Daily report' },
   pro_response_received: { icon: <HelpCircle  size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Design response' },
   punch_marked_ready:    { icon: <ListChecks  size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Punch ready' },
+  safety_incident_filed: { icon: <ShieldAlert size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Incident report' },
 
   // Website → GC
   lead_received:         { icon: <UserPlus    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Website lead' },
@@ -256,8 +262,11 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       };
     }
     case 'field_report_filed': {
+      // #133 (CONTRACT 10): the payload carries the report's portal_status.
+      // A report already on the portal must not be described as waiting for
+      // review — that told the GC nothing had reached the homeowner when it had.
       const who = (p.author_name as string) || 'Your field team';
-      return { title: `${who} filed a daily report`, body: `${projectName} · review it before the homeowner sees anything.` };
+      return { title: `${who} filed a daily report`, body: `${projectName} · ${fieldReportNoticeBody(p)}` };
     }
     case 'pro_response_received': {
       const kind = p.kind === 'submittal' ? 'Submittal' : 'RFI';
@@ -267,8 +276,23 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       return { title: `${who} responded to ${kind}${num}`, body: `${projectName}${code}` };
     }
     case 'punch_marked_ready': {
+      // Wave 4 (#51): the trigger now names the item — what, where, and the
+      // sub's own note — so the row says which item without opening it.
+      // location is null when no room was given (never 'Unspecified').
       const who = (p.sub_name as string) || 'A subcontractor';
-      return { title: `${who} marked a punch item ready`, body: projectName };
+      const what = typeof p.description === 'string' && p.description.trim() ? p.description.trim() : '';
+      const where = typeof p.location === 'string' && p.location.trim() ? p.location.trim() : '';
+      const note = typeof p.sub_note === 'string' && p.sub_note.trim() ? `"${p.sub_note.trim()}"` : '';
+      return {
+        title: `${who} marked ${what ? `"${what.slice(0, 80)}"` : 'a punch item'} ready`,
+        body: [where, projectName, note.slice(0, 160)].filter(Boolean).join(' · '),
+      };
+    }
+    case 'safety_incident_filed': {
+      // Nothing about how bad it was or anything clinical — the row sits on a lock
+      // screen and in a shared inbox; the case itself is behind its screen.
+      const who = (p.author_name as string) || 'Someone on your team';
+      return { title: `${who} filed an incident report`, body: projectName };
     }
     case 'morning_brief':
     case 'week_close':
@@ -332,13 +356,29 @@ export default function NotificationsInboxScreen() {
     void syncBadge();
   }, [feed.unreadCount, feed.isLoading, syncBadge]);
 
+  // #82: the inbox routes on its own (deepLinkFor), not through the push
+  // handler, so it re-reads what the notice makes stale itself — a "Client
+  // paid" row opened an invoice still showing the full balance. The money
+  // kinds go through the guarded refetchInvoicesNow, never a raw invalidate.
+  const queryClient = useQueryClient();
+  const { refetchInvoicesNow } = useProjectActions();
+  // The row being opened while its money re-read runs (bounded, see
+  // TAP_REFRESH_WAIT_MS) — so the wait reads as "checking", not a dead tap.
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const handleTap = useCallback((item: NotificationFeedItem) => {
     if (!item.readAt) feed.markRead(item.id);
+    setOpeningId(item.id);
     const link = deepLinkFor(item);
     // Every pathname in the table is checked against app/ by
     // scripts/validate-notification-routes.ts.
-    if (link) router.push(link as Href);
-  }, [feed, router]);
+    void refreshThenOpen(item.eventType, item.payload, {
+      invalidate: (queryKey) => queryClient.invalidateQueries({ queryKey }),
+      refetchInvoicesNow,
+    }, () => {
+      setOpeningId(null);
+      if (link) router.push(link as Href);
+    });
+  }, [feed, router, queryClient, refetchInvoicesNow]);
 
   const handleClearAll = useCallback(() => {
     showAlert(
@@ -387,6 +427,7 @@ export default function NotificationsInboxScreen() {
       <FlatList
         {...fabScroll}
         data={feed.items}
+        extraData={openingId}
         keyExtractor={i => i.id}
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE, paddingHorizontal: 16, paddingTop: 8 }}
         ListEmptyComponent={
@@ -451,7 +492,11 @@ export default function NotificationsInboxScreen() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={styles.rowHead}>
                   <Text style={styles.rowEyebrow}>{meta.label}</Text>
-                  <Text style={styles.rowTime}>{fmtAgo(item.createdAt)}</Text>
+                  {openingId === item.id ? (
+                    <Text style={styles.rowTime}>Checking for the latest…</Text>
+                  ) : (
+                    <Text style={styles.rowTime}>{fmtAgo(item.createdAt)}</Text>
+                  )}
                 </View>
                 <Text style={styles.rowTitle} numberOfLines={1}>{summary.title}</Text>
                 {summary.body ? (

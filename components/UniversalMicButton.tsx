@@ -25,7 +25,7 @@ import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
 import ThinkingStates from '@/components/ThinkingStates';
-import type { Project, RFI, ChangeOrder } from '@/types';
+import type { Project, RFI, ChangeOrder, PunchItem } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { Type } from '@/constants/typography';
@@ -33,11 +33,12 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { supabase } from '@/lib/supabase';
 import {
-  applyFieldTaskPatches,
+  applyFieldTaskPatches, mergeWrittenStamps,
   scheduleWritePathForRole,
   sendFieldTaskPatches,
   type FieldTaskPatch,
 } from '@/utils/fieldScheduleUpdate';
+import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 
 // Floating "speak anywhere" button. Opens a modal with the project picker
 // + voice recorder; after the AI parses intent, drafts the appropriate
@@ -256,7 +257,10 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         const totalChange = lineItems.reduce((s, li) => s + (li.total ?? 0), 0);
         const baseValue = effectiveEstimateTotal(proj);
         const projectCOs = ctx.getChangeOrdersForProject(proj.id);
-        const nextNumber = projectCOs.length > 0 ? Math.max(...projectCOs.map(c => c.number)) + 1 : 1;
+        // PROVISIONAL (#141): the server's change_orders_assign_number trigger
+        // assigns the real number on insert (keeping this one when it is free).
+        // `|| 0`: a CO with no number used to make Math.max return NaN.
+        const nextNumber = projectCOs.reduce((m, c) => Math.max(m, c.number || 0), 0) + 1;
         const newId = generateUUID();
         const now = new Date().toISOString();
         ctx.addChangeOrder({
@@ -314,17 +318,26 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         // transcription.
         const newId = generateUUID();
         const now = new Date().toISOString();
-        ctx.addPunchItem({
+        // Typed, no cast (#3): the cast hid that dueDate and assignedSub were
+        // missing — punch_items.due_date is NOT NULL, so the server refused
+        // every voice punch and the next refetch took it off his list. It also
+        // hid a `trade` key PunchItem has no column for (never stored).
+        // Location (#56): the spoken room, or '' — never an 'Unspecified' that
+        // reads like a real room on the export, the filters and the sub portal.
+        const spokenRoom = (parsed.punchLocation || '').trim();
+        const punch: PunchItem = {
           id: newId,
           projectId: proj.id,
           description: sentenceCase(parsed.description || 'Voice-captured item'),
-          location: titleCase(parsed.punchLocation || 'Unspecified'),
-          trade: aiTradeToSubTrade(parsed.punchTrade) as never,
+          location: spokenRoom ? titleCase(spokenRoom) : '',
+          assignedSub: '',
+          dueDate: '',
           priority: parsed.punchPriority || 'medium',
           status: 'open',
           createdAt: now,
           updatedAt: now,
-        } as never);
+        };
+        ctx.addPunchItem(punch);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         handleClose();
         router.push({ pathname: '/punch-list' as never, params: { projectId: proj.id } as never });
@@ -436,7 +449,13 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
             const pct = Math.max(0, Math.min(100, Math.round(match.progressPercent)));
             workProgress.push({ taskId: t.id, taskName: t.title, phase: t.phase, pct });
             const status: typeof t.status = pct >= 100 ? 'done' : pct > 0 ? 'in_progress' : t.status;
-            return { ...t, progress: pct, status };
+            // As-built actuals on a status change (#89), the Schedule tab's and
+            // the daily report's rule — "framing 100%" used to record no
+            // actual finish, so Schedule Pro's Reflow from actuals ignored it.
+            const stamp = status !== t.status
+              ? stampActuals(t, status, todayScheduleDay(schedule.startDate), now, { retroStartFromPlanned: false })
+              : {};
+            return { ...t, progress: pct, status, ...stamp };
           });
           if (workProgress.length > 0) {
             // Same routing as QuickFieldUpdate (#25). The row PATCH is refused
@@ -452,7 +471,18 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
             } else if (writePath === 'field_rpc') {
               const patches: FieldTaskPatch[] = updatedTasks
                 .filter(t => workProgress.some(w => w.taskId === t.id))
-                .map(t => ({ id: t.id, progress: t.progress, status: t.status }));
+                .map((t) => {
+                  // The actuals ride to the field RPC too — without them the
+                  // stamp above would never reach the server. A cleared actual
+                  // (reopening a finished task) is sent as null, the RPC's
+                  // "remove"; JSON would drop an undefined.
+                  const before = schedule.tasks.find(x => x.id === t.id);
+                  const patch: Record<string, unknown> = { id: t.id, progress: t.progress, status: t.status };
+                  for (const k of ['actualStartDate', 'actualEndDate', 'actualStartDay', 'actualEndDay'] as const) {
+                    if (before && before[k] !== t[k]) patch[k] = t[k] ?? null;
+                  }
+                  return patch as FieldTaskPatch;
+                });
               const sent = await sendFieldTaskPatches(supabase, proj.id, patches);
               if (!sent.ok) {
                 summaryParts.push(`schedule not updated — ${sent.message}`);
@@ -460,7 +490,8 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                 const landed = patches.length - sent.missing.length;
                 // Local copy = what the server now holds (see QuickFieldUpdate).
                 ctx.updateProject(proj.id, {
-                  schedule: { ...schedule, tasks: applyFieldTaskPatches(schedule.tasks, patches), updatedAt: new Date().toISOString() },
+                  // With the stamps the RPC wrote (#87).
+                  schedule: { ...schedule, tasks: mergeWrittenStamps(applyFieldTaskPatches(schedule.tasks, patches), sent.stamps), updatedAt: new Date().toISOString() },
                 });
                 if (landed > 0) summaryParts.push(tasksUpdated(landed));
                 if (sent.missing.length > 0) summaryParts.push(`${sent.missing.length} no longer on the schedule`);
@@ -530,26 +561,6 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
       setStep('reviewing');
     }
   }, [parsed, project, ctx, router, handleClose]);
-
-  // Map the AI's loose trade label to the strict SubTrade enum used
-  // for punch items. (Inline-defined here rather than imported because
-  // it's a one-screen helper.)
-  function aiTradeToSubTrade(aiTrade: string): string {
-    const t = (aiTrade || '').toLowerCase();
-    if (t.includes('electrical')) return 'Electrical';
-    if (t.includes('plumb')) return 'Plumbing';
-    if (t.includes('hvac') || t.includes('mechanical')) return 'HVAC';
-    if (t.includes('drywall')) return 'Drywall';
-    if (t.includes('paint')) return 'Painting';
-    if (t.includes('tile') || t.includes('floor')) return 'Flooring';
-    if (t.includes('roof')) return 'Roofing';
-    if (t.includes('concrete') || t.includes('masonry')) return 'Concrete';
-    if (t.includes('frame')) return 'Framing';
-    if (t.includes('landscap')) return 'Landscaping';
-    if (t.includes('door') || t.includes('cabinet') || t.includes('insul')
-        || t.includes('cleanup') || t.includes('trim') || t.includes('carpentry')) return 'Other';
-    return 'General';
-  }
 
   const KindIcon = parsed?.kind === 'rfi' ? MessageSquare
     : parsed?.kind === 'co' ? FilePlus2
@@ -763,8 +774,9 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                     <View style={styles.previewBody}>
                       <PreviewField label="Issue" value={parsed.description || '—'} multi />
                       <View style={styles.previewMetaRow}>
-                        <PreviewField label="Location" value={parsed.punchLocation || '—'} small />
-                        <PreviewField label="Trade" value={parsed.punchTrade || 'General'} small />
+                        {/* No Trade field: a punch item has no trade column, so
+                            showing one here promised something never saved. */}
+                        <PreviewField label="Location" value={parsed.punchLocation?.trim() ? parsed.punchLocation : 'No room given'} small />
                         <PreviewField label="Priority" value={(parsed.punchPriority || 'medium').toUpperCase()} small />
                       </View>
                     </View>

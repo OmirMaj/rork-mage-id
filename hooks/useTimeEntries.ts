@@ -49,9 +49,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseWrite, getOfflineQueue, onQueueFlushed } from '@/utils/offlineQueue';
+import { unsavedWriteIds, onUnsavedDiscarded } from '@/utils/syncLedger';
 import { pendingIdsForTable } from '@/utils/projectContextPure';
 import {
   computeShiftHours as computeShiftHoursPure, mergeServerPull, queuedDeleteIds, isUuid, breakMinutesAt,
+  timeEntryGoneFromServer, dropDiscardedTimeEntryCreates,
   formatClockForCsv as formatClockForCsvPure, buildTimeEntriesCSV as buildTimeEntriesCSVPure,
 } from '@/utils/timeClockPayroll';
 import { generateUUID } from '@/utils/generateId';
@@ -287,9 +289,17 @@ export type TeamTimeEntry = TimeEntry & {
   loggedByName?: string;
 };
 
-/** "Logged by …" for a team row (#63). */
+/** Who logged a team row, bare — for a sentence ("jose@acme.com logged this
+ *  shift"). Named only on owned jobs (see loggedByName); otherwise "a
+ *  teammate", never an invented name. #106: the sentences used the LABEL and
+ *  read "Logged by jose@… logged this shift". */
+export function teamLoggedByName(e: Pick<TeamTimeEntry, 'loggedByName'>): string {
+  return e.loggedByName?.trim() || 'a teammate';
+}
+
+/** "Logged by …" for a team row's tag (#63). */
 export function teamLoggedByLabel(e: Pick<TeamTimeEntry, 'loggedByName'>): string {
-  return `Logged by ${e.loggedByName?.trim() || 'a teammate'}`;
+  return `Logged by ${teamLoggedByName(e)}`;
 }
 
 /**
@@ -394,14 +404,29 @@ const TEAM_MAX_PAGES = 200;
 
 /** Ids with a queued time_entries write, and ids with a queued delete (#67).
  *  A queue that can't be read counts as empty: the pull then behaves as it
- *  always did, rather than not running. */
+ *  always did, rather than not running.
+ *
+ *  Integration round 2: `pending` also holds the shifts whose write is under
+ *  Not saved (utils/syncLedger — refused by the server, or dropped by a
+ *  flush). Only queued ids were kept, so a refused clock-out of a shift the
+ *  server had seen was put back "on the clock" by the next pull while the
+ *  sheet still offered to Retry it — and with the park rule every later edit
+ *  of that shift waits behind the line too, so it reverted on EVERY pull. The
+ *  queue is read FIRST and the ledger second: a write moving queue → ledger
+ *  (offlineQueue records the line before the entry leaves) is always seen in
+ *  one of them. Kept until Retry lands it or Discard, which re-pulls. */
 async function readTimeEntryQueue(): Promise<{ pending: Set<string>; deleted: Set<string> }> {
+  let pending = new Set<string>();
+  let deleted = new Set<string>();
   try {
     const q = await getOfflineQueue();
-    return { pending: pendingIdsForTable(q, 'time_entries'), deleted: queuedDeleteIds(q, 'time_entries') };
-  } catch {
-    return { pending: new Set(), deleted: new Set() };
-  }
+    pending = pendingIdsForTable(q, 'time_entries');
+    deleted = queuedDeleteIds(q, 'time_entries');
+  } catch { /* counts as empty — see above */ }
+  try {
+    for (const id of await unsavedWriteIds('time_entries')) pending.add(id);
+  } catch { /* the ledger never throws; storage refused reads as none */ }
+  return { pending, deleted };
 }
 
 /**
@@ -566,7 +591,48 @@ export function useTimeEntriesStore() {
   // app-lifetime store, "pull on mount" would otherwise mean once per launch,
   // where the per-screen hook used to re-pull every time Time Tracking opened.
   const [pullNonce, setPullNonce] = useState(0);
-  const refresh = useCallback(() => setPullNonce(n => n + 1), []);
+  // #105: a real "pulling" flag, so Time Tracking's pull-to-refresh spins
+  // until the own AND team reads have settled, and refresh() resolves then.
+  // Each pull that starts calls beginPull once and endPull once (in finally,
+  // cancelled or not), so the count always returns to 0.
+  const inFlightRef = useRef(0);
+  const [pulling, setPulling] = useState(false);
+  // The last pull that ran could not read the server (offline, RLS, a 5xx):
+  // what is on screen may be out of date, and the Clock In sheet says so.
+  const [ownPullFailed, setPullFailed] = useState(false);
+  const [teamPullFailed, setTeamPullFailed] = useState(false);
+  const pullFailed = ownPullFailed || teamPullFailed;
+  const pullWaitersRef = useRef<(() => void)[]>([]);
+  const settleWaiters = useCallback(() => {
+    const waiters = pullWaitersRef.current;
+    pullWaitersRef.current = [];
+    waiters.forEach(w => w());
+  }, []);
+  const beginPull = useCallback(() => {
+    inFlightRef.current += 1;
+    setPulling(true);
+  }, []);
+  const endPull = useCallback(() => {
+    inFlightRef.current = Math.max(0, inFlightRef.current - 1);
+    if (inFlightRef.current === 0) {
+      setPulling(false);
+      settleWaiters();
+    }
+  }, [settleWaiters]);
+  const canPull = hydrated && !!userId && isSupabaseConfigured;
+  /** Ask for a fresh pull; resolves once it has settled (at most ~20 s). */
+  const refresh = useCallback((): Promise<void> => {
+    if (!canPull) return Promise.resolve();
+    return new Promise<void>(resolve => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      pullWaitersRef.current.push(finish);
+      // A pull that never starts (or hangs on a dead socket) must not leave a
+      // pull-to-refresh spinner turning forever.
+      setTimeout(finish, 20_000);
+      setPullNonce(n => n + 1);
+    });
+  }, [canPull]);
   // And on return to the foreground, at most every FOREGROUND_PULL_MIN_MS.
   // refresh()'s only caller is Time Tracking's mount, so without this the
   // TEAM hours a foreman logged today reached the GC's Job Costing / WIP /
@@ -590,24 +656,64 @@ export function useTimeEntriesStore() {
   useEffect(() => onQueueFlushed(tables => {
     if (tables.has('time_entries')) setPullNonce(n => n + 1);
   }), []);
+  // Round 2: a shift's Not-saved write DISCARDED from the sync sheet stops
+  // being kept (see readTimeEntryQueue) — re-pull so the phone goes back to
+  // MAGE's copy at once, as the discard confirm says.
+  // A re-pull alone cannot remove a shift whose INSERT was refused: the pull
+  // keeps every local row the server lacks until it has been seen there
+  // (timeEntryGoneFromServer). So a discarded create is taken off the phone
+  // here (dropDiscardedTimeEntryCreates), and its shift alerts reconciled —
+  // otherwise the discarded clock-in stays "on the clock" and in payroll.
+  useEffect(() => onUnsavedDiscarded(discarded => {
+    if (!discarded.some(f => f.table === 'time_entries')) return;
+    void (async () => {
+      const { pending } = await readTimeEntryQueue();
+      setEntries(prev => dropDiscardedTimeEntryCreates(prev, discarded, pending));
+      setAlertReconcileNonce(n => n + 1);
+      setPullNonce(n => n + 1);
+    })().catch(() => { setPullNonce(n => n + 1); });
+  }), []);
   useEffect(() => {
     if (!hydrated || !userId || !isSupabaseConfigured) return;
     let cancelled = false;
+    beginPull();
     (async () => {
       try {
         const queueBefore = await readTimeEntryQueue();
         if (cancelled) return;
-        const { data, error } = await supabase
-          .from('time_entries')
-          .select('*')
-          .eq('user_id', userId)
-          .order('clock_in', { ascending: false });
-        if (cancelled) return;
-        if (error) {
-          console.warn('[useTimeEntries] Server fetch failed:', error.message);
-          return;
+        // #103: paged like the team read. One unpaged SELECT is silently cut
+        // at PostgREST's max_rows, and now that a shift missing from the pull
+        // can be dropped as deleted, a cut-off page would delete his oldest
+        // real shifts. `complete` is true only when a page came back EMPTY.
+        const pulledAt = new Date().toISOString();
+        const rowsFromServer: DBRow[] = [];
+        const seen = new Set<string>();
+        let complete = false;
+        let from = 0;
+        for (let page = 0; page < TEAM_MAX_PAGES; page++) {
+          const { data, error } = await supabase
+            .from('time_entries')
+            .select('*')
+            .eq('user_id', userId)
+            .order('clock_in', { ascending: false })
+            .order('id', { ascending: true })
+            .range(from, from + TEAM_PAGE - 1);
+          if (cancelled) return;
+          if (error) {
+            console.warn('[useTimeEntries] Server fetch failed:', error.message);
+            setPullFailed(true);
+            return;
+          }
+          const rows = (data as DBRow[] | null) ?? [];
+          if (rows.length === 0) { complete = true; break; }
+          for (const r of rows) {
+            if (seen.has(String(r.id))) continue;
+            seen.add(String(r.id));
+            rowsFromServer.push(r);
+          }
+          from += rows.length;
         }
-        const fromServer = (data as DBRow[] | null ?? []).map(fromDB);
+        const fromServer = rowsFromServer.map(fromDB);
         // #67: the queue read AFTER the SELECT, unioned with the one BEFORE it
         // — before alone misses a write queued mid-request, after alone misses
         // one that flushed after the SELECT's snapshot was taken.
@@ -620,16 +726,27 @@ export function useTimeEntriesStore() {
         // correction) and must not be put back "on the clock". An id with a
         // queued delete stays gone. Local-only entries (offline clock-ins not
         // yet flushed) are preserved. (utils/timeClockPayroll.mergeServerPull)
-        setEntries(prev => mergeServerPull(prev, fromServer, pending, deleted));
-        // A shift clocked out on another device is clocked out here now;
-        // its alert on this device must go.
+        // #103: every returned row is stamped seenOnServerAt; a row seen
+        // before and missing now — on a complete pull, with no queued write,
+        // on a real job — was deleted on another device and is dropped, so it
+        // stops being paid in this phone's CSV and costed in Job Costing.
+        setEntries(prev => mergeServerPull(prev, fromServer, pending, deleted, {
+          seenAt: pulledAt,
+          pruneMissing: e => timeEntryGoneFromServer(e, pending, complete),
+        }));
+        setPullFailed(false);
+        // A shift clocked out (or deleted) on another device is gone from the
+        // clock here now; its alert on this device must go.
         setAlertReconcileNonce(n => n + 1);
       } catch (err) {
         console.warn('[useTimeEntries] Server fetch threw:', err);
+        if (!cancelled) setPullFailed(true);
+      } finally {
+        endPull();
       }
     })();
     return () => { cancelled = true; };
-  }, [hydrated, userId, pullNonce]);
+  }, [hydrated, userId, pullNonce, beginPull, endPull]);
 
   // ── Pull the TEAM's hours on this user's jobs (#28) ─────────────────
   // time_entries_collab_select is `auth.uid() = user_id OR
@@ -641,6 +758,7 @@ export function useTimeEntriesStore() {
   useEffect(() => {
     if (!hydrated || !teamHydrated || !userId || !isSupabaseConfigured) return;
     let cancelled = false;
+    beginPull();
     (async () => {
       try {
         const [ownedRes, memberRes] = await Promise.all([
@@ -650,6 +768,7 @@ export function useTimeEntriesStore() {
         if (cancelled) return;
         if (ownedRes.error || memberRes.error) {
           console.warn('[useTimeEntries] Team scope read failed:', ownedRes.error?.message ?? memberRes.error?.message);
+          setTeamPullFailed(true);
           return;
         }
         const scope = teamScopeProjectIds(
@@ -699,6 +818,7 @@ export function useTimeEntriesStore() {
             if (cancelled) return;
             if (error) {
               console.warn('[useTimeEntries] Team hours fetch failed:', error.message);
+              setTeamPullFailed(true);
               return;
             }
             const rows = (data as DBRow[] | null) ?? [];
@@ -727,12 +847,16 @@ export function useTimeEntriesStore() {
           prev.filter(e => q.pending.has(e.id) && team.some(t => t.id === e.id)),
           team, q.pending, q.deleted,
         ));
+        setTeamPullFailed(false);
       } catch (err) {
         console.warn('[useTimeEntries] Team hours fetch threw:', err);
+        if (!cancelled) setTeamPullFailed(true);
+      } finally {
+        endPull();
       }
     })();
     return () => { cancelled = true; };
-  }, [hydrated, teamHydrated, userId, pullNonce]);
+  }, [hydrated, teamHydrated, userId, pullNonce, beginPull, endPull]);
 
   useEffect(() => {
     if (!teamHydrated) return;
@@ -1063,6 +1187,10 @@ export function useTimeEntriesStore() {
     historyEntries,
     hydrated,
     refresh,
+    /** #105: a pull (own or team) is in flight. */
+    pulling,
+    /** The last pull could not read the server; lists may be out of date. */
+    pullFailed,
     clockIn,
     addManualEntry,
     startBreak,
@@ -1074,7 +1202,7 @@ export function useTimeEntriesStore() {
     shiftAlertHours,
     setShiftAlertHours,
   }), [
-    entries, teamEntries, liveEntries, historyEntries, hydrated, refresh, clockIn, addManualEntry, startBreak,
+    entries, teamEntries, liveEntries, historyEntries, hydrated, refresh, pulling, pullFailed, clockIn, addManualEntry, startBreak,
     resumeFromBreak, clockOut, closeTeamShift, updateEntry, deleteEntry, shiftAlertHours, setShiftAlertHours,
   ]);
 }

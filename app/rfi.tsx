@@ -27,9 +27,12 @@ import { useProjectRoleState } from '@/hooks/useProjectRole';
 import {
   useCollectionSettled, useRefetchCollectionOnOpen, useServerRecordNumber,
   recordGate, changedFields, rfiBallAfterSave, rfiRegressionReason, recordNumberLabel, numberHoldReason, sendBlockReason,
-  rebaseFormOnLive,
+  rebaseFormOnLiveWithConflicts, RFI_RESPONSE_CONFLICT_REASON,
 } from '@/hooks/useCollectionSettled';
-import { planSheetStoragePath, resolvePlanSheetUrl } from '@/utils/planSheetUrls';
+import { nailIt } from '@/components/animations/NailItToast';
+import { planSheetStoragePath, resolvePlanSheetUrls, isProjectScopedPlanSheetPath } from '@/utils/planSheetUrls';
+import { sheetAttachmentFor, attachmentsHaveSheet, pinLocationLine } from '@/utils/plans/revisionActions';
+import { rfiEmailAttachments } from '@/utils/rfiSendAttachments';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
@@ -114,6 +117,32 @@ function rfiFormValuesOf(r: RFI) {
 // existing RFI. We omit 'void' from the visual flow — it's a side branch
 // (an RFI was raised then withdrawn), not the next normal step. Users can
 // still set status=void via the status picker further down the form.
+/** How a plan-sheet tile stands: signed and drawable, still being signed, or
+ *  unsignable right now (offline). null = not a plan sheet. */
+type SheetTileState = 'ready' | 'loading' | 'unavailable' | null;
+
+/**
+ * True for an attachment that is a plan-sheets drawing: any plan-sheets
+ * storage URL (public or signed), or a bare PROJECT-SCOPED key. A bare string
+ * that is not under a project folder is not treated as one — it could only be
+ * something else, and signing it in plan-sheets would show a false
+ * "unavailable" tile over it.
+ */
+function isPlanSheetAttachment(u: string): boolean {
+  const key = planSheetStoragePath(u);
+  if (!key) return false;
+  return /^https?:\/\//i.test(u) || isProjectScopedPlanSheetPath(key);
+}
+
+/** #93: what the row keeps for an attachment — a plan-sheets reference under a
+ *  project folder is reduced to its durable key (recovering it from a signed
+ *  URL an older build persisted); anything else is kept as it is. */
+function durableAttachment(u: string): string {
+  if (!isPlanSheetAttachment(u)) return u;
+  const key = planSheetStoragePath(u);
+  return isProjectScopedPlanSheetPath(key) ? key : u;
+}
+
 const RFI_PIPELINE_STAGES: PipelineStage<RFIStatus>[] = [
   { key: 'open', label: 'Open' },
   { key: 'answered', label: 'Answered' },
@@ -294,6 +323,11 @@ function RFIForm() {
     existingRFI?.attachments ?? (prefillPhotoUri ? [prefillPhotoUri] : []),
   );
 
+  // #97: removing the source photo's thumbnail unlinks it too — otherwise the
+  // next photo slides into slot 0 and renders (and is emailed) AS the removed
+  // one, with its markup. Saved as sourcePhotoId: undefined (→ NULL).
+  const [sourceUnlinked, setSourceUnlinked] = useState(false);
+
   // #55 / #58: the record the form OPENED with. A save sends only the fields
   // that differ from it (never the whole form), then re-bases on what it
   // saved — so a copy the architect has since answered through the portal is
@@ -332,11 +366,29 @@ function RFIForm() {
   const formRef = useRef(formValues);
   formRef.current = formValues;
   const lastLiveRef = useRef(existingRFI);
+  // #25: the architect's reply-link answer arrived while he was typing his own
+  // Response. His text stays in the field (nothing is thrown away), theirs is
+  // shown beside it, and Save waits until he picks one — silently keeping his
+  // would replace their written answer, because the live row is now the
+  // baseline and his save goes out as a deliberate edit.
+  const [responseConflict, setResponseConflict] = useState<{ theirs: string } | null>(null);
   useEffect(() => {
     if (!existingRFI || existingRFI === lastLiveRef.current) return;
     lastLiveRef.current = existingRFI;
     const base = rfiFormValuesOf(openedRef.current ?? existingRFI);
-    applyFormValues(rebaseFormOnLive(base, formRef.current, rfiFormValuesOf(existingRFI)));
+    const live = rfiFormValuesOf(existingRFI);
+    const { next, conflicts } = rebaseFormOnLiveWithConflicts(base, formRef.current, live);
+    applyFormValues(next);
+    // A standing conflict is cleared only by his choice (the two buttons) or
+    // when the live answer now equals what he has in the field. Any other
+    // refresh re-runs this with base == live (setOpened below made the
+    // architect's row the baseline), reports no conflict, and — if it cleared
+    // the banner — would re-enable Save and send his text over theirs.
+    const liveResponse = String(live.response ?? '');
+    const mine = String(next.response ?? '');
+    setResponseConflict(prev => (conflicts.includes('response')
+      ? { theirs: liveResponse }
+      : prev && mine.trim() !== liveResponse.trim() ? { theirs: liveResponse } : null));
     setOpened(existingRFI);
   }, [existingRFI, applyFormValues]);
 
@@ -356,11 +408,11 @@ function RFIForm() {
   // exactly once and never overwrites something he has since typed.
   const prefillPulled = useRef(false);
   useEffect(() => {
-    if (!prefillPhoto || existingRFI || prefillPulled.current) return;
+    if (!prefillPhoto || existingRFI || prefillPulled.current || sourceUnlinked) return;
     prefillPulled.current = true;
     setAttachments(prev => (prev.length ? prev : [prefillPhoto.uri]));
     setLinkedTaskId(prev => prev || (prefillPhoto.linkedTaskId ?? ''));
-  }, [prefillPhoto, existingRFI]);
+  }, [prefillPhoto, existingRFI, sourceUnlinked]);
 
   // The gallery photo the first attachment was raised from. Kept as an ID, not
   // just the copied URI: that URI is a device-local `file://` path or a signed
@@ -368,21 +420,71 @@ function RFIForm() {
   // launch it matches no photo — the markup lookup came back empty and the
   // copied link itself could stop opening (audit #12, review 2). Only the
   // photo-annotator prefill puts an attachment here, and always at index 0.
-  const sourcePhotoId = existingRFI ? sourcePhotoIdOf(existingRFI) : (prefillPhotoId || undefined);
+  // #97: see sourceUnlinked (declared with the attachments state).
+  const sourcePhotoId = sourceUnlinked
+    ? undefined
+    : (existingRFI ? sourcePhotoIdOf(existingRFI) : (prefillPhotoId || undefined));
   const sourcePhoto = useMemo(
     () => (sourcePhotoId ? (projectPhotos ?? []).find(p => p.id === sourcePhotoId) : undefined),
     [sourcePhotoId, projectPhotos],
   );
+  // #93 / #113: a plan-sheet attachment is stored as its DURABLE key (older
+  // rows hold a 24 h signed URL, which planSheetStoragePath recovers the key
+  // from) and is signed HERE, whenever the screen draws it. The tile used to
+  // render the stored string as-is, so it went blank a day after it was
+  // minted, on every device. The signature is never written back — a minted
+  // URL in a row is exactly what expired (planSheetUrls.ts TTL comment).
+  const sheetRefs = useMemo(() => attachments.filter(isPlanSheetAttachment), [attachments]);
+  const sheetRefsKey = sheetRefs.join('\n');
+  const [signedSheets, setSignedSheets] = useState<{ key: string; map: Map<string, string> }>(
+    () => ({ key: '', map: new Map() }),
+  );
+  useEffect(() => {
+    if (!sheetRefsKey) return;
+    let live = true;
+    void resolvePlanSheetUrls(sheetRefsKey.split('\n')).then((map) => {
+      if (live) setSignedSheets({ key: sheetRefsKey, map });
+    });
+    return () => { live = false; };
+  }, [sheetRefsKey]);
+
   /** What attachment `index` should render as, and with which markup. The
    *  source photo's CURRENT uri beats the stored copy, which may have expired
-   *  or belong to another device. */
+   *  or belong to another device. `sheet` says whether a drawing is still
+   *  being signed ('loading') or could not be (offline — 'unavailable'), so
+   *  the tile says so instead of drawing a blank image. */
   const attachmentView = useCallback((uri: string, index: number) => {
     const fromSource = index === 0 ? sourcePhoto : undefined;
+    const markup = markupForSource(projectPhotos, fromSource?.id, uri);
+    if (fromSource?.uri) return { uri: fromSource.uri, markup, sheet: null as SheetTileState };
+    if (!isPlanSheetAttachment(uri)) return { uri, markup, sheet: null as SheetTileState };
+    const signed = signedSheets.map.get(uri);
+    if (signed) return { uri: signed, markup, sheet: 'ready' as SheetTileState };
+    // A legacy PUBLIC url still renders while the bucket is public.
+    if (/\/storage\/v1\/object\/public\//.test(uri)) return { uri, markup, sheet: 'ready' as SheetTileState };
     return {
-      uri: fromSource?.uri || uri,
-      markup: markupForSource(projectPhotos, fromSource?.id, uri),
+      uri, markup,
+      sheet: (signedSheets.key === sheetRefsKey ? 'unavailable' : 'loading') as SheetTileState,
     };
-  }, [sourcePhoto, projectPhotos]);
+  }, [sourcePhoto, projectPhotos, signedSheets, sheetRefsKey]);
+
+  // #94: the screen's pin sentence, true for THIS record — the circle needs
+  // the pin's sheet among the attachments (the send adds it when missing); a
+  // photo-library sheet has no upload, so only words reach the architect.
+  const pinNote = useMemo(() => {
+    if (!existingRFI) return null;
+    const pin = drawingPins.find(p => p.linkedRfiId === existingRFI.id);
+    if (!pin) return null;
+    const pinSheet = planSheets.find(ps => ps.id === pin.planSheetId);
+    const value = pinSheet ? sheetAttachmentFor(pinSheet) : '';
+    if (!value) {
+      return 'This pin\u2019s sheet isn\u2019t uploaded, so the architect gets the pin\u2019s location in words only \u2014 the email says where it is.';
+    }
+    if (attachmentsHaveSheet(attachments, value)) {
+      return 'The pin is circled on the sheet at the architect\u2019s reply link. The emailed sheet is the plain drawing \u2014 the email says where the pin is.';
+    }
+    return 'The pinned sheet is attached when you send; the pin is circled on it at the architect\u2019s reply link, and the email says where it is.';
+  }, [existingRFI, drawingPins, planSheets, attachments]);
 
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
@@ -465,6 +567,11 @@ function RFIForm() {
       showAlert('Missing Question', 'Please enter the RFI question.');
       return null;
     }
+    // #25: the architect's answer and his differ — he picks first.
+    if (responseConflict) {
+      showAlert('Pick an answer first', RFI_RESPONSE_CONFLICT_REASON);
+      return null;
+    }
     const base = opened ?? existingRFI;
     const blocked = rfiRegressionReason(base, { status, response });
     if (blocked) {
@@ -485,6 +592,8 @@ function RFIForm() {
     if ('linkedDrawing' in changed) updates.linkedDrawing = linkedDrawing.trim();
     if ('linkedTaskId' in changed) updates.linkedTaskId = linkedTaskId || undefined;
     if ('attachments' in changed) updates.attachments = attachments;
+    // #97: the source photo was removed — drop the link with it.
+    if (sourceUnlinked && sourcePhotoIdOf(existingRFI)) updates.sourcePhotoId = undefined;
     const responseTyped = 'response' in changed && response.trim().length > 0;
     if ('response' in changed) updates.response = response.trim() || undefined;
     // `existingRFI` is the LIVE copy (refetched on open / foreground), so the
@@ -512,7 +621,7 @@ function RFIForm() {
     applyFormValues(rfiFormValuesOf(saved));
     setOpened(saved);
     return saved;
-  }, [existingRFI, opened, subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, linkedTaskId, response, attachments, formValues, updateRFI, applyFormValues]);
+  }, [existingRFI, opened, subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, status, linkedDrawing, linkedTaskId, response, attachments, formValues, updateRFI, applyFormValues, responseConflict, sourceUnlinked]);
 
   // Leaving with edits on screen asks first (#58): backing out used to drop
   // the rewrite silently. A save that navigates away opens the gate itself.
@@ -546,7 +655,7 @@ function RFIForm() {
         return;
       }
       const now = new Date().toISOString();
-      addRFI({
+      const created = addRFI({
         projectId: projectId ?? '',
         subject: subject.trim(),
         question: question.trim(),
@@ -579,6 +688,17 @@ function RFIForm() {
         // undefined over a value the record already has.
         ...(sourcePhotoId && attachments.length > 0 ? { sourcePhotoId } : {}),
       });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // #98: open the RFI he just made — Send to Architect is one tap away,
+      // instead of closing back to the gallery and hunting for it. Replace,
+      // not push: Back still returns to where he came from, and the create
+      // form leaves the stack. The screen remounts on the saved record (the
+      // form is keyed on its id). No number in the toast: the server assigns
+      // it, and the header says "(pending #)" until it has been read back.
+      nailIt('RFI created — send it when ready');
+      allowLeave.current = true;
+      router.replace({ pathname: '/rfi', params: { projectId: created.projectId, rfiId: created.id } });
+      return;
     }
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -612,6 +732,22 @@ function RFIForm() {
     const uri = result.assets[0].uri;
     setAttachments(prev => (prev.includes(uri) ? prev : [...prev, uri]));
   }, []);
+
+  // #97: a wrong photo can come off before it goes to the architect. Confirmed,
+  // like the submittal screen's X; the change is saved with the rest of the
+  // form (the dirty / persistForm path writes `attachments`).
+  const handleRemovePhoto = useCallback((stored: string, index: number) => {
+    showAlert('Remove this photo?', 'It will no longer go out with this RFI.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive',
+        onPress: () => {
+          if (index === 0 && sourcePhotoId) setSourceUnlinked(true);
+          setAttachments(prev => prev.filter(x => x !== stored));
+        },
+      },
+    ]);
+  }, [sourcePhotoId]);
 
   const priorityColor = priority === 'urgent' ? themeColors.danger : priority === 'normal' ? themeColors.accent : themeColors.textSecondary;
 
@@ -649,13 +785,24 @@ function RFIForm() {
     }
     setSending(true);
     try {
-      // #77 (a): plan-sheet links are signed and expire. Re-mint them now; the
-      // fresh ones are stored in the ONE write after the email goes (below),
-      // so the reply page opens the sheet too.
+      // #93 / #113: what the row keeps is each drawing's DURABLE key — a
+      // signed URL persisted by an older build is reduced back to its key —
+      // and #94: the pinned sheet is added when it is missing (a pin RFI
+      // raised offline, or linked to an RFI raised elsewhere, had none).
+      // Fresh signed links are minted for the EMAIL only and never stored:
+      // the reply page signs the keys itself each time it opens
+      // (signed-media-urls), so the drawing no longer dies 24 h after send.
       const stored = existingRFI.attachments ?? [];
-      const minted = await Promise.all(stored.map(u => (planSheetStoragePath(u) ? resolvePlanSheetUrl(u) : Promise.resolve(u))));
-      const mintedChanged = minted.some((u, i) => u !== stored[i]);
-      const sent: RFI = mintedChanged ? { ...existingRFI, attachments: minted } : existingRFI;
+      const pin = drawingPins.find(p => p.linkedRfiId === existingRFI.id);
+      const pinSheet = pin ? planSheets.find(ps => ps.id === pin.planSheetId) : undefined;
+      const pinSheetValue = pinSheet ? sheetAttachmentFor(pinSheet) : '';
+      const reduced = stored.map(durableAttachment);
+      const durable = pinSheetValue && !attachmentsHaveSheet(reduced, pinSheetValue)
+        ? [...reduced, pinSheetValue]
+        : reduced;
+      const durableChanged = durable.length !== stored.length || durable.some((u, i) => u !== stored[i]);
+      const minted = await resolvePlanSheetUrls(durable.filter(isPlanSheetAttachment));
+      const sent: RFI = existingRFI;
       // Build the architect reply portal URL — embeds the RFI's
       // share_token so the portal can fetch + respond via SECURITY
       // DEFINER RPCs without an account. Falls back to email-only
@@ -667,12 +814,30 @@ function RFIForm() {
         : undefined;
       // #77 (b): where the pin is. The reply page circles it on the sheet; the
       // emailed sheet is the plain drawing, so the email says where to look.
-      const pin = drawingPins.find(p => p.linkedRfiId === sent.id);
-      const pinSheet = pin ? planSheets.find(ps => ps.id === pin.planSheetId) : undefined;
+      // #94: the circle is promised only when a tile for the PIN'S sheet was
+      // signed for this send (the page circles a pin only on the tile whose
+      // key matches pin_marks.sheet_path) — a photo-library sheet has nothing
+      // to sign, and an offline send signs nothing.
+      const pinKey = planSheetStoragePath(pinSheetValue);
       const pinLine = pin && pinSheet
-        ? `Marked location: ${(pinSheet.sheetNumber ?? '').trim() || pinSheet.name}, ${Math.round(pin.x * 100)}% across and ${Math.round(pin.y * 100)}% down the sheet${replyPortalUrl ? ' — circled on the sheet at the reply link' : ''}.`
+        ? pinLocationLine({
+          sheetName: (pinSheet.sheetNumber ?? '').trim() || pinSheet.name,
+          x: pin.x, y: pin.y,
+          circledAtReplyLink: !!replyPortalUrl && !!pinKey
+            && durable.some(u => planSheetStoragePath(u) === pinKey && minted.has(u)),
+        })
         : '';
-      const note = [sendEmail_Note.trim(), pinLine].filter(Boolean).join('\n\n');
+      // The source photo's current uri where there is one — the stored copy
+      // may be another device's file:// or an expired signed URL. A drawing
+      // that could not be signed for this send is left out (a bare key is not
+      // a fetchable address — on web it attached the app's index.html as a
+      // ".png") and the email says where to see it instead.
+      const { uris: sendUris, droppedSheets } = rfiEmailAttachments(durable, attachmentView, minted);
+      const droppedLine = droppedSheets === 0
+        ? ''
+        : `${droppedSheets === 1 ? '1 drawing' : `${droppedSheets} drawings`} could not be attached to this email`
+          + (replyPortalUrl ? ' — open the reply link to see them.' : ' — ask us and we will send them.');
+      const note = [sendEmail_Note.trim(), pinLine, droppedLine].filter(Boolean).join('\n\n');
       const html = buildRFIEmailHtml({
         companyName: settings?.branding?.companyName ?? 'MAGE ID',
         recipientName: sendEmail_Name.trim(),
@@ -691,17 +856,12 @@ function RFIForm() {
         replyPortalUrl,
       });
       const subject = `RFI #${rfiNumber}: ${sent.subject} — ${project.name}`;
-      // The source photo's current uri where there is one — the stored copy
-      // may be another device's file:// or an expired signed URL.
-      const sendUris = sent.attachments?.length
-        ? sent.attachments.map((stored, index) => attachmentView(stored, index).uri)
-        : undefined;
       const result = await sendEmail({
         to,
         subject,
         html,
         replyTo: settings?.branding?.email,
-        attachments: sendUris,
+        attachments: sendUris.length ? sendUris : undefined,
       });
       if (!result.success) {
         showAlert('Send failed', result.error || 'Could not send the RFI. Try again.');
@@ -723,13 +883,14 @@ function RFIForm() {
         toParty: 'architect',
         note: `Sent to ${sendEmail_Name.trim() || to}`,
       };
-      // ONE write per send (#58 review): the fresh plan-sheet links ride with
-      // the hand-off. Two updateRFI calls from one closure would each rebuild
-      // the record from the same pre-send list, the second undoing the first.
+      // ONE write per send (#58 review): the durable keys (and a pinned sheet
+      // that was missing) ride with the hand-off. Two updateRFI calls from one
+      // closure would each rebuild the record from the same pre-send list, the
+      // second undoing the first. Never the minted URLs (#93).
       const handedOff: Partial<RFI> = {
         ballInCourt: 'architect',
         handoffs: [...(sent.handoffs ?? []), newHandoff],
-        ...(mintedChanged ? { attachments: minted } : {}),
+        ...(durableChanged ? { attachments: durable } : {}),
       };
       updateRFI(sent.id, handedOff);
       const afterSend: RFI = { ...sent, ...handedOff };
@@ -747,10 +908,20 @@ function RFIForm() {
       // #146: an attachment this device could not read was left off. Never
       // "RFI Sent" as if the architect has the photo.
       const dropped = result.attachmentsDropped ?? 0;
+      // A plan sheet that could not be signed was left out before sending
+      // (rfiEmailAttachments); the email tells the architect where to see it.
+      const sheetsLine = droppedSheets === 0
+        ? ''
+        : ` ${droppedSheets === 1 ? 'One drawing' : `${droppedSheets} drawings`} could not be signed on this connection and ${droppedSheets === 1 ? 'was' : 'were'} not attached${replyPortalUrl ? ' — the reply link shows them' : ''}.`;
       if (dropped > 0) {
         showAlert(
           `RFI sent without ${dropped} attachment${dropped === 1 ? '' : 's'}`,
-          `Sent to ${to}, but ${dropped === 1 ? 'one photo' : `${dropped} photos`} could not be read on this device and ${dropped === 1 ? 'was' : 'were'} left off. Attach ${dropped === 1 ? 'it' : 'them'} from this device and send again, or send ${dropped === 1 ? 'it' : 'them'} to the architect yourself. ${whereBack}`,
+          `Sent to ${to}, but ${dropped === 1 ? 'one photo' : `${dropped} photos`} could not be read on this device and ${dropped === 1 ? 'was' : 'were'} left off. Attach ${dropped === 1 ? 'it' : 'them'} from this device and send again, or send ${dropped === 1 ? 'it' : 'them'} to the architect yourself.${sheetsLine} ${whereBack}`,
+        );
+      } else if (droppedSheets > 0) {
+        showAlert(
+          `RFI sent without ${droppedSheets === 1 ? 'a drawing' : `${droppedSheets} drawings`}`,
+          `Sent to ${to}.${sheetsLine} ${whereBack}`,
         );
       } else {
         showAlert('RFI Sent', `Sent to ${to}. ${whereBack}`);
@@ -1271,11 +1442,30 @@ function RFIForm() {
             <Text style={styles.fieldLabel}>Photos</Text>
             <View style={styles.attachmentStrip}>
               {attachments.map((stored, index) => {
-                const { uri, markup } = attachmentView(stored, index);
+                const { uri, markup, sheet } = attachmentView(stored, index);
                 return (
                   <View key={stored} style={styles.attachmentThumbWrap}>
-                    <Image source={{ uri }} style={styles.attachmentThumb} contentFit="cover" />
+                    {sheet === 'loading' || sheet === 'unavailable' ? (
+                      // #113: never a blank tile — say what the drawing is waiting on.
+                      <View style={styles.sheetPlaceholder} testID={`rfi-sheet-${sheet}-${index}`}>
+                        <Text style={styles.sheetPlaceholderText}>
+                          {sheet === 'loading' ? 'Loading drawing\u2026' : 'Drawing loads when you\u2019re online'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Image source={{ uri }} style={styles.attachmentThumb} contentFit="cover" />
+                    )}
                     {markup.length > 0 && <PhotoMarkupOverlay markup={markup} />}
+                    <TouchableOpacity
+                      style={styles.attachmentRemove}
+                      onPress={() => handleRemovePhoto(stored, index)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove this photo"
+                      testID={`rfi-photo-remove-${index}`}
+                    >
+                      <X size={12} color="#fff" strokeWidth={2} />
+                    </TouchableOpacity>
                   </View>
                 );
               })}
@@ -1290,14 +1480,6 @@ function RFIForm() {
                 the mark in the question too.
               </Text>
             )}
-            {existingRFI && drawingPins.some(p => p.linkedRfiId === existingRFI.id) && (
-              // #77 (b): the pin is circled on the architect's reply page; the
-              // emailed sheet is the plain drawing, and the email names the spot.
-              <Text style={styles.attachmentNote}>
-                The pin is circled on the sheet at the architect&apos;s reply link. The emailed sheet
-                is the plain drawing — the email says where the pin is.
-              </Text>
-            )}
             {attachments.some(u => /^(file|content|ph|assets-library|blob):/i.test(u)) && (
               <Text style={styles.attachmentNote}>
                 Photos attached from this device are emailed from this device. The architect&apos;s
@@ -1306,6 +1488,12 @@ function RFIForm() {
             )}
           </>
         )}
+
+        {pinNote ? (
+          // #77 (b) / #94: said only when it is true — the circle needs the
+          // pin's sheet on the RFI, and a sheet with no upload has none.
+          <Text style={styles.attachmentNote} testID="rfi-pin-note">{pinNote}</Text>
+        ) : null}
 
         {existingRFI && responseShown && (
           <>
@@ -1319,6 +1507,23 @@ function RFIForm() {
               multiline
               textAlignVertical="top"
             />
+            {responseConflict && (
+              <View style={[styles.alertBanner, styles.alertBannerWarn, styles.conflictCard]} testID="rfi-response-conflict">
+                <Text style={styles.alertBannerText}>{RFI_RESPONSE_CONFLICT_REASON}</Text>
+                <Text style={styles.conflictLabel}>Their answer</Text>
+                <Text style={styles.conflictBody}>{responseConflict.theirs}</Text>
+                <View style={styles.conflictActions}>
+                  <Button
+                    label="Keep theirs" size="sm" testID="rfi-conflict-keep-theirs"
+                    onPress={() => { setResponse(responseConflict.theirs); setResponseConflict(null); }}
+                  />
+                  <Button
+                    label="Replace with mine" variant="secondary" size="sm" testID="rfi-conflict-use-mine"
+                    onPress={() => setResponseConflict(null)}
+                  />
+                </View>
+              </View>
+            )}
           </>
         )}
 
@@ -1399,14 +1604,16 @@ function RFIForm() {
         )}
 
         {/* #58: save and stay, so the sends below can go. */}
+        {/* #25: Save waits for his pick, and says why. */}
+        {!!responseConflict && <Text style={styles.attachmentNote} testID="rfi-save-conflict">{RFI_RESPONSE_CONFLICT_REASON}</Text>}
         {existingRFI && isDirty && (
-          <TouchableOpacity style={styles.sendToProBtn} onPress={handleSaveInPlace} activeOpacity={0.85} testID="rfi-save-in-place">
+          <TouchableOpacity style={[styles.sendToProBtn, !!responseConflict && { opacity: 0.5 }]} onPress={handleSaveInPlace} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save-in-place">
             <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.sendToProBtnText}>Save changes</Text>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="rfi-save">
+        <TouchableOpacity style={[styles.saveBtn, !!responseConflict && { opacity: 0.5 }]} onPress={handleSave} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save">
           <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>{existingRFI ? 'Update RFI' : 'Create RFI'}</Text>
         </TouchableOpacity>
@@ -1557,6 +1764,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 104, height: 104, overflow: 'hidden',
   },
   attachmentThumb: { width: '100%', height: '100%' },
+  sheetPlaceholder: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', padding: 8,
+    backgroundColor: themeColors.surfaceAlt,
+  },
+  sheetPlaceholderText: {
+    fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center',
+  },
+  attachmentRemove: {
+    position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#00000099',
+  },
   attachBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
     marginTop: 12, paddingVertical: 8, paddingHorizontal: 12,
@@ -1844,4 +2062,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   alertBannerDanger: { backgroundColor: themeColors.danger + '12', borderColor: themeColors.danger + '40' },
   alertBannerWarn: { backgroundColor: Colors.warning + '14', borderColor: Colors.warning + '40' },
   alertBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  conflictCard: { flexDirection: 'column' as const, alignItems: 'stretch' as const, marginHorizontal: 0 },
+  conflictLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  conflictBody: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  conflictActions: { flexDirection: 'row' as const, gap: 8, flexWrap: 'wrap' as const },
 });

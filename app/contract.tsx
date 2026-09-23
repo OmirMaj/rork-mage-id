@@ -38,7 +38,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   loadActiveContract, saveContractDetailed, setContractStatus,
-  markMilestonePaidByInvoice,
+  markMilestonePaidByInvoice, recordHomeownerSignature, uploadSignedPageEvidence,
   buildDraftContract, buildProposalFromRevision,
   contractTimeline, contractTimelineSentence, suggestContractTimeline,
 } from '@/utils/contractEngine';
@@ -46,13 +46,19 @@ import {
   resolvePaymentSplit, resolveWarrantyMonths, contractScheduleFromSplit, contractWarrantyText,
   retieContractSchedule, splitLabel, sameSplit, isLegacySeedSchedule, LEGACY_WARRANTY_TEXT,
   hasWarrantyPlaceholder, milestoneDueText, warrantyPeriodPhrase, warrantyShortLabel,
-  WARRANTY_PERIOD_PLACEHOLDER,
+  WARRANTY_PERIOD_PLACEHOLDER, jobProposalSplit, quotedSplitOf,
   type ResolvedSplit,
 } from '@/utils/paymentTerms';
 import { useClientDocumentGate, type GateAnswers } from '@/hooks/useClientDocumentGate';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import DatePickerModal from '@/components/DatePickerModal';
-import { formatCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  recordSignatureBlockReason, buildRecordedHomeownerSignature, recordSignatureOutcomeMessage,
+  homeownerSignatureMethodLabel, type RecordSignatureDraft, type RecordedSignatureMethod,
+} from '@/utils/contractSignatureCore';
+import { isTransportError } from '@/utils/networkErrors';
 import {
   milestoneBillability, milestoneBillEffect, milestoneBlockMessage, progressRowOpen,
   contractBilledToDate, attributableContractBilling, milestonePaidFromInvoices, milestonePaidRepairs,
@@ -198,7 +204,7 @@ function ContractScreenInner() {
   // (field-ticket pattern). A pick outranks the param so a STALE id in the URL
   // — deleted project, old shared link — can't make the picker inert.
   const { projectId: paramProjectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
-  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject, getChangeOrdersForProject } = useProjects();
+  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments, getInvoicesForProject, getChangeOrdersForProject, requestPortalPublish } = useProjects();
   // The converted_to_contract snapshot was building its cost book from closed
   // jobs ALONE — no receipts, no self-perform labor, no seeds — so it graded
   // itself against a thinner book than the wizard that produced the estimate.
@@ -227,6 +233,9 @@ function ContractScreenInner() {
   const [saving, setSaving] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signatureModal, setSignatureModal] = useState(false);
+  // #67: "Record homeowner signature" — in person or on paper — on a sent contract.
+  const [recordModal, setRecordModal] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [startDatePicker, setStartDatePicker] = useState(false);
   // Where a freshly seeded draft's split came from: this job's portal stamp
   // (the proposal the client was shown), his profile, or nowhere. null for a
@@ -287,7 +296,16 @@ function ContractScreenInner() {
         // then his saved terms. Neither → an empty schedule and a warranty
         // placeholder, and NO ask here: a sheet on mount is a setup form.
         const s = settingsRef.current;
-        const resolved = resolvePaymentSplit({ record: p.clientPortal?.proposalPaymentTerms, settings: s });
+        // #69: the portal stamp, then the split printed on the proposal PDF he
+        // shared (quotedSplitOf — written on a successful share), then his
+        // profile. The PDF's split outranks the profile: a profile change
+        // between the PDF and the contract must not change the deposit the
+        // homeowner agreed to.
+        const fromStamp = resolvePaymentSplit({ record: p.clientPortal?.proposalPaymentTerms, settings: s });
+        const quoted = quotedSplitOf(p);
+        const resolved = fromStamp.source !== 'record' && quoted
+          ? resolvePaymentSplit({ record: quoted, settings: s })
+          : fromStamp;
         const terms = { split: resolved.split, warrantyMonths: resolveWarrantyMonths(s) };
         const rev = fromRevision
           ? (p.estimateVersions ?? []).find(v => v.id === fromRevision)
@@ -705,7 +723,7 @@ function ContractScreenInner() {
     const c = contractRef.current;
     if (!c || contractTermsLocked(c)) return;
     const p = projectRef.current;
-    const stamp = resolvePaymentSplit({ record: p?.clientPortal?.proposalPaymentTerms });
+    const stamp = resolvePaymentSplit({ record: jobProposalSplit({ portalStamp: p?.clientPortal?.proposalPaymentTerms, quoted: quotedSplitOf(p) })?.split });
     gateRun({
       terms: asked.terms,
       warranty: asked.warranty,
@@ -863,6 +881,12 @@ function ContractScreenInner() {
       }
       const refreshed = await loadActiveContract(saved.projectId);
       if (refreshed.ok && refreshed.contract) setContract(refreshed.contract);
+      // #12: the portal reads the contract only when a snapshot is published,
+      // and project_contracts is written directly here — no tracked project
+      // save marks the job. Ask the provider for a republish AFTER the flip
+      // (never before: a pass that read the draft would record a signature
+      // that then blocks the republish). The status flip below re-asks too.
+      requestPortalPublish(saved.projectId);
 
       // Milestone! Fire a celebratory confetti burst when the GC
       // signs and sends. The homeowner counter-signing also fires one
@@ -930,8 +954,8 @@ function ContractScreenInner() {
             subtitle: `Hi ${greetingFirstName}, ${companyName} sent you the construction contract.`,
             bodyHtml: [
               `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
-                 The contract — scope, value, payment schedule, and allowances — is ready for your review and counter-signature in your project portal.
-                 You can read the full agreement, ask questions inside the portal, and sign with one tap. Once you sign, ${escapeHtml(companyName)} can start.
+                 Your construction contract is ready for your review and counter-signature in your project portal. The contract value${emailTimeline ? ' and timeline are' : ' is'} below${contract.scopeText ? ', with the start of the scope of work' : ''}.
+                 If the contract isn't showing yet when you open the portal, it is still being posted — check back in a few minutes. Once you sign, ${escapeHtml(companyName)} can start.
                </p>`,
               contract.scopeText ? emailQuote(contract.scopeText.slice(0, 600)) : '',
               `<p style="margin:0 0 6px 0;font-size:13px;line-height:20px;color:#4A5159;">
@@ -981,14 +1005,59 @@ function ContractScreenInner() {
       showAlert(
         'Contract sent',
         (createdCount > 0
-          ? `The homeowner can review and counter-sign in their portal. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
-          : 'The homeowner can review and counter-sign in their portal. You\'ll be notified when they do.')
+          ? `Your client portal is being updated with the contract; once it is, the homeowner can review and counter-sign there. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
+          : 'Your client portal is being updated with the contract; once it is, the homeowner can review and counter-sign there. You\'ll be notified when they do.')
           + emailNote,
       );
     } finally {
       setSigning(false);
     }
-  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds]);
+  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds, requestPortalPublish]);
+
+  // #67: record a homeowner signature given OUTSIDE the portal. The rules
+  // (name, pad or page photo + day, never a future day) and the conditional
+  // flip live in utils/contractSignatureCore.ts; this handler does the IO:
+  // paper → upload the page photo first (no photo on file, no record), then
+  // re-read + flip only if the row is still 'sent' and unsigned. No signal
+  // refuses with the reason — the contract stays Sent, nothing half-written.
+  const handleRecordSignature = useCallback(async (draft: RecordSignatureDraft, pagePhotoUri: string | null) => {
+    const c = contractRef.current;
+    if (!c?.id || c.status !== 'sent' || !user?.id) return;
+    const block = recordSignatureBlockReason({ ...draft, hasPagePhoto: !!pagePhotoUri }, todayCalendarDay());
+    if (block) { showAlert('Not recorded yet', block); return; }
+    setRecording(true);
+    try {
+      let evidencePath: string | undefined;
+      if (draft.method === 'paper' && pagePhotoUri) {
+        try {
+          evidencePath = await uploadSignedPageEvidence(user.id, c.id, pagePhotoUri);
+        } catch (err) {
+          const msg = recordSignatureOutcomeMessage(isTransportError(err)
+            ? { kind: 'offline' }
+            : { kind: 'failed', error: `the page photo did not upload: ${err instanceof Error ? err.message : String(err)}` });
+          if (msg) showAlert(msg.title, msg.body);
+          return;
+        }
+      }
+      const sig = buildRecordedHomeownerSignature(draft, { nowIso: new Date().toISOString(), evidencePath });
+      const outcome = await recordHomeownerSignature(c.id, sig);
+      const msg = recordSignatureOutcomeMessage(outcome);
+      if (msg) {
+        showAlert(msg.title, msg.body);
+        if (outcome.kind === 'not_sent') await recheckLockedContract();
+        return;
+      }
+      const refreshed = await loadActiveContract(c.projectId);
+      if (refreshed.ok && refreshed.contract) setContract(refreshed.contract);
+      // The portal shows the contract as signed from the next publish (#12).
+      requestPortalPublish(c.projectId);
+      setRecordModal(false);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      nailIt(draft.method === 'paper' ? 'Paper signature recorded' : 'Homeowner signature recorded');
+    } finally {
+      setRecording(false);
+    }
+  }, [user?.id, recheckLockedContract, requestPortalPublish]);
 
   const handleSealSignedContract = useCallback(async () => {
     if (!project || !contract || !user?.id) return;
@@ -1109,7 +1178,12 @@ function ContractScreenInner() {
   // His saved split, and this job's stamp, for the terms rows below. Neither is
   // applied by rendering — only by a press.
   const profileSplit: PaymentSplit | null = resolvePaymentSplit({ settings }).split;
-  const stampSplit: PaymentSplit | null = resolvePaymentSplit({ record: project.clientPortal?.proposalPaymentTerms }).split;
+  // #69: the portal stamp, or the split on the proposal PDF he shared.
+  const jobSplit = jobProposalSplit({ portalStamp: project.clientPortal?.proposalPaymentTerms, quoted: quotedSplitOf(project) });
+  const stampSplit: PaymentSplit | null = jobSplit?.split ?? null;
+  const jobSplitWhere = jobSplit?.from === 'quoted'
+    ? `From the proposal you sent${jobSplit.sharedAt ? ` on ${formatCalendarDay(jobSplit.sharedAt.slice(0, 10))}` : ''}`
+    : 'From the proposal your client was shown';
   const scheduleEmpty = contract.paymentSchedule.length === 0;
   const warrantyNotSet = hasWarrantyPlaceholder(contract.warrantyText);
   // A SAVED draft still holding what MAGE used to fill in. Flagged, never
@@ -1406,7 +1480,7 @@ function ContractScreenInner() {
             && scheduleCarriesSplit(contract.paymentSchedule, contract.contractValue, stampSplit) && (
             <View style={styles.termsProvenance} testID="contract-terms-provenance">
               <Text style={styles.termsProvenanceText}>
-                From the proposal your client was shown: {splitLabel(stampSplit)}
+                {jobSplitWhere}: {splitLabel(stampSplit)}
               </Text>
               {profileSplit && !sameSplit(profileSplit, stampSplit) ? (
                 <TouchableOpacity
@@ -1418,6 +1492,28 @@ function ContractScreenInner() {
                   <Text style={styles.termsLink}>Use {splitLabel(profileSplit)}</Text>
                 </TouchableOpacity>
               ) : null}
+            </View>
+          )}
+
+          {/* #69: the rows do NOT carry the split this homeowner was shown
+              (the draft was seeded from his profile, or edited since). Say so
+              — the deposit billed must be the one on the proposal he sent —
+              unless he just chose his own terms on purpose. */}
+          {!isLocked && !scheduleEmpty && !legacySchedule && termsSource !== 'profile' && stampSplit
+            && !scheduleCarriesSplit(contract.paymentSchedule, contract.contractValue, stampSplit) && (
+            <View style={styles.termsNotice} testID="contract-terms-mismatch">
+              <Text style={styles.termsNoticeTitle}>Not the terms your client was shown</Text>
+              <Text style={styles.termsNoticeBody}>
+                {jobSplitWhere}: {splitLabel(stampSplit)}. The schedule below is different — check it before you sign.
+              </Text>
+              <TouchableOpacity
+                style={styles.termsNoticeBtn}
+                onPress={() => applyOwnSplit(stampSplit, 'record')}
+                accessibilityRole="button"
+                testID="contract-use-proposal-terms"
+              >
+                <Text style={styles.termsNoticeBtnText}>Use {splitLabel(stampSplit)}</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -1664,7 +1760,12 @@ function ContractScreenInner() {
               <SignatureBlock label="Contractor" name={contract.gcSignature.name} signedAt={contract.gcSignature.signedAt} />
             )}
             {contract.homeownerSignature && (
-              <SignatureBlock label="Homeowner" name={contract.homeownerSignature.name} signedAt={contract.homeownerSignature.signedAt} />
+              <SignatureBlock
+                label="Homeowner"
+                name={contract.homeownerSignature.name}
+                signedAt={contract.homeownerSignature.signedAt}
+                how={homeownerSignatureMethodLabel(contract.homeownerSignature)}
+              />
             )}
           </View>
         )}
@@ -1710,9 +1811,20 @@ function ContractScreenInner() {
               <Text style={styles.statusBannerTitle}>Sent to the homeowner</Text>
               <Text style={styles.statusBannerBody}>
                 You'll be notified when they sign. Until then this contract is read-only.
+                If they signed in person or on paper, record it here so the deposit can be billed.
               </Text>
             </View>
           </View>
+        )}
+        {contract.status === 'sent' && (
+          <Button
+            label="Record homeowner signature"
+            variant="secondary"
+            onPress={() => setRecordModal(true)}
+            iconLeft={<FileSignature size={14} color={themeColors.text} strokeWidth={1.75} />}
+            style={{ marginTop: 10 }}
+            testID="contract-record-homeowner-signature"
+          />
         )}
 
         {contract.status === 'signed' && (
@@ -1765,6 +1877,14 @@ function ContractScreenInner() {
 
       {/* "Ask when it matters" — rendered once. Opened only by a press. */}
       <ClientDocumentAskSheet {...gate.sheet} />
+
+      {/* #67: record a homeowner signature given in person or on paper */}
+      <RecordHomeownerSignatureModal
+        visible={recordModal}
+        onClose={() => setRecordModal(false)}
+        onRecord={handleRecordSignature}
+        recording={recording}
+      />
 
       {/* Signature modal */}
       <SignatureModal
@@ -2007,13 +2127,19 @@ function MilestoneRow({ milestone, locked, onChange, onRemove, billability, onCr
   );
 }
 
-function SignatureBlock({ label, name, signedAt }: { label: string; name: string; signedAt: string }) {
+function SignatureBlock({ label, name, signedAt, how }: { label: string; name: string; signedAt: string; how?: string | null }) {
   const styles = useThemedStyles(makeStyles);
+  // A paper signature is dated to its calendar day (noon UTC) — print that day,
+  // never a locale date that can slip a day across time zones.
+  const day = /^\d{4}-\d{2}-\d{2}T12:00:00(\.000)?Z$/.test(signedAt)
+    ? formatCalendarDay(signedAt.slice(0, 10))
+    : new Date(signedAt).toLocaleDateString();
   return (
     <View style={styles.sigBlock}>
       <Text style={styles.sigLabel}>{label}</Text>
       <Text style={styles.sigName}>{name}</Text>
-      <Text style={styles.sigDate}>Signed {new Date(signedAt).toLocaleDateString()}</Text>
+      <Text style={styles.sigDate}>Signed {day}</Text>
+      {!!how && <Text style={styles.sigDate}>{how}</Text>}
     </View>
   );
 }
@@ -2079,6 +2205,142 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
           </View>
         </View>
       </View>
+    </Modal>
+  );
+}
+
+/**
+ * #67: record a homeowner signature given outside the portal. Two ways, and
+ * the record says which: "In person" hands this phone to the homeowner for the
+ * pad; "On paper" takes the name, the day on the page (never a future day) and
+ * a REQUIRED photo of the signed page. The confirm stays disabled — with the
+ * reason printed under it — until the draft passes recordSignatureBlockReason.
+ */
+function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }: {
+  visible: boolean;
+  onClose: () => void;
+  onRecord: (draft: RecordSignatureDraft, pagePhotoUri: string | null) => void;
+  recording: boolean;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
+  const [method, setMethod] = useState<RecordedSignatureMethod>('in_person');
+  const [paths, setPaths] = useState<string[]>([]);
+  const [name, setName] = useState('');
+  const [signedDay, setSignedDay] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [dayPicker, setDayPicker] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setMethod('in_person'); setPaths([]); setName(''); setSignedDay(todayCalendarDay()); setPhotoUri(null);
+    }
+  }, [visible]);
+
+  const draft: RecordSignatureDraft = { method, name, signaturePaths: paths, signedDay, hasPagePhoto: !!photoUri };
+  const blockReason = recordSignatureBlockReason(draft, todayCalendarDay());
+
+  const pickPhoto = useCallback(async (source: 'camera' | 'library') => {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showAlert(source === 'camera' ? 'Camera access needed' : 'Photo access needed',
+        `Grant ${source === 'camera' ? 'camera' : 'photo'} access in Settings to add the signed page.`);
+      return;
+    }
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ quality: 0.6 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    setPhotoUri(result.assets[0].uri);
+  }, []);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard} testID="contract-record-signature-modal">
+          <Text style={styles.modalTitle}>Record homeowner signature</Text>
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalCancel, method === 'in_person' && { borderColor: themeColors.accent }]}
+              onPress={() => setMethod('in_person')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: method === 'in_person' }}
+              testID="contract-record-in-person"
+            >
+              <Text style={styles.modalCancelText}>In person</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalCancel, method === 'paper' && { borderColor: themeColors.accent }]}
+              onPress={() => setMethod('paper')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: method === 'paper' }}
+              testID="contract-record-paper"
+            >
+              <Text style={styles.modalCancelText}>On paper</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.modalBody}>
+            {method === 'in_person'
+              ? 'Hand the phone to the homeowner: they sign in the box and type their full legal name. It is recorded as signed in person on your device.'
+              : 'For a contract the homeowner signed on a printed copy. Type their name as it appears on the page, pick the day they signed, and photograph the signed page — the photo is kept as the proof.'}
+          </Text>
+          {method === 'in_person' ? (
+            <SignaturePad initialPaths={paths} onSave={setPaths} onClear={() => setPaths([])} height={150} />
+          ) : (
+            <>
+              <TouchableOpacity onPress={() => setDayPicker(true)} style={styles.modalNameInput} accessibilityRole="button" testID="contract-record-day">
+                <Text style={{ color: themeColors.text }}>{signedDay ? `Signed ${formatCalendarDay(signedDay)}` : 'Pick the signing day'}</Text>
+              </TouchableOpacity>
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => { void pickPhoto('camera'); }} accessibilityRole="button" testID="contract-record-photo-camera">
+                  <Text style={styles.modalCancelText}>{photoUri ? 'Retake photo' : 'Photograph the page'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => { void pickPhoto('library'); }} accessibilityRole="button" testID="contract-record-photo-library">
+                  <Text style={styles.modalCancelText}>Choose photo</Text>
+                </TouchableOpacity>
+              </View>
+              {!!photoUri && <Text style={styles.modalBody}>Photo of the signed page added.</Text>}
+            </>
+          )}
+          <TextInput
+            style={styles.modalNameInput}
+            value={name}
+            onChangeText={setName}
+            placeholder="Homeowner's full legal name"
+            placeholderTextColor={themeColors.textMuted}
+            autoCapitalize="words"
+            testID="contract-record-name"
+          />
+          {!!blockReason && <Text style={styles.modalBody} testID="contract-record-block-reason">{blockReason}</Text>}
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={recording} accessibilityRole="button">
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalConfirm, !!blockReason && styles.primaryBtnDisabled]}
+              onPress={() => onRecord(draft, method === 'paper' ? photoUri : null)}
+              disabled={recording || !!blockReason}
+              testID="contract-record-confirm"
+            >
+              {recording ? <ActivityIndicator size="small" color="#FFF" /> : (
+                <>
+                  <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
+                  <Text style={styles.modalConfirmText}>Record signature</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+      <DatePickerModal
+        visible={dayPicker}
+        value={signedDay}
+        title="Day the homeowner signed"
+        onClose={() => setDayPicker(false)}
+        onChange={(iso) => { setSignedDay(iso.slice(0, 10)); setDayPicker(false); }}
+      />
     </Modal>
   );
 }

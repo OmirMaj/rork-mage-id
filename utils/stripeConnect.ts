@@ -12,6 +12,7 @@
 // caches via React Query so a back-and-forth between screens stays
 // fresh without spamming Stripe.
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { stripeAccountStateFrom, type StripeAccountState } from '@/utils/billingFlowCore';
 
 export type ConnectStatus = 'none' | 'incomplete' | 'pending' | 'connected';
 
@@ -97,4 +98,17 @@ export async function fetchStripeConnectStatus(
     console.error('[StripeConnect] status threw:', err);
     return { success: false, error: String(err) };
   }
+}
+
+/**
+ * #36 — the GC's connected account as ONE of three answers, never two.
+ * `unreachable` (offline, the status function down) used to read as "not
+ * connected", which sent invoices with no Pay button under a plain "sent"
+ * toast and told him falsely he had never connected Stripe. The mapping is
+ * pure (utils/billingFlowCore.stripeAccountStateFrom) so the validators
+ * execute it; this is only the network half.
+ */
+export async function resolveStripeAccount(userId: string | null | undefined): Promise<StripeAccountState> {
+  if (!userId) return { kind: 'unreachable', error: 'not signed in' };
+  return stripeAccountStateFrom(await fetchStripeConnectStatus(userId));
 }

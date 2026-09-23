@@ -118,6 +118,7 @@ import {
   PUNCH_EXPORT_CSS,
 } from '../utils/punchExportHtml';
 import { UNPLACED_LOCATION_GROUP } from '../utils/punchLocations';
+import { punchStatusPatch } from '../utils/punchGcCore';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TZ_CHILD_FLAG = 'PUNCH_EXPORT_TZ_CHILD';
@@ -211,6 +212,9 @@ const ID = {
 };
 const K_IDS = Array.from({ length: 8 }, (_, i) => uid(`e00000${String(i + 1).padStart(2, '0')}`, 30 + i));
 
+/** #57: the sub's own words from his portal — hostile, so escaping is proven. */
+const SUB_NOTE = '<i>replaced</i> & see "closet" side';
+
 const ITEMS: PunchItem[] = [
   mk(ID.i01, {
     description: HOSTILE_DESC, location: 'Hall 2', dueDate: '2026-09-14', priority: 'high',
@@ -219,7 +223,7 @@ const ITEMS: PunchItem[] = [
     xray: { tell: XRAY_TELL } as unknown as PunchItem['xray'],
   }),
   mk(ID.i02, { location: 'Hall 10', status: 'in_progress', dueDate: '2026-09-20T00:00:00.000Z', photoUri: `${STORAGE_ORIGIN}/storage/v1/object/sign/p/x.jpg?token=abc` }),
-  mk(ID.i03, { location: 'Hall 2', status: 'ready_for_review', createdAt: '2026-09-01T10:00:00+00:00', photoLocalUri: 'file:///var/x/i03.jpg' }),
+  mk(ID.i03, { location: 'Hall 2', status: 'ready_for_review', createdAt: '2026-09-01T10:00:00+00:00', photoLocalUri: 'file:///var/x/i03.jpg', subNote: SUB_NOTE }),
   mk(ID.i04, { listType: 'crew', location: 'Roof', status: 'closed', closedAt: '2026-09-05T15:00:00Z', createdAt: '2026-09-02T10:00:00Z' }),
   mk(ID.i05, { status: 'open', closedAt: '2026-09-04T12:00:00Z', createdAt: '2026-09-02T11:00:00Z', assignedSub: 'Acme' }),
   mk(ID.i06, { planSheetId: 'S1', pinX: 0.5, pinY: 0.5, createdAt: '2026-09-02T12:00:00Z' }),
@@ -520,12 +524,18 @@ function parseCsv(text: string): string[][] {
   ok('starts with a BOM', csv.charCodeAt(0) === 0xfeff);
   ok('CRLF line endings only', !/[^\r]\n/.test(csv) && csv.endsWith('\r\n'));
   const rows = parseCsv(csv.slice(1));
-  eq('21 columns in the fixed order', rows[0], [...PUNCH_EXPORT_CSV_COLUMNS]);
-  eq('column count', PUNCH_EXPORT_CSV_COLUMNS.length, 21);
+  eq('22 columns in the fixed order', rows[0], [...PUNCH_EXPORT_CSV_COLUMNS]);
+  eq('column count', PUNCH_EXPORT_CSV_COLUMNS.length, 22);
+  // #57 (wave 4): the sub's note sits right after the GC's rejection note.
+  eq('Sub Note follows Rejection Note', PUNCH_EXPORT_CSV_COLUMNS.indexOf('Sub Note' as (typeof PUNCH_EXPORT_CSV_COLUMNS)[number]),
+    PUNCH_EXPORT_CSV_COLUMNS.indexOf('Rejection Note') + 1);
   eq('one row per item, sorted by Item #', rows.slice(1).map(r => Number(r[0])), Array.from({ length: 22 }, (_, i) => i + 1));
-  ok('every row has 21 cells', rows.every(r => r.length === 21));
+  ok('every row has 22 cells', rows.every(r => r.length === 22));
   const col = (name: string) => PUNCH_EXPORT_CSV_COLUMNS.indexOf(name as (typeof PUNCH_EXPORT_CSV_COLUMNS)[number]);
   const byId = (id: string): string[] => rows.find(r => r[col('Item ID')] === id) ?? [];
+  eq('#57: the sub\'s note is in its CSV cell, verbatim', byId(ID.i03)[col('Sub Note')], SUB_NOTE);
+  eq('#57: an item without a sub note has a blank cell', byId(ID.i01)[col('Sub Note')], '');
+  eq('#57: the Rejection Note cell is unchanged beside it', byId(ID.i01)[col('Rejection Note')], '<b>no</b> & back');
   eq('hostile description round-trips (RFC 4180)', byId(ID.i01)[col('Description')], HOSTILE_DESC);
   eq('hostile location round-trips', byId(ID.f3)[col('Location')], HOSTILE_LOC);
   eq('formula guard on Assigned To', byId(ID.i01)[col('Assigned To')], "'=SUM(A1)");
@@ -656,6 +666,13 @@ const decode = (s: string) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').r
   ok('ios html has no web landscape page', !capHtml.includes('@page pe-land') && !capHtml.includes('pe-plan pe-plan-land'));
 
   const noPhotos = buildPunchExportHtml(M, assetsFor(M), { includePhotos: false, branding: BRANDING, target: 'web', allowedOrigins: ORIGINS });
+  // #57: the sub's note, labelled as his, escaped (he typed it on his portal),
+  // before the GC's "Returned:" line — in BOTH layouts.
+  const escNote = '&lt;i&gt;replaced&lt;/i&gt; &amp; see &quot;closet&quot; side';
+  ok('#57 cards: "Sub\'s note:" printed, escaped', html.includes(`<b>Sub's note:</b> ${escNote}`) && !html.includes('<i>replaced</i>'));
+  ok('#57 table: "Sub\'s note:" printed, escaped', noPhotos.includes(`Sub's note: ${escNote}`) && !noPhotos.includes('<i>replaced</i>'));
+  ok('#57: one sub note in the fixture → one label per layout (no stray label on items without one)',
+    (html.match(/Sub's note:/g) ?? []).length === 1 && (noPhotos.match(/Sub's note:/g) ?? []).length === 1);
   ok('photos off → compact table, no cards, no objects', noPhotos.includes('<table class="pe-tbl">') && !noPhotos.includes('<div class="pe-card') && !noPhotos.includes('<object class="pe-obj"'));
   ok('table mode escapes too', !noPhotos.includes(HOSTILE_DESC) && noPhotos.includes('&lt;script&gt;'));
 
@@ -758,7 +775,10 @@ ok('all four source files exist', Object.values(raw).every(s => s.length > 0));
 
 {
   const ALLOWED_RUNTIME = new Set(['@/types', '@/utils/workflowPipelines', '@/utils/calendarDate', '@/utils/punchLocations', '@/utils/punchPlanPin',
-    '@/utils/planSheetImageCore', '@/utils/photoUploadCore', '@/utils/pdfDesign', '@/utils/errorCopy', '@/utils/punchExportCore']);
+    '@/utils/planSheetImageCore', '@/utils/photoUploadCore', '@/utils/pdfDesign', '@/utils/errorCopy', '@/utils/punchExportCore',
+    // punchGcCore is pure too (types + collaboratorAccess, itself type-only
+    // imports): the export reads its 'Unspecified'-is-no-room rule (#56).
+    '@/utils/punchGcCore']);
   for (const k of ['core', 'html'] as const) {
     const imports = [...code[k].matchAll(/^import\s+(type\s+)?[\s\S]*?from\s+'([^']+)';/gm)];
     const bad = imports.filter(m => !m[1] && !ALLOWED_RUNTIME.has(m[2])).map(m => m[2]);
@@ -898,7 +918,15 @@ function wiringProblems(punchList: string, pkgJson: string): string[] {
   const pipe = src.indexOf('onAdvance={(next) => {');
   const pipeBody = pipe >= 0 ? src.slice(pipe, src.indexOf('}}', pipe)) : '';
   ok('G2: the edit sheet\'s StatusPipeline is found', pipeBody.length > 0);
-  ok('G2: ...and closing from it stamps closedAt', /closing \? \{ closedAt: nowIso \}/.test(pipeBody) && /updatePunchItem\(editingItem\.id, patch\)/.test(pipeBody));
+  // Wave 4 (punch-gc): every status write goes through punchStatusPatch
+  // (utils/punchGcCore), which stamps closedAt on a close — proven by running
+  // it below, and pinned here at each call site.
+  ok('G2: ...and closing from it stamps closedAt', /punchStatusPatch\(editingItem, next as PunchItem\['status'\], nowIso\)/.test(pipeBody) && /updatePunchItem\(editingItem\.id, patch\)/.test(pipeBody));
+  {
+    const closedPatch = punchStatusPatch({ status: 'ready_for_review' }, 'closed', '2026-09-19T12:00:00.000Z');
+    eq('G2: punchStatusPatch stamps closedAt on close', closedPatch.closedAt, '2026-09-19T12:00:00.000Z');
+    eq('G2: ...and names the status explicitly', closedPatch.status, 'closed');
+  }
   const hsc = src.indexOf('const handleStatusChange = useCallback(');
   // A photo walk files N items in one press. Their createdAt must follow
   // capture order, because the export numbers by createdAt — one shared stamp
@@ -907,8 +935,31 @@ function wiringProblems(punchList: string, pkgJson: string): string[] {
   const fwsBody = fws >= 0 ? src.slice(fws, src.indexOf('}, [describedWalkShots', fws)) : '';
   ok('G2: a photo walk staggers createdAt in capture order',
     /describedWalkShots\.map\(\(shot, i\) =>/.test(fwsBody) && /createdAt: new Date\(nowMs \+ i\)\.toISOString\(\)/.test(fwsBody));
-  ok('G2: handleStatusChange still stamps closedAt on close',
-    hsc >= 0 && /if \(newStatus === 'closed'\) updates\.closedAt = /.test(src.slice(hsc, hsc + 400)));
+  ok('G2: handleStatusChange still stamps closedAt on close (through punchStatusPatch)',
+    hsc >= 0 && /updatePunchItem\(item\.id, punchStatusPatch\(item, newStatus, new Date\(\)\.toISOString\(\)\)\)/.test(src.slice(hsc, hsc + 600)));
+}
+
+// #56 (wave 4 punch-gc): the legacy 'Unspecified' placeholder punch-walk used
+// to save is no room — grouped with the unplaced items, never a room on the
+// GC's walk sheet — and the filter line names the unplaced group the way the
+// document's own group header does, whatever label the screen passed.
+{
+  const legacy = mk('legacy-unspec', { location: 'Unspecified' });
+  const blank = mk('legacy-blank', { location: '' });
+  const m = buildPunchExportModel({
+    scopeInput: { ...scopeIn(), allItems: [legacy, blank], filteredItems: [] },
+    scope: 'all', includeCrew: true, target: 'web', project: PROJECT, sheets: [], markupByItemId: new Map(), now: NOW,
+  });
+  const row = m.rows.find(r => r.id === 'legacy-unspec');
+  eq("#56: an 'Unspecified' item prints no typed room", row?.typedLocation, '');
+  const groups = m.sections.flatMap(sec => sec.groups);
+  ok("#56: ...and shares the one unplaced group (no 'Unspecified' group)",
+    groups.length === 1 && groups[0].key === UNPLACED_LOCATION_GROUP && groups[0].rows.length === 2
+    && !groups.some(g => /unspecified/i.test(g.label)), JSON.stringify(groups.map(g => [g.key, g.label, g.rows.length])));
+  eq('#56: the filter line words the unplaced group as the document does, whatever the screen called it',
+    describeFilters({ status: 'all', sub: '', priority: 'all', locationKey: UNPLACED_LOCATION_GROUP, locationLabel: 'No room given' }, 'punch'),
+    'Punch list · Location: No location given');
+  eq('#56: a typed room still uses the screen\'s label', describeFilters({ status: 'all', sub: '', priority: 'all', locationKey: 'hall 2', locationLabel: 'Hall 2' }, 'punch'), 'Punch list · Location: Hall 2');
 }
 
 // ───────────────────────────────────────────────────────────────────────────

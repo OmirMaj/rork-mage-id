@@ -50,6 +50,16 @@ export const EXPECTED_REDIRECTS: ExpectedRedirect[] = [
     states: ['empty', 'populated'],
   },
   {
+    from: '/onboarding',
+    to: '/',
+    why:
+      'Wave 4 #109: app/onboarding.tsx sends a user who has ALREADY finished '
+      + 'first-run to Home (decided once, on the first known hasSeenOnboarding), '
+      + 'so a stray navigation cannot sit a contractor with live jobs on the '
+      + 'first-run splash. Both smoke worlds have finished onboarding.',
+    states: ['empty', 'populated'],
+  },
+  {
     from: '/dev-seeder',
     to: '/',
     why: 'Developer-only sample-data tool; it navigates home once it has run.',

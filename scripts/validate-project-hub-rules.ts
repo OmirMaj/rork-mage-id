@@ -26,6 +26,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calendarDayOf } from '../utils/calendarDate';
 import { resolveProjectAccess, COLLABORATOR_PROJECT_FEATURES, OWNER_ONLY_FEATURES } from '../utils/collaboratorAccess';
+// #129 (wave 4): the Team count moved to the pure module (it takes `hasData`).
+import { teamCountLabel } from '../utils/projectRole';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -78,17 +80,16 @@ const hub = lift<{
   isPendingCO: (c: { status: string }) => boolean;
   hubLockedTileKeys: (a: { canAccessProject: (f: string) => boolean; canAccessOwnTier: (f: string) => boolean; roleLoading: boolean }) => Set<string>;
   hubPermissions: (r: Role) => Perms;
-  teamCountLabel: (a: { isLoading: boolean; isError: boolean; viewerIsOwner: boolean; rows: { status: string }[] }) => string | null;
   sortRFIsForHub: <T extends { number: number; status: string; dateRequired?: string | null }>(rows: T[], filter: string, dueDay: (v: string | null | undefined) => string | null) => T[];
   sortSubmittalsForHub: <T extends { currentStatus: string }>(rows: T[]) => T[];
   hubTileVisible: (key: string, p: { showMoney: boolean; showClientPortal: boolean }) => boolean;
   tileLockReason: (key: string, role: Role, tier: string | null) => string;
   leaveFailureMessage: (r: { reached: boolean; serverError: string | null; ok: boolean }) => string | null;
 }>(PD, [
-  'function isPendingCO(', 'function hubLockedTileKeys(', 'function hubPermissions(', 'function teamCountLabel(',
+  'function isPendingCO(', 'function hubLockedTileKeys(', 'function hubPermissions(',
   'function sortRFIsForHub<', 'function sortSubmittalsForHub<', 'const HUB_MONEY_TILE_KEYS', 'function hubTileVisible(',
   'function tileLockReason(', 'function leaveFailureMessage(',
-], ['isPendingCO', 'hubLockedTileKeys', 'hubPermissions', 'teamCountLabel', 'sortRFIsForHub', 'sortSubmittalsForHub', 'hubTileVisible', 'tileLockReason', 'leaveFailureMessage']);
+], ['isPendingCO', 'hubLockedTileKeys', 'hubPermissions', 'sortRFIsForHub', 'sortSubmittalsForHub', 'hubTileVisible', 'tileLockReason', 'leaveFailureMessage']);
 
 // ── #39 · one pending predicate, approve rows under their own row ────────────
 console.log('\n#39 change orders');
@@ -199,6 +200,8 @@ ok('Leave calls project-invite {action:\'leave\', projectId}',
   /supabase\.functions\.invoke\('project-invite', \{ body: \{ action: 'leave', projectId: id \} \}\)/.test(pd));
 ok('…and only after the server confirms re-reads, without deleteProject',
   (() => {
+    // #8/#128 (wave 4): the server call is handleLeave's inner runLeave,
+    // reached only after the pre-leave flush + count and the confirm.
     const s = pdRaw.indexOf('const handleLeave = useCallback(');
     const body = pdRaw.slice(s, pdRaw.indexOf('}, [id, leaving', s));
     return body.indexOf('leaveFailureMessage(') > 0
@@ -212,15 +215,18 @@ ok('a blocked edit prints its reason under the button', /testID="edit-project-bl
 
 // ── #173 / #174 · the Team ───────────────────────────────────────────────────
 console.log('\n#173 / #174 team');
-if (hub) {
+{
+  // #129: loading, a failed read and a read paused offline are all "no data"
+  // — the paused one used to print "1" (0 accepted + the owner).
   const rows = [{ status: 'accepted' }, { status: 'accepted' }, { status: 'pending' }];
-  expect('owner: members + pending', hub.teamCountLabel({ isLoading: false, isError: false, viewerIsOwner: true, rows }), '3 + 1 pending');
-  expect('owner, all accepted', hub.teamCountLabel({ isLoading: false, isError: false, viewerIsOwner: true, rows: rows.slice(0, 2) }), '3');
-  expect('owner alone', hub.teamCountLabel({ isLoading: false, isError: false, viewerIsOwner: true, rows: [] }), '1');
-  expect('loading: no number, not a guessed 1', hub.teamCountLabel({ isLoading: true, isError: false, viewerIsOwner: true, rows: [] }), null);
-  expect('failed read: no number', hub.teamCountLabel({ isLoading: false, isError: true, viewerIsOwner: true, rows: [] }), null);
-  expect('collaborator (RLS shows only his row): no number', hub.teamCountLabel({ isLoading: false, isError: false, viewerIsOwner: false, rows: [{ status: 'accepted' }] }), null);
+  expect('owner: members + pending', teamCountLabel({ hasData: true, viewerIsOwner: true, rows }), '3 + 1 pending');
+  expect('owner, all accepted', teamCountLabel({ hasData: true, viewerIsOwner: true, rows: rows.slice(0, 2) }), '3');
+  expect('owner alone', teamCountLabel({ hasData: true, viewerIsOwner: true, rows: [] }), '1');
+  expect('no data (loading / failed / paused offline): no number, not a guessed 1', teamCountLabel({ hasData: false, viewerIsOwner: true, rows: [] }), null);
+  expect('collaborator (RLS shows only his row): no number', teamCountLabel({ hasData: true, viewerIsOwner: false, rows: [{ status: 'accepted' }] }), null);
 }
+ok('#129: project-detail feeds the count the roster\'s hasData, not "not loading and not failed"',
+  /teamCountLabel\(\{ hasData: teamRoster\.hasData,/.test(pd) && !/isError: teamRoster\.isError/.test(pd));
 ok('the count reads useProjectCollaborators (same key as the Team list)', /const teamRoster = useProjectCollaborators\(project\?\.id\);/.test(pd));
 ok('no count reads the legacy project.collaborators any more',
   !/project\.collaborators/.test(pdRaw) && !/collaborators\.length \+ 1/.test(pdRaw));
@@ -278,7 +284,15 @@ ok('the paywall is mounted OUTSIDE the tile sheet', /<Paywall visible=\{portalPa
 // ── client-portal handoff · one lite-sync, no second copy of the merge ───────
 console.log('\nportal lite sync');
 ok('project-detail publishes through syncPortalSnapshotLite, with permits',
-  /void syncPortalSnapshotLite\(project\.id, \{ project, userId: authUser\?\.id, settings, settingsLoaded,[\s\S]{0,300}permits: projectPermits, \}\);/.test(pd));
+  /void syncPortalSnapshotLite\(project\.id, \{ project, userId: authUser\?\.id, settings, settingsLoaded,[\s\S]{0,300}permits: projectPermits,[\s\S]{0,1200}\}\);/.test(pd));
+// #15 (wave 4): the job's pay apps ride along — but only under the provider's
+// AIA freshness gate (integration round 1: a non-empty but stale list dropped
+// a pay app shared from another device; otherwise the section is carried).
+ok('#15: the lite publish passes the job\'s AIA pay apps only while the AIA list is the server\'s',
+  /\.\.\.\(portalAiaListServerRead \? \{ aiaPayApps: projectAIAPayApps \} : \{\}\),/.test(pd)
+  && !/projectAIAPayApps\.length > 0 \? \{ aiaPayApps/.test(pd)
+  && /\}, \[project, portalListsServerRead, portalAiaListServerRead, authUser\?\.id,/.test(pd)
+  && /projectWarranties, projectPermits, projectAIAPayApps\]\);/.test(pd));
 ok('…and holds no inline copy of the merge or the upsert',
   !/from\('portal_snapshots'\)/.test(pdRaw) && !/function carriedOpenBook\(/.test(pdRaw) && !/buildPortalSnapshot\(/.test(pdRaw)
   && !/PROJECT_DETAIL_SUPABASE_ANON_KEY/.test(pdRaw));

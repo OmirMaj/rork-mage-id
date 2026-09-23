@@ -133,7 +133,10 @@ export function rfiFromCandidate(
    *  THAT sheet — cite it and link it, and name the old one as the baseline.
    *  #77: `sheetImages` are the two drawings compared (old, then new), attached
    *  so the architect can see what changed instead of a sheet number in text.
-   *  Only viewable http(s) images are kept (attachableSheetUri). */
+   *  #113: each is stored as its DURABLE plan-sheets key (attachableSheetUri),
+   *  never the 24 h signed URL the screen rendered it from — app/rfi.tsx signs
+   *  it when drawn, the send signs it for the email, the reply page signs it
+   *  on each open. */
   opts?: { newSheet?: SheetCite | null; sheetImages?: readonly (string | null | undefined)[] },
 ) {
   const newSheet = opts?.newSheet ?? null;
@@ -391,7 +394,8 @@ export function pinPositionPhrase(x: number, y: number): string {
 /**
  * The addRFI input for "Raise RFI from this location".
  *
- * `sheetImageUri` is the drawing itself, attached so the recipient can see the
+ * `sheetImageUri` is the drawing itself (stored as its durable plan-sheets key,
+ * #93 — pass sheetAttachmentFor(sheet)), attached so the recipient can see the
  * sheet; `photo` is a photo linked to the pin. The photo goes FIRST: app/rfi.tsx
  * treats attachment 0 as the source photo (sourcePhotoId) and draws its markup
  * from there, so putting the sheet ahead of it would hang the photo's circle on
@@ -413,7 +417,9 @@ export function rfiFromPin(
   const label = (pin.label ?? '').trim();
   const where = `on ${sheetName}, ${pinPositionPhrase(pin.x, pin.y)}`;
   const photo = attach.photo && attach.photo.uri ? attach.photo : null;
-  const sheetUri = (attach.sheetImageUri ?? '').trim();
+  // #93/#94: the durable key, never a signed URL (attachableSheetUri) — and a
+  // bare key is a real sheet now, so an offline raise still attaches it.
+  const sheetUri = attachableSheetUri(attach.sheetImageUri);
   const attachments = [...(photo ? [photo.uri] : []), ...(sheetUri ? [sheetUri] : [])];
   const seeAttached = sheetUri ? ` ${sheetName} is attached.` : '';
   return {
@@ -437,11 +443,90 @@ export function rfiFromPin(
   };
 }
 
-/** A viewable, http(s) sheet image to attach, or ''. A device-local file or a
- *  bare storage path cannot be emailed or opened by the architect. */
+// ── #93 / #113 What a sheet attachment stores ──────────────────────────────
+
+// Mirror of utils/planSheetUrls.ts planSheetStoragePath + isProjectScopedPlanSheetPath.
+// Duplicated ON PURPOSE: that module imports the Supabase client, and this file
+// must stay pure so bun validators can execute it. scripts/validate-w4-plans-*
+// runs both over the same inputs so the two cannot drift.
+const PLAN_SHEET_URL_MARKERS = [
+  '/storage/v1/object/public/plan-sheets/',
+  '/storage/v1/object/sign/plan-sheets/',
+  '/storage/v1/object/plan-sheets/',
+] as const;
+const DEVICE_LOCAL = /^(file|blob|data|content|ph|assets-library):/i;
+const PROJECT_FOLDER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i;
+
+/** The plan-sheets object key inside a path or a public/signed storage URL, or
+ *  '' when the value is not a plan-sheets reference (see planSheetStoragePath). */
+export function planSheetKeyOf(uri: string | null | undefined): string {
+  const raw = String(uri ?? '').trim();
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) return DEVICE_LOCAL.test(raw) ? '' : raw.replace(/^\/+/, '');
+  for (const marker of PLAN_SHEET_URL_MARKERS) {
+    const at = raw.indexOf(marker);
+    if (at < 0) continue;
+    const tail = raw.slice(at + marker.length);
+    const q = tail.indexOf('?');
+    const key = q >= 0 ? tail.slice(0, q) : tail;
+    try { return decodeURIComponent(key); } catch { return key; }
+  }
+  return '';
+}
+
+/**
+ * What an RFI stores for a drawing: the DURABLE plan-sheets key
+ * (`<projectId>/<id>-page-N.png`), or '' when there is nothing any other
+ * device could ever open.
+ *
+ * #93 / #113: this used to keep the signed https URL itself, which dies 24 h
+ * after it was minted — the GC's own tile went blank a day later and the
+ * architect's reply page lost the drawing mid-review. A key never expires;
+ * every reader signs it when it draws it (app/rfi.tsx, the send, and the reply
+ * page through signed-media-urls). Only a PROJECT-SCOPED key is kept: a legacy
+ * `tmp/` object no membership policy can sign. An https image that is not
+ * ours (or a legacy tmp/ URL) is kept as-is — there is no key to recover. A
+ * device-local file or a bare non-project path is dropped.
+ */
 export function attachableSheetUri(uri: string | null | undefined): string {
   const u = String(uri ?? '').trim();
+  const key = planSheetKeyOf(u);
+  if (key && PROJECT_FOLDER.test(key)) return key;
   return /^https:\/\//i.test(u) ? u : '';
+}
+
+/**
+ * The value to attach for a sheet object: its storagePath when it has one (set
+ * only for project-scoped keys), else whatever attachableSheetUri keeps of its
+ * renderable URI. #94: offline, `imageUri` is the cached bare key and used to be
+ * dropped, so a pin RFI raised on site went out with no sheet.
+ */
+export function sheetAttachmentFor(sheet: { storagePath?: string; imageUri?: string }): string {
+  return attachableSheetUri(sheet.storagePath || sheet.imageUri);
+}
+
+/** True when `attachments` already carry this sheet (compared by object key,
+ *  so a legacy signed URL and the bare key count as the same drawing). */
+export function attachmentsHaveSheet(attachments: readonly string[], sheetKey: string): boolean {
+  const key = planSheetKeyOf(sheetKey);
+  if (!key) return false;
+  return attachments.some(a => planSheetKeyOf(a) === key);
+}
+
+/**
+ * #94: the email's pin sentence. The reply page circles a pin only on a tile
+ * whose object key matches the pin's sheet (pin_marks.sheet_path), so the
+ * circle is promised only when such a tile was actually signed for this send.
+ */
+export function pinLocationLine(opts: {
+  sheetName: string; x: number; y: number;
+  /** A reply link exists AND a signed attachment carries the pin's sheet. */
+  circledAtReplyLink: boolean;
+}): string {
+  const where = `Marked location: ${opts.sheetName}, ${Math.round(opts.x * 100)}% across and ${Math.round(opts.y * 100)}% down the sheet`;
+  return opts.circledAtReplyLink
+    ? `${where} — circled on the sheet at the reply link.`
+    : `${where} (the sheet is not attached; the location is given here in words).`;
 }
 
 // ── #78 Answers only from the current revision ─────────────────────────────
@@ -467,10 +552,17 @@ export function splitMatchesByCurrentSheet<T extends { doc_id: string }>(
   return { current, staleDropped };
 }
 
-/** The line shown when older-revision matches were left out of an answer. */
-export function staleMatchesNote(staleDropped: number, answeredFromCurrent: boolean): string | null {
+/** The line shown when older-revision matches were left out of an answer.
+ *  #114: `canIndex` false (a viewer or field seat) must not be told to "tap
+ *  Index" — a button his seat does not have. */
+export function staleMatchesNote(staleDropped: number, answeredFromCurrent: boolean, canIndex = true): string | null {
   if (staleDropped <= 0) return null;
   const n = `${staleDropped} match${staleDropped === 1 ? '' : 'es'}`;
+  if (!canIndex) {
+    return answeredFromCurrent
+      ? `${n} came from a superseded or deleted sheet and ${staleDropped === 1 ? 'was' : 'were'} left out — ask the project owner or an editor to re-index the new revision.`
+      : `The only matching sheets were older revisions — the current set isn't indexed yet. Ask the project owner or an editor to re-index it.`;
+  }
   return answeredFromCurrent
     ? `${n} came from a superseded or deleted sheet and ${staleDropped === 1 ? 'was' : 'were'} left out — tap Index to read the new revision.`
     : `The only matching sheets were older revisions — the current set isn't indexed yet. Tap Index to search it.`;
@@ -510,6 +602,10 @@ export function planScreenGate(s: { canAccess: boolean; roleLoading: boolean; ro
 
 export type PlanControl = 'import' | 'delete' | 'compare' | 'estimate' | 'index' | 'markup';
 
+/** The one sentence for a seat that may not build the index — the same words
+ *  plan-extract and project-memory-embed refuse with. */
+export const PLAN_INDEX_REFUSAL = 'The project owner or an editor indexes the plan set \u2014 you can ask questions of the sheets they indexed.';
+
 /** Why the role read has not produced a role. A null role means different
  *  things, and each needs its own sentence: still in flight, the read FAILED
  *  (retry), or paused because the device is offline (web react-query pauses a
@@ -540,9 +636,13 @@ export function effectivePlanRole(
  *
  *   import / compare — write sheets into the GC's set (plan-sheets storage is
  *     editor+), so field and viewer seats are refused;
- *   delete — plan_sheets rows delete for their owner only (plan_sheets_all_own);
+ *   delete — the project owner; an editor only for sheets HE added, which is
+ *     sheetDeleteBlock's per-sheet decision (plan_sheets_collab_delete:
+ *     auth.uid() = user_id OR the project owner) — this screen-wide check
+ *     refuses every non-owner;
  *   estimate — Plan Intelligence is the GC's estimating tool, not the job's;
- *   index — the Ask Your Plans index is built on the owner's plan and allowance;
+ *   index — owner or editor (planScope mayWritePlanIndex, #114), metered on the
+ *     owner's plan and allowance; viewer and field seats ask only;
  *   markup — pins, strokes, scale and sheet numbers insert/update at field tier
  *     and above (field_role_reconcile: drawing_pins, plan_markups,
  *     plan_calibrations, plan_sheets _collab_insert/_collab_update), so a
@@ -565,12 +665,34 @@ export function planControlBlock(role: PlanRole, control: PlanControl, status?: 
     case 'compare':
       return role === 'editor' ? null : 'Only the project owner or an editor can compare revisions \u2014 a comparison files the new revision into the set.';
     case 'delete':
-      return 'Only the project owner can delete sheets.';
+      return 'Only the project owner, or the editor who added a sheet, can delete it.';
     case 'estimate':
       return role === 'editor' ? null : 'Estimating rooms from a sheet is the project owner\u2019s tool.';
     case 'index':
-      return 'The project owner indexes the plan set \u2014 you can ask questions of the sheets they indexed.';
+      // #114: the server lets an editor index (planScope mayWritePlanIndex,
+      // metered on the owner's plan), so refusing him here was a client-only
+      // dead end right after he filed a revision through Compare.
+      return role === 'editor' ? null : PLAN_INDEX_REFUSAL;
     case 'markup':
       return role === 'viewer' ? 'Viewer seats can look but not mark up \u2014 ask the project owner for a field seat.' : null;
   }
+}
+
+/**
+ * #118: may this seat delete THIS sheet? The owner always; an editor only a
+ * sheet he added (plan_sheets_collab_delete: auth.uid() = user_id OR the
+ * project owner). A sheet with no recorded uploader (legacy row, or one read
+ * before the uploader was mapped) stays blocked — the server would refuse him.
+ */
+export function sheetDeleteBlock(
+  role: PlanRole,
+  sheet: { userId?: string },
+  userId: string | null | undefined,
+  status?: PlanRoleStatus,
+): string | null {
+  const screenWide = planControlBlock(role, 'delete', status);
+  if (screenWide === null) return null;
+  if (role === 'editor' && sheet.userId && userId && sheet.userId === userId) return null;
+  if (role === 'editor') return 'Only the project owner, or the editor who added this sheet, can delete it \u2014 someone else added this one.';
+  return screenWide;
 }

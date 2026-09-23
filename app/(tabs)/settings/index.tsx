@@ -50,6 +50,7 @@ import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel } from '@/utils/paymentTerms';
 import { getOwnOfflineQueue } from '@/utils/offlineQueue';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
+import { countOwnUnsavedRecords, requestSyncSheet } from '@/utils/syncLedger';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -205,19 +206,29 @@ export default function SettingsScreen() {
     // AuthContext.logout joins the running one anyway — but a tap that
     // raced the re-render must not open a second dialog on top of it.
     if (signingOut) return;
-    const [queued, photos] = await Promise.all([
+    const [queued, photos, unsaved] = await Promise.all([
       getOwnOfflineQueue().then((q) => q.length).catch(() => 0),
       getOwnPhotoUploadQueue().then((q) => q.length).catch(() => 0),
+      countOwnUnsavedRecords().catch(() => 0),
     ]);
     const pending = queued + photos;
     const parts = [queued > 0 ? countNoun(queued, 'change') : '', photos > 0 ? countNoun(photos, 'photo') : ''].filter(Boolean);
-    const message = pending > 0
+    // Integration round 1: sign-out empties the Not-saved list
+    // (clearSyncFailures), and since wave 4 that list holds the ONLY copy of a
+    // record the server refused — a sign-out is not a sync for those, it is a
+    // Discard. Say so, in his number, and offer the list first.
+    const unsavedLine = unsaved > 0
+      ? `${countNoun(unsaved, 'record')} under Not saved on the sync badge ${unsaved === 1 ? 'was' : 'were'} refused by the server and ${unsaved === 1 ? 'is' : 'are'} only on this phone. Signing out deletes ${unsaved === 1 ? 'it' : 'them'} — retry or review ${unsaved === 1 ? 'it' : 'them'} first.`
+      : '';
+    const pendingLine = pending > 0
       ? `${parts.join(' and ')} ${pending === 1 ? "hasn't" : "haven't"} reached the cloud yet. Signing out will try to sync ${pending === 1 ? 'it' : 'them'} first; anything that still can't sync will be discarded.`
-      : 'Are you sure you want to sign out?';
+      : '';
+    const message = [unsavedLine, pendingLine].filter(Boolean).join('\n\n') || 'Are you sure you want to sign out?';
     showAlert('Sign Out', message, [
       { text: 'Cancel', style: 'cancel' },
+      ...(unsaved > 0 ? [{ text: 'Review Not saved', onPress: () => requestSyncSheet() }] : []),
       {
-        text: pending > 0 ? 'Sync & Sign Out' : 'Sign Out',
+        text: unsaved > 0 ? 'Delete & Sign Out' : pending > 0 ? 'Sync & Sign Out' : 'Sign Out',
         style: 'destructive',
         onPress: async () => {
           await logout(true);

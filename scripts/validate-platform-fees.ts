@@ -97,7 +97,11 @@ ok('promotion codes are not enabled on invoice links', !/allow_promotion_codes:\
 ok('the minted amount is persisted as pay_link_amount (dollars)',
   /pay_link_amount:\s*Math\.round\(body\.amountCents\)\s*\/\s*100/.test(serverSrc));
 ok('re-mint reads the existing link for BOTH tables (AIA double-charge path)',
-  /select=id,user_id,pay_link_id&limit=1/.test(serverSrc) && !/ownSelect/.test(serverCode),
+  // Wave 4 (#38/#83): the lookup also reads project_id and pay_pending_at, and
+  // retries without pay_pending_at if migration 20260920020000 is missing —
+  // BOTH column lists must still carry pay_link_id.
+  /lookup\("id,user_id,project_id,pay_link_id,pay_pending_at"\)/.test(serverSrc) && /lookup\("id,user_id,project_id,pay_link_id"\)/.test(serverSrc)
+    && /\/rest\/v1\/\$\{table\}\?id=eq\.\$\{encodeURIComponent\(body\.invoiceId\)\}&select=\$\{cols\}&limit=1/.test(serverSrc) && !/ownSelect/.test(serverCode),
   'the ownership SELECT must include pay_link_id for invoices AND aia_pay_apps so the replaced link is retired');
 ok('the replaced link is deactivated on Stripe', /previousLinkId && previousLinkId !== id/.test(serverSrc));
 

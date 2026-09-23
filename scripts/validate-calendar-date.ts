@@ -430,10 +430,8 @@ const ALLOWED: Allowed[] = [
   // replaced both readers with carrySourceDayLabel / carrySourceDayAbsolute,
   // which resolve the day through calendarDayOf and are executed for real in
   // the runtime section above.
-  { file: 'app/daily-report.tsx', line: 'Date.parse(b.date)', added: '2026-09-04',
-    reason: 'sort key over DailyFieldReport.date instants; ordering is unaffected by the UTC/local question' },
-  { file: 'app/daily-report.tsx', line: 'Date.parse(a.date)', added: '2026-09-04',
-    reason: 'sort key over DailyFieldReport.date instants (the other half of the same comparator)' },
+  // daily-report's Date.parse(a.date)/(b.date) sort comparator used to sit
+  // here; wave 4 (lane dfr) removed that site, so the entries went with it.
   // RFI.dateRequired is NOT an instant: app/photo-triage.tsx and the voice
   // parsers write a bare 'YYYY-MM-DD', DatePickerModal writes noon UTC, and
   // app/rfi.tsx's two-week default is a bare local day. Every screen reader

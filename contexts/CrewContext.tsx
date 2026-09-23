@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import type { CrewMember, Certification } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,10 @@ import { generateUUID } from '@/utils/generateId';
 import { generateClaimToken } from '@/utils/crew';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { shouldSurfaceToMarketplace, crewMemberToWorkerProfile } from '@/utils/crew';
+import { isTransportError } from '@/utils/networkErrors';
+import {
+  projectCrewCacheKey, savedProjectCrewFrom, parseSavedProjectCrew, type SavedProjectCrew,
+} from '@/utils/timeClockPayroll';
 
 const CREW_KEY = 'mageid_crew_members';
 
@@ -218,8 +222,20 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
 // OWNER assigned to this job (id, name, trades, status — never the claim
 // token, phone or ID scan), and those workers' certificate type + expiry.
 //
-// Read-only and never persisted: it is the GC's data, shown for one job, and
-// it never enters CrewProvider's list, so nothing here can edit or delete it.
+// Read-only: it is the GC's data, shown for one job, and it never enters
+// CrewProvider's list, so nothing here can edit or delete it.
+//
+// SAVED FOR NO SIGNAL (#100). It used to be network-only and never persisted,
+// so a foreman in a basement could clock nobody in (and on weak signal, with no
+// timeout in supabase-js, the spinner ran forever). Each successful read is now
+// saved under mageid_project_crew:<user>:<job> (utils/timeClockPayroll — only
+// id / name / trades / status and cert type / expiry). When the read can't
+// reach the server (a transport error, or the ~10 s timeout) the saved copy is
+// served with `fromCache` + `fetchedAt`, and it seeds the query at once so a
+// cold start offline shows the roster instead of a spinner. A server ANSWER
+// that refuses the read is not "offline": that throws, and a refusal
+// (42501) drops the saved copy. So does `revoked` (his role on the job
+// resolved to none), so a removed seat keeps none of the GC's crew names.
 
 export interface ProjectCrewMember {
   id: string;
@@ -236,47 +252,138 @@ export interface ProjectCrewState {
   /** The read failed (offline, or the migration is not live yet). */
   isError: boolean;
   refetch: () => void;
+  /** When the list on screen was fetched from the server (ISO), or null. */
+  fetchedAt: string | null;
+  /** The list on screen is the copy saved on this phone, not a fresh read. */
+  fromCache: boolean;
+  /** The read is waiting for a network (react-query paused it). */
+  isPaused: boolean;
+  /** No network reached the server: paused, or failed with a transport error. */
+  offline: boolean;
 }
 
-export function useProjectCrew(projectId: string | null | undefined, enabled: boolean): ProjectCrewState {
+/** How long one crew read may take before the saved copy is served. */
+const PROJECT_CREW_TIMEOUT_MS = 10_000;
+
+interface ProjectCrewResult { crew: ProjectCrewMember[]; certifications: Certification[]; fetchedAt: string; fromCache: boolean }
+
+function resultFromSaved(saved: SavedProjectCrew): ProjectCrewResult {
+  return {
+    crew: saved.crew.map(m => ({ ...m, status: m.status as CrewMember['status'] })),
+    certifications: saved.certifications.map(c => ({
+      id: c.id, workerId: c.workerId, type: c.type, expiresDate: c.expiresDate,
+      status: 'valid', createdAt: '', createdBy: '',
+    })),
+    fetchedAt: saved.fetchedAt,
+    fromCache: true,
+  };
+}
+
+async function readSavedProjectCrew(key: string): Promise<SavedProjectCrew | null> {
+  try { return parseSavedProjectCrew(await AsyncStorage.getItem(key)); } catch { return null; }
+}
+
+export function useProjectCrew(
+  projectId: string | null | undefined,
+  enabled: boolean,
+  opts: { revoked?: boolean } = {},
+): ProjectCrewState {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const on = enabled && !!projectId && !!userId && isSupabaseConfigured;
+  const revoked = opts.revoked === true;
+  const on = enabled && !revoked && !!projectId && !!userId && isSupabaseConfigured;
+  const cacheKey = userId && projectId ? projectCrewCacheKey(userId, projectId) : null;
+  const queryClient = useQueryClient();
+
+  // The saved copy, read once per job so the query can start from it.
+  const [saved, setSaved] = useState<{ key: string; value: SavedProjectCrew | null } | null>(null);
+  useEffect(() => {
+    if (!cacheKey || revoked) return;
+    let cancelled = false;
+    void readSavedProjectCrew(cacheKey).then(value => { if (!cancelled) setSaved({ key: cacheKey, value }); });
+    return () => { cancelled = true; };
+  }, [cacheKey, revoked]);
+
+  // Access gone: forget the GC's crew on this phone.
+  useEffect(() => {
+    if (!revoked || !cacheKey) return;
+    void AsyncStorage.removeItem(cacheKey).catch(() => {});
+    queryClient.removeQueries({ queryKey: ['project_crew', userId, projectId] });
+    setSaved(null);
+  }, [revoked, cacheKey, queryClient, userId, projectId]);
+
   const q = useQuery({
     queryKey: ['project_crew', userId, projectId],
     enabled: on,
-    queryFn: async () => {
-      const [crewRes, certRes] = await Promise.all([
-        supabase.rpc('project_crew_roster', { p_project_id: projectId }),
-        supabase.rpc('project_crew_cert_flags', { p_project_id: projectId }),
-      ]);
-      if (crewRes.error) throw new Error(crewRes.error.message);
-      if (certRes.error) throw new Error(certRes.error.message);
-      const crew: ProjectCrewMember[] = ((crewRes.data ?? []) as Record<string, unknown>[]).map(r => ({
-        id: String(r.id),
-        fullName: (r.full_name as string) ?? '',
-        trades: Array.isArray(r.trades) ? (r.trades as string[]) : [],
-        status: ((r.status as CrewMember['status']) ?? 'active'),
-      }));
-      const certifications: Certification[] = ((certRes.data ?? []) as Record<string, unknown>[]).map(r => ({
-        id: String(r.id),
-        workerId: (r.worker_id as string | null) ?? undefined,
-        type: (r.type as string) ?? '',
-        expiresDate: (r.expires_date as string | null) ?? undefined,
-        // Not returned (and not read by the flags): certFlagsForWorker derives
-        // the status from expiresDate itself.
-        status: 'valid',
-        createdAt: '',
-        createdBy: '',
-      }));
-      return { crew, certifications };
+    placeholderData: saved && saved.key === cacheKey && saved.value ? resultFromSaved(saved.value) : undefined,
+    queryFn: async (): Promise<ProjectCrewResult> => {
+      const key = projectCrewCacheKey(userId as string, projectId as string);
+      const ctrl = new AbortController();
+      let timedOut = false;
+      const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, PROJECT_CREW_TIMEOUT_MS);
+      try {
+        const [crewRes, certRes] = await Promise.all([
+          supabase.rpc('project_crew_roster', { p_project_id: projectId }).abortSignal(ctrl.signal),
+          supabase.rpc('project_crew_cert_flags', { p_project_id: projectId }).abortSignal(ctrl.signal),
+        ]);
+        const failed = crewRes.error ?? certRes.error;
+        if (failed) {
+          // Not reached the server (or timed out): the saved copy, if any.
+          if (timedOut || isTransportError(failed)) {
+            const copy = await readSavedProjectCrew(key);
+            if (copy) return resultFromSaved(copy);
+            throw new Error(timedOut ? 'Network request timed out' : failed.message);
+          }
+          // The server said no: this seat may no longer read the job's crew.
+          if ((failed as { code?: string }).code === '42501') void AsyncStorage.removeItem(key).catch(() => {});
+          throw new Error(failed.message);
+        }
+        const crew: ProjectCrewMember[] = ((crewRes.data ?? []) as Record<string, unknown>[]).map(r => ({
+          id: String(r.id),
+          fullName: (r.full_name as string) ?? '',
+          trades: Array.isArray(r.trades) ? (r.trades as string[]) : [],
+          status: ((r.status as CrewMember['status']) ?? 'active'),
+        }));
+        const certifications: Certification[] = ((certRes.data ?? []) as Record<string, unknown>[]).map(r => ({
+          id: String(r.id),
+          workerId: (r.worker_id as string | null) ?? undefined,
+          type: (r.type as string) ?? '',
+          expiresDate: (r.expires_date as string | null) ?? undefined,
+          // Not returned (and not read by the flags): certFlagsForWorker derives
+          // the status from expiresDate itself.
+          status: 'valid',
+          createdAt: '',
+          createdBy: '',
+        }));
+        const fetchedAt = new Date().toISOString();
+        try {
+          await AsyncStorage.setItem(key, JSON.stringify(savedProjectCrewFrom(crew, certifications, fetchedAt)));
+        } catch (err) { console.log('[CrewContext] project crew save failed:', err); }
+        return { crew, certifications, fetchedAt, fromCache: false };
+      } catch (err) {
+        // A thrown transport failure (fetch rejected outright) — same fallback.
+        if (timedOut || isTransportError(err)) {
+          const copy = await readSavedProjectCrew(key);
+          if (copy) return resultFromSaved(copy);
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
     },
   });
+  const isPaused = on && q.fetchStatus === 'paused';
+  const offline = isPaused || (on && q.isError && isTransportError(q.error));
+  const data = on ? q.data : undefined;
   return {
-    crew: q.data?.crew ?? [],
-    certifications: q.data?.certifications ?? [],
+    crew: data?.crew ?? [],
+    certifications: data?.certifications ?? [],
     isLoading: on && q.isLoading,
-    isError: on && q.isError,
+    isError: on && q.isError && !data,
     refetch: () => { void q.refetch(); },
+    fetchedAt: data?.fetchedAt ?? null,
+    fromCache: !!data?.fromCache,
+    isPaused,
+    offline,
   };
 }

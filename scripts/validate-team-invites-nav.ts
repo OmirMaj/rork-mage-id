@@ -47,6 +47,9 @@ const at = (hay: string, needle: string | RegExp, from = 0) => {
 };
 const BARE_REPLACE_PD = /router\.replace\(\s*\{\s*pathname:\s*['"]\/project-detail['"]/;
 const HOME_THEN_PUSH = /router\.replace\('\/\(tabs\)\/\(home\)' as never\);\s*router\.push\(\{ pathname: '\/project-detail', params: \{ id: (\w+) \} \} as never\);/;
+// #111 (wave 4): an invitee lands on the project WITH justJoined, so the hub
+// shows its loader while the list re-reads instead of "project not found".
+const HOME_THEN_PUSH_JOINED = /router\.replace\('\/\(tabs\)\/\(home\)' as never\);\s*router\.push\(\{ pathname: '\/project-detail', params: \{ id: (\w+), justJoined: '1' \} \} as never\);/;
 
 // ── #70 onboarding-paywall ───────────────────────────────────────────────────
 console.log('\n#70 onboarding-paywall exits land on the project WITH Home underneath:');
@@ -70,7 +73,7 @@ console.log('\n#94 / #93 / #172 accept-invite:');
   const src = code(raw);
   ok('no bare replace to /project-detail', !BARE_REPLACE_PD.test(src));
   const open = src.slice(at(src, 'const openProject = useCallback('), at(src, 'const goHome = useCallback('));
-  const pushes = [...open.matchAll(new RegExp(HOME_THEN_PUSH.source, 'g'))].length;
+  const pushes = [...open.matchAll(new RegExp(HOME_THEN_PUSH_JOINED.source, 'g'))].length;
   ok('openProject: both set-up branches replace Home then push the project', pushes === 2, `found ${pushes}`);
   ok('a persona-less account goes to persona-select WITH invitedProject (persona still asked, never guessed)',
     /router\.replace\(\{ pathname: '\/persona-select', params: \{ invitedProject: projectId \} \} as never\)/.test(open)
@@ -78,7 +81,7 @@ console.log('\n#94 / #93 / #172 accept-invite:');
   ok('the onboarding-only branch TAKES the stash before completeOnboarding (one navigation wins)',
     at(open, 'await takePendingDeepLink()') < at(open, 'await completeOnboarding()'));
   ok('the safety-net stash is set only while first-run is unfinished',
-    /if \(userRole !== null && hasSeenOnboarding === true\) return;\s*void setPendingDeepLink\(`\/project-detail\?id=\$\{encodeURIComponent\(projectId\)\}`\)/.test(src));
+    /if \(userRole !== null && hasSeenOnboarding === true\) return;\s*void setPendingDeepLink\(`\/project-detail\?id=\$\{encodeURIComponent\(projectId\)\}&justJoined=1`\)/.test(src));
   ok("the button reads 'Setting up your account…' while the writes run", /\{opening \|\| !firstRunKnown \? \([\s\S]{0,200}Setting up your account…/.test(src));
   ok('nothing decides on userRole until first-run state has loaded (null while loading ≠ never picked)',
     /if \(opening \|\| !firstRunKnown\) return;/.test(src) && /if \(status !== 'done' \|\| !projectId \|\| !firstRunKnown\) return;/.test(src));

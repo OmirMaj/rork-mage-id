@@ -191,7 +191,7 @@ serve(async (req: Request) => {
   const docs = (body.docs || []).filter(d => d && d.doc_id && d.content).slice(0, MAX_DOCS);
   if (!projectId || docs.length === 0) return json({ success: false, error: "Missing projectId or docs" }, 400);
   if (planScope && !mayWritePlanIndex(planScope.role)) {
-    return json({ success: false, error: "The project owner indexes the plan set — you can ask questions of the sheets they indexed.", code: "index_owner_only" }, 403);
+    return json({ success: false, error: "The project owner or an editor indexes the plan set — you can ask questions of the sheets they indexed.", code: "index_owner_only" }, 403);
   }
 
   // Cost ceiling (audit: this + project-memory-search were the ONLY paid-AI

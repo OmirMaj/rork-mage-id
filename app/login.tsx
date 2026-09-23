@@ -14,10 +14,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
-import { neutralInk } from '@/components/ui';
+import { neutralInk, cardSurface } from '@/components/ui';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { INVITE_PARAM, postSignInHref, signupHrefForInvite, sanitizeInviteToken } from '@/utils/deepLinksInvite';
+import {
+  INVITE_PARAM, postSignInHref, signupHrefForInvite, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
+} from '@/utils/deepLinksInvite';
 
 let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 
@@ -26,6 +28,12 @@ let _LocalAuthentication: typeof import('expo-local-authentication') | null = nu
 // server-side regex in AuthContext.sendMagicLink; the backend remains the
 // authoritative validator.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// #108: the session came from another tab, whose gate opens this invite for a
+// new account. Hedged on purpose: a set-up account is not redirected there, so
+// the card on Home is named as the other way in rather than promising the tab.
+const LOGIN_INVITE_OPENED_ELSEWHERE =
+  "You're signed in from another tab. Your invite opens there, or accept it from the invites card on Home. You can close this tab.";
 
 export default function LoginScreen() {
   const { colors: themeColors } = useTheme();
@@ -37,10 +45,19 @@ export default function LoginScreen() {
   // instead of Summary — the stored token never survived the round trip.
   const inviteParams = useLocalSearchParams<{ [INVITE_PARAM]?: string }>();
   const inviteToken = inviteParams[INVITE_PARAM];
+  // #7: every caller reaches this AFTER the sign-in succeeded. A navigation
+  // failure is therefore not a failed sign-in, and must never reach the
+  // handler's catch — that fired an error haptic straight after the success
+  // haptic and set an error banner on a screen that was already leaving. The
+  // root gate routes from wherever a failure leaves him.
   const goAfterSignIn = useCallback(() => {
-    router.replace(postSignInHref(inviteToken, '/(tabs)/summary') as never);
+    try {
+      router.replace(postSignInHref(inviteToken, '/(tabs)/summary') as never);
+    } catch (navErr) {
+      console.log('[Login] Post-sign-in navigation failed; the root gate takes it from here:', navErr);
+    }
   }, [router, inviteToken]);
-  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink, sessionExpiredReason, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink, sessionExpiredReason, isAuthenticated, isLoading: authLoading, session } = useAuth();
   // #93: the root gate no longer routes an authenticated user off an
   // invite-bearing /login (it raced this screen's own navigation and could
   // bounce a new account to /persona-select, dropping the token). So the one
@@ -54,6 +71,44 @@ export default function LoginScreen() {
     restoredCheckedRef.current = true;
     if (isAuthenticated && sanitizeInviteToken(inviteToken)) goAfterSignIn();
   }, [authLoading, isAuthenticated, inviteToken, goAfterSignIn]);
+
+  // True while a sign-in started on THIS screen is running (a ref: the auth
+  // flip lands inside the handler's await, before a state update is visible).
+  const localSignInRef = useRef(false);
+
+  // #108: a session that arrives from ANOTHER tab while this one sits on
+  // /login?invite=… (supabase-js broadcasts SIGNED_IN across tabs). The root
+  // gate leaves an invite-bearing auth screen to the screen, and the check
+  // above decides only on the first settled read — so this tab, the one that
+  // still has the token, stayed put. A false→true flip after that read, with a
+  // valid token and no sign-in of our own in flight (those navigate
+  // themselves), finishes the invite from here.
+  //
+  // Unless the account carries this SAME token in user_metadata (an email
+  // sign-up from this invite): the other tab's root gate opens it then, and a
+  // second accept from here would fail as "already used" in whichever tab lost
+  // (utils/deepLinksInvite signInElsewhereAction). This tab stands down, marks
+  // the token handled so its own gate can't open it too, and says where it went.
+  const prevAuthRef = useRef<boolean | null>(null);
+  const [elsewhereNotice, setElsewhereNotice] = useState('');
+  useEffect(() => {
+    if (authLoading) return;
+    const was = prevAuthRef.current;
+    prevAuthRef.current = isAuthenticated;
+    if (was !== false || !isAuthenticated || localSignInRef.current) return;
+    const action = signInElsewhereAction({
+      routeToken: inviteToken,
+      accountMeta: session?.user?.user_metadata,
+      sharedOriginTabs: Platform.OS === 'web',
+    });
+    if (action === 'none') return;
+    markInviteTokenHandled(inviteToken);
+    if (action === 'opened_in_other_tab') {
+      setElsewhereNotice(LOGIN_INVITE_OPENED_ELSEWHERE);
+      return;
+    }
+    goAfterSignIn();
+  }, [authLoading, isAuthenticated, inviteToken, goAfterSignIn, session]);
 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
@@ -123,6 +178,7 @@ export default function LoginScreen() {
     }
 
     setIsBiometricLoading(true);
+    localSignInRef.current = true;
     try {
       await loginWithBiometrics();
       if (Platform.OS !== 'web') {
@@ -135,6 +191,7 @@ export default function LoginScreen() {
       const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
       showAlert('Authentication Failed', msg);
     } finally {
+      localSignInRef.current = false;
       setIsBiometricLoading(false);
     }
   }, [hasStoredCredentials, loginWithBiometrics, goAfterSignIn]);
@@ -157,6 +214,7 @@ export default function LoginScreen() {
     ]).start();
 
     setIsSubmitting(true);
+    localSignInRef.current = true;
 
     try {
       await login(email.trim(), password, rememberMe);
@@ -173,6 +231,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } finally {
+      localSignInRef.current = false;
       setIsSubmitting(false);
     }
   }, [email, password, rememberMe, login, goAfterSignIn, buttonScale, shake]);
@@ -199,6 +258,7 @@ export default function LoginScreen() {
   const handleGoogleLogin = useCallback(async () => {
     setIsGoogleLoading(true);
     setErrorMessage('');
+    localSignInRef.current = true;
     try {
       // #159: false = he closed the Google sheet (or it came back empty).
       // No session exists, so no success haptic, no USER_LOGGED_IN, no
@@ -219,6 +279,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } finally {
+      localSignInRef.current = false;
       setIsGoogleLoading(false);
     }
   }, [signInWithGoogle, goAfterSignIn, isUserCancel, shake]);
@@ -226,6 +287,7 @@ export default function LoginScreen() {
   const handleAppleLogin = useCallback(async () => {
     setIsAppleLoading(true);
     setErrorMessage('');
+    localSignInRef.current = true;
     try {
       // #159: false = he closed the Apple sheet (or it came back empty).
       // No session exists, so no success haptic, no USER_LOGGED_IN, no
@@ -246,6 +308,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } finally {
+      localSignInRef.current = false;
       setIsAppleLoading(false);
     }
   }, [signInWithApple, goAfterSignIn, isUserCancel, shake]);
@@ -325,6 +388,11 @@ export default function LoginScreen() {
             {errorMessage ? (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorBannerText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+            {elsewhereNotice ? (
+              <View style={styles.noticeBanner} testID="login-invite-opened-elsewhere">
+                <Text style={styles.noticeBannerText}>{elsewhereNotice}</Text>
               </View>
             ) : null}
           </Animated.View>
@@ -671,6 +739,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   errorBannerText: {
     fontSize: Type.bodyCompact.fontSize,
     color: t.danger,
+    fontWeight: '500' as const,
+    textAlign: 'center',
+  },
+  noticeBanner: {
+    ...cardSurface(t, { radius: 'card', pad: 14 }),
+    marginBottom: 20,
+  },
+  noticeBannerText: {
+    fontSize: Type.bodyCompact.fontSize,
+    color: t.text,
     fontWeight: '500' as const,
     textAlign: 'center',
   },

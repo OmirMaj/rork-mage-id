@@ -150,12 +150,42 @@ export interface ComputeOvertimeOptions {
   today?: string;
   /** When set, shifts still on the clock count with their hours so far. */
   liveNowMs?: number;
+  /** The GC's shift-alert hours. With `liveNowMs`, an open shift that is a
+   *  MISSED clock-out (isMissedOpenShift) is left out of every day and week
+   *  total and gets no OT of its own. Without it, a forgotten Monday clock-in
+   *  counted ~53 h "so far" by Wednesday noon, pushed the week past 40 on
+   *  Monday, and turned Tuesday's 8 h and Wednesday's 5 h into overtime on the
+   *  OT tile and on a new daily report (#41). The shift has no real end, so it
+   *  is evidence of nobody's hours until its out time is entered. */
+  missedAlertHours?: number;
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 function isOpen(e: TimeEntry): boolean {
   return (e.status === 'clocked_in' || e.status === 'break') && !e.clockOut;
+}
+
+// ── Missed clock-out (#66, #41) ──────────────────────────────────────────
+// The rule lives HERE, not in utils/timeClockPayroll (which re-exports it as
+// isMissedClockOut): timeClockPayroll already imports this module, so the live
+// overtime allocation below could not import it back without a cycle.
+
+/** Net hours past which an open shift is certainly forgotten, whatever the day. */
+export function missedClockOutHours(alertHours: number): number {
+  return Math.max((Number.isFinite(alertHours) ? alertHours : 8) + 2, 14);
+}
+
+/**
+ * An open shift that started on an earlier LOCAL day than `nowMs`'s, or has
+ * run more net hours than max(alert + 2, 14). Calendar days, so a shift
+ * clocked in at 11 pm reads as missed after midnight.
+ */
+export function isMissedOpenShift(e: TimeEntry, nowMs: number, alertHours: number): boolean {
+  if (e.status === 'clocked_out' || e.clockOut) return false;
+  const day = shiftWorkDay(e);
+  if (day && day < todayCalendarDay(new Date(nowMs))) return true;
+  return openShiftHours(e, nowMs) > missedClockOutHours(alertHours);
 }
 
 /**
@@ -193,6 +223,8 @@ export function computeOvertime(
     let hours: number;
     if (isOpen(e)) {
       if (opts.liveNowMs === undefined) continue;
+      // #41: a forgotten clock-out feeds nobody's day or week.
+      if (opts.missedAlertHours !== undefined && isMissedOpenShift(e, opts.liveNowMs, opts.missedAlertHours)) continue;
       hours = openShiftHours(e, opts.liveNowMs);
     } else if (e.status === 'clocked_out' && Number.isFinite(e.totalHours)) {
       hours = Math.max(0, e.totalHours);

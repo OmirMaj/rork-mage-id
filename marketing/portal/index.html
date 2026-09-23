@@ -1490,6 +1490,15 @@
   .ob-row-total { padding-top: 12px; margin-top: 4px; border-top: 2px solid #0B0D10; border-bottom: 0; }
   .ob-row-total span { font-weight: 700; color: #0B0D10; }
   .ob-row-total strong { font-size: 16px; }
+  /* #64 — the agreement's own words, above the name box */
+  .contract-text {
+    background: #FFFFFF; border: 1px solid var(--bone, #E8DFCD); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 12px;
+    font-size: 13px; line-height: 1.6; color: #2B2F36;
+    max-height: 280px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  .contract-row-due { display: block; font-size: 11.5px; color: #8B9099; margin-top: 2px; }
+  .contract-missing { color: #B4531A; font-weight: 700; }
   .ob-phases-head {
     font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
     color: #8B9099; text-transform: uppercase;
@@ -2900,10 +2909,10 @@
     contractTitleLabel: 'Title',
     contractValueLabel: 'Contract value',
     contractSignedDisclaimer: 'This is your binding agreement. Keep it for your records.',
-    contractSignerExplainer: 'Your contractor has signed and sent this agreement. Review the full scope, payment schedule, and warranty in the app, then enter your full legal name below to counter-sign and make it binding.',
+    contractSignerExplainer: 'Your contractor has signed and sent this agreement. Read the scope, payment schedule, warranty and terms below, then enter your full legal name to counter-sign and make it binding.',
     contractSignNamePlaceholder: 'Type your full legal name',
     contractSignButton: 'Sign & make binding',
-    contractFinePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. The signed PDF will be available in this portal and emailed to you.',
+    contractFinePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
     closeoutPrint: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print / Save as PDF',
     closeoutDelivered: 'DELIVERED',
     closeoutFinalized: 'FINALIZED',
@@ -3055,6 +3064,13 @@
       minimumFractionDigits: dec, maximumFractionDigits: dec,
     });
   }
+  // #44: a signed amount to the cent. fmtMoney is not sign-aware — a credit
+  // change order's frozen tax printed "$-80.00" — and it stays unsigned for
+  // the many positive-only callers. Negative reads "−$80.00" (a true minus).
+  function fmtSigned(n) {
+    if (n == null || isNaN(n)) return '—';
+    return (Number(n) < 0 ? '−' : '') + fmtMoney(Math.abs(Number(n)), { dec: 2 });
+  }
   function fmtDate(iso) {
     if (!iso) return '—';
     // A bare YYYY-MM-DD is a CALENDAR day (a payment's received day, a due
@@ -3166,7 +3182,7 @@
         ts: ts,
         title: 'Photo added',
         body: p.caption || '',
-        thumbUrl: p.url,
+        thumbPhoto: p,
       });
     });
 
@@ -3242,8 +3258,8 @@
         var amount = (e.amount != null && Number.isFinite(e.amount))
           ? '<span class="activity-amount num">' + fmtMoney(e.amount) + '</span>'
           : '';
-        var thumb = e.thumbUrl
-          ? '<img class="activity-thumb" loading="lazy" src="' + esc(e.thumbUrl) + '" alt=""/>'
+        var thumb = e.thumbPhoto && (photoSrc(e.thumbPhoto) || e.thumbPhoto.id)
+          ? '<img class="activity-thumb" loading="lazy"' + photoImgAttrs(e.thumbPhoto) + ' alt=""/>'
           : '';
         return '<div class="activity-row" style="animation-delay:' + (idx * 60) + 'ms">' +
                  '<div class="activity-icon activity-icon-' + e.kind + '">' + icon + '</div>' +
@@ -3610,14 +3626,26 @@
     }).join('');
 
     // ── "This week / Next week" look-ahead (computed client-side) ──
-    // Each task occupies a calendar window [startDay, startDay + dur - 1]
-    // (day-offsets from startDate, day 1 = startDate). A task lands in a
-    // column if its window overlaps that column's day range.
-    function tasksInRange(rangeStart, rangeEnd) {
+    // A task's window is its first and last WORKING day, dated through
+    // addWorkingDays like every other date on this card; a column is the
+    // calendar days [today + from, today + to]. A task lands in a column when
+    // the two overlap.
+    //
+    // The 2026-09-15 screen-audit fix deleted `todayOffset` (the calendar-day
+    // offset this compared working-day ordinals against) but left its two uses
+    // below, so renderSchedule threw a ReferenceError for every snapshot with
+    // schedule tasks and the homeowner's whole portal stayed blank. The ranges
+    // are now calendar days from today, and the windows are real dates.
+    function tasksInRange(fromDays, toDays) {
+      var rangeStart = new Date(todayMid.getTime());
+      rangeStart.setDate(rangeStart.getDate() + fromDays);
+      var rangeEnd = new Date(todayMid.getTime());
+      rangeEnd.setDate(rangeEnd.getDate() + toDays);
       var hits = [];
       tasks.forEach(function (t) {
-        var winStart = t.startDay || 0;
-        var winEnd = winStart + Math.max(1, t.durationDays || 0) - 1;
+        var sd = startOrdinal(t);
+        var winStart = addWorkingDays(projectStart, Math.max(0, sd - 1), dpw, nonWorking);
+        var winEnd = addWorkingDays(projectStart, Math.max(0, sd - 1 + Math.max(1, durOrdinal(t)) - 1), dpw, nonWorking);
         if (winStart <= rangeEnd && winEnd >= rangeStart) hits.push(t);
       });
       return hits.slice(0, 6);
@@ -3639,8 +3667,8 @@
     }
     var lookaheadHtml =
       '<div class="gantt-lookahead">' +
-        lookaheadColumn('This week', todayOffset, todayOffset + 6) +
-        lookaheadColumn('Next week', todayOffset + 7, todayOffset + 13) +
+        lookaheadColumn('This week', 0, 6) +
+        lookaheadColumn('Next week', 7, 13) +
       '</div>';
 
     var ganttHtml =
@@ -3698,35 +3726,183 @@
   }
 
   // ───── Contract ─────
-  // Counter-signing happens via Supabase REST PATCH against
-  // project_contracts. RLS gates the update to status='sent' contracts
-  // on portal-enabled projects.
-  function renderContractCard(c) {
-    if (!c) return '';
-    var amount = fmtMoney(c.contractValue);
-    if (c.status === 'signed') {
-      return '' +
-        '<div class="open-book"><div class="ob-summary">' +
-          '<div class="ob-row"><span>' + esc(t('contractStatusSigned')) + '</span><strong style="color:#1E8E4A">✓</strong></div>' +
-          '<div class="ob-row"><span>' + esc(t('contractTitleLabel')) + '</span><strong>' + esc(c.title) + '</strong></div>' +
-          '<div class="ob-row ob-row-total"><span>' + esc(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
-        '</div>' +
-        '<div class="ob-disclaimer">' + esc(t('contractSignedDisclaimer')) + '</div>' +
+  // Counter-signing goes through the token-gated portal_sign_contract RPC.
+  //
+  // #64: the card used to show the title and the value and nothing else, above
+  // a name box that made a construction agreement binding — and told the
+  // homeowner to review the scope, payment schedule and warranty "in the
+  // app". Homeowners have no app. The GC's device now publishes the terms as
+  // `contract.content` (utils/portalSnapshot buildPortalContractContent), and
+  // they render here ABOVE the name box, and stay after signing as the
+  // homeowner's record. No sign box is drawn while they are missing:
+  //   - contentPending (the server has a live contract the device has not
+  //     published yet — portal_overlay_live), or
+  //   - no content / no payment schedule / an unpriced milestone / no scope /
+  //     the warranty placeholder (contractTermsMissing mirrors
+  //     portalContractTermsMissing in utils/portalSnapshot.ts).
+  // The explainer and fine print come from CONTRACT_COPY, not the snapshot's
+  // uiStrings: every snapshot published before this change carries the old
+  // "in the app" / "emailed to you" sentences in its bundle, and t() prefers
+  // the bundle.
+  var CONTRACT_COPY = {
+    en: {
+      explainer: 'Your contractor has signed and sent this agreement. Read the scope, payment schedule, warranty and terms below, then enter your full legal name to counter-sign and make it binding.',
+      finePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
+    },
+    es: {
+      explainer: 'Su contratista ha firmado y enviado este acuerdo. Lea abajo el alcance, el cronograma de pagos, la garantía y los términos; luego escriba su nombre legal completo para firmar y hacerlo vinculante.',
+      finePrint: 'Al escribir su nombre y pulsar Firmar, acepta el acuerdo como legalmente vinculante. Su contratista conserva la copia firmada y sellada y puede enviársela.',
+    },
+    pt: {
+      explainer: 'Seu construtor assinou e enviou este acordo. Leia abaixo o escopo, o cronograma de pagamentos, a garantia e os termos; depois digite seu nome legal completo para contra-assinar e torná-lo vinculante.',
+      finePrint: 'Ao digitar seu nome e tocar em Assinar, você aceita o acordo como legalmente vinculante. Seu construtor guarda a cópia assinada e selada e pode enviá-la a você.',
+    },
+    zh: {
+      explainer: '您的承包商已签署并发送此协议。请阅读下方的工程范围、付款计划、保修和条款,然后输入您的法定全名进行会签,使其生效。',
+      finePrint: '输入姓名并点击"签字"即表示您接受此协议具有法律约束力。您的承包商会保留已签署并加封的副本,并可发送给您。',
+    },
+    vi: {
+      explainer: 'Nhà thầu đã ký và gửi thỏa thuận này. Hãy đọc phạm vi công việc, lịch thanh toán, bảo hành và các điều khoản bên dưới, sau đó nhập tên đầy đủ hợp pháp của bạn để đối ký và làm hợp đồng có hiệu lực.',
+      finePrint: 'Bằng cách nhập tên và bấm Ký, bạn chấp nhận thỏa thuận có giá trị pháp lý. Nhà thầu giữ bản đã ký có niêm phong và có thể gửi cho bạn.',
+    },
+    fr: {
+      explainer: "Votre entrepreneur a signé et envoyé cet accord. Lisez ci-dessous l'étendue des travaux, le calendrier de paiement, la garantie et les conditions, puis saisissez votre nom légal complet pour contresigner et le rendre exécutoire.",
+      finePrint: "En saisissant votre nom et en touchant Signer, vous acceptez l'accord comme juridiquement contraignant. Votre entrepreneur conserve la copie signée et scellée et peut vous l'envoyer.",
+    },
+  };
+  function contractCopy(key) {
+    var d = window.__portalData || {};
+    var lang = String(d.language || 'en').slice(0, 2).toLowerCase();
+    var bundle = CONTRACT_COPY[lang] || CONTRACT_COPY.en;
+    return bundle[key] || CONTRACT_COPY.en[key] || '';
+  }
+
+  var WARRANTY_PLACEHOLDER_MARK = '[warranty period — set before signing]';
+  // Why these terms cannot be signed yet, or null when they can. Same rule as
+  // portalContractTermsMissing (utils/portalSnapshot.ts).
+  function contractTermsMissing(content) {
+    if (!content || typeof content !== 'object') return 'no_content';
+    var schedule = Array.isArray(content.paymentSchedule) ? content.paymentSchedule : [];
+    if (schedule.length === 0) return 'no_schedule';
+    for (var i = 0; i < schedule.length; i++) {
+      var a = schedule[i] && schedule[i].amount;
+      if (typeof a !== 'number' || !isFinite(a)) return 'unpriced_milestone';
+    }
+    if (typeof content.scopeText !== 'string' || !content.scopeText.trim()) return 'no_scope';
+    if (String(content.warrantyText || '').indexOf(WARRANTY_PLACEHOLDER_MARK) !== -1
+        || String(content.termsText || '').indexOf(WARRANTY_PLACEHOLDER_MARK) !== -1) return 'warranty_placeholder';
+    return null;
+  }
+  // May this card draw a sign box? The ONE test the card, the section title and
+  // the "waiting on you" list all ask.
+  function contractSignable(c) {
+    return !!c && c.status === 'sent' && c.needsSignature !== false && c.contentPending !== true
+      && contractTermsMissing(c.content) === null;
+  }
+  var CONTRACT_MISSING_COPY = {
+    no_content: 'Your contractor is still posting the full agreement to this page — the scope, payment schedule and warranty. You can sign here once it is up.',
+    no_schedule: 'The payment schedule has not been posted yet. You can sign once your contractor adds it.',
+    unpriced_milestone: 'A payment in the schedule has no amount yet. Your contractor needs to set it before you can sign.',
+    no_scope: 'The scope of work has not been posted yet. You can sign once your contractor adds it.',
+    warranty_placeholder: 'The warranty period has not been set yet. Your contractor needs to set it before you can sign.',
+  };
+
+  function renderContractTerms(content) {
+    if (!content || typeof content !== 'object') return '';
+    var html = '';
+    var schedule = Array.isArray(content.paymentSchedule) ? content.paymentSchedule : [];
+    if (schedule.length) {
+      html += '<div class="prop-group-head">Payment schedule</div><div class="ob-summary">';
+      schedule.forEach(function (m) {
+        var priced = typeof m.amount === 'number' && isFinite(m.amount);
+        html += '<div class="ob-row"><span>' + esc(m.label || 'Payment') +
+                  (m.dueText ? '<span class="contract-row-due">' + esc(m.dueText) + '</span>' : '') + '</span>' +
+                  (priced ? '<strong>' + fmtMoney(m.amount, { dec: 2 }) + '</strong>'
+                          : '<strong class="contract-missing">Amount not set</strong>') +
+                '</div>';
+      });
+      html += '</div>';
+    }
+    if (content.startDate && content.completionDate && content.durationDays) {
+      html += '<div class="prop-group-head">Timeline</div>' +
+        '<div class="ob-summary" style="font-size:13px;line-height:1.55;color:#2B2F36">' +
+          'Work starts ' + esc(fmtCalendarDate(content.startDate, true)) +
+          ' and reaches substantial completion within ' + esc(String(content.durationDays)) +
+          ' calendar days — on or before ' + esc(fmtCalendarDate(content.completionDate, true)) + '.' +
         '</div>';
     }
-    // Status === 'sent' & needs signature.
-    return '' +
-      '<div class="open-book">' +
-        '<div class="ob-summary">' +
-          '<div class="ob-row"><span>' + esc(t('contractTitleLabel')) + '</span><strong>' + esc(c.title) + '</strong></div>' +
-          '<div class="ob-row ob-row-total"><span>' + esc(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
-        '</div>' +
-        '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">' + esc(t('contractSignerExplainer')) + '</p>' +
+    var allowances = Array.isArray(content.allowances) ? content.allowances : [];
+    if (allowances.length) {
+      html += '<div class="prop-group-head">Allowances</div><div class="ob-summary">';
+      allowances.forEach(function (a) {
+        html += '<div class="ob-row"><span>' + esc(a.category || 'Allowance') +
+                  (a.description ? '<span class="contract-row-due">' + esc(a.description) + '</span>' : '') + '</span>' +
+                  '<strong>' + fmtMoney(a.amount, { dec: 2 }) + '</strong></div>';
+      });
+      html += '</div>';
+    }
+    if (content.scopeText && String(content.scopeText).trim()) {
+      html += '<div class="prop-group-head">Scope of work</div><div class="contract-text">' + esc(content.scopeText) + '</div>';
+    }
+    if (content.warrantyText && String(content.warrantyText).trim()) {
+      html += '<div class="prop-group-head">Warranty</div><div class="contract-text">' + esc(content.warrantyText) + '</div>';
+    }
+    if (content.termsText && String(content.termsText).trim()) {
+      html += '<div class="prop-group-head">Terms</div><div class="contract-text">' + esc(content.termsText) + '</div>';
+    }
+    return html;
+  }
+
+  // Who signed, and how — never a portal e-signature for one the GC recorded
+  // in person or from a paper original (app/contract.tsx), and never the
+  // private evidence path (the overlay does not send it).
+  function contractSignedLine(c) {
+    var who = c.homeownerSignerName ? ' by ' + c.homeownerSignerName : '';
+    var when = c.homeownerSignedAt ? ' on ' + fmtDate(c.homeownerSignedAt) : '';
+    if (c.homeownerSignatureMethod === 'in_person') return 'Signed in person' + who + when;
+    if (c.homeownerSignatureMethod === 'paper') return 'Signed on paper' + who + when;
+    if (c.homeownerSignerName || c.homeownerSignedAt) return 'Signed online' + who + when;
+    return '';
+  }
+
+  function renderContractCard(c) {
+    if (!c) return '';
+    // #136: the value the homeowner agrees to, to the cent.
+    var amount = fmtMoney(c.contractValue, { dec: 2 });
+    var summary =
+      '<div class="ob-summary">' +
+        (c.status === 'signed'
+          ? '<div class="ob-row"><span>' + esc(t('contractStatusSigned')) + '</span><strong style="color:#1E8E4A">✓</strong></div>'
+          : '') +
+        '<div class="ob-row"><span>' + esc(t('contractTitleLabel')) + '</span><strong>' + esc(c.title) + '</strong></div>' +
+        '<div class="ob-row ob-row-total"><span>' + esc(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
+      '</div>';
+    if (c.status === 'signed') {
+      var signedLine = contractSignedLine(c);
+      return '' +
+        '<div class="open-book">' +
+          summary +
+          (signedLine ? '<div class="prop-note" data-contract-signed-line="1">' + esc(signedLine) + '</div>' : '') +
+          renderContractTerms(c.content) +
+          '<div class="ob-disclaimer">' + esc(t('contractSignedDisclaimer')) + '</div>' +
+        '</div>';
+    }
+    // Status 'sent'. The terms first — always — then either the sign box or
+    // the reason there is none.
+    var why = c.contentPending === true ? 'no_content' : contractTermsMissing(c.content);
+    var signBox = why
+      ? '<div class="prop-note" data-contract-terms-pending="' + esc(why) + '">' + esc(CONTRACT_MISSING_COPY[why] || CONTRACT_MISSING_COPY.no_content) + '</div>'
+      : '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">' + esc(contractCopy('explainer')) + '</p>' +
         '<div class="contract-sign">' +
           '<input type="text" id="contract-name-' + esc(c.id) + '" placeholder="' + esc(t('contractSignNamePlaceholder')) + '" style="width:100%;padding:12px 14px;border:1px solid #E8DFCD;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
           '<button type="button" class="btn-primary" data-action="sign-contract" data-contract-id="' + esc(c.id) + '" style="width:100%;padding:14px;background:#FF6A1A;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer">' + esc(t('contractSignButton')) + '</button>' +
-          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">' + esc(t('contractFinePrint')) + '</p>' +
-        '</div>' +
+          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">' + esc(contractCopy('finePrint')) + '</p>' +
+        '</div>';
+    return '' +
+      '<div class="open-book">' +
+        summary +
+        (c.contentPending === true ? '' : renderContractTerms(c.content)) +
+        signBox +
       '</div>';
   }
 
@@ -4025,6 +4201,18 @@
     })
     .then(function (r) {
       if (!r.ok) throw new Error('Sign failed: ' + r.status);
+      return r.json().catch(function () { return {}; });
+    })
+    .then(function (res) {
+      // {ok:true, already:true}: signed already — on another device, in
+      // person or on paper. Not a new signature: no confetti, no "binding"
+      // ping, and no reload loop back onto a Sign box. Re-read the portal so
+      // the card shows who signed (#65 / #13).
+      if (res && res.already === true) {
+        showContractSignNote(target, 'Already signed — this contract was signed before. Updating the page…');
+        refreshPortalSnapshot();
+        return;
+      }
       // Fire-and-forget: ping the GC so they know the contract just
       // became binding and can pull the signed PDF.
       notifyEvent('contract_signed', {
@@ -4036,21 +4224,49 @@
         contract_value: data.contract && data.contract.contractValue,
         contract_title: data.contract && data.contract.title,
       });
-      // 🎉 Celebrate the moment for the homeowner. Pure CSS confetti
-      // burst for ~2.5s, then reload to render the signed state.
+      // 🎉 Celebrate the moment for the homeowner. Pure CSS confetti burst,
+      // then re-read the portal: the live overlay now says 'signed'. (A reload
+      // re-booted the stale #d= hash first and flashed the Sign box again.)
       fireWebConfetti();
-      setTimeout(function () { window.location.reload(); }, 2200);
+      showContractSignNote(target, 'Signed. Updating your portal…');
+      setTimeout(function () { refreshPortalSnapshot(); }, 1800);
     })
     .catch(function (err) {
       target.disabled = false;
       target.textContent = 'Sign & make binding';
-      var msg = (err && /Sign failed: 4/.test(String(err.message)))
-        ? 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.'
-        : 'Could not sign — check your connection and try again.';
-      alert(msg);
+      var denied = !!(err && /Sign failed: 4/.test(String(err.message)));
+      if (!denied) {
+        alert('Could not sign — check your connection and try again.');
+        console.error(err);
+        return;
+      }
+      // sign_denied. Before blaming the link, look: if the live portal now
+      // shows this contract signed, that is the answer (#65).
+      refreshPortalSnapshot().then(function (fresh) {
+        var fc = fresh && fresh.contract;
+        if (fc && fc.id === contractId && fc.status === 'signed') {
+          alert('This contract is already signed.');
+          return;
+        }
+        // contract_terms_pending: the server signs only terms the GC has
+        // published to this portal. Not a bad link — the page re-reads and
+        // shows the contract without a Sign box until they are here.
+        if (fc && fc.contentPending === true) {
+          alert('Your contractor has not published this contract\'s terms to your portal yet, so it cannot be signed here. Nothing was signed. Check back once the terms appear.');
+          return;
+        }
+        alert('To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.');
+      });
       console.error(err);
     });
   });
+
+  // A short status line under the sign button (replaces the button's row).
+  function showContractSignNote(btn, text) {
+    var host = btn && btn.closest ? btn.closest('.contract-sign') : null;
+    if (!host) return;
+    host.innerHTML = '<div class="prop-note" data-contract-sign-note="1">' + esc(text) + '</div>';
+  }
 
   // Lightweight web confetti — pure CSS keyframes, no library. Spawns
   // ~50 particles at the top of the viewport with random color +
@@ -4227,7 +4443,7 @@
       var photos = (window.__portalData && window.__portalData.sections && window.__portalData.sections.photos) || [];
       for (var i = 0; i < photos.length; i++) {
         var cap = photos[i] && photos[i].caption;
-        if (cap && refLabel.indexOf(cap) !== -1) return photos[i].url || '';
+        if (cap && refLabel.indexOf(cap) !== -1) return photoSrc(photos[i]);
       }
     } catch (e) { /* best-effort only */ }
     return '';
@@ -4363,7 +4579,7 @@
       var capDelta = ob.gmpCap - ob.estimatedFinalCost;
       var capDeltaColor = capDelta >= 0 ? '#1E8E4A' : '#C0392B';
       capRow = '<div class="ob-row"><span>GMP cap</span><strong>' + fmtMoney(ob.gmpCap) + '</strong></div>'
-             + '<div class="ob-row"><span>Projected vs. cap</span><strong style="color:' + capDeltaColor + '">' + (capDelta >= 0 ? '+' : '') + fmtMoney(capDelta) + '</strong></div>';
+             + '<div class="ob-row"><span>Projected vs. cap</span><strong style="color:' + capDeltaColor + '">' + (capDelta >= 0 ? '+' : '−') + fmtMoney(Math.abs(capDelta)) + '</strong></div>';
     }
     var feeRow = '';
     if (typeof ob.feePercent === 'number' && ob.feePercent > 0) {
@@ -4384,7 +4600,7 @@
           '<div class="ob-phase-meta">' +
             'Committed ' + fmtMoney(p.committed) +
             ' · Projected ' + fmtMoney(p.projectedFinal) +
-            (p.variance !== 0 ? ' · <span style="color:' + (p.variance > 0 ? '#C0392B' : '#1E8E4A') + ';font-weight:600">' + (p.variance > 0 ? '+' : '') + fmtMoney(p.variance) + '</span>' : '') +
+            (p.variance !== 0 ? ' · <span style="color:' + (p.variance > 0 ? '#C0392B' : '#1E8E4A') + ';font-weight:600">' + (p.variance > 0 ? '+' : '−') + fmtMoney(Math.abs(p.variance)) + '</span>' : '') +
           '</div>' +
         '</div>';
     }).join('');
@@ -4415,17 +4631,23 @@
       // stored 'paid'); `status` is the stored word, kept for old snapshots.
       var invStatus = i.effectiveStatus || i.status;
       var isPaid = String(invStatus || '').toLowerCase() === 'paid' || balance <= 0;
-      var canPay = i.payLinkUrl && !isPaid && balance > 0;
+      // #83 / #135: a bank payment in flight carries no link (the overlay
+      // drops it); #137: after a Pay tap the button waits for the ledger.
+      var processing = !isPaid && i.paymentProcessing ? i.paymentProcessing : null;
+      var canPay = i.payLinkUrl && !isPaid && balance > 0 && !processing;
+      var checking = canPay && payChecking('invoice', i.id);
       // #135: to the cent. A whole-dollar "Pay $77,485" beside Stripe's
       // $77,484.88 is a different number from the one he will be charged.
       var amountDisplay = isPaid ? fmtMoney(i.total, {dec:2}) : fmtMoney(balance, {dec:2});
       var amountLabel = isPaid ? 'Paid' : 'Balance due';
-      var payHtml = canPay
-        ? '<button class="invoice-pay-btn" data-pay="'+esc(i.payLinkUrl)+'">' +
-            icn(ICONS.creditCard, 14) +
-            '<span>Pay '+fmtMoney(balance, {dec:2})+'</span>' +
-          '</button>'
-        : '';
+      var payHtml = checking
+        ? payCheckingHtml()
+        : canPay
+          ? '<button class="invoice-pay-btn" data-pay="'+esc(i.payLinkUrl)+'" data-pay-id="'+esc(i.id)+'">' +
+              icn(ICONS.creditCard, 14) +
+              '<span>Pay '+fmtMoney(balance, {dec:2})+'</span>' +
+            '</button>'
+          : '';
       var detailHtml = '<span class="invoice-detail-hint">View details ' + icn(ICONS.chevronR, 12) + '</span>';
       return (
         '<div class="invoice-card '+(isPaid ? 'paid' : 'unpaid')+'" data-invoice="'+esc(i.id)+'" data-item-id="'+esc(i.id)+'">' +
@@ -4441,6 +4663,8 @@
               '<span>Due '+fmtDate(i.dueDate)+'</span>' +
               (i.issueDate ? '<span class="invoice-meta-dot">·</span><span>Issued '+fmtDate(i.issueDate)+'</span>' : '') +
             '</div>' +
+            paymentProcessingHtml(processing) +
+            (canPay && !checking ? payNotSeenHtml(i.id) : '') +
           '</div>' +
           '<div class="invoice-cta">' +
             (payHtml || detailHtml) +
@@ -4518,7 +4742,9 @@
       // MONEY-F2: a pay app the Stripe webhook stamped `paidAt` is settled —
       // show that, never a second Pay button.
       var aiaPaid = aiaIsPaid(a);
-      var canPay = aiaCanPay(a);
+      var aiaProcessing = !aiaPaid && a.paymentProcessing ? a.paymentProcessing : null;
+      var canPay = aiaCanPay(a) && !aiaProcessing;
+      var aiaChecking = canPay && payChecking('aia', a.id);
       return (
         '<div class="aia-card' + (aiaPaid ? ' paid' : '') + '" data-aia="'+esc(a.id)+'" data-item-id="'+esc(a.id)+'">' +
           '<div class="row-main">' +
@@ -4554,10 +4780,14 @@
                 '<div class="aia-stat-value amber num">'+fmtMoney(a.currentPaymentDue, {dec:2})+'</div>' +
               '</div>' +
             '</div>' +
-            (canPay
-              ? '<button class="invoice-pay-btn" data-aia-pay="'+esc(a.payLinkUrl)+'">' +
+            (aiaChecking
+              ? payCheckingHtml()
+              : canPay
+              ? '<button class="invoice-pay-btn" data-aia-pay="'+esc(a.payLinkUrl)+'" data-pay-id="'+esc(a.id)+'">' +
                   icn(ICONS.dollar, 14) + ' Pay ' + fmtMoney(due, {dec:2}) +
-                '</button>'
+                '</button>' + payNotSeenHtml(a.id)
+              : aiaProcessing
+                ? paymentProcessingHtml(aiaProcessing)
               : aiaPaid
                 ? '<span class="pill pill-success">' + icn(ICONS.check, 12) +
                     (a.paidAt ? ' Paid ' + fmtDate(a.paidAt) : ' Settled with invoice') + '</span>'
@@ -4586,22 +4816,27 @@
       var sign = amt >= 0 ? '+' : '−';
       var stat = String(c.status || '').toLowerCase();
       var canDecide = coApprovalEnabled && (stat === 'pending' || stat === 'submitted' || stat === 'review' || stat === 'under_review');
-      var locallyDecided = loadCODecision(c.id);
+      // WHO DECIDED comes from the snapshot, not this browser (#71 / #132):
+      // the overlay's clientDecision is the decision recorded for this send on
+      // ANY device, so every phone shows the same "signed by" and none shows a
+      // live button for a decided CO. The in-page record is only the answer
+      // this tab just got, until the refresh lands; the localStorage copy
+      // supplies nothing but this device's receipt hash, and only when it
+      // names the same decision.
+      var decided = coDecisionFor(c);
       var ctaHtml = '';
-      if (locallyDecided) {
-        var goodLook = locallyDecided.decision === 'approved';
+      if (decided) {
+        var goodLook = decided.decision === 'approved';
         // Show the signer + the record hash back to the homeowner. This is
         // their receipt: the same SHA-256 the server stored, so they can ask
         // for the sealed record later and check it matches.
-        var receiptHtml = locallyDecided.hash
-          ? '<div class="co-receipt">Record SHA-256 ' + esc(String(locallyDecided.hash).slice(0, 32)) + '…</div>'
+        var receiptHtml = decided.hash
+          ? '<div class="co-receipt">Record SHA-256 ' + esc(String(decided.hash).slice(0, 32)) + '…</div>'
           : '';
         ctaHtml = (
           '<div class="co-decided ' + (goodLook ? 'good' : 'bad') + '">' +
             (goodLook ? icn(ICONS.check, 14) : icn(ICONS.alert, 14)) +
-            '<span>' + (goodLook ? 'Signed & approved' : 'Declined') +
-              (locallyDecided.signer ? ' by ' + esc(locallyDecided.signer) : '') +
-              ' ' + esc(timeAgo(locallyDecided.at)) + '</span>' +
+            '<span>' + esc(coDecisionText(decided)) + '</span>' +
           '</div>' + receiptHtml
         );
       } else if (canDecide) {
@@ -4621,7 +4856,9 @@
             '<div class="row-meta">'+fmtDate(c.dateSubmitted)+' · '+sign+fmtMoney(Math.abs(amt), {dec:2}) +
               // #131: the tax-inclusive figure his CO screen says the client
               // approves. Dollar amounts from the snapshot, never a rate.
-              (coHasTax(c) ? ' + '+fmtMoney(c.taxAmount, {dec:2})+' tax = '+(c.totalWithTax < 0 ? '−' : '')+fmtMoney(Math.abs(c.totalWithTax), {dec:2}) : '') +
+              // #44: the operator carries the tax's sign — "−$1,000.00 − $80.00
+              // tax = −$1,080.00" on a credit, never "+ $-80.00".
+              (coHasTax(c) ? ' '+(c.taxAmount < 0 ? '− ' : '+ ')+fmtMoney(Math.abs(c.taxAmount), {dec:2})+' tax = '+fmtSigned(c.totalWithTax) : '') +
             '</div>' +
             ctaHtml +
           '</div>' +
@@ -4637,6 +4874,39 @@
       && typeof c.totalWithTax === 'number' && isFinite(c.totalWithTax);
   }
 
+  // Decisions this tab recorded (or was told about) since it loaded, until
+  // the refreshed snapshot carries clientDecision. Keyed by CO id.
+  var sessionCODecisions = {};
+  function coDecisionWord(decision) {
+    var d = String(decision || '').toLowerCase();
+    if (d === 'approved') return 'Signed & approved';
+    if (d === 'declined' || d === 'rejected') return 'Declined';
+    return d ? d.charAt(0).toUpperCase() + d.slice(1).replace(/_/g, ' ') : 'Decided';
+  }
+  function coDecisionFor(c) {
+    var local = loadCODecision(c.id);
+    var cd = c.clientDecision;
+    if (cd && cd.decision) {
+      var same = local && local.decision === cd.decision;
+      return {
+        decision: cd.decision === 'rejected' ? 'declined' : cd.decision,
+        signer: cd.signerName || null,
+        at: cd.sealedAt || null,
+        hash: same ? local.hash : null,
+      };
+    }
+    return sessionCODecisions[c.id] || null;
+  }
+  function coDecisionText(d) {
+    var word = coDecisionWord(d.decision);
+    // recorded:false — the server already held a decision for this send
+    // (another phone, another browser). Say so; never present it as this
+    // person's signature.
+    if (d.otherDevice) {
+      return 'Already decided on another device: ' + word + (d.signer ? ' by ' + d.signer : '');
+    }
+    return word + (d.signer ? ' by ' + d.signer : '') + (d.at ? ' ' + timeAgo(d.at) : '');
+  }
   function localCOKey(coId) { return 'mage_portal_co_' + coId; }
   function loadCODecision(coId) {
     try { return JSON.parse(localStorage.getItem(localCOKey(coId)) || 'null'); }
@@ -4657,7 +4927,7 @@
       var sizeClass = (idx % 7 === 0) ? ' photo-tall' : (idx % 5 === 0) ? ' photo-wide' : '';
       var animDelay = (idx * 35);
       return '<figure class="photo'+sizeClass+'" data-photo="'+idx+'" style="animation-delay:'+animDelay+'ms">' +
-               '<img loading="lazy" src="'+esc(p.url)+'" alt="'+esc(p.caption||'')+'"/>' +
+               '<img loading="lazy"'+photoImgAttrs(p)+' alt="'+esc(p.caption||'')+'"/>' +
                badge +
                cap +
              '</figure>';
@@ -5496,6 +5766,9 @@
       try { text = await resp.text(); } catch(e) {}
       throw new Error('Supabase ' + resp.status + ': ' + text);
     }
+    // The answer matters now: {recorded:false, …} means another device's
+    // decision was already on file (20260920060000).
+    try { return await resp.json(); } catch (e) { return {}; }
   }
 
   // ───────── Change-order electronic signature ─────────
@@ -5874,11 +6147,11 @@
       (coHasTax(c)
         ? '<div class="esign-delta">' +
             '<span class="esign-delta-label">Sales tax</span>' +
-            '<span class="esign-delta-value small">' + fmtMoney(c.taxAmount, { dec: 2 }) + '</span>' +
+            '<span class="esign-delta-value small">' + fmtSigned(c.taxAmount) + '</span>' +
           '</div>' +
           '<div class="esign-delta">' +
             '<span class="esign-delta-label">This change incl. tax</span>' +
-            '<span class="esign-delta-value small">' + (c.totalWithTax < 0 ? '−' : '') + fmtMoney(Math.abs(c.totalWithTax), { dec: 2 }) + '</span>' +
+            '<span class="esign-delta-value small">' + fmtSigned(c.totalWithTax) + '</span>' +
           '</div>'
         : '') +
       (typeof c.newContractTotal === 'number' && c.newContractTotal > 0
@@ -5958,7 +6231,7 @@
     try { text = await resp.text(); } catch (e) {}
     var notDeployed = resp.status === 404 || /PGRST202|Could not find the function|does not exist/i.test(text);
     if (notDeployed) {
-      await postCOApproval(api, {
+      var legacyRes = await postCOApproval(api, {
         portal_id: payload.portal_id,
         change_order_id: payload.change_order_id,
         decision: payload.decision,
@@ -5966,6 +6239,7 @@
         note: payload.legacy_note || payload.note || null,
         user_agent: payload.user_agent,
       });
+      if (legacyRes && legacyRes.recorded === false) return legacyRes;
       return { legacy: true, document_hash: payload.client_hash || null };
     }
     throw new Error('Supabase ' + resp.status + ': ' + text);
@@ -6163,7 +6437,7 @@
         '<div class="prop-head">' +
           '<div>' +
             '<div class="prop-head-label">Fixed price</div>' +
-            '<div class="prop-total">' + fmtMoney(p.total, { dec: 0 }) + '</div>' +
+            '<div class="prop-total">' + fmtMoney(p.total, { dec: 2 }) + '</div>' +
             (sub ? '<div class="prop-total-note">' + esc(sub) + '</div>' : '') +
           '</div>' +
           pill +
@@ -6173,10 +6447,10 @@
       html += '<div class="prop-group-head">What is included</div><div class="ob-summary">';
       for (var i = 0; i < scope.length; i++) {
         html += '<div class="ob-row"><span>' + esc(scope[i].label || '') + '</span>' +
-                '<strong>' + fmtMoney(scope[i].total, { dec: 0 }) + '</strong></div>';
+                '<strong>' + fmtMoney(scope[i].total, { dec: 2 }) + '</strong></div>';
       }
       html += '<div class="ob-row ob-row-total"><span>Total</span>' +
-              '<strong>' + fmtMoney(p.total, { dec: 0 }) + '</strong></div></div>';
+              '<strong>' + fmtMoney(p.total, { dec: 2 }) + '</strong></div></div>';
     }
 
     if (allowances.length) {
@@ -6192,7 +6466,7 @@
       html += '<div class="prop-group-head">How payment works</div><div class="ob-summary">';
       for (var m = 0; m < payment.length; m++) {
         var amt = typeof payment[m].amount === 'number'
-          ? fmtMoney(payment[m].amount, { dec: 0 })
+          ? fmtMoney(payment[m].amount, { dec: 2 })
           : '—';
         html += '<div class="ob-row"><span>' + esc(payment[m].label || '') +
                 ' — ' + esc(payment[m].detail || '') + '</span>' +
@@ -6539,8 +6813,12 @@
     // we can animate count-up. Strings without numericValue render
     // immediately (the dash fallback, percentage, etc).
     if (budget) {
-      stats.push({ label: 'Contract value', value: fmtMoney(budget.contractValue), numericValue: budget.contractValue || 0, money: true, sub: '' });
-      stats.push({ label: 'Paid to date',  value: fmtMoney(budget.paidToDate),    numericValue: budget.paidToDate || 0,    money: true, sub: '' });
+      // #136: every money tile to the cent (`cents` keeps the count-up on
+      // 2 decimals too) — "Outstanding $77,485" sat above an invoice card
+      // saying "Pay $77,484.88". The default fmtMoney stays whole dollars
+      // for the chart / budget callers that want it.
+      stats.push({ label: 'Contract value', value: fmtMoney(budget.contractValue, {dec:2}), numericValue: budget.contractValue || 0, money: true, cents: true, sub: '' });
+      stats.push({ label: 'Paid to date',  value: fmtMoney(budget.paidToDate, {dec:2}),    numericValue: budget.paidToDate || 0,    money: true, cents: true, sub: '' });
       // PORTAL-01: `outstanding` is now billed-and-unpaid, not
       // contract-minus-cash, and it is summed over exactly the invoices
       // listed below — nothing in draft, nothing the contractor recalled — so
@@ -6555,7 +6833,7 @@
       // basis. Same gate gates the money bar below.
       var retentionHeld = Number(budget.retentionHeld) || 0;
       var hasBillingBasis = typeof budget.invoicedToDate === 'number';
-      stats.push({ label: 'Outstanding',   value: fmtMoney(budget.outstanding),   numericValue: budget.outstanding || 0,   money: true, amber: budget.outstanding > 0, sub: !hasBillingBasis ? '' : (retentionHeld > 0 ? 'Invoiced and due now — retention excluded' : 'Invoiced and not yet paid') });
+      stats.push({ label: 'Outstanding',   value: fmtMoney(budget.outstanding, {dec:2}),   numericValue: budget.outstanding || 0,   money: true, cents: true, amber: budget.outstanding > 0, sub: !hasBillingBasis ? '' : (retentionHeld > 0 ? 'Invoiced and due now — retention excluded' : 'Invoiced and not yet paid') });
       // PORTAL-01: work complete, not percent paid — and "—" when the
       // schedule carries no progress to report. See deriveWorkProgress.
       var wp = work || { known: false, pct: 0 };
@@ -6566,9 +6844,9 @@
       var totalInv = (invoices || []).reduce(function (s, i) { return s + (i.total || 0); }, 0);
       var paidInv = (invoices || []).reduce(function (s, i) { return s + ((i.amountPaid != null ? i.amountPaid : (i.status === 'paid' ? i.total : 0))); }, 0);
       var bal = Math.max(0, totalInv - paidInv);
-      stats.push({ label: 'Invoiced', value: fmtMoney(totalInv), numericValue: totalInv, money: true });
-      stats.push({ label: 'Paid', value: fmtMoney(paidInv), numericValue: paidInv, money: true });
-      stats.push({ label: 'Balance', value: fmtMoney(bal), numericValue: bal, money: true, amber: bal > 0 });
+      stats.push({ label: 'Invoiced', value: fmtMoney(totalInv, {dec:2}), numericValue: totalInv, money: true, cents: true });
+      stats.push({ label: 'Paid', value: fmtMoney(paidInv, {dec:2}), numericValue: paidInv, money: true, cents: true });
+      stats.push({ label: 'Balance', value: fmtMoney(bal, {dec:2}), numericValue: bal, money: true, cents: true, amber: bal > 0 });
       stats.push({ label: 'Pay applications', value: String((aia || []).length), numericValue: (aia || []).length });
     }
 
@@ -6580,7 +6858,7 @@
       var dataAttrs =
         ' data-counter="1"' +
         ' data-target="'+(s.numericValue != null ? s.numericValue : '')+'"' +
-        ' data-fmt="'+(s.money ? 'money' : (s.percent ? 'percent' : 'plain'))+'"' +
+        ' data-fmt="'+(s.money ? (s.cents ? 'money2' : 'money') : (s.percent ? 'percent' : 'plain'))+'"' +
         ' data-delay="'+(idx * 90)+'"';
       return (
         '<div class="stat-card stat-card-premium">' +
@@ -6637,13 +6915,13 @@
             '</div>'
           : '';
         var retLegend = retHeld > 0
-          ? '<span class="spend-legend-item"><span class="spend-dot spend-dot-rem"></span>Retention held <strong>' + fmtMoney(retHeld) + '</strong></span>'
+          ? '<span class="spend-legend-item"><span class="spend-dot spend-dot-rem"></span>Retention held <strong>' + fmtMoney(retHeld, {dec:2}) + '</strong></span>'
           : '';
         spendBarHtml =
           '<div class="spend-card">' +
             '<div class="spend-card-head">' +
               '<div class="spend-eyebrow">BILLED TO DATE</div>' +
-              '<div class="spend-headline num">' + fmtMoney(paid) + ' <span class="spend-of">of</span> ' + fmtMoney(billed) + ' paid</div>' +
+              '<div class="spend-headline num">' + fmtMoney(paid, {dec:2}) + ' <span class="spend-of">of</span> ' + fmtMoney(billed, {dec:2}) + ' paid</div>' +
             '</div>' +
             '<div class="spend-bar">' +
               '<div class="spend-seg spend-seg-paid" style="width:0"      data-spend="paid"        data-target="'+paidPct.toFixed(2)+'">' +
@@ -6655,8 +6933,8 @@
               retSeg +
             '</div>' +
             '<div class="spend-legend">' +
-              '<span class="spend-legend-item"><span class="spend-dot spend-dot-paid"></span>Paid <strong>' + fmtMoney(paid) + '</strong></span>' +
-              '<span class="spend-legend-item"><span class="spend-dot spend-dot-out"></span>Due now <strong>' + fmtMoney(outstanding) + '</strong></span>' +
+              '<span class="spend-legend-item"><span class="spend-dot spend-dot-paid"></span>Paid <strong>' + fmtMoney(paid, {dec:2}) + '</strong></span>' +
+              '<span class="spend-legend-item"><span class="spend-dot spend-dot-out"></span>Due now <strong>' + fmtMoney(outstanding, {dec:2}) + '</strong></span>' +
               retLegend +
             '</div>' +
           '</div>';
@@ -6719,6 +6997,7 @@
     setTimeout(function () { requestAnimationFrame(frame); }, delay || 0);
   }
   function formatCounted(v, fmt) {
+    if (fmt === 'money2') return fmtMoney(v, {dec:2});
     if (fmt === 'money') return fmtMoney(v);
     if (fmt === 'percent') return Math.round(v) + '%';
     return Math.round(v).toString();
@@ -6775,7 +7054,26 @@
   })();
 
   // ───────── Render orchestrator ─────────
+  // ───── Idempotent render (#137) ─────
+  // render() runs again on every refresh (the hash→server re-boot, a Pay
+  // return, a signature). Everything it attaches to a node that SURVIVES the
+  // re-render — document, the lightbox, the message poll timer — is registered
+  // here and torn down at the start of the next run, so a refresh never
+  // stacks a second listener or a second 15-second poll.
+  var renderCleanups = [];
+  function runRenderCleanups() {
+    var list = renderCleanups;
+    renderCleanups = [];
+    list.forEach(function (fn) { try { fn(); } catch (e) {} });
+  }
+  function onRender(target, type, fn) {
+    if (!target) return;
+    target.addEventListener(type, fn);
+    renderCleanups.push(function () { target.removeEventListener(type, fn); });
+  }
+
   function render(data) {
+    runRenderCleanups();
     var sections = data.sections || {};
     var company = data.company || {};
 
@@ -6861,6 +7159,9 @@
     // schedule has never been updated" — so the founder's portal drew a 0%
     // bar under a stat claiming the project was 102% complete. No bar is a
     // truer statement than a 0% bar.
+    // Inserted next to the meta line, so a re-render must take the old one out.
+    var oldProgress = document.getElementById('hero-progress');
+    if (oldProgress) oldProgress.remove();
     if (work.known) {
       var pp = work.pct;
       meta.insertAdjacentHTML('afterend',
@@ -6899,12 +7200,9 @@
       }
     }
 
-    // Hero photo background
-    if (project.heroPhotoUrl) {
-      var bg = document.getElementById('hero-photo-bg');
-      bg.style.backgroundImage = 'url(' + project.heroPhotoUrl + ')';
-      bg.style.display = 'block';
-    }
+    // Hero photo background — by heroPhotoId through signed-media-urls (#14);
+    // heroPhotoUrl only as a legacy http(s) link, never a file:// path.
+    applySignedPhotoUrls();
 
     // Welcome message
     if (data.welcomeMessage) {
@@ -6974,9 +7272,16 @@
 
     // Contract — surfaces immediately under the hero so the homeowner
     // can review + counter-sign before anything else.
-    if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature) {
+    // #64: a sent contract always shows — with its terms, and a sign box only
+    // when contractSignable says the terms are all there (the card says why
+    // not otherwise). contentPending overrides needsSignature: the overlay
+    // may still send needsSignature:true on a block the device never published.
+    if (data.contract && data.contract.status === 'sent' && contractSignable(data.contract)) {
       addSection('contract', 'dollar', t('contractSectionTitle'),
         t('contractSectionSubtitleSign'), null, renderContractCard(data.contract));
+    } else if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature !== false) {
+      addSection('contract', 'dollar', t('contractSectionTitle'),
+        'Your contractor has sent your agreement — the full terms are on their way to this page.', null, renderContractCard(data.contract));
     } else if (data.contract && data.contract.status === 'signed') {
       addSection('contract', 'dollar', t('contractSectionTitle'),
         t('contractSectionSubtitleSigned'), null, renderContractCard(data.contract));
@@ -7151,7 +7456,11 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         var url = btn.getAttribute('data-pay');
-        if (url) window.open(url, '_blank', 'noopener');
+        if (!url) return;
+        window.open(url, '_blank', 'noopener');
+        // #137: remember the tap; the card waits for the ledger on return.
+        notePayTap('invoice', btn.getAttribute('data-pay-id'));
+        btn.outerHTML = payCheckingHtml();
       });
     });
 
@@ -7172,7 +7481,10 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         var url = btn.getAttribute('data-aia-pay');
-        if (url) window.open(url, '_blank', 'noopener');
+        if (!url) return;
+        window.open(url, '_blank', 'noopener');
+        notePayTap('aia', btn.getAttribute('data-pay-id'));
+        btn.outerHTML = payCheckingHtml();
       });
     });
 
@@ -7250,14 +7562,38 @@
                 });
               });
             }).then(function (out) {
-              var stamp = (out.res && out.res.document_hash) || out.documentHash || null;
+              var res = out.res || {};
+              // {ok:true, recorded:false, decision, signer_name, sealed_at}: a
+              // decision for this send was already on file — this one was NOT
+              // stored. No confetti, no receipt, no ping; show whose it is.
+              // (`decision` can be a raw status such as 'void' with no signer.)
+              if (res.recorded === false) {
+                sessionCODecisions[coId] = {
+                  decision: res.decision || 'decided',
+                  signer: res.signer_name || null,
+                  at: res.sealed_at || null,
+                  hash: null,
+                  otherDevice: true,
+                };
+                ui.close();
+                var decidedSec = document.getElementById('sec-changeOrders');
+                if (decidedSec) {
+                  var decidedBody = decidedSec.querySelector('.section-body');
+                  if (decidedBody) decidedBody.innerHTML = renderChangeOrders(co, true);
+                  bindCOHandlers();
+                }
+                refreshPortalSnapshot();
+                return;
+              }
+              var stamp = res.document_hash || out.documentHash || null;
               saveCODecision(coId, {
                 decision: decision,
                 at: signedAt,
                 signer: result.signerName,
                 hash: stamp,
-                sealed: !!(out.res && out.res.document_hash),
+                sealed: !!res.document_hash,
               });
+              sessionCODecisions[coId] = { decision: decision, signer: result.signerName, at: signedAt, hash: stamp };
               ui.close();
               var sectionEl = document.getElementById('sec-changeOrders');
               if (sectionEl) {
@@ -7275,6 +7611,8 @@
                 document_hash: stamp,
               });
               if (decision === 'approved') fireWebConfetti();
+              // The overlay now carries clientDecision for every device.
+              refreshPortalSnapshot();
             }).catch(function (err) {
               console.warn('CO decision failed', err);
               ui.setBusy(false);
@@ -7600,13 +7938,16 @@
         // poll every 15s to pick up GC replies while the page is open.
         setTimeout(refreshLiveThread, 250);
         var liveTimer = setInterval(refreshLiveThread, 15000);
+        renderCleanups.push(function () { clearInterval(liveTimer); });
 
         // Pause polling when the tab is hidden, resume when it's back.
-        // Saves API quota + battery on mobile.
-        document.addEventListener('visibilitychange', function () {
+        // Saves API quota + battery on mobile. (onRender: removed before the
+        // next render, with the timer above.)
+        onRender(document, 'visibilitychange', function () {
           if (document.hidden) {
             clearInterval(liveTimer);
           } else {
+            clearInterval(liveTimer);
             refreshLiveThread();
             liveTimer = setInterval(refreshLiveThread, 15000);
           }
@@ -7640,7 +7981,7 @@
       lbIndex = Math.max(0, Math.min(i, photoData.length - 1));
       var p = photoData[lbIndex];
       if (!p) return;
-      lbImg.src = p.url;
+      lbImg.src = photoSrc(p);
       if (lbSvg) {
         if (p.markup && p.markup.length) {
           lbSvg.setAttribute('viewBox', '0 0 1 1');
@@ -7673,19 +8014,20 @@
       });
     });
     function closeLightbox() { lbEl.classList.remove('open'); }
-    lbEl.addEventListener('click', closeLightbox);
-    document.getElementById('lightbox-close').addEventListener('click', function (e) {
+    // The lightbox nodes outlive a re-render: onRender, not addEventListener.
+    onRender(lbEl, 'click', closeLightbox);
+    onRender(document.getElementById('lightbox-close'), 'click', function (e) {
       e.stopPropagation(); closeLightbox();
     });
-    lbImg.addEventListener('click', function (e) { e.stopPropagation(); });
-    if (lbCap) lbCap.addEventListener('click', function (e) { e.stopPropagation(); });
-    if (lbPrev) lbPrev.addEventListener('click', function (e) {
+    onRender(lbImg, 'click', function (e) { e.stopPropagation(); });
+    onRender(lbCap, 'click', function (e) { e.stopPropagation(); });
+    onRender(lbPrev, 'click', function (e) {
       e.stopPropagation(); if (lbMode === 'photo') showLightboxAt(lbIndex - 1);
     });
-    if (lbNext) lbNext.addEventListener('click', function (e) {
+    onRender(lbNext, 'click', function (e) {
       e.stopPropagation(); if (lbMode === 'photo') showLightboxAt(lbIndex + 1);
     });
-    document.addEventListener('keydown', function (e) {
+    onRender(document, 'keydown', function (e) {
       if (!lbEl.classList.contains('open')) return;
       if (e.key === 'Escape') { closeLightbox(); return; }
       if (lbMode !== 'photo') return;
@@ -7735,6 +8077,12 @@
     wireActivityReactions(data);
 
     document.getElementById('portal').style.display = 'block';
+
+    // #14: sign the private photos this render drew (and the hero).
+    refreshSignedPhotoUrls(data);
+    // #137: a Pay tap still waiting (this tab reloaded, or the snapshot just
+    // arrived): keep checking — unless the last check already came up empty.
+    if (pendingPay && !document.hidden && !payNotSeen[pendingPay.id]) startPayPolls();
 
     // PortalSend Phase 1 — beacon visible item IDs to MAGE so the builder
     // sees a "Viewed" timestamp on each item they sent. Fire-and-forget;
@@ -7852,6 +8200,10 @@
     var list = (data && data.ownerDecisions && data.ownerDecisions.length)
       ? data.ownerDecisions.slice()
       : legacyOwnerDecisions(data, sections);
+    // #64: never "waiting on you" for a contract the card cannot let them sign
+    // (terms still on the way) — a published list can predate the overlay's
+    // contentPending, or come from an older builder.
+    list = list.filter(function (d) { return !d || d.kind !== 'contract' || contractSignable(data && data.contract); });
     var today = todayISO();
     return list.map(function (d) {
       var out = {};
@@ -7885,7 +8237,7 @@
     if (!data) return [];
     var secs = sections || data.sections || {};
     var out = [];
-    if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature) {
+    if (contractSignable(data.contract)) {
       out.push({
         id: 'contract', kind: 'contract', urgency: 'waiting',
         title: 'Contract waiting for your signature',
@@ -7908,7 +8260,9 @@
         detail: data.coApprovalEnabled
           ? 'Review the scope and the change to your contract total, then sign to approve or decline with a reason.'
           : 'Signing is switched off for this portal, so there is no approve button here. Reply in Messages with your answer, then ask your contractor to send this one for signature — a message is not a signed change to your contract.',
-        amount: c.changeAmount,
+        // #136: the tax-inclusive figure on a taxed CO — buildOwnerDecisions
+        // (utils/portalOwnerCore.ts) uses the same coHasTax test.
+        amount: coHasTax(c) ? c.totalWithTax : c.changeAmount,
         target: 'sec-changeOrders',
       });
     });
@@ -7967,7 +8321,11 @@
           '<div class="decision-row-side">' +
             '<span class="decision-flag is-' + esc(d.urgency) + '">' + esc(decisionFlagLabel(d)) + '</span>' +
             (typeof d.amount === 'number' && d.amount !== 0
-              ? '<span class="decision-amount">' + (d.kind === 'change_order' && d.amount > 0 ? '+' : '') + fmtMoney(d.amount) + '</span>'
+              // #136: to the cent, and a credit CO reads "−$1,080.00" (#44),
+              // never "$-1,080".
+              ? '<span class="decision-amount">' + (d.kind === 'change_order'
+                  ? (d.amount > 0 ? '+' : '') + fmtSigned(d.amount)
+                  : fmtMoney(d.amount, {dec:2})) + '</span>'
               : '') +
           '</div>' +
         '</button>'
@@ -8415,8 +8773,265 @@
     });
   }
 
+  // ───── Re-reading the portal in place (#137, #65) ─────
+  // One path for every "the server knows more now" moment — after a Pay tap,
+  // after a signature. It re-renders only when the server's snapshot differs
+  // from the one last booted (compared as the JSON boot() received, because
+  // render() adjusts its own copy), and it never paints an error over a page
+  // the homeowner is already reading. Resolves to the fresh snapshot, or the
+  // current one when the read failed.
+  var lastBootJson = null;
+  var refreshInFlight = null;
+  function refreshPortalSnapshot() {
+    var pid = parsePortalIdFromPath();
+    if (!pid) return Promise.resolve(window.__portalData || null);
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = fetchSnapshotFromServer(pid).then(function (result) {
+      refreshInFlight = null;
+      if (result.reason === 'expired') { showLinkExpired(result.env); return null; }
+      var fresh = result.snapshot;
+      if (!fresh) return window.__portalData || null;
+      if (JSON.stringify(fresh) !== lastBootJson) {
+        try { boot(fresh); } catch (e) { /* keep the page that is up */ }
+      }
+      return fresh;
+    }, function () { refreshInFlight = null; return window.__portalData || null; });
+    return refreshInFlight;
+  }
+
+  // ───── After a Pay tap (#137) ─────
+  // Stripe opens in a new tab and ends on its own confirmation page — there is
+  // no redirect back (that would put the portal's ?t= credential in Stripe's
+  // history). The homeowner switches back to a portal that, until now, still
+  // said "Balance due" with a live Pay button whose link Stripe had already
+  // used up, so a second tap read "ask for a fresh link" — a paid bill that
+  // looked like a failure. Now: the tap is remembered (per tab, so a reload of
+  // a discarded tab still knows), and ONE module-scope visibilitychange /
+  // pageshow handler re-reads the snapshot at ~0 / 3 / 8 / 20 s — the webhook
+  // can land a few seconds after Stripe's page. Meanwhile the button reads
+  // "Checking your payment…". Nothing here ever says "Paid": only the overlay
+  // does, from the ledger (portal_overlay_live). If no payment has arrived by
+  // the last poll, the Pay button comes back with a note saying so.
+  var PAY_TAP_KEY = 'mageid_portal_pending_pay';
+  var PAY_RETURN_WINDOW_MS = 30 * 60 * 1000;
+  var PAY_POLL_DELAYS_MS = [0, 3000, 8000, 20000];
+  var pendingPay = null;       // { kind: 'invoice' | 'aia', id, at }
+  var payPollTimers = [];
+  var payNotSeen = {};         // id -> true once the last poll saw no payment
+  try {
+    var savedPay = JSON.parse(sessionStorage.getItem(PAY_TAP_KEY) || 'null');
+    if (savedPay && savedPay.id && Date.now() - Number(savedPay.at || 0) < PAY_RETURN_WINDOW_MS) pendingPay = savedPay;
+  } catch (e) { pendingPay = null; }
+
+  function notePayTap(kind, id) {
+    pendingPay = { kind: kind, id: id, at: Date.now() };
+    delete payNotSeen[id];
+    try { sessionStorage.setItem(PAY_TAP_KEY, JSON.stringify(pendingPay)); } catch (e) {}
+  }
+  var payPollsActive = false;
+  function stopPayPolls() {
+    payPollTimers.forEach(clearTimeout);
+    payPollTimers = [];
+    payPollsActive = false;
+  }
+  function clearPendingPay() {
+    pendingPay = null;
+    stopPayPolls();
+    try { sessionStorage.removeItem(PAY_TAP_KEY); } catch (e) {}
+  }
+  /** Is this card waiting on the payment its Pay button just started? */
+  function payChecking(kind, id) {
+    return !!(pendingPay && pendingPay.kind === kind && pendingPay.id === id
+      && !payNotSeen[id] && Date.now() - pendingPay.at < PAY_RETURN_WINDOW_MS);
+  }
+  /** Has the server moved this item on — paid, a bank payment processing, or
+   *  withdrawn? Read from the snapshot the overlay produced, never guessed. */
+  function paySettledIn(snap, p) {
+    if (!snap || !p) return false;
+    var secs = snap.sections || {};
+    if (p.kind === 'invoice') {
+      var inv = (secs.invoices || []).filter(function (i) { return i.id === p.id; })[0];
+      if (!inv) return true;
+      var bal = typeof inv.balance === 'number' ? inv.balance : null;
+      return !!inv.paymentProcessing || String(inv.effectiveStatus || inv.status || '').toLowerCase() === 'paid'
+        || (bal != null && bal <= 0.01);
+    }
+    var a = (secs.aiaPayApps || []).filter(function (x) { return x.id === p.id; })[0];
+    if (!a) return true;
+    return !!a.paidAt || !!a.paymentProcessing;
+  }
+  function startPayPolls() {
+    if (!pendingPay || payPollsActive) return;
+    if (Date.now() - pendingPay.at >= PAY_RETURN_WINDOW_MS) { clearPendingPay(); return; }
+    var tapped = pendingPay;
+    payPollsActive = true;
+    PAY_POLL_DELAYS_MS.forEach(function (ms, i) {
+      payPollTimers.push(setTimeout(function () {
+        if (pendingPay !== tapped) return;
+        refreshPortalSnapshot().then(function (fresh) {
+          if (pendingPay !== tapped) return;
+          if (paySettledIn(fresh, tapped)) {
+            clearPendingPay();
+            if (window.__portalData) boot(window.__portalData);
+            return;
+          }
+          if (i === PAY_POLL_DELAYS_MS.length - 1) {
+            // Nothing has reached the contractor yet. Give the button back —
+            // they may have closed Stripe without paying — and say so. The
+            // tap stays remembered: coming back to the tab checks again.
+            payNotSeen[tapped.id] = true;
+            stopPayPolls();
+            if (window.__portalData) boot(window.__portalData);
+          }
+        });
+      }, ms));
+    });
+  }
+  function onPayReturn() {
+    if (document.hidden || !pendingPay || !window.__portalData || payPollsActive) return;
+    if (Date.now() - pendingPay.at >= PAY_RETURN_WINDOW_MS) { clearPendingPay(); return; }
+    if (payNotSeen[pendingPay.id]) {
+      // Back again after "no payment yet": check again, and say so on the card.
+      delete payNotSeen[pendingPay.id];
+      boot(window.__portalData);
+    }
+    startPayPolls();
+  }
+  // Registered ONCE, here — not inside render(), which runs again on every
+  // refresh and used to stack a listener per run. `focus` covers a Stripe
+  // popup window, which never hides this tab.
+  document.addEventListener('visibilitychange', onPayReturn);
+  window.addEventListener('pageshow', onPayReturn);
+  window.addEventListener('focus', onPayReturn);
+
+  // A Pay button's own markup while its payment is being checked, and the
+  // note after the last poll saw nothing.
+  function payCheckingHtml() {
+    return '<span class="pill" data-pay-checking="1">' + icn(ICONS.creditCard, 12) + ' Checking your payment…</span>';
+  }
+  function payNotSeenHtml(id) {
+    return payNotSeen[id]
+      ? '<div class="prop-note" data-pay-not-seen="1" style="margin-top:8px">No payment has reached your contractor yet. If you just paid, it can take a minute — check back before paying again.</div>'
+      : '';
+  }
+  // #83 / #135: a bank (ACH) payment in flight — the overlay sends
+  // paymentProcessing {since, amount} and no payLinkUrl.
+  function paymentProcessingHtml(pp) {
+    if (!pp) return '';
+    var amt = typeof pp.amount === 'number' && isFinite(pp.amount) ? fmtMoney(pp.amount, { dec: 2 }) : null;
+    return '<div class="prop-note" data-payment-processing="1" style="margin-top:8px">' +
+      esc('Bank payment' + (amt ? ' of ' + amt : '') + ' processing' + (pp.since ? ' since ' + fmtDate(pp.since) : '') +
+        '. Bank transfers take a few business days to clear — no need to pay again.') +
+    '</div>';
+  }
+
+  // ───── Private photos (#14) ─────
+  // Photos live in a private bucket. The snapshot carries each photo's id
+  // (and an http(s) url only for a legacy public link — never a file:// path
+  // from the GC's phone); signed-media-urls signs them per read, gated by the
+  // same ?t= token as the snapshot. NO passcode is sent: the function ignores
+  // it by design (it would otherwise be a passcode oracle). URLs live an hour,
+  // so they are re-fetched on every render (every refresh) and on a timer.
+  var UUID_RE_PAGE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var signedPhotoUrls = {};    // lower-cased photo id -> signed url
+  var photoSignSettled = false; // the last signing call has answered (or failed)
+  var photoSignTimer = null;
+  function legacyPhotoUrl(u) { return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : ''; }
+  function photoSrc(p) {
+    if (!p) return '';
+    var id = typeof p.id === 'string' ? p.id.toLowerCase() : '';
+    if (id && signedPhotoUrls[id]) return signedPhotoUrls[id];
+    return legacyPhotoUrl(p.url);
+  }
+  /** src + data-photo-id attributes for an <img> of a snapshot photo. */
+  function photoImgAttrs(p) {
+    var src = photoSrc(p);
+    var id = p && typeof p.id === 'string' ? p.id : '';
+    return (src ? ' src="' + esc(src) + '"' : '') +
+      (id ? ' data-photo-id="' + esc(id) + '"' : '') +
+      (legacyPhotoUrl(p && p.url) ? ' data-photo-legacy="1"' : '');
+  }
+  function hidePhotoEl(img) {
+    var host = img.closest('figure.photo') || img;
+    host.style.display = 'none';
+  }
+  function applySignedPhotoUrls() {
+    document.querySelectorAll('img[data-photo-id]').forEach(function (img) {
+      var url = signedPhotoUrls[String(img.getAttribute('data-photo-id')).toLowerCase()];
+      if (url) { if (img.getAttribute('src') !== url) img.setAttribute('src', url); return; }
+      if (img.getAttribute('data-photo-legacy') === '1') return;
+      // Signed nothing for it (recalled, not published, or the call was
+      // refused): hide it rather than show a broken tile.
+      if (photoSignSettled) hidePhotoEl(img);
+    });
+    var d = window.__portalData;
+    var proj = d && d.project;
+    var bg = document.getElementById('hero-photo-bg');
+    if (bg && proj) {
+      var heroSrc = photoSrc({ id: proj.heroPhotoId, url: proj.heroPhotoUrl });
+      if (heroSrc) {
+        bg.style.backgroundImage = 'url("' + heroSrc.replace(/["\\]/g, '') + '")';
+        bg.style.display = 'block';
+      } else if (photoSignSettled) {
+        bg.style.display = 'none';
+      }
+    }
+  }
+  function refreshSignedPhotoUrls(data) {
+    var ids = [];
+    var seen = {};
+    function add(id) {
+      if (typeof id !== 'string' || !UUID_RE_PAGE.test(id)) return;
+      var k = id.toLowerCase();
+      if (seen[k] || ids.length >= 100) return;
+      seen[k] = true; ids.push(id);
+    }
+    ((data && data.sections && data.sections.photos) || []).forEach(function (p) { add(p && p.id); });
+    add(data && data.project && data.project.heroPhotoId);
+    var portalId = parsePortalIdFromPath() || (data && data.portalApi && data.portalApi.portalId) || '';
+    var token = getPortalToken();
+    // Until this call answers, a tile with no src yet is waiting, not missing.
+    photoSignSettled = false;
+    if (!ids.length) { photoSignSettled = true; applySignedPhotoUrls(); return; }
+    if (!portalId || !token) {
+      // A link with no ?t= cannot sign anything.
+      photoSignSettled = true; applySignedPhotoUrls(); return;
+    }
+    fetch(SUPABASE_URL_PUBLIC + '/functions/v1/signed-media-urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC },
+      body: JSON.stringify({ kind: 'portal_photos', portalId: portalId, token: token, photoIds: ids }),
+    }).then(function (r) {
+      if (r.status === 401) { signedPhotoUrls = {}; return null; }
+      return r.ok ? r.json() : null;
+    }).then(function (body) {
+      if (body && body.urls && typeof body.urls === 'object') {
+        var next = {};
+        Object.keys(body.urls).forEach(function (k) {
+          var u = body.urls[k];
+          if (typeof u === 'string' && /^https:\/\//i.test(u)) next[k.toLowerCase()] = u;
+        });
+        signedPhotoUrls = next;
+      }
+    }).catch(function () { /* keep what we had; hide what never signed */ }).then(function () {
+      photoSignSettled = true;
+      applySignedPhotoUrls();
+    });
+    // Before the hour runs out, sign again (one timer, however many renders).
+    if (photoSignTimer) clearTimeout(photoSignTimer);
+    photoSignTimer = setTimeout(function () {
+      if (window.__portalData) refreshSignedPhotoUrls(window.__portalData);
+    }, 50 * 60 * 1000);
+  }
+  // A signed link that lapsed (or a legacy link gone dead) hides its tile.
+  document.addEventListener('error', function (ev) {
+    var el = ev.target;
+    if (el && el.tagName === 'IMG' && el.hasAttribute && el.hasAttribute('data-photo-id')) hidePhotoEl(el);
+  }, true);
+
   function boot(data) {
     if (!data) { showPortalProblem('unavailable'); return; }
+    try { lastBootJson = JSON.stringify(data); } catch (e) { lastBootJson = null; }
     // A Retry that succeeds lands here with the problem card still up.
     var fb = document.getElementById('fallback');
     if (fb) fb.style.display = 'none';

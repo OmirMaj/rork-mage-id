@@ -467,6 +467,8 @@ export interface OwnerDecisionInput {
   changeOrders?: {
     id: string; number?: number | string; description?: string;
     status?: string; changeAmount?: number; dateSubmitted?: string;
+    /** Wave 3 (#131) frozen sales tax + the tax-inclusive figure. */
+    taxAmount?: number; totalWithTax?: number;
   }[];
   coApprovalEnabled?: boolean;
   selections?: { id: string; category?: string; dueDate?: string; status?: string; chosen?: boolean }[];
@@ -555,7 +557,15 @@ export function buildOwnerDecisions(input: OwnerDecisionInput): OwnerDecision[] 
     if (!PENDING_CO_STATUSES.has(status)) continue;
     const submitted = toCalendarDate(co.dateSubmitted);
     const waitingDays = submitted ? Math.max(0, daysBetween(submitted, today)) : undefined;
-    const amount = typeof co.changeAmount === 'number' ? co.changeAmount : undefined;
+    // #136: the figure the homeowner approves. On a taxed CO that is the
+    // tax-inclusive total the signature sheet shows ("$12,960.00 incl. tax"),
+    // not the pre-tax change — the same coHasTax test the portal page uses
+    // (legacyOwnerDecisions in marketing/portal/index.html mirrors this).
+    const coTaxed = typeof co.taxAmount === 'number' && Number.isFinite(co.taxAmount) && Math.abs(co.taxAmount) >= 0.005
+      && typeof co.totalWithTax === 'number' && Number.isFinite(co.totalWithTax);
+    const amount = coTaxed
+      ? co.totalWithTax
+      : typeof co.changeAmount === 'number' ? co.changeAmount : undefined;
     const label = co.number != null ? `Change order #${co.number}` : 'Change order';
     const description = typeof co.description === 'string' ? tidy(co.description, 80) : '';
     push({

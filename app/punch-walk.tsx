@@ -58,6 +58,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+import { punchLocationText, PUNCH_NO_ROOM_TEXT } from '@/utils/punchGcCore';
 import { Stack, useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -180,7 +181,7 @@ const ON_ACCENT_INK = '#FFFFFF';
  * so. The banner reads this to label a carried-forward room AS carried
  * forward, rather than showing it identically to one he just chose.
  *
- *   'none'    — empty; the item will save as "Unspecified"
+ *   'none'    — empty; the item saves with NO location ('') — #56
  *   'picked'  — he tapped a chip or a row in the All-rooms sheet
  *   'typed'   — he typed it into the input
  *   'voice'   — the transcript parser pulled it out of his dictation
@@ -737,7 +738,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       id,
       projectId,
       description: draft.description.trim(),
-      location: draft.location.trim() || 'Unspecified',
+      // '' when no room was given — never the word 'Unspecified' (#56). A
+      // placeholder saved into the data reached the export, the filters and
+      // the sub's portal as if it were a room; the punch list words an empty
+      // location as "No room given" at render time instead.
+      location: draft.location.trim(),
       // '' when no sub on this job, never the trade word: "Sub: Electrical"
       // read as an assignment on the list, the filter and the export.
       assignedSub: sub?.companyName ?? '',
@@ -1051,7 +1056,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 
             {!locationIsSet && (
               <Text style={styles.locationWarnNote}>
-                This item files under {'“'}Unspecified{'”'} {'—'} it won{'’'}t group with a room on the punch list or in a sub{'’'}s handoff.
+                No room given {'—'} it won{'’'}t group with a room on the punch list or in a sub{'’'}s handoff, and a sub{'’'}s portal will say “No room given”.
               </Text>
             )}
           </View>
@@ -1310,7 +1315,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                       <Text style={{ color: c.listType === 'punch' ? themeColors.dangerLabel : themeColors.textSecondary, fontWeight: '700' }}>
                         {c.listType === 'punch' ? 'Punch' : 'Crew'}
                       </Text>
-                      {' · '}{c.location} · {c.trade} · {c.priority}
+                      {' · '}{punchLocationText(c.location) ?? PUNCH_NO_ROOM_TEXT} · {c.trade} · {c.priority}
                       {c.pinLabel ? ` · pinned on ${c.pinLabel}` : ''}
                     </Text>
                   </View>
@@ -1457,7 +1462,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                   <X size={14} color={themeColors.textMuted} strokeWidth={2} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.locRowTitle}>No location</Text>
-                    <Text style={styles.locRowSub}>Files under {'“'}Unspecified{'”'}</Text>
+                    <Text style={styles.locRowSub}>Saves with no room given</Text>
                   </View>
                 </TouchableOpacity>
               )}

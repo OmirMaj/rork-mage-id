@@ -169,7 +169,11 @@ if (loaderCall) {
   check('mapper passes writePending from the queued projects ids', /writePending:\s*pendingProjectIds\.has\(/.test(loaderCall[1]), loaderCall[1]);
   check('mapper blinds a field role from cached money', /canViewMoney:[^\n]*isFinancialsBlinded/.test(loaderCall[1]), loaderCall[1]);
 }
-check('pendingProjectIds comes from queuedIdsFor(\'projects\')', /pendingProjectIds\s*=\s*await\s+queuedIdsFor\('projects'\)/.test(ctx));
+// Integration round 3 (wave 4): plus the jobs under Not saved (read after the queue).
+// Wave-4 final fix round 8: a Not-saved job's terms come from the fin row with
+// the line laid over it (validate-w4-final-fix-r8), so only a job whose write
+// is still QUEUED keeps the cached terms.
+check('pendingProjectIds comes from queuedIdsFor(\'projects\') + the queue-pinned Not-saved jobs', /pendingProjectIds\s*=\s*new Set\(\[\.\.\.await\s+queuedIdsFor\('projects'\), \.\.\.\[\.\.\.unsavedProjects\]\.filter\(\(id\) => queuePinned\.has\(id\)\)\]\)/.test(ctx));
 
 // Argument block of each supabaseWrite(<table>, ...) call.
 function writeBlocks(table: string): string[] {

@@ -242,6 +242,48 @@ export function resolvePaymentSplit(input: { record?: unknown; settings?: Pick<A
   return { split: null, source: 'not_set' };
 }
 
+/**
+ * #69 (wave 4): the split THIS JOB's homeowner was shown, and where it came
+ * from. The portal stamp (the proposal the client can accept) wins; then the
+ * split printed on the proposal PDF the GC shared from the estimate wizard
+ * (estimate.quotedPaymentSplit, written on a successful share); otherwise
+ * null — and the contract falls back to his profile via resolvePaymentSplit.
+ * Before this, a job with the portal proposal switch off had no record at
+ * all, so a profile change between the PDF and the contract silently changed
+ * the deposit the homeowner had agreed to by reply.
+ */
+export type JobProposalSplit =
+  | { split: PaymentSplit; from: 'portal' }
+  | { split: PaymentSplit; from: 'quoted'; sharedAt: string };
+
+export function jobProposalSplit(input: {
+  portalStamp?: unknown;
+  quoted?: (PaymentSplit & { sharedAt?: string }) | null;
+}): JobProposalSplit | null {
+  if (isValidSplit(input.portalStamp)) return { split: pickSplit(input.portalStamp), from: 'portal' };
+  const q = input.quoted;
+  if (q && isValidSplit(q)) return { split: pickSplit(q), from: 'quoted', sharedAt: typeof q.sharedAt === 'string' ? q.sharedAt : '' };
+  return null;
+}
+
+/**
+ * #69: the split printed on the last proposal PDF shared for this job, with
+ * the day it went out. Stored on the job's estimate jsonb — project.estimate
+ * when the job has a legacy breakdown, otherwise project.linkedEstimate (the
+ * wizard's jobs carry `estimate: null`; estimatesEqual ignores the extra key,
+ * so it never mints a revision). Either column already syncs; no migration.
+ */
+export function quotedSplitOf(p: {
+  estimate?: { quotedPaymentSplit?: PaymentSplit & { sharedAt: string } } | null;
+  linkedEstimate?: unknown;
+} | null | undefined): (PaymentSplit & { sharedAt: string }) | null {
+  const fromEstimate = p?.estimate?.quotedPaymentSplit;
+  if (fromEstimate && isValidSplit(fromEstimate)) return fromEstimate;
+  const le = p?.linkedEstimate as { quotedPaymentSplit?: PaymentSplit & { sharedAt: string } } | null | undefined;
+  const fromLinked = le?.quotedPaymentSplit;
+  return fromLinked && isValidSplit(fromLinked) ? fromLinked : null;
+}
+
 export function resolveWarrantyMonths(settings: Pick<AppSettings, 'warrantyMonths'> | null | undefined): number | null {
   return coerceWarrantyMonths(settings?.warrantyMonths) ?? null;
 }
@@ -441,6 +483,62 @@ export function retieContractSchedule(value: number, schedule: readonly PaymentM
     }
   }
   return next;
+}
+
+/**
+ * One contract milestone's dollars, to the cent — THE BILLING RULE
+ * (billingFlowCore milestoneBillableAmount, restated here because that module
+ * imports this one): a percent row on a contract with a value is its percent
+ * of that value, even when the row also caches an amount (the editor cached
+ * whole dollars, and a cache can go stale against the value); else the saved
+ * amount; else null ("Amount not set"). The ONE rule the portal's contract
+ * content (portalSnapshot buildPortalContractContent) and the sealed contract
+ * PDF (pdfGenerator buildContractHtml) both print — so the terms the
+ * homeowner signs on the portal, the PDF he keeps, and the invoice each draw
+ * becomes all state the same dollars. Amount-first showed a stale $11,327.00
+ * draw that billing then invoiced at $11,327.13; the PDF before that printed
+ * `m.amount ?? 0`, $0 for a percent-only row the portal priced.
+ * validate-w4-integration-money-portal holds it equal to milestoneBillableAmount.
+ */
+export function contractMilestoneAmount(m: Pick<PaymentMilestone, 'amount' | 'percent'>, contractValue: number): number | null {
+  if (typeof m.percent === 'number' && Number.isFinite(m.percent) && Number.isFinite(contractValue) && contractValue > 0) {
+    return Math.max(0, Math.round(contractValue * (m.percent / 100) * 100) / 100);
+  }
+  if (typeof m.amount === 'number' && Number.isFinite(m.amount)) return Math.max(0, Math.round(m.amount * 100) / 100);
+  return null;
+}
+
+/**
+ * The Amount column of a whole schedule, index for index — what the sealed
+ * contract PDF (pdfGenerator buildContractHtml) and the portal's contract
+ * content (portalSnapshot buildPortalContractContent) print. Every row is
+ * contractMilestoneAmount (percent wins, to the cent), with ONE exception:
+ * the row retieContractSchedule gives the rounding cent — the single
+ * `on_invoice` row of an all-percent schedule summing to 100 — prints the
+ * contract value less the other printed rows. Printed at its percent it
+ * dropped that cent, so a $10,000.05 contract on 10 / 80 / 10 printed
+ * 1,000.01 | 8,000.04 | 1,000.01 = $10,000.06 under "Contract value
+ * $10,000.05" (the editor's saved 8,000.03 foots). Billing is untouched: the
+ * `on_invoice` row opens Bill from Estimate and never becomes a lump invoice,
+ * and every other row prints exactly what it bills. A falsy entry → null.
+ */
+export function printedScheduleAmounts(
+  schedule: readonly (Pick<PaymentMilestone, 'amount' | 'percent' | 'trigger'> | null | undefined)[],
+  contractValue: number,
+): (number | null)[] {
+  const printed = schedule.map((m) => (m ? contractMilestoneAmount(m, contractValue) : null));
+  const rows = schedule.filter((m): m is Pick<PaymentMilestone, 'amount' | 'percent' | 'trigger'> => !!m);
+  const hasPct = (m: Pick<PaymentMilestone, 'percent'>) => typeof m.percent === 'number' && Number.isFinite(m.percent);
+  const invoiceIdx = schedule.flatMap((m, i) => (m && m.trigger === 'on_invoice' ? [i] : []));
+  const pctSum = rows.reduce((sum, m) => sum + (m.percent ?? 0), 0);
+  if (!(Number.isFinite(contractValue) && contractValue > 0) || rows.length === 0 || !rows.every(hasPct)
+    || pctSum !== 100 || invoiceIdx.length !== 1) {
+    return printed;
+  }
+  const at = invoiceIdx[0];
+  const othersCents = printed.reduce<number>((sum, a, i) => (i === at || a === null ? sum : sum + Math.round(a * 100)), 0);
+  printed[at] = Math.max(0, Math.round(contractValue * 100) - othersCents) / 100;
+  return printed;
 }
 
 /** The "when" a schedule row prints when it has no date. */

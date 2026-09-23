@@ -371,7 +371,7 @@
       '</div>';
   }
 
-  function renderSuccess(name) {
+  function renderSuccess(name, revision) {
     document.getElementById('content').innerHTML =
       '<div class="success-state">' +
         '<div class="success-icon">✓</div>' +
@@ -379,7 +379,8 @@
         '<div class="empty-body">' +
           // #56: true once 20260919080000 is live — the response is filed on
           // the contractor's record and a pro_response_received alert is sent.
-          'Thanks' + (name ? ', ' + escHtml(name) : '') + '. Your response is filed on the contractor\'s ' + (DOC_TYPE === 'rfi' ? 'RFI' : 'submittal') + ', and MAGE ID sends them an alert.' +
+          'Thanks' + (name ? ', ' + escHtml(name) : '') + '. Your response is filed on the contractor\'s ' + (DOC_TYPE === 'rfi' ? 'RFI' : 'submittal') +
+          (revision ? ' below the answer already on file, dated and with your name' : '') + ', and MAGE ID sends them an alert.' +
         '</div>' +
       '</div>';
   }
@@ -391,11 +392,69 @@
   // /storage/v1/object/) is shown as a tile that opens full size. Links are
   // short-lived (signed); one that no longer opens says so and points to the
   // email copy. Anything else (a device-only photo) stays a count.
-  function viewableAttachments(list) {
+  //
+  // #93 / #113: the contractor's app now stores each DRAWING as its durable
+  // plan-sheets key, not a link — a link minted at send died 24 hours later,
+  // mid-review. This page asks signed-media-urls for fresh short-lived links
+  // on every open (the share token is the proof), so a key is viewable too.
+  // A drawing the function could not sign falls back to its public address,
+  // which opens while the drawings bucket is still public.
+  function viewableAttachments(list, signed) {
     var host = SUPABASE_URL.replace(/\/+$/, '');
-    return (Array.isArray(list) ? list : []).filter(function (u) {
-      return typeof u === 'string' && u.indexOf(host + '/storage/v1/object/') === 0;
+    var urls = signed || {};
+    var out = [];
+    (Array.isArray(list) ? list : []).forEach(function (u) {
+      if (typeof u !== 'string') return;
+      if (isSheetRef(u)) {
+        var key = sheetKey(u);
+        if (!key) return;
+        var src = urls[key] ||
+          (u.indexOf(host + '/storage/v1/object/public/') === 0 ? u
+            : host + '/storage/v1/object/public/plan-sheets/' + key.split('/').map(encodeURIComponent).join('/'));
+        out.push({ src: src, key: key });
+        return;
+      }
+      if (u.indexOf(host + '/storage/v1/object/') === 0) out.push({ src: u, key: '' });
     });
+    return out;
+  }
+
+  // A plan-sheets drawing: a storage link into plan-sheets, or a bare key under
+  // a project folder (<project uuid>/…) — the shape the app stores (#93).
+  function isSheetRef(u) {
+    if (typeof u !== 'string' || !u) return false;
+    if (/^https?:/i.test(u)) return u.indexOf('/plan-sheets/') >= 0;
+    return /^\/*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i.test(u);
+  }
+
+  // The plan-sheets keys among an RFI's attachments, for signed-media-urls.
+  function sheetKeysOf(list) {
+    var keys = [];
+    (Array.isArray(list) ? list : []).forEach(function (u) {
+      if (!isSheetRef(u)) return;
+      var k = sheetKey(u);
+      if (k && keys.indexOf(k) < 0) keys.push(k);
+    });
+    return keys;
+  }
+
+  // Fresh links for this RFI's drawings (CONTRACT 14: {kind:'rfi_sheets',
+  // shareToken, paths} -> {urls: {path: url}}). Never throws: any failure —
+  // offline, the function not deployed yet, a refusal — resolves {} and the
+  // tiles take their fallback address.
+  function signSheets(keys) {
+    if (!keys.length) return Promise.resolve({});
+    return fetch(SUPABASE_URL + '/functions/v1/signed-media-urls', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ kind: 'rfi_sheets', shareToken: TOKEN, paths: keys }),
+    }).then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (d) { return (d && d.urls && typeof d.urls === 'object') ? d.urls : {}; })
+      .catch(function () { return {}; });
   }
 
   // The object key inside a plan-sheets link (or a bare stored path), so a pin's
@@ -411,13 +470,14 @@
     return s.replace(/^\/+/, '');
   }
 
-  function attachmentBlock(list, pins) {
+  function attachmentBlock(list, pins, signed) {
     var all = Array.isArray(list) ? list.length : 0;
     if (all === 0) return '';
-    var shown = viewableAttachments(list);
+    var shown = viewableAttachments(list, signed);
     var marks = Array.isArray(pins) ? pins : [];
-    var tiles = shown.map(function (u, i) {
-      var key = sheetKey(u);
+    var tiles = shown.map(function (att, i) {
+      var u = att.src;
+      var key = att.key;
       var circles = key ? marks.filter(function (m) {
         var x = Number(m && m.x), y = Number(m && m.y);
         return sheetKey(m && m.sheet_path) === key && x >= 0 && x <= 1 && y >= 0 && y <= 1;
@@ -425,7 +485,7 @@
         return '<i class="att-pin" style="left:' + (Number(m.x) * 100).toFixed(2) + '%;top:' + (Number(m.y) * 100).toFixed(2) + '%"></i>';
       }).join('') : '';
       var img = '<img src="' + escHtml(u) + '" alt="Attachment ' + (i + 1) + '" loading="lazy" ' +
-        'onerror="this.closest(\'a\').querySelector(\'span\').textContent=\'Link expired — see the email copy\';this.remove();">';
+        'onerror="this.closest(\'a\').querySelector(\'span\').textContent=\'Could not load — see the email copy\';this.remove();">';
       return '<a class="att-tile" href="' + escHtml(u) + '" target="_blank" rel="noopener noreferrer">' +
         (circles ? '<div class="att-frame">' + img + circles + '</div>' : img) +
         '<span>' + (circles ? 'Marked location circled · open full size' : 'Open attachment ' + (i + 1)) + '</span></a>';
@@ -440,10 +500,27 @@
       (rest > 0 ? '<div class="att-note">' + rest + ' more attachment' + (rest === 1 ? ' was' : 's were') + ' sent with the original email.</div>' : '');
   }
 
-  function renderRFI(rfi) {
+  // #92: the contractor closed (or voided) this RFI and built to the answer on
+  // file. The server refuses a new answer (submit_pro_response 'rfi_closed'),
+  // so the page says so up front and shows no form.
+  function rfiIsClosed(rfi) {
+    return !!(rfi && (rfi.is_closed === true || rfi.status === 'closed' || rfi.status === 'void'));
+  }
+  function closedBlock() {
+    return '<div class="doc-card"><div class="error-state" style="text-align:left;">' +
+      '<div class="empty-title">This RFI is closed</div>' +
+      '<div class="empty-body">The contractor has closed this RFI, so it no longer takes answers here. If something has changed, contact the contractor directly — they can reopen it or raise a new RFI.</div>' +
+      '</div></div>';
+  }
+
+  function renderRFI(rfi, signedSheets) {
     var priorityClass = 'priority-' + (rfi.priority || 'normal');
-    var existingNotice = rfi.has_existing_response
-      ? '<div style="margin-top:14px;"><span class="existing-pill">✓ A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still submit a new one. Each response is recorded with a timestamp; the contractor will see all of them in chronological order.</div></div>'
+    var closed = rfiIsClosed(rfi);
+    // #92: a second answer is ADDED below the one on file (dated, with your
+    // name) — it never replaces it. The old copy promised a history ("all of
+    // them in chronological order") that no screen showed.
+    var existingNotice = rfi.has_existing_response && !closed
+      ? '<div style="margin-top:14px;"><span class="existing-pill">✓ A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still send a revision. It is added below the answer on file, dated and with your name — the first answer is not replaced.</div></div>'
       : '';
 
     var html = '' +
@@ -466,9 +543,9 @@
           '<div class="question-label">Question</div>' +
           '<div class="question-body">' + escHtml(rfi.question || '') + '</div>' +
         '</div>' +
-        attachmentBlock(rfi.attachments, rfi.pin_marks) +
+        attachmentBlock(rfi.attachments, rfi.pin_marks, signedSheets) +
       '</div>' +
-      buildResponseForm('rfi', rfi);
+      (closed ? closedBlock() : buildResponseForm('rfi', rfi));
 
     document.getElementById('content').innerHTML = html;
     wireForm();
@@ -624,10 +701,15 @@
         p_response_body: body,
         p_action_code: DOC_TYPE === 'submittal' ? selectedActionCode : null,
       }).then(function (result) {
+        if (result && result.success === false && result.error === 'rfi_closed') {
+          // #92: closed while this page was open — nothing was saved.
+          document.getElementById('content').innerHTML = closedBlock();
+          return;
+        }
         if (!result || !result.success) {
           throw new Error((result && result.error) || 'Submit failed.');
         }
-        renderSuccess(name);
+        renderSuccess(name, result.revision === true);
       }).catch(function (err) {
         btn.disabled = false;
         btn.textContent = DOC_TYPE === 'rfi' ? 'Send Response' : 'Submit Review';
@@ -668,8 +750,11 @@
           renderError(data && data.error || 'Could not load this document.');
           return;
         }
-        if (DOC_TYPE === 'rfi') renderRFI(data);
-        else renderSubmittal(data);
+        if (DOC_TYPE === 'rfi') {
+          // #93: sign the drawings on THIS open, then render once.
+          return signSheets(sheetKeysOf(data.attachments)).then(function (urls) { renderRFI(data, urls); });
+        }
+        renderSubmittal(data);
       })
       .catch(function (err) {
         console.error('[ArchitectPortal] Fetch failed:', err);

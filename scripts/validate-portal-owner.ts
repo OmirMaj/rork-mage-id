@@ -591,7 +591,9 @@ const portalHtml = read('marketing/portal/index.html');
   // scripts/validate-invoice-billing.ts LIFTS these functions out of the page
   // and executes them; what is checked here is that both sites call them.
   ok('portal AIA card shows Paid for a pay app with paidAt instead of a Pay button',
-    /var aiaPaid = aiaIsPaid\(a\);/.test(portalHtml) && /var canPay = aiaCanPay\(a\);/.test(portalHtml)
+    // Wave 4 (#83/#135): the card also withholds Pay while a bank payment is
+    // processing — still through aiaCanPay, never a looser test.
+    /var aiaPaid = aiaIsPaid\(a\);/.test(portalHtml) && /var canPay = aiaCanPay\(a\)( && !aiaProcessing)?;/.test(portalHtml)
     && /function aiaIsPaid\(a\) \{[\s\S]{0,200}!!a\.paidAt/.test(portalHtml));
   ok('portal AIA drawer footer shows Paid for a pay app with paidAt',
     /var aiaCanPayNow = aiaCanPay\(a\);/.test(portalHtml) && /Paid ' \+ fmtDate\(a\.paidAt\)/.test(portalHtml));
@@ -1622,10 +1624,12 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
     // Anchored to the headline element, not to "the string appears somewhere":
     // mutation-checked 2026-09-13, `fmtMoney(p.total * 0.8)` left a bare
     // includes('$400,000') GREEN because the scope total row also prints it.
+    // Wave 4 (#136): to the cent — the deposit invoice that follows charges
+    // cents, so the proposal it comes from shows them too.
     ok('the headline shows the price being accepted',
-      /<div class="prop-total">\$400,000<\/div>/.test(html), html.slice(0, 400));
+      /<div class="prop-total">\$400,000\.00<\/div>/.test(html), html.slice(0, 400));
     ok('…and the tie-out row under the scope shows the same number',
-      /<div class="ob-row ob-row-total"><span>Total<\/span><strong>\$400,000<\/strong><\/div>/.test(html),
+      /<div class="ob-row ob-row-total"><span>Total<\/span><strong>\$400,000\.00<\/strong><\/div>/.test(html),
       html.slice(html.indexOf('ob-row-total') - 100, html.indexOf('ob-row-total') + 160));
     for (const g of snapProposal.scope) {
       ok(`…and the scope line "${g.label}"`, html.includes(g.label));

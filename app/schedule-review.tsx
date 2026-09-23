@@ -45,7 +45,9 @@ import { computePreApplyPlan, type PreApplyDecision } from '@/utils/pace/preAppl
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { showAlert } from '@/utils/alert';
 import { useProjectRole } from '@/hooks/useProjectRole';
-import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
+import {
+  scheduleWriteBlockedReason as scheduleWriteBlockedReasonFor, scheduleWritePathForRole,
+} from '@/utils/fieldScheduleUpdate';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -260,12 +262,8 @@ export default function ScheduleReviewScreen() {
   // Refused at the press, before anything is written or recorded, with the same
   // wording the Schedule tab uses.
   const scheduleWritePath = scheduleWritePathForRole(projectRole ?? project?.myRole);
-  const scheduleWriteBlockedReason = useMemo<string | null>(() => {
-    if (scheduleWritePath === 'row') return null;
-    return scheduleWritePath === 'field_rpc'
-      ? 'Field access saves task progress, status, notes and actual start/finish — from Quick Field Update on Home, or the Schedule tab on your phone. Accepting a new schedule needs editor access from the project owner.'
-      : 'You have view-only access to this project, so a new schedule is not saved. Ask the project owner for field or editor access.';
-  }, [scheduleWritePath]);
+  // Shared with the template wizard (#90) so the two refusals read the same.
+  const scheduleWriteBlockedReason = useMemo<string | null>(() => scheduleWriteBlockedReasonFor(scheduleWritePath), [scheduleWritePath]);
 
   const accept = useCallback(() => {
     if (!project || !draft) return;

@@ -190,6 +190,21 @@ export default function EntityActionSheet({
     if (ref.kind === 'rfi' && id === 'markComplete') {
       const rfi = record as RFI | undefined;
       if (!rfi) return;
+      // #31: one tap closed an unanswered RFI with no confirm. Closing with an
+      // answer on record goes straight through; closing with none asks first
+      // (it can be reopened from the RFI screen, but a closed RFI drops off
+      // the chase list and the architect's reply link stops taking answers).
+      if (!(rfi.response ?? '').trim()) {
+        showAlert(
+          'Close this RFI without a response?',
+          `${title} has no response on record. Closed, it drops off the chase list and the reply link stops taking answers. You can reopen it from the RFI screen.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Close RFI', style: 'destructive', onPress: () => updateRFI(ref.id, rfiClosePatch(rfi, new Date().toISOString())) },
+          ],
+        );
+        return;
+      }
       updateRFI(ref.id, rfiClosePatch(rfi, now));
       return;
     }

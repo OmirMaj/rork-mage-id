@@ -126,6 +126,11 @@ function buildContext(src: string, opts: { online: boolean; insertDelayMs: numbe
     addToOfflineQueue: async (m: { table: string; operation: string; data: Row }) => { world.queue.push(m); world.log.push(`queue ${m.operation}`); },
     mergeInvoiceUpdate, invoiceUpdatePayload, invoiceInsertStillQueued,
     __qbo: () => Promise.resolve({ triggerQboSync: () => {} }),
+    // Wave 4 (#5): invoice/commitment writes are wrapped in touchedWrite so a
+    // read already on the wire keeps the device row. The wrapper only records
+    // the id; ordering is what this harness checks, so it just runs the send.
+    touchedWrite: async (_ref: unknown, _id: string, send: () => Promise<unknown>) => send(),
+    proDocWriteTouchRef: { current: new Map() },
   };
   const tx = new Bun.Transpiler({ loader: 'ts' });
   const compile = (fnSrc: string) => {
@@ -401,7 +406,9 @@ async function main() {
   await runSendScenarios(ctxSrc);
 
   console.log('\n#3 — the invoice screen sends a draft and flips it only after the email');
-  const sendStart = screen.indexOf('const handleConfirmSend = useCallback(');
+  // Wave 4 #34: the send body is runConfirmSend (handleConfirmSend wraps it in
+  // the one-send-at-a-time lock); the slice runs through to handleSendPDF.
+  const sendStart = screen.indexOf('const runConfirmSend = useCallback(');
   const sendEnd = screen.indexOf('const handleSendPDF = useCallback(', sendStart);
   const send = sendStart >= 0 && sendEnd > sendStart ? screen.slice(sendStart, sendEnd) : '';
   const guardScreen = (s: string) => {
@@ -534,14 +541,23 @@ async function main() {
     // promise was still in invoiceInsertsRef — C′ must catch it.
     { name: 'round-2 shape: the queue is checked only while the insert promise is pending',
       src: ctxSrc.replace(
-        /const invoiceWrite: Promise<boolean> = \(async \(\) => \{[\s\S]*?\n      \}\)\(\);/,
-        `const invoiceWrite: Promise<boolean> = !pendingInsert ? send() : pendingInsert.then(async (outcome) => {
-        if (outcome !== 'queued') return send();
-        let stillQueued = false;
-        try { stillQueued = invoiceInsertStillQueued(await getOfflineQueue(), id); } catch { stillQueued = true; }
-        if (!stillQueued) return send();
-        try { await addToOfflineQueue({ table: 'invoices', operation: 'update', data: payload }); } catch { /* reported by addToOfflineQueue */ }
-        return false;
+        // Wave 4 (#5) keeps the touchedWrite wrapper; only its body goes back.
+        /const invoiceWrite: Promise<boolean> = touchedWrite\(proDocWriteTouchRef, id, async \(\) => \{[\s\S]*?\n      \}\);/,
+        `const invoiceWrite: Promise<boolean> = touchedWrite(proDocWriteTouchRef, id, async () => {
+        try {
+          if (!pendingInsert) return await send();
+          return await pendingInsert.then(async (outcome) => {
+            if (outcome !== 'queued') return send();
+            let stillQueued = false;
+            try { stillQueued = invoiceInsertStillQueued(await getOfflineQueue(), id); } catch { stillQueued = true; }
+            if (!stillQueued) return send();
+            try { await addToOfflineQueue({ table: 'invoices', operation: 'update', data: payload }); } catch { /* reported by addToOfflineQueue */ }
+            return false;
+          });
+        } finally {
+          invoiceWritesInFlightRef.current -= 1;
+          payInvoicesReloadIfOwed();
+        }
       });`) },
   ];
   for (const m of mutants) {
@@ -560,7 +576,7 @@ async function main() {
     { name: 'batch share no longer issues a draft',
       src: ctxSrc.replace('      if (issue) updateInvoice(itemId, issue);\n', '') },
     { name: 'updateCommitment writes directly again (the old code)',
-      src: ctxSrc.replace("void updateBehindQueuedInsert('commitments', commitmentToRow(next));", "void supabaseWrite('commitments', 'update', commitmentToRow(next));") },
+      src: ctxSrc.replace("void touchedWrite(proDocWriteTouchRef, id, () => updateBehindQueuedInsert('commitments', commitmentToRow(next)));", "void supabaseWrite('commitments', 'update', commitmentToRow(next));") },
     { name: 'recall writes directly again (the old code)',
       src: ctxSrc.replace(/(status: 'recalled',[\s\S]*?)(void|const portalWrite =) updateBehindQueuedInsert\(tableForKind\[kind\], \{/, "$1$2 supabaseWrite(tableForKind[kind], 'update', {") },
   ];

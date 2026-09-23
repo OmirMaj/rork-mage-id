@@ -106,6 +106,32 @@ function rememberOwnStamp(taskId: string, key: string, stamp: string): void {
  *  older — the copy never saw that write. The trigger in 20260917160000 keeps
  *  the server's value in exactly this case, so the client must not show the
  *  edit as saved. */
+// ── Stamps the field RPC wrote (#87) ────────────────────────────────────────
+// field_update_schedule_tasks answers the stamp it wrote for every key it took
+// (migration 20260920160000). applyFieldTaskPatches puts them into the local
+// copy and remembers each one WITH the value it stamped, so updateProject's
+// stampFieldEdits (which sees the pre-send copy as `before`) keeps the server's
+// stamp instead of minting a device-clock one over it. Without this the local
+// copy never held the server's stamp unless the realtime echo arrived, and a
+// retry after a later failed send — which re-sends only while the server's
+// value AND stamp are what this device held — dropped his update with "changed
+// elsewhere" when nobody else had touched the task.
+const RPC_STAMPS = new Map<string, string>();
+function rememberRpcStamp(taskId: string, key: string, stamp: string, value: unknown): void {
+  if (RPC_STAMPS.size >= OWN_STAMPS_MAX) {
+    const oldest = RPC_STAMPS.keys().next().value;
+    if (oldest !== undefined) RPC_STAMPS.delete(oldest);
+  }
+  RPC_STAMPS.set(ownKey(taskId, key, stamp), JSON.stringify(value ?? null));
+  rememberOwnStamp(taskId, key, stamp);
+}
+/** Whether `stamp` is the one the field RPC wrote for exactly this value. */
+function isRpcStampFor(taskId: string, key: string, stamp: string | undefined, value: unknown): boolean {
+  if (typeof stamp !== 'string') return false;
+  const v = RPC_STAMPS.get(ownKey(taskId, key, stamp));
+  return v !== undefined && v === JSON.stringify(value ?? null);
+}
+
 function isStaleFieldValue(taskId: string, pS: Stamps, tS: Stamps, k: string): boolean {
   const pMs = stampMs(pS[k]);
   if (pMs == null) return false;
@@ -195,6 +221,11 @@ export function stampFieldEdits(
       if (isStaleFieldValue(t.id, pS, tS, k)) {
         if (k in pr) next[k] = pr[k]; else delete next[k];
         stamps[k] = pS[k];
+      } else if (tMs != null && (pMs == null || tMs > pMs) && isRpcStampFor(t.id, k, tS[k], next[k])) {
+        // The value the field RPC just wrote, carrying the stamp it wrote (#87):
+        // the server already holds exactly this — re-minting would give the
+        // local copy a stamp the server never had.
+        stamps[k] = tS[k];
       } else {
         stamps[k] = new Date(Math.max(nowMs, (pMs ?? -1) + 1, (tMs ?? -1) + 1)).toISOString();
         rememberOwnStamp(t.id, k, stamps[k]);
@@ -309,6 +340,54 @@ export function absorbServerScheduleTasks(
   return out;
 }
 
+/** A server copy of a project's schedule as a live path hands it on
+ *  (hooks/useLiveSchedule.ts, and every re-read of the column). */
+export interface ServerScheduleCopy {
+  tasks: ScheduleTask[];
+  /** `schedule.updatedAt` of the row — null when the writer set none. */
+  stamp: string | null;
+  /** The row's named baselines (utils/scheduleMerge.ts ScheduleCopy has why).
+   *  Undefined = an older event shape without the key: leave them alone. */
+  baselines?: unknown[];
+  /** Which baseline "behind plan" measures from (#86). NULL means CLEARED,
+   *  never "unknown": withActiveBaselineId deletes the key when a baseline is
+   *  cleared, and realtime's payload.new is the WHOLE row, so a schedule with
+   *  no key has none active. Without this on the live path a baseline the GC
+   *  locked on the web was written away by his next edit on the iPhone, and
+   *  the active one flipped back. */
+  activeBaselineId: string | null;
+}
+
+/** The copy a projects row's `schedule` carries — null when it holds no task
+ *  list. Pinned by scripts/validate-w4-schedule-live-sheet.ts. */
+export function scheduleCopyFromRow(schedule: unknown): ServerScheduleCopy | null {
+  const s = schedule as { tasks?: unknown; updatedAt?: unknown; baselines?: unknown; activeBaselineId?: unknown } | null | undefined;
+  if (!s || typeof s !== 'object' || !Array.isArray(s.tasks)) return null;
+  return {
+    tasks: s.tasks as ScheduleTask[],
+    stamp: typeof s.updatedAt === 'string' ? s.updatedAt : null,
+    baselines: Array.isArray(s.baselines) ? s.baselines : undefined,
+    activeBaselineId: typeof s.activeBaselineId === 'string' ? s.activeBaselineId : null,
+  };
+}
+
+/** The `adopt` a live path hands absorbServerSchedule, or undefined for the
+ *  tasks-only 3-way merge. A whole-copy adopt replaces the store's tasks, and
+ *  ProjectContext only guards that against the debounce and an in-flight sync
+ *  — a write that answered 'queued' has already left both. So while this
+ *  project has a write in the offline queue (or the queue has not been read
+ *  yet) the copy is taken tasks-only: the 3-way merge keeps the queued edits,
+ *  which reach the row when the queue flushes and come back as an echo that
+ *  carries the baselines then. What it gives up: a baseline change made
+ *  elsewhere waits for that echo instead of landing at once. */
+export function peerScheduleAdopt(
+  copy: ServerScheduleCopy,
+  ownWriteQueued: boolean,
+): { stamp: string | null; baselines?: unknown[]; activeBaselineId: string | null } | undefined {
+  if (ownWriteQueued) return undefined;
+  return { stamp: copy.stamp, baselines: copy.baselines, activeBaselineId: copy.activeBaselineId };
+}
+
 /**
  * Whether a debounced project sync carries `schedule`. `changedKeys` is the
  * update's own keys (updateProject passes Object.keys(updates)); undefined —
@@ -333,6 +412,22 @@ export function scheduleWritePathForRole(role: string | null | undefined): Sched
   if (role === 'viewer') return 'none';
   if (role === 'field') return 'field_rpc';
   return 'row';
+}
+
+/** Whole-schedule writes — accepting an AI draft (app/schedule-review.tsx) or
+ *  building / replacing one in the template wizard (app/schedule-wizard.tsx,
+ *  #90) — go out as the projects-row PATCH, which RLS refuses for field and
+ *  viewer seats with 200 and zero rows: the plan looked saved on his phone and
+ *  the next reload put the old one back. One wording for both screens, so the
+ *  two refusals cannot drift. `null` = this role may write it. */
+export const SCHEDULE_NOT_SAVED_TITLE = 'Schedule not saved';
+export const SCHEDULE_WRITE_FIELD_REASON =
+  'Field access saves task progress, status, notes and actual start/finish — from Quick Field Update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
+export const SCHEDULE_WRITE_VIEWER_REASON =
+  'You have view-only access to this project, so a new schedule is not saved. Ask the project owner for field or editor access.';
+export function scheduleWriteBlockedReason(path: ScheduleWritePath): string | null {
+  if (path === 'row') return null;
+  return path === 'field_rpc' ? SCHEDULE_WRITE_FIELD_REASON : SCHEDULE_WRITE_VIEWER_REASON;
 }
 
 /**
@@ -426,15 +521,25 @@ export function fieldScheduleSettingsChanged(before: object | null | undefined, 
   return FIELD_BLOCKED_SCHEDULE_KEYS.some(k => k in b && !same(norm(a[k]), norm(b[k])));
 }
 
+/** Per task id, per key: the stamp field_update_schedule_tasks wrote (#87). */
+export type FieldWrittenStamps = Record<string, Record<string, string>>;
+
 /** The task list as the server will hold it once `patches` land — for the
- *  local copy, so the screen shows what was saved and nothing more. */
-export function applyFieldTaskPatches(tasks: readonly ScheduleTask[], patches: readonly FieldTaskPatch[]): ScheduleTask[] {
+ *  local copy, so the screen shows what was saved and nothing more. `stamps`
+ *  (sendFieldTaskPatches' answer) go into each task's fieldEditedAt, so the
+ *  local copy holds the server's stamps too (#87); omit it only for a copy
+ *  that is not a landed send. */
+export function applyFieldTaskPatches(
+  tasks: readonly ScheduleTask[],
+  patches: readonly FieldTaskPatch[],
+  stamps?: FieldWrittenStamps,
+): ScheduleTask[] {
   const byId = new Map<string, Record<string, unknown>>();
   for (const p of patches) {
     const { id, ...rest } = p;
     byId.set(id, { ...(byId.get(id) ?? {}), ...rest });
   }
-  return tasks.map(t => {
+  const applied = tasks.map(t => {
     const patch = byId.get(t.id);
     if (!patch) return t;
     const next = { ...t } as unknown as Record<string, unknown>;
@@ -444,10 +549,34 @@ export function applyFieldTaskPatches(tasks: readonly ScheduleTask[], patches: r
     }
     return next as unknown as ScheduleTask;
   });
+  return stamps ? mergeWrittenStamps(applied, stamps) : applied;
+}
+
+/** Put the stamps field_update_schedule_tasks wrote (#87) into each task's
+ *  fieldEditedAt, remembering each one with the value it stamped (see
+ *  RPC_STAMPS). Call on the task list the landed patches were applied to. */
+export function mergeWrittenStamps(tasks: readonly ScheduleTask[], stamps: FieldWrittenStamps | undefined): ScheduleTask[] {
+  if (!stamps || Object.keys(stamps).length === 0) return tasks as ScheduleTask[];
+  return tasks.map((t) => {
+    const written = stamps[t.id];
+    if (!written) return t;
+    const next = { ...(t as unknown as Record<string, unknown>) };
+    const merged: Stamps = { ...stampsOf(t) };
+    let any = false;
+    for (const [k, st] of Object.entries(written)) {
+      if (!(FIELD_TASK_PATCH_KEYS as readonly string[]).includes(k) || typeof st !== 'string' || stampMs(st) == null) continue;
+      merged[k] = st;
+      rememberRpcStamp(t.id, k, st, next[k]);
+      any = true;
+    }
+    if (!any) return t;
+    next[FIELD_EDIT_STAMPS] = merged;
+    return next as unknown as ScheduleTask;
+  });
 }
 
 export type FieldSendResult =
-  | { ok: true; missing: string[] }
+  | { ok: true; missing: string[]; stamps: FieldWrittenStamps }
   | { ok: false; message: string; offline: boolean; retryable: boolean };
 
 interface RpcClient {
@@ -668,7 +797,7 @@ export async function sendFieldTaskPatches(
   projectId: string,
   patches: readonly FieldTaskPatch[],
 ): Promise<FieldSendResult> {
-  if (patches.length === 0) return { ok: true, missing: [] };
+  if (patches.length === 0) return { ok: true, missing: [], stamps: {} };
   try {
     const { data, error } = await client.rpc(FIELD_SCHEDULE_RPC, {
       p_project_id: projectId,
@@ -678,9 +807,26 @@ export async function sendFieldTaskPatches(
     const missing = Array.isArray((data as { missing?: unknown } | null)?.missing)
       ? ((data as { missing: unknown[] }).missing.filter((x): x is string => typeof x === 'string'))
       : [];
-    return { ok: true, missing };
+    return { ok: true, missing, stamps: parseWrittenStamps((data as { stamps?: unknown } | null)?.stamps) };
   } catch (e) {
     const err = { message: e instanceof Error ? e.message : String(e) };
     return { ok: false, message: fieldSendFailureMessage(err), ...classifyFieldSendFailure(err) };
   }
+}
+
+/** The RPC's `stamps` answer, keeping only well-formed {taskId: {key: iso}}
+ *  entries. A server without migration 20260920160000 answers none → {}, and
+ *  the caller behaves exactly as before (the stamp comes by realtime). */
+export function parseWrittenStamps(raw: unknown): FieldWrittenStamps {
+  const out: FieldWrittenStamps = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, row] of Object.entries(raw as Record<string, unknown>)) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const keep: Record<string, string> = {};
+    for (const [k, st] of Object.entries(row as Record<string, unknown>)) {
+      if ((FIELD_TASK_PATCH_KEYS as readonly string[]).includes(k) && typeof st === 'string' && stampMs(st) != null) keep[k] = st;
+    }
+    if (Object.keys(keep).length > 0) out[id] = keep;
+  }
+  return out;
 }

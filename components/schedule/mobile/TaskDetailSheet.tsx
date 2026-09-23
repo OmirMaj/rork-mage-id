@@ -24,7 +24,9 @@ import { TaskChecklist } from './TaskChecklist';
 import { PercentSlider } from './PercentSlider';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
-import { taskCalendarRange } from '@/utils/scheduleOps';
+import {
+  heldByPredecessor, scheduledStartOrdinal, scheduledTaskRange, steppedStartDay, taskCalendarRange, type ScheduledPlacement,
+} from '@/utils/scheduleOps';
 import { taskSheetLocks, type ScheduleWritePath } from '@/utils/fieldScheduleUpdate';
 
 interface TaskDetailSheetProps {
@@ -43,6 +45,11 @@ interface TaskDetailSheetProps {
   onDeleteTask: (id: string) => void;
   /** The caller's write path (scheduleWritePathForRole). Omitted = 'row'. */
   writePath?: ScheduleWritePath;
+  /** Where the ENGINE placed each task — the SAME map the list row and the
+   *  timeline draw from (MobileScheduleScreen `placements`). The sheet prints
+   *  and steps from placements.get(task.id), so it shows the dates of the row
+   *  he just tapped (#88). Omitted → the stored pin, as before. */
+  placements?: ReadonlyMap<string, ScheduledPlacement>;
 }
 
 type DetailTab = 'overview' | 'resources' | 'docs' | 'activity';
@@ -92,7 +99,7 @@ function ReadOnlyChecklist({ items }: { items: { id: string; label: string; done
   );
 }
 
-export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask, writePath }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDaysPerWeek, nonWorkingDates, onClose, onUpdateTask, onDeleteTask, writePath, placements }: TaskDetailSheetProps) {
   const { colors } = useTheme();
   // What this access can save here (#139) — see taskSheetLocks for why.
   const locks = taskSheetLocks(writePath);
@@ -157,14 +164,24 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
   const phaseColor = getPhaseColor(task.phase || 'Other');
   const dur = Math.max(1, task.durationDays || 1);
   // startDay is 1-indexed (day 1 = schedule start) and counts WORKING days,
-  // matching the desktop + CPM engine, so the dates come from
-  // taskCalendarRange — not `baseMs + offset * MS_DAY`, which printed the
-  // Saturday for a startDay-6 task and contradicted the list row for the
-  // same task (B4 review A9 / item 2).
-  // Undated (base === null): the stepper shows 'Day 6' and the hint 'Ends day
-  // 10'. Those integers ARE the stored plan; the calendar dates were not.
-  const range = base ? taskCalendarRange(task, base, workingDaysPerWeek, nonWorkingDates) : null;
-  const startDayNumber = Math.max(1, task.startDay ?? 1);
+  // matching the desktop + CPM engine, so dates are walked on the schedule's
+  // working calendar — not `baseMs + offset * MS_DAY`, which printed the
+  // Saturday for a startDay-6 task (B4 review A9 / item 2).
+  //
+  // THE ROW'S DATES, NOT THE PIN'S (#88). startDay is only the pin; the list
+  // row and the timeline print where the ENGINE placed the task, and a
+  // predecessor that grew on the web pushes it later without rewriting the
+  // pin. The sheet printed the pin, so the row said Mar 10 and the sheet Mar 3
+  // for the same task. Now both come from scheduledTaskRange over the same
+  // placement (undated: the placement's working days, as scheduledWorkingDayLabel).
+  const placement = placements?.get(task.id);
+  const calendar = { scheduleStartDate: startDate ?? undefined, workingDaysPerWeek, nonWorkingDates };
+  const range = base ? scheduledTaskRange(task, placement, base, workingDaysPerWeek, nonWorkingDates) : null;
+  const pinDay = Math.max(1, task.startDay ?? 1);
+  const startDayNumber = scheduledStartOrdinal(task, placement, calendar);
+  const endDayNumber = placement && placement.scale === 'working'
+    ? Math.max(startDayNumber, Math.round(placement.ef))
+    : startDayNumber + dur - 1;
   const startLabel = range ? fmt(range.start) : `Day ${startDayNumber}`;
   // A 0-day milestone does not END anywhere — it lands. `dur` floors at 1 so
   // the duration stepper has something to step, and reading the hint off that
@@ -175,7 +192,15 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
     ? (range ? `Lands ${fmt(range.start)}` : `Lands on day ${startDayNumber}`)
     : range
       ? `Ends ${fmt(range.end)}`
-      : `Ends day ${startDayNumber + dur - 1}`;
+      : `Ends day ${endDayNumber}`;
+  // Pushed past his pin by a predecessor: say so beside the stepper, with the
+  // pin he set, so the real date and his date are read together (the same
+  // story the snap-back notice tells after a tap).
+  const heldBy = startDayNumber > pinDay ? heldByPredecessor(task, allTasks, placements, calendar) : null;
+  const pinLabel = base ? fmt(taskCalendarRange(task, base, workingDaysPerWeek, nonWorkingDates).start) : `day ${pinDay}`;
+  const heldLabel = startDayNumber > pinDay
+    ? `Held to ${range ? fmt(range.start) : `day ${startDayNumber}`}${heldBy ? ` by ${heldBy}` : ' by its links'} (you set ${pinLabel})`
+    : null;
   const predNames = (task.dependencyLinks ?? []).map((l) => allTasks.find((t) => t.id === l.taskId)?.title).filter(Boolean) as string[];
   const checklist = task.checklist ?? [];
 
@@ -192,7 +217,11 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
     const status: TaskStatus = p >= 100 ? 'done' : p <= 0 ? 'not_started' : 'in_progress';
     onUpdateTask({ ...task, progress: p, status });
   };
-  const shiftStart = (delta: number) => { if (locks.plan) return; haptic(); onUpdateTask({ ...task, startDay: Math.max(1, (task.startDay ?? 1) + delta) }); };
+  // "+" steps from the SCHEDULED start (#88), so it moves the date he sees.
+  // "−" steps from his pin when a predecessor holds the task later: it asks
+  // for an earlier day than the one he set (the screen's snap-back notice
+  // says why the bar stays), and never rewrites his earlier pin to a later one.
+  const shiftStart = (delta: number) => { if (locks.plan) return; haptic(); onUpdateTask({ ...task, startDay: steppedStartDay(pinDay, startDayNumber, delta) }); };
   const shiftDuration = (delta: number) => { if (locks.plan) return; haptic(); onUpdateTask({ ...task, durationDays: Math.max(1, (task.durationDays || 1) + delta) }); };
   const toggleMilestone = (v: boolean) => { if (locks.plan) return; haptic(); onUpdateTask({ ...task, isMilestone: v }); };
   const commitTitle = () => { if (locks.plan) { setTitle(task.title); return; } const v = title.trim(); if (v && v !== task.title) onUpdateTask({ ...task, title: v }); else if (!v) setTitle(task.title); };
@@ -274,6 +303,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                     <Stepper value={`${dur} day${dur === 1 ? '' : 's'}`} onDec={() => shiftDuration(-1)} onInc={() => shiftDuration(1)} disabled={locks.plan} />
                   </View>
                   <Text style={styles.endHint}>{endLabel}</Text>
+                  {heldLabel ? <Text style={styles.endHint} testID="task-sheet-held-by">{heldLabel}</Text> : null}
 
                   <Text style={[styles.gLbl, { marginTop: 14 }]}>Status</Text>
                   <View style={styles.statusRow}>

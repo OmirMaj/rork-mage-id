@@ -317,12 +317,26 @@ console.log('\n── 9. source pins (no injection seam exists for these) ──
   ok('…and the plain state shows the core’s own title and detail, unedited',
     /showAlert\(title, detail\)/.test(pressBody.replace(/\s+/g, ' ')),
     'the pill is writing its own reassurance instead of the pinned copy');
-  ok('…and the failed state passes the core’s detail through, only appending',
-    /showAlert\(\s*title,\s*`\$\{detail\}/.test(pressBody),
-    'the failed dialog must carry "will not be sent" and the list of what failed');
+  // Wave 4 (#1): the failed state opens a sheet instead of an alert. It must
+  // still show the core's own title and detail (not a sentence of its own),
+  // one row per record in the core's "Not saved to MAGE — …" words, and a
+  // Retry ONLY where the ledger kept what it takes to resend — a Retry on a
+  // photo note or a pre-payload entry would be the spinner that lies.
+  ok('…and the failed state opens the sheet, which renders the core’s title and detail',
+    // Wave-4 final fix: through presentSheet, which always presents (pinned
+    // in validate-w4-integration-data-sync).
+    /if \(tone === 'failed'\) \{\s*presentSheet\(\);/.test(pressBody)
+      && /const presentSheet = useCallback\(\(\) => \{\s*if \(!sheetOpenRef\.current\) \{ setSheetOpen\(true\); return; \}/.test(pill)
+      && /<Text style=\{styles\.sheetTitle\}>\{title\}<\/Text>/.test(pill)
+      && /\{detail\.split\(/.test(pill),
+    'the failed sheet must carry "will not be sent" from the core, not its own reassurance');
+  ok('…one row per unsaved record, in the core’s own words',
+    /unsaved\.map\(\(line\) =>/.test(pill) && /\{line\.line\}/.test(pill));
   ok('…and quotes status.badge rather than a locally built count', /status\.badge/.test(pill));
-  ok('…and offers no fake "retry" for work that is already gone',
-    !/'Retry'|"Retry"/.test(pill));
+  ok('…and offers Retry only where the write can really be resent',
+    /\{line\.canRetry \? \(\s*<Button\s+label="Retry"/.test(pill)
+      && (pill.match(/label="Retry"/g) ?? []).length === 1,
+    'Retry must be gated on canRetry (isRetryableFailure), never offered for work that is gone');
   ok('…and says a dismiss does not recover the data',
     /does NOT recover/.test(pill));
 }

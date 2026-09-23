@@ -39,24 +39,31 @@ import {
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
   overCapPhotoText,
+  photoCapFor,
   photoSummaryLine,
   PUNCH_EXPORT_CREW_INTERNAL,
   PUNCH_EXPORT_DISCLAIMER,
   PUNCH_EXPORT_INTERNAL_STAMP,
-  PUNCH_EXPORT_LANDSCAPE_MIN_ASPECT,
   PUNCH_EXPORT_NOT_PINNED,
   PUNCH_EXPORT_PHOTO_TEXT,
+  PUNCH_EXPORT_PIN_CROP_CAP,
   PUNCH_EXPORT_PLAN_MAX_H_LANDSCAPE_PX,
   PUNCH_EXPORT_PLAN_MAX_H_PX,
+  PUNCH_EXPORT_WEB_PLAN_MAX_H_PX,
+  planLayoutFor,
+  sheetCaption,
+  verifiedSheetAspect,
   type PunchExportAssets,
   type PunchExportImageAsset,
   type PunchExportImageMime,
   type PunchExportModel,
+  type PunchExportPinCropAsset,
   type PunchExportRow,
   type PunchExportSheetPage,
   type PunchExportTarget,
   type PunchExportUnavailableReason,
 } from '@/utils/punchExportCore';
+import { pinCropWindow } from '@/utils/punchPlanPin';
 
 export const PUNCH_EXPORT_STATUS_ELEMENT_ID = 'pe-status';
 export const PUNCH_EXPORT_HINT_ELEMENT_ID = 'pe-hint';
@@ -273,6 +280,7 @@ body { overflow-wrap: anywhere; }
 .pe-where { font-size: 10px; color: ${P.text}; }
 .pe-meta { font-size: 10px; color: ${P.text2}; margin-top: 3px; }
 .pe-muted { color: ${P.textMuted}; }
+.pe-subnote { border-left: 3px solid ${P.bone}; background: ${P.cream2}; padding: 6px 8px; margin-top: 6px; font-size: 10px; white-space: pre-wrap; }
 .pe-returned { border-left: 3px solid ${P.error}; background: ${P.errorTint}; padding: 6px 8px; margin-top: 6px; font-size: 10px; white-space: pre-wrap; }
 .pe-done { margin-top: 8px; padding-top: 6px; border-top: 1px dashed ${P.bone}; font-size: 10px; line-height: 1.9; color: ${P.text2}; }
 .pe-box { display: inline-block; width: 10px; height: 10px; border: 1px solid ${P.text2}; vertical-align: -1px; margin-right: 3px; }
@@ -291,10 +299,31 @@ body { overflow-wrap: anywhere; }
 .pe-tbl-closed td { color: ${P.text2}; }
 .pe-plan { page-break-before: always; break-before: page; }
 .pe-plan-land { page: pe-land; }
+.pe-plan-fig { page-break-inside: avoid; break-inside: avoid; margin: 0; }
 .pe-plan-sub { font-size: 11px; color: ${P.text2}; margin: -4px 0 10px; }
 .pe-plan-natural { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
 .pe-plan-obj { display: block; max-width: 100%; max-height: ${PUNCH_EXPORT_PLAN_MAX_H_PX}px; width: auto; height: auto; }
+.pe-plan-web .pe-plan-obj { max-height: ${PUNCH_EXPORT_WEB_PLAN_MAX_H_PX}px; }
 .pe-plan-land .pe-plan-obj { max-height: ${PUNCH_EXPORT_PLAN_MAX_H_LANDSCAPE_PX}px; }
+.pe-plan-rot-wrap { position: relative; margin: 0 auto; }
+.pe-plan-rot-spacer { width: 100%; }
+.pe-plan-rot { position: absolute; top: 0; left: 0; transform-origin: 0 0; -webkit-transform-origin: 0 0; transform: rotate(90deg) translateY(-100%); -webkit-transform: rotate(90deg) translateY(-100%); line-height: 0; }
+.pe-plan-rot .pe-plan-obj { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
+.pe-crop { position: relative; width: 100%; padding-top: 100%; overflow: hidden; border-radius: 6px; border: 1px solid ${P.bone}; background: #FFFFFF; margin-top: 6px; }
+.pe-crop-img { position: absolute; top: 0; line-height: 0; }
+.pe-crop-sp { width: 100%; }
+.pe-crop-obj { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; object-fit: fill; }
+.pe-cpin { position: absolute; z-index: 2; transform: translate(-50%,-100%); -webkit-transform: translate(-50%,-100%); display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.pe-cpin-head { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: ${P.error}; color: #FFFFFF; border: 1.5px solid #FFFFFF; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; white-space: nowrap; box-sizing: border-box; }
+.pe-cpin-tail { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid ${P.error}; }
+.pe-cpin-below { flex-direction: column-reverse; transform: translate(-50%,0); -webkit-transform: translate(-50%,0); }
+.pe-cpin-below .pe-cpin-tail { border-top: 0; border-bottom: 6px solid ${P.error}; }
+.pe-cpin-l { align-items: flex-start; transform: translate(-4px,-100%); -webkit-transform: translate(-4px,-100%); }
+.pe-cpin-r { align-items: flex-end; transform: translate(calc(-100% + 4px),-100%); -webkit-transform: translate(calc(-100% + 4px),-100%); }
+.pe-cpin-below.pe-cpin-l { transform: translate(-4px,0); -webkit-transform: translate(-4px,0); }
+.pe-cpin-below.pe-cpin-r { transform: translate(calc(-100% + 4px),0); -webkit-transform: translate(calc(-100% + 4px),0); }
+.pe-crop-cap { font-size: 8.5px; color: ${P.text2}; margin-top: 3px; line-height: 1.3; }
+.pe-ph-none { padding-top: 0; height: 40px; }
 .pe-plan-fail { position: relative; z-index: 3; ${PLAN_BOX}; }
 .pe-plan-missing { ${PLAN_BOX}; margin-bottom: 12px; }
 .pe-pin { position: absolute; z-index: 2; transform: translate(-50%,-100%); -webkit-transform: translate(-50%,-100%); display: flex; flex-direction: column; align-items: center; line-height: 1; }
@@ -302,7 +331,13 @@ body { overflow-wrap: anywhere; }
 .pe-pin-tail { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid ${P.error}; }
 .pe-pin-closed .pe-pin-head { background: ${P.textMuted}; }
 .pe-pin-closed .pe-pin-tail { border-top-color: ${P.textMuted}; }
+.pe-pin-below { flex-direction: column-reverse; transform: translate(-50%,0); -webkit-transform: translate(-50%,0); }
+.pe-pin-below .pe-pin-tail { border-top: 0; border-bottom: 6px solid ${P.error}; }
+.pe-pin-closed.pe-pin-below .pe-pin-tail { border-bottom-color: ${P.textMuted}; }
 .pe-legend { margin-top: 14px; }
+.pe-legend thead { display: table-header-group; }
+.pe-legend-chunk { page-break-inside: avoid; break-inside: avoid; }
+.pe-legend-cap th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; color: ${P.text}; padding: 6px 8px 4px; border-bottom: 0; }
 .pe-legend th, .pe-legend td { overflow-wrap: normal; }
 .pe-legend td:nth-child(2), .pe-legend td:nth-child(3) { white-space: nowrap; }
 .pe-tref { overflow-wrap: normal; }
@@ -368,6 +403,117 @@ function photoBox(
   return `<div class="pe-ph"><object class="pe-obj" data="${escHtml(src)}" type="${escHtml(objectMime(asset))}"><div class="pe-fail">${escHtml(PUNCH_EXPORT_PHOTO_TEXT.unreachable)}</div></object>${markupSvg(row.markup)}</div>`;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// The item's plan close-up
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where an item's close-up comes from, or null for none:
+ *   • 'bitmap' — the web export cut it on a canvas (assets.pinCrops), exact.
+ *   • 'css'    — native: the sheet's own remote URL, scaled and offset inside a
+ *                square window. Only on a VERIFIED aspect (verifiedSheetAspect):
+ *                the window is positioned in fractions of the image, so a wrong
+ *                aspect would slide the pin off its spot. Never for a data: sheet
+ *                — repeating a multi-megabyte base64 plan once per item is
+ *                exactly the bloat the print engine chokes on.
+ */
+export type PunchExportPlanCropSource =
+  | { kind: 'bitmap'; crop: PunchExportPinCropAsset }
+  | { kind: 'css'; src: string; mime: PunchExportImageMime; left: number; top: number; width: number; height: number; pinX: number; pinY: number };
+
+export function planCropSource(
+  row: PunchExportRow,
+  assets: PunchExportAssets,
+  model: Pick<PunchExportModel, 'sheetPages'>,
+  target: PunchExportTarget,
+  allowedOrigins: readonly string[],
+): PunchExportPlanCropSource | null {
+  if (row.plan.state !== 'pinned') return null;
+  const bitmap = assets.pinCrops?.get(row.id);
+  if (bitmap && safeObjectSrc(bitmap.src, allowedOrigins)
+    && Number.isFinite(bitmap.pinX) && Number.isFinite(bitmap.pinY)) {
+    return { kind: 'bitmap', crop: bitmap };
+  }
+  if (target === 'web') return null;
+  const sheetId = row.plan.sheetId;
+  const page = model.sheetPages.find(p => p.sheetId === sheetId);
+  const asset = assets.sheets.get(sheetId);
+  if (!page || !asset || asset.kind !== 'image') return null;
+  const src = safeObjectSrc(asset.src, allowedOrigins);
+  if (!src || /^data:/i.test(src.slice(0, 5))) return null;
+  const aspect = verifiedSheetAspect(asset, page, target);
+  const w = aspect === null ? null : pinCropWindow(row.plan.x, row.plan.y, aspect);
+  if (!w) return null;
+  return { kind: 'css', src, mime: objectMime(asset), left: w.left, top: w.top, width: w.width, height: w.height, pinX: w.pinX, pinY: w.pinY };
+}
+
+function pct(n: number): string {
+  return `${(n * 100).toFixed(3)}%`;
+}
+
+/**
+ * Every VERTICAL length in the close-up is a margin or a padding, never a
+ * `top` or `height` percentage. WebKit's print engine (expo-print on iOS)
+ * resolves a percentage top/height of an absolutely positioned box inside a
+ * TABLE CELL — the card's photo column — against the wrong height: printed
+ * through WebKit, the window slid a room up and stretched ("BATH 1" instead of
+ * the laundry the pin is in), while Chrome drew it right. Margin and padding
+ * percentages always resolve against the containing block's WIDTH, and the
+ * close-up is square, so width-based lengths are exact on both engines.
+ */
+function cropHtml(row: PunchExportRow, c: PunchExportPlanCropSource): string {
+  const fail = `<div class="pe-fail">${escHtml('Plan not available')}</div>`;
+  let box: string;
+  let spacer: number;
+  let src: string;
+  let mime: string;
+  let pinX: number;
+  let pinY: number;
+  if (c.kind === 'bitmap') {
+    box = 'left:0;width:100%;margin-top:0';
+    spacer = 1;
+    src = c.crop.src;
+    mime = c.crop.mime;
+    pinX = c.crop.pinX;
+    pinY = c.crop.pinY;
+  } else {
+    // The whole sheet, 1/width of the square wide, shifted so the window's
+    // corner sits on the square's corner; its height from a spacer whose
+    // padding is (window w / window h) of that width — the sheet's own aspect,
+    // verified, which is why object-fit: fill cannot distort it.
+    box = `left:${pct(-c.left / c.width)};width:${pct(1 / c.width)};margin-top:${pct(-c.top / c.height)}`;
+    spacer = c.width / c.height;
+    src = c.src;
+    mime = c.mime;
+    pinX = c.pinX;
+    pinY = c.pinY;
+  }
+  const img = `<div class="pe-crop-img" style="${box}"><div class="pe-crop-sp" style="padding-top:${pct(spacer)}"></div><object class="pe-crop-obj" data="${escHtml(src)}" type="${escHtml(mime)}">${fail}</object></div>`;
+  const ok = Number.isFinite(pinX) && Number.isFinite(pinY);
+  // The close-up clips (overflow: hidden), and the marker hangs ABOVE and
+  // centred on its point — so a pin near the top of the sheet showed only its
+  // tail and the item's number never appeared on its own close-up. Near the
+  // top it hangs below the point (tail up); near a side edge its head runs
+  // inward from the tail instead of centring on it.
+  const cpinCls = ok ? cropPinClass(clamp01(pinX), clamp01(pinY)) : '';
+  const pin = ok
+    ? `<div class="${cpinCls}" style="left:${pct(clamp01(pinX))};top:0;margin-top:${pct(clamp01(pinY))}"><div class="pe-cpin-head">${row.number}</div><div class="pe-cpin-tail"></div></div>`
+    : '';
+  const label = row.plan.state === 'pinned' ? row.plan.sheetLabel : '';
+  return `<div class="pe-crop">${img}${pin}</div><div class="pe-crop-cap">${escHtml(`${label} — pin ${row.number}`)}</div>`;
+}
+
+/** Where a close-up marker may hang without being clipped by its box. */
+export const CROP_PIN_BELOW_Y = 0.15;
+export const CROP_PIN_EDGE_X = 0.1;
+export function cropPinClass(pinX: number, pinY: number): string {
+  const cls = ['pe-cpin'];
+  if (pinY < CROP_PIN_BELOW_Y) cls.push('pe-cpin-below');
+  if (pinX < CROP_PIN_EDGE_X) cls.push('pe-cpin-l');
+  else if (pinX > 1 - CROP_PIN_EDGE_X) cls.push('pe-cpin-r');
+  return cls.join(' ');
+}
+
 function dueFlag(row: PunchExportRow): string {
   if (row.daysOverdue && row.daysOverdue > 0) {
     return `<span class="pe-overdue">Overdue ${row.daysOverdue} day${row.daysOverdue === 1 ? '' : 's'}</span>`;
@@ -400,6 +546,7 @@ function cardHtml(
   overCap: ReadonlySet<string>,
   target: PunchExportTarget,
   allowedOrigins: readonly string[],
+  crop: PunchExportPlanCropSource | null,
 ): string {
   const top = [
     `<span class="pe-num">#${row.number}</span><span class="pe-ref">ref ${escHtml(row.ref)}</span>`,
@@ -411,11 +558,19 @@ function cardHtml(
     row.list === 'crew' ? ` ${pdfPill('Internal', 'error')}` : '',
   ].join('');
   const desc = row.description.trim() ? row.description : '(No description)';
-  return `<div class="pe-card${row.closed ? ' pe-card-closed' : ''}"><table class="pe-ct"><tr><td class="pe-ph-cell">${photoBox(row, assets.photos.get(row.id), overCap.has(row.id), target, allowedOrigins)}</td><td class="pe-body">
+  // Left column: the photo, then where it is on the plan. An item with no
+  // photo used to print a full-width grey square reading "No photo" — a third
+  // of every card spent on nothing. Now: the close-up takes that place when
+  // the item is pinned, and a slim line says "No photo" when there is neither.
+  const cell = !row.hasPhoto
+    ? (crop ? cropHtml(row, crop) : `<div class="pe-ph pe-ph-none"><div class="pe-ph-msg">${escHtml(PUNCH_EXPORT_PHOTO_TEXT.no_photo)}</div></div>`)
+    : `${photoBox(row, assets.photos.get(row.id), overCap.has(row.id), target, allowedOrigins)}${crop ? cropHtml(row, crop) : ''}`;
+  return `<div class="pe-card${row.closed ? ' pe-card-closed' : ''}"><table class="pe-ct"><tr><td class="pe-ph-cell">${cell}</td><td class="pe-body">
 <div class="pe-top">${top}</div>
 <div class="pe-desc">${escHtml(desc)}</div>
 <div class="pe-where"><b>${escHtml(row.typedLocation || 'No location given')}</b> &middot; Plan: ${escHtml(planText(row))}</div>
 <div class="pe-meta">${metaLine(row)}</div>
+${row.subNote ? `<div class="pe-subnote"><b>Sub's note:</b> ${escHtml(row.subNote)}</div>` : ''}
 ${row.rejectionNote ? `<div class="pe-returned"><b>Returned:</b> ${escHtml(row.rejectionNote)}</div>` : ''}
 ${row.closed ? closedStamp(row) : DONE_STRIP}
 </td></tr></table></div>`;
@@ -426,6 +581,9 @@ function tableRowHtml(row: PunchExportRow): string {
   const sub: string[] = [];
   if (row.priority === 'high') sub.push('<span class="pe-hi" style="margin-left:0">High priority</span>');
   if (row.list === 'crew') sub.push('Internal');
+  // #57: the sub's own words (typed on his portal — untrusted, escaped),
+  // before the GC's return note so the line reads in the order it happened.
+  if (row.subNote) sub.push(`Sub's note: ${escHtml(row.subNote)}`);
   if (row.rejectionNote) sub.push(`Returned: ${escHtml(row.rejectionNote)}`);
   if (row.linkedTaskName) sub.push(`Task: ${escHtml(row.linkedTaskName)}`);
   const due = row.dueDay || row.dueRaw
@@ -445,49 +603,120 @@ function tableRowHtml(row: PunchExportRow): string {
 </tr>`;
 }
 
+/** Integration round 2 (field): a full-sheet marker hangs ABOVE its pin, so
+ *  one near the sheet's top edge was drawn above the image — over the
+ *  "N items on M markers" caption (pin 1 at (0.01, 0.01) covered the "23" of
+ *  "23 items on 21 markers"). Under this fraction of the sheet's height the
+ *  marker hangs BELOW the pin, tail up, as the close-ups do (cropPinClass).
+ *  0.1 keeps the 24 px marker inside any sheet drawn at least 240 px tall; a
+ *  2:1 sheet across a portrait page is ~360 px. */
+export const PLAN_PIN_BELOW_Y = 0.1;
+export function planPinClass(y: number, allClosed: boolean): string {
+  const cls = ['pe-pin'];
+  if (clamp01(y) < PLAN_PIN_BELOW_Y) cls.push('pe-pin-below');
+  if (allClosed) cls.push('pe-pin-closed');
+  return cls.join(' ');
+}
+
+function markersHtml(page: PunchExportSheetPage): string {
+  return page.markers.map(m => {
+    const style = pinStyle(m.x, m.y);
+    if (!style) return '';
+    return `<div class="${planPinClass(m.y, !!m.allClosed)}" style="${style}"><div class="pe-pin-head">${escHtml(m.label)}</div><div class="pe-pin-tail"></div></div>`;
+  }).join('');
+}
+
+function f3(n: number): string {
+  return (Math.round(n * 1000) / 1000).toFixed(3);
+}
+
+/**
+ * One sheet: an overview figure that is never split across a page (caption +
+ * the sheet, as large as the page allows, every pin numbered as in the list),
+ * then its legend under a heading of its own — the legend is the part that
+ * may run onto the next page, and when it does its heading says which sheet.
+ *
+ * Three ways to fit the sheet (planLayoutFor):
+ *   • web landscape — its own landscape page (@page pe-land);
+ *   • iOS landscape with a verified aspect — turned 90° clockwise onto the
+ *     portrait page, long edge down the page (the plan-set convention), top of
+ *     the sheet on the right. The markers sit INSIDE the turned box, in the
+ *     same % of the image as always, so they turn with it;
+ *   • anything else — natural size capped to the page, the marker box being
+ *     the image box itself. This is the fallback whenever the image's true
+ *     shape is not known, because it cannot put a pin off its spot.
+ */
+/** Legend rows per unsplittable chunk (see planPageHtml). */
+export const LEGEND_CHUNK_ROWS = 10;
+
 function planPageHtml(
   page: PunchExportSheetPage,
   asset: PunchExportImageAsset | undefined,
   target: PunchExportTarget,
   allowedOrigins: readonly string[],
 ): string {
-  const land = target === 'web' && asset?.kind === 'image'
-    && typeof asset.width === 'number' && typeof asset.height === 'number'
-    && asset.width > 0 && asset.height > 0
-    && asset.width / asset.height >= PUNCH_EXPORT_LANDSCAPE_MIN_ASPECT;
+  const layout = planLayoutFor(asset, page, target);
+  const land = layout.mode === 'natural' && layout.landscapePage;
+  const rotated = layout.mode === 'rotated';
+  const caption = sheetCaption(page);
   const missingText = 'Plan sheet image not available — the items below are pinned on this sheet.';
-  const sub = `${page.pinnedCount} item${page.pinnedCount === 1 ? '' : 's'} on ${page.markers.length} marker${page.markers.length === 1 ? '' : 's'}${page.superseded ? ' · older revision' : ''}`;
+  const subBits = [`${page.pinnedCount} item${page.pinnedCount === 1 ? '' : 's'} on ${page.markers.length} marker${page.markers.length === 1 ? '' : 's'}`];
+  if (rotated) subBits.push('sheet turned to fit the page — top of the sheet is on the right');
   const src = asset?.kind === 'image' ? safeObjectSrc(asset.src, allowedOrigins) : null;
   let image: string;
   if (asset?.kind === 'image' && src) {
-    const markers = page.markers.map(m => {
-      const style = pinStyle(m.x, m.y);
-      if (!style) return '';
-      return `<div class="pe-pin${m.allClosed ? ' pe-pin-closed' : ''}" style="${style}"><div class="pe-pin-head">${escHtml(m.label)}</div><div class="pe-pin-tail"></div></div>`;
-    }).join('');
-    image = `<div class="pe-plan-natural"><object class="pe-plan-obj" data="${escHtml(src)}" type="${escHtml(objectMime(asset))}"><div class="pe-plan-fail">${escHtml(missingText)}</div></object>${markers}</div>`;
+    const obj = `<object class="pe-plan-obj" data="${escHtml(src)}" type="${escHtml(objectMime(asset))}"><div class="pe-plan-fail">${escHtml(missingText)}</div></object>`;
+    if (layout.mode === 'rotated') {
+      // Wrapper: the portrait footprint of the turned sheet — as wide as the
+      // page allows but no taller than the page (width ≤ maxH / aspect), its
+      // height from the spacer's padding (a % of the wrapper's own width).
+      // The turned box is sized in % of that wrapper: width = aspect × W,
+      // height = W. rotate(90deg) translateY(-100%) about the top-left corner
+      // maps it exactly onto the wrapper.
+      const a = layout.aspect;
+      const wrapW = `width:100%;max-width:${Math.floor(PUNCH_EXPORT_PLAN_MAX_H_PX / a)}px`;
+      image = `<div class="pe-plan-rot-wrap" style="${wrapW}"><div class="pe-plan-rot-spacer" style="padding-top:${f3(a * 100)}%"></div><div class="pe-plan-rot" style="width:${f3(a * 100)}%;height:${f3(100 / a)}%">${obj}${markersHtml(page)}</div></div>`;
+    } else {
+      image = `<div class="pe-plan-natural">${obj}${markersHtml(page)}</div>`;
+    }
   } else {
     image = `<div class="pe-plan-missing">${escHtml(missingText)}</div>`;
   }
-  const legend = pdfTable(
-    [
-      { header: 'Marker', width: '14%' },
-      { header: '#', width: '8%' },
-      { header: 'Ref', width: '13%' },
-      { header: 'Item' },
-      { header: 'Location', width: '20%' },
-      { header: 'Status', width: '16%' },
-    ],
-    page.legend.map(l => [
-      l.firstOfMarker ? escHtml(l.markerLabel) : '',
-      escHtml(`#${l.number}`),
-      escHtml(l.ref),
-      escHtml(l.description.trim() ? l.description : '(No description)'),
-      escHtml(l.location),
-      escHtml(l.statusLabel),
-    ]),
-  );
-  return `<section class="pe-plan${land ? ' pe-plan-land' : ''}">${pdfSectionHeader(`Plan — ${page.label}`)}<div class="pe-plan-sub">${escHtml(sub)}</div>${image}<div class="pe-legend">${legend}</div></section>`;
+  // The legend is printed in chunks of LEGEND_CHUNK_ROWS rows, each its own
+  // table that never splits, each captioned in its thead ("Pins on <sheet>",
+  // then "… (continued)"). A landscape sheet fills its page, and the old lone
+  // "Pins on" heading printed by itself at the bottom of the plan page with
+  // the table on the next; on iOS (WebKit never repeats a thead) a legend
+  // that broke across pages continued with neither the sheet name nor the
+  // column header. A chunk that doesn't fit moves to the next page whole,
+  // caption and header with it. What it gives up: a chunk whose rows are
+  // taller than a page (very long descriptions) still breaks inside.
+  const legendCols = [
+    { header: 'Marker', width: '14%' },
+    { header: '#', width: '8%' },
+    { header: 'Ref', width: '13%' },
+    { header: 'Item' },
+    { header: 'Location', width: '20%' },
+    { header: 'Status', width: '16%' },
+  ];
+  const legendRows = page.legend.map((l, i) => [
+    // A chunk that starts mid-marker still names its marker on its first row.
+    (l.firstOfMarker || i % LEGEND_CHUNK_ROWS === 0) ? escHtml(l.markerLabel) : '',
+    escHtml(`#${l.number}`),
+    escHtml(l.ref),
+    escHtml(l.description.trim() ? l.description : '(No description)'),
+    escHtml(l.location),
+    escHtml(l.statusLabel),
+  ]);
+  const legendChunks: string[][][] = [];
+  for (let i = 0; i < legendRows.length; i += LEGEND_CHUNK_ROWS) legendChunks.push(legendRows.slice(i, i + LEGEND_CHUNK_ROWS));
+  if (legendChunks.length === 0) legendChunks.push([]);
+  const legend = legendChunks.map((rows, i) => {
+    const cap = `<tr class="pe-legend-cap"><th colspan="${legendCols.length}">${escHtml(`Pins on ${caption}${i > 0 ? ' (continued)' : ''}`)}</th></tr>`;
+    return `<div class="pe-legend-chunk">${pdfTable(legendCols, rows).replace('<thead>', `<thead>${cap}`)}</div>`;
+  }).join('');
+  const cls = `pe-plan${land ? ' pe-plan-land' : ''}${rotated ? ' pe-plan-rot-page' : ''}${target === 'web' && !land ? ' pe-plan-web' : ''}`;
+  return `<section class="${cls}"><div class="pe-plan-fig">${pdfSectionHeader(`Plan — ${caption}`)}<div class="pe-plan-sub">${escHtml(subBits.join(' · '))}</div>${image}</div><div class="pe-legend">${legend}</div></section>`;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -579,6 +808,9 @@ export function buildPunchExportHtml(
   }
 
   // ── Lists ─────────────────────────────────────────────────────────────
+  // Web close-ups are small pre-cut JPEGs; native ones each load the full
+  // sheet, so they stay within the phone's photo cap (the same render budget).
+  let cropsLeft = target === 'web' ? PUNCH_EXPORT_PIN_CROP_CAP : photoCapFor(target);
   model.sections.forEach((s, si) => {
     const crewBreak = s.list === 'crew' && model.sections.slice(0, si).some(x => x.list === 'punch');
     const n = s.summary.total;
@@ -589,7 +821,11 @@ export function buildPunchExportHtml(
     if (cardsMode) {
       for (const g of s.groups) {
         parts.push(`<div class="pe-group">${escHtml(g.label)} <span>${g.notDone} open of ${g.total}</span></div>`);
-        for (const r of g.rows) parts.push(cardHtml(r, assets, overCap, target, allowedOrigins));
+        for (const r of g.rows) {
+          const crop = cropsLeft > 0 ? planCropSource(r, assets, model, target, allowedOrigins) : null;
+          if (crop) cropsLeft -= 1;
+          parts.push(cardHtml(r, assets, overCap, target, allowedOrigins, crop));
+        }
       }
     } else {
       parts.push('<table class="pe-tbl"><thead><tr><th style="width:11%">#</th><th style="width:31%">Item</th><th style="width:17%">Where</th><th style="width:13%">Assigned to</th><th style="width:11%">Status</th><th style="width:8%">Due</th><th style="width:9%">Done</th></tr></thead><tbody>');

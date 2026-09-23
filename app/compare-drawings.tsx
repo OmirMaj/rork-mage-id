@@ -60,10 +60,11 @@ import {
 import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
 import { edgeErrorCode } from '@/utils/edgeError';
 import {
-  currentSheetsForCompare, revisionFiling, changeOrderPrefill, rfiFromCandidate, rfiFromChange, sheetCitation,
+  currentSheetsForCompare, revisionFiling, changeOrderPrefill, rfiFromCandidate, rfiFromChange, sheetCitation, sheetAttachmentFor, attachableSheetUri,
   planRenumber, chainColumnsPatch, planControlBlock, effectivePlanRole,
 } from '@/utils/plans/revisionActions';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { useServerRecordNumber, recordNumberLabel } from '@/hooks/useCollectionSettled';
 import {
   precheckFloorPlanImage, classifyFloorPlanFailure, floorPlanFailureReason, type FloorPlanFailure,
 } from '@/utils/planSheetImageCore';
@@ -167,11 +168,15 @@ export default function CompareDrawingsScreen() {
   // What this comparison has already committed — so a second tap can't file the
   // same revision twice or raise the same RFI twice, and the button can say so.
   const [filed, setFiled] = useState<{ sheetId: string; revision: number } | null>(null);
-  // id AND number: the done row opens the RFI (#166), it is not dead text.
-  const [rfiByIndex, setRfiByIndex] = useState<Record<number, { id: string; number: number }>>({});
+  // The id only: the done row opens the RFI (#166), it is not dead text. #116:
+  // NOT the number — addRFI's number is this phone's guess and the server's
+  // rfis_assign_number trigger replaces it on insert, so a stored copy is what
+  // went stale ("RFI #7" on screen, #8 on the server). CompareRfiLabel reads
+  // the server's number through useServerRecordNumber.
+  const [rfiByIndex, setRfiByIndex] = useState<Record<number, { id: string }>>({});
   // RFIs raised from a flagged CHANGE, keyed by change index — a separate map
   // so it never collides with the drafted-question indices above.
-  const [changeRfi, setChangeRfi] = useState<Record<number, { id: string; number: number }>>({});
+  const [changeRfi, setChangeRfi] = useState<Record<number, { id: string }>>({});
   // A multi-page PDF waits here while he says which page is the sheet (#76).
   const [pendingPdf, setPendingPdf] = useState<{ asset: PickedAsset; pageCount: number | null } | null>(null);
   const [pageDraft, setPageDraft] = useState('1');
@@ -461,9 +466,15 @@ export default function CompareDrawingsScreen() {
   // #77: both drawings ride on the RFI (old, then new), so the architect sees
   // what changed instead of a sheet number in text. The new side is the sheet
   // already in the set, or the page just rendered for this comparison.
+  // #113: each as its DURABLE plan-sheets key (sheetAttachmentFor /
+  // rendered.path), never the 24 h signed URL this screen draws it from — the
+  // RFI tile and the architect's reply page sign it again whenever they open.
   const comparedSheetImages = useMemo(
-    () => [oldSheet?.imageUri, pairNew ? pairNew.imageUri : newPageUrl],
-    [oldSheet?.imageUri, pairNew, newPageUrl],
+    () => [
+      oldSheet ? sheetAttachmentFor(oldSheet) : '',
+      pairNew ? sheetAttachmentFor(pairNew) : (attachableSheetUri(newPagePath) || newPageUrl),
+    ],
+    [oldSheet, pairNew, newPagePath, newPageUrl],
   );
 
   const handleCreateRfi = useCallback((index: number) => {
@@ -472,7 +483,7 @@ export default function CompareDrawingsScreen() {
     if (!candidate) return;
     // In the two-sheets-in-the-set mode the RFI is about the NEW sheet.
     const rfi = addRFI(rfiFromCandidate(candidate, oldSheet, newPageLabel, new Date(), { newSheet: pairNew, sheetImages: comparedSheetImages }));
-    setRfiByIndex(prev => ({ ...prev, [index]: { id: rfi.id, number: rfi.number } }));
+    setRfiByIndex(prev => ({ ...prev, [index]: { id: rfi.id } }));
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [oldSheet, result, rfiByIndex, newPageLabel, pairNew, addRFI, comparedSheetImages]);
 
@@ -481,7 +492,7 @@ export default function CompareDrawingsScreen() {
     const change = result.changes[index];
     if (!change) return;
     const rfi = addRFI(rfiFromChange(change, oldSheet, newPageLabel, new Date(), { newSheet: pairNew, sheetImages: comparedSheetImages }));
-    setChangeRfi(prev => ({ ...prev, [index]: { id: rfi.id, number: rfi.number } }));
+    setChangeRfi(prev => ({ ...prev, [index]: { id: rfi.id } }));
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [oldSheet, result, changeRfi, newPageLabel, pairNew, addRFI, comparedSheetImages]);
 
@@ -933,7 +944,9 @@ export default function CompareDrawingsScreen() {
                           testID={`compare-change-rfi-${i}`}
                         >
                           <MessageSquarePlus size={13} color={themeColors.accent} strokeWidth={1.75} />
-                          <Text style={styles.rowBtnText}>{changeRfi[i] ? `Open RFI #${changeRfi[i].number} to assign and send` : 'Raise RFI'}</Text>
+                          {changeRfi[i]
+                            ? <CompareRfiLabel id={changeRfi[i].id} style={styles.rowBtnText} render={label => `Open ${label} to assign and send`} />
+                            : <Text style={styles.rowBtnText}>Raise RFI</Text>}
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -961,9 +974,13 @@ export default function CompareDrawingsScreen() {
                           testID={`compare-open-rfi-${i}`}
                         >
                           <Check size={13} color={themeColors.successLabel} strokeWidth={2} />
-                          <Text style={styles.doneText}>
-                            RFI #{rfiByIndex[i].number} created, linked to {sheetCitation(pairNew ?? oldSheet)}. <Text style={styles.linkBtnText}>Open RFI #{rfiByIndex[i].number} to assign and send</Text>
-                          </Text>
+                          <CompareRfiLabel
+                            id={rfiByIndex[i].id}
+                            style={styles.doneText}
+                            render={label => `${label} created, linked to ${sheetCitation(pairNew ?? oldSheet)}. `}
+                          >
+                            <Text style={styles.linkBtnText}>Open it to assign and send</Text>
+                          </CompareRfiLabel>
                         </TouchableOpacity>
                       ) : (
                         <TouchableOpacity
@@ -990,6 +1007,22 @@ export default function CompareDrawingsScreen() {
       </ScrollView>
     </View>
   );
+}
+
+/**
+ * #116: an RFI raised here, labelled with the SERVER's number (or "RFI
+ * (pending #)" / "RFI (number not confirmed)"), never this phone's guess. A
+ * component because useServerRecordNumber is a per-record hook and the rows
+ * are a .map().
+ */
+function CompareRfiLabel({ id, style, render, children }: {
+  id: string;
+  style: React.ComponentProps<typeof Text>['style'];
+  render: (label: string) => string;
+  children?: React.ReactNode;
+}) {
+  const info = useServerRecordNumber('rfis', id, undefined);
+  return <Text style={style}>{render(recordNumberLabel('RFI', info.state, info.number, undefined))}{children}</Text>;
 }
 
 function iconForType(t: ChangeType) {

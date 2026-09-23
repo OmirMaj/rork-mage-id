@@ -156,7 +156,7 @@ for (const rel of SWEPT) {
 // waves were still landing in the same tree, so it is a CEILING, not a count of
 // what is left: if the script prints a lower number on your first run, that is
 // another wave's work arriving, and lowering it is correct.
-const CEILING = 1785;
+const CEILING = 1776;
 
 ok(`no NEW role-less pressables (${total} ≤ ceiling ${CEILING})`, total <= CEILING,
   total > CEILING

@@ -123,7 +123,8 @@ console.log('\n#37 a portal-approved CO\'s days can be placed where the push lan
 // ── #61 unpriced labor routes to the rates ──────────────────────────────────
 console.log('\n#61 an unpriced-labor alert opens Time Tracking, where rates are set');
 ok('margin-alerts routes unpriced_labor to /time-tracking for its project',
-  /a\.kind === 'unpriced_labor'\s*\n?\s*\? \{ pathname: '\/time-tracking', params: \{ projectId: a\.projectId \} \}/.test(read('app/margin-alerts.tsx')));
+  // (wave 4 #104 adds openRates + rateTrade after projectId — the sheet opens on the trade.)
+  /a\.kind === 'unpriced_labor'\s*\n?\s*\? \{ pathname: '\/time-tracking', params: \{ projectId: a\.projectId[,\s}]/.test(read('app/margin-alerts.tsx')));
 
 // ── #60 unsent submittals ───────────────────────────────────────────────────
 console.log('\n#60 an unsent submittal is not "0d in review"');
@@ -155,7 +156,10 @@ console.log('\n#49 the send awaits its own INSERT before minting');
   const inv = read('app/invoice.tsx');
   ok('a refused insert is told apart from a queued one',
     /const outcome = await awaitInvoiceInsert\(workingInvoice\.id\)/.test(inv) && /if \(outcome === 'failed'\) insertState = 'failed';/.test(inv)
-    && /insertState === 'failed'\) \{\s*noPayButtonReason = "the server didn't accept the invoice/.test(inv));
+    // Wave 4 #39 (invoice-send): a refused insert no longer emails a
+    // Pay-button-less invoice — it stops before the mint and the email and
+    // says to Retry it from the sync badge.
+    && /if \(insertState === 'failed'\) \{\s*showAlert\('Invoice not sent', invoiceInsertRefusedMessage\(workingInvoice\.number\)\);\s*return;/.test(inv));
 }
 
 // ── #131 in-app CO record carries the frozen tax ────────────────────────────
@@ -256,7 +260,8 @@ console.log('\ncollaborator gates: DFR incident chip, RFI log');
   const pd = read('app/project-detail.tsx');
   const log = pd.slice(pd.indexOf('const handleExportRFILog = useCallback('), pd.indexOf('const handleGenerateCloseoutPacket'));
   ok('the RFI log refuses while any of the job\'s RFIs still wait for their server number (#148)',
-    /pendingIdsForTable\(await getOfflineQueue\(\), 'rfis'\)/.test(log)
+    // Wave 4 #29 (team-hub): only a queued INSERT means "no number yet".
+    /const queue = await getOfflineQueue\(\);\s*const waiting = projectRFIs\.filter\(r => insertStillQueued\(queue, 'rfis', r\.id\)\)\.length;/.test(log)
     && log.indexOf('if (waiting > 0) {') >= 0 && log.indexOf('if (waiting > 0) {') < log.indexOf('await generateRFILogPDF('));
 }
 

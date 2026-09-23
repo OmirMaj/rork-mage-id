@@ -47,7 +47,7 @@ import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRole, useProjectRoleState } from '@/hooks/useProjectRole';
 import LockedAccessCard, { FieldSendFailureBanner } from '@/components/LockedAccessCard';
 import {
-  applyFieldTaskPatches, fieldScheduleSettingsChanged, fieldTaskDiff, scheduleWritePathForRole,
+  applyFieldTaskPatches, mergeWrittenStamps, fieldScheduleSettingsChanged, fieldTaskDiff, scheduleWritePathForRole,
   sendFieldTaskPatches, staleFieldEdits, type FieldEditRefusal,
   captureFieldSendFailure, mergeFieldSendFailure, pendingFieldRetryPatches, fieldAutoRetryDelayMs,
   planFieldRetry, fieldRetrySupersededNotice,
@@ -55,7 +55,7 @@ import {
 } from '@/utils/fieldScheduleUpdate';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSchedulePresence } from '@/hooks/useSchedulePresence';
-import { useLiveSchedule, type LiveScheduleCopy } from '@/hooks/useLiveSchedule';
+import { liveScheduleCopyFromRow, useLiveSchedule, type LiveScheduleCopy } from '@/hooks/useLiveSchedule';
 import {
   answerScheduleReread, beginScheduleReread, inLocalOrder, nextOwnScheduleStamp, takeStoreScheduleCopy, noteFieldScheduleSave, noteOwnScheduleSave, noteScheduleSocketGap, openScheduleSyncGate,
   projectWriteQueued, queuedScheduleStamps, seedQueuedScheduleStamps, settleScheduleSyncGate, takeScheduleCopy,
@@ -121,6 +121,7 @@ import { buildScheduleFromTasks, mergeEditedSchedule, createId, generateWbsCodes
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
   reflowFromActuals,
+  actualCalendarDay,
   reapplyBaselineToTasks,
   readActiveBaselineId,
   resolveActiveBaseline,
@@ -147,6 +148,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { copyToClipboard } from '@/utils/clipboard';
+/** A server copy as Schedule Pro adopts it: ScheduleCopy plus the active
+ *  baseline when the copy says (#86 — undefined = does not say, null = cleared). */
+type LiveCopy = ScheduleCopy & { activeBaselineId?: string | null };
 
 /** How the refused-edit notice names a field-owned task key. */
 const FIELD_KEY_LABEL: Record<string, string> = {
@@ -366,6 +370,7 @@ function ScheduleProScreenInner() {
         const sent = await sendFieldTaskPatches(supabase, id, patches);
         if (sent.ok) {
           accepted = applyFieldTaskPatches(baseTasks, patches);
+          accepted = mergeWrittenStamps(accepted, sent.stamps); // #87: the server's own stamps
           // A task the owner deleted meanwhile was skipped by the server — no
           // history row for it.
           const landed = patches.filter(p => !sent.missing.includes(p.id));
@@ -628,8 +633,18 @@ function ScheduleProScreenInner() {
   // the phone's lock) — keyed on the value, so a re-render that carries the
   // same stale id cannot undo an activation still waiting in the debounce.
   const storedActiveBaselineId = readActiveBaselineId(project?.schedule);
+  const activeIdProjectRef = React.useRef(project?.id);
   useEffect(() => {
+    // An Activate still waiting in the persist debounce is this screen's
+    // newest word on the yardstick (#86): a store change that lands inside
+    // that window (another screen on this device absorbing a peer copy) must
+    // not take it back. The persist writes this screen's id, the store then
+    // carries it and this effect agrees. A project switch always adopts.
+    const switched = activeIdProjectRef.current !== project?.id;
+    activeIdProjectRef.current = project?.id;
+    if (!switched && persistPendingRef.current) return;
     setActiveBaselineId(storedActiveBaselineId);
+  // persistPendingRef is a ref, read at the moment the stored id changes.
   }, [project?.id, storedActiveBaselineId, setActiveBaselineId]);
   const activeBaseline = useMemo(
     () => resolveActiveBaseline(namedBaselines, activeBaselineId),
@@ -1181,7 +1196,7 @@ function ScheduleProScreenInner() {
   // own copy with a sync still out (another writer on this device) — shown,
   // but not the server's yet, so neither base moves and the store already
   // holds it.
-  const adoptServerCopy = useCallback((copy: ScheduleCopy, fromServer: boolean = true) => {
+  const adoptServerCopy = useCallback((copy: LiveCopy, fromServer: boolean = true) => {
     setHist((h) => {
       // Whole in content, in the grid's own row order (inLocalOrder has why).
       const shown = withSubRollup(inLocalOrder(copy.tasks, h.present), subRollupRef.current);
@@ -1194,10 +1209,25 @@ function ScheduleProScreenInner() {
         setNamedBaselines(next);
       }
     }
+    // The active baseline rides with the copy (#86). Without it this screen
+    // took a phone lock's baselines but kept its own activeBaselineIdRef, and
+    // its next persist put the old active id back over the phone's lock.
+    // `undefined` = a copy that does not say (the ScheduleCopy shape of an
+    // older caller) → left alone; `null` = cleared.
+    if (copy.activeBaselineId !== undefined) {
+      const nextId = copy.activeBaselineId ?? undefined;
+      if (nextId !== activeBaselineIdRef.current) setActiveBaselineId(nextId);
+    }
     if (!fromServer) return;
     lastServerTasksRef.current = copy.tasks;
-    if (livePeerProjectId) absorbServerSchedule(livePeerProjectId, copy.tasks, { stamp: copy.stamp, baselines: copy.baselines });
-  }, [livePeerProjectId, absorbServerSchedule]);
+    if (livePeerProjectId) {
+      absorbServerSchedule(livePeerProjectId, copy.tasks, {
+        stamp: copy.stamp,
+        baselines: copy.baselines,
+        ...(copy.activeBaselineId !== undefined ? { activeBaselineId: copy.activeBaselineId } : {}),
+      });
+    }
+  }, [livePeerProjectId, absorbServerSchedule, setActiveBaselineId]);
   // Re-check for quiet: take a parked copy, or do the re-read the gate owes —
   // once after mount (the copy it opened on may be stale; the channel only
   // hears events from its join) and after every socket gap.
@@ -1210,23 +1240,21 @@ function ScheduleProScreenInner() {
     const read = beginScheduleReread(gate);
     if (!read) return;
     const pid = livePeerProjectId;
-    const answered = (answer: ScheduleCopy | null) => {
+    const answered = (answer: LiveCopy | null) => {
       if (syncGateRef.current !== gate) return;
       // answerScheduleReread (utils/scheduleMerge.ts) drops an answer a save
       // or an adopted copy may have overtaken while it was out — a colleague's
       // event adopted inside the round trip must not be replaced by an older
       // read — and says when to read again.
       const { adopt, readAgain } = answerScheduleReread(gate, read, answer, syncBusy());
+      // The gate hands back the same object it was given, so the copy keeps
+      // its activeBaselineId (ScheduleCopy's type just does not name it).
       if (adopt) adoptServerCopy(adopt);
       if (readAgain) settleSyncRef.current();
     };
     void Promise.resolve(supabase.from('projects').select('schedule').eq('id', pid).maybeSingle()).then(({ data, error }) => {
-      const schedule = (data as { schedule?: { tasks?: ScheduleTask[]; updatedAt?: unknown; baselines?: unknown } } | null)?.schedule;
-      answered(error || !Array.isArray(schedule?.tasks) ? null : {
-        tasks: schedule.tasks,
-        stamp: typeof schedule.updatedAt === 'string' ? schedule.updatedAt : null,
-        baselines: Array.isArray(schedule.baselines) ? schedule.baselines : undefined,
-      });
+      // Read the same way as a live event, active baseline included (#86).
+      answered(error ? null : liveScheduleCopyFromRow((data as { schedule?: unknown } | null)?.schedule));
     }, () => answered(null));
   }, [syncBusy, adoptServerCopy, livePeerProjectId]);
   useEffect(() => { settleSyncRef.current = settleSync; }, [settleSync]);
@@ -1892,7 +1920,11 @@ function ScheduleProScreenInner() {
     // A start OR a finish counts: since #141 a task finished without a
     // recorded start carries actualEndDay alone, and reflowFromActuals
     // cascades from it (utils/scheduleOps.ts span()).
-    const withActuals = workingTasks.filter(t => t.actualStartDay != null || t.actualEndDay != null);
+    // The day number OR the recorded date (#89): Home's Quick Field Update and
+    // the mic used to stamp only the date, and a task he finished there must
+    // not read as "no actual logged".
+    const withActuals = workingTasks.filter(t => actualCalendarDay(t, 'start', summaryScale.scheduleStartDate) != null
+      || actualCalendarDay(t, 'end', summaryScale.scheduleStartDate) != null);
     if (withActuals.length === 0) {
       const msg = 'No tasks have an actual start or finish logged yet. Log an actual on at least one task, then reflow to cascade the delta to downstream work.';
       if (Platform.OS === 'web') window.alert?.(msg);

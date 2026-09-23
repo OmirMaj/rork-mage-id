@@ -196,6 +196,16 @@ console.log('\n#61 unpriced crew hours are said, not silently $0:');
   ok('…quiet once acknowledged at the same hours', computeAlerts({ henderson: b(5.5) }, { henderson: 'Henderson' }, { henderson: b(5.5) }).every(a => a.kind !== 'unpriced_labor'));
   ok('…raised again when more unpriced hours land', computeAlerts({ henderson: b(9) }, { henderson: 'Henderson' }, { henderson: b(5.5) }).some(a => a.kind === 'unpriced_labor'));
   ok('…and not at all with every hour priced', computeAlerts({ henderson: b(0) }, { henderson: 'Henderson' }, {}).every(a => a.kind !== 'unpriced_labor'));
+  // #104 (integration round 1): the card opens the Labor rates sheet on the
+  // first unpriced trade, like Job Costing and the Living Estimate.
+  const withTrade = computeAlerts({ henderson: { ...b(5.5), unpricedTrade: 'general' } }, { henderson: 'Henderson' }, {}).find(a => a.kind === 'unpriced_labor');
+  ok('the unpriced-labor alert carries the first unpriced trade', withTrade?.unpricedTrade === 'general', JSON.stringify(withTrade));
+  ok('…taken from unpricedLaborFor on the baseline',
+    /const unpriced = unpricedLaborFor\(project\.id, costSources\?\.timeEntries, costSources\?\.laborRates\);/.test(src('utils/marginAlerts.ts'))
+      && /\.\.\.\(unpriced\.trades\[0\] \? \{ unpricedTrade: unpriced\.trades\[0\] \} : \{\}\)/.test(src('utils/marginAlerts.ts')));
+  const ma = src('app/margin-alerts.tsx');
+  ok('Margin Alerts opens the rates sheet on that trade',
+    /pathname: '\/time-tracking', params: \{ projectId: a\.projectId, openRates: '1', \.\.\.\(a\.unpricedTrade \? \{ rateTrade: a\.unpricedTrade \} : \{\}\) \}/.test(ma));
 }
 
 console.log('\n#61 the rate book follows the account:');
@@ -260,7 +270,7 @@ console.log('\n#62 a field / editor seat clocks the GC crew on the GC job:');
   ok('gating contract: a RESOLVED null role on a seat job states why', g('field', false, L(null)) === 'blocked');
   ok('a live viewer is blocked; a live field seat is let in', g('field', false, L('viewer')) === 'blocked' && g('viewer', false, L('field')) === 'ok');
   ok('blocked jobs are listed with the reason', /blockedProjects\.map/.test(tt) && /needs a field or editor seat/.test(tt));
-  ok('a seat\'s roster and cert chips come from the GC\'s job crew', /useProjectCrew\(gateProjectId, isSeat\)/.test(tt) && /isSeat \? projectCrew\.certifications : ownCertifications/.test(tt));
+  ok('a seat\'s roster and cert chips come from the GC\'s job crew', /useProjectCrew\(gateProjectId, isSeat[,)]/.test(tt) && /isSeat \? projectCrew\.certifications : ownCertifications/.test(tt));
   ok('labor rates / dollars show only on his own book', /\{ownTier \? \(\s*<TouchableOpacity/.test(tt) && /\{!ownTier \? null : laborStats\.sampledEntries > 0/.test(tt));
   const crew = src('contexts/CrewContext.tsx');
   ok('his own roster read names himself (the GC crew never lands in it)', /\.or\(`user_id\.eq\.\$\{userId\},claimed_by_user_id\.eq\.\$\{userId\}`\)/.test(crew));

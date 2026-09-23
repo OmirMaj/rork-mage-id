@@ -53,8 +53,14 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
-import { getOfflineQueue } from '@/utils/offlineQueue';
-import { pendingIdsForTable } from '@/utils/projectContextPure';
+import { getOfflineQueue, processOfflineQueue } from '@/utils/offlineQueue';
+import { processPhotoUploadQueue } from '@/utils/photoUploadQueue';
+import { requestSyncSheet } from '@/utils/syncLedger';
+import { insertStillQueued } from '@/utils/invoiceWrites';
+import {
+  teamCountLabel, filedByLine, leaveDialogCopy, leftProjectMessage, missingProjectView, JUST_JOINED_NOT_LOADED,
+} from '@/utils/projectRole';
+import { invoiceRoleGate, INVOICE_OWNER_ONLY_REASON } from '@/utils/billingFlowCore';
 import { computeBulkSavings } from '@/utils/bulkSavings';
 import {
   buildPhotoSharePayload,
@@ -256,22 +262,8 @@ function hubPermissions(role: 'owner' | 'editor' | 'viewer' | 'field' | null): {
   };
 }
 
-/**
- * The Team count (#173). It comes from the same collaborator rows the Team
- * list draws (useProjectCollaborators — pending invites included, because the
- * list shows them as "Invited"), plus the owner. While that read is loading or
- * has failed there is NO number: "Team (1)" was a guess printed as fact.
- */
-function teamCountLabel(args: { isLoading: boolean; isError: boolean; viewerIsOwner: boolean; rows: { status: string }[] }): string | null {
-  if (args.isLoading || args.isError) return null;
-  // A collaborator's read returns only his OWN row (RLS), so any number he
-  // could print would undercount the team. No number, not a wrong one.
-  if (!args.viewerIsOwner) return null;
-  const accepted = args.rows.filter(r => r.status === 'accepted').length;
-  const pending = args.rows.filter(r => r.status === 'pending').length;
-  const members = accepted + 1;
-  return pending > 0 ? `${members} + ${pending} pending` : String(members);
-}
+// The Team count (#173/#129) is utils/projectRole teamCountLabel: a number
+// only from a roster the server has answered (never while paused offline).
 
 /**
  * The project's RFI list order (#143). Under "Open", the one with the
@@ -385,11 +377,13 @@ export default function ProjectDetailScreen() {
   // action, not on the tile grid. (Scope + estimator now have their own
   // screens — /project-scope and /estimate-wizard?projectId — so they no
   // longer route through here.)
-  const { id, tile: tileParam, edit: editParam } =
-    useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
+  // `justJoined=1` (#111/#130): he just accepted an invite — a job the list
+  // has not re-read yet is "hasn't loaded", never "not found".
+  const { id, tile: tileParam, edit: editParam, justJoined: justJoinedParam } =
+    useLocalSearchParams<{ id: string; tile?: string; edit?: string; justJoined?: string }>();
   const ctx = useProjects() as any;
   const { user: authUser } = useAuth();
-  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject, settingsLoaded, bidPackageBids, forgetSharedProject, portalListsServerRead } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject, settingsLoaded, bidPackageBids, forgetSharedProject, portalListsServerRead, portalAiaListServerRead, projectsFetching, countQueuedForProject, countUnsavedForProject, flushPendingProjectSyncs } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess, requiredTierFor } = useTierAccess();
@@ -532,12 +526,33 @@ export default function ProjectDetailScreen() {
   // #173: the Team count reads the same rows (same react-query key) the Team
   // list below draws, so the two can never disagree — no extra fetch.
   const teamRoster = useProjectCollaborators(project?.id);
+  // #129: `hasData`, not "not loading and not failed" — a read paused offline
+  // is neither, and printed "Team (1)" from an unread roster.
   const teamCount = teamCountLabel({
-    isLoading: teamRoster.isLoading,
-    isError: teamRoster.isError,
+    hasData: teamRoster.hasData,
     viewerIsOwner: hubRole === 'owner',
     rows: teamRoster.collaborators,
   });
+  // #38: billing the client is the job OWNER's alone (the #41 rule, one gate
+  // shared with app/invoice.tsx). A collaborator's invoice was written under
+  // his own user_id — the GC never saw it — and its Pay link minted on HIS
+  // Stripe account, so the homeowner paid the wrong contractor. The owner is
+  // recognised from the cached row, offline too; everyone else sees why.
+  const billGate = invoiceRoleGate({
+    hasProject: !!project,
+    role: roleState.role,
+    isLoading: roleState.isLoading,
+    isError: roleState.isError,
+    isPaused: roleState.isPaused,
+    stampedRole: project?.myRole,
+    ownedLocally: !!project?.ownerUserId && !!authUser?.id && project.ownerUserId === authUser.id,
+  });
+  const billBlockedReason: string | null =
+    billGate === 'open' ? null
+    : billGate === 'loading' ? 'Checking your role on this job before billing opens…'
+    : billGate === 'error' ? "Couldn't confirm you own this job, so billing stays off. Check your signal and reopen the job."
+    : billGate === 'paused' ? "You're offline and this phone hasn't confirmed you own this job, so billing stays off until it can."
+    : INVOICE_OWNER_ONLY_REASON;
 
   // How complete the daily log is over THIS project's working days. The number
   // is coverage, not content — a day filed as "no work on site" counts exactly
@@ -591,10 +606,20 @@ export default function ProjectDetailScreen() {
         invoices: projectInvoices, changeOrders, dailyReports, punchItems,
         photos: projectPhotos, rfis: projectRFIs, warranties: projectWarranties,
         permits: projectPermits,
+        // #15: the job's pay apps, so one sent to the client appears (and a
+        // recalled one leaves) on this push instead of waiting for Client
+        // Portal setup. PRESENT = built fresh; ABSENT = the published section
+        // is carried. Passed ONLY under the provider's own AIA gate
+        // (portalAiaListServerRead — read from the server in this foreground
+        // epoch): a list that failed or lags would build the section without a
+        // pay app shared from another device, and the overlay can only remove,
+        // never add it back (integration round 1). Fresh, an empty list is the
+        // truth and is passed like the provider passes it.
+        ...(portalAiaListServerRead ? { aiaPayApps: projectAIAPayApps } : {}),
       });
     }, 2000);
     return () => clearTimeout(t);
-  }, [project, portalListsServerRead, authUser?.id, settings, settingsLoaded, projectInvoices, changeOrders, dailyReports, punchItems, projectPhotos, projectRFIs, projectWarranties, projectPermits]);
+  }, [project, portalListsServerRead, portalAiaListServerRead, authUser?.id, settings, settingsLoaded, projectInvoices, changeOrders, dailyReports, punchItems, projectPhotos, projectRFIs, projectWarranties, projectPermits, projectAIAPayApps]);
 
 
   // `estimate` is nullable until the project loads (or if it has no estimate
@@ -1234,11 +1259,14 @@ export default function ProjectDetailScreen() {
       return;
     }
     // #148: RFI numbers are assigned by the server when an RFI lands, so an
-    // RFI still in the offline queue carries a provisional number — a log
-    // printed now could hand the architect a number the server later changes.
+    // RFI whose INSERT is still in the offline queue carries a provisional
+    // number — a log printed now could hand the architect a number the server
+    // later changes. #29: only a queued INSERT means "no number yet". A queued
+    // UPDATE (a subject typo fixed offline) is an RFI the server numbered
+    // weeks ago, and the log prints the device copy's newer text anyway.
     try {
-      const queued = pendingIdsForTable(await getOfflineQueue(), 'rfis');
-      const waiting = projectRFIs.filter(r => queued.has(r.id)).length;
+      const queue = await getOfflineQueue();
+      const waiting = projectRFIs.filter(r => insertStillQueued(queue, 'rfis', r.id)).length;
       if (waiting > 0) {
         showAlert(
           'RFI log not ready',
@@ -1521,66 +1549,104 @@ export default function ProjectDetailScreen() {
   const queryClient = useQueryClient();
   const safeBack = useSafeBack();
   const [leaving, setLeaving] = useState(false);
+  // #8/#128: the pre-leave flush + count (a Leave tap on a weak signal can
+  // take a few seconds; the button says what it is doing).
+  const [checkingLeave, setCheckingLeave] = useState(false);
+  // #8/#128: before he leaves, send what he can WHILE HE IS STILL A MEMBER
+  // (the leave sweep discards every write still queued for the job the moment
+  // the server drops his row), then count what is left. Best-effort each: a
+  // flush that cannot reach the server leaves the entries, and the count says so.
+  const flushThenCountForLeave = useCallback(async (): Promise<number> => {
+    if (!id) return 0;
+    try { await flushPendingProjectSyncs(); } catch { /* counted below */ }
+    try { await processOfflineQueue(); } catch { /* counted below */ }
+    try { await processPhotoUploadQueue(); } catch { /* counted below */ }
+    try { return await countQueuedForProject(id); } catch { return 0; }
+  }, [id, flushPendingProjectSyncs, countQueuedForProject]);
+
   const handleLeave = useCallback(() => {
-    if (!id || leaving) return;
+    if (!id || leaving || checkingLeave) return;
     const name = project?.name?.trim() || 'this project';
-    showAlert(
-      `Leave ${name}?`,
-      `You'll lose access to ${name} on every device. Nothing on the job is deleted — its records stay with the project owner. To come back, the owner has to invite you again.`,
-      [
+    // The server call, reached only from the destructive button below.
+    const runLeave = async () => {
+      setLeaving(true);
+      let reached = true;
+      let serverError: string | null = null;
+      let ok = false;
+      try {
+        const res = await supabase.functions.invoke('project-invite', { body: { action: 'leave', projectId: id } });
+        if (res.error) {
+          const err = res.error as { name?: string; message?: string; context?: { json?: () => Promise<unknown> } };
+          if (err.name === 'FunctionsFetchError' || err.name === 'FunctionsRelayError') reached = false;
+          else {
+            const body = await err.context?.json?.().catch(() => null) as { error?: string } | null | undefined;
+            serverError = body?.error ?? err.message ?? 'unknown error';
+          }
+        } else {
+          const data = res.data as { error?: string } | null;
+          if (data?.error) serverError = data.error;
+          else ok = true;
+        }
+      } catch {
+        reached = false;
+      }
+      const failure = leaveFailureMessage({ reached, serverError, ok });
+      if (failure) {
+        setLeaving(false);
+        showAlert("Couldn't leave this project", failure);
+        return;
+      }
+      // Confirmed by the server. Take the job off this device AS ONE HE
+      // LEFT (forgetSharedProject records it) before anything re-reads
+      // the list — otherwise the reload finds it gone with a foreign
+      // owner, reads that as the owner removing him (#90), and tells
+      // him so: a guess shown as fact, on top of "You left".
+      const forgot = forgetSharedProject(id);
+      void queryClient.invalidateQueries({ queryKey: ['project_collaborators', id] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // #8/#128: the sweep reports how many unsent changes went with the job.
+      const dropped = forgot.ok ? await (forgot.dropped ?? Promise.resolve(0)).catch(() => 0) : 0;
+      setLeaving(false);
+      showAlert('You left the project', leftProjectMessage(name, forgot.ok, dropped));
+      safeBack();
+    };
+    void (async () => {
+      setCheckingLeave(true);
+      const pending = await flushThenCountForLeave();
+      // Integration round 3: the part a sync can never send (under Not saved).
+      const unsaved = pending > 0 ? await countUnsavedForProject(id).catch(() => 0) : 0;
+      setCheckingLeave(false);
+      // Android's Alert shows at most three buttons (leaveDialogCopy).
+      const copy = leaveDialogCopy(name, pending, unsaved, Platform.OS === 'android' ? 3 : 4);
+      showAlert(copy.title, copy.message, [
         { text: 'Cancel', style: 'cancel' },
+        // "Sync first" re-runs the drain and asks again with the new count.
+        ...(copy.offerSyncFirst ? [{ text: 'Sync first', onPress: () => { handleLeaveRef.current(); } }] : []),
+        // Refused lines go only through Retry / Discard on the sheet.
+        ...(copy.offerOpenNotSaved ? [{ text: 'Open Not saved', onPress: () => { requestSyncSheet(); } }] : []),
         {
-          text: 'Leave',
-          style: 'destructive',
+          text: copy.leaveLabel,
+          style: 'destructive' as const,
           onPress: () => {
             void (async () => {
-              setLeaving(true);
-              let reached = true;
-              let serverError: string | null = null;
-              let ok = false;
-              try {
-                const res = await supabase.functions.invoke('project-invite', { body: { action: 'leave', projectId: id } });
-                if (res.error) {
-                  const err = res.error as { name?: string; message?: string; context?: { json?: () => Promise<unknown> } };
-                  if (err.name === 'FunctionsFetchError' || err.name === 'FunctionsRelayError') reached = false;
-                  else {
-                    const body = await err.context?.json?.().catch(() => null) as { error?: string } | null | undefined;
-                    serverError = body?.error ?? err.message ?? 'unknown error';
-                  }
-                } else {
-                  const data = res.data as { error?: string } | null;
-                  if (data?.error) serverError = data.error;
-                  else ok = true;
-                }
-              } catch {
-                reached = false;
+              // Re-counted at the tap: a change queued while the dialog was
+              // open must not be discarded behind a "nothing pending" dialog.
+              // (More than the dialog said — not merely > 0: with only Not-saved
+              // lines left, "Leave anyway" re-opened this same dialog forever.)
+              if (!copy.offerSyncFirst) {
+                const now = await countQueuedForProject(id).catch(() => 0);
+                if (now > pending) { handleLeaveRef.current(); return; }
               }
-              const failure = leaveFailureMessage({ reached, serverError, ok });
-              if (failure) {
-                setLeaving(false);
-                showAlert("Couldn't leave this project", failure);
-                return;
-              }
-              // Confirmed by the server. Take the job off this device AS ONE HE
-              // LEFT (forgetSharedProject records it) before anything re-reads
-              // the list — otherwise the reload finds it gone with a foreign
-              // owner, reads that as the owner removing him (#90), and tells
-              // him so: a guess shown as fact, on top of "You left".
-              const forgot = forgetSharedProject(id);
-              void queryClient.invalidateQueries({ queryKey: ['project_collaborators', id] });
-              void queryClient.invalidateQueries({ queryKey: ['projects'] });
-              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              setLeaving(false);
-              showAlert('You left the project', forgot.ok
-                ? `You're no longer on ${name}, and it has left this device.`
-                : `You're no longer on ${name}. It leaves your job list when your projects next reload.`);
-              safeBack();
+              await runLeave();
             })();
           },
         },
-      ],
-    );
-  }, [id, leaving, project?.name, queryClient, safeBack, forgetSharedProject]);
+      ]);
+    })();
+  }, [id, leaving, checkingLeave, project?.name, flushThenCountForLeave, countQueuedForProject, countUnsavedForProject, queryClient, safeBack, forgetSharedProject]);
+  const handleLeaveRef = useRef(handleLeave);
+  handleLeaveRef.current = handleLeave;
 
 
   // --- Estimate-dependent hooks ---
@@ -1936,12 +2002,34 @@ export default function ProjectDetailScreen() {
     // getProject(id) returns null in every case, so without this a valid
     // project deep-linked on a cold start flashed "Project not found" for a
     // frame before the store loaded — and again briefly right after a delete.
-    if (!projectsLoaded || deletingRef.current) {
+    // #111/#130: and while the list is re-reading — a job he just joined (or
+    // a link to one just shared) arrives with that refetch; "not found" is
+    // said only after a read has finished without it.
+    const missing = missingProjectView({
+      projectsLoaded, projectsFetching: !!projectsFetching, deleting: deletingRef.current, justJoined: justJoinedParam === '1',
+    });
+    if (missing === 'loading') {
       return (
         <>
           <Stack.Screen options={{ title: 'Loading…' }} />
           <CraneLoader label="Loading projects" />
         </>
+      );
+    }
+    if (missing === 'joined') {
+      return (
+        <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]} testID="project-just-joined-missing">
+          <Stack.Screen options={{ title: 'Project' }} />
+          <Text style={styles.notFoundText}>{JUST_JOINED_NOT_LOADED}</Text>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => { void queryClient.refetchQueries({ queryKey: ['projects', authUser?.id] }); }}
+            accessibilityRole="button"
+            testID="project-just-joined-retry"
+          >
+            <Text style={styles.backBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       );
     }
     return (
@@ -3521,6 +3609,12 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {/* #38: billing is the owner's. Anyone else sees why, in place of
+                  the buttons (Bill by voice included — it opens the same
+                  invoice flow). */}
+              {billBlockedReason ? (
+                <Text style={styles.coEmptyText} testID="invoice-bill-blocked">{billBlockedReason}</Text>
+              ) : (<>
               {/* Bill by voice — MAGE Copilot: say the draw, it opens billing
                   pre-set to progress or full. */}
               <TouchableOpacity
@@ -3567,6 +3661,7 @@ export default function ProjectDetailScreen() {
                   <Text style={[styles.coAddBtnText, { color: themeColors.success }]}>Full</Text>
                 </TouchableOpacity>
               </View>
+              </>)}
             </View>
           )}
         </View>
@@ -3663,6 +3758,17 @@ export default function ProjectDetailScreen() {
                           <Text style={styles.coDesc} numberOfLines={1}>
                             {dr.weather.conditions || 'No weather'} · {dr.manpower.reduce((s, m) => s + m.headcount, 0)} workers · {dr.photos.length} photos
                           </Text>
+                          {/* #63: who filed it, when it isn't the viewer — two
+                              foremen on one job and day were indistinguishable. */}
+                          {(() => {
+                            const filed = filedByLine({
+                              filedByUserId: dr.filedByUserId,
+                              viewerId: authUser?.id,
+                              ownerUserId: project.ownerUserId,
+                              collaborators: teamRoster.collaborators,
+                            });
+                            return filed ? <Text style={styles.coDesc} numberOfLines={1} testID={`dfr-filed-by-${dr.id}`}>{filed}</Text> : null;
+                          })()}
                         </View>
                         <View style={[styles.coBadge, {
                           backgroundColor: dr.status === 'sent' ? themeColors.successSoft : themeColors.accent + '15'
@@ -4751,15 +4857,15 @@ export default function ProjectDetailScreen() {
           </TouchableOpacity>
         ) : hubPerms.canLeave ? (
           <TouchableOpacity
-            style={[styles.deleteButton, leaving ? { opacity: 0.55 } : null]}
+            style={[styles.deleteButton, (leaving || checkingLeave) ? { opacity: 0.55 } : null]}
             onPress={handleLeave}
-            disabled={leaving}
+            disabled={leaving || checkingLeave}
             activeOpacity={0.7}
             testID="leave-project-btn"
             accessibilityRole="button"
           >
             <ArrowDownRight size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
-            <Text style={styles.deleteButtonText}>{leaving ? 'Leaving…' : 'Leave project'}</Text>
+            <Text style={styles.deleteButtonText}>{leaving ? 'Leaving…' : checkingLeave ? 'Sending unsynced changes…' : 'Leave project'}</Text>
           </TouchableOpacity>
         ) : null}
       </ScrollView>

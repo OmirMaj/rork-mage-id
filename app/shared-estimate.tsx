@@ -70,7 +70,7 @@ export default function SharedEstimateScreen() {
 
         <Text style={styles.totalLabel}>PROJECT TOTAL</Text>
         <Text style={styles.total}>{money(payload.total)}</Text>
-        {!!payload.valid && <Text style={styles.valid}>Fixed-price proposal · valid through {formatCalendarDay(payload.valid)}</Text>}
+        {!!payload.valid && <Text style={styles.valid}>Proposal · valid through {formatCalendarDay(payload.valid)}</Text>}
 
         <Text style={styles.section}>SCOPE OF WORK</Text>
         <View style={styles.card}>

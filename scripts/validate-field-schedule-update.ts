@@ -308,9 +308,15 @@ console.log('\nthe AI draft review screen:');
   ok('resolves the write path from the caller\'s role, falling back to project.myRole',
     /const projectRole = useProjectRole\(projectId\);/.test(REVIEW)
     && /const scheduleWritePath = scheduleWritePathForRole\(projectRole \?\? project\?\.myRole\);/.test(REVIEW));
+  // Wave 4 (schedule lane): the wording moved to utils/fieldScheduleUpdate.ts
+  // (SCHEDULE_WRITE_FIELD_REASON / _VIEWER_REASON) so the review screen and the
+  // template wizard cannot drift; the screen must take its refusal from there.
+  const FSU = read('utils', 'fieldScheduleUpdate.ts');
   ok('the refusal names field access\'s own surfaces and view-only\'s way out',
-    /Field access saves task progress, status, notes and actual start\/finish/.test(REVIEW)
-    && /view-only access to this project, so a new schedule is not saved/.test(REVIEW));
+    /export const SCHEDULE_WRITE_FIELD_REASON =\s*'Field access saves task progress, status, notes and actual start\/finish/.test(FSU)
+    && /export const SCHEDULE_WRITE_VIEWER_REASON =\s*'You have view-only access to this project, so a new schedule is not saved/.test(FSU)
+    && /scheduleWriteBlockedReason as scheduleWriteBlockedReasonFor,[\s\S]{0,120}\} from '@\/utils\/fieldScheduleUpdate';/.test(REVIEW)
+    && /useMemo<string \| null>\(\(\) => scheduleWriteBlockedReasonFor\(scheduleWritePath\), \[scheduleWritePath\]\)/.test(REVIEW));
   {
     const body = slice(REVIEW, 'const accept = useCallback(', 'const regenerate');
     ok('accept is refused before anything is written or recorded',

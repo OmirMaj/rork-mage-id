@@ -106,7 +106,62 @@ export async function extractSheet(s: PlanSheet): Promise<ExtractOutcome> {
  *  OFFER for unnumbered sheets (#75). The caller shows them as "Title block
  *  reads A-201 — use it?" and applies the accepted ones with planBatchRenumber
  *  through the offlineQueue patch path; nothing here writes a number. */
-export type PlanIndexRun = PlanIndexResult & { titleBlockSuggestions: TitleBlockSuggestion[] };
+export type PlanIndexRun = PlanIndexResult & {
+  titleBlockSuggestions: TitleBlockSuggestion[];
+  /** #115: each sheet's transcription from THIS run (sheetId → text), kept in
+   *  memory only so accepting a title-block number can re-embed the sheet
+   *  under its new citation without paying plan-extract to read it again. */
+  extractedText: Record<string, string>;
+};
+
+/**
+ * Embed transcriptions as plan-sheet docs, a whole sheet per batch, each
+ * carrying `hashFor(sheet)` so the next run can skip it. Embeddings only — no
+ * plan-extract read. Shared by the Index run and the post-renumber re-embed.
+ */
+async function embedSheetTexts(
+  projectId: string,
+  items: readonly { sheet: PlanSheet; text: string }[],
+  hashFor: (s: PlanSheet) => string,
+): Promise<{ embedded: string[]; failed: { sheetId: string; label: string; code: string; reason: string }[] }> {
+  const embedded: string[] = [];
+  const failed: { sheetId: string; label: string; code: string; reason: string }[] = [];
+  const groups = items.map(({ sheet, text }) =>
+    sheetToDocs({ sheetId: sheet.id, sheetNumber: sheetLabel(sheet), text })
+      .map(d => ({ ...d, content_hash: hashFor(sheet) })));
+  for (const batch of batchGroups(groups)) {
+    const sheetIds = [...new Set(batch.map(d => d.doc_id.slice(PLAN_DOC_PREFIX.length).split('#')[0]))];
+    const { data, error } = await supabase.functions.invoke('project-memory-embed', { body: { projectId, docs: batch } });
+    if (!error && data?.success) { embedded.push(...sheetIds); continue; }
+    const e = error ? await readEdgeError(error, 'Indexing failed') : { message: data?.error ?? 'Indexing failed', code: '' };
+    for (const id of sheetIds) {
+      const s = items.find(x => x.sheet.id === id)?.sheet;
+      failed.push({ sheetId: id, label: s ? sheetLabel(s) : 'Sheet', code: e.code, reason: e.message });
+    }
+  }
+  return { embedded, failed };
+}
+
+/**
+ * #115: re-embed renumbered sheets under their NEW citation from text this
+ * run already holds (renumberReembedPlan). Resolves the failure reason, if
+ * any, in the function's own words with no trailing full stop.
+ */
+export async function reembedRenumberedSheets(
+  projectId: string,
+  items: readonly { sheet: PlanSheet; text: string }[],
+): Promise<{ reembedded: number; failed: string | null }> {
+  if (items.length === 0) return { reembedded: 0, failed: null };
+  try {
+    const out = await embedSheetTexts(projectId, items, planSheetFingerprint);
+    return {
+      reembedded: out.embedded.length,
+      failed: out.failed.length > 0 ? out.failed[0].reason.replace(/\s*[.!]+\s*$/, '') : null,
+    };
+  } catch (err) {
+    return { reembedded: 0, failed: String((err as Error)?.message ?? 'the index could not be reached').replace(/\s*[.!]+\s*$/, '') };
+  }
+}
 
 /**
  * Which current sheets the index does NOT hold with this drawing + number
@@ -152,6 +207,7 @@ export async function indexPlanSheets(
   const titleReads: { sheetId: string; sheetNumber?: string }[] = [];
   const result: PlanIndexRun = {
     titleBlockSuggestions: [],
+    extractedText: {},
     total: current.length,
     alreadyIndexed: 0,
     newlyIndexed: 0,
@@ -202,19 +258,10 @@ export async function indexPlanSheets(
 
   // 3. Embed, a whole sheet per batch, carrying the fingerprint so the next run
   //    can skip it. A failed batch marks its sheets skipped with the reason.
-  const groups = extracted.map(({ sheet, text }) =>
-    sheetToDocs({ sheetId: sheet.id, sheetNumber: sheetLabel(sheet), text })
-      .map(d => ({ ...d, content_hash: hashById.get(sheet.id) })));
-  for (const batch of batchGroups(groups)) {
-    const sheetIds = [...new Set(batch.map(d => d.doc_id.slice(PLAN_DOC_PREFIX.length).split('#')[0]))];
-    const { data, error } = await supabase.functions.invoke('project-memory-embed', { body: { projectId, docs: batch } });
-    if (!error && data?.success) { result.newlyIndexed += sheetIds.length; continue; }
-    const e = error ? await readEdgeError(error, 'Indexing failed') : { message: data?.error ?? 'Indexing failed', code: '' };
-    for (const id of sheetIds) {
-      const s = current.find(x => x.id === id);
-      result.skipped.push({ sheetId: id, label: s ? sheetLabel(s) : 'Sheet', code: e.code, reason: e.message });
-    }
-  }
+  const embedOut = await embedSheetTexts(projectId, extracted, s => hashById.get(s.id) ?? planSheetFingerprint(s));
+  result.newlyIndexed += embedOut.embedded.length;
+  result.skipped.push(...embedOut.failed);
+  for (const { sheet, text } of extracted) result.extractedText[sheet.id] = text;
   // Offered only for sheets that still have no number; one he typed wins.
   result.titleBlockSuggestions = titleBlockSuggestions(current, titleReads);
   return result;
@@ -232,6 +279,14 @@ export interface PlanAnswer {
    *  full stop. Not the same thing as "your plans don't say": the panel must
    *  never turn a server error into #19's headline sentence. */
   searchFailed: string | null;
+  /** #117: the search WORKED (and was metered on the owner's plan) but the
+   *  answer step failed or was refused — a collaborator's own AI cap, a tier
+   *  refusal, a timeout. In mageAI's own words, no trailing full stop. Never
+   *  shown as an answer, never as "couldn't search". */
+  answerFailed: string | null;
+  /** #117: why the answer step failed, so the panel only says "try again"
+   *  when trying again can help (network / timeout), not after a cap. */
+  answerFailedKind: 'retry' | 'final' | null;
   /** #78: matches on a superseded or deleted sheet, left out BEFORE the model
    *  read anything. The panel says so; > 0 with noneFound means only older
    *  revisions matched — the current set is not indexed, not "not in the plans". */
@@ -270,6 +325,8 @@ export async function askPlans(projectId: string, question: string, sheets: Plan
       noneFound: false,
       weakGrounding: false,
       staleDropped: 0,
+      answerFailed: null,
+      answerFailedKind: null,
       // Trailing full stop stripped: the panel sets this reason inside its own
       // sentence, and "…upgrade.. Your plans may still hold it" reads broken.
       searchFailed: e.message.replace(/\s*[.!]+\s*$/, ''),
@@ -298,13 +355,27 @@ export async function askPlans(projectId: string, question: string, sheets: Plan
   if (matches.length === 0 && staleDropped > 0) {
     // Only older revisions matched. Paying the model to say "I couldn't find
     // that in your plans" would be false — the current set is not indexed.
-    return { answer: '', citations: [], noneFound: true, weakGrounding: false, searchFailed: null, staleDropped };
+    return { answer: '', citations: [], noneFound: true, weakGrounding: false, searchFailed: null, answerFailed: null, answerFailedKind: null, staleDropped };
   }
   const res = await mageAI({ prompt: buildAskPrompt(question, matches), tier: 'smart', maxTokens: 400, feature: 'planAsk' });
   // For non-schema mageAI calls the ai relay returns { data: rawText, raw: rawText }.
   // res.data holds the text string directly (not res.data?.text).
-  const answer = (res.success ? (typeof res.data === 'string' ? res.data : res.raw ?? '') : '').trim()
-    || "I couldn't reach the plan brain just now — try again.";
+  // #117: a failed answer step is NOT an answer. This used to print "I
+  // couldn't reach the plan brain just now — try again." as the answer —
+  // hiding a real refusal (a collaborator's own AI cap) behind a connectivity
+  // excuse, and inviting a retry that charges the owner's search meter again.
+  const text = (res.success ? (typeof res.data === 'string' ? res.data : res.raw ?? '') : '').trim();
+  if (!res.success || !text) {
+    const reason = (!res.success && typeof res.error === 'string' && res.error.trim())
+      ? res.error.trim()
+      : 'the answer came back empty';
+    const kind = res.errorKind === 'network' || res.errorKind === 'timeout' || (res.success && !text) ? 'retry' : 'final';
+    return {
+      answer: '', citations: [], noneFound: false, weakGrounding: false, searchFailed: null,
+      answerFailed: reason.replace(/\s*[.!]+\s*$/, ''), answerFailedKind: kind, staleDropped,
+    };
+  }
+  const answer = text;
   const citations = citedSheetRefs(answer, matches);
-  return { answer, citations, noneFound: matches.length === 0, weakGrounding, searchFailed: null, staleDropped };
+  return { answer, citations, noneFound: matches.length === 0, weakGrounding, searchFailed: null, answerFailed: null, answerFailedKind: null, staleDropped };
 }

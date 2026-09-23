@@ -182,12 +182,43 @@ export function incidentsForOwnEstablishment(
   projects: readonly OshaProjectLike[],
   userId: string | null | undefined,
 ): SafetyIncident[] {
-  const shared = new Set(
+  const shared = sharedProjectIds(projects, userId);
+  return incidents.filter((i) => !shared.has(i.projectId));
+}
+
+/**
+ * The ids of projects that are NOT this user's establishment — someone else
+ * owns them (or, with no owner id loaded, he holds a collaborator role on
+ * them). The ONE definition both halves of the 300A use (audit #124): the case
+ * list (incidentsForOwnEstablishment) dropped these jobs while the hours
+ * pre-fill still summed his own shifts on them, so the denominator grew while
+ * the numerator did not and his TRIR / DART read low on the figure he hands an
+ * insurer. Two filters that can drift apart are how that happened.
+ */
+export function sharedProjectIds(
+  projects: readonly OshaProjectLike[],
+  userId: string | null | undefined,
+): Set<string> {
+  return new Set(
     projects
       .filter((p) => (p.ownerUserId && userId ? p.ownerUserId !== userId : !!p.myRole))
       .map((p) => p.id),
   );
-  return incidents.filter((i) => !shared.has(i.projectId));
+}
+
+/**
+ * Time entries that count toward THIS establishment's 300A hours: drops a
+ * shift on a shared project (see sharedProjectIds). An entry with no project
+ * is shop / overhead time on his own company and is kept, as is one on a
+ * project this device does not know — the same rule the case list applies.
+ */
+export function hoursEntriesForOwnEstablishment<T extends { projectId?: string | null }>(
+  entries: readonly T[],
+  projects: readonly OshaProjectLike[],
+  userId: string | null | undefined,
+): T[] {
+  const shared = sharedProjectIds(projects, userId);
+  return entries.filter((e) => !!e && !(e.projectId && shared.has(e.projectId)));
 }
 
 /** Build the full OSHA 300 log: recordable incidents only, scoped to a single
