@@ -47,14 +47,26 @@
 // The invite's email outcome is now reported (emailSent), and a pending row
 // carries "Copy link", which re-reads the CURRENT link (getLink) instead of
 // re-sending — re-sending rotates the token and kills a link already texted.
+//
+// ── THE JOB'S CLIENT IS NOT A COLLABORATOR (Phase 0, lane B) ─────────────────
+// Every seat here — viewer included — reads the job's costs; field reads the
+// crew's reports and hours. A GC who types his homeowner's address into this
+// form was about to hand him margins, labour and markup. project-invite now
+// refuses any address the job records as its client (primary contact, a
+// client-portal invite, an invoice's bill-to) with code 'is_client', for every
+// role. This screen asks the same question first from the data it already has,
+// so the GC gets the reason — and the client portal, the client's real door —
+// before a request is sent; the server stays the authority for anything this
+// device hasn't loaded.
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { UserPlus, Trash2, Copy, Check, Mail, Link2 } from 'lucide-react-native';
+import { UserPlus, Trash2, Copy, Check, Mail, Link2, ShieldAlert } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectCollaborators } from '@/hooks/useProjectCollaborators';
 import { useProjectRole } from '@/hooks/useProjectRole';
@@ -68,9 +80,36 @@ import { Button } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-export function CollaboratorsManager({ projectId }: { projectId: string }) {
+/** Addresses in a free-text field, trimmed and lower-cased (a bill-to can
+ *  hold "a@x.com, b@x.com"). Same rule as project-invite's emailsIn. */
+function emailsIn(v: unknown): string[] {
+  if (typeof v !== 'string') return [];
+  // Display-name form ('Dana <dana@x.com>') splits on the brackets too.
+  return v.split(/[\s,;<>"'()]+/).map((x) => x.trim().toLowerCase()).filter((x) => x.includes('@'));
+}
+
+type ClientSource = 'primary_contact' | 'portal_invite' | 'bill_to';
+/** Where this job records its client — the same three places project-invite reads. */
+const CLIENT_SOURCE_LINES: Record<ClientSource, string> = {
+  primary_contact: 'is the client contact on this job',
+  portal_invite: "is invited to this job's client portal",
+  bill_to: "is the address this job's invoices are billed to",
+};
+
+/** The server's is_client sentence always carries this phrase; unwrap() in
+ *  useProjectCollaborators keeps only the message, so it is how a refusal the
+ *  device could not foresee (data not loaded here) is recognised. */
+const CLIENT_REFUSAL_PHRASE = "a client can't be added here";
+
+export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
+  projectId: string;
+  /** Opens this job's client portal setup. Optional: the host decides how to
+   *  leave its own modal first. Without it the reason names where to go. */
+  onOpenClientPortal?: () => void;
+}) {
   const { colors: t } = useTheme();
   const router = useRouter();
+  const { getProject, getInvoicesForProject } = useProjects();
   const { canAccess } = useTierAccess();
   const role = useProjectRole(projectId);
   const isOwner = role === 'owner';
@@ -95,6 +134,47 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
 
   const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
 
+  // Phase 0 lane B: is the typed address this job's CLIENT? Checked against
+  // what this device has loaded — the same three places project-invite reads.
+  const clientSourceFor = useCallback((address: string): ClientSource | null => {
+    const typed = address.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(typed)) return null;
+    const project = getProject(projectId);
+    if (emailsIn(project?.primaryContact?.email).includes(typed)) return 'primary_contact';
+    if ((project?.clientPortal?.invites ?? []).some((i) => emailsIn(i?.email).includes(typed))) return 'portal_invite';
+    if (getInvoicesForProject(projectId).some((inv) => emailsIn(inv.billToEmail).includes(typed))) return 'bill_to';
+    return null;
+  }, [projectId, getProject, getInvoicesForProject]);
+  const clientSource = useMemo(() => clientSourceFor(email), [clientSourceFor, email]);
+  const clientReason = clientSource
+    ? `${email.trim()} ${CLIENT_SOURCE_LINES[clientSource]}. Collaborators can see the job's costs, margins and labour, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`
+    : null;
+  // The guard runs at invite, accept and promotion. A seat taken BEFORE the
+  // address was recorded as this job's client (the GC invited first, then
+  // added the person to the portal or an invoice) is already live and reads
+  // the job's costs. Nothing on the server revisits it, so the roster flags
+  // it here, with the reason and a way to remove it.
+  const clientSeats = useMemo(() => {
+    const m = new Map<string, ClientSource>();
+    for (const c of collaborators) {
+      if (c.role === 'owner') continue;
+      const src = clientSourceFor(c.email ?? '');
+      if (src) m.set(c.id, src);
+    }
+    return m;
+  }, [collaborators, clientSourceFor]);
+  // A refusal the server made from data this device hasn't loaded.
+  const serverClientRefusal = invite.isError
+    && ((invite.error as Error)?.message ?? '').includes(CLIENT_REFUSAL_PHRASE);
+
+  // A server refusal belongs to the address that was SENT. Once the GC edits
+  // the field (say, to a real teammate), the old refusal and its portal
+  // pointer must go, or they sit under an address they are not about.
+  const onEmailChange = useCallback((next: string) => {
+    if (invite.isError) invite.reset();
+    setEmail(next);
+  }, [invite]);
+
   // What this specific invite costs, computed before it is sent so a charge is
   // never a surprise. Field invites always return bills:false — crew are free.
   const seatPreview = seats.preview(inviteRole, email);
@@ -102,6 +182,8 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
   const onInvite = useCallback(() => {
     if (!validEmail) return;
     if (inviteBlocked) { showAlert("Can't send the invite yet", inviteBlocked); return; }
+    // The client first: no role makes this invite safe (see the header).
+    if (clientReason) { showAlert("This is the job's client", clientReason); return; }
     // Someone already active on this job is never re-invited: the invite
     // resets his row to 'pending' and he loses the project until he accepts
     // again. Point at the row's role picker instead.
@@ -159,7 +241,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
       return;
     }
     send();
-  }, [validEmail, inviteBlocked, canAccess, router, invite, email, inviteRole, seatPreview, seats, collaborators]);
+  }, [validEmail, inviteBlocked, clientReason, canAccess, router, invite, email, inviteRole, seatPreview, seats, collaborators]);
 
   // Change an existing collaborator's role from the row picker.
   const requestRoleChange = useCallback((c: ProjectCollaborator, next: 'editor' | 'viewer' | 'field') => {
@@ -296,7 +378,7 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
             <TextInput
               style={[styles.input, { color: t.text }]}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={onEmailChange}
               placeholder="teammate@email.com"
               placeholderTextColor={t.textMuted}
               autoCapitalize="none"
@@ -335,10 +417,12 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
           <TouchableOpacity
             onPress={onInvite}
             disabled={!validEmail || invite.isPending || !!inviteBlocked}
-            style={[styles.inviteBtn, { backgroundColor: t.accentFill }, (!validEmail || invite.isPending || !!inviteBlocked) && { opacity: 0.5 }]}
+            // A client address dims Send but leaves it tappable: the tap
+            // answers with the reason (onInvite), so the block is never silent.
+            style={[styles.inviteBtn, { backgroundColor: t.accentFill }, (!validEmail || invite.isPending || !!inviteBlocked || !!clientReason) && { opacity: 0.5 }]}
             accessibilityRole="button"
             accessibilityState={{ disabled: !validEmail || invite.isPending || !!inviteBlocked }}
-            accessibilityHint={inviteBlocked ?? undefined}
+            accessibilityHint={inviteBlocked ?? clientReason ?? undefined}
             testID="collab-invite"
           >
             {invite.isPending ? <ActivityIndicator color="#FFF" /> : <UserPlus size={16} color="#FFF" strokeWidth={2} />}
@@ -348,7 +432,24 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
           {inviteBlocked ? (
             <Text style={[styles.roleHint, { color: t.textSecondary }]} testID="collab-invite-blocked">{inviteBlocked}</Text>
           ) : null}
+          {/* Phase 0 lane B: the client is refused with its reason and his
+              real door, whether this device or the server spotted it. */}
+          {clientReason ? (
+            <View style={[styles.clientNote, { borderColor: t.line, backgroundColor: t.bg }]} testID="collab-client-refused">
+              <ShieldAlert size={16} color={t.textSecondary} strokeWidth={1.75} />
+              <Text style={[styles.clientNoteText, { color: t.text }]}>{clientReason}</Text>
+            </View>
+          ) : null}
           {invite.isError ? <Text style={[styles.errText, { color: t.danger }]}>{(invite.error as Error)?.message}</Text> : null}
+          {(clientReason || serverClientRefusal) ? (
+            onOpenClientPortal ? (
+              <Button label="Open the client portal" size="sm" variant="secondary" onPress={onOpenClientPortal} testID="collab-open-client-portal" />
+            ) : (
+              <Text style={[styles.roleHint, { color: t.textSecondary }]} testID="collab-client-portal-hint">
+                The Client Portal tile on this job is where you invite them.
+              </Text>
+            )
+          ) : null}
           {/* #177: say what happened to the email — never "Invited" alone. */}
           {lastSend ? (
             <Text
@@ -393,6 +494,24 @@ export function CollaboratorsManager({ projectId }: { projectId: string }) {
               <Text style={[styles.rowMeta, { color: t.textSecondary }]}>
                 {ROLE_LABELS[c.role] ?? 'Owner'} · {c.status === 'accepted' ? 'Active' : 'Invited'}
               </Text>
+              {isOwner && clientSeats.has(c.id) ? (
+                <View style={[styles.clientNote, { borderColor: t.line, backgroundColor: t.bg, marginTop: 6 }]} testID={`collab-client-seat-${c.id}`}>
+                  <ShieldAlert size={16} color={t.danger} strokeWidth={1.75} />
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={[styles.clientNoteText, { color: t.text }]}>
+                      {`${c.email} ${CLIENT_SOURCE_LINES[clientSeats.get(c.id)!]}. ${c.status === 'accepted' ? 'This seat can see' : 'If accepted, this seat would see'} ${c.role === 'field' ? "the crew's daily reports and hours" : "the job's costs, margins and labour"}. Remove it and share the client portal instead.`}
+                    </Text>
+                    <Button
+                      label={`Remove ${c.email}`}
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => requestRevoke(c)}
+                      disabled={revoke.isPending}
+                      testID={`collab-client-seat-remove-${c.id}`}
+                    />
+                  </View>
+                </View>
+              ) : null}
               {/* Role picker — the invite form's chips, per row; the current
                   role is the filled chip. Under the address, not beside it:
                   three chips and the email do not fit one 375pt row. */}
@@ -482,6 +601,8 @@ const styles = StyleSheet.create({
   inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: Tokens.radius.lg, paddingVertical: 13 },
   inviteBtnText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: '#FFF' },
   errText: { fontSize: Type.caption1.fontSize },
+  clientNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: Tokens.radius.md, padding: 10 },
+  clientNoteText: { flex: 1, fontSize: Type.caption1.fontSize, lineHeight: 16 },
   sendStatus: { fontSize: Type.caption1.fontSize, lineHeight: 16, fontWeight: '600' },
   rowIconBtn: { minWidth: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center' },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },

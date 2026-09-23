@@ -20,7 +20,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useQuery } from '@tanstack/react-query';
 import {
   Plus, MapPin, Inbox, ChevronRight, Clock, DollarSign, Crosshair,
-  ShieldCheck, AlertTriangle, Trophy, Layers, Compass, Hammer,
+  MapPinOff, AlertTriangle, Trophy, Layers, Compass, Hammer,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -236,11 +236,16 @@ export default function MageIdBidsTabScreen() {
         <View style={styles.rfpBody}>
           <View style={styles.rfpHead}>
             <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
+            {/* address_verified = the poster's geocoder found the address on
+                a map. Not an ownership or identity check, so a map pin, never
+                a shield (Phase 0 honesty pass, 2026-09-23). */}
             {r.address_verified ? (
-              <View style={styles.verifyDot}><ShieldCheck size={10} color={Colors.successLabel} strokeWidth={1.75} /></View>
+              <View style={styles.verifyDot} accessible accessibilityLabel="Address found on map">
+                <MapPin size={10} color={Colors.textSecondary} strokeWidth={1.75} />
+              </View>
             ) : (
-              <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
-                <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />
+              <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]} accessible accessibilityLabel="Address not found on map">
+                <MapPinOff size={10} color={Colors.warningLabel} strokeWidth={1.75} />
               </View>
             )}
           </View>
@@ -513,7 +518,7 @@ export default function MageIdBidsTabScreen() {
               </Text>
             </View>
             <Text style={styles.unknownHint}>
-              These projects don&apos;t have a verified address yet, so we can&apos;t tell how far they are.
+              These posts have no map location, so we can&apos;t tell how far they are.
             </Text>
             {locationUnknownBrowse.map(r => renderBrowseCard(r))}
           </>
@@ -755,7 +760,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rfpBody: { padding: 14, gap: 6 },
   rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, lineHeight: 21 },
-  verifyDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: t.success + '15', alignItems: 'center', justifyContent: 'center' },
+  verifyDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   rfpScope: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
   rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   rfpMetaText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const },

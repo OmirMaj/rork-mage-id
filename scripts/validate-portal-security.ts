@@ -74,7 +74,13 @@ const stripComments = (s: string): string =>
   s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const askHome = stripComments(read('supabase/functions/portal-ask-home/index.ts'));
 const markViewed = stripComments(read('supabase/functions/portal-mark-viewed/index.ts'));
-const inFileTokenCompare = /constantTimeEqual|client_portal\??\.accessToken|portal\??\.accessToken|select=[^`'"]*client_portal|select\(\s*["'][^"']*client_portal/;
+// A select of client_portal is how the token reached the function. One narrow
+// exception (Phase 0, founder decision 5): portal-ask-home reads the job's two
+// owner-sharing switches by JSON path — `client_portal->shareSupplierNames` /
+// `->shareTradeContacts` — which returns those booleans and never the token.
+// Any other client_portal select (the whole column, `->accessToken`, `->>…`)
+// still fails.
+const inFileTokenCompare = /constantTimeEqual|client_portal\??\.accessToken|portal\??\.accessToken|select=[^`'"]*client_portal(?!->share(?:SupplierNames|TradeContacts)\b)|select\(\s*["'][^"']*client_portal/;
 ok('portal-ask-home loaded', askHome.length > 0);
 ok('portal-ask-home authorises through /rpc/portal_project_for_token with the submitted token',
   askHome.includes('/rest/v1/rpc/portal_project_for_token') && /p_access_token:\s*accessToken\b/.test(askHome));

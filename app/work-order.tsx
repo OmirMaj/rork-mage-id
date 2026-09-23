@@ -11,32 +11,41 @@
 //      "Dispatch to contractor", set 'assigned' and tell nobody, so the PM
 //      believed an emergency leak was handled (audit round 2, #20). "Mark
 //      assigned without sending" stays for the job he already phoned in.
-//   2. Post for bids — route into the existing marketplace RFP flow so
-//      verified contractors compete. The order is NOT marked 'Out for bids'
-//      here: it used to flip before /post-rfp opened, so backing out left it
-//      claiming bids that were never asked for. post-rfp owns that step once
-//      the public_bids row exists (it gets this order's id as a param).
+//   2. Post for bids — route into the marketplace RFP flow. The order is NOT
+//      marked 'Out for bids' here: it used to flip before /post-rfp opened,
+//      so backing out left it claiming bids that were never asked for.
+//      post-rfp owns that step once the public_bids row exists (it gets this
+//      order's id as a param). While RFP_BROWSE_ENABLED / SERVICE_AREA_SETUP_
+//      ENABLED are off no post can reach a contractor, so the tile is shown
+//      disabled with that reason (propertyMirror.postForBidsGate), "Send to a
+//      contractor" is the main action, and an order already Out for bids says
+//      the same and offers the send sheet instead (Phase 0, PM honesty).
 //
 // Status otherwise advances by tapping the "mark as" chips
-// (open → in progress → done, or cancelled).
+// (open → in progress → done, or cancelled). The screen re-reads the server
+// copy on focus (PropertyContext.refresh), so a status the PM's other device
+// set is what he sees here.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform, Linking, TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Wrench, Building2, Send, UserCheck, X, Trash2,
-  AlertTriangle, Phone, Users, Mail, ChevronRight,
+  AlertTriangle, Phone, Users, Mail, ChevronRight, UserPlus, Check,
 } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProperties } from '@/contexts/PropertyContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   WORK_ORDER_STATUS_LABELS, WORK_ORDER_PRIORITY_LABELS,
   type WorkOrderStatus, type Contact,
@@ -47,16 +56,17 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import {
   composeDispatchMessage, buildDispatchSmsUrl, buildDispatchMailtoUrl,
+  postForBidsGate, dispatchSenderName, workOrderStatusTone,
 } from '@/utils/propertyMirror';
+import { RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED } from '@/constants/featureFlags';
+import { generateUUID } from '@/utils/generateId';
 
-const STATUS_COLORS: Record<WorkOrderStatus, string> = {
-  open: '#FF6A1A',
-  posted_for_bids: '#0D6CB1',
-  assigned: '#7A3FF2',
-  in_progress: '#C99700',
-  done: '#16A34A',
-  cancelled: '#9CA3AF',
-};
+// Whether a post can reach any contractor at all. Both flags are off for 1.0,
+// so today it cannot; flipping them (the service-area editor + the UGC
+// report/block kit) brings the reach subtitle back with no change here.
+const BIDS_GATE = postForBidsGate(RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED);
+// Shown only while BIDS_GATE.open — the promise is true only then.
+const POST_FOR_BIDS_REACH_SUBTITLE = 'Post it to MAGE ID contractors who cover your area';
 
 // The statuses a PM sets by hand (the other two are set by the bridges).
 const MANUAL_STATUSES: WorkOrderStatus[] = ['open', 'in_progress', 'done', 'cancelled'];
@@ -76,13 +86,59 @@ export default function WorkOrderScreen() {
   const params = useLocalSearchParams<{ workOrderId?: string }>();
   const workOrderId = params.workOrderId ?? '';
 
-  const { getWorkOrder, updateWorkOrder, deleteWorkOrder, getProperty } = useProperties();
-  const { contacts, settings } = useProjects();
+  const { getWorkOrder, updateWorkOrder, deleteWorkOrder, getProperty, refresh } = useProperties();
+  const { contacts, settings, addContact } = useProjects();
+  const { user } = useAuth();
+
+  // The PM's other device may have moved this order since he last looked.
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const wo = getWorkOrder(workOrderId);
   const property = wo ? getProperty(wo.propertyId) : null;
 
   const [dispatchOpen, setDispatchOpen] = useState(false);
+
+  // Inline "Add a contractor" inside the send sheet. The empty sheet used to
+  // say "Add … in the Contacts screen" with no way there but Settings >
+  // Contacts; now he adds one here and lands back on the list.
+  const [addingContractor, setAddingContractor] = useState(false);
+  const [ncName, setNcName] = useState('');
+  const [ncCompany, setNcCompany] = useState('');
+  const [ncPhone, setNcPhone] = useState('');
+  const [ncEmail, setNcEmail] = useState('');
+  const ncHasWho = !!(ncName.trim() || ncCompany.trim());
+  const ncHasHow = !!(ncPhone.trim() || ncEmail.trim());
+  const ncBlockedWhy = !ncHasWho
+    ? 'Add a name or a company.'
+    : !ncHasHow ? 'Add a phone or an email, so there is a way to send the job.' : null;
+  const resetNewContractor = useCallback(() => {
+    setNcName(''); setNcCompany(''); setNcPhone(''); setNcEmail(''); setAddingContractor(false);
+  }, []);
+  const saveNewContractor = useCallback(() => {
+    if (ncBlockedWhy) return;
+    const name = ncName.trim();
+    const space = name.indexOf(' ');
+    const now = new Date().toISOString();
+    // A 'Sub' contact, so it sorts with the contractors in this sheet and
+    // shows as one everywhere else Contacts is read.
+    addContact({
+      id: generateUUID(),
+      firstName: space > 0 ? name.slice(0, space) : name,
+      lastName: space > 0 ? name.slice(space + 1).trim() : '',
+      companyName: ncCompany.trim(),
+      role: 'Sub',
+      email: ncEmail.trim(),
+      phone: ncPhone.trim(),
+      address: '',
+      notes: '',
+      linkedProjectIds: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    resetNewContractor();
+  }, [ncBlockedWhy, ncName, ncCompany, ncPhone, ncEmail, addContact, resetNewContractor]);
+  const closeDispatch = useCallback(() => { setDispatchOpen(false); resetNewContractor(); }, [resetNewContractor]);
 
   const sortedContacts = useMemo(() => {
     return contacts
@@ -127,7 +183,9 @@ export default function WorkOrderScreen() {
       propertyName: property?.name,
       propertyAddress: property?.address,
       contactFirstName: c.firstName?.trim() || undefined,
-      senderName: settings?.branding?.contactName?.trim() || settings?.branding?.companyName?.trim() || undefined,
+      // Branding first (a contractor's company), then his profile name: a PM
+      // skips contractor setup, so branding is usually empty for him.
+      senderName: dispatchSenderName(settings?.branding, user?.name),
     });
     const url = channel === 'sms'
       ? buildDispatchSmsUrl(c.phone ?? '', msg, Platform.OS)
@@ -155,7 +213,7 @@ export default function WorkOrderScreen() {
         `Nothing was sent and the work order is unchanged. ${channel === 'sms' ? `Call or text ${c.phone}` : `Email ${c.email}`} yourself, then use "Mark assigned without sending".`,
       );
     }
-  }, [wo, property, settings, markAssigned]);
+  }, [wo, property, settings, user?.name, markAssigned]);
 
   const chooseContact = useCallback((c: Contact) => {
     const name = `${c.firstName} ${c.lastName}`.trim() || c.companyName || 'this contractor';
@@ -190,7 +248,8 @@ export default function WorkOrderScreen() {
   }, [sendVia, markAssigned]);
 
   const postForBids = useCallback(() => {
-    if (!wo) return;
+    // Not reachable while the tile is disabled; this is the belt to that brace.
+    if (!wo || !BIDS_GATE.open) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Reuse the marketplace RFP flow, pre-filled from this work order so the
     // PM doesn't re-type scope/budget/address they already entered. The
@@ -240,7 +299,8 @@ export default function WorkOrderScreen() {
     );
   }
 
-  const statusColor = STATUS_COLORS[wo.status];
+  const statusTone = workOrderStatusTone(themeColors, wo.status);
+  const outForBidsGoesNowhere = wo.status === 'posted_for_bids' && !BIDS_GATE.open;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -273,8 +333,8 @@ export default function WorkOrderScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <View style={[styles.statusPill, { backgroundColor: statusColor + '1A' }]}>
-            <Text style={[styles.statusPillText, { color: statusColor }]}>{WORK_ORDER_STATUS_LABELS[wo.status]}</Text>
+          <View style={[styles.statusPill, { backgroundColor: statusTone.bg }]}>
+            <Text style={[styles.statusPillText, { color: statusTone.fg }]}>{WORK_ORDER_STATUS_LABELS[wo.status]}</Text>
           </View>
         </View>
 
@@ -289,8 +349,10 @@ export default function WorkOrderScreen() {
           <View style={styles.descCard}><Text style={styles.descText}>{wo.description}</Text></View>
         )}
 
-        {/* Assigned-to banner */}
-        {wo.status === 'assigned' && !!wo.assignedContactName && (
+        {/* Assigned-to banner. Shown whenever someone is assigned, not only
+            while the status reads 'assigned': it used to vanish the moment the
+            job moved to In progress, which is when he most needs the name. */}
+        {!!wo.assignedContactName && (
           <View style={styles.assignedBanner}>
             <UserCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.assignedText}>
@@ -314,86 +376,163 @@ export default function WorkOrderScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Bridge — the demand → supply handoff */}
+        {/* Out for bids, but no post can reach anyone yet: say so, and offer
+            the path that does reach someone. */}
+        {outForBidsGoesNowhere && (
+          <View style={styles.reachNotice} testID="wo-bids-reach-notice">
+            <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <Text style={styles.reachNoticeText}>{BIDS_GATE.reason}</Text>
+              <TouchableOpacity
+                style={styles.reachNoticeBtn}
+                onPress={() => setDispatchOpen(true)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                testID="wo-send-instead"
+              >
+                <UserCheck size={14} color={themeColors.accentLabel} strokeWidth={1.75} />
+                <Text style={styles.reachNoticeBtnText}>Send to a contractor instead</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Bridge — the demand → supply handoff. "Send to a contractor" is the
+            main action: today it is the only one that reaches anybody. */}
         <Text style={styles.sectionLabel}>Get it done</Text>
         <View style={styles.bridgeRow}>
-          <TouchableOpacity style={styles.bridgeBtn} onPress={() => setDispatchOpen(true)} activeOpacity={0.85} testID="wo-dispatch">
+          <TouchableOpacity style={[styles.bridgeBtn, styles.bridgeBtnPrimary]} onPress={() => setDispatchOpen(true)} activeOpacity={0.85} accessibilityRole="button" testID="wo-dispatch">
             <View style={styles.bridgeIcon}><UserCheck size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
             <Text style={styles.bridgeTitle}>Send to a contractor</Text>
             <Text style={styles.bridgeSub}>Text or email the job from your phone</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bridgeBtn} onPress={postForBids} activeOpacity={0.85} testID="wo-post-bids">
-            <View style={styles.bridgeIcon}><Send size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
-            <Text style={styles.bridgeTitle}>Post for bids</Text>
-            <Text style={styles.bridgeSub}>Post it to MAGE ID contractors who cover your area</Text>
+          <TouchableOpacity
+            style={[styles.bridgeBtn, !BIDS_GATE.open && styles.bridgeBtnDisabled]}
+            onPress={postForBids}
+            accessibilityRole="button"
+            disabled={!BIDS_GATE.open}
+            activeOpacity={0.85}
+            accessibilityState={{ disabled: !BIDS_GATE.open }}
+            testID="wo-post-bids"
+          >
+            <View style={styles.bridgeIcon}><Send size={18} color={BIDS_GATE.open ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} /></View>
+            <Text style={[styles.bridgeTitle, !BIDS_GATE.open && { color: themeColors.textMuted }]}>Post for bids</Text>
+            <Text style={styles.bridgeSub}>{BIDS_GATE.open ? POST_FOR_BIDS_REACH_SUBTITLE : BIDS_GATE.reason}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Manual status */}
         <Text style={styles.sectionLabel}>Status</Text>
         <View style={styles.statusChipRow}>
-          {MANUAL_STATUSES.map(s => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.statusChip, wo.status === s && { backgroundColor: STATUS_COLORS[s] + '18', borderColor: STATUS_COLORS[s] }]}
-              onPress={() => setStatus(s)}
-              activeOpacity={0.8}
-              testID={`wo-status-${s}`}
-            >
-              <Text style={[styles.statusChipText, wo.status === s && { color: STATUS_COLORS[s] }]}>
-                {WORK_ORDER_STATUS_LABELS[s]}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {MANUAL_STATUSES.map(s => {
+            const tone = workOrderStatusTone(themeColors, s);
+            return (
+              <TouchableOpacity
+                key={s}
+                style={[styles.statusChip, wo.status === s && { backgroundColor: tone.bg, borderColor: tone.fg }]}
+                onPress={() => setStatus(s)}
+                activeOpacity={0.8}
+                testID={`wo-status-${s}`}
+              >
+                <Text style={[styles.statusChipText, wo.status === s && { color: tone.fg }]}>
+                  {WORK_ORDER_STATUS_LABELS[s]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
 
       {/* Dispatch picker */}
-      <Modal visible={dispatchOpen} transparent animationType="slide" onRequestClose={() => setDispatchOpen(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={dispatchOpen} transparent animationType="slide" onRequestClose={closeDispatch}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHead}>
-              <View style={styles.modalHeadIcon}><Users size={15} color="#FFF" strokeWidth={1.75} /></View>
-              <Text style={styles.modalTitle}>Send to…</Text>
-              <TouchableOpacity onPress={() => setDispatchOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
+              <View style={styles.modalHeadIcon}><Users size={15} color={Colors.textOnAccent} strokeWidth={1.75} /></View>
+              <Text style={styles.modalTitle}>{addingContractor ? 'Add a contractor' : 'Send to…'}</Text>
+              <TouchableOpacity onPress={closeDispatch} hitSlop={8} accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
-            <Text style={styles.modalNote}>
-              Your Messages or Mail app opens with the job filled in, and you press Send. MAGE does not contact them for you.
-            </Text>
-            {sortedContacts.length === 0 ? (
-              <View style={styles.noContacts}>
-                <Users size={24} color={themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.noContactsText}>
-                  No contacts yet. Add the contractors you work with in the Contacts screen, then dispatch work orders to them in one tap.
-                </Text>
-              </View>
-            ) : (
-              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-                {sortedContacts.map(c => (
-                  <TouchableOpacity key={c.id} style={styles.contactRow} onPress={() => chooseContact(c)} activeOpacity={0.8} testID={`dispatch-${c.id}`}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.contactName}>{`${c.firstName} ${c.lastName}`.trim() || c.companyName}</Text>
-                      <View style={styles.contactMeta}>
-                        <View style={styles.roleChip}><Text style={styles.roleChipText}>{c.role}</Text></View>
-                        {!!c.phone && (
-                          <View style={styles.contactPhone}><Phone size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.contactPhoneText}>{c.phone}</Text></View>
-                        )}
-                        {!c.phone && !!c.email && (
-                          <View style={styles.contactPhone}><Mail size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.contactPhoneText}>{c.email}</Text></View>
-                        )}
-                        {!c.phone && !c.email && (
-                          <Text style={styles.contactPhoneText}>No phone or email</Text>
-                        )}
-                      </View>
-                    </View>
-                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+            {addingContractor ? (
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
+                <Text style={styles.modalNote}>Saved to your Contacts as a contractor (Sub). Then pick them from the list to send the job.</Text>
+                <Text style={styles.fieldLabel}>Name</Text>
+                <TextInput style={styles.input} value={ncName} onChangeText={setNcName} placeholder="Joe Rivera" placeholderTextColor={themeColors.textMuted} autoFocus testID="wo-new-contractor-name" />
+                <Text style={styles.fieldLabel}>Company (optional)</Text>
+                <TextInput style={styles.input} value={ncCompany} onChangeText={setNcCompany} placeholder="Rivera Plumbing" placeholderTextColor={themeColors.textMuted} />
+                <Text style={styles.fieldLabel}>Phone</Text>
+                <TextInput style={styles.input} value={ncPhone} onChangeText={setNcPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" testID="wo-new-contractor-phone" />
+                <Text style={styles.fieldLabel}>Email</Text>
+                <TextInput style={styles.input} value={ncEmail} onChangeText={setNcEmail} placeholder="joe@riveraplumbing.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                {!!ncBlockedWhy && <Text style={styles.blockedWhy}>{ncBlockedWhy}</Text>}
+                <View style={styles.formBtnRow}>
+                  <TouchableOpacity style={styles.formBtnGhost} onPress={() => setAddingContractor(false)} activeOpacity={0.8} accessibilityRole="button">
+                    <Text style={styles.formBtnGhostText}>Back to the list</Text>
                   </TouchableOpacity>
-                ))}
+                  <TouchableOpacity
+                    style={[styles.formBtn, !!ncBlockedWhy && styles.formBtnDisabled]}
+                    onPress={saveNewContractor}
+                    accessibilityRole="button"
+                    disabled={!!ncBlockedWhy}
+                    accessibilityState={{ disabled: !!ncBlockedWhy }}
+                    activeOpacity={0.85}
+                    testID="wo-new-contractor-save"
+                  >
+                    <Check size={15} color={Colors.textOnAccent} strokeWidth={1.75} />
+                    <Text style={styles.formBtnText}>Save contractor</Text>
+                  </TouchableOpacity>
+                </View>
               </ScrollView>
+            ) : (
+              <>
+                <Text style={styles.modalNote}>
+                  Your Messages or Mail app opens with the job filled in, and you press Send. MAGE does not contact them for you.
+                </Text>
+                {sortedContacts.length === 0 ? (
+                  <View style={styles.noContacts}>
+                    <Users size={24} color={themeColors.textMuted} strokeWidth={1.75} />
+                    <Text style={styles.noContactsText}>
+                      No contacts yet. Add the contractors you work with, then send them work orders in one tap.
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                    {sortedContacts.map(c => (
+                      <TouchableOpacity key={c.id} style={styles.contactRow} onPress={() => chooseContact(c)} activeOpacity={0.8} testID={`dispatch-${c.id}`}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.contactName}>{`${c.firstName} ${c.lastName}`.trim() || c.companyName}</Text>
+                          <View style={styles.contactMeta}>
+                            <View style={styles.roleChip}><Text style={styles.roleChipText}>{c.role}</Text></View>
+                            {!!c.phone && (
+                              <View style={styles.contactPhone}><Phone size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.contactPhoneText}>{c.phone}</Text></View>
+                            )}
+                            {!c.phone && !!c.email && (
+                              <View style={styles.contactPhone}><Mail size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.contactPhoneText}>{c.email}</Text></View>
+                            )}
+                            {!c.phone && !c.email && (
+                              <Text style={styles.contactPhoneText}>No phone or email</Text>
+                            )}
+                          </View>
+                        </View>
+                        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+                <TouchableOpacity
+                  style={styles.addContractorBtn}
+                  onPress={() => setAddingContractor(true)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  testID="wo-add-contractor"
+                >
+                  <UserPlus size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
+                  <Text style={styles.addContractorText}>Add a contractor</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -437,6 +576,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10, marginTop: 4 },
   bridgeRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
   bridgeBtn: { flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: t.line, gap: 4 },
+  // The main action: outlined in the accent, never filled with it.
+  bridgeBtnPrimary: { borderColor: t.accent, borderWidth: 1.5 },
+  bridgeBtnDisabled: { backgroundColor: t.neutralSoft, borderStyle: 'dashed' },
+
+  reachNotice: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: t.warningSoft, borderRadius: Tokens.radius.lg, padding: 12, marginBottom: 16,
+  },
+  reachNoticeText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
+  reachNoticeBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.accent,
+  },
+  reachNoticeBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accentLabel },
   bridgeIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: t.accent + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   bridgeTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
   bridgeSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
@@ -462,4 +616,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   roleChipText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '700' },
   contactPhone: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   contactPhoneText: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+  addContractorBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 12, paddingVertical: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
+  },
+  addContractorText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accentLabel },
+
+  // inline add-a-contractor form
+  fieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.textMuted, marginBottom: 6, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
+  input: { backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 12, fontSize: Type.bodyCompact.fontSize, color: t.text },
+  blockedWhy: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 10 },
+  formBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  formBtnGhost: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 13, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line },
+  formBtnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  formBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill },
+  formBtnDisabled: { opacity: 0.5 },
+  formBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnAccent },
 });

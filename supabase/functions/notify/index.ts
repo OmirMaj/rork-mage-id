@@ -2052,13 +2052,17 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           preheader: `${company} sent you the closeout binder for ${projectName} — it's all in your portal.`,
           eyebrow: 'Closeout binder delivered',
           title: `Hi ${homeownerName} — your home's owner's manual.`,
-          subtitle: `${company} just delivered the closeout binder for ${projectName}. Every paint color, fixture brand, sub contact, warranty, and maintenance reminder you'll need for the life of the home — all in your portal.`,
+          // Phase 0 (founder decision 5): a sub's direct contact reaches the
+          // owner only when the GC shares it for the job, and it is off by
+          // default, so this line does not promise one. The trades are named
+          // either way.
+          subtitle: `${company} just delivered the closeout binder for ${projectName}. Every paint color, fixture brand, warranty, maintenance reminder and the trades who did the work — all in your portal.`,
           accent: '#1E8E4A',
           bodyHtml: `
             ${emailHero({ kicker: 'Project complete', bigText: projectName, subText: finalCost ? `Final cost: ${fmtMoney(finalCost)}` : undefined, photoUrl: heroPhoto, accent: '#1E8E4A' })}
             ${emailStatCard(`${photoCount ? emailStatRow('Project photos', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties on file', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
             <p style="margin:0 0 14px;">Open your portal and tap <strong>Closeout Binder</strong>. Read it on your phone, or hit Print to save a PDF you can keep forever.</p>
-            <p style="margin:0;color:#9AA3AD;font-size:13px;">Bookmark this email — your portal lives at the link below and doesn't expire.</p>
+            <p style="margin:0;color:#9AA3AD;font-size:13px;">Save the binder as a PDF while you can: the portal link below stays open until 30 days after ${escapeHtml(company)} closes out the job, then it stops working.</p>
           `,
           cta: { label: 'Open my portal', href: portalLink2 },
           companyName: gc.company_name ?? undefined,

@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, MapPin, Calendar, FileText, ShieldCheck, AlertTriangle,
+  ChevronLeft, MapPin, MapPinOff, Calendar, FileText, ShieldCheck, AlertTriangle,
   Send, Pencil, ChevronRight, Clock, Trophy, Image as ImageIcon,
   HelpCircle, MessageSquare, CheckCircle2, RefreshCw,
 } from 'lucide-react-native';
@@ -362,16 +362,21 @@ export default function RfpDetailScreen() {
                 <Text style={[styles.pillText, { color: themeColors.accent }]}>VERIFIED PROS NOTIFIED</Text>
               </View>
             )}
+            {/* address_verified is written by the HOMEOWNER'S device when its
+                geocoder returns a hit for the typed address (post-rfp.tsx).
+                It proves the address is on a map — not who owns or lives at
+                it — so it is labelled as that, with a map pin, never a shield
+                or "verified" (Phase 0 honesty pass, 2026-09-23). */}
             {rfp.address_verified && (
-              <View style={[styles.pill, { backgroundColor: themeColors.success + '15' }]}>
-                <ShieldCheck size={10} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: themeColors.success }]}>ADDRESS VERIFIED</Text>
+              <View style={[styles.pill, { backgroundColor: themeColors.surfaceAlt }]}>
+                <MapPin size={10} color={themeColors.textSecondary} strokeWidth={1.75} />
+                <Text style={[styles.pillText, { color: themeColors.textSecondary }]}>ADDRESS FOUND ON MAP</Text>
               </View>
             )}
             {!rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: Colors.warning + '15' }]}>
-                <AlertTriangle size={10} color={Colors.warningLabel} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>UNVERIFIED ADDRESS</Text>
+                <MapPinOff size={10} color={Colors.warningLabel} strokeWidth={1.75} />
+                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>ADDRESS NOT ON MAP</Text>
               </View>
             )}
           </View>

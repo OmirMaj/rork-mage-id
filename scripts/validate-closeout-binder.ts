@@ -180,9 +180,20 @@ while ((m = callRe.exec(engineSrc)) !== null) {
     `does not fail typecheck — every cell is a string — it just silently shifts a column, which is how ` +
     `contract amounts came to print under a header reading "Email".`);
 }
-ok('found every sectionTable call site', tablesChecked >= 7,
-  `only ${tablesChecked} tables matched the call regex — if the helper was renamed or reformatted this ` +
-  `guard is checking nothing.`);
+// Two tables take their columns from a variable, because founder decision 5
+// (Phase 0) drops a column when the owner-sharing switch is off: Finishes
+// loses "Supplier", Trade contacts swaps Phone/Email for Phase. A source
+// count cannot see through the branch, so those two are checked on the
+// RENDERED document below (section 9), with the switches off and on.
+const varCallRe = /sectionTable\(\s*'([^']*)',\s*([A-Za-z_]\w*),\s*(\w+),/g;
+const varTables: string[] = [];
+while ((m = varCallRe.exec(engineSrc)) !== null) varTables.push(m[1]);
+ok('found every sectionTable call site', tablesChecked + varTables.length >= 7,
+  `only ${tablesChecked} literal + ${varTables.length} variable-column tables matched the call regexes — if ` +
+  `the helper was renamed or reformatted this guard is checking nothing.`);
+ok('the variable-column tables are exactly the two the sharing switches shape',
+  JSON.stringify(varTables.sort()) === JSON.stringify(['Finishes & fixtures installed', 'Trade contacts']),
+  `got ${JSON.stringify(varTables)} — any other table must declare literal columns so the source check covers it.`);
 
 // ───────────────────────────────────────────────────────────────────────────
 // 6. The logs the binder was handed are actually rendered.
@@ -340,6 +351,68 @@ ok('no RFI response or date-responded is printed',
   'The scoped log stops at status: no writer fills the response fields reliably, so the column would read as incomplete.');
 ok('no submittal reviewer or return date is printed',
   !full.includes('ZZ-REVIEWER-NEVER-PRINTED') && !/Reviewer|Returned/i.test(subLog));
+
+// ───────────────────────────────────────────────────────────────────────────
+// 9. Founder decision 5 on the PDF: supplier names and a sub's phone/email are
+//    the GC's, printed only when he switched them on for this job. And every
+//    rendered table, under either setting, has as many cells per row as it
+//    has headers.
+// ───────────────────────────────────────────────────────────────────────────
+console.log('\ncloseout binder — the owner-sharing switches reach the PDF:');
+{
+  const SUPPLIER = 'Ferguson Supply Co';
+  const PHONE = '555-777-1234';
+  const EMAIL = 'mike@sparky.test';
+  const shareInput = (sharing?: { supplierNames: boolean; tradeContacts: boolean }) => binderInput({
+    selections: [{ id: 'cat1', projectId: 'p1', category: 'Faucet', ...stamp,
+      options: [{ id: 'o1', productName: 'Kitchen faucet', brand: 'Moen', sku: '7594SRS', supplier: SUPPLIER, isChosen: true, ...stamp }] }] as unknown as BinderInput['selections'],
+    commitments: [{ id: 'c1', projectId: 'p1', type: 'subcontract', status: 'signed', vendorName: 'Sparky Electric',
+      subcontractorId: 's1', description: 'Electrical', phase: 'Rough-in', amount: 1, ...stamp }] as unknown as BinderInput['commitments'],
+    subcontractors: [{ id: 's1', companyName: 'Sparky Electric', contactName: 'Mike', phone: PHONE, email: EMAIL }] as unknown as BinderInput['subcontractors'],
+    rfis: rfiFixtures, submittals: submittalFixtures,
+    warranties: [{ id: 'w1', projectId: 'p1', title: 'Water heater', provider: 'Rheem', durationMonths: 72, endDate: '2032-05-01', ...stamp }] as unknown as BinderInput['warranties'],
+    lienWaivers: [{ id: 'lw1', projectId: 'p1', subName: 'Sparky Electric', waiverType: 'unconditional_final', status: 'signed', throughDate: '2026-05-01', paidAmount: 100, ...stamp }] as unknown as BinderInput['lienWaivers'],
+    binder: { id: 'b1', projectId: 'p1', userId: 'u1', notes: '', status: 'draft', ...stamp,
+      maintenanceSchedule: [{ id: 'm1', task: 'Flush water heater', frequency: 'Annual' }] },
+    ...(sharing ? { sharing } : {}),
+  });
+  const unset = buildBinderHtml(shareInput());
+  const off = buildBinderHtml(shareInput({ supplierNames: false, tradeContacts: false }));
+  const on = buildBinderHtml(shareInput({ supplierNames: true, tradeContacts: true }));
+  for (const [label, html] of [['no sharing passed (the default)', unset], ['both switched off', off]] as const) {
+    ok(`${label}: no supplier, phone or email in the PDF`,
+      !html.includes(SUPPLIER) && !html.includes(PHONE) && !html.includes(EMAIL));
+    ok(`${label}: brand, model and the trade itself still print`,
+      html.includes('Moen') && html.includes('7594SRS') && sectionOf(html, 'Trade contacts').includes('Sparky Electric')
+      && sectionOf(html, 'Trade contacts').includes('Rough-in'));
+    ok(`${label}: no Supplier / Phone / Email header`,
+      !/>Supplier<\/th>/.test(html) && !/>Phone<\/th>/.test(html) && !/>Email<\/th>/.test(html));
+    ok(`${label}: the owner is told to come through the GC`, /Call us and we'll put you in touch\./.test(html));
+  }
+  ok('both switched on: supplier, phone and email print under their headers',
+    on.includes(SUPPLIER) && on.includes(PHONE) && on.includes(EMAIL)
+    && />Supplier<\/th>/.test(on) && />Phone<\/th>/.test(on) && />Email<\/th>/.test(on));
+  const suppliersOnly = buildBinderHtml(shareInput({ supplierNames: true, tradeContacts: false }));
+  ok('suppliers on, contacts off: supplier prints, phone and email do not',
+    suppliersOnly.includes(SUPPLIER) && !suppliersOnly.includes(PHONE) && !suppliersOnly.includes(EMAIL));
+
+  /** Every <table>: header count vs each body row's cell count. */
+  const misaligned = (html: string) => [...html.matchAll(/<table[\s\S]*?<\/table>/g)].flatMap(([t]) => {
+    const heads = (t.match(/<th\b/g) ?? []).length;
+    const body = /<tbody>([\s\S]*?)<\/tbody>/.exec(t)?.[1] ?? '';
+    return [...body.matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
+      .map(([, row]) => (row.match(/<td\b/g) ?? []).length)
+      .filter(cells => cells !== heads)
+      .map(cells => `${heads} headers vs ${cells} cells`);
+  });
+  const tablesIn = (html: string) => (html.match(/<table\b/g) ?? []).length;
+  ok('the fixture renders every table (so the alignment check sees them all)', tablesIn(on) >= 7 && tablesIn(off) >= 7,
+    `on=${tablesIn(on)} off=${tablesIn(off)}`);
+  ok('switches off: every rendered table has as many cells per row as headers', misaligned(off).length === 0,
+    misaligned(off).join('; '));
+  ok('switches on: every rendered table has as many cells per row as headers', misaligned(on).length === 0,
+    misaligned(on).join('; '));
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // 8. The cover's Completion date is a CERTIFIED date (wave 5, #141).

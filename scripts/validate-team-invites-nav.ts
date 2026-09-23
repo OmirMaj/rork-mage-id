@@ -101,7 +101,9 @@ console.log('\n#94 / #93 / #172 accept-invite:');
   ok('a missing token records errCode missing_token', /setErrCode\('missing_token'\)/.test(src));
   ok('the error state always offers Home (or sign-in when signed out)',
     /onPress=\{goHome\}/.test(src) && /router\.replace\(\(isAuthenticated \? '\/\(tabs\)\/\(home\)' : '\/login'\) as never\)/.test(src));
-  ok('invalid_or_used removes the stale mageid_pending_invite', /if \(code === 'invalid_or_used'\) await AsyncStorage\.removeItem\(PENDING_KEY\);/.test(src));
+  // Phase 0 lane B added 'is_client' (the job's own client is refused a seat,
+  // finally) to the same removal; validate-collaborator-client-guard pins it.
+  ok('invalid_or_used removes the stale mageid_pending_invite', /if \(code === 'invalid_or_used'(?: \|\| code === 'is_client')?\) await AsyncStorage\.removeItem\(PENDING_KEY\);/.test(src));
 }
 
 // ── #93 persona-select / onboarding / _layout / ClientHome ───────────────────

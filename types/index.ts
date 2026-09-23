@@ -2470,9 +2470,12 @@ export interface Lead {
 // app/work-order.tsx): dispatch to a saved contractor from Contacts
 // (local, immediate), or post to the marketplace for competitive bids.
 //
-// v1 is local-first (AsyncStorage `mageid_managed_properties` /
-// `mageid_work_orders`, via contexts/PropertyContext.tsx); server sync
-// can follow once the persona is validated.
+// Server-backed: both collections mirror to the managed_properties /
+// work_orders tables (supabase/migrations/20260918180000_property_manager_
+// mirror.sql, owner-only RLS) through utils/offlineQueue, with a per-user
+// device cache under `mageid_`. Edits travel as per-field patches and the
+// device re-reads the server on foreground, focus and pull (see
+// contexts/PropertyContext.tsx and utils/propertyMirror.ts).
 
 /** A building / unit under management. Long-lived container that spawns
  *  many work orders over its lifetime. */
@@ -3612,6 +3615,17 @@ export interface ClientPortalSettings {
   showPunchList: boolean;
   showRFIs: boolean;
   showDocuments: boolean;
+  /**
+   * Phase 0, founder decision 5: the GC's own relationships reach the owner
+   * only when he switches them on for THIS job (closeout binder screen).
+   * `shareSupplierNames` — where each finish was bought and the purchase-order
+   * vendors; `shareTradeContacts` — a sub's contact name, phone and email.
+   * Brand, model and serial always show. Absent = off, so every portal saved
+   * before these existed shares neither. Read ONLY through
+   * utils/passport/ownerSharing.ownerSharingFor (strict `=== true`).
+   */
+  shareSupplierNames?: boolean;
+  shareTradeContacts?: boolean;
   welcomeMessage?: string;
   invites?: ClientPortalInvite[];
   // When enabled and the project has no contract value yet, the portal

@@ -43,7 +43,7 @@ import type {
   Project, AppSettings, Invoice, ChangeOrder, DailyFieldReport, PunchItem,
   ProjectPhoto, RFI, Warranty, ProjectContract, SelectionCategory, Permit, SavedAIAPayApp, ClientPortalSettings,
 } from '@/types';
-import { buildPortalSnapshot, type PortalSnapshot } from '@/utils/portalSnapshot';
+import { buildPortalSnapshot, ownerSafeCloseoutCarry, type PortalSnapshot } from '@/utils/portalSnapshot';
 import type { CloseoutBinder } from '@/utils/closeoutBinderEngine';
 import type { BakedHomePassport } from '@/utils/passport/types';
 
@@ -212,12 +212,19 @@ export function mergeLiteSnapshot(
   // baked on ONE device — the GC's phone may hold it while his laptop does
   // not. Carry both from the published block rather than blank them, but
   // only while the fresh build still publishes a closeout at all.
+  // The carried rows pass through ownerSafeCloseoutCarry: the published
+  // block was built under the sharing switches of THAT publish, and the
+  // closeout binder's "Supplier names" / "Trade contacts" switches trigger
+  // exactly this writer. Carrying the old rows verbatim would republish the
+  // supplier names and sub phone/email the GC just switched off, plus any
+  // FAQ prose baked while they were on.
   let closeout = snap.closeout;
   if (closeout && prev.closeout) {
+    const safe = ownerSafeCloseoutCarry(prev.closeout, project.clientPortal);
     closeout = {
       ...closeout,
-      tradeContacts: closeout.tradeContacts?.length ? closeout.tradeContacts : prev.closeout.tradeContacts,
-      ...(opts.hasPassport ? {} : { passport: prev.closeout.passport, faq: prev.closeout.faq }),
+      tradeContacts: closeout.tradeContacts?.length ? closeout.tradeContacts : safe.tradeContacts,
+      ...(opts.hasPassport ? {} : { passport: prev.closeout.passport, faq: safe.faq, faqSharing: safe.faqSharing }),
     };
   }
   return {

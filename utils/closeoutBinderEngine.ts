@@ -20,6 +20,7 @@ import { WAIVER_LABELS } from './lienWaiverEngine';
 import { calendarDayStart } from './calendarDate';
 import { resolveTradeContacts } from './tradeContacts';
 import { openPrintWindowOrThrow } from './platformFile';
+import { OWNER_SHARING_OFF, type OwnerSharing } from './passport/ownerSharing';
 
 export interface MaintenanceItem {
   id: string;
@@ -184,6 +185,15 @@ export interface BuildBinderInput {
    *  needs unconditional finals from majors; commercial needs the full
    *  per-period conditional + unconditional set. AUD-008. */
   lienWaivers: LienWaiver[];
+  /**
+   * What of the GC's own relationships this binder may hand the owner
+   * (founder decision 5, Phase 0). The binder is the owner's handover
+   * document, so it obeys the same two switches as the portal, the Home
+   * Passport and Ask Your Home: supplier names and a sub's phone/email print
+   * only when the GC switched them on for this job. Absent = both OFF, so a
+   * caller that forgets to pass it shares less, never more.
+   */
+  sharing?: OwnerSharing;
 }
 
 /**
@@ -234,6 +244,9 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     // over, and the GC was re-assembling them by hand from two other screens.
     rfis, submittals, subcontractors,
   } = input;
+  const sharing: OwnerSharing = input.sharing ?? OWNER_SHARING_OFF;
+  const shareSuppliers = sharing.supplierNames === true;
+  const shareContacts = sharing.tradeContacts === true;
   // The certified completion day (#141): the substantial-completion date the GC
   // issued (the G704 date), else the day the job was closed — never updatedAt.
   // The binder is usually built BEFORE the job is closed (the close prompt only
@@ -266,19 +279,38 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   // rather than relabelled. The resolver is shared with the client portal so
   // the same table can never drift apart between the two surfaces.
   const tradeContacts = resolveTradeContacts(commitments, subcontractors, project.id);
-  const subContactRows = tradeContacts.map(t => `
+  //
+  // With the trade-contacts switch OFF (the default) the table keeps company,
+  // scope and phase — "who did my electrical" is still answered — and drops the
+  // Phone and Email columns entirely, header and cells together, so a column
+  // count always matches its cells. The owner is told to come through the GC.
+  const tradeContactColumns = shareContacts
+    ? ['Company', 'Scope', 'Phone', 'Email']
+    : ['Company', 'Scope', 'Phase'];
+  const subContactRows = tradeContacts.map(t => shareContacts ? `
       <tr>
         <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(t.company)}</td>
         <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.scope ?? '')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.phone ?? '')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.email ?? '')}</td>
       </tr>
+    ` : `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(t.company)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.scope ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.phase ?? '')}</td>
+      </tr>
     `).join('');
   // Honesty line: a blank phone/email cell means we never captured it, not that
   // the trade has no number. Say so under the table instead of letting the
   // client read the gap as a data error — and tell them who to call meanwhile.
-  const missingContactCount = tradeContacts.filter(t => !t.phone && !t.email).length;
-  const tradeContactsNote = missingContactCount > 0 ? `
+  // With contacts not shared, the one line says how to reach a trade instead.
+  const missingContactCount = shareContacts ? tradeContacts.filter(t => !t.phone && !t.email).length : 0;
+  const tradeContactsNote = !shareContacts && tradeContacts.length > 0 ? `
+    <p style="margin:8px 2px 0;font-size:11px;color:${PDF_PALETTE.textMuted};font-style:italic">
+      Need one of these trades? Call us and we'll put you in touch.
+    </p>
+  ` : missingContactCount > 0 ? `
     <p style="margin:8px 2px 0;font-size:11px;color:${PDF_PALETTE.textMuted};font-style:italic">
       ${missingContactCount} of ${tradeContacts.length} trades ${missingContactCount === 1 ? 'has' : 'have'} no phone or email on file — we never captured one. Contact us and we'll put you in touch.
     </p>
@@ -333,11 +365,17 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     </tr>
   `).join('');
 
+  // Product, brand and SKU are the owner's and always print. The Supplier
+  // column (where the GC bought it — a pricing relationship) prints only when
+  // the supplier-names switch is on; off, the column is gone, header and cell.
+  const selectionColumns = shareSuppliers
+    ? ['Category', 'Product · Brand · SKU', 'Supplier']
+    : ['Category', 'Product · Brand · SKU'];
   const selectionRows = chosenSelections.map(s => `
     <tr>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;font-weight:800;color:${PDF_PALETTE.textMuted};text-transform:uppercase;letter-spacing:0.4px;width:25%">${escHtml(s.category)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;color:${PDF_PALETTE.text}"><strong>${escHtml(s.chosen!.productName)}</strong>${s.chosen!.brand ? ` · ${escHtml(s.chosen!.brand)}` : ''}${s.chosen!.sku ? ` · SKU ${escHtml(s.chosen!.sku)}` : ''}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.textMuted}">${s.chosen!.supplier ? escHtml(s.chosen!.supplier) : ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;color:${PDF_PALETTE.text}"><strong>${escHtml(s.chosen!.productName)}</strong>${s.chosen!.brand ? ` · ${escHtml(s.chosen!.brand)}` : ''}${s.chosen!.sku ? ` · SKU ${escHtml(s.chosen!.sku)}` : ''}</td>${shareSuppliers ? `
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.textMuted}">${s.chosen!.supplier ? escHtml(s.chosen!.supplier) : ''}</td>` : ''}
     </tr>
   `).join('');
 
@@ -416,7 +454,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     ` : ''}
 
     ${sectionTable('Finishes & fixtures installed',
-      ['Category', 'Product · Brand · SKU', 'Supplier'],
+      selectionColumns,
       selectionRows,
       'No selections recorded.')}
 
@@ -436,7 +474,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
       'No maintenance items configured.')}
 
     ${sectionTable('Trade contacts',
-      ['Company', 'Scope', 'Phone', 'Email'],
+      tradeContactColumns,
       subContactRows,
       'No subcontractors on file.')}
     ${tradeContactsNote}

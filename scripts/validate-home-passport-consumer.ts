@@ -69,15 +69,20 @@ const GC = {
   licenseNumber: 'GC-88213',
 };
 
+// Both jobs share supplier names and trade contacts (Phase 0, founder decision
+// 5: off by default, per job). This file pins the SHARED path — suppliers and
+// trade phones carried; scripts/validate-portal-owner-optins.ts pins the
+// default, where neither reaches the owner.
+const SHARE_ALL = { supplierNames: true, tradeContacts: true };
 const JOB_A = {
   id: 'proj-a', name: 'Kitchen Remodel', location: ADDRESS, type: 'renovation',
   status: 'completed', createdAt: '2025-01-05', substantialCompletionDate: '2025-06-15',
-  squareFootage: 2400, contractor: GC,
+  squareFootage: 2400, contractor: GC, share: SHARE_ALL,
 };
 const JOB_B = {
   id: 'proj-b', name: 'Roof Replacement', location: ADDRESS, type: 'roofing',
   status: 'completed', createdAt: '2026-02-01', substantialCompletionDate: '2026-05-20',
-  squareFootage: 2400, contractor: GC,
+  squareFootage: 2400, contractor: GC, share: SHARE_ALL,
 };
 
 function mkWarranty(o: Partial<Warranty>): Warranty {
@@ -578,7 +583,11 @@ expectTrue('handoff lists the work history', handoff.includes('Kitchen Remodel')
 expectTrue('handoff lists live warranties', handoff.includes('Trane HVAC'));
 expectTrue('handoff lists model numbers', handoff.includes('GR366'));
 expectTrue('handoff lists finaled permits', handoff.includes('B-2025-0091'));
-expectTrue('handoff states owner ownership', handoff.toLowerCase().includes('belongs to the homeowner'));
+// Phase 0 honesty: the passport is the contractor's record handed over as a
+// copy — no owner account holds it — so the handoff no longer claims it
+// "belongs to the homeowner and travels with the home".
+expectTrue('handoff says who compiled it, not that the homeowner owns it',
+  handoff.includes('Compiled by your contractor') && !handoff.toLowerCase().includes('belongs to the homeowner'));
 expectTrue('handoff carries NO money at all', !handoff.includes('$'));
 expectTrue('handoff carries no canary figure', ALL_CANARIES.every((n) => !handoff.includes(String(n))));
 expect('empty passport still produces a handoff header',

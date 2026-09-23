@@ -1155,12 +1155,23 @@ function ClientPortalSetupScreenInner() {
     // #19: never "Saved" for a save that reaches no one.
     if (ownerOnlyReason) { showAlert('Not saved', ownerOnlyReason); return; }
     if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < 4)) {
-      showAlert('Passcode Required', 'Please enter a passcode of at least 4 characters, or disable passcode protection.');
+      showAlert('Passcode Required', 'Please enter a passcode of at least 4 characters, or turn off "Ask for a passcode".');
       return;
     }
     setIsSaving(true);
     try {
-      updateProject(id, { clientPortal: portal });
+      // The two owner-sharing switches (supplier names, trade contacts) live
+      // in the closeout binder, not on this screen. This screen's `portal`
+      // state is a copy taken when it opened, so writing it whole would put
+      // back a switch the GC turned OFF in the binder meanwhile. They are
+      // always taken from the saved row.
+      updateProject(id, {
+        clientPortal: {
+          ...portal,
+          shareSupplierNames: project?.clientPortal?.shareSupplierNames,
+          shareTradeContacts: project?.clientPortal?.shareTradeContacts,
+        },
+      });
       // The provider republishes the lite snapshot for this job too, so the
       // saved switches reach the homeowner even if he leaves right away.
       requestPortalPublish(id);
@@ -1171,7 +1182,7 @@ function ClientPortalSetupScreenInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [id, portal, updateProject, ownerOnlyReason, requestPortalPublish, portalListsServerRead]);
+  }, [id, portal, project?.clientPortal?.shareSupplierNames, project?.clientPortal?.shareTradeContacts, updateProject, ownerOnlyReason, requestPortalPublish, portalListsServerRead]);
 
   // Send modal state — replaces the old web "Share" Alert that just
   // showed the message text and couldn't actually dispatch anything.
@@ -1192,9 +1203,12 @@ function ClientPortalSetupScreenInner() {
   // invite goes out — matching the on-screen "share it separately" guidance.
   const promptPasscodeSeparately = useCallback(() => {
     if (!portal.requirePasscode || !portal.passcode) return;
+    // Phase 0 honesty: the passcode is a light extra step on the page, not a
+    // lock (the page loads the project before it asks). Say so here too, so
+    // the GC does not treat the link as safe to forward.
     showAlert(
       'Now share the passcode separately',
-      `Your portal is passcode-protected. Text or tell your client the passcode over a different channel than the link:\n\nPasscode: ${portal.passcode}`,
+      `Text or tell your client the passcode over a different channel than the link:\n\nPasscode: ${portal.passcode}\n\nThe link is still the key to the project. The passcode is a light extra step on the page, so share the link only with your client.`,
     );
   }, [portal.requirePasscode, portal.passcode]);
 
@@ -1367,7 +1381,7 @@ function ClientPortalSetupScreenInner() {
     // deliver it separately (SMS/call) after the invite sends — matching the
     // on-screen "share it separately" guidance.
     const passcodeHint = portal.requirePasscode && portal.passcode
-      ? `<p style="margin:14px 0 0;padding:12px 14px;background:#F4EFE6;border:1px solid #E8DFCD;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;">This portal is passcode-protected. ${escapeHtml(recipientFirstName ?? 'You')} will receive the passcode from your contractor in a separate message.</p>`
+      ? `<p style="margin:14px 0 0;padding:12px 14px;background:#F4EFE6;border:1px solid #E8DFCD;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;">This portal asks for a passcode. ${escapeHtml(recipientFirstName ?? 'You')} will receive it from your contractor in a separate message.</p>`
       : '';
     const welcomeBlock = portal.welcomeMessage
       ? emailQuote(portal.welcomeMessage)
@@ -1444,7 +1458,7 @@ function ClientPortalSetupScreenInner() {
     };
     showAlert(
       'Reset Passcode',
-      'Generate a new 4-digit passcode? Existing clients will need the new code before they can view the portal.',
+      'Generate a new 4-digit passcode? Your client will need the new code at the page\'s passcode step. It does not change the link: anyone who already has the link can still reach the project.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Generate', onPress: generate },
@@ -1760,17 +1774,24 @@ function ClientPortalSetupScreenInner() {
           </View>
         </View>
 
-        {/* Passcode Protection */}
+        {/* Passcode — an extra step, not a lock.
+            Phase 0 honesty pass (2026-09-23). This said "Passcode Protection"
+            and "Portal is locked". Neither is true: the portal page downloads
+            the whole project before it shows the passcode screen, and the
+            server never checks the passcode, so anyone holding the link can
+            read the project with or without the code. The 192-bit token in
+            the link is the only real credential. Until the passcode is
+            enforced server-side, the copy says what it does. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Passcode Protection</Text>
-          <Text style={styles.sectionSubtitle}>Require clients to enter a passcode before viewing the portal. Share it separately from the link.</Text>
+          <Text style={styles.sectionTitle}>Passcode (extra step)</Text>
+          <Text style={styles.sectionSubtitle}>The link is the key: anyone who has it can reach this project. A passcode adds a light extra step on the page, not a lock. Share the link only with your client, and send the passcode separately.</Text>
           <View style={styles.togglesCard}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
                 <Lock size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
-                  <Text style={styles.toggleLabel}>Require Passcode</Text>
-                  <Text style={styles.toggleDesc}>{portal.requirePasscode ? 'Portal is locked' : 'Portal is open with link only'}</Text>
+                  <Text style={styles.toggleLabel}>Ask for a passcode</Text>
+                  <Text style={styles.toggleDesc}>{portal.requirePasscode ? 'The page asks for the passcode first. The link is still the key.' : 'The link alone opens the page'}</Text>
                 </View>
               </View>
               <Switch

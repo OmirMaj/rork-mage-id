@@ -98,6 +98,10 @@ function fullInput(): BuildHomePassportInput {
     photos: [mkPhoto({})],
     maintenance: MAINT,
     generatedAt: GENERATED_AT,
+    // The SHARED path (Phase 0, founder decision 5 — off by default): supplier
+    // and trade contact lines are asserted below. The default, where neither
+    // is indexed for the owner, is pinned by validate-portal-owner-optins.ts.
+    sharing: { supplierNames: true, tradeContacts: true },
   };
 }
 
@@ -119,7 +123,10 @@ expect('empty input → generatedAt passthrough', empty.summary.generatedAt, GEN
 // ── Full assembly: one doc per kind ──
 const full = buildHomePassport(fullInput());
 const byKind = (k: string) => full.docs.filter(d => d.kind === k);
-expect('full input → 5 docs (one per kind)', full.docs.length, 5);
+// Five record kinds, plus — because fullInput shares both — one supplier doc
+// and one sub-contact doc (Phase 0: the GC's relationships ride only in docs
+// of their own, which portal-ask-home can drop whole).
+expect('full input → 7 docs (one per record kind + supplier + contact)', full.docs.length, 7);
 expect('one doc of each kind',
   ['finish', 'warranty', 'trade', 'maintenance', 'photo'].map(k => byKind(k).length),
   [1, 1, 1, 1, 1]);
@@ -130,7 +137,15 @@ expect('finish docId from category id', finish.docId, 'passport:finish:cat-1');
 expect('finish ref names the category', finish.ref, 'Finish — Kitchen Paint');
 expectTrue('finish text carries brand', finish.text.includes('Sherwin-Williams'));
 expectTrue('finish text carries SKU', finish.text.includes('SW-7008'));
-expectTrue('finish text carries supplier', finish.text.includes('SW Store #204'));
+expectTrue('finish text never carries the supplier (it has its own doc)', !finish.text.includes('SW Store #204'));
+const supplierDoc = full.docs.find(d => d.docId === 'passport:supplier:cat-1');
+expectTrue('shared: the supplier doc names the supplier', !!supplierDoc && supplierDoc.text.includes('SW Store #204') && supplierDoc.kind === 'supplier');
+expectTrue('not shared: no supplier doc', !buildHomePassport({ ...fullInput(), sharing: undefined }).docs.some(d => d.kind === 'supplier'));
+const unsentSel = buildHomePassport({
+  ...fullInput(),
+  selections: [mkSelection({ portalState: { status: 'draft' } as unknown as SelectionCategory['portalState'] })],
+});
+expect('unsent (draft) selection → no finish or supplier doc', unsentSel.docs.filter(d => d.kind === 'finish' || d.kind === 'supplier').length, 0);
 const noChoice = buildHomePassport({
   ...fullInput(),
   selections: [mkSelection({ options: [mkOption({ isChosen: false })] })],
@@ -150,14 +165,24 @@ const otherProjWarranty = buildHomePassport({
   warranties: [mkWarranty({ id: 'war-2', projectId: 'proj-OTHER' })],
 });
 expect('other-project warranty excluded', otherProjWarranty.docs.filter(d => d.kind === 'warranty').length, 0);
+const unsentWarranty = buildHomePassport({
+  ...fullInput(),
+  warranties: [mkWarranty({ portalState: { status: 'draft' } as unknown as Warranty['portalState'] })],
+});
+expect('unsent (draft) warranty excluded — the portal link must not answer about it',
+  unsentWarranty.docs.filter(d => d.kind === 'warranty').length, 0);
 
 // ── Trade doc — commitment enriched with sub contact ──
 const trade = byKind('trade')[0];
 expect('trade docId from commitment id', trade.docId, 'passport:trade:com-1');
 expect('trade ref names the sub company', trade.ref, 'Trade — Volt Bros Electric');
 expectTrue('trade text carries the trade', trade.text.includes('Electrical'));
-expectTrue('trade text carries phone', trade.text.includes('555-0100'));
-expectTrue('trade text carries email', trade.text.includes('ray@voltbros.com'));
+expectTrue('trade text never carries phone or email (they have their own doc)',
+  !trade.text.includes('555-0100') && !trade.text.includes('ray@voltbros.com'));
+const contactDoc = full.docs.find(d => d.docId === 'passport:contact:com-1');
+expectTrue('shared: the contact doc carries phone and email',
+  !!contactDoc && contactDoc.kind === 'contact' && contactDoc.text.includes('555-0100') && contactDoc.text.includes('ray@voltbros.com'));
+expectTrue('not shared: no contact doc', !buildHomePassport({ ...fullInput(), sharing: undefined }).docs.some(d => d.kind === 'contact'));
 expectTrue('trade text carries scope', trade.text.includes('Full electrical rough-in'));
 const noSub = buildHomePassport({
   ...fullInput(),
@@ -228,7 +253,7 @@ expect('maintenance-only input → only maintenance FAQs',
 expect('summary counts match docs',
   [full.summary.finishes, full.summary.warranties, full.summary.trades,
    full.summary.maintenanceItems, full.summary.photos, full.summary.docCount],
-  [1, 1, 1, 1, 1, 5]);
+  [1, 1, 1, 1, 1, 7]);
 expect('summary.generatedAt passthrough', full.summary.generatedAt, GENERATED_AT);
 
 // ── askHomePrompt ───────────────────────────────────────────────────

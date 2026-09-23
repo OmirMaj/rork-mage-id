@@ -12,29 +12,43 @@
 // sign-out erased a PM's whole portfolio, silently (the sign-out prompt counts
 // the offline queue, and local-only records never entered it). Now, like the
 // Last Planner (hooks/useLastPlanner.ts):
-//   - every change is upserted to managed_properties / work_orders through
+//   - every change goes to managed_properties / work_orders through
 //     utils/offlineQueue, so an offline edit sits in the queue the sign-out
-//     prompt counts;
-//   - on every signed-in load the device copy is merged with the server copy
-//     (utils/propertyMirror.mergeMirror — newer updatedAt wins, tombstones
-//     delete, device-only records upload), so a sign-out, a new phone or the
-//     web app all come back to the same portfolio;
+//     prompt counts. A create or a delete is a whole-row upsert; an EDIT is a
+//     per-field 'update' (propertyMirror.workOrderPatch / propertyPatch): only
+//     the columns it changed, plus updated_at;
+//   - the device copy is merged with the server copy on every signed-in load
+//     AND on refresh(), which runs on app foreground, on focus of the three PM
+//     screens and on pull-to-refresh (utils/propertyMirror.mergeMirror: the
+//     server copy wins, except for a record this device has a write for that
+//     has not landed yet; tombstones delete; device-only records upload; and
+//     nothing the server has is ever pushed whole), so a sign-out, a new phone
+//     or the web app all come back to the same portfolio;
 //   - deletes are tombstones (deleted_at), so another device drops its copy
 //     instead of uploading it back.
+//
+// WHY PATCHES + REFRESH (Phase 0, PM two-device fix). The server was read only
+// at sign-in and every edit upserted the whole row with a fresh updatedAt, so
+// the newest whole row won: a laptop left open put a work order the phone had
+// marked Done back to Open the moment the PM fixed a typo on it, and nulled
+// the assignee an RFP award had PATCHed in. Now the laptop's typo fix sends
+// the description and nothing else, and the laptop re-reads the server the
+// next time it comes to the front.
 // The device cache is keyed per user (propertyCacheKeys) and still under
 // `mageid_`, so the sweep removes a cache, never the record.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { generateUUID } from '@/utils/generateId';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabaseWrite } from '@/utils/offlineQueue';
+import { supabaseWrite, getOwnOfflineQueueDetailed, type OfflineMutation } from '@/utils/offlineQueue';
 import {
   PROPERTY_TABLES, LEGACY_PROPERTIES_KEY, LEGACY_WORK_ORDERS_KEY, propertyCacheKeys,
   propertyToRow, propertyFromRow, workOrderToRow, workOrderFromRow, mergeMirror,
-  type WorkOrderRecord,
+  workOrderPatch, propertyPatch, queuedRecordIds, type WorkOrderRecord,
 } from '@/utils/propertyMirror';
 import type { ManagedProperty, WorkOrder } from '@/types';
 
@@ -90,17 +104,137 @@ export const [PropertyProvider, useProperties] = createContextHook(() => {
     }
   }, []);
 
+  // ── Writes this device has not seen land ────────────────────────────────
+  // The merge shows the device copy of a record ONLY while this device has a
+  // write for it that the server may not have yet (see mergeMirror for why
+  // this replaced comparing updatedAt clocks). Three places such a write can
+  // be, all keyed `${table}:${id}`:
+  //   - on the wire: supabaseWrite has not resolved (inFlightRef);
+  //   - sent after the server read began (lastWriteRef seq > the read's start);
+  //   - in the offline queue (read before AND after the server read, so one
+  //     that drains while the read is out still counts).
+  const inFlightRef = useRef(new Map<string, number>());
+  const writeSeqRef = useRef(0);
+  const lastWriteRef = useRef(new Map<string, number>());
+
+  const send = useCallback((table: string, op: 'upsert' | 'update', row: Record<string, unknown>) => {
+    const key = `${table}:${String(row.id)}`;
+    writeSeqRef.current += 1;
+    lastWriteRef.current.set(key, writeSeqRef.current);
+    inFlightRef.current.set(key, (inFlightRef.current.get(key) ?? 0) + 1);
+    // Resolves once the write has landed OR sits in the queue: either way the
+    // queue read (or the server read) now covers it.
+    void supabaseWrite(table, op, row).catch(() => false).finally(() => {
+      const n = (inFlightRef.current.get(key) ?? 1) - 1;
+      if (n > 0) inFlightRef.current.set(key, n); else inFlightRef.current.delete(key);
+    });
+  }, []);
+
   const pushProperty = useCallback((p: ManagedProperty, deletedAt: string | null = null) => {
     const uid = ownerRef.current?.userId;
     if (!uid || !isSupabaseConfigured) return;
-    void supabaseWrite(PROPERTY_TABLES.properties, 'upsert', propertyToRow(p, uid, deletedAt));
-  }, []);
+    send(PROPERTY_TABLES.properties, 'upsert', propertyToRow(p, uid, deletedAt));
+  }, [send]);
 
   const pushWorkOrder = useCallback((w: WorkOrderRecord, deletedAt: string | null = null) => {
     const uid = ownerRef.current?.userId;
     if (!uid || !isSupabaseConfigured) return;
-    void supabaseWrite(PROPERTY_TABLES.workOrders, 'upsert', workOrderToRow(w, uid, deletedAt));
-  }, []);
+    send(PROPERTY_TABLES.workOrders, 'upsert', workOrderToRow(w, uid, deletedAt));
+  }, [send]);
+
+  // ── Read the server copy and merge it in ────────────────────────────────
+  // One read per user at a time: foreground, focus and pull can all fire
+  // together, and they share the read already running. Keyed by user so a read
+  // still running for the previous account is never handed to the next one.
+  // 'merged' = the server copy is in; 'failed' = it could not be read;
+  // 'stale' = it was read for a session that has since been reset.
+  type PullResult = 'merged' | 'failed' | 'stale';
+  const pullRef = useRef<{ userId: string; run: Promise<PullResult> } | null>(null);
+  const pullServer = useCallback((uid: string): Promise<PullResult> => {
+    if (pullRef.current?.userId === uid) return pullRef.current.run;
+    // Registered BEFORE the read starts, so the finally below (which can run
+    // synchronously if the client throws) always clears its own entry.
+    const entry = { userId: uid } as { userId: string; run: Promise<PullResult> };
+    pullRef.current = entry;
+    entry.run = (async (): Promise<PullResult> => {
+      // Anything sent from here on is newer than what this read can return.
+      const seq0 = writeSeqRef.current;
+      // Writes on the wire when the read begins may commit after the SELECT's
+      // snapshot and resolve before the merge; they count as pending too.
+      const onWireAtStart = [...inFlightRef.current.keys()];
+      const readQueue = (): Promise<OfflineMutation[] | null> =>
+        getOwnOfflineQueueDetailed().then(r => (r.readFailed ? null : r.entries)).catch(() => null);
+      try {
+        const queuedBefore = await readQueue();
+        const [p, w] = await Promise.all([
+          supabase.from(PROPERTY_TABLES.properties).select('*').eq('user_id', uid),
+          supabase.from(PROPERTY_TABLES.workOrders).select('*').eq('user_id', uid),
+        ]);
+        // Covers "table not migrated yet": keep working from the device.
+        if (p.error) throw p.error;
+        if (w.error) throw w.error;
+        const queuedAfter = await readQueue();
+        // Signed out or switched account while the read was out: not ours.
+        if (ownerRef.current?.userId !== uid) return 'stale';
+        // The records whose device copy the server may not have yet.
+        const pendingFor = (table: string, local: readonly { id: string }[]): Set<string> => {
+          // Could not read the queue: we cannot tell, so keep every device
+          // copy this time rather than drop an edit still waiting to go (and
+          // re-send no create: the next readable refresh sends any that never
+          // went).
+          const ids = !queuedBefore || !queuedAfter
+            ? new Set(local.map(x => x.id))
+            : new Set([...queuedRecordIds(table, queuedBefore), ...queuedRecordIds(table, queuedAfter)]);
+          const prefix = `${table}:`;
+          for (const key of onWireAtStart) if (key.startsWith(prefix)) ids.add(key.slice(prefix.length));
+          for (const key of inFlightRef.current.keys()) if (key.startsWith(prefix)) ids.add(key.slice(prefix.length));
+          for (const [key, seq] of lastWriteRef.current) if (seq > seq0 && key.startsWith(prefix)) ids.add(key.slice(prefix.length));
+          return ids;
+        };
+        // Merge against the CURRENT memory, not a snapshot: an edit made while
+        // the request was in flight is in `pending`, and its copy stays.
+        const mp = mergeMirror(propsRef.current, (p.data ?? []) as Record<string, unknown>[], propertyFromRow,
+          pendingFor(PROPERTY_TABLES.properties, propsRef.current));
+        const mw = mergeMirror(wosRef.current, (w.data ?? []) as Record<string, unknown>[], workOrderFromRow,
+          pendingFor(PROPERTY_TABLES.workOrders, wosRef.current));
+        // Writes sent before this read began are the queue's business now;
+        // reads run one at a time, so no later read needs them.
+        for (const [key, seq] of lastWriteRef.current) if (seq <= seq0) lastWriteRef.current.delete(key);
+        commit(mp.merged, mw.merged);
+        // Only records the server has never seen (creates) come back here.
+        for (const x of mp.push) pushProperty(x);
+        for (const x of mw.push) pushWorkOrder(x);
+        setSyncState('synced');
+        return 'merged';
+      } catch (err) {
+        console.warn('[Property] Server copy unavailable; using this device only:', err);
+        if (ownerRef.current?.userId === uid) setSyncState(s => (s === 'synced' ? s : 'local'));
+        return 'failed';
+      } finally {
+        if (pullRef.current === entry) pullRef.current = null;
+      }
+    })();
+    return entry.run;
+  }, [commit, pushProperty, pushWorkOrder]);
+
+  /** Re-read the server copy now. Resolves true when the portfolio on screen
+   *  is the merged server copy, false when it could not be read (offline,
+   *  signed out, not configured) and the device copy stays as it was. */
+  const refresh = useCallback(async (): Promise<boolean> => {
+    const uid = ownerRef.current?.userId;
+    if (!uid || !isSupabaseConfigured) return false;
+    return (await pullServer(uid)) === 'merged';
+  }, [pullServer]);
+
+  // Coming back to the app is when the other device's edits are most likely
+  // waiting (the phone marked it Done while the laptop tab sat in the
+  // background). Screens add focus and pull-to-refresh on top of this.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') void refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
 
   // ── Hydrate (device, then server) — re-run whenever the user changes ────
   useEffect(() => {
@@ -156,30 +290,15 @@ export const [PropertyProvider, useProperties] = createContextHook(() => {
       for (const x of earlyWos) pushWorkOrder(x);
 
       if (!userId || !isSupabaseConfigured) { setSyncState('local'); return; }
-      try {
-        const [p, w] = await Promise.all([
-          supabase.from(PROPERTY_TABLES.properties).select('*').eq('user_id', userId),
-          supabase.from(PROPERTY_TABLES.workOrders).select('*').eq('user_id', userId),
-        ]);
-        // Covers "table not migrated yet": keep working from the device.
-        if (p.error) throw p.error;
-        if (w.error) throw w.error;
-        if (cancelled || ownerRef.current?.userId !== userId) return;
-        // Merge against the CURRENT memory, not the snapshot above: an add
-        // made while the request was in flight must survive the merge.
-        const mp = mergeMirror(propsRef.current, (p.data ?? []) as Record<string, unknown>[], propertyFromRow);
-        const mw = mergeMirror(wosRef.current, (w.data ?? []) as Record<string, unknown>[], workOrderFromRow);
-        commit(mp.merged, mw.merged);
-        for (const x of mp.push) pushProperty(x);
-        for (const x of mw.push) pushWorkOrder(x);
-        setSyncState('synced');
-      } catch (err) {
-        console.warn('[Property] Server copy unavailable; using this device only:', err);
-        if (!cancelled) setSyncState('local');
+      // The same read refresh() uses; it drops its result if the user changed.
+      // 'stale' = it joined a read started before this load reset the
+      // session (same user, auth re-emitted), so read once more for this one.
+      if ((await pullServer(userId)) === 'stale' && !cancelled && ownerRef.current?.userId === userId) {
+        await pullServer(userId);
       }
     })();
     return () => { cancelled = true; };
-  }, [userId, authLoading, commit, pushProperty, pushWorkOrder]);
+  }, [userId, authLoading, commit, pushProperty, pushWorkOrder, pullServer]);
 
   // ── Properties ──────────────────────────────────────────────────────
   const addProperty = useCallback((
@@ -192,18 +311,20 @@ export const [PropertyProvider, useProperties] = createContextHook(() => {
     return property;
   }, [commit, pushProperty]);
 
+  // An edit sends ONLY what it changed (see the header). The patch is diffed
+  // against this device's copy before the edit, so fields the PM did not touch
+  // are never written, however stale this device's copy of them is.
   const updateProperty = useCallback((id: string, updates: Partial<ManagedProperty>) => {
-    const now = new Date().toISOString();
-    let changed: ManagedProperty | null = null;
-    const next = propsRef.current.map(p => {
-      if (p.id !== id) return p;
-      changed = { ...p, ...updates, id: p.id, updatedAt: now };
-      return changed;
-    });
-    if (!changed) return;
-    commit(next, null);
-    pushProperty(changed);
-  }, [commit, pushProperty]);
+    const before = propsRef.current.find(p => p.id === id);
+    if (!before) return;
+    const after: ManagedProperty = { ...before, ...updates, id: before.id, updatedAt: new Date().toISOString() };
+    const uid = ownerRef.current?.userId ?? null;
+    // Nothing changed: no write, and no fresh updatedAt to outrank the server.
+    const patch = propertyPatch(before, after, uid ?? '');
+    if (!patch) return;
+    commit(propsRef.current.map(p => (p.id === id ? after : p)), null);
+    if (uid && isSupabaseConfigured) send(PROPERTY_TABLES.properties, 'update', patch);
+  }, [commit, send]);
 
   const deleteProperty = useCallback((id: string) => {
     const now = new Date().toISOString();
@@ -239,17 +360,15 @@ export const [PropertyProvider, useProperties] = createContextHook(() => {
   }, [commit, pushWorkOrder]);
 
   const updateWorkOrder = useCallback((id: string, updates: Partial<WorkOrderRecord>) => {
-    const now = new Date().toISOString();
-    let changed: WorkOrderRecord | null = null;
-    const next = wosRef.current.map(w => {
-      if (w.id !== id) return w;
-      changed = { ...w, ...updates, id: w.id, updatedAt: now };
-      return changed;
-    });
-    if (!changed) return;
-    commit(null, next);
-    pushWorkOrder(changed);
-  }, [commit, pushWorkOrder]);
+    const before = wosRef.current.find(w => w.id === id);
+    if (!before) return;
+    const after: WorkOrderRecord = { ...before, ...updates, id: before.id, updatedAt: new Date().toISOString() };
+    const uid = ownerRef.current?.userId ?? null;
+    const patch = workOrderPatch(before, after, uid ?? '');
+    if (!patch) return;
+    commit(null, wosRef.current.map(w => (w.id === id ? after : w)));
+    if (uid && isSupabaseConfigured) send(PROPERTY_TABLES.workOrders, 'update', patch);
+  }, [commit, send]);
 
   const deleteWorkOrder = useCallback((id: string) => {
     const now = new Date().toISOString();
@@ -283,6 +402,9 @@ export const [PropertyProvider, useProperties] = createContextHook(() => {
     workOrders,
     /** Whether this session's portfolio is backed by the server copy yet. */
     syncState,
+    /** Re-read the server copy (foreground runs it; PM screens call it on
+     *  focus and pull-to-refresh). */
+    refresh,
     addProperty,
     updateProperty,
     deleteProperty,

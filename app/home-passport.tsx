@@ -1,9 +1,19 @@
 // app/home-passport.tsx — the Home Passport.
 //
-// The homeowner's permanent record of their home: every job, warranty, permit,
-// installed model number, maintenance date, and the contractors who did the
-// work. It belongs to the OWNER and survives across contractors — which is the
-// growth wedge: an owner who keeps this asks their next contractor for MAGE.
+// What it is TODAY: a record the GC compiles from HIS OWN jobs at one address —
+// warranties, permits, installed model numbers, the maintenance schedule, and
+// who did the work — and shares with the homeowner as a copy (plain text via
+// the share sheet). It is read from the signed-in contractor's own data on his
+// own device. It is NOT an owner-kept record: the owner has no account behind
+// it, another contractor's jobs never appear in it, and the portal it could
+// otherwise be read through closes 30 days after handover. It used to say it
+// "belongs to the OWNER and survives across contractors"; none of that is
+// built (Phase 0 honesty pass, 2026-09-23). An owner-side property record is a
+// separate, later feature — until it ships, the copy here says what is true.
+//
+// Supplier names and a trade's direct contact reach the shared copy only for a
+// job whose GC switched them on in the closeout binder (utils/passport/
+// ownerSharing, read per job by passportJobsFromProjects). Off by default.
 //
 // Homes are grouped by address (utils/passport groups on project.location), so
 // this screen picks the home to show when a user has jobs at more than one.
@@ -12,12 +22,12 @@
 // markup or margin — enforced by its own tests.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, Platform} from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, House } from 'lucide-react-native';
+import { ChevronLeft, House, Share2 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -148,6 +158,10 @@ export default function HomePassportScreen() {
         </View>
         <View style={styles.backBtn} />
       </View>
+      {/* What this screen is, in one line, before any of it is shared. */}
+      <Text style={styles.headerNote}>
+        Compiled from your jobs at this address. Share sends your client a copy.
+      </Text>
 
       <ScrollView
         {...fabScroll}
@@ -181,20 +195,37 @@ export default function HomePassportScreen() {
         )}
 
         {passport ? (
-          <HomePassportCard
-            passport={passport}
-            onShare={() => void onShare()}
-            onPressProject={(projectId) =>
-              router.push({ pathname: '/project-detail', params: { projectId } } as never)
-            }
-          />
+          <>
+            {/* No onShare into the card: its built-in button reads "Share with
+                your next contractor", the homeowner's-record framing this
+                screen no longer makes (Phase 0). The GC is the one sharing,
+                and he sends his client a copy, so the button says that. */}
+            <HomePassportCard
+              passport={passport}
+              onPressProject={(projectId) =>
+                router.push({ pathname: '/project-detail', params: { projectId } } as never)
+              }
+            />
+            <View style={styles.shareWrap}>
+              <Pressable
+                onPress={() => void onShare()}
+                accessibilityRole="button"
+                accessibilityLabel="Share a copy with your client"
+                testID="passport-share"
+                style={({ pressed }) => [styles.shareBtn, pressed ? styles.pressed : null]}
+              >
+                <Share2 size={Tokens.iconSize.small.size} color={t.accentLabel} strokeWidth={2} />
+                <Text style={styles.shareBtnText}>Share a copy with your client</Text>
+              </Pressable>
+            </View>
+          </>
         ) : (
           <View style={styles.empty}>
             <House size={20} color={t.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>Nothing on record yet</Text>
             <Text style={styles.emptyText}>
-              As jobs are completed, this becomes the permanent record of the home — every warranty,
-              permit, model number and maintenance date, yours to keep.
+              As your jobs here are completed, this fills in with the warranties, permits, model numbers
+              and maintenance dates from your records, ready to share with your client as a copy.
             </Text>
           </View>
         )}
@@ -218,6 +249,29 @@ const makeStyles = (t: ThemeColors) =>
     backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
     headerTitle: { ...Type.serifHeadline, color: t.text },
+    headerNote: {
+      ...Type.caption1,
+      color: t.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: Tokens.spacing.md,
+      paddingTop: Tokens.spacing.xs,
+    },
+    shareWrap: { paddingHorizontal: Tokens.spacing.md, paddingBottom: Tokens.spacing.lg },
+    shareBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Tokens.spacing.xs,
+      minHeight: Tokens.touchTarget.min,
+      paddingHorizontal: Tokens.spacing.md,
+      borderRadius: Tokens.radius.md,
+      ...Tokens.continuousCorners,
+      borderWidth: 1,
+      borderColor: t.accentSoft,
+      backgroundColor: t.accentSoft,
+    },
+    shareBtnText: { ...Type.footnoteEmphasized, color: t.accentLabel },
+    pressed: { opacity: 0.6 },
     scroll: { paddingVertical: Tokens.spacing.md, paddingBottom: 40 },
     scrollDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center', paddingHorizontal: 24 },
     homeRow: { gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm },
