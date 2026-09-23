@@ -20,6 +20,7 @@ import type {
   PassportContractorInput, PassportJobInput, PassportMaintenanceInput,
 } from '@/utils/passport/consumerPassport';
 import { calendarDayOf } from '@/utils/calendarDate';
+import { ownerSharingFor } from '@/utils/passport/ownerSharing';
 
 const clean = (s: string | undefined | null): string => (typeof s === 'string' ? s.trim() : '');
 
@@ -44,14 +45,16 @@ export function passportContractorFromBranding(
 }
 
 type ProjectLike = Pick<Project, 'id' | 'name' | 'location' | 'type' | 'status' | 'createdAt' | 'squareFootage'>
-  & Partial<Pick<Project, 'substantialCompletionDate' | 'closedAt'>>;
+  & Partial<Pick<Project, 'substantialCompletionDate' | 'closedAt' | 'clientPortal'>>;
 
 function withDay<K extends 'substantialCompletionDate' | 'closedAt'>(key: K, value: string | null | undefined): Partial<Record<K, string>> {
   const day = calendarDayOf(value);
   return day ? ({ [key]: day } as Partial<Record<K, string>>) : {};
 }
 
-/** One PassportJobInput per project, carrying the completion dates and the GC. */
+/** One PassportJobInput per project, carrying the completion dates, the GC and
+ *  what the GC switched on for that job's owner (supplier names, trade
+ *  contacts — off unless he did; Phase 0, founder decision 5). */
 export function passportJobsFromProjects(
   projects: readonly ProjectLike[],
   contractor: PassportContractorInput | undefined,
@@ -72,6 +75,7 @@ export function passportJobsFromProjects(
     ...withDay('substantialCompletionDate', p.substantialCompletionDate),
     ...withDay('closedAt', p.closedAt),
     ...(contractor ? { contractor } : {}),
+    share: ownerSharingFor(p.clientPortal),
   }));
 }
 

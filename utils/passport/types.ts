@@ -9,7 +9,11 @@
 //     and baked into the portal snapshot's closeout section (v9);
 //   - summary drives the passport header card in the portal.
 
-export type PassportDocKind = 'finish' | 'warranty' | 'trade' | 'maintenance' | 'photo';
+// 'supplier' and 'contact' hold the GC's own relationships (a supplier name, a
+// sub's phone/email) in docs of their own, emitted only while the job's
+// owner-sharing switch is on and dropped by portal-ask-home at answer time
+// unless that switch is on now (Phase 0, founder decision 5).
+export type PassportDocKind = 'finish' | 'warranty' | 'trade' | 'maintenance' | 'photo' | 'supplier' | 'contact';
 
 export interface PassportDoc {
   /** 'passport:<kind>:<entityId>' — STABLE across re-generations so the
@@ -58,4 +62,10 @@ export interface BakedHomePassport {
   faq: BakedFaqEntry[];
   summary: PassportSummary;
   generatedAt: string;
+  /** The job's owner-sharing switches when this was baked (Phase 0). The FAQ
+   *  answers are prose that can quote a supplier or a sub's phone, so the
+   *  portal ships them only under settings at least as open as these
+   *  (ownerSharing.bakedSharingAllowed). Absent = baked before the switches
+   *  existed, with everything in. */
+  sharing?: import('./ownerSharing').OwnerSharing;
 }

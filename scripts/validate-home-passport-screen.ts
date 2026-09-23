@@ -112,5 +112,59 @@ ok('screen fetches selections and the binder per job', /fetchSelectionsForProjec
 const card = read('components/passport/HomePassportCard.tsx').replace(/^\s*\/\/.*$/gm, '');
 ok('card label comes from state, not the date alone', /passportProjectStatusLabel\(p, fmtDate\)/.test(card) && !/completedOn \? `Completed/.test(card));
 
+console.log('\n── honest copy (Phase 0, 2026-09-23) ──');
+{
+  // The screen and its header said the passport is the OWNER's "permanent
+  // record", "yours to keep", that "survives across contractors". It is read
+  // from the signed-in GC's own jobs on his device and shared as a copy; no
+  // owner account holds it and no other contractor's work is in it. JSX and
+  // line comments are stripped: the header may QUOTE the old claim to explain
+  // why it went, but no string the GC reads may make it.
+  const raw = read('app/home-passport.tsx');
+  const visible = raw.replace(/(^|[\s{(])\/\*[\s\S]*?\*\//g, '$1').replace(/^\s*\/\/.*$/gm, '');
+  ok('no on-screen claim of a permanent / owner-kept / cross-contractor record',
+    !/permanent record|yours to keep|belongs to (you|the owner)|survives across contractors|travels with the home/i.test(visible),
+    (visible.match(/permanent record|yours to keep|belongs to (you|the owner)|survives across contractors|travels with the home/i) ?? [''])[0]);
+  ok('the screen says what it is: compiled from the GC\'s jobs, shared as a copy',
+    /Compiled from your jobs at this address\. Share sends your client a copy\./.test(visible));
+  ok('the empty state says the record fills from the GC\'s records, ready to share as a copy',
+    /from your records, ready to share with your client as a copy/.test(visible.replace(/\s+/g, ' ')));
+  const header = raw.split('\n').slice(0, 25).join('\n');
+  ok('the header comment says what it is TODAY and that it is not owner-kept',
+    /What it is TODAY: a record the GC compiles/.test(header) && /It is NOT an owner-kept record/.test(header));
+  const consumer = read('utils/passport/consumerPassport.ts').split('\n').slice(0, 30).join('\n');
+  ok('consumerPassport\'s header no longer calls it the record the homeowner keeps FOREVER',
+    !/keeps FOREVER|It survives the contractor/.test(consumer) && /not an owner-kept record/.test(consumer));
+  // The card's own share button reads "Share with your next contractor" (the
+  // owner-kept framing). The GC is the one sharing, to his client, so the
+  // screen passes the card no onShare and renders its own honest button.
+  ok('the screen passes the card no onShare (the screen owns the share button)',
+    /<HomePassportCard[\s\S]*?\/>/.test(visible) && !/onShare=/.test((visible.match(/<HomePassportCard[\s\S]*?\/>/) ?? [''])[0]));
+  ok('the screen\'s share button says who gets it: a copy for the client, wired to the handoff',
+    /accessibilityLabel="Share a copy with your client"/.test(visible) && />Share a copy with your client</.test(visible)
+    && /onPress=\{\(\) => void onShare\(\)\}/.test(visible) && /shareText\(\{ message: buildPassportHandoff\(passport\) \}\)/.test(visible));
+  ok('no "next contractor" framing on the screen', !/next contractor/i.test(visible));
+  // The card renders under the screen's own note, so its copy is on the same
+  // screen. It said "This record belongs to you. It stays with the house no
+  // matter who does the next job." and carried a "Share with your next
+  // contractor" button. Same rule, same strip (block + line comments), so a
+  // comment may explain the old claim but no rendered string may make it.
+  const cardRaw = read('components/passport/HomePassportCard.tsx');
+  const cardVisible = cardRaw.replace(/(^|[\s{(])\/\*[\s\S]*?\*\//g, '$1').replace(/^\s*\/\/.*$/gm, '');
+  const OWNER_KEPT = /permanent record|yours to keep|belongs to (you|the owner)|stays with the house|next contractor|travels with the home|survives across contractors/i;
+  ok('the card makes no permanent / owner-kept / next-contractor claim',
+    !OWNER_KEPT.test(cardVisible), (cardVisible.match(OWNER_KEPT) ?? [''])[0]);
+  ok('the card says who compiled it',
+    /Compiled by the contractor from their own jobs at this address\./.test(cardVisible));
+  ok('the card has no share button of its own (the screen owns sharing)',
+    !/onShare/.test(cardVisible) && !/testID="passport-share"/.test(cardVisible));
+  ok('the card\'s header comment no longer calls it the permanent record of THEIR house',
+    !/permanent record of THEIR house/.test(cardRaw.split('\n').slice(0, 12).join('\n'))
+    && /It is NOT an owner-kept\s*(\/\/\s*)?record/.test(cardRaw.split('\n').slice(0, 12).join('\n')));
+  const shared = buildPassportHandoff(full);
+  ok('the shared copy ends with who compiled it, not a claim of ownership',
+    !/belongs to the homeowner|travels with the home/i.test(shared) && /Compiled by your contractor/.test(shared), shared.split('\n').pop());
+}
+
 console.log(fail ? `\n${fail} FAILED, ${pass} passed` : `\nALL PASS (${pass})`);
 if (fail) process.exit(1);

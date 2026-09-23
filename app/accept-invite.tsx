@@ -60,8 +60,12 @@ type Status = 'idle' | 'accepting' | 'done' | 'error' | 'signin';
  * an invite addressed to someone else, and a link with no token fail the same
  * way every time — offering "Try again" there was a button that could not work.
  */
+// Phase 0 lane B: 'is_client' is final too. The server refuses a seat to the
+// job's own client (a collaborator reads costs); asking again changes nothing
+// until the GC does, and his fix is the client portal, not this link.
 function canRetryInvite(errCode: string | null): boolean {
-  return errCode !== 'invalid_or_used' && errCode !== 'email_mismatch' && errCode !== 'missing_token';
+  return errCode !== 'invalid_or_used' && errCode !== 'email_mismatch' && errCode !== 'missing_token'
+    && errCode !== 'is_client';
 }
 
 export default function AcceptInvite() {
@@ -116,7 +120,7 @@ export default function AcceptInvite() {
         : body?.error || (fnErr instanceof Error ? fnErr.message : 'Could not accept the invite.'));
       setSignedInAs(code === 'email_mismatch' && body?.signedInAs ? body.signedInAs : null);
       // A dead token must not be replayed by a later tokenless visit.
-      if (code === 'invalid_or_used') await AsyncStorage.removeItem(PENDING_KEY);
+      if (code === 'invalid_or_used' || code === 'is_client') await AsyncStorage.removeItem(PENDING_KEY);
       // #107: an answer that can never change (used, replaced, someone else's
       // address) also takes the token off the ACCOUNT, or the root gate would
       // bring a persona-less account back here on every launch. A transient
@@ -279,7 +283,7 @@ export default function AcceptInvite() {
             >
               <Text style={[styles.btnText, { color: t.text }]}>{isAuthenticated ? 'Go to Home' : 'Go to sign in'}</Text>
             </TouchableOpacity>
-            {isAuthenticated && errCode !== 'invalid_or_used' ? (
+            {isAuthenticated && errCode !== 'invalid_or_used' && errCode !== 'is_client' ? (
               <Text style={[styles.sub, { color: t.textSecondary }]}>If the project owner sent you a newer invite, it's waiting on your Home screen.</Text>
             ) : null}
           </>

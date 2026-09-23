@@ -1,15 +1,25 @@
-// consumerPassport — the HOMEOWNER-OWNED Home Passport, assembled ACROSS jobs.
+// consumerPassport — the Home Passport a contractor compiles for a homeowner,
+// assembled ACROSS the jobs HE did at one address.
 //
 // buildHomePassport.ts (sibling) is the CONTRACTOR-side closeout artifact: it
 // turns ONE project into retrieval docs + FAQ inputs for the portal's "Ask Your
-// Home" box. This module is the other half of the story — the permanent record
-// the homeowner keeps FOREVER:
+// Home" box. This module rolls up every job on the signed-in GC's account at
+// one address into a single homeowner-facing record:
 //
-//   one home  →  many projects  →  many contractors  →  one passport
+//   one home  →  that GC's projects  →  him and his trades  →  one passport
 //
-// It survives the contractor. A homeowner who has this record shows up to their
-// next job already holding permits, warranties, model numbers, and a maintenance
-// schedule — and asks the next contractor to keep it in MAGE. That's the point.
+// What it is TODAY (Phase 0 honesty pass, 2026-09-23): the GC's own record,
+// built on his device from his data and handed to the owner as a copy (shared
+// text). It is not an owner-kept record: there is no owner account behind it,
+// another contractor's jobs never appear in it, and nothing here survives the
+// GC's account. An owner-side property record is a separate, later feature.
+//
+// ── OWNER-SHARING RULE (Phase 0, founder decision 5) ───────────────────────
+// A supplier name (equipment.supplier, and purchase-order vendors listed as
+// 'supplier' contractors) and a trade's contact name / phone / email are the
+// GC's relationships. Each is emitted only for a job whose PassportJobInput
+// .share switches it on (utils/passport/ownerSharing — off by default). Brand,
+// model number and licence always ship. The GC's OWN contact always ships.
 //
 // ── HARD RULE: HOMEOWNER-FACING ────────────────────────────────────────────
 // This output is rendered to the OWNER. It must NEVER carry the contractor's
@@ -98,6 +108,9 @@ export interface PassportJobInput {
   closedAt?: string;
   squareFootage?: number;
   contractor?: PassportContractorInput;
+  /** What this job shares with the owner beyond brand/model (see the
+   *  OWNER-SHARING RULE above). Omitted, or anything but `true`, = off. */
+  share?: { supplierNames?: boolean; tradeContacts?: boolean };
 }
 
 /** MaintenanceItem has no projectId of its own, so it arrives wrapped. */
@@ -347,7 +360,7 @@ function clean(s: string | number | undefined | null): string {
  * Since the 2026-09-07 staging fix `Permit.attachmentUri` normally holds a
  * `project-photos` BUCKET PATH, and that bucket is private: the value is not a
  * URL anything can follow, and its first path segment is the CONTRACTOR'S auth
- * user id. Passing it through into a record the owner keeps forever therefore
+ * user id. Passing it through into the copy the owner is handed therefore
  * hands them a link that cannot open AND discloses an internal id — in the one
  * file whose whole job is deciding what may cross that boundary.
  *
@@ -492,6 +505,10 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
   const jobById = new Map(jobs.map((j) => [j.id, j]));
   const known = (projectId: string | undefined): boolean => !!projectId && jobById.has(projectId);
   const nameOf = (projectId: string): string => clean(jobById.get(projectId)?.name) || 'Project';
+  // Strict `=== true`, per job: a commitment or selection on a job the GC has
+  // not opened up carries no supplier and no trade contact.
+  const sharesSuppliers = (projectId: string): boolean => jobById.get(projectId)?.share?.supplierNames === true;
+  const sharesTradeContacts = (projectId: string): boolean => jobById.get(projectId)?.share?.tradeContacts === true;
 
   // ── Home identity ──────────────────────────────────────────────────
   const explicitAddress = clean(input.home?.address);
@@ -619,7 +636,7 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
       category: clean(cat.category) || 'general',
       ...(brand ? { brand } : {}),
       ...(model ? { modelNumber: model } : {}),
-      ...(clean(chosen.supplier) ? { supplier: clean(chosen.supplier) } : {}),
+      ...(clean(chosen.supplier) && sharesSuppliers(cat.projectId) ? { supplier: clean(chosen.supplier) } : {}),
       ...(clean(cat.category) ? { location: clean(cat.category) } : {}),
       installedOn: isoDay(chosen.chosenAt) || isoDay(chosen.createdAt) || isoDay(cat.updatedAt) || null,
       ...(w ? { warrantyId: w.id } : {}),
@@ -725,17 +742,23 @@ export function buildConsumerPassport(input: BuildConsumerPassportInput): Consum
     const company = clean(sub?.companyName) || clean(c.vendorName);
     if (!company) continue;
     const role: PassportContractorRole = c.type === 'purchase_order' ? 'supplier' : 'trade';
+    // A supplier's very NAME is the GC's pricing relationship.
+    if (role === 'supplier' && !sharesSuppliers(c.projectId)) continue;
     const key = `${role}:${sub ? sub.id : slug(company)}`;
     const rec = touch(key, {
       id: `contractor:${key}`,
       companyName: company,
       role,
       ...(sub?.trade ? { trade: clean(String(sub.trade)) } : {}),
-      ...(clean(sub?.contactName) ? { contactName: clean(sub?.contactName) } : {}),
-      ...(clean(sub?.phone) ? { phone: clean(sub?.phone) } : {}),
-      ...(clean(sub?.email) ? { email: clean(sub?.email) } : {}),
       ...(clean(sub?.licenseNumber) ? { licenseNumber: clean(sub?.licenseNumber) } : {}),
     });
+    // Direct contact only via a job that shares it. Filled on the record, not
+    // the seed, because one sub keyed across two jobs may be shared on one.
+    if (sharesTradeContacts(c.projectId)) {
+      if (!rec.contactName && clean(sub?.contactName)) rec.contactName = clean(sub?.contactName);
+      if (!rec.phone && clean(sub?.phone)) rec.phone = clean(sub?.phone);
+      if (!rec.email && clean(sub?.email)) rec.email = clean(sub?.email);
+    }
     rec.projectIds.push(c.projectId);
     rec.projectNames.push(nameOf(c.projectId));
     // Scope text comes off an internal subcontract — scrub any dollar figure
@@ -1051,7 +1074,10 @@ export function buildPassportHandoff(p: ConsumerPassport, maxItemsPerSection = 8
   }
 
   push('');
-  push('This record belongs to the homeowner and travels with the home.');
+  // Said as what it is: the contractor's record, handed over as a copy. It
+  // used to close with "belongs to the homeowner and travels with the home" —
+  // no owner account holds it and no other contractor's work is in it.
+  push('Compiled by your contractor from their job records. Keep this copy with your home papers.');
   return lines.join('\n');
 }
 

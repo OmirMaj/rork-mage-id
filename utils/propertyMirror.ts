@@ -5,11 +5,13 @@
 // `mageid_*`, which AuthContext.wipeLocalUserCache sweeps on every sign-out, so
 // one sign-out erased a PM's whole portfolio with no warning (audit round 2,
 // #20). The server copy is supabase/migrations/20260918180000_property_manager_
-// mirror.sql; this file maps records to rows and decides, on every sign-in,
-// which copy of each record wins. Pure so scripts/validate-property-mirror.ts
-// can run the real merge.
+// mirror.sql; this file maps records to rows, builds the per-field patch an
+// edit sends, and decides, on every sign-in and refresh, which copy of each
+// record the device shows. Pure so scripts/validate-property-mirror.ts can run
+// the real merge and the real two-device case.
 
 import type { ManagedProperty, WorkOrder, WorkOrderPriority, WorkOrderStatus } from '@/types';
+import type { ThemeColors } from '@/constants/colors';
 
 export const PROPERTY_TABLES = {
   properties: 'managed_properties',
@@ -147,28 +149,50 @@ const t = (s: string | undefined): number => {
 export interface MergeResult<T> {
   /** What the device should now hold, newest-created first. */
   merged: T[];
-  /** Device copies the server does not have (or has older) — upload these. */
+  /** Device records the server has never seen (creates) — upload these. */
   push: T[];
 }
 
 /**
- * Reconcile the device copy with the server copy, record by record.
+ * Reconcile the device copy with the server copy, record by record. Runs on
+ * sign-in AND on every refresh (app foreground, focus of a PM screen, pull to
+ * refresh), so it must never be the thing that overwrites another device.
  *
- *  - Newer `updatedAt` wins, whichever side it is on. Ties go to the server
- *    (it is what every other device sees).
- *  - A server tombstone (deleted_at set) removes the device copy unless the
- *    device edited it AFTER the delete — a later edit resurrects, as a PM
- *    would expect if he re-opened the work order on the other phone.
- *  - A device record the server has never seen is kept AND pushed. This is the
- *    upgrade path: every portfolio written before the mirror shipped uploads on
- *    its first signed-in load instead of waiting for its next edit.
+ *  - The SERVER copy of a live record wins, full stop, unless that record's id
+ *    is in `pending`: a write THIS device made that has not landed yet (still
+ *    in the offline queue, on the wire, or sent after this read started). Only
+ *    then is the device copy shown, because the server does not have its edit
+ *    yet. It is still never pushed: that edit already travels as a per-field
+ *    patch (workOrderPatch / propertyPatch).
+ *    WHY NOT TIMESTAMPS (Phase 0 review, round 1): updatedAt comes from each
+ *    device's own clock, and a queued offline patch carries the time it was
+ *    MADE, not the time it lands. The phone marks a job Done offline (T1), the
+ *    laptop edits the description online (T2), the phone's queue drains: the
+ *    server now says Done at T1, older than the laptop's T2, so "newer copy
+ *    wins" showed the laptop's Open on every refresh until someone edited the
+ *    job again. Clock skew does the same. "Has this device got a write in
+ *    flight for this record?" is a fact the device knows; which clock is right
+ *    is not.
+ *  - A server tombstone (deleted_at set) removes the device copy. Delete wins:
+ *    a device that edited the record before it heard of the delete does not
+ *    bring it back, because the only way to bring it back was a whole-row
+ *    push, carrying every stale column with it.
+ *  - A device record the server has never seen is kept AND pushed (a create).
+ *    This is the upgrade path too: every portfolio written before the mirror
+ *    shipped uploads on its first signed-in load. If its create is already
+ *    pending it is kept but not pushed again.
+ *  - A live server row this device has DELETED (no device copy, but a write
+ *    pending for it: the tombstone) stays gone until the tombstone lands.
  *
- * `fromRow` is the table's mapper; a row whose id is missing is ignored.
+ * So the ONLY rows this ever pushes are rows the server does not have: it can
+ * create, it cannot overwrite. `fromRow` is the table's mapper; a row whose id
+ * is missing is ignored.
  */
 export function mergeMirror<T extends { id: string; createdAt: string; updatedAt: string }>(
   local: readonly T[],
   serverRows: readonly Row[],
   fromRow: (r: Row) => T,
+  pending: ReadonlySet<string> = new Set(),
 ): MergeResult<T> {
   const byId = new Map<string, T>();
   const push: T[] = [];
@@ -181,27 +205,224 @@ export function mergeMirror<T extends { id: string; createdAt: string; updatedAt
     seen.add(server.id);
     const mine = localById.get(server.id);
     const deleted = row.deleted_at != null && row.deleted_at !== '';
-    if (deleted) {
-      if (mine && t(mine.updatedAt) > t(server.updatedAt)) {
-        byId.set(mine.id, mine);
-        push.push(mine);
-      }
-      continue;
-    }
-    if (mine && t(mine.updatedAt) > t(server.updatedAt)) {
-      byId.set(mine.id, mine);
-      push.push(mine);
-    } else {
-      byId.set(server.id, server);
-    }
+    if (deleted) continue;
+    // A pending write for a record this device no longer holds is a delete
+    // whose tombstone has not landed yet: the server's live row is older news.
+    if (!mine && pending.has(server.id)) continue;
+    // Shown, not pushed — see above.
+    byId.set(server.id, mine && pending.has(server.id) ? mine : server);
   }
   for (const [id, mine] of localById) {
     if (seen.has(id)) continue;
     byId.set(id, mine);
-    push.push(mine);
+    // A create that is already queued or on the wire is not sent again:
+    // refresh runs on every focus and foreground, and a second copy draining
+    // after another device edited the record would overwrite that edit.
+    if (!pending.has(id)) push.push(mine);
   }
   const merged = [...byId.values()].sort((a, b) => t(b.createdAt) - t(a.createdAt));
   return { merged, push };
+}
+
+/** The record ids of `table` that have a write waiting in the offline queue.
+ *  Every queued write names its record in data.id (the queue's own per-record
+ *  FIFO relies on it). */
+export function queuedRecordIds(
+  table: string,
+  entries: readonly { table: string; data?: Record<string, unknown> | null }[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const e of entries) {
+    const id = e?.data?.id;
+    if (e?.table === table && typeof id === 'string' && id) ids.add(id);
+  }
+  return ids;
+}
+
+// ── Per-field patches ───────────────────────────────────────────────────────
+// An EDIT sends only the columns it changed, plus updated_at, through the
+// offline queue's 'update' op. Creates and tombstones stay whole-row upserts.
+// Diffed against the device's copy BEFORE the edit, so a stale device that
+// fixes a typo in the description sends the description and nothing else: it
+// cannot write back the status, completed_at or assignee it never touched.
+
+/** Columns an edit may never send: identity, owner, and the tombstone. */
+const NEVER_PATCHED = new Set(['id', 'user_id', 'created_at', 'updated_at', 'deleted_at']);
+
+const sameCell = (a: unknown, b: unknown): boolean => (a ?? null) === (b ?? null);
+
+function rowPatch(before: Row, after: Row, companions: Record<string, readonly string[]> = {}): Row | null {
+  const changed: Row = {};
+  let any = false;
+  for (const k of Object.keys(after)) {
+    if (NEVER_PATCHED.has(k)) continue;
+    if (sameCell(before[k], after[k])) continue;
+    changed[k] = after[k] ?? null;
+    any = true;
+  }
+  if (!any) return null;
+  // A column that is only meaningful WITH another one travels with it, changed
+  // or not, so the pair is never half-written onto the server.
+  for (const k of Object.keys(changed)) {
+    for (const c of companions[k] ?? []) {
+      if (!(c in changed) && c in after) changed[c] = after[c] ?? null;
+    }
+  }
+  return { id: after.id, ...changed, updated_at: after.updated_at };
+}
+
+/** completed_at belongs to the status that set it. A stale device that moves
+ *  an order out of Done had completedAt undefined in its own (pre-Done) copy
+ *  too, so a plain diff dropped the clear and left the server "In progress,
+ *  completed 10:00" (Phase 0 review, round 1). Sending it whenever the status
+ *  is sent keeps the two in step. */
+const WORK_ORDER_COMPANIONS: Record<string, readonly string[]> = { status: ['completed_at'] };
+
+/** The 'update' payload for a work-order edit, or null when nothing changed. */
+export function workOrderPatch(before: WorkOrderRecord, after: WorkOrderRecord, userId: string): Row | null {
+  return rowPatch(workOrderToRow(before, userId), workOrderToRow(after, userId), WORK_ORDER_COMPANIONS);
+}
+
+/** The 'update' payload for a property edit, or null when nothing changed. */
+export function propertyPatch(before: ManagedProperty, after: ManagedProperty, userId: string): Row | null {
+  return rowPatch(propertyToRow(before, userId), propertyToRow(after, userId));
+}
+
+// ── Form input ──────────────────────────────────────────────────────────────
+
+/** The edit sheet's text fields, exactly as the PM sees them. */
+export interface PropertyEditForm {
+  name: string; address: string; propertyType: string; ownerName: string;
+  ownerPhone: string; ownerEmail: string; units: string; notes: string;
+}
+
+/** A property as the edit sheet fills in its fields when it opens. */
+export function propertyEditForm(p: Partial<ManagedProperty> | null | undefined): PropertyEditForm {
+  return {
+    name: p?.name ?? '', address: p?.address ?? '', propertyType: p?.propertyType ?? '',
+    ownerName: p?.ownerName ?? '', ownerPhone: p?.ownerPhone ?? '', ownerEmail: p?.ownerEmail ?? '',
+    units: p?.units != null ? String(p.units) : '', notes: p?.notes ?? '',
+  };
+}
+
+/** The updates a save sends: ONLY the fields he changed since the sheet
+ *  opened. Diffed against the form as it OPENED, not against the device copy
+ *  at save time: a refresh while the sheet is open (the app coming back to the
+ *  front) can bring in the other device's owner phone, and a diff against that
+ *  would count the sheet's old value as an edit and write it back over it
+ *  (Phase 0 review, round 1). */
+export function propertyEditUpdates(opened: PropertyEditForm, form: PropertyEditForm): Partial<ManagedProperty> {
+  const clean = (f: PropertyEditForm): Partial<ManagedProperty> => ({
+    name: f.name.trim(),
+    address: f.address.trim() || undefined,
+    propertyType: f.propertyType.trim() || undefined,
+    ownerName: f.ownerName.trim() || undefined,
+    ownerPhone: f.ownerPhone.trim() || undefined,
+    // Contact list only. Never passed to an invite, portal or grant.
+    ownerEmail: f.ownerEmail.trim() || undefined,
+    units: parseUnitsInput(f.units),
+    notes: f.notes.trim() || undefined,
+  });
+  const before = clean(opened);
+  const after = clean(form);
+  const out: Partial<ManagedProperty> = {};
+  for (const k of Object.keys(after) as (keyof ManagedProperty)[]) {
+    if ((before[k] ?? null) !== (after[k] ?? null)) (out as Record<string, unknown>)[k] = after[k];
+  }
+  return out;
+}
+
+/** A typed budget ("$1,234.56") as dollars to the cent — the column is
+ *  numeric(12,2). Rounding to whole dollars used to drop the cents. */
+export function parseBudgetInput(raw: string): number | undefined {
+  const n = parseFloat(String(raw ?? '').replace(/[$,\s]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.round(n * 100) / 100;
+}
+
+/** A typed unit count as a whole, non-negative number (the column is an
+ *  integer with a >= 0 check), or undefined when blank or not a number. */
+export function parseUnitsInput(raw: string): number | undefined {
+  const s = String(raw ?? '').replace(/[,\s]/g, '');
+  if (!/^\d+$/.test(s)) return undefined;
+  const n = Number(s);
+  return Number.isSafeInteger(n) ? n : undefined;
+}
+
+// ── "Post for bids" reach ───────────────────────────────────────────────────
+// A post reaches a contractor only when contractors can both be matched to it
+// (SERVICE_AREA_SETUP_ENABLED: nobody has a service area until the editor
+// ships) and read it (RFP_BROWSE_ENABLED: reading other people's posts is off
+// for 1.0). Until both are on, "Post it to MAGE ID contractors who cover your
+// area" was a promise to nobody, and the PM's order sat at Out for bids for
+// good. The screen passes the two flags; this says what it may claim.
+
+export interface PostForBidsGate {
+  /** The tile works and its subtitle may promise reach (the screen owns that
+   *  sentence: app/work-order.tsx POST_FOR_BIDS_REACH_SUBTITLE). */
+  open: boolean;
+  /** What the tile and an Out-for-bids order say instead, when not open. */
+  reason: string | null;
+}
+
+export function postForBidsGate(browseOpen: boolean, matchingLive: boolean): PostForBidsGate {
+  if (browseOpen === true && matchingLive === true) return { open: true, reason: null };
+  return {
+    open: false,
+    reason: browseOpen === true
+      // Readable by a contractor who goes looking, but nobody is alerted.
+      ? 'MAGE cannot alert contractors about new posts yet. Send it to one you know.'
+      : 'No contractor can see posts on MAGE yet. Send it to one you know.',
+  };
+}
+
+// ── Dispatch signature ──────────────────────────────────────────────────────
+/** Who the dispatch text is signed by. A PM's onboarding skips contractor
+ *  setup, so company branding is usually empty for him; his profile name is
+ *  the honest fallback (a text signed by nobody reads like spam). */
+export function dispatchSenderName(
+  branding: { contactName?: string | null; companyName?: string | null } | null | undefined,
+  profileName: string | null | undefined,
+): string | undefined {
+  for (const v of [branding?.contactName, branding?.companyName, profileName]) {
+    const s = typeof v === 'string' ? v.trim() : '';
+    if (s) return s;
+  }
+  return undefined;
+}
+
+// ── Status and priority colours ─────────────────────────────────────────────
+// Theme tokens, not hex: the open status was still the pre-rebrand orange
+// (#FF6A1A) and none of these followed dark mode. `fg` is text/border, `bg`
+// the soft wash behind it; each pair is a token pair the theme defines for
+// exactly that use, so contrast holds in both themes.
+
+export interface Tone { fg: string; bg: string }
+
+type ToneTokens = Pick<ThemeColors,
+  'accentLabel' | 'accentSoft' | 'info' | 'neutralSoft' | 'textSecondary' | 'textMuted'
+  | 'successLabel' | 'successSoft' | 'warningLabel' | 'warningSoft' | 'dangerLabel' | 'dangerSoft'>;
+
+export function workOrderStatusTone(t: ToneTokens, status: WorkOrderStatus): Tone {
+  switch (status) {
+    case 'open': return { fg: t.warningLabel, bg: t.warningSoft };
+    case 'posted_for_bids': return { fg: t.textSecondary, bg: t.neutralSoft };
+    case 'assigned': return { fg: t.info, bg: t.neutralSoft };
+    case 'in_progress': return { fg: t.accentLabel, bg: t.accentSoft };
+    case 'done': return { fg: t.successLabel, bg: t.successSoft };
+    case 'cancelled':
+    default: return { fg: t.textMuted, bg: t.neutralSoft };
+  }
+}
+
+export function workOrderPriorityTone(t: ToneTokens, priority: WorkOrderPriority): Tone {
+  switch (priority) {
+    case 'emergency': return { fg: t.dangerLabel, bg: t.dangerSoft };
+    case 'high': return { fg: t.warningLabel, bg: t.warningSoft };
+    case 'normal': return { fg: t.info, bg: t.neutralSoft };
+    case 'low':
+    default: return { fg: t.textMuted, bg: t.neutralSoft };
+  }
 }
 
 // ── Dispatch message ────────────────────────────────────────────────────────
@@ -257,12 +478,12 @@ export function buildDispatchMailtoUrl(email: string, msg: { subject: string; bo
 
 /**
  * The device half of an RFP award. award-rfp PATCHes the PM's work order to
- * 'assigned' on the server, but PropertyContext only reads the server copy at
- * sign-in — so the PM's list kept saying "Out for bids" for the rest of the
- * session, and his next edit upserted the whole stale row (newer updated_at),
- * nulling the assignee the award had just recorded. The award screen applies
- * the same change locally through updateWorkOrder. Same filter as the server
- * PATCH: this RFP's orders that are still open or out for bids.
+ * 'assigned' on the server. PropertyContext re-reads the server on foreground,
+ * focus and pull, but the award screen should not wait for that, so it applies
+ * the same change locally through updateWorkOrder (a per-field patch, so it
+ * restates what the server already holds and overwrites nothing else). Same
+ * filter as the server PATCH: this RFP's orders that are still open or out for
+ * bids.
  */
 export function workOrdersAssignedByAward(
   workOrders: readonly WorkOrderRecord[],

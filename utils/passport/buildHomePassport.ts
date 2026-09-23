@@ -16,6 +16,8 @@ import type {
 } from '@/types';
 import type { MaintenanceItem } from '@/utils/closeoutBinderEngine';
 import type { FaqInput, HomePassport, PassportDoc, PassportDocKind } from './types';
+import { OWNER_SHARING_OFF, type OwnerSharing } from './ownerSharing';
+import { stripMoney } from './consumerPassport';
 
 export const MAX_DOC_CHARS = 4000;
 export const MAX_FAQ_INPUTS = 10;
@@ -36,6 +38,14 @@ export interface BuildHomePassportInput {
   maintenance: MaintenanceItem[];
   /** ISO timestamp stamped on the summary. Injected so tests are deterministic. */
   generatedAt: string;
+  /**
+   * What of the GC's own relationships this job shares with the owner
+   * (ownerSharing.ownerSharingFor(project.clientPortal)). These docs are what
+   * the owner's Ask Your Home box retrieves and what the portal FAQ is written
+   * from, so a supplier name or a sub's phone in them reaches the owner.
+   * Omitted = nothing shared (Phase 0, founder decision 5).
+   */
+  sharing?: OwnerSharing;
 }
 
 function clean(s: string | undefined | null): string {
@@ -80,17 +90,33 @@ const FAQ_CATALOG: FaqInput[] = [
 
 export function buildHomePassport(input: BuildHomePassportInput): HomePassport {
   const { project, generatedAt } = input;
+  const sharing = input.sharing ?? OWNER_SHARING_OFF;
   const docs: PassportDoc[] = [];
 
+  // WHERE THE GC'S OWN RELATIONSHIPS LIVE (Phase 0, founder decision 5).
+  // A supplier name and a sub's direct phone/email are never written into a
+  // finish or trade doc. They get docs of their own —
+  //   passport:supplier:<selection category id | purchase-order id>
+  //   passport:contact:<subcontract commitment id>
+  // — emitted only while the matching switch is on. portal-ask-home drops
+  // both prefixes at answer time unless the job's LIVE switch is on
+  // (supabase/functions/portal-ask-home/sharingFilter.ts), so a copy indexed
+  // while a switch was on stops being answerable the moment it goes off,
+  // whether or not this device ever re-indexes (the sync is diff-only and
+  // never prunes, and a switch can be flipped from another device).
+
   // ── Finishes: the chosen option in each selection category ──
+  // Only categories the portal shows (isShared, the portal's own rule): Ask
+  // Your Home is reached with the portal link, so it must not answer about a
+  // selection the GC has not sent to the client.
   for (const cat of input.selections ?? []) {
+    if (!isShared(cat.portalState)) continue;
     const chosen = (cat.options ?? []).find(o => o.isChosen);
     if (!chosen) continue;
     const parts = [
       `${clean(cat.category)} in ${clean(project.name)}: ${clean(chosen.productName)}`,
       chosen.brand && `Brand: ${clean(chosen.brand)}`,
       chosen.sku && `SKU / model: ${clean(chosen.sku)}`,
-      chosen.supplier && `Supplier: ${clean(chosen.supplier)}`,
       chosen.description && `Details: ${clean(chosen.description)}`,
       (chosen.highlights ?? []).length > 0 && `Highlights: ${(chosen.highlights ?? []).map(clean).filter(Boolean).join('; ')}`,
       chosen.unitPrice > 0 && `Price: $${chosen.unitPrice} per ${clean(chosen.unit) || 'unit'}`,
@@ -102,11 +128,23 @@ export function buildHomePassport(input: BuildHomePassportInput): HomePassport {
       date: chosen.chosenAt || chosen.createdAt || cat.updatedAt || '',
       text: clamp(parts.join('. ')),
     });
+    // The brand and model are the owner's; where the GC bought it is his.
+    if (sharing.supplierNames && clean(chosen.supplier)) {
+      docs.push({
+        docId: `passport:supplier:${cat.id}`,
+        kind: 'supplier',
+        ref: `Supplier — ${clean(cat.category)}`,
+        date: chosen.chosenAt || chosen.createdAt || cat.updatedAt || '',
+        text: clamp(`${clean(cat.category)} in ${clean(project.name)} (${clean(chosen.productName)}) was bought from ${clean(chosen.supplier)}.`),
+      });
+    }
   }
 
   // ── Warranties ──
+  // Same portal rule: a draft or recalled warranty (its notes, its
+  // exclusions) is not the owner's to read yet.
   for (const w of input.warranties ?? []) {
-    if (w.projectId !== project.id) continue;
+    if (w.projectId !== project.id || !isShared(w.portalState)) continue;
     const parts = [
       `Warranty for ${clean(w.title)} (${clean(w.category)})`,
       w.provider && `Provider: ${clean(w.provider)}`,
@@ -126,30 +164,71 @@ export function buildHomePassport(input: BuildHomePassportInput): HomePassport {
     });
   }
 
-  // ── Trades: commitments enriched with sub contact ("who did the electrical") ──
+  // ── Trades: "who did the electrical" ──
   const subsById = new Map((input.subcontractors ?? []).map(s => [s.id, s]));
   for (const c of input.commitments ?? []) {
     if (c.projectId !== project.id || c.status === 'draft') continue;
+    const date = c.signedDate || c.createdAt || '';
+    // A purchase order's vendor is a supplier. The trade doc never names it
+    // and carries no free text (a PO description can name the vendor); the
+    // name lives only in the supplier doc below.
+    if (c.type === 'purchase_order') {
+      docs.push({
+        docId: `passport:trade:${c.id}`,
+        kind: 'trade',
+        ref: 'Supplier — materials',
+        date,
+        text: clamp(`Materials for ${clean(project.name)} were ordered by your contractor from a supplier${c.phase ? `, for the ${clean(c.phase)} phase` : ''}.`),
+      });
+      const vendor = clean(c.vendorName);
+      if (sharing.supplierNames && vendor) {
+        const what = stripMoney(c.description);
+        docs.push({
+          docId: `passport:supplier:${c.id}`,
+          kind: 'supplier',
+          ref: `Supplier — ${vendor}`,
+          date,
+          text: clamp(`${vendor} supplied materials for ${clean(project.name)}${what ? `: ${what}` : ''}${c.phase ? ` (${clean(c.phase)} phase)` : ''}.`),
+        });
+      }
+      continue;
+    }
     const sub = c.subcontractorId ? subsById.get(c.subcontractorId) : undefined;
     const company = clean(sub?.companyName) || clean(c.vendorName) || 'Subcontractor';
     const parts = [
       `${company} worked on ${clean(project.name)}`,
       sub?.trade && `Trade: ${clean(String(sub.trade))}`,
-      c.description && `Scope: ${clean(c.description)}`,
+      // Scope is lifted off an internal subcontract; a dollar figure typed
+      // into it is the sub's price, so it is scrubbed before it can be
+      // indexed for (and quoted to) the owner.
+      stripMoney(c.description) && `Scope: ${stripMoney(c.description)}`,
       c.phase && `Phase: ${clean(c.phase)}`,
       c.csiDivision && `CSI division: ${clean(c.csiDivision)}`,
-      sub?.contactName && `Contact: ${clean(sub.contactName)}`,
-      sub?.phone && `Phone: ${clean(sub.phone)}`,
-      sub?.email && `Email: ${clean(sub.email)}`,
       c.signedDate && `Contracted ${shortDate(c.signedDate)}`,
     ].filter(Boolean) as string[];
     docs.push({
       docId: `passport:trade:${c.id}`,
       kind: 'trade',
       ref: `Trade — ${company}`,
-      date: c.signedDate || c.createdAt || '',
+      date,
       text: clamp(parts.join('. ')),
     });
+    // A sub's direct line only when the GC chose to share it; otherwise the
+    // owner reaches the trade through the GC.
+    const contactParts = [
+      sub?.contactName && `Contact: ${clean(sub.contactName)}`,
+      sub?.phone && `Phone: ${clean(sub.phone)}`,
+      sub?.email && `Email: ${clean(sub.email)}`,
+    ].filter(Boolean) as string[];
+    if (sharing.tradeContacts && contactParts.length > 0) {
+      docs.push({
+        docId: `passport:contact:${c.id}`,
+        kind: 'contact',
+        ref: `Contact — ${company}`,
+        date,
+        text: clamp([`How to reach ${company}${sub?.trade ? ` (${clean(String(sub.trade))})` : ''}, who worked on ${clean(project.name)}`, ...contactParts].join('. ')),
+      });
+    }
   }
 
   // ── Maintenance schedule ──

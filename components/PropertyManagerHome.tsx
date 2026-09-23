@@ -6,7 +6,11 @@
 // a gradient "Add a property" hero, portfolio stat tiles (properties,
 // open work orders, out-for-bids), and a list of managed-property cards
 // each showing its open work-order count. Tapping a card opens
-// /managed-property. All data is local (PropertyContext) — no network.
+// /managed-property. Data comes from PropertyContext, which mirrors the
+// portfolio to Supabase (managed_properties / work_orders) through the
+// offline queue and keeps a per-user device copy. This screen re-reads the
+// server copy on focus and on pull-to-refresh, so what the PM changed on his
+// other device shows here without signing out and back in.
 //
 // Visual language deliberately mirrors ClientHome so the two non-contractor
 // personas feel like one product family (same FadeRise entrance, gradient
@@ -15,16 +19,15 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput,
-  Platform, Animated, Easing, KeyboardAvoidingView,
+  Platform, Animated, Easing, KeyboardAvoidingView, RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Building2, ChevronRight, MapPin, Wrench, ClipboardList, Send,
   Sun, Moon, Sunrise, Sunset, X,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -67,7 +70,17 @@ export default function PropertyManagerHome() {
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { properties, workOrders, addProperty, getOpenWorkOrderCount } = useProperties();
+  const { properties, workOrders, addProperty, getOpenWorkOrderCount, refresh } = useProperties();
+
+  // Re-read the server copy whenever the portfolio comes into view, and on a
+  // pull. It used to be read only at sign-in, so a laptop left open showed
+  // (and then wrote back) what the phone had already changed.
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  const [pulling, setPulling] = useState(false);
+  const onPull = useCallback(async () => {
+    setPulling(true);
+    try { await refresh(); } finally { setPulling(false); }
+  }, [refresh]);
 
   const [addOpen, setAddOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -115,6 +128,7 @@ export default function PropertyManagerHome() {
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={themeColors.accent} colors={[themeColors.accent]} />}
       >
         <FadeRise delay={0}>
           <View style={styles.header}>
@@ -274,7 +288,8 @@ export default function PropertyManagerHome() {
               activeOpacity={0.85}
               testID="pm-add-submit"
             >
-              <MageAIMark size={15} color="#FFF" />
+              {/* A plain add, so a plain Plus: the AI mark is for AI actions. */}
+              <Plus size={15} color={Colors.textOnAccent} strokeWidth={2.2} />
               <Text style={styles.modalCtaText}>Add property</Text>
             </TouchableOpacity>
           </View>

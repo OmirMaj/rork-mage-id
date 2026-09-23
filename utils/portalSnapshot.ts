@@ -36,6 +36,8 @@ import {
   toCalendarDate,
   type PeriodNarrative, type OwnerDecision, type PeriodMilestone,
 } from '@/utils/portalOwnerCore';
+import { ownerSharingFor, bakedSharingAllowed } from '@/utils/passport/ownerSharing';
+import { stripMoney } from '@/utils/passport/consumerPassport';
 
 /**
  * Per-item visibility gate. Undefined `portalState` is grandfathered as Sent
@@ -294,9 +296,11 @@ export interface PortalSnapshot {
   // Closeout binder — only emitted when the GC has finalized or sent the
   // binder. The portal renders a printable view with all the long-tail
   // info homeowners come back to years later: chosen finishes (brand +
-  // SKU + supplier), warranty roster, maintenance schedule, trade
-  // contacts. A "Print / Save as PDF" button uses window.print() so they
-  // can keep a local copy.
+  // SKU), warranty roster, maintenance schedule, trade contacts. A
+  // "Print / Save as PDF" button uses window.print() so they can keep a
+  // local copy. Supplier names (finishes[].supplier, and purchase-order
+  // vendors in tradeContacts) and a sub's phone/email ship only when the GC
+  // switched them on for the job — see utils/passport/ownerSharing.
   closeout?: {
     id: string;
     status: 'finalized' | 'sent';
@@ -305,12 +309,19 @@ export interface PortalSnapshot {
     finishes: { category: string; productName: string; brand?: string; sku?: string; supplier?: string }[];
     warranties: { title: string; provider?: string; durationMonths?: number; endDate?: string }[];
     maintenance: { task: string; frequency: string; nextDate?: string; notes?: string }[];
-    tradeContacts: { company: string; scope?: string; phase?: string; phone?: string; email?: string }[];
+    /** `kind` (Phase 0): 'supplier' for a purchase-order vendor, 'trade' for a
+     *  subcontract. Recorded so a writer that CARRIES this list forward
+     *  (portalLiteSync) can re-apply the owner-sharing switches to it — see
+     *  ownerSafeCloseoutCarry. Rows published before it have no kind. */
+    tradeContacts: { company: string; scope?: string; phase?: string; phone?: string; email?: string; kind?: 'trade' | 'supplier' }[];
     emergencyEmail?: string;
     emergencyPhone?: string;
     /** v9: pre-answered Home Passport FAQ — instant, zero-cost answers in
      *  the portal. Absent when the GC never generated a passport. */
     faq?: { q: string; a: string; refs: string[] }[];
+    /** The owner-sharing switches the FAQ was baked under (Phase 0). Lets a
+     *  carrying writer hold it back after the GC switches something off. */
+    faqSharing?: { supplierNames: boolean; tradeContacts: boolean };
     /** v9: Home Passport summary counts + generation stamp. */
     passport?: {
       finishes: number; warranties: number; trades: number;
@@ -1265,6 +1276,12 @@ interface BuildOpts {
   // Baked Home Passport (pre-answered FAQ + summary counts), loaded from
   // utils/passport/passportStore. Omitted when the GC never generated one.
   homePassport?: import('./passport/types').BakedHomePassport | null;
+  // The sub roster. Read ONLY when the GC has switched on "Trade contacts"
+  // for this job (portal.shareTradeContacts): it is what turns a subcontract
+  // into a phone and email on the closeout block. Absent, or switched off,
+  // the trade contacts carry the company and what they did, and nothing to
+  // dial — the owner calls the GC.
+  subcontractors?: import('@/types').Subcontractor[];
   // The seven actual-cost streams Job Costing prices (receipts, priced crew
   // hours + rates + OT multiplier, equipment, permits, the sub roster). The
   // open-book / GMP block used to call computeJobCost without them, so an
@@ -1405,6 +1422,37 @@ export function closeoutIsShared<T extends { status?: string }>(
   binder: T | null | undefined,
 ): binder is T & { status: 'finalized' | 'sent' } {
   return !!binder && (binder.status === 'finalized' || binder.status === 'sent');
+}
+
+/**
+ * The closeout pieces a writer CARRIES from the published row instead of
+ * rebuilding (utils/portalLiteSync passes no commitments and may lack the
+ * baked passport, so it keeps the published trade contacts and FAQ), filtered
+ * through THIS job's owner-sharing switches as they stand now.
+ *
+ * Without it, switching "Supplier names" or "Trade contacts" off changed
+ * nothing on the owner's page until a full rebuild ran: the carried list still
+ * held the purchase-order vendors and the phones. Rules, all fail-closed:
+ *  • a row whose kind is unknown (published before kinds existed) could be a
+ *    supplier, so it is kept only while supplier names are shared;
+ *  • phone and email are dropped unless trade contacts are shared;
+ *  • the FAQ is kept only if it was baked under settings no wider than now
+ *    (bakedSharingAllowed — an unrecorded bake counts as everything shared).
+ */
+export function ownerSafeCloseoutCarry(
+  prev: Pick<NonNullable<PortalSnapshot['closeout']>, 'tradeContacts' | 'faq' | 'faqSharing'> | null | undefined,
+  portal: Pick<ClientPortalSettings, 'shareSupplierNames' | 'shareTradeContacts'> | null | undefined,
+): Pick<NonNullable<PortalSnapshot['closeout']>, 'tradeContacts' | 'faq' | 'faqSharing'> {
+  const sharing = ownerSharingFor(portal);
+  const tradeContacts = (prev?.tradeContacts ?? [])
+    .filter(t => t.kind === 'trade' || sharing.supplierNames)
+    .map(t => (sharing.tradeContacts ? t : { ...t, phone: undefined, email: undefined }));
+  const faqOk = !!prev?.faq && bakedSharingAllowed(prev.faqSharing, sharing);
+  return {
+    tradeContacts,
+    faq: faqOk ? prev?.faq : undefined,
+    faqSharing: faqOk ? prev?.faqSharing : undefined,
+  };
 }
 
 /** Homeowner words for a PermitType. The raw union values ('special_inspection',
@@ -2173,6 +2221,10 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // (if any). Hoisted out of the return literal because ownerDecisions below
   // needs the same list to know which picks are still open.
   const selectionsPayload: PortalSnapshot['selections'] = (() => {
+    // Founder decision 5: a supplier name is the GC's pricing relationship.
+    // The selection options carry it only when he switched "Supplier names"
+    // on for this job — the same switch as the closeout block's finishes.
+    const shareSuppliers = ownerSharingFor(portal).supplierNames;
     const visible = (opts.selections ?? [])
       .filter(c => isShared(c.portalState) && (c.options ?? []).length > 0)
       .map(c => ({
@@ -2196,8 +2248,12 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           quantity: o.quantity,
           total: o.total,
           leadTimeDays: o.leadTimeDays,
-          supplier: o.supplier,
-          productUrl: o.productUrl,
+          supplier: shareSuppliers ? o.supplier : undefined,
+          // A product link points at the store it was picked from (the AI
+          // generator is told to use the named supplier's page — see
+          // utils/selectionsEngine.ts), so the URL names the supplier as
+          // surely as the supplier field does. Same switch.
+          productUrl: shareSuppliers ? o.productUrl : undefined,
           imageUrl: o.imageUrl,
           highlights: o.highlights,
           isChosen: o.isChosen,
@@ -2394,6 +2450,12 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       // up, and two hand-written copies of the test would eventually disagree
       // and print the roster twice (or nowhere).
       if (!closeoutIsShared(cb)) return undefined;
+      // Founder decision 5 (Phase 0): supplier names and a sub's direct
+      // contact are the GC's relationships, not the house's. Each reaches
+      // the owner only when the GC switched it on for this job; both are off
+      // by default and on every portal saved before the switches existed.
+      // Brand, model and serial are the owner's and always ship.
+      const sharing = ownerSharingFor(portal);
       const chosenSelections = (opts.selections ?? [])
         .filter(c => isShared(c.portalState))
         .map(c => ({ category: c.category, chosen: (c.options ?? []).find(o => o.isChosen) }))
@@ -2403,7 +2465,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           productName: x.chosen.productName,
           brand: x.chosen.brand || undefined,
           sku: x.chosen.sku || undefined,
-          supplier: x.chosen.supplier || undefined,
+          supplier: sharing.supplierNames ? (x.chosen.supplier || undefined) : undefined,
         }));
       const warrantyList = (opts.warranties ?? [])
         .filter(w => isShared(w.portalState) && w.projectId === project.id)
@@ -2413,18 +2475,37 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           durationMonths: w.durationMonths,
           endDate: w.endDate,
         }));
+      const subsById = new Map((opts.subcontractors ?? []).map(s => [s.id, s]));
       const tradeContacts = (opts.commitments ?? [])
         .filter(c => c.status !== 'draft')
-        .map(c => ({
-          company: c.vendorName ?? 'Subcontractor',
-          scope: c.description ?? c.type,
-          phase: c.phase,
-          phone: undefined,  // not on commitment yet
-          email: undefined,
-        }));
+        // A purchase order's vendor IS a supplier name — the same
+        // relationship as a finish's supplier, behind the same switch.
+        .filter(c => c.type !== 'purchase_order' || sharing.supplierNames)
+        .map(c => {
+          // The roster is consulted only when trade contacts are switched on,
+          // so an "off" job cannot carry a phone by any path.
+          const sub = sharing.tradeContacts && c.subcontractorId ? subsById.get(c.subcontractorId) : undefined;
+          return {
+            company: c.vendorName ?? 'Subcontractor',
+            // Scope text is lifted off an internal subcontract: a dollar
+            // figure typed into it is the sub's price, so it is scrubbed the
+            // same way the consumer passport scrubs it.
+            scope: stripMoney(c.description) || c.type,
+            phase: c.phase,
+            phone: sub?.phone?.trim() || undefined,
+            email: sub?.email?.trim() || undefined,
+            kind: c.type === 'purchase_order' ? 'supplier' as const : 'trade' as const,
+          };
+        });
       // v9 — Home Passport bake. Only present when the GC has generated a
       // passport; the portal degrades to the plain binder when absent.
+      // Its pre-answered FAQ is prose the AI wrote from the passport docs, so
+      // it can quote a supplier or a sub's phone. It ships only when it was
+      // baked under settings that share nothing this job now keeps back; a
+      // bake from before the switches carries no record and is held until
+      // the GC regenerates it. The summary counts are numbers and always ship.
       const hp = opts.homePassport;
+      const faqAllowed = !!hp && bakedSharingAllowed(hp.sharing, sharing);
       return {
         id: cb.id,
         status: cb.status,
@@ -2436,7 +2517,10 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         tradeContacts,
         emergencyEmail: settings?.branding?.email,
         emergencyPhone: settings?.branding?.phone,
-        faq: hp && hp.faq.length > 0 ? hp.faq.map(f => ({ q: f.q, a: f.a, refs: f.refs })) : undefined,
+        faq: hp && faqAllowed && hp.faq.length > 0 ? hp.faq.map(f => ({ q: f.q, a: f.a, refs: f.refs })) : undefined,
+        faqSharing: hp && faqAllowed && hp.faq.length > 0 && hp.sharing
+          ? { supplierNames: hp.sharing.supplierNames === true, tradeContacts: hp.sharing.tradeContacts === true }
+          : undefined,
         passport: hp
           ? {
               finishes: hp.summary.finishes,

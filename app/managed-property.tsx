@@ -5,12 +5,20 @@
 // header, an editable property card, then the work-order list with a
 // "New work order" affordance. Adding a work order is an inline modal;
 // tapping one opens /work-order for status + the contractor bridge.
+//
+// Phase 0 (PM honesty): the edit sheet now has Owner email, Units and Notes.
+// All three were columns and fields already, but nothing could enter them, so
+// the "{units} units" tag never rendered. The owner email is the manager's own
+// contact list and nothing else: nothing here invites, shares with or grants
+// the owner anything, and the sheet says so. Budgets keep their cents
+// (propertyMirror.parseBudgetInput); status/priority colours are theme tokens.
+// The screen re-reads the server copy on focus (PropertyContext.refresh).
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, KeyboardAvoidingView,
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -24,28 +32,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProperties } from '@/contexts/PropertyContext';
 import {
   WORK_ORDER_STATUS_LABELS, WORK_ORDER_PRIORITIES, WORK_ORDER_PRIORITY_LABELS,
-  type WorkOrder, type WorkOrderPriority, type WorkOrderStatus,
+  type WorkOrder, type WorkOrderPriority,
 } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-
-const STATUS_COLORS: Record<WorkOrderStatus, string> = {
-  open: '#FF6A1A',
-  posted_for_bids: '#0D6CB1',
-  assigned: '#7A3FF2',
-  in_progress: '#C99700',
-  done: '#16A34A',
-  cancelled: '#9CA3AF',
-};
-
-const PRIORITY_COLORS: Record<WorkOrderPriority, string> = {
-  low: '#9CA3AF',
-  normal: '#0D6CB1',
-  high: '#C99700',
-  emergency: '#DC2626',
-};
+import {
+  parseBudgetInput, parseUnitsInput, workOrderStatusTone, workOrderPriorityTone,
+  propertyEditForm, propertyEditUpdates, type PropertyEditForm,
+} from '@/utils/propertyMirror';
 
 export default function ManagedPropertyScreen() {
   const { colors: themeColors } = useTheme();
@@ -60,8 +56,11 @@ export default function ManagedPropertyScreen() {
 
   const {
     getProperty, updateProperty, deleteProperty,
-    getWorkOrdersForProperty, addWorkOrder,
+    getWorkOrdersForProperty, addWorkOrder, refresh,
   } = useProperties();
+
+  // Pick up what the PM's other device changed since this screen last showed.
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const property = getProperty(propertyId);
   const workOrders = useMemo(
@@ -78,6 +77,12 @@ export default function ManagedPropertyScreen() {
   const [eType, setEType] = useState(property?.propertyType ?? '');
   const [eOwner, setEOwner] = useState(property?.ownerName ?? '');
   const [eOwnerPhone, setEOwnerPhone] = useState(property?.ownerPhone ?? '');
+  const [eOwnerEmail, setEOwnerEmail] = useState(property?.ownerEmail ?? '');
+  const [eUnits, setEUnits] = useState(property?.units != null ? String(property.units) : '');
+  const [eNotes, setENotes] = useState(property?.notes ?? '');
+  // Units must be a whole number (the column is an integer); say so rather
+  // than quietly dropping what he typed.
+  const unitsInvalid = eUnits.trim() !== '' && parseUnitsInput(eUnits) === undefined;
 
   // Add-work-order modal state
   const [woOpen, setWoOpen] = useState(false);
@@ -87,27 +92,38 @@ export default function ManagedPropertyScreen() {
   const [woPriority, setWoPriority] = useState<WorkOrderPriority>('normal');
   const [woBudget, setWoBudget] = useState('');
 
+  // The form exactly as it OPENED. A save sends only what he changed since
+  // then: a refresh while the sheet is open can bring in the other device's
+  // edit, and the sheet's old value must not be written back over it.
+  const editOpenedRef = useRef<PropertyEditForm>(propertyEditForm(null));
+
   const openEdit = useCallback(() => {
-    setEName(property?.name ?? '');
-    setEAddress(property?.address ?? '');
-    setEType(property?.propertyType ?? '');
-    setEOwner(property?.ownerName ?? '');
-    setEOwnerPhone(property?.ownerPhone ?? '');
+    const f = propertyEditForm(property);
+    editOpenedRef.current = f;
+    setEName(f.name);
+    setEAddress(f.address);
+    setEType(f.propertyType);
+    setEOwner(f.ownerName);
+    setEOwnerPhone(f.ownerPhone);
+    setEOwnerEmail(f.ownerEmail);
+    setEUnits(f.units);
+    setENotes(f.notes);
     setEditOpen(true);
   }, [property]);
 
   const saveEdit = useCallback(() => {
-    if (!eName.trim()) return;
-    updateProperty(propertyId, {
-      name: eName.trim(),
-      address: eAddress.trim() || undefined,
-      propertyType: eType.trim() || undefined,
-      ownerName: eOwner.trim() || undefined,
-      ownerPhone: eOwnerPhone.trim() || undefined,
+    if (!eName.trim() || unitsInvalid) return;
+    // Only the fields changed since the sheet opened (propertyEditUpdates);
+    // PropertyContext then sends them as a per-field patch. The owner email is
+    // his contact list only: never passed to an invite, portal or grant.
+    const updates = propertyEditUpdates(editOpenedRef.current, {
+      name: eName, address: eAddress, propertyType: eType, ownerName: eOwner,
+      ownerPhone: eOwnerPhone, ownerEmail: eOwnerEmail, units: eUnits, notes: eNotes,
     });
+    if (Object.keys(updates).length > 0) updateProperty(propertyId, updates);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setEditOpen(false);
-  }, [eName, eAddress, eType, eOwner, eOwnerPhone, propertyId, updateProperty]);
+  }, [eName, eAddress, eType, eOwner, eOwnerPhone, eOwnerEmail, eUnits, eNotes, unitsInvalid, propertyId, updateProperty]);
 
   const handleDelete = useCallback(() => {
     showAlert(
@@ -132,14 +148,14 @@ export default function ManagedPropertyScreen() {
   const handleAddWo = useCallback(() => {
     const title = woTitle.trim();
     if (!title) return;
-    const budgetNum = parseFloat(woBudget.replace(/[$,\s]/g, ''));
     const created = addWorkOrder({
       propertyId,
       title,
       description: woDesc.trim() || undefined,
       category: woCategory.trim() || undefined,
       priority: woPriority,
-      budget: Number.isFinite(budgetNum) && budgetNum > 0 ? Math.round(budgetNum) : undefined,
+      // To the cent: the column is numeric(12,2).
+      budget: parseBudgetInput(woBudget),
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setWoOpen(false);
@@ -197,6 +213,7 @@ export default function ManagedPropertyScreen() {
             {!!property.units && <View style={styles.tag}><Text style={styles.tagText}>{property.units} units</Text></View>}
             {!!property.ownerName && <View style={styles.tag}><Text style={styles.tagText}>Owner: {property.ownerName}</Text></View>}
           </View>
+          {!!property.notes && <Text style={styles.propNotes}>{property.notes}</Text>}
         </View>
 
         {/* Work orders */}
@@ -246,8 +263,19 @@ export default function ManagedPropertyScreen() {
               <Field label="Type"><TextInput style={styles.input} value={eType} onChangeText={setEType} placeholderTextColor={themeColors.textMuted} /></Field>
               <Field label="Owner / client"><TextInput style={styles.input} value={eOwner} onChangeText={setEOwner} placeholderTextColor={themeColors.textMuted} /></Field>
               <Field label="Owner phone"><TextInput style={styles.input} value={eOwnerPhone} onChangeText={setEOwnerPhone} keyboardType="phone-pad" placeholderTextColor={themeColors.textMuted} /></Field>
+              <Field label="Owner email">
+                <TextInput style={styles.input} value={eOwnerEmail} onChangeText={setEOwnerEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="owner@example.com" placeholderTextColor={themeColors.textMuted} testID="pm-owner-email" />
+              </Field>
+              <Text style={styles.fieldHint}>For your own contact list. MAGE does not email the owner or give them access to anything.</Text>
+              <Field label="Units">
+                <TextInput style={styles.input} value={eUnits} onChangeText={setEUnits} keyboardType="number-pad" placeholder="12" placeholderTextColor={themeColors.textMuted} testID="pm-units" />
+              </Field>
+              {unitsInvalid && <Text style={styles.fieldHint}>Units must be a whole number.</Text>}
+              <Field label="Notes">
+                <TextInput style={[styles.input, styles.inputMultiline]} value={eNotes} onChangeText={setENotes} multiline textAlignVertical="top" placeholder="Gate code, parking, the owner's preferences" placeholderTextColor={themeColors.textMuted} testID="pm-notes" />
+              </Field>
             </ScrollView>
-            <TouchableOpacity style={[styles.modalCta, !eName.trim() && styles.modalCtaDisabled]} onPress={saveEdit} disabled={!eName.trim()} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.modalCta, (!eName.trim() || unitsInvalid) && styles.modalCtaDisabled]} onPress={saveEdit} disabled={!eName.trim() || unitsInvalid} activeOpacity={0.85}>
               <Check size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.modalCtaText}>Save</Text>
             </TouchableOpacity>
@@ -277,16 +305,19 @@ export default function ManagedPropertyScreen() {
               </Field>
               <Field label="Priority">
                 <View style={styles.priorityRow}>
-                  {WORK_ORDER_PRIORITIES.map(p => (
-                    <TouchableOpacity
-                      key={p}
-                      style={[styles.priorityChip, woPriority === p && { backgroundColor: PRIORITY_COLORS[p] + '18', borderColor: PRIORITY_COLORS[p] }]}
-                      onPress={() => setWoPriority(p)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.priorityChipText, woPriority === p && { color: PRIORITY_COLORS[p] }]}>{WORK_ORDER_PRIORITY_LABELS[p]}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {WORK_ORDER_PRIORITIES.map(p => {
+                    const tone = workOrderPriorityTone(themeColors, p);
+                    return (
+                      <TouchableOpacity
+                        key={p}
+                        style={[styles.priorityChip, woPriority === p && { backgroundColor: tone.bg, borderColor: tone.fg }]}
+                        onPress={() => setWoPriority(p)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.priorityChipText, woPriority === p && { color: tone.fg }]}>{WORK_ORDER_PRIORITY_LABELS[p]}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </Field>
               <Field label="Budget (optional)">
@@ -317,9 +348,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function WorkOrderRow({ wo, onPress, styles, themeColors }: {
   wo: WorkOrder; onPress: () => void; styles: ReturnType<typeof makeStyles>; themeColors: ThemeColors;
 }) {
+  const status = workOrderStatusTone(themeColors, wo.status);
   return (
     <TouchableOpacity style={styles.woCard} onPress={onPress} activeOpacity={0.85} testID={`wo-row-${wo.id}`}>
-      <View style={[styles.woPriorityBar, { backgroundColor: PRIORITY_COLORS[wo.priority] }]} />
+      <View style={[styles.woPriorityBar, { backgroundColor: workOrderPriorityTone(themeColors, wo.priority).fg }]} />
       <View style={{ flex: 1 }}>
         <Text style={styles.woTitle} numberOfLines={1}>{wo.title}</Text>
         <View style={styles.woMetaRow}>
@@ -328,8 +360,8 @@ function WorkOrderRow({ wo, onPress, styles, themeColors }: {
           {!!wo.assignedContactName && <Text style={styles.woMetaText} numberOfLines={1}>→ {wo.assignedContactName}</Text>}
         </View>
       </View>
-      <View style={[styles.woStatusPill, { backgroundColor: STATUS_COLORS[wo.status] + '1A' }]}>
-        <Text style={[styles.woStatusText, { color: STATUS_COLORS[wo.status] }]}>{WORK_ORDER_STATUS_LABELS[wo.status]}</Text>
+      <View style={[styles.woStatusPill, { backgroundColor: status.bg }]}>
+        <Text style={[styles.woStatusText, { color: status.fg }]}>{WORK_ORDER_STATUS_LABELS[wo.status]}</Text>
       </View>
       <ChevronRight size={15} color={themeColors.textMuted} strokeWidth={1.75} />
     </TouchableOpacity>
@@ -356,6 +388,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   propTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12, justifyContent: 'center' },
   tag: { backgroundColor: t.bg, borderRadius: Tokens.radius.full, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: t.line },
   tagText: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
+  propNotes: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 12, textAlign: 'center', lineHeight: 18 },
 
   woHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
@@ -386,6 +419,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.textMuted, marginBottom: 6, marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
   input: { backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 12, fontSize: Type.bodyCompact.fontSize, color: t.text },
   inputMultiline: { minHeight: 72 },
+  fieldHint: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 6, lineHeight: 16 },
   priorityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   priorityChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line, backgroundColor: t.bg },
   priorityChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.textMuted },

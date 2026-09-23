@@ -26,6 +26,7 @@ import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
 import { useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { useSafety } from '@/contexts/SafetyContext';
+import { useProperties } from '@/contexts/PropertyContext';
 import { resolvePhotoUrls } from '@/utils/storage';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 
@@ -66,6 +67,11 @@ export default function DataExportScreen() {
   const timeEntries = useTimeEntriesMirror();
   const safety = useSafety() as ReturnType<typeof useSafety> | undefined;
   const safetyIncidents = useMemo(() => safety?.incidents ?? [], [safety?.incidents]);
+  // Phase 0: a Property Manager's portfolio (managed properties + work
+  // orders) lives in PropertyContext, which this screen never read, so the
+  // "no lock-in" export left his whole book of business behind. Empty for
+  // everyone else (and the CSVs are only written when there is a portfolio).
+  const { properties: managedProperties, workOrders } = useProperties();
 
   const dailyReports = useMemo(
     () => projects.flatMap(p => getDailyReportsForProject(p.id)),
@@ -113,6 +119,8 @@ export default function DataExportScreen() {
     warranties,
     subcontractors,
     communications: commEvents,
+    managedProperties,
+    workOrders,
     aiaPayApps,
     commitments,
     fieldTickets,
@@ -120,7 +128,7 @@ export default function DataExportScreen() {
     safetyIncidents,
   }), [projects, invoices, changeOrders, dailyReports, punchItems, projectPhotos,
       contacts, rfis, submittals, equipment, warranties, subcontractors, commEvents,
-      aiaPayApps, commitments, fieldTickets, timeEntries, safetyIncidents]);
+      aiaPayApps, commitments, fieldTickets, timeEntries, safetyIncidents, managedProperties, workOrders]);
 
   const options: DataExportOptions = useMemo(() => ({
     projectId: scope === 'project' ? projectId : undefined,
@@ -147,6 +155,8 @@ export default function DataExportScreen() {
     fieldTickets: previewPayload.fieldTickets.length,
     timeEntries: previewPayload.timeEntries.length,
     safetyIncidents: previewPayload.safetyIncidents.length,
+    managedProperties: previewPayload.managedProperties.length,
+    workOrders: previewPayload.workOrders.length,
   }), [previewPayload]);
 
   const handleGenerate = useCallback(async () => {
@@ -387,6 +397,12 @@ export default function DataExportScreen() {
           <SummaryLine label="T&M Tickets" value={totals.fieldTickets} />
           <SummaryLine label="Time Entries" value={totals.timeEntries} />
           <SummaryLine label="Safety Incidents" value={totals.safetyIncidents} />
+          {(totals.managedProperties > 0 || totals.workOrders > 0) && (
+            <>
+              <SummaryLine label="Managed properties" value={totals.managedProperties} />
+              <SummaryLine label="Work orders" value={totals.workOrders} />
+            </>
+          )}
           <SummaryLine label="Photo records (links, not files)" value={totals.photos} />
           <SummaryLine label="Contacts" value={totals.contacts} last />
         </View>

@@ -10,7 +10,8 @@
 //      (sum of today's hourly buckets) + a per-IP hourly cap.
 //   3. Embed the question (geminiEmbed) → match_project_memory with the
 //      project OWNER's user_id + projectId (service role, server-side only),
-//      filtered to homeowner-safe sources.
+//      filtered in the database to homeowner-safe sources (Home Passport
+//      only — see ALLOWED_SOURCES).
 //   4. Grounded Gemini answer — cites refs, prefers the not-found line.
 //   5. Return { success, answer, refs: [{ ref, kind }] }.
 //
@@ -24,6 +25,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { rateLimitCount } from "../_shared/auth.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
 import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
+import { applyOwnerSharing, ownerSwitchesFromPortal } from "./sharingFilter.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -37,9 +39,25 @@ const TEXT_TIMEOUT_MS = 60_000;  // B3 (review): bounded upstream fetch → CORS
 const MATCH_COUNT = 12;          // fetch wide, filter to safe sources, keep 8
 const KEEP_MATCHES = 8;
 
-// Sources a homeowner may read. Change orders / submittals / punch items stay
-// contractor-internal (pricing + dispute context).
-const ALLOWED_SOURCES = new Set(["Home Passport", "Daily Report", "RFI"]);
+// Sources a homeowner may read: the Home Passport, and nothing else.
+//
+// Phase 0 (2026-09-23): this used to also allow "Daily Report" and "RFI". Those
+// are the GC's RAW project-memory docs (utils/projectMemory.ts buildMemoryDocs):
+// the daily report doc embeds `Issues/delays: <issuesAndDelays>` — not the
+// published homeowner_summary — and the RFI doc embeds every handoff note. The
+// only credential on this path is a portal link, and nothing here consulted the
+// portal's showDailyReports / showRFIs toggles, so a forwarded link could ask
+// its way into the GC's internal notes. Latent only because memory_embeddings
+// had 0 rows when this was fixed.
+//
+// A homeowner-safe daily-report / RFI source (published summary, RFI subject +
+// final answer, honouring the section toggles server-side) comes back later
+// under a DISTINCT source name with the owner version of Ask Your Home. It must
+// never be the raw "Daily Report" / "RFI" names —
+// scripts/validate-portal-ask-home-sources.ts fails the build if either (or any
+// other contractor-internal source: change orders, submittals, punch items,
+// plan sheets) reappears here.
+const ALLOWED_SOURCES = new Set(["Home Passport"]);
 
 // KEEP IN SYNC with utils/passport/askHomePrompt.ts —
 // scripts/validate-home-passport.ts asserts this file embeds the same
@@ -200,14 +218,22 @@ serve(async (req: Request) => {
     // `type` rides along on a lookup this path already makes — no extra
     // round-trip — so the prompt's persona is derived from the project row
     // rather than from anything the caller sent.
-    `${SUPABASE_URL}/rest/v1/projects?select=id,user_id,type&id=eq.${encodeURIComponent(projectId)}&limit=1`,
+    //
+    // The job's two owner-sharing switches ride along too, read below as they
+    // stand NOW (the index can hold copies written while a switch was on).
+    // Only those two keys, by JSON path — never the whole client_portal, which
+    // holds the access token: authorising stays with the choke point above
+    // (scripts/validate-portal-security.ts pins both).
+    `${SUPABASE_URL}/rest/v1/projects?select=id,user_id,type,share_suppliers:client_portal->shareSupplierNames,share_contacts:client_portal->shareTradeContacts&id=eq.${encodeURIComponent(projectId)}&limit=1`,
     { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } },
   );
   if (!lookup.ok) {
     console.error("[portal-ask-home] lookup failed:", lookup.status);
     return json({ success: false, error: "Lookup failed" }, 500);
   }
-  const rows = (await lookup.json()) as { id: string; user_id: string; type?: string | null }[];
+  const rows = (await lookup.json()) as {
+    id: string; user_id: string; type?: string | null; share_suppliers?: unknown; share_contacts?: unknown;
+  }[];
   const proj = rows[0];
   if (!proj?.user_id) {
     console.error("[portal-ask-home] project vanished between gate and lookup");
@@ -247,6 +273,15 @@ serve(async (req: Request) => {
       p_project_id: proj.id,
       p_query: toVectorLiteral(qvec[0]),
       p_match_count: MATCH_COUNT,
+      // Filter IN the database, before the LIMIT (the 5-argument overload,
+      // 20260917170000, live in production). Two reasons: contractor-internal
+      // rows never leave Postgres on this anonymous path, and they can no
+      // longer crowd the passport out of the top MATCH_COUNT — with the
+      // 4-argument form, twelve daily reports nearest the question meant zero
+      // passport docs survived the filter below and the homeowner got
+      // "not in your records" for something the passport holds. Never empty:
+      // an empty p_sources means NO filter in that function.
+      p_sources: [...ALLOWED_SOURCES],
     }),
   });
   if (!rpc.ok) {
@@ -255,9 +290,23 @@ serve(async (req: Request) => {
     return json({ success: false, error: "Search failed" }, 500);
   }
   const allMatches = (await rpc.json()) as MemoryMatch[];
-  const matches = (Array.isArray(allMatches) ? allMatches : [])
-    .filter((m) => ALLOWED_SOURCES.has(m.source))
-    .slice(0, KEEP_MATCHES);
+  // Second wall, kept on purpose: if the database filter were ever dropped
+  // (a revert to the 4-argument call, or a p_sources that went empty), this
+  // line alone still keeps every non-passport row out of the prompt.
+  //
+  // Then the owner-sharing switches, from the live project row (founder
+  // decision 5): supplier docs and sub-contact docs are dropped, and any
+  // inline supplier / phone / email fact an older build indexed is cut, unless
+  // the GC has that switch on for this job right now. Applied BEFORE the
+  // slice, so a dropped doc makes room for a permitted one.
+  const switches = ownerSwitchesFromPortal({
+    shareSupplierNames: proj.share_suppliers,
+    shareTradeContacts: proj.share_contacts,
+  });
+  const matches = applyOwnerSharing(
+    (Array.isArray(allMatches) ? allMatches : []).filter((m) => ALLOWED_SOURCES.has(m.source)),
+    switches,
+  ).slice(0, KEEP_MATCHES);
 
   if (matches.length === 0) {
     // Nothing portal-safe matched — the honest answer, free of charge. This is

@@ -158,6 +158,12 @@ export default function PostRfpScreen() {
   const [description, setDescription]     = useState(() => p1(prefill.prefillDescription));
   const [address, setAddress]             = useState(() => p1(prefill.prefillAddress));
   const [latLng, setLatLng]               = useState<{ lat: number; lng: number } | null>(null);
+  // `addressVerified` (and the public_bids.address_verified column it is
+  // written to) means ONLY "the device geocoder found this address on the
+  // map". It is set here on the client and proves nothing about who owns or
+  // lives at the property, so no screen may call it "verified" or put a
+  // shield on it (Phase 0 honesty pass, 2026-09-23). The name is kept because
+  // it is a live column other readers select.
   const [addressVerified, setAddressVerified] = useState(false);
   const [extraScope, setExtraScope]       = useState(() => p1(prefill.prefillScope));
   const [budgetMin, setBudgetMin]         = useState(() => p1(prefill.prefillBudgetMin));
@@ -234,7 +240,7 @@ export default function PostRfpScreen() {
   const verifyAddress = useCallback(async () => {
     setError(null);
     if (!address.trim()) {
-      showAlert('Address Required', 'Enter the property address before verifying.');
+      showAlert('Address Required', 'Enter the property address before looking it up on the map.');
       return;
     }
     if (Platform.OS === 'web') {
@@ -242,14 +248,14 @@ export default function PostRfpScreen() {
       // submission without coordinates — contractors can still see the
       // address text, they just won't get distance-based matching.
       setAddressVerified(false);
-      showAlert('Heads up', 'Address auto-verification only runs on the iOS/Android app. You can still post; nearby-contractor matching may be less precise.');
+      showAlert('Heads up', 'Finding the address on the map only works in the iOS/Android app. You can still post; nearby-contractor matching may be less precise.');
       return;
     }
     try {
       setGeocoding(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        showAlert('Permission needed', 'Location permission is needed to verify the address. You can still post without verification.');
+        showAlert('Permission needed', 'Location permission is needed to find the address on the map. You can still post without it.');
         return;
       }
       const results = await Location.geocodeAsync(address.trim());
@@ -705,15 +711,22 @@ function DetailsStep({
               {geocoding ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
+                // Stays "Verify": app.json's NSLocationWhenInUseUsageDescription
+                // (baked into the native build) names this button by that word,
+                // and validate-location-consent holds the two together. What
+                // the tap PRODUCES is labelled honestly below ("Address found
+                // on map"). Rename both at the next native build.
                 <Text style={styles.verifyBtnText}>Verify</Text>
               )}
             </TouchableOpacity>
           </View>
+          {/* A map pin, not a shield: the geocoder found the address, which
+              says nothing about who owns the property. */}
           {addressVerified && (
             <View style={styles.verifiedRow}>
-              <ShieldCheck size={13} color={themeColors.success} strokeWidth={1.75} />
+              <MapPin size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.verifiedText} numberOfLines={1}>
-                Verified · {latLng?.lat.toFixed(4)}, {latLng?.lng.toFixed(4)}
+                Address found on map · {latLng?.lat.toFixed(4)}, {latLng?.lng.toFixed(4)}
               </Text>
             </View>
           )}
@@ -1003,7 +1016,7 @@ function ReviewStep({
         <View style={styles.card}>
           <ReviewRow label="Project"  value={deriveTitle(description) || '—'} onEdit={() => jumpTo('details')} styles={styles} />
           <ReviewRow label="Type"     value={workTypeLabel} onEdit={() => jumpTo('details')} styles={styles} />
-          <ReviewRow label="Address"  value={address || '—'} hint={addressVerified ? 'Verified' : undefined} onEdit={() => jumpTo('details')} styles={styles} />
+          <ReviewRow label="Address"  value={address || '—'} hint={addressVerified ? 'Found on map' : undefined} onEdit={() => jumpTo('details')} styles={styles} />
           <ReviewRow label="Photos"   value={`${photoCount} photo${photoCount === 1 ? '' : 's'}`} onEdit={() => jumpTo('details')} styles={styles} />
         </View>
       </FadeRise>
@@ -1238,7 +1251,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   verifyBtnText: { fontSize: 14, fontWeight: '800', color: '#FFF', letterSpacing: 0.1 },
   verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  verifiedText: { flex: 1, fontSize: 11.5, color: t.success, fontWeight: '700' },
+  verifiedText: { flex: 1, fontSize: 11.5, color: t.textSecondary, fontWeight: '700' },
 
   // Work-type chips. Vertical stack (icon-over-label) rather than the
   // horizontal layout in the mock — at a real phone width, horizontal

@@ -337,5 +337,56 @@ ok('post-a-project says service-area setup is coming', /Service-area setup is co
 ok('the Property Manager\'s "Post for bids" does not promise verified contractors',
   !/verified contractors compete/.test(code(read('app/work-order.tsx'))) && /contractors who cover your area/.test(read('app/work-order.tsx')));
 
+// ── Phase 0 (2026-09-23): "address verified" means only "found on a map" ────
+// public_bids.address_verified is written by the homeowner's OWN device when
+// expo-location's geocoder returns any hit for the typed text (post-rfp.tsx
+// verifyAddress), and no server code checks it. Four screens showed it as a
+// green ShieldCheck and the word "verified" — a trust mark for a claim nobody
+// checked, and exactly the word an ownership check would need later. Every
+// surface now says "found on map" with a map pin.
+console.log('\nPhase 0 — the geocoder hit is labelled as a map hit, never as verification');
+{
+  const SURFACES = ['app/rfp-detail.tsx', 'app/post-rfp.tsx', 'app/nearby-rfps.tsx', 'app/(tabs)/mage-id-bids/index.tsx'];
+  for (const f of SURFACES) {
+    const src = code(read(f));
+    // Each place the flag is rendered: the 600 chars after it must carry no
+    // shield and no "verif…" word (the flag's own identifier and style names
+    // like styles.verifyDot are removed first — they are code, not copy).
+    const re = /(address_verified|addressVerified)\s*(\?|&&)/g;
+    let m: RegExpExecArray | null;
+    let renders = 0;
+    const bad: string[] = [];
+    while ((m = re.exec(src))) {
+      renders++;
+      const win = src.slice(m.index, m.index + 600).replace(/address_verified|addressVerified|setAddressVerified|styles\.\w+/g, '');
+      const hit = win.match(/ShieldCheck|verif/i);
+      if (hit) bad.push(win.slice(Math.max(0, (hit.index ?? 0) - 60), (hit.index ?? 0) + 60).replace(/\s+/g, ' '));
+    }
+    ok(`${f}: the address flag is rendered (the check below can see a regression)`, renders > 0);
+    ok(`${f}: no shield or "verified" wherever the address flag is shown`, bad.length === 0, bad[0]);
+  }
+  const detail = code(read('app/rfp-detail.tsx'));
+  ok('rfp-detail says ADDRESS FOUND ON MAP / ADDRESS NOT ON MAP',
+    detail.includes('ADDRESS FOUND ON MAP') && detail.includes('ADDRESS NOT ON MAP')
+    && !detail.includes('ADDRESS VERIFIED') && !detail.includes('UNVERIFIED ADDRESS'));
+  const postSrc = code(read('app/post-rfp.tsx'));
+  // The button itself keeps the word "Verify": the iOS location purpose
+  // string in app.json names it, and changing that needs a native build
+  // (validate-location-consent pins the pair). What it produces is honest.
+  ok('post-rfp: the lookup result says "Address found on map" with a map pin, never "Verified ·"',
+    /<MapPin size=\{13\}[^>]*\/>\s*<Text style=\{styles\.verifiedText\} numberOfLines=\{1\}>\s*Address found on map ·/.test(postSrc)
+    && !/Verified ·/.test(postSrc));
+  ok('post-rfp: the review row hint is "Found on map"', /hint=\{addressVerified \? 'Found on map' : undefined\}/.test(postSrc));
+  ok('post-rfp: the lookup alerts no longer promise verification',
+    !/auto-verification|to verify the address|post without verification|before verifying/.test(postSrc));
+  for (const f of ['app/nearby-rfps.tsx', 'app/(tabs)/mage-id-bids/index.tsx']) {
+    const src = code(read(f));
+    ok(`${f}: the icon-only dot is labelled for screen readers`,
+      /accessibilityLabel="Address found on map"/.test(src) && /accessibilityLabel="Address not found on map"/.test(src));
+  }
+  ok('mage-id-bids: the location-unknown hint no longer says "verified address"',
+    !/verified address/i.test(code(read('app/(tabs)/mage-id-bids/index.tsx'))));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

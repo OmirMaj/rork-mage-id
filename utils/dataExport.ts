@@ -6,6 +6,7 @@ import type {
   Project, Invoice, ChangeOrder, DailyFieldReport, PunchItem, ProjectPhoto,
   Contact, RFI, Submittal, Equipment, Warranty, Subcontractor, CommunicationEvent,
   CompanyBranding, SavedAIAPayApp, Commitment, FieldTicket, TimeEntry, SafetyIncident,
+  ManagedProperty, WorkOrder,
 } from '@/types';
 import { punchListTypeOf } from '@/types';
 import { generateCloseoutPacketUri } from '@/utils/closeoutPacketGenerator';
@@ -61,6 +62,11 @@ export interface DataExportPayload {
   fieldTickets: FieldTicket[];
   timeEntries: TimeEntry[];
   safetyIncidents: SafetyIncident[];
+  // Phase 0: the Property Manager's portfolio (PropertyContext). It was left
+  // out while Settings promised "no lock-in, ever". Not tied to a project, so
+  // an all-projects export carries it and a single-project export does not.
+  managedProperties: ManagedProperty[];
+  workOrders: WorkOrder[];
 }
 
 /**
@@ -116,6 +122,8 @@ export interface DataExportSummary {
   fieldTicketCount: number;
   timeEntryCount: number;
   safetyIncidentCount: number;
+  managedPropertyCount: number;
+  workOrderCount: number;
   /** Photos whose bytes are still only on this phone (no link in the export). */
   photoOnDeviceOnlyCount: number;
   /** When the export's photo links stop working (ISO), or null for none. */
@@ -259,6 +267,10 @@ export function buildExportPayload(
     fieldTickets: filterByProject(all.fieldTickets ?? [], opts.projectId),
     timeEntries: filterByProject(all.timeEntries ?? [], opts.projectId),
     safetyIncidents: filterByProject(all.safetyIncidents ?? [], opts.projectId),
+    // A portfolio belongs to no project: whole in an all-projects export,
+    // absent from a single-project one.
+    managedProperties: opts.projectId ? [] : (all.managedProperties ?? []),
+    workOrders: opts.projectId ? [] : (all.workOrders ?? []),
   };
 }
 
@@ -417,6 +429,31 @@ export function payloadToCsvs(
     ]),
   );
 
+  // The PM portfolio — only when there is one, so a contractor's export does
+  // not grow two empty files. `?? []` because a payload built before these
+  // fields existed (or by a caller that omits them) must still export.
+  const managedProperties = p.managedProperties ?? [];
+  const workOrders = p.workOrders ?? [];
+  if (managedProperties.length > 0 || workOrders.length > 0) {
+    csvs.managedProperties = toCsv(
+      ['id', 'name', 'address', 'propertyType', 'units', 'ownerName', 'ownerPhone', 'ownerEmail', 'notes', 'createdAt', 'updatedAt'],
+      managedProperties.map(mp => [
+        mp.id, mp.name, mp.address ?? '', mp.propertyType ?? '', mp.units ?? '', mp.ownerName ?? '',
+        mp.ownerPhone ?? '', mp.ownerEmail ?? '', mp.notes ?? '', mp.createdAt, mp.updatedAt,
+      ]),
+    );
+    const propertyName = new Map(managedProperties.map(mp => [mp.id, mp.name]));
+    csvs.workOrders = toCsv(
+      ['id', 'propertyId', 'propertyName', 'title', 'description', 'category', 'priority', 'status', 'budget',
+        'assignedContactName', 'assignedAt', 'rfpId', 'completedAt', 'createdAt', 'updatedAt'],
+      workOrders.map(w => [
+        w.id, w.propertyId, propertyName.get(w.propertyId) ?? '', w.title, w.description ?? '', w.category ?? '',
+        w.priority, w.status, csvMoney(w.budget), w.assignedContactName ?? '', w.assignedAt ?? '',
+        w.rfpId ?? '', w.completedAt ?? '', w.createdAt, w.updatedAt,
+      ]),
+    );
+  }
+
   return csvs;
 }
 
@@ -426,7 +463,7 @@ const CSV_ENTITY_LABELS: Record<string, string> = {
   dailyReports: 'daily reports', punchItems: 'punch items', contacts: 'contacts', rfis: 'RFIs',
   submittals: 'submittals', photos: 'photo records', aiaPayApps: 'AIA pay apps',
   commitments: 'commitments / POs', fieldTickets: 'T&M field tickets', timeEntries: 'time entries',
-  safetyIncidents: 'safety incidents',
+  safetyIncidents: 'safety incidents', managedProperties: 'managed properties', workOrders: 'work orders',
 };
 
 /** The CSV set, named for a person — built from the files actually written,
@@ -567,6 +604,8 @@ export async function exportUserData(
     fieldTicketCount: payload.fieldTickets.length,
     timeEntryCount: payload.timeEntries.length,
     safetyIncidentCount: payload.safetyIncidents.length,
+    managedPropertyCount: payload.managedProperties.length,
+    workOrderCount: payload.workOrders.length,
     photoOnDeviceOnlyCount,
     photoLinksExpireAt,
     fileUris,
@@ -631,6 +670,10 @@ export function buildReadmeText(
   lines.push(`  T&M tickets:     ${payload.fieldTickets.length}`);
   lines.push(`  Time entries:    ${payload.timeEntries.length}`);
   lines.push(`  Safety incidents: ${payload.safetyIncidents.length}`);
+  if ((payload.managedProperties?.length ?? 0) > 0 || (payload.workOrders?.length ?? 0) > 0) {
+    lines.push(`  Managed properties: ${payload.managedProperties.length}`);
+    lines.push(`  Work orders:     ${payload.workOrders.length}`);
+  }
   lines.push(``);
   lines.push(`PHOTOS`);
   lines.push(``);
@@ -690,6 +733,10 @@ export function summarizeExport(s: DataExportSummary): string {
     `${s.fieldTicketCount} T&M tickets`,
     `${s.timeEntryCount} time entries`,
     `${s.safetyIncidentCount} safety incidents`,
+    // Only a Property Manager has a portfolio; nobody else reads "0 work orders".
+    ...((s.managedPropertyCount ?? 0) > 0 || (s.workOrderCount ?? 0) > 0
+      ? [`${s.managedPropertyCount} managed properties`, `${s.workOrderCount} work orders`]
+      : []),
   ];
   return `${parts.join(' · ')} (${sizeKb} KB)`;
 }

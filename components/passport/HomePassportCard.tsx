@@ -1,6 +1,10 @@
 // components/passport/HomePassportCard.tsx
 //
-// The homeowner's Home Passport — the permanent record of THEIR house.
+// The Home Passport card: the record a contractor compiles for a home from his
+// own jobs there, and shares with its owner as a copy. It is NOT an owner-kept
+// record: no owner account holds it, no other contractor's work is in it, and
+// the owner's in-app access ends with the job portal (Phase 0 honesty pass,
+// 2026-09-23). An owner-side property record is later work.
 // Presentational only: it renders a ConsumerPassport built by the pure engine
 // at utils/passport/consumerPassport.ts (tested by
 // scripts/validate-home-passport-consumer.ts).
@@ -14,7 +18,7 @@ import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import {
   House, ShieldCheck, FileCheck2, Package, CalendarClock, HardHat, ScrollText,
-  AlertTriangle, MapPin, BadgeCheck, Share2, Clock, Camera, type LucideIcon,
+  AlertTriangle, MapPin, BadgeCheck, Clock, Camera, type LucideIcon,
 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -122,7 +126,6 @@ export function HomePassportCard({
   maxPerSection = 4,
   maxAlerts = 3,
   showPayments = true,
-  onShare,
   onPressProject,
 }: {
   passport: ConsumerPassport;
@@ -131,8 +134,6 @@ export function HomePassportCard({
   maxAlerts?: number;
   /** Hide the owner's own spend (e.g. a shared/printed copy). */
   showPayments?: boolean;
-  /** Renders the "share with your next contractor" action when provided. */
-  onShare?: () => void;
   onPressProject?: (projectId: string) => void;
 }) {
   const { colors: t } = useTheme();
@@ -144,7 +145,7 @@ export function HomePassportCard({
 
   return (
     <View style={styles.wrap}>
-      {/* ── Identity: this is YOUR home ─────────────────────────────── */}
+      {/* ── Identity: the home this record is about ─────────────────── */}
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
           <House size={Tokens.iconSize.large.size} color={t.accent} strokeWidth={2} />
@@ -152,7 +153,7 @@ export function HomePassportCard({
         <View style={styles.heroText}>
           <Text style={styles.eyebrow}>Home Passport</Text>
           <Text style={styles.address} numberOfLines={2}>
-            {home.address || 'Your home'}
+            {home.address || 'Address not recorded'}
           </Text>
           <View style={styles.heroMetaRow}>
             <MapPin size={Tokens.iconSize.micro.size} color={t.textMuted} strokeWidth={2} />
@@ -167,8 +168,12 @@ export function HomePassportCard({
         </View>
       </View>
 
+      {/* Says who made it and what the owner gets. It used to claim the record
+          belonged to the owner and stayed with the house across contractors;
+          nothing keeps it for the owner, so it now says what is true. The
+          screen above it is the GC's, so the voice is third person. */}
       <Text style={styles.ownership}>
-        This record belongs to you. It stays with the house no matter who does the next job.
+        Compiled by the contractor from their own jobs at this address. A copy for the owner's home papers.
       </Text>
 
       {/* ── Needs attention ─────────────────────────────────────────── */}
@@ -359,20 +364,6 @@ export function HomePassportCard({
           <Text style={styles.paidValue}>{formatMoney(stats.totalPaid)}</Text>
         </View>
       ) : null}
-
-      {/* ── The wedge ───────────────────────────────────────────────── */}
-      {onShare ? (
-        <Pressable
-          onPress={onShare}
-          accessibilityRole="button"
-          accessibilityLabel="Share this home passport with a contractor"
-          testID="passport-share"
-          style={({ pressed }) => [styles.shareBtn, pressed ? styles.pressed : null]}
-        >
-          <Share2 size={Tokens.iconSize.small.size} color={t.accent} strokeWidth={2} />
-          <Text style={styles.shareText}>Share with your next contractor</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -469,21 +460,6 @@ const makeStyles = (t: ThemeColors) =>
     },
     paidLabel: { ...Type.footnote, color: t.textSecondary },
     paidValue: { ...Type.subheadEmphasized, color: t.text, fontVariant: ['tabular-nums'] },
-
-    shareBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Tokens.spacing.xs,
-      minHeight: Tokens.touchTarget.min,
-      paddingHorizontal: Tokens.spacing.md,
-      borderRadius: Tokens.radius.md,
-      ...Tokens.continuousCorners,
-      borderWidth: 1,
-      borderColor: t.accentSoft,
-      backgroundColor: t.accentSoft,
-    },
-    shareText: { ...Type.footnoteEmphasized, color: t.accentLabel },
   });
 
 export default HomePassportCard;

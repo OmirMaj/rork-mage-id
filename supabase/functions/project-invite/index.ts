@@ -286,6 +286,114 @@ async function inviterDisplayName(uid: string): Promise<string> {
   }
 }
 
+// ── the job's CLIENT is never a collaborator (Phase 0, lane B) ───────────────
+// A project_collaborators seat — even 'viewer' — reads the job's costs by
+// design (ROLE_LINE above; 20260826140000_project_financials_split.sql), and
+// 'field' still reads the crew's daily reports and time. So a GC who types his
+// homeowner's address into "Invite a collaborator" hands him margins, labour
+// and markup. The client already has his own door — the client portal, which
+// shows only the sections the GC switches on — so an address this job already
+// knows as the CLIENT is refused here, for every role, before the upsert.
+//
+// "The client" = any address the job itself records as the client side:
+//   • projects.primary_contact.email   (lead conversion, award_rfp)
+//   • projects.client_portal.invites[].email
+//   • invoices.bill_to_email on this project
+// Compared trimmed and lower-cased. A field that holds several addresses
+// ("a@x.com, b@x.com") is split, so a second address can't slip past.
+//
+// The pure part sits between the markers so
+// scripts/validate-collaborator-client-guard.ts can run it for real.
+// CLIENT-GUARD:BEGIN
+type ClientEmailSource = "primary_contact" | "portal_invite" | "bill_to";
+
+/** Every address in a free-text field, trimmed and lower-cased. */
+function emailsIn(v: unknown): string[] {
+  if (typeof v !== "string") return [];
+  // Angle brackets, quotes and parentheses split too: a display-name form
+  // like 'Dana <dana@x.com>' must yield dana@x.com, not '<dana@x.com>'.
+  return v.split(/[\s,;<>"'()]+/).map((s) => s.trim().toLowerCase()).filter((s) => s.includes("@"));
+}
+
+/** Where `email` appears as this job's client, or null when it doesn't. */
+function clientEmailSource(
+  email: string,
+  project: { primary_contact?: unknown; client_portal?: unknown } | null,
+  billToEmails: unknown[],
+): ClientEmailSource | null {
+  const target = (email || "").trim().toLowerCase();
+  if (!target) return null;
+  const pc = project?.primary_contact;
+  if (pc && typeof pc === "object" && emailsIn((pc as { email?: unknown }).email).includes(target)) {
+    return "primary_contact";
+  }
+  const cp = project?.client_portal;
+  const invites = cp && typeof cp === "object" ? (cp as { invites?: unknown }).invites : null;
+  if (Array.isArray(invites)) {
+    for (const inv of invites) {
+      if (inv && typeof inv === "object" && emailsIn((inv as { email?: unknown }).email).includes(target)) {
+        return "portal_invite";
+      }
+    }
+  }
+  for (const b of billToEmails) {
+    if (emailsIn(b).includes(target)) return "bill_to";
+  }
+  return null;
+}
+
+const CLIENT_SOURCE_LINE: Record<ClientEmailSource, string> = {
+  primary_contact: "is the client contact on this job",
+  portal_invite: "is invited to this job's client portal",
+  bill_to: "is the address this job's invoices are billed to",
+};
+
+/** The 200 answer (invoke() drops a non-2xx body, and this sentence is the
+ *  only thing that tells the GC why and what to do instead). */
+function clientRefusal(email: string, source: ClientEmailSource) {
+  return {
+    success: false,
+    code: "is_client",
+    source,
+    error: `${email} ${CLIENT_SOURCE_LINE[source]}. Collaborators can see the job's costs, margins and labour, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`,
+  };
+}
+// CLIENT-GUARD:END
+
+/** Reads what clientEmailSource needs. `ok:false` = a lookup failed; the
+ *  caller then refuses the invite (fail CLOSED — a blip must not let a client
+ *  through to the costs; the GC just taps Send again). */
+async function projectClientContext(projectId: string): Promise<
+  { ok: true; project: { primary_contact?: unknown; client_portal?: unknown } | null; billTo: unknown[] } | { ok: false; status: number }
+> {
+  const pr = await rest(`projects?id=eq.${encodeURIComponent(projectId)}&select=primary_contact,client_portal&limit=1`);
+  if (!pr.ok) return { ok: false, status: pr.status };
+  const project = ((await pr.json()) as { primary_contact?: unknown; client_portal?: unknown }[])[0] ?? null;
+  const iv = await rest(`invoices?project_id=eq.${encodeURIComponent(projectId)}&bill_to_email=not.is.null&select=bill_to_email`);
+  if (!iv.ok) return { ok: false, status: iv.status };
+  const billTo = ((await iv.json()) as { bill_to_email?: unknown }[]).map((r) => r.bill_to_email);
+  return { ok: true, project, billTo };
+}
+
+/** THE CLIENT CANNOT TAKE A SEAT EITHER (review round 1). The invite-time
+ *  check only sees who the job lists as its client AT INVITE TIME; a GC can
+ *  invite the homeowner first and record him as primary contact, portal
+ *  invitee or bill-to afterwards. So every accept re-checks, right before
+ *  markAccepted. Answers null when the seat may be taken. Fails closed like
+ *  the invite. The row is left pending, not revoked: the refusal is re-run on
+ *  every accept so it is inert, the homeowner keeps seeing the reason on his
+ *  card, and if the GC corrects a wrong client address the invite works. */
+async function clientSeatClosed(projectId: string, invitedEmail: string): Promise<Response | null> {
+  const ctx = await projectClientContext(projectId);
+  if (!ctx.ok) return json({ error: `Could not check this invite (${ctx.status}). Try again.` }, 502);
+  if (!clientEmailSource(invitedEmail, ctx.project, ctx.billTo)) return null;
+  return json({
+    success: false,
+    code: "is_client",
+    error: "This job lists you as its client, so its team seat is closed to you. Ask your contractor for the client portal link.",
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -313,6 +421,15 @@ serve(async (req) => {
     }
     if (!(await callerOwnsProject(projectId, caller.sub))) {
       return json({ error: "Only the project owner can invite collaborators" }, 403);
+    }
+    // THE CLIENT IS NEVER A COLLABORATOR (Phase 0 lane B — see
+    // clientEmailSource). First of the refusals, and before the upsert, the
+    // seat check and the email: no row, no link, no seat.
+    {
+      const ctx = await projectClientContext(projectId);
+      if (!ctx.ok) return json({ error: `Could not check who the client on this job is (${ctx.status}). Try again.` }, 502);
+      const source = clientEmailSource(email, ctx.project, ctx.billTo);
+      if (source) return json(clientRefusal(email, source));
     }
     // AN ACTIVE MEMBER IS NEVER RE-INVITED (audit round 2 #27). The upsert
     // below writes status 'pending' and a fresh token, and every RLS gate
@@ -478,6 +595,8 @@ serve(async (req) => {
           : `This invite was sent to ${maskEmail(row.invited_email)}, and your account has no email address. Sign in with the invited address to accept.`,
       });
     }
+    const closed = await clientSeatClosed(row.project_id, row.invited_email);
+    if (closed) return closed;
     const accepted = await markAccepted(row.id, caller.sub);
     if (!accepted.ok) return json({ error: `Could not accept (${accepted.status})` }, 502);
     return json({ success: true, projectId: row.project_id });
@@ -542,6 +661,8 @@ serve(async (req) => {
     if (!row || !caller.email || row.invited_email.toLowerCase() !== caller.email) {
       return json({ success: false, code: "invalid_or_used", error: "This invite is no longer waiting for you. Pull down to refresh." });
     }
+    const closed = await clientSeatClosed(row.project_id, row.invited_email);
+    if (closed) return closed;
     const accepted = await markAccepted(row.id, caller.sub);
     if (!accepted.ok) return json({ error: `Could not accept (${accepted.status})` }, 502);
     return json({ success: true, projectId: row.project_id });
@@ -578,10 +699,27 @@ serve(async (req) => {
       const cur = await rest(
         `project_collaborators?id=eq.${encodeURIComponent(collaboratorId)}&select=invited_email,role&limit=1`,
       );
-      const curRows = cur.ok ? (await cur.json()) as { invited_email: string; role: string }[] : [];
+      // Fail CLOSED. This read is what both checks below stand on: with it
+      // unread, `target` was undefined, the client check and the seat check
+      // were both skipped, and the unconditional PATCH promoted the row into
+      // a cost-reading role. The invite and accept guards already refuse on a
+      // failed read; a promotion is an invite and does the same.
+      if (!cur.ok) return json({ error: `Could not check this seat (${cur.status}). Try again.` }, 502);
+      const curRows = (await cur.json()) as { invited_email: string; role: string }[];
       const target = curRows[0];
+      if (!target) return json({ error: "That collaborator is no longer on this project." }, 404);
+      if (!own.projectId) return json({ error: "Could not check this seat. Try again." }, 502);
+      // A client row can only predate the invite guard; it must not be
+      // PROMOTED into a role that reads costs. (Moving one down to field is
+      // allowed — that reduces what he sees; removing him is revoke's job.)
+      {
+        const ctx = await projectClientContext(own.projectId);
+        if (!ctx.ok) return json({ error: `Could not check who the client on this job is (${ctx.status}). Try again.` }, 502);
+        const source = clientEmailSource(target.invited_email ?? "", ctx.project, ctx.billTo);
+        if (source) return json(clientRefusal(target.invited_email, source));
+      }
       // Only charge-check when this is actually an UPGRADE into a billable role.
-      if (target && !isBillableRole(target.role)) {
+      if (!isBillableRole(target.role)) {
         const seat = await seatCheck(caller.sub, target.invited_email ?? "");
         if (!seat.allowed) {
           return json({

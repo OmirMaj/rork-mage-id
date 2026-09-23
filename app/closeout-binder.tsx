@@ -18,10 +18,21 @@
 //
 // The portal snapshot only emits the binder block when status ∈
 // {finalized, sent}, so flipping the toggle is what makes it appear.
+//
+// "Shared with your client" (Phase 0, founder decision 5): two per-job
+// switches — supplier names, trade contacts — stored on the job's portal
+// settings (ClientPortalSettings.shareSupplierNames / shareTradeContacts) and
+// read everywhere through utils/passport/ownerSharing. Both default OFF. They
+// govern what MAGE shows the owner: the portal's closeout block, the Home
+// Passport (docs Ask Your Home retrieves, and the pre-answered FAQ) and the
+// Home Passport screen's shared copy, and the closeout binder PDF (the owner's
+// handover document — utils/closeoutBinderEngine drops the Supplier column and
+// the Phone/Email cells unless the switch is on). Ask Your Home enforces them
+// server-side from the live switch (portal-ask-home/sharingFilter.ts).
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Switch,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,6 +73,7 @@ import type {
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { buildHomePassport } from '@/utils/passport/buildHomePassport';
 import type { BakedFaqEntry, BakedHomePassport } from '@/utils/passport/types';
+import { ownerSharingFor, type OwnerSharing } from '@/utils/passport/ownerSharing';
 import { loadBakedPassport, saveBakedPassport } from '@/utils/passport/passportStore';
 import { syncMemoryEmbeddings, answerFromMemory, type MemoryDoc } from '@/utils/projectMemory';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -209,7 +221,11 @@ export default function CloseoutBinderScreen() {
   //    passport docs ONLY (never the full project index — change orders /
   //    punch items stay contractor-internal) and baked to AsyncStorage;
   //    the next snapshot push carries it to the portal (v9).
-  const runPassportGeneration = useCallback(async () => {
+  //
+  // `sharingOverride`: the owner-sharing switches to build under. A switch
+  // flip passes the NEW value because `project` in this closure still holds
+  // the old portal settings until the provider re-renders.
+  const runPassportGeneration = useCallback(async (sharingOverride?: OwnerSharing) => {
     if (!project || passportBusy) return;
     if (!canAccess('client_portal')) {
       router.push('/paywall');
@@ -219,6 +235,7 @@ export default function CloseoutBinderScreen() {
     setPassportStep('Assembling home records…');
     try {
       const generatedAt = new Date().toISOString();
+      const sharing = sharingOverride ?? ownerSharingFor(project.clientPortal);
       const projectCommitments = (commitments ?? []).filter((c: any) => c.projectId === project.id);
       const projectWarranties = (warranties ?? []).filter((w: any) => w.projectId === project.id);
       const projectPhotosArr = (projectPhotos ?? []).filter((p: any) => p.projectId === project.id);
@@ -231,6 +248,7 @@ export default function CloseoutBinderScreen() {
         photos: projectPhotosArr,
         maintenance,
         generatedAt,
+        sharing,
       });
       if (passport.docs.length === 0) {
         showAlert(
@@ -248,7 +266,25 @@ export default function CloseoutBinderScreen() {
         date: d.date,
         text: d.text,
       }));
-      await syncMemoryEmbeddings(project.id, memoryDocs);
+      // Diff-only, never a prune (validate-project-memory-sync pins it). The
+      // index therefore CAN hold a supplier or sub-contact doc written while a
+      // switch was on; that is safe because portal-ask-home drops those docs
+      // at answer time unless the job's live switch is on
+      // (supabase/functions/portal-ask-home/sharingFilter.ts). The index is
+      // not what keeps a switched-off fact from the owner.
+      const indexStatus = await syncMemoryEmbeddings(project.id, memoryDocs);
+      if (!indexStatus.ok) {
+        // The index did not take the new docs (offline, monthly cap, rate
+        // limit). Keep the previous bake exactly as it was — its recorded
+        // `sharing` keeps the "built under different settings" hint up and
+        // the portal holding its FAQ back — and say so, rather than save a
+        // bake that claims a rebuild that did not reach Ask Your Home.
+        showAlert(
+          'Ask Your Home not updated',
+          `The home records could not be indexed${indexStatus.reason ? ` (${indexStatus.reason})` : ''}, so the passport was left as it was. Check your connection and tap Generate again.`,
+        );
+        return;
+      }
 
       const faq: BakedFaqEntry[] = [];
       let consecutiveFailures = 0;
@@ -265,7 +301,9 @@ export default function CloseoutBinderScreen() {
         }
       }
 
-      const baked: BakedHomePassport = { faq, summary: passport.summary, generatedAt };
+      // `sharing` rides the bake so the portal can refuse to show FAQ prose
+      // written under settings the GC has since switched off.
+      const baked: BakedHomePassport = { faq, summary: passport.summary, generatedAt, sharing };
       await saveBakedPassport(project.id, baked);
       setPassportBaked(baked);
       // The baked passport rides the next snapshot publish (#12).
@@ -280,6 +318,31 @@ export default function CloseoutBinderScreen() {
       setPassportStep('');
     }
   }, [project, passportBusy, canAccess, router, commitments, warranties, projectPhotos, selections, subcontractors, maintenance, requestPortalPublish]);
+
+  // ── Shared with your client (Phase 0, founder decision 5) ─────────
+  // Off unless the GC turns it on for THIS job. Stored on the job's portal
+  // settings, so a job with no portal has nowhere to store it — the switches
+  // are then disabled with the reason, and nothing is shared.
+  const ownerSharing = ownerSharingFor(project?.clientPortal);
+  const hasPortal = !!project?.clientPortal;
+  const setOwnerSharing = useCallback((key: keyof OwnerSharing, value: boolean) => {
+    const cp = project?.clientPortal;
+    if (!project || !cp || passportBusy) return;
+    const field = key === 'supplierNames' ? 'shareSupplierNames' : 'shareTradeContacts';
+    ctxUpdateProject(project.id, { clientPortal: { ...cp, [field]: value } });
+    // The portal's closeout block is rebuilt from the saved switch on the
+    // next publish; ask for one now rather than on the next unrelated edit.
+    (requestPortalPublish as (id: string) => void)(project.id);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+    // An already-generated passport was indexed (and its FAQ written) under
+    // the old setting. Rebuild it under the new one so Ask Your Home and the
+    // FAQ stop carrying what was just switched off. Without access to run it,
+    // the portal still holds the old FAQ back (bakedSharingAllowed) and the
+    // card below says to regenerate.
+    if (passportBaked && canAccess('client_portal')) {
+      void runPassportGeneration({ ...ownerSharing, [key]: value });
+    }
+  }, [project, passportBusy, ctxUpdateProject, requestPortalPublish, passportBaked, canAccess, runPassportGeneration, ownerSharing]);
 
   const handleFinalize = useCallback(() => {
     showAlert(
@@ -438,6 +501,10 @@ export default function CloseoutBinderScreen() {
         submittals: projectSubmittals,
         warranties: warranties ?? [],
         lienWaivers,
+        // Founder decision 5: the binder is the owner's handover document, so
+        // supplier names and sub phone/email print only when the GC switched
+        // them on for this job — the same two switches as the portal.
+        sharing: ownerSharingFor(project.clientPortal),
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
@@ -658,7 +725,7 @@ export default function CloseoutBinderScreen() {
       <FeatureHeader
         eyebrow="Closeout Binder"
         title="Everything the client gets at the end"
-        subtitle="Warranties, manuals, paint colors, sub contacts, as-builts — all bundled into one PDF binder you hand over on closeout day."
+        subtitle="Warranties, manuals, paint colors, the trades who did the work, as-builts — all bundled into one PDF binder you hand over on closeout day."
         explainer={{
           term: 'Closeout Binder',
           definition: 'The closeout binder is the package of everything the client needs to operate what you built: warranty docs from each manufacturer, operating manuals for installed equipment, paint colors and finishes for touch-ups, sub contact info for warranty claims, and as-built drawings showing what was actually built (not just what was designed).',
@@ -707,12 +774,63 @@ export default function CloseoutBinderScreen() {
             </Text>
             <View style={styles.previewList}>
               <PreviewRow label="Finishes & fixtures" value={`${selectionsCount} chosen`} />
-              <PreviewRow label="Subcontractor contacts" value={`${projectCommitmentsCount} commitments`} />
+              <PreviewRow label="Trades" value={`${projectCommitmentsCount} commitments`} />
               <PreviewRow label="Warranties" value={`${projectWarrantiesCount} on file`} />
               <PreviewRow label="Maintenance schedule" value={`${maintenance.length} items`} />
             </View>
             {selectionsCount === 0 && projectCommitmentsCount === 0 && projectWarrantiesCount === 0 && (
               <Text style={styles.emptyHint}>Tip: even with no data yet, your maintenance schedule and personal note still go into the binder. You can deliver a partial binder now and re-deliver as the project closes out.</Text>
+            )}
+          </View>
+
+          {/* Shared with your client — the two owner-sharing switches. */}
+          <View style={styles.card} testID="owner-sharing-card">
+            <Text style={styles.cardLabel}>Shared with your client</Text>
+            <Text style={styles.cardHelper}>
+              Brand, model and serial numbers always show. These two are yours to share, job by job, and both start off. Each one also covers the binder PDF you export.
+            </Text>
+            {([
+              { key: 'supplierNames', title: 'Supplier names', desc: 'Where each finish and selection option comes from, and the suppliers you ordered from. Covers the client portal, the Home Passport, Ask Your Home and the binder PDF.' },
+              { key: 'tradeContacts', title: 'Trade contacts', desc: 'Each sub\u2019s contact name, phone and email, in the Home Passport, Ask Your Home and the binder PDF. Off, your client sees the company and what they did, and calls you. The client portal never lists a sub\u2019s phone or email.' },
+            ] as const).map(row => (
+              <View key={row.key} style={styles.shareRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.shareRowTitle}>{row.title}</Text>
+                  <Text style={styles.shareRowDesc}>{row.desc}</Text>
+                </View>
+                <Switch
+                  value={ownerSharing[row.key]}
+                  disabled={!hasPortal || passportBusy}
+                  onValueChange={v => setOwnerSharing(row.key, v)}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  accessibilityLabel={`Share ${row.title.toLowerCase()} with your client`}
+                  testID={`owner-sharing-${row.key}`}
+                />
+              </View>
+            ))}
+            {!hasPortal && (
+              <>
+                <Text style={styles.emptyHint}>
+                  Set up the client portal for this job to choose. Until then, neither is shared.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.smallBtn, { alignSelf: 'flex-start', marginTop: 8 }]}
+                  onPress={() => router.push({ pathname: '/client-portal-setup', params: { id: project.id } })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Set up the client portal"
+                >
+                  <Text style={styles.smallBtnText}>Set up client portal</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {/* A bake records the switches it was built under; one from before
+                the switches existed has none and was built with everything in. */}
+            {hasPortal && passportBaked && !passportBusy
+              && (passportBaked.sharing?.supplierNames !== ownerSharing.supplierNames
+                || passportBaked.sharing?.tradeContacts !== ownerSharing.tradeContacts) && (
+              <Text style={styles.emptyHint}>
+                Your Home Passport was built under different settings. Ask Your Home already follows these; re-generate it below so the pre-answered FAQ does too.
+              </Text>
             )}
           </View>
 
@@ -1203,6 +1321,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
   cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
   cardHelper: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
+  shareRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: themeColors.line },
+  shareRowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: themeColors.text },
+  shareRowDesc: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17, marginTop: 2 },
 
   smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: themeColors.accent + '0D', borderWidth: 1, borderColor: themeColors.accent + '30' },
   smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: themeColors.accent },
