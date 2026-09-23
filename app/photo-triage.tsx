@@ -26,7 +26,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Camera, ImagePlus, X, Trash2, ChevronLeft,
-  AlertCircle, ClipboardList, MessageSquare, FileText, Image as ImageIcon, Sparkle,
+  AlertCircle, ClipboardList, MessageSquare, FileText, Image as ImageIcon, Sparkle, Lock,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -36,6 +36,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   type PunchItem, type PunchItemPriority, type SubTrade, type DailyFieldReport, type RFI,
+  type DFRPhoto, type ProjectPhoto,
 } from '@/types';
 import { triagePhotos, type AiTriageEntry, type AiTriageClass } from '@/utils/photoAnalyzer';
 import { generateUUID } from '@/utils/generateId';
@@ -44,11 +45,40 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import Paywall from '@/components/Paywall';
+import { showAiRefusal } from '@/utils/quotaPrecheck';
+import { isDeviceLocalUri } from '@/utils/photoUploadCore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { toCalendarDayString, addCalendarDays, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
+
+interface PickedPhoto { uri: string; id: string; fromProject?: boolean }
+
+interface ReviewEntry extends AiTriageEntry {
+  // Local id keyed for the review list.
+  id: string;
+  // The source photo.
+  photoUri: string;
+  // The gallery photo (photos.id) this entry was raised from — set only when
+  // it was picked FROM the project. Its uri is a device-local file on the
+  // phone that shot it and a 24-hour signed URL everywhere else, so the uri
+  // alone can neither find the photo's markup nor outlive tomorrow (#69).
+  sourcePhotoId?: string;
+  // User overrides — start as a copy of the AI fields.
+  editedClassification: AiTriageClass;
+  editedTitle: string;
+  editedLocation: string;
+  // Track the dropped state so we can animate or just hide.
+  discarded?: boolean;
+}
+
+// >>> photo-triage-apply
+// Pure: every record Apply writes is built here, from the reviewed entries,
+// the project's gallery and whether he may create punch items at all, so
+// scripts/validate-w5-photo-ai-triage.ts can run it. The one impure input,
+// isDeviceLocalUri, is utils/photoUploadCore's.
 
 // Same trade mapping used in ai-punch.tsx — funnels the loose AI string
 // to the strict SubTrade enum without losing signal.
@@ -70,20 +100,202 @@ function aiTradeToSubTrade(aiTrade: string): SubTrade {
   return 'General';
 }
 
-interface PickedPhoto { uri: string; id: string; fromProject?: boolean }
-
-interface ReviewEntry extends AiTriageEntry {
-  // Local id keyed for the review list.
-  id: string;
-  // The source photo.
+/** What Apply needs of a reviewed entry. */
+interface TriageApplyEntry {
   photoUri: string;
-  // User overrides — start as a copy of the AI fields.
-  editedClassification: AiTriageClass;
+  sourcePhotoId?: string;
+  title: string;
   editedTitle: string;
+  location?: string;
   editedLocation: string;
-  // Track the dropped state so we can animate or just hide.
-  discarded?: boolean;
+  trade: string;
+  priority: string;
+  rationale?: string;
 }
+
+/** The durable half of a gallery photo. */
+type TriageGalleryPhoto = Pick<ProjectPhoto, 'id' | 'uri' | 'storagePath' | 'localUri'>;
+
+interface TriageRecordsInput {
+  projectId: string;
+  punch: TriageApplyEntry[];
+  rfi: TriageApplyEntry[];
+  dfr: TriageApplyEntry[];
+  progress: TriageApplyEntry[];
+  /** punch_list_closeout on THIS project (own tier or the invite). */
+  canPunch: boolean;
+  gallery: TriageGalleryPhoto[];
+  submittedBy: string;
+  nowIso: string;
+  /** Calendar day a week out — RFI.dateRequired is a day, not an instant. */
+  rfiDueDay: string;
+  newId: () => string;
+}
+
+interface TriageRecords {
+  punchItems: PunchItem[];
+  rfis: RFI[];
+  /** One bullet per observation for today's draft daily report. */
+  dfrLines: string[];
+  dfrPhotos: DFRPhoto[];
+  /** Punch findings filed as daily-report observations because Punch List
+   *  isn't on his plan for this job (#41). */
+  punchRefiled: number;
+  /** DFR observations, INCLUDING the refiled punch findings. */
+  dfrObservations: number;
+  progressPhotos: ProjectPhoto[];
+}
+
+function buildTriageRecords(input: TriageRecordsInput): TriageRecords {
+  const { projectId, canPunch, nowIso, newId } = input;
+  const galleryById = new Map(input.gallery.map(g => [g.id, g] as const));
+  const sourceOf = (e: TriageApplyEntry) => (e.sourcePhotoId ? galleryById.get(e.sourcePhotoId) : undefined);
+
+  // #41: a Pro seat can triage, but Punch List is Business. Punch rows made
+  // here landed in a list he is paywalled from, under an alert telling him to
+  // review them. Without punch access nothing is written to punch_items: the
+  // findings go into today's daily report, where he can read and act on them,
+  // and the summary says so.
+  const punchItems: PunchItem[] = !canPunch ? [] : input.punch.map(e => {
+    const tradeLabel = aiTradeToSubTrade(e.trade);
+    const src = sourceOf(e);
+    return {
+      id: newId(),
+      projectId,
+      description: e.editedTitle || e.title,
+      location: e.editedLocation || e.location || '',
+      assignedSub: tradeLabel === 'General' || tradeLabel === 'Other' ? '' : tradeLabel,
+      dueDate: '',
+      priority: ((['low', 'medium', 'high'].includes(e.priority) ? e.priority : 'medium') as PunchItemPriority),
+      status: 'open',
+      photoUri: e.photoUri || undefined,
+      // #69: the gallery photo it was raised from — how every device finds
+      // its markup, and how stagePunchPhoto trades a signed URL for the path.
+      ...(e.photoUri && e.sourcePhotoId ? { sourcePhotoId: e.sourcePhotoId } : {}),
+      // …and when the uri is a signed link (web, the office), its bytes are
+      // already in the bucket: point at them, so the row stores the durable
+      // path, never the 24-hour link. On the phone that shot it (a local
+      // file) the punch keeps its OWN copy under punch-<id>, as today:
+      // deleteProjectPhoto frees the gallery object once no daily report
+      // holds it and does not look at punch items, so a shared object could
+      // be deleted out from under the punch photo.
+      ...(e.photoUri && src?.storagePath && !isDeviceLocalUri(e.photoUri)
+        ? { photoStoragePath: src.storagePath }
+        : {}),
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+  });
+
+  // RFIs — `number` is a placeholder addRFIs overrides from its advancing
+  // per-project counter. The attachment stays the uri, as app/rfi.tsx writes
+  // one from a gallery photo: that screen does not sign project-photos paths,
+  // it renders attachment 0 through sourcePhotoId (the source photo's CURRENT
+  // uri and markup), so the id is what outlives the link.
+  const rfis: RFI[] = input.rfi.map(e => ({
+    id: newId(),
+    number: 0,
+    projectId,
+    subject: e.editedTitle || e.title,
+    question: e.rationale || e.title,
+    submittedBy: input.submittedBy,
+    assignedTo: '',
+    dateSubmitted: nowIso,
+    dateRequired: input.rfiDueDay,
+    status: 'open',
+    priority: e.priority === 'high' ? 'urgent' : e.priority === 'low' ? 'low' : 'normal',
+    attachments: e.photoUri ? [e.photoUri] : [],
+    ...(e.sourcePhotoId && e.photoUri ? { sourcePhotoId: e.sourcePhotoId } : {}),
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  }));
+
+  const dfrEntries = canPunch ? input.dfr : [...input.dfr, ...input.punch];
+  const dfrLines = dfrEntries.map(e => `• ${e.editedTitle || e.title}${e.editedLocation ? ` (${e.editedLocation})` : ''}`);
+  // #69: a gallery photo goes into the report as ITSELF — same id, same
+  // storage path — so dfrPhotoRows writes the durable path, the "same ids"
+  // dedupe in stageDfrPhotos holds, and nothing is uploaded twice. Only a
+  // camera / camera-roll pick gets a fresh id. One photo triaged twice into
+  // the batch is added once.
+  const dfrPhotos: DFRPhoto[] = [];
+  const seen = new Set<string>();
+  for (const e of dfrEntries) {
+    if (!e.photoUri) continue;
+    const src = sourceOf(e);
+    const photo: DFRPhoto = src
+      ? {
+          id: src.id,
+          uri: src.uri || e.photoUri,
+          ...(src.storagePath ? { storagePath: src.storagePath } : {}),
+          ...(src.localUri ? { localUri: src.localUri } : {}),
+          timestamp: nowIso,
+        }
+      : { id: newId(), uri: e.photoUri, timestamp: nowIso };
+    if (seen.has(photo.id)) continue;
+    seen.add(photo.id);
+    dfrPhotos.push(photo);
+  }
+
+  // Progress — a photo picked FROM the project is already in it; keyed on
+  // its gallery id (the uri of the same photo differs per device and per
+  // session), with the uri as a second net for a pick that carries no id.
+  const alreadyInProject = new Set<string>(
+    input.gallery.flatMap(g => [g.uri, g.localUri].filter(Boolean) as string[]),
+  );
+  const progressPhotos: ProjectPhoto[] = [];
+  for (const e of input.progress) {
+    if (!e.photoUri || e.sourcePhotoId || alreadyInProject.has(e.photoUri)) continue;
+    progressPhotos.push({
+      id: newId(),
+      projectId,
+      uri: e.photoUri,
+      timestamp: nowIso,
+      createdAt: nowIso,
+      tag: 'Progress',
+      ...(e.editedLocation ? { location: e.editedLocation } : {}),
+    } as ProjectPhoto);
+    alreadyInProject.add(e.photoUri);
+  }
+
+  return {
+    punchItems,
+    rfis,
+    dfrLines,
+    dfrPhotos,
+    punchRefiled: canPunch ? 0 : input.punch.length,
+    dfrObservations: dfrEntries.length,
+    progressPhotos,
+  };
+}
+
+/** Photos already on a draft plus the new ones, each id once. */
+function mergeDfrPhotos(existing: DFRPhoto[], added: DFRPhoto[]): DFRPhoto[] {
+  const ids = new Set(existing.map(p => p.id));
+  return [...existing, ...added.filter(p => !ids.has(p.id))];
+}
+
+/**
+ * The success alert: where each record really went, in words that name a
+ * place he can open (#41 — "Review them on the project screen" pointed a Pro
+ * user at a Punch List he is paywalled from).
+ */
+function triageSummary(r: {
+  punch: number; rfi: number; dfrObservations: number; punchRefiled: number; progress: number;
+}): string {
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const lines = [
+    r.punch > 0 ? `• ${plural(r.punch, 'punch item', 'punch items')} — in the project's Punch List` : null,
+    r.rfi > 0 ? `• ${plural(r.rfi, 'RFI', 'RFIs')} — in the project's RFIs, open and not sent yet` : null,
+    r.dfrObservations > 0 ? `• ${plural(r.dfrObservations, 'observation', 'observations')} — in today's draft daily report` : null,
+    r.progress > 0 ? `• ${plural(r.progress, 'progress photo', 'progress photos')} — in the project's Photos` : null,
+  ].filter(Boolean) as string[];
+  if (lines.length === 0) return 'Nothing to apply — every entry was discarded or classified as noise.';
+  const refiled = r.punchRefiled > 0
+    ? `\n\n${plural(r.punchRefiled, 'punch finding was', 'punch findings were')} filed as daily-report observations — Punch List is on Business.`
+    : '';
+  return `${lines.join('\n')}${refiled}`;
+}
+// <<< photo-triage-apply
 
 const CLASS_META: Record<AiTriageClass, { label: string; icon: React.FC<{ size: number; color: string }>; helper: string }> = {
   punch:    { label: 'Punch list',  icon: ClipboardList, helper: 'Becomes a punch item' },
@@ -134,6 +346,11 @@ function PhotoTriageInner() {
     addProjectPhoto,
   } = useProjects();
   const { tier } = useSubscription();
+  // #41: Photo Triage is Pro (photo_documentation), Punch List is Business.
+  // Project-scoped, so a teammate invited to a Business owner's job still
+  // raises punch items there; read-only (the gate lives in the hook).
+  const { canAccess: canAccessOnProject } = useProjectAccess(projectId);
+  const canPunch = canAccessOnProject('punch_list_closeout');
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
   const projectPhotos = useMemo(() => projectId ? getPhotosForProject(projectId) : [], [projectId, getPhotosForProject]);
@@ -209,25 +426,36 @@ function PhotoTriageInner() {
         projectType: project?.type,
       });
       await recordAIUsage('smart', 'photoAnalysis');
-      const reviewable: ReviewEntry[] = entries.map(e => ({
-        ...e,
-        id: `rev-${generateUUID()}`,
-        photoUri: pickedPhotos[Math.min(e.photoIndex, pickedPhotos.length - 1)]?.uri ?? '',
-        editedClassification: e.classification,
-        editedTitle: sentenceCase(e.title),
-        editedLocation: titleCase(e.location || ''),
-      }));
+      const reviewable: ReviewEntry[] = entries.map(e => {
+        // The picked photo, taken once: its uri and — when it came from the
+        // project gallery — its id travel together (#69).
+        const src = pickedPhotos[Math.min(e.photoIndex, pickedPhotos.length - 1)];
+        return {
+          ...e,
+          id: `rev-${generateUUID()}`,
+          photoUri: src?.uri ?? '',
+          sourcePhotoId: src?.fromProject ? src.id : undefined,
+          editedClassification: e.classification,
+          editedTitle: sentenceCase(e.title),
+          editedLocation: titleCase(e.location || ''),
+        };
+      });
       if (reviewable.length === 0) {
         setError("AI couldn't classify those photos. Try shots closer to the work or with better lighting.");
       }
       setReviewEntries(reviewable);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      setError(`Analysis failed: ${(err as Error).message}`);
+      // #124: a cap, a plan refusal or the hourly limit is the server's own
+      // sentence (a plan refusal also offers See plans) — never "Analysis
+      // failed: Edge Function returned a non-2xx status code", and never an
+      // invitation to run the same batch again.
+      const refusal = showAiRefusal(err, router);
+      setError(refusal ?? `Analysis failed: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }
-  }, [pickedPhotos, project, tier]);
+  }, [pickedPhotos, project, tier, router]);
 
   // ── Apply: route each kept entry to its destination ────────────
   const grouped = useMemo(() => {
@@ -244,88 +472,45 @@ function PhotoTriageInner() {
     if (applying || applied) return;
     setApplying(true);
 
-    let punchAdded = 0;
-    let rfiAdded = 0;
-    let dfrAdded = 0;
-    let progressAdded = 0;
-
     try {
-      // Punch items — direct insert, status=open by default. The trade
-      // is captured via assignedSub free-text (the model has no enum
-      // for trade on the punch item itself); assignedSubId stays empty
-      // until the GC routes it to a specific sub. Build the whole array
-      // and insert in ONE batch call — the single-add path read the
-      // punch list from a stale render closure per iteration, so only
-      // the last item survived locally.
-      const punchItems: PunchItem[] = grouped.punch.map(e => {
-        const tradeLabel = aiTradeToSubTrade(e.trade);
-        const now = new Date().toISOString();
-        return {
-          id: generateUUID(),
-          projectId: project.id,
-          description: e.editedTitle || e.title,
-          location: e.editedLocation || e.location || '',
-          assignedSub: tradeLabel === 'General' || tradeLabel === 'Other' ? '' : tradeLabel,
-          dueDate: '',
-          priority: ((['low', 'medium', 'high'].includes(e.priority) ? e.priority : 'medium') as PunchItemPriority),
-          status: 'open',
-          photoUri: e.photoUri || undefined,
-          createdAt: now,
-          updatedAt: now,
-        };
-      });
-      addPunchItems(punchItems);
-      punchAdded = punchItems.length;
-
-      // RFIs — open status, blank assignedTo (the GC fills this when sending).
-      // Build the whole array and insert in ONE batch call. We do NOT compute
-      // `number` here: addRFIs assigns SEQUENTIAL per-project numbers off an
-      // advancing counter (the single-add path recomputed from a stale closure,
-      // so every RFI collided on the same number and only the last survived).
-      // `number` below is a placeholder the batch overrides.
-      // B4 review A2: RFI.dateRequired is a CALENDAR DAY (this writer, the
-      // voice parsers and DatePickerModal's noon-UTC instant all name a day,
-      // and every reader resolves it parseCalendarDay-first). This used to be
-      // `toISOString().slice(0, 10)` — the UTC day, i.e. tomorrow from ~6 pm
-      // anywhere west of Greenwich. dateSubmitted is the instant the RFI was
-      // created, like app/rfi.tsx writes it.
+      // Every record is built in one pure pass (the photo-triage-apply block
+      // above): punch rows only with Punch List access, gallery photos
+      // carried by id + storage path, the summary naming real destinations.
       const now = new Date().toISOString();
-      const oneWeek = toCalendarDayString(addCalendarDays(new Date(), 7));
-      const rfis: RFI[] = grouped.rfi.map(e => {
-        return {
-          id: generateUUID(),
-          number: 0,
-          projectId: project.id,
-          subject: e.editedTitle || e.title,
-          question: e.rationale || e.title,
-          submittedBy: settings?.branding?.contactName || settings?.branding?.companyName || 'Project Team',
-          assignedTo: '',
-          dateSubmitted: now,
-          dateRequired: oneWeek,
-          status: 'open',
-          priority: e.priority === 'high' ? 'urgent' : e.priority === 'low' ? 'low' : 'normal',
-          attachments: e.photoUri ? [e.photoUri] : [],
-          createdAt: now,
-          updatedAt: now,
-        };
+      const records = buildTriageRecords({
+        projectId: project.id,
+        punch: grouped.punch,
+        rfi: grouped.rfi,
+        dfr: grouped.dfr,
+        progress: grouped.progress,
+        canPunch,
+        gallery: projectPhotos,
+        submittedBy: settings?.branding?.contactName || settings?.branding?.companyName || 'Project Team',
+        nowIso: now,
+        // B4 review A2: RFI.dateRequired is a CALENDAR DAY (this writer, the
+        // voice parsers and DatePickerModal's noon-UTC instant all name a day,
+        // and every reader resolves it parseCalendarDay-first). This used to be
+        // `toISOString().slice(0, 10)` — the UTC day, i.e. tomorrow from ~6 pm
+        // anywhere west of Greenwich. dateSubmitted is the instant the RFI was
+        // created, like app/rfi.tsx writes it.
+        rfiDueDay: toCalendarDayString(addCalendarDays(new Date(), 7)),
+        newId: generateUUID,
       });
-      addRFIs(rfis);
-      rfiAdded = rfis.length;
 
-      // DFR — collapse all DFR-classified entries into a single draft
-      // daily report for today. workPerformed gets the bulleted list
-      // of observations; photos array gets stamped with each source
-      // photo. The GC opens the draft, fills in weather + manpower,
-      // and ships it.
-      if (grouped.dfr.length > 0) {
-        const workLines = grouped.dfr.map(e => `• ${e.editedTitle || e.title}${e.editedLocation ? ` (${e.editedLocation})` : ''}`);
-        const dfrPhotos = grouped.dfr
-          .filter(e => !!e.photoUri)
-          .map(e => ({
-            id: generateUUID(),
-            uri: e.photoUri,
-            timestamp: new Date().toISOString(),
-          }));
+      // Punch items — ONE batch call. The single-add path read the punch list
+      // from a stale render closure per iteration, so only the last item
+      // survived locally. Never called without Punch List access (#41).
+      if (records.punchItems.length > 0) addPunchItems(records.punchItems);
+
+      // RFIs — ONE batch call: addRFIs assigns SEQUENTIAL per-project numbers
+      // off an advancing counter (the single-add path recomputed from a stale
+      // closure, so every RFI collided on the same number).
+      if (records.rfis.length > 0) addRFIs(records.rfis);
+
+      // DFR — every observation (and, without Punch List, every punch
+      // finding) into a single draft daily report for today. The GC opens the
+      // draft, fills in weather + manpower, and ships it.
+      if (records.dfrLines.length > 0) {
         // Merge into today's existing DRAFT report if there is one, rather than
         // always stamping out a fresh DFR — otherwise triaging twice in a day
         // (or a double-tap) leaves multiple draft reports for the same date.
@@ -339,10 +524,12 @@ function PhotoTriageInner() {
           .find(dr => dr.status === 'draft' && calendarDayOf(dr.date) === todayKey);
         if (existingDraft) {
           updateDailyReport(existingDraft.id, {
-            workPerformed: [existingDraft.workPerformed, workLines.join('\n')]
+            workPerformed: [existingDraft.workPerformed, records.dfrLines.join('\n')]
               .filter(s => s && s.trim().length > 0).join('\n'),
-            photos: [...existingDraft.photos, ...dfrPhotos],
-            updatedAt: new Date().toISOString(),
+            // A gallery photo keeps its own id, so one already on the draft
+            // is not added a second time.
+            photos: mergeDfrPhotos(existingDraft.photos ?? [], records.dfrPhotos),
+            updatedAt: now,
           });
         } else {
           const dfr: DailyFieldReport = {
@@ -351,66 +538,38 @@ function PhotoTriageInner() {
             date: now,
             weather: { temperature: '', conditions: '', wind: '', isManual: false },
             manpower: [],
-            workPerformed: workLines.join('\n'),
+            workPerformed: records.dfrLines.join('\n'),
             materialsDelivered: [],
             issuesAndDelays: '',
-            photos: dfrPhotos,
+            photos: records.dfrPhotos,
             status: 'draft',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
           };
           addDailyReport(dfr);
         }
-        dfrAdded = grouped.dfr.length;
       }
 
-      // PROGRESS — the bucket this screen labels "Saved as a progress photo",
-      // gives a success-green badge, and lets him select per photo. It was
-      // built (`grouped.progress`), rendered, and never consumed:
-      // `addProjectPhoto` appeared ZERO times in this file while five sibling
-      // capture surfaces call it, and contexts/ProjectContext.tsx:60 lists photo
-      // triage BY NAME among the surfaces meant to share that behaviour. An
-      // in-app capture lives in cachesDirectory/ImagePicker and never reaches
-      // the camera roll, so every frame he chose to keep was simply destroyed —
-      // under a green badge and a count. Same call shape as app/cost-xray.tsx:186.
-      if (grouped.progress.length > 0) {
-        // A photo picked FROM the project (PickedPhoto.fromProject) carries the
-        // project photo's own uri, so re-triaging must not duplicate the row.
-        // ReviewEntry does not carry that flag, so match on the uri itself.
-        const alreadyInProject = new Set(
-          projectPhotos.flatMap(ph => [ph.uri, ph.localUri].filter(Boolean) as string[]),
-        );
-        for (const e of grouped.progress) {
-          if (!e.photoUri || alreadyInProject.has(e.photoUri)) continue;
-          const stamp = new Date().toISOString();
-          addProjectPhoto({
-            id: generateUUID(),
-            projectId: project.id,
-            uri: e.photoUri,
-            timestamp: stamp,
-            createdAt: stamp,
-            tag: 'Progress',
-            ...(e.editedLocation ? { location: e.editedLocation } : {}),
-          });
-          alreadyInProject.add(e.photoUri);
-          progressAdded += 1;
-        }
-      }
+      // PROGRESS — the bucket this screen labels "Saved as a progress photo".
+      // An in-app capture lives in cachesDirectory/ImagePicker and never
+      // reaches the camera roll, so a frame he chose to keep has to become a
+      // gallery row here or it is destroyed. A photo picked FROM the project
+      // is already one (buildTriageRecords skips it by its gallery id).
+      // Same call shape as app/cost-xray.tsx.
+      for (const photo of records.progressPhotos) addProjectPhoto(photo);
 
       // Records are created — lock the batch so a second Apply can't duplicate.
       setApplied(true);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const summary = [
-        punchAdded > 0 ? `${punchAdded} punch item${punchAdded === 1 ? '' : 's'}` : null,
-        rfiAdded > 0 ? `${rfiAdded} RFI${rfiAdded === 1 ? '' : 's'}` : null,
-        dfrAdded > 0 ? `${dfrAdded} DFR observation${dfrAdded === 1 ? '' : 's'}` : null,
-        progressAdded > 0 ? `${progressAdded} progress photo${progressAdded === 1 ? '' : 's'}` : null,
-      ].filter(Boolean).join(', ');
       showAlert(
         'Triage applied',
-        summary
-          ? `${summary}. Review them on the project screen.`
-          : 'Nothing to apply — every entry was discarded or classified as noise.',
+        triageSummary({
+          punch: records.punchItems.length,
+          rfi: records.rfis.length,
+          dfrObservations: records.dfrObservations,
+          punchRefiled: records.punchRefiled,
+          progress: records.progressPhotos.length,
+        }),
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (err) {
@@ -421,11 +580,24 @@ function PhotoTriageInner() {
   }, [
     project, grouped, addPunchItems, addRFIs, addDailyReport, updateDailyReport,
     getDailyReportsForProject, settings, router, applying, applied,
-    addProjectPhoto, projectPhotos,
+    addProjectPhoto, projectPhotos, canPunch,
   ]);
 
   // ── Per-entry mutations ────────────────────────────────────────
   const setEntryClass = (id: string, cls: AiTriageClass) => {
+    // A blocked control says why (#41): no punch item can be made without
+    // Punch List, so the chip explains instead of moving the entry.
+    if (cls === 'punch' && !canPunch) {
+      showAlert(
+        'Punch list is on Business',
+        'Your plan includes Photo Triage but not the Punch List. Findings left in Punch are filed as observations in today\'s daily report. Move one to RFI or Daily report, or discard it.',
+        [
+          { text: 'OK', style: 'cancel' },
+          { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+        ],
+      );
+      return;
+    }
     setReviewEntries(prev => prev.map(e => e.id === id ? { ...e, editedClassification: cls } : e));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   };
@@ -598,7 +770,11 @@ function PhotoTriageInner() {
                     </View>
                     <Text style={styles.bucketCount}>{list.length}</Text>
                   </View>
-                  <Text style={styles.bucketHelper}>{meta.helper}</Text>
+                  <Text style={styles.bucketHelper}>
+                    {cls === 'punch' && !canPunch
+                      ? 'Punch list is on Business — these will be filed as observations in today\'s daily report. Move one to RFI or Daily report, or discard it.'
+                      : meta.helper}
+                  </Text>
 
                   {list.map(e => (
                     <View key={e.id} style={styles.entryCard}>
@@ -614,6 +790,7 @@ function PhotoTriageInner() {
                         <View style={styles.classChips}>
                           {ORDER.map(c => {
                             const cColor = classColor(themeColors, c);
+                            const locked = c === 'punch' && !canPunch;
                             return (
                               <TouchableOpacity
                                 key={c}
@@ -624,9 +801,19 @@ function PhotoTriageInner() {
                                     backgroundColor: cColor,
                                     borderColor: cColor,
                                   },
+                                  locked && styles.classChipLocked,
                                 ]}
                                 activeOpacity={0.7}
+                                accessibilityLabel={locked ? 'Punch list is on Business' : CLASS_META[c].label}
+                                accessibilityState={{ disabled: locked, selected: e.editedClassification === c }}
                               >
+                                {locked && (
+                                  <Lock
+                                    size={10}
+                                    color={e.editedClassification === c ? '#FFF' : themeColors.textMuted}
+                                    strokeWidth={2}
+                                  />
+                                )}
                                 <Text style={[
                                   styles.classChipText,
                                   e.editedClassification === c && { color: '#FFF' },
@@ -759,6 +946,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line,
   },
   classChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.text },
+  classChipLocked: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, opacity: 0.6 },
 
   discardBtn: { padding: 6 },
 

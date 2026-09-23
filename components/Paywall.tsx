@@ -15,6 +15,10 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { showAlert } from '@/utils/alert';
+import {
+  LIST_PRICE_MONTHLY, PRICE_AT_CHECKOUT, annualPerMonth, annualSavingsAmount, annualSavingsPercent,
+} from '@/constants/pricing';
+import { planFeatureLines } from '@/utils/planFeatureCopy';
 
 // App Store / Play Store deep links — used by the web paywall to bounce
 // users to mobile. App Store ID 6762229238 is from eas.json submit.production.
@@ -39,38 +43,28 @@ interface PaywallProps {
   requiredTier: RequiredTier;
 }
 
-// Fallback prices shown when RevenueCat offerings haven't loaded yet or the
-// store isn't available. These mirror the App Store Connect product prices.
-// Enterprise's annual is capped at $999.99 — Apple's Tier 1500 maximum.
-const FALLBACK_PRICES = {
-  pro: { monthly: '$29.99', annual: '$289.99', annualMonthlyEquivalent: '$24.16' },
-  business: { monthly: '$79.99', annual: '$769.99', annualMonthlyEquivalent: '$64.16' },
-  enterprise: { monthly: '$149.99', annual: '$999.99', annualMonthlyEquivalent: '$83.33' },
-} as const;
+// Prices: RevenueCat's package when loaded, else the published list rate from
+// constants/pricing.ts — the ONE fallback table (#42). This file used to carry
+// its own ($29.99 / $289.99 / "$24.16"), which disagreed with app/paywall.tsx
+// ($29) and the onboarding paywall ($29.00, $23.20), so one contractor offline
+// could read three prices for Pro. No annual figure is typed anywhere: annual
+// totals, the per-month equivalent and the savings come from the store or are
+// not shown.
 
+// What else the plan includes. #125: these lists were hand-typed and sold Plan
+// Viewer and RFIs/Submittals as Business (both unlock on Pro), while the Pro
+// list sold Daily Field Reports and Price Alerts, which are open on Free — a
+// $29 buyer steered to $79. The lines now come from utils/planFeatureCopy,
+// which places each one by REQUIRED_TIER. Only 'Unlimited projects' is typed
+// here: it is hooks/useTierAccess maxProjects, not a FeatureKey.
 const PRO_BENEFITS: string[] = [
-  'Unlimited projects and estimates',
-  'Cash Flow Forecaster & Budget Health',
-  'Schedule Maker with Gantt & PDF export',
-  'Daily Field Reports with photos',
-  'AI Code Check (15/day) & Voice-to-Report',
-  'Client Portal for your customers',
-  'Lien Waivers, Proposals, Change Orders',
-  'Equipment tracking & Price Alerts',
+  'Unlimited projects',
+  ...planFeatureLines('pro'),
 ];
 
 const BUSINESS_BENEFITS: string[] = [
   'Everything in Pro, plus:',
-  // 'Unlimited' was wrong by a factor the buyer can hit: hooks/useTierAccess
-  // FEATURE_LIMITS.ai_code_check_daily.business = 50 and app/(tabs)/construction-ai
-  // enforces it. The Pro line above already quotes its own number; this one
-  // promised no ceiling on the same screen that prints "Daily AI requests | 80".
-  'AI Code Checks (50/day) & bid responses',
-  'Time Tracking for crews',
-  'Plan Viewer & markup tools',
-  'Subcontractor management',
-  'Punch List & Closeout packets',
-  'RFIs, Submittals, and full Budget Dashboard',
+  ...planFeatureLines('business'),
 ];
 
 const ENTERPRISE_BENEFITS: string[] = [
@@ -101,12 +95,16 @@ const ENTERPRISE_BENEFITS: string[] = [
  * than an invented claim, so add one only for a screen you have read.
  */
 const FEATURE_PITCH: Record<string, string> = {
-  // "one ACTIVE project at a time" would be the wrong promise: the cap counts
-  // every project that is not a demo — app/(tabs)/(home)/index.tsx filters only
-  // the 'Sample — ' prefix before calling canCreateProject — so finishing job one
-  // does not free the slot. Say what the app enforces, not what reads better.
+  // "one ACTIVE project at a time" would be the wrong promise. What the cap
+  // counts is the live server rule (enforce_free_tier_project_cap): every
+  // non-sample project you OWN, finished or not — so finishing job one does
+  // not free the slot. Jobs another contractor shares with you are theirs and
+  // do not count. A job won through the RFP marketplace DOES count once it
+  // exists (the server exempts only the award's own insert) — so never say
+  // awarded jobs are free (productDecision #127). Say what the app enforces,
+  // not what reads better.
   'Unlimited Projects':
-    'Free covers one project, and a job you have already finished still counts against it. Pro takes the cap off, so every job you win gets its own estimate, schedule, invoices and photos.',
+    'Free covers one project of your own, and a job you have already finished still counts against it (jobs other contractors share with you don’t). Pro takes the cap off, so every job you win gets its own estimate, schedule, invoices and photos.',
   // Scoped to what utils/brief/composeBrief actually aggregates (schedule,
   // invoices, permits/inspections, deliveries, site access, closeout, expiring
   // certs). It is handed no margin verdict and — unless the caller passes them —
@@ -325,30 +323,28 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   // that is never rendered; see the early return further down.
   const paidTier: Exclude<RequiredTier, 'free'> =
     requiredTier === 'free' ? 'pro' : requiredTier;
-  const fallback = FALLBACK_PRICES[paidTier];
 
   const pricing = useMemo(() => {
-    // Try to use live RevenueCat pricing; fall back to static amounts.
-    const monthlyPkg = requiredTier === 'enterprise' ? enterprisePackage
-      : requiredTier === 'business' ? businessPackage
+    const monthlyPkg = paidTier === 'enterprise' ? enterprisePackage
+      : paidTier === 'business' ? businessPackage
       : proPackage;
-    const annualPkg = requiredTier === 'enterprise' ? enterpriseAnnualPackage
-      : requiredTier === 'business' ? businessAnnualPackage
+    const annualPkg = paidTier === 'enterprise' ? enterpriseAnnualPackage
+      : paidTier === 'business' ? businessAnnualPackage
       : proAnnualPackage;
 
-    const monthlyPrice = monthlyPkg?.product?.priceString ?? fallback.monthly;
-    const annualPrice = annualPkg?.product?.priceString ?? fallback.annual;
-
-    // Compute annual "monthly equivalent" if we have live numbers.
-    let monthlyEquivalent: string = fallback.annualMonthlyEquivalent;
-    const annualCents = annualPkg?.product?.price;
-    if (typeof annualCents === 'number' && annualCents > 0) {
-      const perMonth = annualCents / 12;
-      monthlyEquivalent = `$${perMonth.toFixed(2)}`;
-    }
-
-    return { monthlyPrice, annualPrice, monthlyEquivalent };
-  }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage, fallback]);
+    const monthlyStore = monthlyPkg?.product?.priceString ?? null;
+    return {
+      // The published list rate while the store price is unavailable — labelled
+      // as a list price below, never passed off as the store's figure.
+      monthlyPrice: monthlyStore ?? LIST_PRICE_MONTHLY[paidTier],
+      monthlyIsList: monthlyStore === null,
+      annualPrice: annualPkg?.product?.priceString ?? null,
+      // annual price / 12, floored to the cent, in the store's own format.
+      monthlyEquivalent: annualPerMonth(annualPkg?.product),
+      savePct: annualSavingsPercent(monthlyPkg?.product, annualPkg?.product),
+      saveAmount: annualSavingsAmount(monthlyPkg?.product, annualPkg?.product),
+    };
+  }, [paidTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage]);
 
   // Whether RevenueCat actually resolved a purchasable package for this
   // tier. When false (most common cause: the IAP product isn't set up /
@@ -558,9 +554,13 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               testID="paywall-period-annual"
             >
               <Text style={[styles.toggleText, period === 'annual' && styles.toggleTextActive]}>Annual</Text>
-              <View style={styles.saveBadge}>
-                <Text style={styles.saveBadgeText}>Save 20%</Text>
-              </View>
+              {/* Computed from the two store packages; hidden when either is
+                  missing rather than printing a typed "Save 20%" (#42). */}
+              {pricing.savePct !== null && (
+                <View style={styles.saveBadge}>
+                  <Text style={styles.saveBadgeText}>{`Save ${pricing.savePct}%`}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -569,31 +569,30 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             {period === 'monthly' ? (
               <>
                 <Text style={styles.priceBig}>{pricing.monthlyPrice}</Text>
-                <Text style={styles.priceSub}>per month, cancel anytime</Text>
+                <Text style={styles.priceSub}>
+                  {pricing.monthlyIsList
+                    ? 'list price, per month — the exact price is shown at checkout'
+                    : 'per month, cancel anytime'}
+                </Text>
               </>
-            ) : (
+            ) : pricing.monthlyEquivalent && pricing.annualPrice ? (
               <>
                 <Text style={styles.priceBig}>{pricing.monthlyEquivalent}/mo</Text>
                 <Text style={styles.priceSub}>billed {pricing.annualPrice} annually</Text>
-                {(() => {
-                  // Compute the dollar value of annual savings vs paying
-                  // monthly, when we have live pricing. Skipped on the
-                  // fallback strings ("$X.XX/mo") which can't be parsed.
-                  const monthlyCents = parseFloat(pricing.monthlyPrice.replace(/[^0-9.]/g, '')) * 100;
-                  const annualCents = parseFloat(pricing.annualPrice.replace(/[^0-9.]/g, '')) * 100;
-                  if (!Number.isFinite(monthlyCents) || !Number.isFinite(annualCents) || monthlyCents <= 0 || annualCents <= 0) return null;
-                  const yearAtMonthlyCents = monthlyCents * 12;
-                  const savingsCents = yearAtMonthlyCents - annualCents;
-                  if (savingsCents <= 0) return null;
-                  const savings = `$${(savingsCents / 100).toFixed(0)}`;
-                  return (
-                    <View style={styles.savingsRow}>
-                      <Text style={styles.savingsRowText}>
-                        Save <Text style={styles.savingsRowAmount}>{savings}</Text> vs. monthly
-                      </Text>
-                    </View>
-                  );
-                })()}
+                {/* Store numbers, integer cents, floored — never parsed back
+                    out of display strings. */}
+                {pricing.saveAmount ? (
+                  <View style={styles.savingsRow}>
+                    <Text style={styles.savingsRowText}>
+                      Save <Text style={styles.savingsRowAmount}>{pricing.saveAmount}</Text> vs. monthly
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <Text style={styles.priceSub}>{PRICE_AT_CHECKOUT}</Text>
+                <Text style={styles.priceSub}>billed annually</Text>
               </>
             )}
           </View>

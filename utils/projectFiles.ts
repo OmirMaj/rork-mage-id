@@ -1,6 +1,7 @@
 // projectFiles — list / upload / delete helpers for the project's
-// shared-drive folder tree (the `project-documents` Supabase Storage
-// bucket).
+// file folders (the PRIVATE `project-documents` Supabase Storage bucket —
+// files here are visible to people on this project, not to anyone with a
+// link; see AUTH below).
 //
 // Layout in the bucket:
 //
@@ -206,13 +207,27 @@ export interface ProjectFile {
   mimeType?: string;
 }
 
+/** A folder read: the files, or `failed` when the read itself did not answer. */
+export interface ProjectFileListing {
+  files: ProjectFile[];
+  /** True when Storage errored or the request never answered (offline, 5xx,
+   *  permission). A MISSING folder is not a failure — Storage answers an
+   *  unknown prefix with an empty list — so `failed: false, files: []` really
+   *  is an empty folder, and only then may the UI say so (#159). */
+  failed: boolean;
+}
+
 /**
  * Metadata-only listing: everything a ProjectFile has except a usable URL.
  * Split out so countProjectFilesByFolder can count 7 folders without firing 7
  * pointless signing round-trips for URLs nobody is going to render.
+ *
+ * It used to map every error to `[]`, so in airplane mode on site every
+ * folder read "0 files" and "No files in this folder yet" — as if the job's
+ * documents had never been uploaded (#159). A failed read now says it failed.
  */
-async function listProjectFileEntries(projectId: string, folderKey: string): Promise<ProjectFile[]> {
-  if (!projectId || !folderKey) return [];
+async function listProjectFileEntries(projectId: string, folderKey: string): Promise<ProjectFileListing> {
+  if (!projectId || !folderKey) return { files: [], failed: false };
   const folder = `${projectId}/${folderKey}`;
   try {
     const { data, error } = await supabase.storage
@@ -221,8 +236,8 @@ async function listProjectFileEntries(projectId: string, folderKey: string): Pro
         limit: 200,
         sortBy: { column: 'created_at', order: 'desc' },
       });
-    if (error || !data) return [];
-    return data
+    if (error || !data) return { files: [], failed: true };
+    const files = data
       // Storage.list() returns subfolder placeholders too — drop those.
       .filter(o => !o.name.endsWith('/') && o.name !== '.emptyFolderPlaceholder')
       .map(o => ({
@@ -233,27 +248,33 @@ async function listProjectFileEntries(projectId: string, folderKey: string): Pro
         uploadedAt: o.created_at ?? new Date().toISOString(),
         mimeType: o.metadata?.mimetype,
       } as ProjectFile));
+    return { files, failed: false };
   } catch {
-    return [];
+    return { files: [], failed: true };
   }
 }
 
 /**
- * List all files inside a project folder. Files are returned newest-first.
- * Returns an empty array on errors (network, permission, missing folder)
- * rather than throwing so the UI doesn't have to guard every render.
- *
- * URLs are signed HERE, at read time, and never persisted — that is the whole
- * point of the pattern (see the AUTH note at the top of this file). A file we
- * cannot sign is still returned with publicUrl '' rather than dropped, because
- * vanishing from the folder listing reads as data loss, while a row you can
- * still see, size and delete does not.
+ * List a project folder and say whether the read worked. Files are returned
+ * newest-first, each with a freshly SIGNED url (see the AUTH note at the top
+ * of this file) — a file we cannot sign keeps publicUrl '' rather than being
+ * dropped, because vanishing from the listing reads as data loss while a row
+ * you can still see, size and delete does not.
+ */
+export async function listProjectFilesChecked(projectId: string, folderKey: string): Promise<ProjectFileListing> {
+  const listing = await listProjectFileEntries(projectId, folderKey);
+  if (listing.failed || listing.files.length === 0) return listing;
+  const signed = await resolveProjectFileUrls(listing.files.map(e => e.path));
+  return { files: listing.files.map(e => ({ ...e, publicUrl: signed.get(e.path) ?? '' })), failed: false };
+}
+
+/**
+ * Array form of listProjectFilesChecked for callers that only render rows.
+ * A failed read is `[]` here — anything that SAYS "empty" must use the
+ * checked form, which can tell an empty folder from a read that never answered.
  */
 export async function listProjectFiles(projectId: string, folderKey: string): Promise<ProjectFile[]> {
-  const entries = await listProjectFileEntries(projectId, folderKey);
-  if (entries.length === 0) return entries;
-  const signed = await resolveProjectFileUrls(entries.map(e => e.path));
-  return entries.map(e => ({ ...e, publicUrl: signed.get(e.path) ?? '' }));
+  return (await listProjectFilesChecked(projectId, folderKey)).files;
 }
 
 /**
@@ -261,15 +282,17 @@ export async function listProjectFiles(projectId: string, folderKey: string): Pr
  * call. Used by the folder tile grid so each tile shows "12 files"
  * without N round trips.
  *
- * Returns a Record<folderKey, number>. Missing folders return 0.
+ * Returns Record<folderKey, number | null>: null means THAT folder's read
+ * failed (the tile shows "—", not "0 files"); the other folders keep their
+ * counts. A missing folder is a real 0.
  */
-export async function countProjectFilesByFolder(projectId: string): Promise<Record<string, number>> {
+export async function countProjectFilesByFolder(projectId: string): Promise<Record<string, number | null>> {
   if (!projectId) return {};
-  const out: Record<string, number> = {};
+  const out: Record<string, number | null> = {};
   await Promise.all(
     DEFAULT_FOLDERS.map(async f => {
-      const files = await listProjectFileEntries(projectId, f.key);
-      out[f.key] = files.length;
+      const listing = await listProjectFileEntries(projectId, f.key);
+      out[f.key] = listing.failed ? null : listing.files.length;
     }),
   );
   return out;
@@ -280,42 +303,131 @@ export interface UploadFileArgs {
   folderKey: string;
   /** Filename to use in storage. Sanitized (alphanumerics + ._-). */
   fileName: string;
-  /** Blob to upload. Caller is responsible for fetching it from the
-   *  picker URI / native file. */
-  blob: Blob;
+  /**
+   * The file's BYTES — read with utils/fileBytes.readFileBytes(uri) (or
+   * base64ToBytes for a capture that already has base64). This used to be a
+   * `Blob`, and both callers built it with `fetch(uri).blob()`: on React
+   * Native that Blob carries no data supabase-js can serialize, so every file
+   * uploaded from an iPhone landed in Storage at ZERO BYTES while the app said
+   * "Filed" and Scan Anything cleared the only copy of the capture (#5). A
+   * Uint8Array cannot be built that way, so the compiler now refuses the bug.
+   */
+  bytes: Uint8Array;
   contentType?: string;
+}
+
+/** Storage-safe name segment: alphanumerics + ._-, at most 80 characters. */
+function safeSegment(s: string): string {
+  return s.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+}
+
+/**
+ * What Storage holds at `path`, read back through list(): 'ok' with its size,
+ * 'empty' for a 0-byte object, 'missing' when the listing answered without it,
+ * 'unknown' when the listing itself failed.
+ */
+export async function statProjectFile(path: string): Promise<{ state: 'ok'; size: number } | { state: 'empty' | 'missing' | 'unknown' }> {
+  const cut = path.lastIndexOf('/');
+  if (cut <= 0) return { state: 'unknown' };
+  const dir = path.slice(0, cut);
+  const name = path.slice(cut + 1);
+  try {
+    const { data, error } = await supabase.storage.from(BUCKET).list(dir, { limit: 100, search: name });
+    if (error || !data) return { state: 'unknown' };
+    const hit = data.find(o => o.name === name);
+    if (!hit) return { state: 'missing' };
+    const size = Number(hit.metadata?.size ?? 0);
+    return size > 0 ? { state: 'ok', size } : { state: 'empty' };
+  } catch {
+    return { state: 'unknown' };
+  }
+}
+
+/**
+ * The upload reached the server as a 0-byte object (or an earlier attempt's
+ * 0-byte object already holds the name). `removed` says whether the empty
+ * copy is gone — when it is not, the SAME name can never be filed again, so
+ * a retry must use a new one (app/scan.tsx rolls the page's attempt suffix).
+ */
+export class ProjectFileEmptyError extends Error {
+  readonly removed: boolean;
+  constructor(message: string, removed: boolean) {
+    super(message);
+    this.name = 'ProjectFileEmptyError';
+    this.removed = removed;
+  }
 }
 
 /**
  * Upload a file to a project folder. Returns the saved ProjectFile
  * record on success; throws with a user-readable message on failure
  * so the caller can surface it in a toast.
+ *
+ * Success means the object is on the server WITH BYTES: after the upload the
+ * object is read back and a 0-byte result is removed and thrown, so a caller
+ * (Scan Anything) keeps the capture on screen instead of discarding the only
+ * copy of it. A read-back that can't answer (offline blip) does not fail an
+ * upload Storage already accepted — the bytes were checked non-empty first.
  */
 export async function uploadProjectFile(args: UploadFileArgs): Promise<ProjectFile> {
-  const { projectId, folderKey, fileName, blob, contentType } = args;
+  const { projectId, folderKey, fileName, bytes, contentType } = args;
   const session = await supabase.auth.getSession();
   if (!session.data.session) {
     throw new Error('Sign in to upload files.');
   }
-  if (blob.size === 0) throw new Error('That file is empty.');
-  if (blob.size > 100 * 1024 * 1024) {
+  const size = bytes?.byteLength ?? 0;
+  if (size === 0) throw new Error('That file is empty.');
+  if (size > 100 * 1024 * 1024) {
     throw new Error('Files must be under 100 MB. Try splitting larger uploads.');
   }
 
-  const safe = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
-  const path = `${safe(projectId)}/${safe(folderKey)}/${safe(fileName)}`;
+  const path = `${safeSegment(projectId)}/${safeSegment(folderKey)}/${safeSegment(fileName)}`;
 
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, blob, {
+    .upload(path, bytes, {
       contentType: contentType ?? 'application/octet-stream',
       upsert: false,  // explicit overwrite would be a separate "replace" action
     });
   if (error) {
-    // Common error: same-name collision. We could auto-rename here but
-    // the user will know better whether they want to replace or rename;
-    // surface the error and let the UI offer a suffix.
-    throw new Error(`Upload failed: ${error.message}`);
+    // A retry of an upload whose response was lost (Scan Anything re-targets
+    // the SAME stamped name) collides with its own earlier copy. When the
+    // object already there is ours — same name, same byte count — it landed;
+    // anything else is a real collision the user has to resolve.
+    const collided = /exist|duplicate/i.test(error.message ?? '');
+    const prior = collided ? await statProjectFile(path) : null;
+    if (prior && prior.state === 'empty') {
+      // An earlier attempt left a 0-byte object under this exact name that
+      // could not be removed (a field seat may upload but not delete —
+      // project_docs_delete needs 'editor'). Retrying the same name would
+      // collide forever, so say so; Scan Anything re-targets a new name.
+      throw new ProjectFileEmptyError(
+        `An empty (0-byte) copy of ${safeSegment(fileName)} is already in this folder — ask the job owner or an editor to delete it, or upload under another name.`,
+        false,
+      );
+    }
+    if (!(prior && prior.state === 'ok' && prior.size === size)) {
+      throw new Error(`Upload failed: ${error.message}`);
+    }
+  } else {
+    const stat = await statProjectFile(path);
+    if (stat.state === 'empty') {
+      // Best effort: a field seat can upload but not delete (the policy needs
+      // 'editor'), and Storage then removes NOTHING without an error — so the
+      // result is checked, and the caller is told whether the empty copy is
+      // still there. A retry of the SAME name would then collide with it.
+      let removed = false;
+      try {
+        const { data } = await supabase.storage.from(BUCKET).remove([path]);
+        removed = Array.isArray(data) && data.length > 0;
+      } catch {/* reported as not removed below */}
+      throw new ProjectFileEmptyError(
+        removed
+          ? 'The file reached the server empty (0 bytes), so nothing was filed.'
+          : 'The file reached the server empty (0 bytes), so nothing was filed. The empty copy could not be removed — ask the job owner or an editor to delete it.',
+        removed,
+      );
+    }
   }
 
   // The bytes are in the bucket now, so a signing failure must NOT throw: the
@@ -331,21 +443,38 @@ export async function uploadProjectFile(args: UploadFileArgs): Promise<ProjectFi
     signedUrl = signed?.signedUrl ?? '';
   } catch {/* upload landed; the path below is still resolvable later */}
   return {
-    name: safe(fileName),
+    name: safeSegment(fileName),
     path,
     publicUrl: signedUrl || path,
-    size: blob.size,
+    size,
     uploadedAt: new Date().toISOString(),
     mimeType: contentType,
   };
 }
 
+/** Why a delete matched nothing. Storage RLS (project_docs_delete needs the
+ *  'editor' role) refuses a field or viewer seat by removing NOTHING and
+ *  returning no error — the file used to reappear with no message (#160). */
+export const PROJECT_FILE_DELETE_REFUSED = 'Not removed — only the job owner or an editor can delete project files.';
+
+/** remove() matched nothing and the follow-up read couldn't answer either. */
+export const PROJECT_FILE_DELETE_UNCONFIRMED = "Couldn't confirm the delete — refresh to check. Only the job owner or an editor can delete project files.";
+
 /**
- * Delete a file from the bucket. Throws on failure.
+ * Delete a file from the bucket. Throws on failure — including the silent
+ * one, where remove() answers an empty list because RLS matched no row.
+ * An empty answer is ALSO what an already-deleted file gives (another device
+ * removed it first), so the path is read back before the role is blamed:
+ * gone → the delete's goal is met; still there → refused; no answer → say so.
  */
 export async function deleteProjectFile(path: string): Promise<void> {
-  const { error } = await supabase.storage.from(BUCKET).remove([path]);
+  const { data, error } = await supabase.storage.from(BUCKET).remove([path]);
   if (error) throw new Error(`Delete failed: ${error.message}`);
+  if (Array.isArray(data) && data.length > 0) return;
+  const after = await statProjectFile(path);
+  if (after.state === 'missing') return;
+  if (after.state === 'unknown') throw new Error(PROJECT_FILE_DELETE_UNCONFIRMED);
+  throw new Error(PROJECT_FILE_DELETE_REFUSED);
 }
 
 /** Format bytes like macOS Finder — "12.3 MB" / "847 KB" / "256 B". */

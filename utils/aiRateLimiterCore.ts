@@ -176,7 +176,13 @@ export function evaluateLimit(
   dailyCount: number,
   dailySmartCount: number,
   lifetimeUsed: number,
+  /** The daily reset as the user should read it — pass nextAiResetLabel().daily.
+   *  Trailing and optional so this stays pure (no clock read here) and every
+   *  existing positional caller keeps compiling. Absent, the copy names the
+   *  boundary in UTC rather than claiming a local midnight it isn't. */
+  dailyResetLabel?: string,
 ): LimitCheck {
+  const resetSentence = dailyResetLabel ?? 'Resets at midnight UTC';
   const limits = LIMITS[subscriptionTier];
   const dailyRemaining = limits.daily - dailyCount;
 
@@ -230,7 +236,7 @@ export function evaluateLimit(
       : nextTier === 'enterprise' ? 150
       : null;
     const message = subscriptionTier === 'enterprise'
-      ? "You've reached today's AI limit. Resets at midnight."
+      ? `You've reached today's AI limit. ${resetSentence}.`
       : `You've used today's ${limits.daily} AI requests. Upgrade to ${nextTier?.[0].toUpperCase()}${nextTier?.slice(1)} for ${nextDailyCap}/day.`;
     return {
       allowed: false,
@@ -254,7 +260,7 @@ export function evaluateLimit(
     const message = subscriptionTier === 'free'
       ? `Advanced AI requires Pro. Upgrade to unlock Quick Estimate, Schedule Builder, and more.`
       : subscriptionTier === 'enterprise'
-        ? `You've used today's advanced AI. Try again tomorrow or use quick AI features instead.`
+        ? `You've used today's advanced AI. ${resetSentence} — quick AI features still work until then.`
         : `You've used today's ${limits.smart} advanced AI calls. Upgrade to ${nextTier?.[0].toUpperCase()}${nextTier?.slice(1)} for ${nextSmartCap}/day.`;
     return {
       allowed: false,
@@ -266,4 +272,108 @@ export function evaluateLimit(
   }
 
   return { allowed: true, remaining: dailyRemaining - 1 };
+}
+
+// ─── When the AI allowance really resets ────────────────────────────────────
+//
+// Every counter behind these limits is dated by the SERVER's clock, which runs
+// in UTC: ai_daily_usage_get/increment key on `current_date`, the code-check
+// and roadmap counters (ai_usage_daily_*) on CURRENT_DATE, and the monthly caps
+// (ai_usage_get/increment) on date_trunc('month', now()). The client's own
+// daily cache (aiRateLimiter.ts) keys on toISOString() — also UTC. So the
+// daily allowance refills at 00:00 UTC, which is 8:00 PM in New York in the
+// summer and 5:00 PM in Los Angeles, and the monthly caps roll over on the
+// evening of the last day of the month for anyone in the Americas.
+//
+// The copy used to say "Resets at midnight" / "Try again tomorrow" / "Resets
+// the 1st", which told a GC in New York who ran out at 3 PM to wait nine hours
+// for something five hours away (audit #123/#128). The interim, until the
+// founder decides whether to move the counter to each user's local day (a
+// server-side change — never a client-supplied date: the RPCs are SECURITY
+// DEFINER, and a date the client picks would let anyone refill the cap), is to
+// say the true reset in the reader's own clock.
+//
+// Formatting is by hand, not toLocaleTimeString: newer ICU builds put a narrow
+// no-break space before "PM" and Hermes' Intl differs by platform, and a label
+// that the settings footer, the limit alert and the validator all compare must
+// read the same everywhere.
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** The next daily and monthly reset instants (00:00 UTC boundaries). */
+export function nextAiResetAt(now: Date = new Date()): { daily: Date; monthly: Date } {
+  return {
+    daily: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)),
+    monthly: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+  };
+}
+
+/** "8:00 PM" in the device's zone. */
+function localClock(d: Date): string {
+  const h24 = d.getHours();
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${h12}:${mm} ${h24 < 12 ? 'AM' : 'PM'}`;
+}
+
+function isLocalMidnight(d: Date): boolean {
+  return d.getHours() === 0 && d.getMinutes() === 0;
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/**
+ * The real reset moments, written in the device's own clock.
+ *
+ *   daily   — 'Resets at 8:00 PM' (later today), 'Resets tomorrow at 8:00 PM'
+ *             (already past today's boundary), or 'Resets at midnight' for a
+ *             reader whose zone IS UTC-aligned right now.
+ *   monthly — 'Resets Sep 30, 8:00 PM' (the evening before the 1st, west of
+ *             Greenwich), or 'Resets Oct 1' when the boundary is local midnight.
+ *
+ * Sentences without a trailing period, so callers can append their own
+ * punctuation or a countdown.
+ */
+export function nextAiResetLabel(now: Date = new Date()): { daily: string; monthly: string } {
+  const { daily, monthly } = nextAiResetAt(now);
+  let dailyLabel: string;
+  if (isLocalMidnight(daily)) {
+    dailyLabel = 'Resets at midnight';
+  } else if (sameLocalDay(daily, now)) {
+    dailyLabel = `Resets at ${localClock(daily)}`;
+  } else {
+    dailyLabel = `Resets tomorrow at ${localClock(daily)}`;
+  }
+  const monthDay = `${MONTHS_SHORT[monthly.getMonth()]} ${monthly.getDate()}`;
+  const monthlyLabel = isLocalMidnight(monthly)
+    ? `Resets ${monthDay}`
+    : `Resets ${monthDay}, ${localClock(monthly)}`;
+  return { daily: dailyLabel, monthly: monthlyLabel };
+}
+
+/** "5h", "4h 12m" or "12m" until the next daily reset. */
+export function timeUntilAiDailyReset(now: Date = new Date()): string {
+  const diffMs = nextAiResetAt(now).daily.getTime() - now.getTime();
+  const totalMinutes = Math.max(1, Math.round(diffMs / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+/**
+ * Rewrite a server cap message's "Resets the 1st…" into the real local moment.
+ *
+ * The relays (ai, construction-answer, the vision functions) write "Resets the
+ * 1st of next month." into their 429 bodies. Their counter rolls at 00:00 UTC,
+ * so for a US reader that is the evening of the last day — the server can't
+ * know the reader's zone, the client can. A message with no such sentence is
+ * returned untouched (an hourly limit keeps its own honest wording).
+ */
+export function withLocalMonthlyReset(message: string, now: Date = new Date()): string {
+  const label = nextAiResetLabel(now).monthly;
+  return message.replace(/Resets (?:on )?the 1st(?: of (?:next|the) month)?(?: \(UTC\))?\.?/i, `${label}.`);
 }

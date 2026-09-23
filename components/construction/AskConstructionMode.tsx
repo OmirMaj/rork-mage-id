@@ -8,6 +8,12 @@
 // Self-contained so it doesn't add surgery to the 2200-line tab file. Inert for
 // non-Business users (upgrade CTA) and when the edge fn is undeployed/keyless
 // (graceful "not available yet" — never a crash), per the design spec.
+//
+// Errors say what actually happened (audit #121): no signal, a timeout, a
+// server failure and "not built yet" are four different sentences, and the
+// first three carry a Try again that re-runs the kept question. Sources list
+// only what the answer used; everything else the engine looked at is shown
+// muted under "Also checked" (audit #120).
 
 import React, { useState, useCallback } from 'react';
 import {
@@ -18,7 +24,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   MessageCircleQuestion, ExternalLink, FileText, Calculator,
-  AlertTriangle, FileQuestion, DollarSign,
+  AlertTriangle, FileQuestion, DollarSign, RotateCcw,
 } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -27,8 +33,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { MageAIMark } from '@/components/icons';
-import { askConstruction, ConstructionAnswerError } from '@/utils/constructionAnswer';
-import type { ConstructionAnswerResult, AnswerCitation } from '@/types/constructionAnswer';
+import {
+  askConstruction, ConstructionAnswerError, CONSTRUCTION_ANSWER_COPY, isRetryableConstructionError,
+  MAX_QUESTION_CHARS, consultedSummary,
+  type ConstructionAnswerResponse,
+} from '@/utils/constructionAnswer';
+import type { AnswerCitation } from '@/types/constructionAnswer';
 
 interface ProjectLite { id: string; name: string }
 
@@ -52,7 +62,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
   const [question, setQuestion] = useState('');
   const [projectId, setProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ConstructionAnswerResult | null>(null);
+  const [result, setResult] = useState<ConstructionAnswerResponse | null>(null);
   const [errCode, setErrCode] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -72,9 +82,11 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
       setResult(res);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      const code = e instanceof ConstructionAnswerError ? e.code : 'unavailable';
+      // Anything that isn't a typed error is a failure on our side, never
+      // "not available yet" — that sentence is for not_configured only.
+      const code = e instanceof ConstructionAnswerError ? e.code : 'server_error';
       setErrCode(code);
-      setErrMsg(e instanceof Error ? e.message : null);
+      setErrMsg(e instanceof ConstructionAnswerError ? e.message : CONSTRUCTION_ANSWER_COPY.server_error);
     } finally {
       setLoading(false);
     }
@@ -144,6 +156,8 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
         multiline
         numberOfLines={4}
         textAlignVertical="top"
+        // The server refuses longer questions (400); cap here so it can't.
+        maxLength={MAX_QUESTION_CHARS}
         testID="construction-ask-input"
       />
 
@@ -193,9 +207,30 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
           ) : errCode === 'limit_reached' ? (
             <Text style={styles.noticeText}>{errMsg || "You've hit this month's Construction Answers limit."}</Text>
           ) : errCode === 'unauthenticated' ? (
-            <Text style={styles.noticeText}>Please sign in to use Construction Answers.</Text>
+            <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8}>
+              <Text style={styles.noticeText}>Please sign in to use Construction Answers. Tap to sign in.</Text>
+            </TouchableOpacity>
           ) : (
-            <Text style={styles.noticeText}>Construction Answers isn&apos;t available yet.</Text>
+            // offline / timeout / server_error / not_configured — each says
+            // what happened (CONSTRUCTION_ANSWER_COPY); the question stays in
+            // the box, so Try again re-runs it without retyping.
+            <>
+              <Text style={styles.noticeText}>
+                {errMsg || CONSTRUCTION_ANSWER_COPY[errCode as keyof typeof CONSTRUCTION_ANSWER_COPY] || CONSTRUCTION_ANSWER_COPY.server_error}
+              </Text>
+              {isRetryableConstructionError(errCode) ? (
+                <TouchableOpacity
+                  style={styles.retryBtn}
+                  onPress={runAsk}
+                  disabled={!canSubmit}
+                  activeOpacity={0.8}
+                  testID="construction-ask-retry"
+                >
+                  <RotateCcw size={14} color={Colors.primary} strokeWidth={2} />
+                  <Text style={styles.retryText}>Try again</Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
           )}
         </View>
       ) : null}
@@ -237,6 +272,17 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
                 })}
               </View>
             </>
+          ) : null}
+
+          {result.consulted && result.consulted.length > 0 ? (
+            // Looked at, not used: muted and never tappable, so "Sources"
+            // means only what the answer rests on.
+            <View testID="construction-ask-consulted">
+              <Text style={styles.consultedLabel}>Also checked</Text>
+              <Text style={styles.consultedText}>
+                {consultedSummary(result.consulted.map(c => c.label))}
+              </Text>
+            </View>
           ) : null}
 
           {showHonesty ? (
@@ -309,6 +355,16 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     backgroundColor: c.surface, borderWidth: 1, borderColor: c.line,
   },
   noticeText: { fontSize: Type.footnote.fontSize, color: c.textSecondary, lineHeight: 20 },
+  retryBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, alignSelf: 'flex-start' as const,
+    marginTop: 10, paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.panel,
+    borderWidth: 1, borderColor: c.line, backgroundColor: c.bg,
+  },
+  retryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  consultedLabel: {
+    fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: c.textMuted, letterSpacing: 0.5, marginBottom: 4,
+  },
+  consultedText: { fontSize: Type.caption1.fontSize, color: c.textMuted, lineHeight: 18 },
   resultCard: {
     marginTop: 16, padding: 16, borderRadius: Tokens.radius.panel,
     backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, gap: 12,

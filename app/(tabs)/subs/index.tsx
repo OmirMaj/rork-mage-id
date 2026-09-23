@@ -38,8 +38,12 @@ import {
   getComplianceStatus,
   missingComplianceDocs,
   complianceLabel as getStatusLabel,
+  buildSubEvaluationGrounding,
   type ComplianceState,
 } from '@/utils/subCompliance';
+import { signW9Url, type SubcontractorW5 } from '@/utils/coiFiles';
+import { readFileBytes } from '@/utils/fileBytes';
+import * as WebBrowser from 'expo-web-browser';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -246,6 +250,21 @@ export default function SubsScreen() {
     }).cards[0] ?? null;
   }, [showDetail, commitments, changeOrders, punchItems, projects, rfis]);
 
+  // What 'AI Evaluate Sub' reads: the same card, plus the jobs his signed
+  // commitments are on. Pure (utils/subCompliance), pinned by
+  // scripts/validate-w5-coi-subs-evaluator.ts.
+  const evalGrounding = useMemo(() => {
+    const subId = showDetail?.id;
+    const jobIds = new Set(
+      commitments.filter(c => subId && c.subcontractorId === subId && c.status !== 'draft').map(c => c.projectId),
+    );
+    return buildSubEvaluationGrounding({
+      card: openScorecard,
+      awardedJobNames: projects.filter(p => jobIds.has(p.id)).map(p => p.name),
+      projectsOnFileCount: projects.length,
+    });
+  }, [showDetail?.id, openScorecard, commitments, projects]);
+
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
   const [phone, setPhone] = useState('');
@@ -308,7 +327,7 @@ export default function SubsScreen() {
     setNotes(sub.notes);
     setTaxIdLast4(sub.taxIdLast4 ?? '');
     setLegalName(sub.legalName ?? '');
-    setW9DocPath((sub as Subcontractor & { w9DocPath?: string }).w9DocPath);
+    setW9DocPath((sub as SubcontractorW5).w9DocPath);
     setShowForm(true);
     setShowDetail(null);
   }, []);
@@ -317,6 +336,14 @@ export default function SubsScreen() {
     const name = companyName.trim();
     if (!name) {
       showAlert('Missing Name', 'Please enter the company name.');
+      return;
+    }
+    // Exactly four digits or nothing (audit #27). subcontractors.tax_id_last4
+    // carries a CHECK for the same rule; saying so here means a partial TIN is
+    // fixed while the GC is looking at it, not silently dropped by the server.
+    const tin = taxIdLast4.trim();
+    if (tin && !/^[0-9]{4}$/.test(tin)) {
+      showAlert('TIN needs 4 digits', `Enter the last 4 digits of the TIN from the W-9 (you have ${tin.length}), or leave it blank.`);
       return;
     }
 
@@ -348,19 +375,79 @@ export default function SubsScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [companyName, contactName, phone, email, address, trade, licenseNumber, licenseExpiry, coiExpiry, w9OnFile, taxIdLast4, legalName, notes, editingSub, addSubcontractor, updateSubcontractor, resetForm]);
 
-  const handleDelete = useCallback((sub: Subcontractor) => {
-    showAlert('Delete Subcontractor', `Delete ${sub.companyName}? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: () => {
-          deleteSubcontractor(sub.id);
-          setShowDetail(null);
-          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        },
-      },
-    ]);
-  }, [deleteSubcontractor]);
+  const openW9 = useCallback(async (path: string) => {
+    const url = await signW9Url(path);
+    if (!url) {
+      showAlert("Couldn't open the W-9", "The link couldn't be made — you may be offline, or the file was removed. Try again when you're online, or upload it again.");
+      return;
+    }
+    try {
+      if (Platform.OS === 'web') await Linking.openURL(url);
+      else await WebBrowser.openBrowserAsync(url);
+    } catch {
+      showAlert("Couldn't open the W-9", 'Try again.');
+    }
+  }, []);
+
+  // CARRY #17 (reports' finding). Deleting a sub removes his legal name, TIN
+  // and address; the 1099 export still lists what he was paid, as a row with
+  // none of those. So before the destructive confirm, look for money on record
+  // — paid sub-portal invoices and commitments with paidToDate > 0 — and when
+  // there is any, say what deleting costs and make keeping him the easy tap.
+  // A failed invoice check is said out loud rather than read as "none".
+  const handleDelete = useCallback(async (sub: Subcontractor) => {
+    const paidCommitments = commitments.filter(c => c.subcontractorId === sub.id && (c.paidToDate ?? 0) > 0);
+    const committedPaid = paidCommitments.reduce((a, c) => a + (c.paidToDate ?? 0), 0);
+    let invoiceCount = 0;
+    let invoicePaid = 0;
+    let invoiceCheckFailed = false;
+    try {
+      const { data, error } = await supabase
+        .from('sub_submitted_invoices')
+        .select('id, amount')
+        .eq('subcontractor_id', sub.id)
+        .eq('status', 'paid');
+      if (error) invoiceCheckFailed = true;
+      for (const r of (data ?? []) as { amount: number | string | null }[]) {
+        invoiceCount += 1;
+        invoicePaid += Number(r.amount) || 0;
+      }
+    } catch {
+      invoiceCheckFailed = true;
+    }
+    const doDelete = () => {
+      deleteSubcontractor(sub.id);
+      setShowDetail(null);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    };
+    const money = (n: number) => `$${(Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // Two views of the same money, not a sum: a commitment's paidToDate already
+    // includes the portal invoices paid against it.
+    const parts: string[] = [];
+    if (invoiceCount > 0) parts.push(`${invoiceCount} paid portal invoice${invoiceCount === 1 ? '' : 's'} (${money(invoicePaid)})`);
+    if (paidCommitments.length > 0) parts.push(`${paidCommitments.length} commitment${paidCommitments.length === 1 ? '' : 's'} showing ${money(committedPaid)} paid to date`);
+    if (parts.length > 0) {
+      showAlert(
+        `${sub.companyName} has payments on record`,
+        `On record: ${parts.join('; ')}. They'll still appear on the 1099 export, but their TIN and address will be gone. Keep them unless you're sure.`,
+        [
+          { text: 'Keep them', style: 'cancel' },
+          { text: 'Delete anyway', style: 'destructive', onPress: doDelete },
+        ],
+      );
+      return;
+    }
+    showAlert(
+      'Delete Subcontractor',
+      invoiceCheckFailed
+        ? `Delete ${sub.companyName}? This cannot be undone. We couldn't check his portal invoices just now — if you've paid him this year, keep him so the 1099 export keeps his TIN and address.`
+        : `Delete ${sub.companyName}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ],
+    );
+  }, [deleteSubcontractor, commitments]);
 
   const filtered = useMemo(() => {
     let result = subcontractors;
@@ -514,8 +601,10 @@ export default function SubsScreen() {
               <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
-            {/* COI Vault — central place to upload + validate every sub's
-                Certificate of Insurance. AI flags missing endorsements.
+            {/* COI Vault — central place to upload every sub's Certificate
+                of Insurance and record its expiry (typed, or read by AI and
+                confirmed). No claim the AI checks anything: reading is only
+                live once analyze-photos' 'coi' task is deployed (#23/#40).
                 Lives here (vs in each sub's detail) so the GC can audit
                 "are all my subs insured today?" at a glance. */}
             <TouchableOpacity
@@ -530,7 +619,7 @@ export default function SubsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.prequalTitle}>COI vault</Text>
                 <Text style={styles.prequalSub}>
-                  Upload Certificates of Insurance — AI checks expirations + endorsements
+                  Upload certificates (photo or PDF) and record each policy's expiry — you're reminded before it lapses
                 </Text>
               </View>
               <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
@@ -741,7 +830,9 @@ export default function SubsScreen() {
                       const asset = picked.assets[0];
                       const ext = (asset.name.split('.').pop() || 'pdf').toLowerCase();
                       const path = `${editingSub.id}/w9-${Date.now()}.${ext}`;
-                      const fileBytes = await fetch(asset.uri).then(r => r.arrayBuffer());
+                      // readFileBytes, not fetch().arrayBuffer(): on React Native a
+                      // fetched Blob can upload as a 0-byte object (utils/fileBytes).
+                      const fileBytes = await readFileBytes(asset.uri);
                       const { error } = await supabase.storage
                         .from('sub-documents')
                         .upload(path, fileBytes, {
@@ -751,10 +842,10 @@ export default function SubsScreen() {
                       if (error) throw error;
                       setW9DocPath(path);
                       setW9OnFile(true);
-                      updateSubcontractor(editingSub.id, {
-                        w9OnFile: true,
-                        ...{ w9DocPath: path } as Partial<Subcontractor>,
-                      });
+                      // w9DocPath persists once subcontractors.w9_doc_path is mapped
+                      // (20260923150000 + the w5-join-core mapper, CONTRACT 17).
+                      const patch: Partial<SubcontractorW5> = { w9OnFile: true, w9DocPath: path };
+                      updateSubcontractor(editingSub.id, patch as Partial<Subcontractor>);
                       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       showAlert('W-9 uploaded', 'Stored in your private sub-documents bucket. Visible only to your account.');
                     } catch (err) {
@@ -772,6 +863,22 @@ export default function SubsScreen() {
                     {uploadingW9 ? 'Uploading…' : (w9DocPath ? 'Replace W-9 (current on file)' : 'Pick W-9 PDF')}
                   </Text>
                 </TouchableOpacity>
+                {/* The stored W-9 could be uploaded but never opened (audit
+                    #27). A five-minute signed link is minted on tap and never
+                    stored — the bucket is private to this account. */}
+                {w9DocPath ? (
+                  <TouchableOpacity
+                    onPress={() => { void openW9(w9DocPath); }}
+                    activeOpacity={0.85}
+                    style={[styles.input, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 6 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="View W-9"
+                    testID="view-w9"
+                  >
+                    <FileText size={14} color={Colors.primary} strokeWidth={1.75} />
+                    <Text style={{ color: Colors.primary, fontWeight: '700' as const, fontSize: Type.footnote.fontSize, flex: 1 }}>View W-9</Text>
+                  </TouchableOpacity>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={Colors.textMuted} multiline />
@@ -948,9 +1055,13 @@ export default function SubsScreen() {
                     );
                   })()}
 
+                  {/* Grounded in the scorecard card above (audit #115): the
+                      evaluator used to read "0 bids, 0 assigned projects" —
+                      fields nothing fills — for every sub. */}
                   <AISubEvaluator
                     sub={sub}
-                    projectContext={`Active projects: ${projects.length}. Trades needed: ${[...new Set(projects.flatMap(p => p.schedule?.tasks?.map(t => t.crew) ?? []).filter(Boolean))].join(', ') || 'Various'}`}
+                    projectContext={evalGrounding.context}
+                    grounding={evalGrounding}
                     subscriptionTier={tier as any}
                   />
 
@@ -958,7 +1069,7 @@ export default function SubsScreen() {
                     <TouchableOpacity style={styles.editDetailBtn} onPress={() => openEdit(sub)} activeOpacity={0.7}>
                       <Text style={styles.editDetailBtnText}>Edit</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.deleteDetailBtn} onPress={() => handleDelete(sub)} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.deleteDetailBtn} onPress={() => { void handleDelete(sub); }} activeOpacity={0.7}>
                       <Trash2 size={16} color={Colors.dangerLabel} strokeWidth={1.75} />
                       <Text style={styles.deleteDetailBtnText}>Delete</Text>
                     </TouchableOpacity>

@@ -8,7 +8,11 @@
 //   • changeAmount erodes the saving
 //   • Non-'awarded' status ('open') → excluded
 //   • Cross-project commitment → excluded
-import { computeBulkSavings } from '../utils/bulkSavings';
+//   • #11: a budget at COST gives $0 savings on a cost bid; a budget stored at
+//     SELL (the old auto-fill) is refused, never printed as Bulk Savings
+import { bulkSavingsPdfTotal, computeBulkSavings, isSellBasisBudget, packageCostBudget } from '../utils/bulkSavings';
+import { lineCost } from '../utils/estimateMarkup';
+import { buildSetupPlan } from '../utils/generativeSetup';
 import { packageBuyoutSavings } from '../utils/projectFinancials';
 import type { BidPackage, BidPackageBid, Commitment } from '../types';
 
@@ -155,6 +159,43 @@ function cmt(overrides: Partial<Commitment> = {}): Commitment {
   eq('awarded bid row gone → budget − commitment', noRow.bulkSavings, 7000);
   const cent = computeBulkSavings(PROJECT_ID, [pkg({ estimateBudget: 100.1, awardedBidId: 'x' } as Partial<BidPackage>)], [cmt({ amount: 50.05 })], [{ id: 'x', amount: 50.05, normalizedAdjustment: 0.02 }]);
   eq('money to the cent', cent.bulkSavings, 50.03);
+}
+
+// ── #11: the budget is COST, so his markup is never "savings" ────────────────
+// $10,000 of cost at a 20% markup: lineTotal (sell) is $12,000. A sub bids
+// exactly the cost. Nothing was saved — that $2,000 is his margin.
+{
+  const item = { materialId: 'm1', name: 'Framing', category: 'framing', unit: 'LS', quantity: 1, unitPrice: 10000, bulkPrice: 10000, markup: 20, usesBulk: false, lineTotal: 12000, supplier: '' };
+  eq('lineCost is unitPrice × quantity (the baseTotal basis), not lineTotal', lineCost(item), 10000);
+  eq('packageCostBudget sums the linked lines at cost', packageCostBudget({ linkedEstimateItemIds: ['m1'] }, [item]), 10000);
+  const atCost = pkg({ estimateBudget: packageCostBudget({ linkedEstimateItemIds: ['m1'] }, [item]) ?? 0, linkedEstimateItemIds: ['m1'], awardedBidId: 'b1' } as Partial<BidPackage>);
+  const c = cmt({ amount: 10000 });
+  const bids = [{ id: 'b1', amount: 10000, normalizedAdjustment: 0 }];
+  eq('#11 packageBuyoutSavings: $10,000 cost awarded at $10,000 → $0', packageBuyoutSavings(atCost, bids as BidPackageBid[], [c]), 0);
+  const r = computeBulkSavings(PROJECT_ID, [atCost], [c], bids, undefined, { estimateItems: [item] });
+  eq('#11 computeBulkSavings → $0', r.bulkSavings, 0);
+  eq('#11 the client PDF total is undefined (nothing to print)', bulkSavingsPdfTotal(r), undefined);
+
+  // The same package as the OLD auto-fill stored it: Math.round(Σ lineTotal).
+  const atSell = pkg({ estimateBudget: 12000, linkedEstimateItemIds: ['m1'], awardedBidId: 'b1' } as Partial<BidPackage>);
+  ok('#11 a budget equal to the old SELL sum is detected', isSellBasisBudget(atSell, [item]));
+  const rs = computeBulkSavings(PROJECT_ID, [atSell], [c], bids, undefined, { estimateItems: [item] });
+  eq('#11 …and refused: no $2,000 of his own markup on the client PDF', bulkSavingsPdfTotal(rs), undefined);
+  eq('#11 …and named for review', rs.needsReview, ['pkg-1']);
+  ok('#11 a budget he typed by hand is not second-guessed', !isSellBasisBudget({ ...atSell, estimateBudget: 11000 }, [item]));
+  ok('#11 an at-cost budget is not flagged', !isSellBasisBudget(atCost, [item]));
+  ok('#11 an estimate with no markup has nothing to tell apart', !isSellBasisBudget(atSell, [{ ...item, lineTotal: 10000 }]));
+  ok('#11 no items passed → no refusal (callers that cannot know)', !isSellBasisBudget(atSell, undefined));
+  // the old whole-dollar rounding still matches: Σ lineTotal 12,000.40 stored as 12,000
+  ok('#11 the old whole-dollar rounding still matches', isSellBasisBudget(atSell, [{ ...item, lineTotal: 12000.4 }]));
+
+  // utils/generativeSetup budgets at cost too, and its <= 0 skip runs on cost.
+  const plan = buildSetupPlan({
+    id: 'p', name: 'Job', linkedEstimate: { items: [{ ...item, csiDivision: '06' }, { ...item, materialId: 'm2', csiDivision: '09', unitPrice: 0, lineTotal: 50 }] },
+  } as never, { existingPackages: [], existingSubmittals: [] });
+  const framing = plan.packages.find(x => x.csiDivision === '06');
+  eq('#11 generativeSetup: a $10,000-cost / $12,000-sell division is budgeted $10,000', framing?.estimateBudget, 10000);
+  ok('#11 generativeSetup: a division that costs nothing is skipped, even with a sell figure', !plan.packages.some(x => x.csiDivision === '09'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

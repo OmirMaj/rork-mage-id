@@ -21,7 +21,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import MageRefreshControl from '@/components/MageRefreshControl';
-import { MessageSquare, Send, Inbox, Lock } from 'lucide-react-native';
+import { MessageSquare, Send, Inbox, Lock, ChevronLeft } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -29,6 +29,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { usePortalThread } from '@/hooks/usePortalThread';
 import { useProjectRole } from '@/hooks/useProjectRole';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import type { PortalMessage } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -207,6 +208,31 @@ export default function ClientMessagesScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  // THE HOMEOWNER-MESSAGE EMAIL LANDS HERE AS THE FIRST ROUTE (audit
+  // 2026-09-23 #149). 'Reply in MAGE ID' on an iPhone opens Safari at
+  // app.mageid.app/client-messages?id=… — no associated domains, so not the
+  // app — at phone width, so no sidebar and no tab bar. With nothing to pop,
+  // the header drew no back and both buttons below called router.back(),
+  // which does nothing: the only exit was editing the URL. useSafeBack falls
+  // through to Home, and the header gets its own chevron whenever there is no
+  // history (with history, the stack's native back is left alone).
+  const goBack = useSafeBack();
+  const headerBack = router.canGoBack()
+    ? {}
+    : {
+        headerLeft: () => (
+          <TouchableOpacity
+            onPress={goBack}
+            style={{ marginLeft: 4, paddingRight: 8 }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            testID="client-messages-back"
+          >
+            <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
+          </TouchableOpacity>
+        ),
+      };
 
   const { projects, settings } = useProjects();
 
@@ -339,9 +365,9 @@ export default function ClientMessagesScreen() {
   if (!project) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 40, alignItems: 'center' }]}>
-        <Stack.Screen options={{ title: 'Messages' }} />
+        <Stack.Screen options={{ title: 'Messages', ...headerBack }} />
         <Text style={styles.muted}>Project not found.</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Text style={styles.backBtnTxt}>Go back</Text>
         </TouchableOpacity>
       </View>
@@ -351,10 +377,15 @@ export default function ClientMessagesScreen() {
   if (!portal?.enabled) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 40, alignItems: 'center', paddingHorizontal: 24 }]}>
-        <Stack.Screen options={{ title: 'Messages' }} />
+        <Stack.Screen options={{ title: 'Messages', ...headerBack }} />
         <Inbox size={30} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.muted}>Enable the client portal for this project to start a conversation.</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        {/* Goes where its label says. router.back() popped to whatever came
+            before — and from an email link, to nothing at all. */}
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.replace({ pathname: '/client-portal-setup', params: { id: project.id } })}
+        >
           <Text style={styles.backBtnTxt}>Back to portal setup</Text>
         </TouchableOpacity>
       </View>
@@ -372,7 +403,7 @@ export default function ClientMessagesScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={insets.top + 44}
     >
-      <Stack.Screen options={{ title: project.name }} />
+      <Stack.Screen options={{ title: project.name, ...headerBack }} />
       <View style={styles.subheader}>
         <MessageSquare size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.subheaderTxt}>

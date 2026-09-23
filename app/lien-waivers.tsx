@@ -15,14 +15,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Modal,
+  RefreshControl, AppState,
 } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Plus, FileSignature, FileDown, CheckCircle2,
-  Clock, XCircle, Trash2, ShieldCheck, AlertTriangle, Send, Landmark,
+  Clock, XCircle, Trash2, ShieldCheck, AlertTriangle, Send, Landmark, WifiOff, Lock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -34,10 +35,15 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import {
-  fetchLienWaiversForProject, saveLienWaiver, deleteLienWaiver,
+  loadLienWaiversChecked, readLienWaiverCache, fetchLienWaiverChecked,
+  createLienWaiverChecked, updateLienWaiverStatus, recordPaperLienWaiver,
+  saveLienWaiver, deleteLienWaiver, lienWaiverAccessGate,
   shareLienWaiverPDF, WAIVER_LABELS, lienWaiverDocContext,
   lienWaiverFormLabel, requestLienWaiverSignature,
 } from '@/utils/lienWaiverEngine';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { classifyError } from '@/utils/errorCopy';
+import { pdfFailureMessage } from '@/utils/platformFile';
 import { isStatutoryWaiverState, statutoryStateName } from '@/utils/lienWaiverForms';
 import { copyToClipboard } from '@/utils/clipboard';
 import { formatMoney } from '@/utils/formatters';
@@ -58,9 +64,54 @@ function normaliseThroughDate(value: string | undefined): string {
 
 const LIEN_WAIVER_TYPES: LienWaiverType[] = ['conditional_partial', 'unconditional_partial', 'conditional_final', 'unconditional_final'];
 
+/** "Offline" vs "the read failed" — two different sentences on screen. */
+function isOfflineError(message: string): boolean {
+  return classifyError({ message }) === 'offline';
+}
+
+/** "3:42 PM" today, "Sep 12, 3:42 PM" otherwise — when the cached list was read. */
+function seenAtLabel(iso: string | null): string {
+  if (!iso) return 'an earlier visit';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'an earlier visit';
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString()
+    ? time
+    : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
+}
+
 export default function LienWaiversScreen() {
   const goBack = useSafeBack(); // UX-F18: cold-start safe
   const { canAccess } = useTierAccess();
+  const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  // #29 interim (productDecision #29 — lien waivers are owner-only for now).
+  // Resolved BEFORE the tier check: an invited PM on a free plan is not a
+  // pricing question, and "checking access" must never flash the paywall.
+  const roleState = useProjectRoleState(gateProjectId || undefined);
+  if (gateProjectId) {
+    // Loading and a failed read are their own states (collaborator-gates
+    // contract): a settled null is "no access", with a reason; never a spinner
+    // forever, never the paywall.
+    const gate = lienWaiverAccessGate({
+      role: roleState.role,
+      isLoading: roleState.isLoading,
+      isError: roleState.isError,
+      isPaused: roleState.isPaused,
+      reason: roleState.reason,
+    });
+    if (gate.kind === 'loading') return <LienWaiverGateView state="loading" onBack={goBack} />;
+    if (gate.kind === 'error') {
+      return (
+        <LienWaiverGateView
+          state="error"
+          message="Couldn't check your access to this job. Check your connection and try again."
+          onRetry={() => { void roleState.refetch(); }}
+          onBack={goBack}
+        />
+      );
+    }
+    if (gate.kind === 'blocked') return <LienWaiverGateView state="blocked" message={gate.message} onBack={goBack} />;
+  }
   if (!canAccess('lien_waiver_manager')) {
     return (
       <Paywall
@@ -72,6 +123,53 @@ export default function LienWaiversScreen() {
     );
   }
   return <LienWaiversScreenInner />;
+}
+
+/** Checking access / couldn't check / not yours to issue — never a list, and
+ *  never a New, Request, Record, Void, Received or Delete control. */
+function LienWaiverGateView({ state, message, onRetry, onBack }: {
+  state: 'loading' | 'error' | 'blocked';
+  message?: string;
+  onRetry?: () => void;
+  onBack: () => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]} testID={`lien-waivers-gate-${state}`}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Lien Waivers</Text>
+        </View>
+      </View>
+      <View style={styles.emptyCard}>
+        {state === 'loading' ? (
+          <>
+            <ActivityIndicator size="small" color={themeColors.accent} />
+            <Text style={styles.emptyBody}>Checking your access to this job…</Text>
+          </>
+        ) : (
+          <>
+            {state === 'blocked'
+              ? <Lock size={28} color={themeColors.textMuted} strokeWidth={1.75} />
+              : <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />}
+            <Text style={styles.emptyTitle}>{state === 'blocked' ? 'Managed by the project owner' : 'Couldn’t check access'}</Text>
+            <Text style={styles.emptyBody}>{message}</Text>
+            {onRetry && (
+              <TouchableOpacity style={styles.bigCta} onPress={onRetry} accessibilityRole="button">
+                <Text style={styles.bigCtaText}>Try again</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </View>
+    </View>
+  );
 }
 
 function LienWaiversScreenInner() {
@@ -108,6 +206,13 @@ function LienWaiversScreenInner() {
 
   const [waivers, setWaivers] = useState<LienWaiver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  // #30: a failed read is its own state, never "No waivers yet". `seenAt` is
+  // when the list on screen was read, when it is this phone's cached copy
+  // rather than a fresh answer from the server.
+  const [loadError, setLoadError] = useState<{ offline: boolean } | null>(null);
+  const [seenAt, setSeenAt] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [addModal, setAddModal] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
   const [requesting, setRequesting] = useState<string | null>(null);
@@ -195,10 +300,33 @@ function LienWaiversScreenInner() {
     logoUri:       settings?.branding?.logoUri,
   }), [settings]);
 
+  // Each read is numbered; only the newest may write state. Focus, the app
+  // coming back to the foreground and pull-to-refresh can all fire together,
+  // and an older answer landing last would put a stale list back on screen.
+  const readSeq = useRef(0);
   const refresh = useCallback(async () => {
     if (!projectId) { setLoading(false); return; }
-    const list = await fetchLienWaiversForProject(projectId);
-    setWaivers(list);
+    const seq = ++readSeq.current;
+    const res = await loadLienWaiversChecked(projectId);
+    if (seq !== readSeq.current) return;
+    if (res.ok) {
+      setWaivers(res.waivers);
+      setLoadError(null);
+      setSeenAt(null);
+      return;
+    }
+    // The read failed. Show what this phone last saw — labelled as such —
+    // and never the "No waivers yet" card, which on a job with signed
+    // releases is the one thing that must not be said (#30).
+    const cached = await readLienWaiverCache(projectId);
+    if (seq !== readSeq.current) return;
+    setLoadError({ offline: isOfflineError(res.error) });
+    if (cached) {
+      setWaivers(cached.waivers);
+      setSeenAt(cached.savedAt);
+    }
+    // No cache: whatever is on screen (empty on a first open) stays, and the
+    // error card below says the list could not be read.
   }, [projectId]);
 
   useEffect(() => {
@@ -207,9 +335,31 @@ function LienWaiversScreenInner() {
     })();
   }, [refresh]);
 
+  // #31: the screen used to read once, on mount, and never again — so a sub's
+  // e-signature never appeared while the GC had it open, and "Record paper
+  // waiver" was offered on a card the sub had already signed. Re-read when the
+  // screen regains focus and when the app comes back from Mail or Messages.
+  // The first focus is skipped: the mount effect above already reads.
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!focusedOnce.current) { focusedOnce.current = true; return; }
+    void refresh();
+  }, [refresh]));
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
+
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refresh(); } finally { setRefreshing(false); }
+  }, [refresh]);
+
   const handleCreate = useCallback(async (input: { waiverType: LienWaiverType; subName: string; subEmail?: string; throughDate: string; paidAmount: number; notes?: string }) => {
     if (!projectId || !input.subName.trim()) return;
-    const saved = await saveLienWaiver({
+    const res = await createLienWaiverChecked({
       projectId,
       waiverType: input.waiverType,
       subName: input.subName.trim(),
@@ -224,14 +374,19 @@ function LienWaiversScreenInner() {
       commitmentId: prefillSeed?.commitmentId,
       subCompanyId: prefillSeed?.subCompanyId,
     });
-    if (saved) {
-      setWaivers(prev => [saved, ...prev]);
+    if (res.ok) {
+      setWaivers(prev => [res.waiver, ...prev]);
       setAddModal(false);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void refresh();
+    } else if (isOfflineError(res.error)) {
+      // A waiver is created on the server (it carries the id the signing link
+      // is built on), so offline it cannot be saved yet — say that, not "failed".
+      showAlert('You’re offline', 'The waiver was not saved — this phone has no signal. Your entries are still in the form; tap Create again once you’re back online.');
     } else {
-      showAlert('Save failed', 'Could not save the waiver.');
+      showAlert('Save failed', `The waiver was not saved. ${res.error}`);
     }
-  }, [projectId, prefillSeed]);
+  }, [projectId, prefillSeed, refresh]);
 
   // One resolution of the jobsite, shared by the PDF, the form label, and the
   // signing request — so what the badge on the card says is necessarily the
@@ -265,7 +420,9 @@ function LienWaiversScreenInner() {
       await shareLienWaiverPDF(w, branding, docCtxFor(w));
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      showAlert('Export failed', e instanceof Error ? e.message : 'Could not generate PDF.');
+      // CONTRACT 25: a blocked pop-up on web reads as exactly that; anything
+      // else keeps this screen's own sentence. No success haptic on this path.
+      showAlert('Export failed', pdfFailureMessage(e, 'Could not generate the PDF. Try again.'));
     } finally {
       setExporting(null);
     }
@@ -384,6 +541,12 @@ function LienWaiversScreenInner() {
         );
         return;
       }
+      if (isOfflineError(result.error ?? '')) {
+        // The token is minted on the server row before the email goes, so this
+        // is online-only by design (an optimistic token is a link that 404s).
+        showAlert('You’re offline', 'A signing link is created on the server, so it can only be sent with signal. Nothing was sent — try again once you’re back online.');
+        return;
+      }
       showAlert('Could not send', result.error || 'The signing request did not go out. Try again.');
     } finally {
       requestInFlight.current = false;
@@ -393,10 +556,76 @@ function LienWaiversScreenInner() {
 
   useEffect(() => { requestRef.current = handleRequestSignature; }, [handleRequestSignature]);
 
+  // One write at a time per screen: a double tap on Void or Mark received used
+  // to fire two upserts of the same stale card. The ref blocks re-entry at
+  // once; `busy` greys the card on the next render.
+  const writeInFlight = useRef(false);
+
+  /**
+   * Change the status and nothing else (#31) — never an upsert of the card,
+   * which rewrote the sub's email, the notes and the amount with this phone's
+   * stale copy. And say when it did not save (#30): Void and Mark received
+   * used to fail with no message at all.
+   */
   const handleStatusChange = useCallback(async (w: LienWaiver, status: LienWaiver['status']) => {
-    const saved = await saveLienWaiver({ ...w, id: w.id, status });
-    if (saved) setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
-  }, []);
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
+    setBusy(w.id);
+    const verb = status === 'voided' ? 'void this waiver' : status === 'received' ? 'mark it received' : 'update this waiver';
+    try {
+      const res = await updateLienWaiverStatus(w.id, status);
+      if (!res.ok) {
+        showAlert(
+          `Couldn’t ${verb}`,
+          isOfflineError(res.error)
+            ? 'Not saved — this phone is offline. Check your signal and try again.'
+            : 'Not saved. Check your signal and try again.',
+        );
+        return;
+      }
+      if (!res.waiver) {
+        showAlert(`Couldn’t ${verb}`, 'This waiver is no longer on the job — it may have been deleted on another device. The list has been refreshed.');
+        void refresh();
+        return;
+      }
+      const saved = res.waiver;
+      setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      void refresh();
+    } finally {
+      writeInFlight.current = false;
+      setBusy(null);
+    }
+  }, [refresh]);
+
+  /**
+   * Void behind a destructive confirm (#31). The row is re-read first, because
+   * the card may still say REQUESTED over a release the sub signed a minute
+   * ago — and voiding a signed release is the one version of this that needs
+   * to be said out loud.
+   */
+  const handleVoid = useCallback(async (w: LienWaiver) => {
+    const fresh = await fetchLienWaiverChecked(w.id);
+    const current = fresh.ok && fresh.waiver ? fresh.waiver : w;
+    if (fresh.ok && fresh.waiver) setWaivers(prev => prev.map(x => x.id === w.id ? current : x));
+    if (fresh.ok && !fresh.waiver) {
+      showAlert('This waiver is gone', 'It is no longer on the job — it may have been deleted on another device.');
+      void refresh();
+      return;
+    }
+    if (current.status === 'voided') return;
+    const signedBody = current.signedAt
+      ? `${current.subName}'s signed release${current.subSignature?.role === 'gc' ? ' (your paper record)' : ''} from ${new Date(current.signedAt).toLocaleDateString()} will be marked VOID. You can no longer rely on it, and this can't be undone.`
+      : `The signing link stops working and ${current.subName} can no longer sign it. This can't be undone.`;
+    showAlert(
+      current.signedAt ? 'Void a signed waiver?' : 'Void this waiver?',
+      signedBody,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Void', style: 'destructive', onPress: () => { void handleStatusChange(current, 'voided'); } },
+      ],
+    );
+  }, [handleStatusChange, refresh]);
 
   // Recording a PAPER waiver. This is not the sub signing — it is the GC
   // saying "I have their signed paper original in the file", which is a
@@ -409,23 +638,43 @@ function LienWaiversScreenInner() {
         showAlert('Name required', 'Type the subcontractor\'s legal name as it appears on the paper waiver.');
         return;
       }
+      if (writeInFlight.current) return;
+      writeInFlight.current = true;
+      setBusy(w.id);
       try {
-        const saved = await saveLienWaiver({
-          ...w, id: w.id,
-          status: 'signed',
-          signedAt: new Date().toISOString(),
-          // role 'gc': the contractor attesting to a paper original. Never
-          // 'sub' — only the token-gated signing page writes that.
-          subSignature: { name, role: 'gc', signedAt: new Date().toISOString() },
-        });
-        if (saved) {
+        // Conditional on the ROW still being unsigned (#31): this used to be an
+        // upsert of the card, which replaced a sub's e-signature and consent
+        // record with the GC's paper note whenever the card was stale.
+        const res = await recordPaperLienWaiver(w.id, name);
+        if (res.ok) {
+          const saved = res.waiver;
           setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          void refresh();
+        } else if (res.reason === 'already_signed') {
+          const live = res.waiver;
+          if (live) setWaivers(prev => prev.map(x => x.id === w.id ? live : x));
+          void refresh();
+          const on = live?.signedAt ? new Date(live.signedAt).toLocaleDateString() : 'an earlier date';
+          showAlert(
+            live?.subSignature?.role === 'gc' ? 'Already recorded' : `${w.subName} already e-signed this`,
+            live?.subSignature?.role === 'gc'
+              ? `A paper record for this waiver was already saved on ${on}. Nothing was changed.`
+              : `${live?.subSignature?.name || w.subName} already e-signed this on ${on}; their electronic signature is on file. No paper record was added over it.`,
+          );
         } else {
-          showAlert('Save failed', 'Could not record this waiver. Try again.');
+          showAlert(
+            'Save failed',
+            isOfflineError(res.error)
+              ? 'Not saved — this phone is offline. Check your signal and try again.'
+              : 'Could not record this waiver. Check your signal and try again.',
+          );
         }
       } catch (e) {
         showAlert('Save failed', e instanceof Error ? e.message : 'Try again.');
+      } finally {
+        writeInFlight.current = false;
+        setBusy(null);
       }
     };
     // showPrompt covers every platform now (native Alert.prompt on iOS, the
@@ -438,7 +687,7 @@ function LienWaiversScreenInner() {
       'plain-text',
       w.subName,
     );
-  }, []);
+  }, [refresh]);
 
   const handleDelete = useCallback((w: LienWaiver) => {
     showAlert(
@@ -449,13 +698,30 @@ function LienWaiversScreenInner() {
         {
           text: 'Delete', style: 'destructive',
           onPress: async () => {
-            const ok = await deleteLienWaiver(w.id);
-            if (ok) setWaivers(prev => prev.filter(x => x.id !== w.id));
+            if (writeInFlight.current) return;
+            writeInFlight.current = true;
+            setBusy(w.id);
+            try {
+              // True only when a row actually went (#30) — a filtered delete
+              // answers "no error" too, and the card used to vanish over a row
+              // that was still on the server.
+              const ok = await deleteLienWaiver(w.id);
+              if (ok) {
+                setWaivers(prev => prev.filter(x => x.id !== w.id));
+                void refresh();
+              } else {
+                showAlert('Couldn’t delete', 'The waiver was not deleted. Check your signal and try again.');
+                void refresh();
+              }
+            } finally {
+              writeInFlight.current = false;
+              setBusy(null);
+            }
           },
         },
       ],
     );
-  }, []);
+  }, [refresh]);
 
   if (!project) {
     return (
@@ -508,12 +774,47 @@ function LienWaiversScreenInner() {
         }}
       />
 
-      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
+      <ScrollView
+        {...fabScroll}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void onPullRefresh(); }} tintColor={themeColors.accent} />}
+      >
         {loading && (
           <View style={styles.loading}><ActivityIndicator size="small" color={themeColors.accent} /></View>
         )}
 
-        {!loading && waivers.length === 0 && (
+        {/* #30 — a read that failed is said as one. With a list on screen it
+            is labelled as what this phone last saw; with nothing to show it is
+            an error card, never "No waivers yet" and never a New button that
+            invites a duplicate of a waiver the job may already have. */}
+        {!loading && loadError && waivers.length > 0 && (
+          <View style={styles.staleBanner} testID="lien-waivers-stale">
+            <WifiOff size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.staleBannerText}>
+              {loadError.offline
+                ? `Offline — showing what this phone last saw at ${seenAtLabel(seenAt)}.`
+                : `Couldn’t refresh — showing what this phone last saw at ${seenAtLabel(seenAt)}.`}
+            </Text>
+            <TouchableOpacity onPress={() => { void onPullRefresh(); }} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.staleBannerAction}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {!loading && loadError && waivers.length === 0 && (
+          <View style={styles.emptyCard} testID="lien-waivers-load-failed">
+            <WifiOff size={28} color={Colors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.emptyTitle}>Couldn&apos;t load waivers — check your signal</Text>
+            <Text style={styles.emptyBody}>
+              This phone has no saved copy of this job&apos;s waivers, so we can&apos;t say whether any exist.
+              Nothing has been lost — retry once you have signal.
+            </Text>
+            <TouchableOpacity style={styles.bigCta} onPress={() => { void onPullRefresh(); }} accessibilityRole="button">
+              <Text style={styles.bigCtaText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!loading && !loadError && waivers.length === 0 && (
           <View style={styles.emptyCard}>
             <ShieldCheck size={28} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No waivers yet</Text>
@@ -556,12 +857,14 @@ function LienWaiversScreenInner() {
             waiver={w}
             exporting={exporting === w.id}
             requesting={requesting === w.id}
+            busy={busy === w.id}
+            offline={!!loadError?.offline}
             formLabel={lienWaiverFormLabel(w, docCtx)}
             onExport={() => handleExport(w)}
             onRequestSignature={() => handleRequestSignature(w)}
             onRecordPaper={() => handleRecordPaper(w)}
             onMarkReceived={() => handleStatusChange(w, 'received')}
-            onMarkVoid={() => handleStatusChange(w, 'voided')}
+            onMarkVoid={() => { void handleVoid(w); }}
             onDelete={() => handleDelete(w)}
           />
         ))}
@@ -577,10 +880,14 @@ function LienWaiversScreenInner() {
   );
 }
 
-function WaiverCard({ waiver, exporting, requesting, formLabel, onExport, onRequestSignature, onRecordPaper, onMarkReceived, onMarkVoid, onDelete }: {
+function WaiverCard({ waiver, exporting, requesting, busy, offline, formLabel, onExport, onRequestSignature, onRecordPaper, onMarkReceived, onMarkVoid, onDelete }: {
   waiver: LienWaiver;
   exporting: boolean;
   requesting: boolean;
+  /** A status change / paper record / delete for this card is in flight. */
+  busy: boolean;
+  /** The last read failed for want of signal — sending a link needs the server. */
+  offline: boolean;
   /** "California statutory form · Cal. Civ. Code § 8132" or "General form". */
   formLabel: string;
   onExport: () => void;
@@ -670,7 +977,12 @@ function WaiverCard({ waiver, exporting, requesting, formLabel, onExport, onRequ
           )}
         </TouchableOpacity>
         {waiver.status === 'requested' && (
-          <TouchableOpacity style={styles.actionPrimary} onPress={onRequestSignature} disabled={requesting}>
+          <TouchableOpacity
+            style={[styles.actionPrimary, (offline || busy) && styles.actionDisabled]}
+            onPress={onRequestSignature}
+            disabled={requesting || offline || busy}
+            accessibilityState={{ disabled: requesting || offline || busy }}
+          >
             {requesting ? <ActivityIndicator size="small" color="#FFF" /> : (
               <>
                 <Send size={13} color="#FFF" strokeWidth={1.75} />
@@ -682,25 +994,31 @@ function WaiverCard({ waiver, exporting, requesting, formLabel, onExport, onRequ
           </TouchableOpacity>
         )}
         {waiver.status === 'requested' && (
-          <TouchableOpacity style={styles.actionSecondary} onPress={onRecordPaper}>
+          <TouchableOpacity style={[styles.actionSecondary, busy && styles.actionDisabled]} onPress={onRecordPaper} disabled={busy}>
             <FileSignature size={13} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.actionSecondaryText}>Record paper waiver</Text>
           </TouchableOpacity>
         )}
         {waiver.status === 'signed' && (
-          <TouchableOpacity style={styles.actionPrimary} onPress={onMarkReceived}>
+          <TouchableOpacity style={[styles.actionPrimary, busy && styles.actionDisabled]} onPress={onMarkReceived} disabled={busy}>
             <CheckCircle2 size={13} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.actionPrimaryText}>Mark received</Text>
           </TouchableOpacity>
         )}
         {(waiver.status === 'requested' || waiver.status === 'signed') && (
-          <TouchableOpacity style={styles.actionGhost} onPress={onMarkVoid}>
+          <TouchableOpacity style={[styles.actionGhost, busy && styles.actionDisabled]} onPress={onMarkVoid} disabled={busy}>
             <XCircle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.actionGhostText}>Void</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.actionGhost} onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
+        <TouchableOpacity style={[styles.actionGhost, busy && styles.actionDisabled]} onPress={onDelete} disabled={busy} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
       </View>
+      {offline && waiver.status === 'requested' && (
+        // The signing link is minted on the server row before the email goes —
+        // an optimistic, queued token would be a link that 404s — so offline
+        // the button is greyed and says why rather than failing on the tap.
+        <Text style={styles.offlineNote}>Sending a signing link needs signal. Pull down to retry once you&apos;re back online.</Text>
+      )}
     </View>
   );
 }
@@ -911,6 +1229,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   actionGhost: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
   actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warningLabel },
+  actionDisabled: { opacity: 0.45 },
+  offlineNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16 },
+
+  staleBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 12, borderRadius: Tokens.radius.md, marginBottom: 12,
+    backgroundColor: Colors.warning + '0D',
+    borderWidth: 1, borderColor: Colors.warning + '30',
+  },
+  staleBannerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text, lineHeight: 16 },
+  staleBannerAction: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.accent },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },

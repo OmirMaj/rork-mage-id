@@ -151,6 +151,9 @@ export default function PostBidScreen() {
       requiredCertifications: selectedCerts,
       contactEmail: contactEmail.trim(),
       applyUrl: applyUrl.trim() || undefined,
+      // A community/agency solicitation, never a homeowner RFP: BidsContext
+      // keeps homeowner posts out of this feed (audit wave 5, #13).
+      isHomeownerRfp: false,
     };
 
     addBid(bid);

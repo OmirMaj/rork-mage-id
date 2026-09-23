@@ -1,5 +1,41 @@
-import type { BidPackage, BidPackageBid, Commitment } from '@/types';
+import type { BidPackage, BidPackageBid, Commitment, LinkedEstimateItem } from '@/types';
 import { awardedCommitmentCost, openExcludedScope } from '@/utils/projectFinancials';
+import { lineCost } from '@/utils/estimateMarkup';
+
+/** The estimate lines a package budget can be checked against. */
+export type BudgetBasisItem = Pick<LinkedEstimateItem, 'materialId' | 'lineTotal' | 'unitPrice' | 'quantity'>;
+
+/**
+ * Was this package's budget written at SELL — the old auto-fill (#11)?
+ *
+ * Until the fix, app/buyout.tsx auto-filled a package budget with
+ * `Math.round(Σ lineTotal)` of the lines he ticked, and utils/generativeSetup
+ * with the unrounded Σ lineTotal. lineTotal carries his markup, so every
+ * award then read his own margin as "buyout savings" — and computeBulkSavings
+ * printed it on the homeowner's estimate PDF. New packages are budgeted at
+ * cost (estimateMarkup.lineCost); the rows already stored are not.
+ *
+ * Detected, not guessed: true only when the linked lines are still on the
+ * estimate, they carry a real markup (sell exceeds cost by at least a dollar,
+ * so the two can be told apart at all), and the stored budget equals their
+ * SELL sum to within the old whole-dollar rounding. A budget he typed by hand
+ * almost never lands there; one that does is flagged for review, never
+ * rewritten — the screen says why and he decides.
+ */
+export function isSellBasisBudget(
+  pkg: Pick<BidPackage, 'estimateBudget' | 'linkedEstimateItemIds'>,
+  items: readonly BudgetBasisItem[] | null | undefined,
+): boolean {
+  const ids = pkg.linkedEstimateItemIds ?? [];
+  if (!items || ids.length === 0) return false;
+  const linked = items.filter(i => ids.includes(i.materialId));
+  if (linked.length === 0) return false;
+  const sell = linked.reduce((s, i) => s + (i.lineTotal ?? 0), 0);
+  const cost = linked.reduce((s, i) => s + lineCost(i), 0);
+  if (sell - cost < 1) return false;
+  const budget = pkg.estimateBudget ?? 0;
+  return Math.abs(budget - sell) <= 0.5 + 1e-9;
+}
 
 export interface BulkSavingsLine {
   packageId: string;
@@ -15,6 +51,9 @@ export interface BulkSavingsSummary {
   totalBudgeted: number;
   totalAwarded: number;
   byPackage: BulkSavingsLine[];
+  /** Awarded packages left OUT of the figure because their budget was stored
+   *  at sell (isSellBasisBudget) — their "savings" would be his own markup. */
+  needsReview: string[];
   hasRealData: boolean;
   source: 'measured_from_buyout';
   asOf: string;
@@ -41,8 +80,14 @@ export function computeBulkSavings(
    *  by pkg.awardedBidId). Required — without it the figure is not leveled. */
   bids: ReadonlyArray<Pick<BidPackageBid, 'id' | 'amount' | 'normalizedAdjustment'>>,
   asOf: string = new Date().toISOString(),
+  /** The project's estimate lines. When given, a package whose budget was
+   *  stored at SELL is refused (#11) rather than printed as Bulk Savings.
+   *  Optional so existing callers compile; the client-PDF callers must pass
+   *  it — see the w5-join-screens handoff. */
+  opts?: { estimateItems?: readonly BudgetBasisItem[] | null },
 ): BulkSavingsSummary {
   const byPackage: BulkSavingsLine[] = [];
+  const needsReview: string[] = [];
   let totalBudgeted = 0;
   let totalAwarded = 0;
 
@@ -57,6 +102,9 @@ export function computeBulkSavings(
         )
       : undefined;
     if (!commitment) continue;
+    // A sell-basis budget is refused, not netted: budget − award there is his
+    // markup, and this figure is printed on the CLIENT's PDF as money saved.
+    if (isSellBasisBudget(pkg, opts?.estimateItems)) { needsReview.push(pkg.id); continue; }
 
     // LEVELED, like every other buyout-savings figure (audit round 2, #5;
     // utils/projectFinancials leveledBuyoutSavings). The commitment is the
@@ -96,8 +144,70 @@ export function computeBulkSavings(
     totalBudgeted,
     totalAwarded,
     byPackage,
+    needsReview,
     hasRealData: byPackage.length > 0,
     source: 'measured_from_buyout',
     asOf,
   };
+}
+
+/**
+ * A package's budget AT COST, from the estimate lines it links (#11) — the
+ * figure the new-package form now auto-fills and the "review" fix offers.
+ * Null when none of its linked lines are on the estimate any more.
+ */
+export function packageCostBudget(
+  pkg: Pick<BidPackage, 'linkedEstimateItemIds'>,
+  items: readonly BudgetBasisItem[] | null | undefined,
+): number | null {
+  const ids = pkg.linkedEstimateItemIds ?? [];
+  const linked = (items ?? []).filter(i => ids.includes(i.materialId));
+  if (linked.length === 0) return null;
+  return cents(linked.reduce((s, i) => s + lineCost(i), 0));
+}
+
+// ── Bid amounts (#95) ──────────────────────────────────────────────────────
+// A voice bid whose price the parser missed was saved at $0, sorted first,
+// badged LOWEST and offered "Award · $0" — an award ProjectContext refuses in
+// silence. On web a typed "4,800" became NaN the same way. A bid amount is a
+// real, positive, finite number to the cent, or it is "needs an amount".
+
+/** Typed text → dollars to the cent, or null. Separators and a "$" are
+ *  stripped first ("4,800" is 4800, "$12,345.50" is 12345.5); a second
+ *  decimal point, zero, or a negative is refused rather than guessed. */
+export function parseBidAmountInput(text: string): number | null {
+  const raw = String(text ?? '').replace(/[^0-9.]/g, '');
+  if (!raw || (raw.match(/\./g) ?? []).length > 1) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const c = cents(n);
+  return c > 0 ? c : null;
+}
+
+/** A stored bid's usable amount, or null when it has none (0, NaN, negative). */
+export function bidAmountOf(bid: Pick<BidPackageBid, 'amount'>): number | null {
+  const n = Number(bid.amount);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Matrix order: leveled total ascending, and every bid with no usable amount
+ *  LAST — never first, so it can never wear the LOWEST badge. */
+export function compareBidsForMatrix(
+  a: Pick<BidPackageBid, 'amount' | 'normalizedAdjustment'>,
+  b: Pick<BidPackageBid, 'amount' | 'normalizedAdjustment'>,
+): number {
+  const aa = bidAmountOf(a), bb = bidAmountOf(b);
+  if (aa == null && bb == null) return 0;
+  if (aa == null) return 1;
+  if (bb == null) return -1;
+  return (aa + (a.normalizedAdjustment ?? 0)) - (bb + (b.normalizedAdjustment ?? 0));
+}
+
+/**
+ * The one figure a client PDF may print as "Bulk Savings": a real, positive,
+ * measured number, or nothing. Mirrors the guard both PDF callers apply today
+ * (`hasRealData && bulkSavings > 0`) so the validator can execute it.
+ */
+export function bulkSavingsPdfTotal(summary: Pick<BulkSavingsSummary, 'hasRealData' | 'bulkSavings'>): number | undefined {
+  return summary.hasRealData && summary.bulkSavings > 0 ? summary.bulkSavings : undefined;
 }

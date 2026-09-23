@@ -51,7 +51,8 @@ import UpgradeSheet from '@/components/UpgradeSheet';
 import {
   uploadAndRenderPdf, countPdfPages, resolveRenderedPages, type RenderedPlanPage,
 } from '@/utils/pdfRenderClient';
-import { confirmQuotaFits } from '@/utils/quotaPrecheck';
+import { confirmQuotaFits, confirmDrawingAnalysesLeft, showAiRefusal } from '@/utils/quotaPrecheck';
+import { aiRefusalKind, type AiRefusalKind } from '@/utils/edgeError';
 import { TakeoffQuotaBadge } from '@/components/TakeoffQuotaBadge';
 import { useUsageStatus } from '@/hooks/useUsageStatus';
 import { analyzeTakeoff, type TakeoffModel } from '@/utils/takeoffAnalyzer';
@@ -156,6 +157,14 @@ function TakeoffInner() {
   const [buyoutBusy, setBuyoutBusy] = useState(false);
   const [verifications, setVerifications] = useState<TakeoffFieldVerification[]>([]);
   const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
+  // #39: pages that rendered (and were charged against takeoff_pages) but
+  // whose analysis failed. Kept so "Retry analysis" re-reads them — no second
+  // upload, no second render, no second page charge.
+  const [retryPages, setRetryPages] = useState<RenderedPlanPage[] | null>(null);
+  // Why the last run stopped, when it was a refusal a plain retry can't fix
+  // (a spent month / plan, or the hourly limit) — the error card words its
+  // Retry around it instead of implying the same tap will pass.
+  const [errorKind, setErrorKind] = useState<AiRefusalKind | null>(null);
 
   const project = useMemo(() =>
     pickedProjectId ? getProject(pickedProjectId) : undefined,
@@ -203,6 +212,12 @@ function TakeoffInner() {
     return () => { cancelled = true; };
   }, [pickedProjectId]);
 
+  // Rendered pages belong to the project they were uploaded into.
+  useEffect(() => {
+    setRetryPages(null);
+    setErrorKind(null);
+  }, [pickedProjectId]);
+
   // Load field verifications. Mobile-only feature, but the data layer
   // works on web too (just nothing writes to it there).
   useEffect(() => {
@@ -229,8 +244,53 @@ function TakeoffInner() {
     });
   }, [step, result, overrides, rejected, modelUsed, pages, uploadedFileName, pickedProjectId]);
 
+  // The analyze half of a takeoff, on pages already rendered. Shared by a
+  // fresh pick and by "Retry analysis" (#39), so a retry never renders or
+  // charges pages a second time. Throws; the caller words the failure.
+  const analyzePages = useCallback(async (rendered: RenderedPlanPage[]) => {
+    setStep('analyzing');
+    const { result: takeoff, modelUsed: usedModel } = await analyzeTakeoff({
+      pagePaths: rendered.map(p => p.storagePath),
+      // Legacy, one release: an un-redeployed function still needs URLs.
+      pageUrls: rendered.map(p => p.viewUrl),
+      projectName: project?.name,
+      projectType: project?.type,
+      squareFootage: project?.squareFootage,
+      location: project?.location,
+      model: pickedModel,
+    });
+    setResult(takeoff);
+    setModelUsed(usedModel);
+    setRetryPages(null);
+    setErrorKind(null);
+    setStep('review');
+    // Mark the onboarding milestone — drives the home-screen checklist.
+    void markFirstTakeoffDone();
+    // Record usage on success only — counts toward the Pro+ smart daily
+    // quota. A cancelled pick or a failed analyze records nothing.
+    void recordAIUsage('smart', 'aiTakeoff');
+    // The badge again: analyze-takeoff just spent one drawing analysis.
+    refreshQuota();
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [project, pickedModel, refreshQuota]);
+
+  /** A failed run, worded: the server's refusal (with See plans when it is
+   *  the plan) or the error itself; pages that did render are kept. */
+  const failRun = useCallback((e: unknown, rendered: RenderedPlanPage[] | null) => {
+    console.warn('[Takeoff] failed', e);
+    // #124: the render step (convert-pdf-to-images) and analyze-takeoff both
+    // answer a cap / plan / hourly refusal with their own sentence and code.
+    const refusal = showAiRefusal(e, router);
+    setErrorKind(aiRefusalKind(e));
+    setError(refusal ?? String((e as Error)?.message ?? e));
+    if (rendered && rendered.length > 0) setRetryPages(rendered);
+    setStep('idle');
+    refreshQuota();
+  }, [router, refreshQuota]);
+
   const handlePick = useCallback(async () => {
     setError(null);
+    setErrorKind(null);
     // DB-F11. The bucket folder IS the tenant boundary, so there is no
     // project-less place to put a drawing. uploadAndRenderPdf refuses a
     // non-project prefix and the edge function 403s it; say so here, before the
@@ -239,6 +299,7 @@ function TakeoffInner() {
       setError(uploadBlockedReason ?? 'Pick a project before uploading drawings.');
       return;
     }
+    let rendered: RenderedPlanPage[] | null = null;
     try {
       // Tier gate — AI Takeoff is Pro-only. The server hard-gates every step
       // (convert-pdf-to-images, analyze-takeoff) to Pro+, so a free user is
@@ -249,6 +310,13 @@ function TakeoffInner() {
         setUpgradeLimit(gate);
         return;
       }
+
+      // #39: a takeoff also spends one of the month's drawing analyses — the
+      // bucket spec-book imports, Compare Drawings and the drawing analyzer
+      // share. Checked BEFORE the picker: with none left, the render would
+      // upload his PDF and charge its pages for an analysis the server is
+      // certain to refuse.
+      if (!(await confirmDrawingAnalysesLeft(router))) return;
 
       const picked = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
@@ -270,10 +338,11 @@ function TakeoffInner() {
       }
 
       setUploadedFileName(asset.name);
+      setRetryPages(null);
       setStep('uploading');
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const rendered = await uploadAndRenderPdf({
+      rendered = await uploadAndRenderPdf({
         fileUri: asset.uri,
         projectId: pickedProjectId,
         fileName: asset.name,
@@ -285,32 +354,30 @@ function TakeoffInner() {
       // pages against the user's monthly takeoff_pages bucket.
       refreshQuota();
 
-      setStep('analyzing');
-      const { result: takeoff, modelUsed: usedModel } = await analyzeTakeoff({
-        pagePaths: rendered.map(p => p.storagePath),
-        // Legacy, one release: an un-redeployed function still needs URLs.
-        pageUrls: rendered.map(p => p.viewUrl),
-        projectName: project?.name,
-        projectType: project?.type,
-        squareFootage: project?.squareFootage,
-        location: project?.location,
-        model: pickedModel,
-      });
-      setResult(takeoff);
-      setModelUsed(usedModel);
-      setStep('review');
-      // Mark the onboarding milestone — drives the home-screen checklist.
-      void markFirstTakeoffDone();
-      // Record usage on success only — counts toward the Pro+ smart daily
-      // quota. A cancelled pick or a failed analyze records nothing.
-      void recordAIUsage('smart', 'aiTakeoff');
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await analyzePages(rendered);
     } catch (e) {
-      console.warn('[Takeoff] failed', e);
-      setError(String((e as Error).message ?? e));
-      setStep('idle');
+      failRun(e, rendered);
     }
-  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, router, refreshQuota, tier]);
+  }, [pickedProjectId, uploadBlockedReason, router, refreshQuota, tier, analyzePages, failRun]);
+
+  // #39: read the pages that already rendered again — analyze-takeoff only.
+  const handleRetryAnalysis = useCallback(async () => {
+    const kept = retryPages;
+    if (!kept || kept.length === 0) return;
+    const gate = await checkAILimit(tier, 'smart', 'aiTakeoff');
+    if (!gate.allowed) {
+      setUpgradeLimit(gate);
+      return;
+    }
+    if (!(await confirmDrawingAnalysesLeft(router))) return;
+    setError(null);
+    setErrorKind(null);
+    try {
+      await analyzePages(kept);
+    } catch (e) {
+      failRun(e, kept);
+    }
+  }, [retryPages, tier, router, analyzePages, failRun]);
 
   const handleMatchSpecs = useCallback(async () => {
     if (!result) return;
@@ -321,6 +388,10 @@ function TakeoffInner() {
       return;
     }
     setSpecMatchError(null);
+    // #39: the spec book is rendered (takeoff pages) and then read by
+    // analyze-spec-book, which spends a drawing analysis — same precheck,
+    // before the picker, so a spent month doesn't cost the render.
+    if (!(await confirmDrawingAnalysesLeft(router))) return;
     setSpecMatchLoading(true);
     try {
       const picked = await DocumentPicker.getDocumentAsync({
@@ -359,14 +430,19 @@ function TakeoffInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[Takeoff] spec match failed', e);
-      setSpecMatchError(String((e as Error).message ?? e));
+      // #124: the server's own sentence for a cap / plan / hourly refusal.
+      const refusal = showAiRefusal(e, router);
+      setSpecMatchError(refusal ?? String((e as Error).message ?? e));
     } finally {
       setSpecMatchLoading(false);
+      refreshQuota();
     }
-  }, [result, pickedProjectId, uploadBlockedReason, project, pickedModel]);
+  }, [result, pickedProjectId, uploadBlockedReason, project, pickedModel, router, refreshQuota]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
+    setRetryPages(null);
+    setErrorKind(null);
     setPages([]);
     setResult(null);
     setError(null);
@@ -793,8 +869,39 @@ function TakeoffInner() {
           <View style={styles.errorCard}>
             <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.errorRetry} onPress={() => setError(null)}>
+            {errorKind === 'plan' && (
+              <TouchableOpacity style={styles.errorRetry} onPress={() => router.push('/paywall' as never)} testID="takeoff-see-plans">
+                <Text style={styles.errorRetryText}>See plans</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.errorRetry}
+              onPress={() => { setError(null); setErrorKind(null); setRetryPages(null); }}
+            >
               <Text style={styles.errorRetryText}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* #39: the pages rendered and were charged; only the analysis failed.
+            Retry reads them again — it never re-uploads or re-charges pages.
+            After a refusal, it says what has to change first instead of
+            implying the same tap will pass. */}
+        {retryPages && retryPages.length > 0 && step === 'idle' && (
+          <View style={styles.card} testID="takeoff-retry-analysis">
+            <Text style={styles.cardLabel}>
+              {retryPages.length} page{retryPages.length === 1 ? '' : 's'} of {uploadedFileName ?? 'your PDF'} already rendered
+            </Text>
+            <Text style={styles.cardHelper}>
+              {errorKind === 'plan'
+                ? 'Kept. Once your plan has a drawing analysis left, Retry analysis reads these pages without uploading or charging takeoff pages again.'
+                : errorKind === 'hourly'
+                  ? 'Kept. When the hourly limit clears, Retry analysis reads these pages without uploading or charging takeoff pages again.'
+                  : 'Kept. Retry analysis reads these pages again without uploading or charging takeoff pages again.'}
+            </Text>
+            <TouchableOpacity style={[styles.uploadCta, { alignSelf: 'flex-start' }]} onPress={handleRetryAnalysis} activeOpacity={0.85}>
+              <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
+              <Text style={styles.uploadCtaText}>Retry analysis</Text>
             </TouchableOpacity>
           </View>
         )}

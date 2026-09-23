@@ -110,12 +110,45 @@ export const REACH_REPORT_GRACE_MS = 15 * 60 * 1000;
 export const STILL_LISTED = 'Your post stays listed for contractors who browse nearby jobs in MAGE ID.';
 /** What is true instead while browsing is off: the alert is the only door. */
 export const NOT_BROWSABLE = "Contractors can't browse posted projects in MAGE ID yet, so only alerted contractors see it.";
-/** The 0-alerted case with browsing off: say plainly nobody will see it. */
-export const NOBODY_WILL_SEE = 'Nobody will see this post until a contractor who covers your area joins.';
+
+// ── Contractor matching (audit wave 5, #96) ─────────────────────────────────
+// companyServesRfp alerts only a company with a service area, and no screen
+// writes one yet — so while SERVICE_AREA_SETUP_ENABLED (constants/
+// featureFlags.ts) is false NO post can reach anyone, and "until a contractor
+// who covers your area joins" was a wait that joining could never end. The
+// flag is passed in as `matchingLive` (this file stays pure — Deno imports
+// it). There is no in-app way for a homeowner to invite a contractor to bid,
+// so the sentence offers none.
+
+/** The 0-reached case while matching is not live: say plainly nobody will see it. */
+export const NOBODY_WILL_SEE = "Contractor matching by service area isn't live in MAGE ID yet, so no contractor will see this post.";
+/** Same fact while browsing is ON: nobody is alerted, but the post is listed. */
+export const NOBODY_ALERTED_MATCHING_OFF = "Contractor matching by service area isn't live in MAGE ID yet, so no contractor was alerted.";
+/** The 0-reached case once matching IS live (a service-area editor exists):
+ *  then a contractor who covers the area joining really does change it. */
+export const NOBODY_COVERS_YET = 'Nobody will see this post until a contractor who covers your area joins.';
 
 function afterAlert(browseOpen: boolean, noneAlerted: boolean): string {
   if (browseOpen) return STILL_LISTED;
-  return noneAlerted ? `${NOT_BROWSABLE} ${NOBODY_WILL_SEE}` : NOT_BROWSABLE;
+  return noneAlerted ? `${NOT_BROWSABLE} ${NOBODY_COVERS_YET}` : NOT_BROWSABLE;
+}
+
+/** What a homeowner is told when matching is off and no delivered count says
+ *  otherwise. `browseOpen` decides whether anyone can still find the post. */
+function matchingOffLine(browseOpen: boolean): string {
+  return browseOpen ? `${NOBODY_ALERTED_MATCHING_OFF} ${STILL_LISTED}` : NOBODY_WILL_SEE;
+}
+
+/**
+ * The notice a homeowner reads BEFORE she posts (post-rfp, above Post), or
+ * null when matching is live and the fan-out's own count will say who was
+ * reached. Same flags, same sentences as the lines below.
+ */
+export function prePostReachNotice(browseOpen: boolean, matchingLive: boolean): string | null {
+  if (matchingLive) return null;
+  return browseOpen
+    ? `${NOBODY_ALERTED_MATCHING_OFF} ${STILL_LISTED}`
+    : `${NOBODY_WILL_SEE} You can still post it; My RFPs will show any bid that comes in.`;
 }
 
 /**
@@ -123,13 +156,19 @@ function afterAlert(browseOpen: boolean, noneAlerted: boolean): string {
  * a number the fan-out reported, a plain zero, "still checking" for the first
  * minutes, or "no report" after that. `browseOpen` must be RFP_BROWSE_ENABLED:
  * whether anyone OTHER than an alerted contractor can find the post.
+ * `matchingLive` must be SERVICE_AREA_SETUP_ENABLED: whether any contractor can
+ * be matched at all. Anything but `true` counts as not live — the honest
+ * default for a caller that forgot to pass it.
  */
-export function rfpReachLine(row: RfpReachRow, nowMs: number, browseOpen: boolean): { tone: ReachTone; text: string } {
+export function rfpReachLine(
+  row: RfpReachRow, nowMs: number, browseOpen: boolean, matchingLive?: boolean,
+): { tone: ReachTone; text: string } {
+  const live = matchingLive === true;
   if (row.notified_at && typeof row.notified_count === 'number') {
     // "alerted" is now what the number proves: the fan-out counts only the
     // contractors notify reports as `delivered` (a push or an email actually
     // sent), not every call that returned OK. Prefs off / no push token / no
-    // email is not counted.
+    // email is not counted. A delivered count is a fact whatever the flag says.
     const n = row.notified_count;
     if (n > 0) {
       return {
@@ -137,6 +176,7 @@ export function rfpReachLine(row: RfpReachRow, nowMs: number, browseOpen: boolea
         text: `${n} contractor${n === 1 ? '' : 's'} who cover${n === 1 ? 's' : ''} your area ${n === 1 ? 'was' : 'were'} alerted${row.verified_only ? ' (license on file)' : ''}.${browseOpen ? '' : ` ${NOT_BROWSABLE}`}`,
       };
     }
+    if (!live) return { tone: 'none', text: matchingOffLine(browseOpen) };
     return {
       tone: 'none',
       text: row.verified_only
@@ -144,6 +184,8 @@ export function rfpReachLine(row: RfpReachRow, nowMs: number, browseOpen: boolea
         : `No MAGE ID contractor covers your area yet, so nobody was alerted. ${afterAlert(browseOpen, true)}`,
     };
   }
+  // Matching off: there is nothing to wait for — no "checking…", no "no record".
+  if (!live) return { tone: 'none', text: matchingOffLine(browseOpen) };
   const posted = Date.parse(row.posted_date ?? row.created_at ?? '');
   if (Number.isFinite(posted) && nowMs - posted < REACH_REPORT_GRACE_MS) {
     return { tone: 'pending', text: 'Checking which contractors cover your area…' };
@@ -155,8 +197,15 @@ export function rfpReachLine(row: RfpReachRow, nowMs: number, browseOpen: boolea
 }
 
 /** The post-rfp success alert. The fan-out runs after the insert, so at this
- *  moment nobody has been alerted yet and the count is unknown — say that. */
-export function postedAlertBody(city: string | null | undefined, verifiedOnly: boolean, browseOpen: boolean): string {
+ *  moment nobody has been alerted yet and the count is unknown — say that.
+ *  While matching is not live (`matchingLive` !== true) nobody can be alerted
+ *  at all, and the alert says so instead of describing a fan-out. */
+export function postedAlertBody(
+  city: string | null | undefined, verifiedOnly: boolean, browseOpen: boolean, matchingLive?: boolean,
+): string {
+  if (matchingLive !== true) {
+    return `Your project is posted. ${matchingOffLine(browseOpen)} My RFPs will show any bid that comes in.`;
+  }
   const where = (city ?? '').trim() || 'your area';
   return `Your project is live. We alert MAGE ID contractors who cover ${where}`
     + (verifiedOnly ? ' and have a license on file' : '')

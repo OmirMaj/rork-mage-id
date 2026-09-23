@@ -3,7 +3,12 @@ import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
 
 export interface QboStatus {
-  status: 'disconnected' | 'connecting' | 'connected' | 'reauth_required' | 'error';
+  /** 'unknown' = the status check itself failed (no signal, a server error, or
+   *  the server refusing the plan) — it says NOTHING about the connection.
+   *  Only a successful answer can say 'disconnected' (audit #103). */
+  status: 'disconnected' | 'connecting' | 'connected' | 'reauth_required' | 'error' | 'unknown';
+  /** Why the check failed; set only with status 'unknown'. */
+  reason?: QboStatusUnknownReason;
   realmId?: string;
   environment?: 'sandbox' | 'production';
   companyName?: string | null;
@@ -92,11 +97,56 @@ export async function completeQuickBooksCallback(opts: { code: string; realmId: 
   return { ok: true, companyName: data.companyName };
 }
 
+export type QboStatusUnknownReason = 'offline' | 'tier' | 'server';
+
+const KNOWN_QBO_STATUSES: readonly QboStatus['status'][] = ['disconnected', 'connecting', 'connected', 'reauth_required', 'error'];
+
+/**
+ * Classify a failed status call. The Supabase client reports three kinds of
+ * failure by `name`: FunctionsFetchError (the request never left — no signal),
+ * FunctionsRelayError (the gateway could not reach the function) and
+ * FunctionsHttpError (the function answered non-2xx; `context` is the
+ * Response). A 403 is requireTier refusing the plan (qbo-connect-status
+ * accepts Business / Enterprise only); anything else is the server's fault.
+ * Duck-typed on name/context rather than instanceof so it holds across
+ * supabase-js copies.
+ */
+export function qboStatusFailureReason(error: unknown): QboStatusUnknownReason {
+  const e = error as { name?: unknown; context?: { status?: unknown } | null } | null | undefined;
+  if (e && e.name === 'FunctionsFetchError') return 'offline';
+  const status = e && e.context && typeof e.context.status === 'number' ? e.context.status : null;
+  if (status === 403) return 'tier';
+  // A thrown TypeError ('Failed to fetch' / 'Network request failed') is the
+  // fetch itself failing — no signal, not a server answer.
+  if (error instanceof TypeError) return 'offline';
+  return 'server';
+}
+
+/**
+ * Audit #103: this used to return { status: 'disconnected' } on ANY failure,
+ * so a connected GC with one bar of signal (or a 5xx) was shown the "Connect
+ * QuickBooks" pitch and button — and a tap started a fresh OAuth over a live
+ * connection. Now 'disconnected' comes only from a successful answer that
+ * says so; every failure is { status: 'unknown', reason }.
+ */
 export async function fetchQboStatus(): Promise<QboStatus> {
-  const { data, error } = await supabase.functions.invoke<QboStatus & { success: boolean }>(
-    'qbo-connect-status', { body: {} },
-  );
-  if (error || !data) return { status: 'disconnected' };
+  let data: (QboStatus & { success?: boolean }) | null = null;
+  let error: unknown = null;
+  try {
+    const r = await supabase.functions.invoke<QboStatus & { success?: boolean }>(
+      'qbo-connect-status', { body: {} },
+    );
+    data = r.data ?? null;
+    error = r.error ?? null;
+  } catch (e) {
+    error = e;
+  }
+  if (error) return { status: 'unknown', reason: qboStatusFailureReason(error) };
+  // A 2xx with no body, success:false, or a status this client does not know
+  // is not an answer about the connection either.
+  if (!data || data.success === false || !KNOWN_QBO_STATUSES.includes(data.status)) {
+    return { status: 'unknown', reason: 'server' };
+  }
   return data;
 }
 

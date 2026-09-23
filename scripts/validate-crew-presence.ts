@@ -194,6 +194,36 @@ const volt = (headcount = 2, hoursWorked = 8): Crew =>
   check('a report with no manpower array is safe', junk.trades.length === 0);
 }
 
+// ── an evening report stamped as a UTC instant belongs to ITS local day ─────
+//
+// #168 (2026-09-23 audit). A new daily report's date is `new Date().toISOString()`
+// — an instant. A foreman in California filing at 5:30 pm PDT on Sep 22 stores
+// '2026-09-23T00:30:00.000Z'. reportDay used to take the first ten characters
+// (the UTC date), so that report counted as Sep 23: it merged with the real
+// Sep 23 report into ONE reported day, and the chase read "off site since
+// 2026-09-23" on the 22nd. Pinned in a US zone; the case refuses to run
+// vacuously in UTC, where the old slice and the local day agree.
+{
+  const prevTz = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  try {
+    check('the evening-instant case runs west of Greenwich (not vacuous)',
+      new Date('2026-09-23T00:30:00.000Z').getTimezoneOffset() > 0);
+    const s = buildCrewPresence([
+      rep('2026-09-23T00:30:00.000Z', [acme()]), // Sep 22, 5:30 pm PDT
+      rep('2026-09-23', [volt()]),
+    ]);
+    check('an evening instant and the next bare day are 2 distinct reported days', s.reportedDays === 2);
+    const dry = s.trades.find(t => t.tradeKey === 'drywall');
+    check('the evening report lands on its LOCAL day (lastSeen 2026-09-22)', dry?.lastSeen === '2026-09-22');
+    check('asOf is still the latest bare day', s.asOf === '2026-09-23');
+    check('a bare YYYY-MM-DD is taken verbatim, never shifted through Date',
+      buildCrewPresence([rep('2026-09-01', [acme()])]).asOf === '2026-09-01');
+  } finally {
+    if (prevTz === undefined) delete process.env.TZ; else process.env.TZ = prevTz;
+  }
+}
+
 // ── the roster this module reads has to arrive with real trade names ────────
 //
 // Everything above assumes `trade` distinguishes one sub from another. The DFR

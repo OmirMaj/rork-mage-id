@@ -40,9 +40,15 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
   refresh: () => void;
 } {
   const enabled = opts.enabled !== false;
+  // rfis + submittals (#117, audit 2026-09-22): composeBrief has always had an
+  // overdue-RFI and a stuck-submittal check, and this — its only caller — never
+  // handed it either list, so an RFI past its required date with the architect
+  // holding the ball never reached the brief. Passed straight through, no
+  // `?? []`: the context always provides arrays, and an empty one means
+  // "checked, none found", which is what briefScope then says.
   const {
     projects, invoices, changeOrders, punchItems, permits, dailyReports, deliveries,
-    buildingAccessRules, accessReservations,
+    buildingAccessRules, accessReservations, rfis, submittals,
   } = useProjects();
   const safety = useSafety();
   // Signed subcontracts and POs, and the user id for the SERVER cash-flow row —
@@ -64,15 +70,23 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
 
       // Open leak flags — deduped unresolved rows; null on failure lets the
       // composer's pure 14-day report-scan fallback take over.
+      //
+      // The comment above was not true until #122 (audit 2026-09-22): the
+      // ledger read swallowed a failure to [] (and cached it), so offline this
+      // set { count: 0 } — "checked, no flags" — the fallback never ran and the
+      // "$X of flagged extra work" line vanished. The Result read says which it
+      // was; only a read that WORKED may state a count.
       try {
-        const { fetchOpenPredictionsDeduped } = await import('@/utils/brain/predictionLedger');
-        const rows = await fetchOpenPredictionsDeduped(['leak_flag']);
-        let estTotal = 0;
-        for (const row of rows) {
-          const items = (row.payload as { items?: { estPrice?: number | null }[] }).items ?? [];
-          for (const item of items) estTotal += item.estPrice ?? 0;
+        const { fetchOpenPredictionsDedupedResult } = await import('@/utils/brain/predictionLedger');
+        const res = await fetchOpenPredictionsDedupedResult(['leak_flag']);
+        if (res.ok) {
+          let estTotal = 0;
+          for (const row of res.rows) {
+            const items = (row.payload as { items?: { estPrice?: number | null }[] }).items ?? [];
+            for (const item of items) estTotal += item.estPrice ?? 0;
+          }
+          next.openLeakFlags = { count: res.rows.length, estTotal };
         }
-        next.openLeakFlags = { count: rows.length, estTotal };
       } catch { /* additive */ }
 
       // Cash forecast — only when the user finished cash-flow setup. The SAME
@@ -102,12 +116,15 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
       } catch { /* additive */ }
 
       // Accuracy report — the self-correction line source.
+      // A failed read leaves it null (no line), never a report built from zero
+      // rows.
       try {
-        const [{ fetchResolvedPredictions }, { buildAccuracyReport }] = await Promise.all([
+        const [{ fetchResolvedPredictionsResult }, { buildAccuracyReport }] = await Promise.all([
           import('@/utils/brain/predictionLedger'),
           import('@/utils/brain/accuracyReport'),
         ]);
-        next.accuracyReport = buildAccuracyReport(await fetchResolvedPredictions());
+        const res = await fetchResolvedPredictionsResult();
+        if (res.ok) next.accuracyReport = buildAccuracyReport(res.rows);
       } catch { /* additive */ }
 
       if (!cancelled) {
@@ -128,7 +145,7 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
     const todayISO = localDateISO(new Date());
     return composeBrief({
       projects, invoices, changeOrders, punchItems, permits, dailyReports, deliveries,
-      buildingAccessRules, accessReservations,
+      buildingAccessRules, accessReservations, rfis, submittals,
       expiringCertifications: safety.expiringCertifications(todayISO) as Parameters<typeof composeBrief>[0]['expiringCertifications'],
       openLeakFlags: asyncInputs.openLeakFlags,
       cashSummary: asyncInputs.cashSummary,
@@ -136,7 +153,7 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
       accuracyReport: asyncInputs.accuracyReport,
     });
   }, [projects, invoices, changeOrders, punchItems, permits, dailyReports, deliveries,
-      buildingAccessRules, accessReservations, safety, asyncInputs]);
+      buildingAccessRules, accessReservations, rfis, submittals, safety, asyncInputs]);
 
   return { brief, loading, refresh };
 }

@@ -10,9 +10,12 @@
 //   baseTotal   = Σ qty × base        — pre-markup cost of every line
 //   grandTotal  = Σ lineTotal         — what the client is quoted
 //   markupTotal = grandTotal − baseTotal
-// Markup is PER LINE (full.tsx:933). Labor lines (adjustedRate is the all-in
-// rate) and assembly lines (totalCost is all-in) are stamped markup: 0 by the
-// estimator and must stay at cost — see isAtCostLine below.
+// Markup is PER LINE (full.tsx:933), and each line keeps the markup it was
+// saved with. The estimator now marks up labor and assemblies too
+// (full.tsx:1061/:1078 stamp `markup: globalMarkup` on both; cartTotals in
+// utils/estimateMarkup applies the global rate to every bucket), so the line's
+// own stored `markup` is the contract — not its category. See isAtCostLine for
+// the rule this replaced.
 //
 // The header here used to claim "Per-item markup is intentionally NOT an edit
 // lever — globalMarkup is the canonical markup control", and the code matched
@@ -79,31 +82,36 @@ export function normalizeEstimateOps(raw: unknown): EstimateEditOp[] {
   return out;
 }
 
-/** Category labels the estimator writes for lines that are ALREADY all-in cost:
- *  labor's adjustedRate carries the trade's own burden and an assembly's
- *  totalCost bakes in its material + labor, so full.tsx:963/:980 and
- *  estimate/review.tsx:196/:204 stamp both with markup: 0. Marking these up is
- *  what silently inflated the contract value on every voice edit. */
+/** Category labels an OLDER estimator wrote at cost (markup: 0).
+ *  @deprecated No longer used by recomputeEstimate or applyGlobalMarkupToItems
+ *  (audit wave 5, #6). The estimator marks labor and assemblies up now
+ *  (full.tsx:1061/:1078, cartTotals), so zeroing them by category stripped the
+ *  markup off every labor and assembly line on each voice edit — a $50K labor
+ *  line at 20% lost $10,000 of contract value to "change the tile quantity".
+ *  Kept exported with its predicate unchanged only because app/area-takeoff.tsx
+ *  and app/plan-intelligence.tsx still import it (the estimating lane's carry
+ *  and w5-join-screens' cleanup remove those callers; then delete this). */
 const AT_COST_CATEGORIES = new Set(['labor', 'assemblies']);
 
-/** True when a line is priced at cost and must never receive markup. */
+/** @deprecated See AT_COST_CATEGORIES. True when a line's category is one an
+ *  older estimator priced at cost. Not a pricing rule any more. */
 export function isAtCostLine(item: Pick<LinkedEstimateItem, 'category'>): boolean {
   return AT_COST_CATEGORIES.has(String(item.category ?? '').trim().toLowerCase());
 }
 
-/** Cascade a new global markup across the lines that are allowed to carry one,
- *  mirroring MaterialCartContext.setGlobalMarkup — which maps over `cart`
- *  (materials) and never touches laborCart / assemblyCart. Pure; feed the
- *  result to recomputeEstimate.
+/** Cascade a new global markup across EVERY line, mirroring the estimator's
+ *  global-markup chips and utils/estimateMarkup.cartTotals, which apply one
+ *  rate to materials, labor and assemblies alike. Pure; feed the result to
+ *  recomputeEstimate.
  *
  *  interpretEstimateOps.ts's setGlobalMarkup case runs its items through this
  *  helper (AI-F5 — it used to reassign estimate.globalMarkup alone, which,
  *  with money per-line, moved no totals), so "bump the markup to 20%" reprices
- *  materials and leaves labor/assemblies at cost. recomputeEstimate re-zeroes
- *  at-cost lines regardless, so a cascade written any other way still cannot
- *  mark up labor. */
+ *  every line the way the estimator would. It used to leave labor/assemblies at
+ *  0 — the same drift as #6 — so "bump the markup to 20%" on an estimate built
+ *  at 20% everywhere quietly took labor to 0%. */
 export function applyGlobalMarkupToItems(items: LinkedEstimateItem[], markupPct: number): LinkedEstimateItem[] {
-  return items.map((it) => (isAtCostLine(it) ? { ...it, markup: 0 } : { ...it, markup: markupPct }));
+  return items.map((it) => ({ ...it, markup: markupPct }));
 }
 
 /** Recompute every line's total + the estimate's three totals from the current
@@ -111,12 +119,14 @@ export function applyGlobalMarkupToItems(items: LinkedEstimateItem[], markupPct:
 export function recomputeEstimate(estimate: LinkedEstimate): LinkedEstimate {
   const items: LinkedEstimateItem[] = estimate.items.map((it) => {
     const base = it.usesBulk ? it.bulkPrice : it.unitPrice;
-    // Per-line markup, exactly as the estimator prices a line (full.tsx:933).
-    // At-cost lines are forced back to 0 so the line's own markup field and its
-    // lineTotal always agree, and so no upstream cascade can re-price labor or
-    // an assembly. numOr guards persisted rows with a missing/NaN markup, which
-    // would otherwise poison every total on the estimate.
-    const markup = isAtCostLine(it) ? 0 : numOr(it.markup, 0);
+    // Per-line markup, exactly as the estimator prices a line (full.tsx:933):
+    // the line's OWN stored markup, whatever its category. An estimate saved
+    // before the estimator marked labor up stores labor at 0 and so recomputes
+    // byte-identical; one saved at 20% on labor keeps its 20%. (A category rule
+    // used to force labor/assemblies to 0 here — #6.) numOr guards persisted
+    // rows with a missing/NaN markup, which would otherwise poison every total
+    // on the estimate.
+    const markup = numOr(it.markup, 0);
     return { ...it, markup, lineTotal: round2(it.quantity * base * (1 + markup / 100)) };
   });
   // baseTotal sums the PRE-markup cost of every line and grandTotal sums the

@@ -54,3 +54,34 @@ export function edgeErrorCode(err: unknown): string {
   const code = (err as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? code : '';
 }
+
+/**
+ * The HTTP status a supabase-js edge error carries (FunctionsHttpError hangs
+ * the Response off `.context`), read WITHOUT touching the body — so a caller
+ * can decide "transient, retry" first and still hand the untouched error to
+ * edgeFunctionError, which reads the body its one time. null when nothing
+ * reached the server: a timeout (invokeWithTimeout's 'Took too long') or a
+ * network failure has no context, so it is never mistaken for a 5xx.
+ */
+export function edgeErrorStatus(error: unknown): number | null {
+  const status = (error as { context?: { status?: unknown } } | null)?.context?.status;
+  return typeof status === 'number' && Number.isFinite(status) && status > 0 ? status : null;
+}
+
+/**
+ * Audit #124 / CONTRACT 26: a refusal that running the tool again will not fix.
+ *   'plan'   — the month's allowance is spent, or the plan doesn't include the
+ *              tool: show the server's sentence and the way to a bigger plan,
+ *              never "try again".
+ *   'hourly' — the per-hour limit: the server's sentence says when, and that
+ *              IS the message.
+ *   null     — anything else (a blip, a bad file): the screen's own handling.
+ */
+export type AiRefusalKind = 'plan' | 'hourly';
+
+export function aiRefusalKind(err: unknown): AiRefusalKind | null {
+  const code = edgeErrorCode(err);
+  if (code === 'monthly_cap_reached' || code === 'tier_required') return 'plan';
+  if (code === 'hourly_limit') return 'hourly';
+  return null;
+}

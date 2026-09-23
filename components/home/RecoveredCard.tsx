@@ -1,16 +1,23 @@
 // components/home/RecoveredCard.tsx
 //
 // The receipt for the subscription. ReadyToBillCard says "here's what to send";
-// this says "here's what you already collected because MAGE was watching."
+// this says "here's what got approved because MAGE was watching."
 //
 // It is the answer to the only question that matters at renewal — "is this thing
 // worth $29 a month?" — and it answers with a number the contractor can check
-// against their own bank account rather than a feature list.
+// against his own change orders rather than a feature list.
 //
 // The discipline lives in utils/recoveredValue: a change order counts here ONLY
-// if MAGE drafted it from a profit-leak scan AND the owner approved it. COs the
+// if MAGE drafted it from a profit-leak scan AND it is approved. COs the
 // contractor wrote themselves are their win, not ours. Nothing here is an
-// estimate, a projection, or a "potential" — every dollar shown was signed.
+// estimate, a projection, or a "potential".
+//
+// WHAT IT DOES NOT CLAIM (audit wave 5, #152). "Approved" is a status he can set
+// himself with "Mark approved" — no client signature, no invoice. This card used
+// to tell him every dollar was "billed … approved and signed by your client".
+// Now the money is "approved"; "signed by your client" appears only for COs the
+// client e-signed in the portal, and "billed" only for dollars on a sent invoice
+// (recoveredProofLine). A fact that is zero or unknown is not mentioned.
 //
 // Self-hides until there is a real win to report, because a card that says
 // "$0 recovered" on day one teaches the user to ignore it forever.
@@ -25,8 +32,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
-import { formatMoney } from '@/utils/formatters';
-import { computeRecoveredValue, recoveredPendingLine } from '@/utils/recoveredValue';
+import {
+  computeRecoveredValue, formatRecoveredMoney, recoveredPendingLine, recoveredProofLine,
+} from '@/utils/recoveredValue';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -38,14 +46,17 @@ export default function RecoveredCard() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { changeOrders, projects } = useProjects();
+  const { changeOrders, projects, invoices } = useProjects();
 
   const recovered = useMemo(
     () => computeRecoveredValue(projects, changeOrders, {
       windowDays: WINDOW_DAYS,
       nowISO: new Date().toISOString(),
+      // Read to PROVE "billed" per CO, never to assume it. An empty list (not
+      // loaded yet) only means nothing is called billed yet.
+      invoices,
     }),
-    [projects, changeOrders],
+    [projects, changeOrders, invoices],
   );
 
   // Nothing earned yet → render nothing. See the header note.
@@ -69,12 +80,9 @@ export default function RecoveredCard() {
 
       <View style={styles.moneyRow}>
         <TrendingUp size={20} color={colors.success} strokeWidth={2.25} />
-        <Text style={styles.money}>{formatMoney(recovered.total)}</Text>
+        <Text style={styles.money}>{formatRecoveredMoney(recovered.total)}</Text>
       </View>
-      <Text style={styles.sub}>
-        billed from {recovered.count} change order{recovered.count === 1 ? '' : 's'} MAGE drafted off
-        your job-site notes — approved and signed by your client.
-      </Text>
+      <Text style={styles.sub} testID="recovered-card-proof">{recoveredProofLine(recovered)}</Text>
 
       {pendingLine ? <Text style={styles.pending}>{pendingLine}</Text> : null}
 
@@ -86,12 +94,12 @@ export default function RecoveredCard() {
             onPress={() => open(r.projectId)}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`Change order ${r.coNumber} on ${r.projectName}, ${formatMoney(r.amount)}`}
+            accessibilityLabel={`Change order ${r.coNumber} on ${r.projectName}, ${formatRecoveredMoney(r.amount)}${r.clientSigned ? ', signed by your client' : ''}`}
           >
             <Text style={styles.rowName} numberOfLines={1}>
               CO #{r.coNumber} · {r.projectName}
             </Text>
-            <Text style={styles.rowAmount}>{formatMoney(r.amount)}</Text>
+            <Text style={styles.rowAmount}>{formatRecoveredMoney(r.amount)}</Text>
             <ChevronRight size={14} color={colors.textMuted} strokeWidth={2} />
           </TouchableOpacity>
         ))}

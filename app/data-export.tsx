@@ -19,11 +19,15 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import {
-  buildExportPayload, exportUserData, shareExportedFile, summarizeExport,
-  type DataExportOptions, type DataExportSummary,
+  buildExportPayload, exportUserData, shareExportedFile, summarizeExport, NOT_EXPORTED,
+  type DataExportOptions, type DataExportSummary, type PhotoExportContext,
 } from '@/utils/dataExport';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
+import { useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import { useSafety } from '@/contexts/SafetyContext';
+import { resolvePhotoUrls } from '@/utils/storage';
+import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 
 type Scope = 'all' | 'project';
 
@@ -53,7 +57,15 @@ export default function DataExportScreen() {
     projects, invoices, changeOrders, punchItems,
     projectPhotos, contacts, rfis, submittals, equipment, warranties,
     subcontractors, commEvents, getDailyReportsForProject, settings,
+    aiaPayApps, commitments, fieldTickets,
   } = useProjects();
+  // #131: time and safety records live outside ProjectContext — time entries in
+  // the mirror the labor-cost engine reads (own shifts + crew hours on his
+  // jobs), incidents in SafetyContext. Optional-chained so a mount without the
+  // Safety provider exports none rather than crashing.
+  const timeEntries = useTimeEntriesMirror();
+  const safety = useSafety() as ReturnType<typeof useSafety> | undefined;
+  const safetyIncidents = useMemo(() => safety?.incidents ?? [], [safety?.incidents]);
 
   const dailyReports = useMemo(
     () => projects.flatMap(p => getDailyReportsForProject(p.id)),
@@ -101,8 +113,14 @@ export default function DataExportScreen() {
     warranties,
     subcontractors,
     communications: commEvents,
+    aiaPayApps,
+    commitments,
+    fieldTickets,
+    timeEntries,
+    safetyIncidents,
   }), [projects, invoices, changeOrders, dailyReports, punchItems, projectPhotos,
-      contacts, rfis, submittals, equipment, warranties, subcontractors, commEvents]);
+      contacts, rfis, submittals, equipment, warranties, subcontractors, commEvents,
+      aiaPayApps, commitments, fieldTickets, timeEntries, safetyIncidents]);
 
   const options: DataExportOptions = useMemo(() => ({
     projectId: scope === 'project' ? projectId : undefined,
@@ -124,6 +142,11 @@ export default function DataExportScreen() {
     contacts: previewPayload.contacts.length,
     rfis: previewPayload.rfis.length,
     submittals: previewPayload.submittals.length,
+    aiaPayApps: previewPayload.aiaPayApps.length,
+    commitments: previewPayload.commitments.length,
+    fieldTickets: previewPayload.fieldTickets.length,
+    timeEntries: previewPayload.timeEntries.length,
+    safetyIncidents: previewPayload.safetyIncidents.length,
   }), [previewPayload]);
 
   const handleGenerate = useCallback(async () => {
@@ -134,15 +157,43 @@ export default function DataExportScreen() {
     try {
       setGenerating(true);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const result = await exportUserData(allData, options, settings.branding);
+      // #80: decide each photo's link NOW. A photo still in this phone's
+      // upload queue has no bytes in the bucket (its storagePath is set at
+      // capture, so the path alone proves nothing); every other photo gets a
+      // link minted for this export rather than the load-time one, which can
+      // be most of a day old. Both reads fail soft: no queue = none pending,
+      // no signal = no links (each row then says why it has none).
+      const pendingIds = new Set<string>();
+      try {
+        for (const t of await getOwnPhotoUploadQueue()) pendingIds.add(t.photoId);
+      } catch { /* unreadable queue: nothing marked pending */ }
+      const scoped = buildExportPayload(allData, options).photos;
+      const paths = options.includePhotoUrls === false
+        ? []
+        : scoped.filter((ph) => ph.storagePath && !pendingIds.has(ph.id)).map((ph) => ph.storagePath as string);
+      const photoCtx: PhotoExportContext = {
+        links: paths.length > 0 ? await resolvePhotoUrls(paths) : new Map(),
+        notUploaded: pendingIds,
+      };
+      const result = await exportUserData(allData, options, settings.branding, photoCtx);
       setLastResult(result);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (result.fileUris.length === 1) {
+      const photoNote = result.photoOnDeviceOnlyCount > 0
+        ? `\n\n${result.photoOnDeviceOnlyCount} photo${result.photoOnDeviceOnlyCount === 1 ? ' is' : 's are'} still only on this phone (not uploaded), so ${result.photoOnDeviceOnlyCount === 1 ? 'it has' : 'they have'} no link.`
+        : '';
+      if (Platform.OS === 'web') {
+        // #131: web downloads every file straight away — there is no list
+        // below to tap. Say what happened, in his number.
+        showAlert(
+          'Export downloaded',
+          `Downloaded ${result.deliveredFileCount} file${result.deliveredFileCount === 1 ? '' : 's'} to your browser\u2019s Downloads. If the browser asked to allow multiple downloads, allow it — or choose JSON for a single file.${photoNote}`,
+        );
+      } else if (result.fileUris.length === 1) {
         await shareExportedFile(result.fileUris[0], 'MAGE ID Data Export');
       } else {
         showAlert(
           'Export ready',
-          `${summarizeExport(result)}\n\nTap a file below to share it.`,
+          `${summarizeExport(result)}${photoNote}\n\nTap a file below to share it.`,
         );
       }
     } catch (err) {
@@ -151,7 +202,7 @@ export default function DataExportScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [allData, options, scope, projectId]);
+  }, [allData, options, scope, projectId, settings.branding]);
 
   const handleShareOne = useCallback(async (uri: string) => {
     try {
@@ -172,9 +223,11 @@ export default function DataExportScreen() {
           <View style={styles.heroIcon}><FolderDown size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.heroTitle}>Export my data</Text>
           <Text style={styles.heroSub}>
-            Bundle every project, invoice, RFI, photo, and daily report into a portable file you own.
-            Hand it to your accountant, your lawyer, or a competing tool — no lock-in.
+            Bundle your projects, invoices, change orders, pay apps, RFIs, daily reports, time and safety records
+            into a portable file you own. Photos go as photo records with temporary links (24 h) — the photo files
+            are not included. Hand it to your accountant, your lawyer, or a competing tool — no lock-in.
           </Text>
+          <Text style={styles.heroSub}>Not included yet: {NOT_EXPORTED.join(', ')}.</Text>
         </View>
 
         <Text style={styles.sectionLabel}>SCOPE</Text>
@@ -262,8 +315,8 @@ export default function DataExportScreen() {
         <View style={styles.row}>
           <View style={styles.rowIcon}><ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>Include photo URLs</Text>
-            <Text style={styles.rowSub}>Turn off if local file:// paths bloat the export.</Text>
+            <Text style={styles.rowLabel}>Include photo links</Text>
+            <Text style={styles.rowSub}>Photo records with temporary links (24 h) — the photo files are not included. Off leaves the link column blank.</Text>
           </View>
           <Switch
             value={includePhotoUrls}
@@ -329,7 +382,12 @@ export default function DataExportScreen() {
           <SummaryLine label="Punch Items" value={totals.punchItems} />
           <SummaryLine label="RFIs" value={totals.rfis} />
           <SummaryLine label="Submittals" value={totals.submittals} />
-          <SummaryLine label="Photos" value={totals.photos} />
+          <SummaryLine label="AIA Pay Apps" value={totals.aiaPayApps} />
+          <SummaryLine label="Commitments / POs" value={totals.commitments} />
+          <SummaryLine label="T&M Tickets" value={totals.fieldTickets} />
+          <SummaryLine label="Time Entries" value={totals.timeEntries} />
+          <SummaryLine label="Safety Incidents" value={totals.safetyIncidents} />
+          <SummaryLine label="Photo records (links, not files)" value={totals.photos} />
           <SummaryLine label="Contacts" value={totals.contacts} last />
         </View>
 
@@ -338,6 +396,12 @@ export default function DataExportScreen() {
             <Text style={styles.sectionLabel}>LAST EXPORT</Text>
             <View style={styles.resultCard}>
               <Text style={styles.resultHeader}>{summarizeExport(lastResult)}</Text>
+              {Platform.OS === 'web' ? (
+                // Web: the files already downloaded; there is nothing to tap.
+                <Text style={styles.rowSub}>
+                  Downloaded {lastResult.deliveredFileCount} file{lastResult.deliveredFileCount === 1 ? '' : 's'} to your browser&apos;s Downloads.
+                </Text>
+              ) : null}
               {lastResult.fileUris.map((uri) => {
                 const name = uri.split('/').pop() ?? uri;
                 return (

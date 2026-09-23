@@ -12,11 +12,14 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Linking, RefreshControl,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 // The invite is opened on the SUB's device — an office PC, Outlook, a phone
 // without MAGE ID — so it is an https link on the host that serves the Expo
 // route (prequal-form is public and loads the packet anonymously by token),
@@ -26,7 +29,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { shareLinkBase } from '@/utils/webAppOrigin';
 import {
   ShieldCheck, ShieldAlert, ShieldX, Clock, Send, ChevronRight,
-  ChevronLeft, X, CheckCircle2, AlertTriangle, Copy, Scale,
+  ChevronLeft, X, CheckCircle2, AlertTriangle, Copy, Scale, RefreshCw, Mail,
 } from 'lucide-react-native';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Colors } from '@/constants/colors';
@@ -60,6 +63,105 @@ function prequalInviteUrl(token: string): string {
   const runtimeOrigin = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null;
   return `${shareLinkBase(runtimeOrigin)}/prequal-form?token=${encodeURIComponent(token)}`;
 }
+
+// ── pure: review + renewal (run by scripts/validate-w5-lien-prequal-screens.ts) ──
+// Self-contained on purpose — type imports only — so the validator can
+// transpile and EXECUTE this block rather than grep it.
+
+/**
+ * A prequal_packets row → PrequalPacket. A third copy of the mapper (the
+ * others: ProjectContext's loader, prequal-form's RPC reader), kept here
+ * because the review modal re-reads ONE packet by id before the GC decides
+ * (#24) and ProjectContext exposes no single-packet read.
+ */
+function rowToPrequalPacket(r: Record<string, unknown>): PrequalPacket {
+  return {
+    id: r.id as string,
+    subcontractorId: r.subcontractor_id as string,
+    projectId: (r.project_id as string | null) ?? undefined,
+    status: r.status as PrequalPacket['status'],
+    criteria: (r.criteria as PrequalPacket['criteria']) ?? {} as PrequalPacket['criteria'],
+    financials: (r.financials as PrequalPacket['financials']) ?? {} as PrequalPacket['financials'],
+    safety: (r.safety as PrequalPacket['safety']) ?? {} as PrequalPacket['safety'],
+    insurance: (r.insurance as PrequalPacket['insurance']) ?? {} as PrequalPacket['insurance'],
+    licenses: (r.licenses as PrequalPacket['licenses']) ?? [],
+    w9OnFile: !!r.w9_on_file,
+    w9DocPath: (r.w9_doc_path as string | null) ?? undefined,
+    inviteToken: (r.invite_token as string | null) ?? undefined,
+    inviteSentAt: (r.invite_sent_at as string | null) ?? undefined,
+    inviteEmail: (r.invite_email as string | null) ?? undefined,
+    submittedAt: (r.submitted_at as string | null) ?? undefined,
+    reviewedAt: (r.reviewed_at as string | null) ?? undefined,
+    reviewedBy: (r.reviewed_by as string | null) ?? undefined,
+    autoReviewFindings: (r.auto_review_findings as PrequalPacket['autoReviewFindings']) ?? undefined,
+    reviewerNotes: (r.reviewer_notes as string | null) ?? undefined,
+    expiresAt: (r.expires_at as string | null) ?? undefined,
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+  };
+}
+
+/** The review fields a decision may change. Everything else on the packet is
+ *  the sub's (financials, safety, insurance, licenses, W-9, submitted_at) or the
+ *  GC's standing criteria, and a decision must never rewrite them (#24). */
+type PrequalReviewPatch = Pick<PrequalPacket, 'status' | 'updatedAt'> & Partial<{
+  reviewerNotes: PrequalPacket['reviewerNotes'];
+  reviewedAt: PrequalPacket['reviewedAt'];
+  reviewedBy: PrequalPacket['reviewedBy'];
+  expiresAt: PrequalPacket['expiresAt'];
+  autoReviewFindings: PrequalPacket['autoReviewFindings'];
+}>;
+
+/**
+ * The packet a decision writes: the FRESH server copy with only the review
+ * fields laid over it. The old code spread the GC's in-memory copy — read
+ * before the sub submitted — and so wrote `financials: {}` and friends over the
+ * sub's answers. Until ProjectContext grows a narrow review write (w5-join-core:
+ * reviewPrequalPacket), the full-row upsert carries the fresh copy's values.
+ */
+function applyPrequalReview(fresh: PrequalPacket, patch: PrequalReviewPatch): PrequalPacket {
+  // The patch type admits review fields only, so the spread can reach nothing
+  // the sub wrote; a field the patch does not name stays as the server has it.
+  return { ...fresh, ...patch };
+}
+
+/** Which packets can be sent a renewal (#32): a decided or lapsed packet, or
+ *  one inside its renewal window. Never one whose link the sub may be filling
+ *  in right now (invited / draft / in_progress) — a new token kills that link.
+ *  `bucket` is renewalBucket(expiresAt), or null with no expiry. */
+function canSendPrequalRenewal(
+  status: PrequalPacket['status'],
+  bucket: '60d' | '30d' | '7d' | 'expired' | 'ok' | null,
+): boolean {
+  if (status === 'invited' || status === 'draft' || status === 'in_progress') return false;
+  if (status === 'approved' || status === 'expired' || status === 'rejected' || status === 'needs_changes') return true;
+  return bucket === '60d' || bucket === '30d' || bucket === '7d' || bucket === 'expired';
+}
+
+/**
+ * The renewal write (#32). A NEW token (the old link stops working), status
+ * back to 'invited', and the old decision cleared: expiresAt (else
+ * lookup_prequal_packet_by_token still refuses the new link as expired),
+ * submittedAt (else submit_prequal_packet keeps last year's date), reviewedAt,
+ * reviewer notes and findings. The sub's answers and the GC's criteria stay as
+ * the starting point, so renewing is editing last year's packet, not retyping it.
+ */
+function buildPrequalRenewal(existing: PrequalPacket, token: string, email: string, nowIso: string): PrequalPacket {
+  return {
+    ...existing,
+    status: 'invited',
+    inviteToken: token,
+    inviteSentAt: nowIso,
+    inviteEmail: email,
+    expiresAt: undefined,
+    submittedAt: undefined,
+    reviewedAt: undefined,
+    reviewerNotes: undefined,
+    autoReviewFindings: undefined,
+    updatedAt: nowIso,
+  };
+}
+// ── end pure ──
 
 /**
  * Sentence-case labels for the three OFF-PATH prequal states, for the
@@ -131,9 +233,70 @@ function PrequalManagerInner() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { subcontractors, upsertPrequalPacket, getPrequalPacketForSub } = useProjects();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [reviewingPacket, setReviewingPacket] = useState<PrequalPacket | null>(null);
+  const [reviewingPacket, setReviewingPacketState] = useState<PrequalPacket | null>(null);
   const [invitingSub, setInvitingSub] = useState<Subcontractor | null>(null);
+  // #32: the renewal sheet — the same email sheet as an invite, for a packet
+  // that already exists.
+  const [renewing, setRenewing] = useState<{ packet: PrequalPacket; sub: Subcontractor | null } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  /**
+   * #24 — the review modal decides on the packet AS THE SERVER HAS IT, not on
+   * this phone's copy. The list is read once per context mount and nothing
+   * tells it when a sub submits through the anonymous RPC, so a GC who opened
+   * a packet still showing "Invited" saw every field empty, tapped Needs
+   * changes, and the full-row write blanked the sub's whole submission.
+   *
+   *  'checking' — the re-read is in flight; every decision is disabled.
+   *  'fresh'    — decisions act on the row just read.
+   *  'cached'   — the re-read failed (offline); decisions are allowed on the
+   *               cached copy, which the modal labels as possibly out of date.
+   */
+  const [freshness, setFreshness] = useState<{ state: 'checking' | 'fresh' | 'cached'; readAt?: number } | null>(null);
+  const reviewSeq = useRef(0);
+  const setReviewingPacket = useCallback((packet: PrequalPacket | null) => {
+    const seq = ++reviewSeq.current;
+    setReviewingPacketState(packet);
+    if (!packet) { setFreshness(null); return; }
+    setFreshness({ state: 'checking' });
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from('prequal_packets').select('*').eq('id', packet.id).maybeSingle();
+        if (seq !== reviewSeq.current) return;
+        if (error) throw error;
+        if (!data) {
+          // Not on the server (deleted elsewhere, or a local-only packet that
+          // never synced). The cached copy is all there is — say so.
+          setFreshness({ state: 'cached', readAt: queryClient.getQueryState(['prequalPackets', user?.id])?.dataUpdatedAt });
+          return;
+        }
+        setReviewingPacketState(rowToPrequalPacket(data as Record<string, unknown>));
+        setFreshness({ state: 'fresh' });
+      } catch {
+        if (seq !== reviewSeq.current) return;
+        setFreshness({ state: 'cached', readAt: queryClient.getQueryState(['prequalPackets', user?.id])?.dataUpdatedAt });
+      }
+    })();
+  }, [queryClient, user?.id]);
+
+  // Keep the list honest about submissions (#24/#111): re-read on focus and on
+  // pull. The context's foreground refetch is w5-join-core's; this is the
+  // screen's own, through the same query key, so the context state follows.
+  const refetchPackets = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['prequalPackets', user?.id] });
+  }, [queryClient, user?.id]);
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!focusedOnce.current) { focusedOnce.current = true; return; }
+    void refetchPackets();
+  }, [refetchPackets]));
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refetchPackets(); } finally { setRefreshing(false); }
+  }, [refetchPackets]);
 
   // `inviteSubId` — the award dialog in app/buyout-package.tsx offers "Request
   // prequal" for a sub with no packet, so the answer to that note is one tap
@@ -149,9 +312,15 @@ function PrequalManagerInner() {
     if (!target) return;
     handledInviteParam.current = true;
     const existing = getPrequalPacketForSub(target.id);
-    if (existing) setReviewingPacket(existing);
+    // #32: an expired or approved packet is what "Request prequal" from the
+    // award dialog is really asking to renew; anything still in flight opens
+    // for review, where the live link is kept.
+    const lapsed = existing && (existing.status === 'expired'
+      || (existing.status === 'approved' && !!existing.expiresAt && renewalBucket(existing.expiresAt) === 'expired'));
+    if (existing && (lapsed || existing.status === 'approved')) setRenewing({ packet: existing, sub: target });
+    else if (existing) setReviewingPacket(existing);
     else setInvitingSub(target);
-  }, [inviteSubId, subcontractors, getPrequalPacketForSub]);
+  }, [inviteSubId, subcontractors, getPrequalPacketForSub, setReviewingPacket]);
 
   // Build a row per sub with packet+status+review info.
   const rows = useMemo(() => {
@@ -218,10 +387,65 @@ function PrequalManagerInner() {
     void Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`).catch(() => {});
   }, [getPrequalPacketForSub, upsertPrequalPacket]);
 
+  /**
+   * #111 — tell the sub. A decision used to change a status the sub never saw:
+   * no email, and the form never showed the note. The mail app opens with the
+   * note and the sub's own link; nothing is sent until the GC taps Send there,
+   * and the confirmation below says exactly that.
+   */
+  const emailDecision = useCallback(async (packet: PrequalPacket, kind: 'needs_changes' | 'rejected', note: string) => {
+    const sub = subcontractors.find(s => s.id === packet.subcontractorId) ?? null;
+    const to = (packet.inviteEmail ?? sub?.email ?? '').trim();
+    const link = packet.inviteToken ? prequalInviteUrl(packet.inviteToken) : null;
+    const what = kind === 'needs_changes' ? 'needs changes' : 'was not approved';
+    if (!to || !link) {
+      showAlert(
+        'Saved — but the sub has not been told',
+        !to
+          ? `The packet is marked "${what}", but there is no email on it. Tell ${sub?.companyName ?? 'the sub'} yourself, or send a renewal with their address.`
+          : `The packet is marked "${what}", but it has no link to send. Send a renewal to give the sub a working link.`,
+      );
+      return;
+    }
+    const subject = encodeURIComponent(kind === 'needs_changes'
+      ? `Prequalification — changes needed${sub ? ` (${sub.companyName})` : ''}`
+      : `Prequalification — not approved${sub ? ` (${sub.companyName})` : ''}`);
+    const body = encodeURIComponent(
+      `Hi ${sub?.contactName || 'there'},\n\n`
+      + (kind === 'needs_changes'
+        ? 'We reviewed your prequalification packet and need a few changes before we can approve it:\n\n'
+        : 'We reviewed your prequalification packet and are not able to approve it at this time:\n\n')
+      + `${note}\n\n`
+      + (kind === 'needs_changes'
+        ? `Update your answers and resubmit here — no login needed: ${link}\n\n`
+        : `Your packet and this note are here: ${link}\n\n`)
+      + 'Thanks',
+    );
+    try {
+      await Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
+      showAlert(
+        'Status saved — email ready to send',
+        `Your mail app opened with the note to ${to}. It is not sent until you tap Send there. The sub also sees the note when they open their link.`,
+      );
+    } catch {
+      showAlert(
+        'Status saved — no email went out',
+        `No mail app opened, so ${to} has not been told. Copy the link and send it with your note, or use Resend note from this packet.`,
+        [
+          { text: 'Close', style: 'cancel' },
+          { text: 'Copy link', onPress: () => { void copyToClipboard(link); } },
+        ],
+      );
+    }
+  }, [subcontractors]);
+
+  // #24: each decision is the FRESH packet (the modal re-read it) with only the
+  // review fields laid over it — never the stale in-memory spread.
   const handleApprove = useCallback((packet: PrequalPacket) => {
     const now = new Date().toISOString();
-    const updated: PrequalPacket = {
-      ...packet,
+    // expiresAt and the findings snapshot come from what the sub actually
+    // submitted — the stale copy's coiExpiry was usually empty.
+    const updated = applyPrequalReview(packet, {
       status: 'approved',
       reviewedAt: now,
       expiresAt: computePrequalExpiry(now, packet.insurance.coiExpiry),
@@ -229,34 +453,78 @@ function PrequalManagerInner() {
         criterion: f.criterion, passed: f.passed, note: f.note,
       })),
       updatedAt: now,
-    };
+    });
     upsertPrequalPacket(updated);
     setReviewingPacket(null);
-  }, [upsertPrequalPacket]);
+  }, [upsertPrequalPacket, setReviewingPacket]);
 
   const handleNeedsChanges = useCallback((packet: PrequalPacket, note: string) => {
     const now = new Date().toISOString();
-    upsertPrequalPacket({
-      ...packet,
-      status: 'needs_changes',
-      reviewerNotes: note,
-      reviewedAt: now,
-      updatedAt: now,
-    });
+    const updated = applyPrequalReview(packet, { status: 'needs_changes', reviewerNotes: note, reviewedAt: now, updatedAt: now });
+    upsertPrequalPacket(updated);
     setReviewingPacket(null);
-  }, [upsertPrequalPacket]);
+    void emailDecision(updated, 'needs_changes', note);
+  }, [upsertPrequalPacket, setReviewingPacket, emailDecision]);
 
   const handleReject = useCallback((packet: PrequalPacket, note: string) => {
     const now = new Date().toISOString();
-    upsertPrequalPacket({
-      ...packet,
-      status: 'rejected',
-      reviewerNotes: note,
-      reviewedAt: now,
-      updatedAt: now,
-    });
+    const updated = applyPrequalReview(packet, { status: 'rejected', reviewerNotes: note, reviewedAt: now, updatedAt: now });
+    upsertPrequalPacket(updated);
     setReviewingPacket(null);
-  }, [upsertPrequalPacket]);
+    void emailDecision(updated, 'rejected', note);
+  }, [upsertPrequalPacket, setReviewingPacket, emailDecision]);
+
+  /** Resend the decision note (#111) — for a mail composer that was dismissed. */
+  const handleResendNote = useCallback((packet: PrequalPacket) => {
+    if (packet.status !== 'needs_changes' && packet.status !== 'rejected') return;
+    void emailDecision(packet, packet.status, packet.reviewerNotes || (packet.status === 'rejected' ? 'Rejected by reviewer' : 'Please provide missing fields'));
+  }, [emailDecision]);
+
+  /**
+   * #32 — renew an existing packet. Confirmed first, because both effects are
+   * real: the old link stops working (a sub mid-form loses it) and an approved
+   * packet leaves 'approved', which gates buyout, until the sub resubmits.
+   */
+  const handleRenew = useCallback((packet: PrequalPacket, sub: Subcontractor | null, email: string) => {
+    const name = sub?.companyName ?? 'this sub';
+    showAlert(
+      'Send a renewal?',
+      `The old link stops working${packet.status === 'approved' ? `, and ${name} leaves "approved" until they resubmit` : ''}. Their previous answers are kept as the starting point.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send renewal',
+          onPress: () => {
+            const now = new Date().toISOString();
+            const token = generatePrequalToken();
+            upsertPrequalPacket(buildPrequalRenewal(packet, token, email, now));
+            setRenewing(null);
+            setReviewingPacket(null);
+            const link = prequalInviteUrl(token);
+            const subject = encodeURIComponent(`Prequalification renewal for ${name}`);
+            const body = encodeURIComponent(
+              `Hi ${sub?.contactName || 'there'},\n\n`
+              + 'It is time to renew your subcontractor prequalification with us. Your previous answers are already filled in — '
+              + 'update anything that changed (insurance dates especially) and resubmit. No login needed.\n\n'
+              + `Start here: ${link}\n\n`
+              + 'The link in any earlier email no longer works.\n\nThanks',
+            );
+            Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`).then(
+              () => showAlert('Renewal ready to send', `Your mail app opened with the new link to ${email}. It is not sent until you tap Send there.`),
+              () => showAlert(
+                'Renewal saved — no email went out',
+                `No mail app opened, so ${email} has not been told. Copy the new link and send it yourself.`,
+                [
+                  { text: 'Close', style: 'cancel' },
+                  { text: 'Copy link', onPress: () => { void copyToClipboard(link); } },
+                ],
+              ),
+            );
+          },
+        },
+      ],
+    );
+  }, [upsertPrequalPacket, setReviewingPacket]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -272,7 +540,11 @@ function PrequalManagerInner() {
         </View>
       </View>
 
-      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
+      <ScrollView
+        {...fabScroll}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void onPullRefresh(); }} tintColor={themeColors.accent} />}
+      >
 
         {/* Counts */}
         <View style={styles.statsRow}>
@@ -297,10 +569,22 @@ function PrequalManagerInner() {
               <Clock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={styles.renewTitle}>Renewals needed</Text>
             </View>
+            {/* #32: a list you can act on — each row opens the renewal sheet.
+                It used to be text only, and the review modal it did not open
+                had no way to renew either. */}
             {rows.filter(r => r.bucket === '7d' || r.bucket === '30d' || r.bucket === 'expired').map(r => (
-              <Text key={r.sub.id} style={styles.renewItem}>
-                • {r.sub.companyName} — {r.bucket === 'expired' ? 'expired' : `renews within ${r.bucket}`}
-              </Text>
+              <TouchableOpacity
+                key={r.sub.id}
+                style={styles.renewRow}
+                onPress={() => { if (r.packet) setRenewing({ packet: r.packet, sub: r.sub }); }}
+                accessibilityRole="button"
+                accessibilityLabel={`Send renewal to ${r.sub.companyName}`}
+              >
+                <Text style={styles.renewItem}>
+                  • {r.sub.companyName} — {r.bucket === 'expired' ? 'expired' : `renews within ${r.bucket}`}
+                </Text>
+                <Text style={styles.renewAction}>Send renewal</Text>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -375,14 +659,32 @@ function PrequalManagerInner() {
         }}
       />
 
+      {/* Renewal sheet (#32) — same email sheet, prefilled from the packet */}
+      <InviteModal
+        sub={renewing ? (renewing.sub ?? subcontractors.find(s => s.id === renewing.packet.subcontractorId) ?? null) : null}
+        renewal={renewing ? { email: renewing.packet.inviteEmail ?? '', approved: renewing.packet.status === 'approved' } : null}
+        onClose={() => setRenewing(null)}
+        onSend={(email) => {
+          if (!renewing) return;
+          handleRenew(renewing.packet, renewing.sub ?? subcontractors.find(s => s.id === renewing.packet.subcontractorId) ?? null, email);
+        }}
+      />
+
       {/* Review modal */}
       <ReviewModal
         packet={reviewingPacket}
+        freshness={freshness}
         sub={reviewingPacket ? subcontractors.find(s => s.id === reviewingPacket.subcontractorId) ?? null : null}
         onClose={() => setReviewingPacket(null)}
         onApprove={handleApprove}
         onNeedsChanges={handleNeedsChanges}
         onReject={handleReject}
+        onRenew={(packet) => {
+          const sub = subcontractors.find(s => s.id === packet.subcontractorId) ?? null;
+          setReviewingPacket(null);
+          setRenewing({ packet, sub });
+        }}
+        onResendNote={handleResendNote}
         upsertPrequalPacket={upsertPrequalPacket}
       />
     </View>
@@ -435,20 +737,24 @@ function StatusBadge({ status, bucket }: { status?: PrequalStatus; bucket?: stri
 
 // ─── Invite modal ────────────────────────────────────────────
 
-function InviteModal({ sub, onClose, onSend }: {
+function InviteModal({ sub, renewal, onClose, onSend }: {
   sub: Subcontractor | null; onClose: () => void; onSend: (email: string) => void;
+  /** Set for a renewal of an existing packet (#32): the address it was last
+   *  sent to, and whether it is currently approved (the copy says what the
+   *  renewal costs). */
+  renewal?: { email: string; approved: boolean } | null;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [email, setEmail] = useState<string>('');
-  React.useEffect(() => { setEmail(sub?.email ?? ''); }, [sub]);
+  React.useEffect(() => { setEmail(renewal?.email || sub?.email || ''); }, [sub, renewal?.email]);
 
   return (
     <Modal visible={!!sub} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Invite {sub?.companyName ?? 'sub'}</Text>
+            <Text style={styles.modalTitle}>{renewal ? 'Send renewal to' : 'Invite'} {sub?.companyName ?? 'sub'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
           <View style={{ padding: 16 }}>
@@ -462,8 +768,9 @@ function InviteModal({ sub, onClose, onSend }: {
               autoCapitalize="none"
             />
             <Text style={styles.inviteHelp}>
-              We{"\u2019"}ll compose a message with a magic link. The sub can fill out the packet without
-              creating an account.
+              {renewal
+                ? `We\u2019ll compose a message with a NEW link. The old link stops working${renewal.approved ? ' and the packet leaves \u201capproved\u201d until they resubmit' : ''}. Their previous answers are kept as the starting point.`
+                : 'We\u2019ll compose a message with a magic link. The sub can fill out the packet without creating an account.'}
             </Text>
           </View>
           <View style={styles.modalFooter}>
@@ -481,7 +788,7 @@ function InviteModal({ sub, onClose, onSend }: {
               style={styles.btnPrimary}
             >
               <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
-              <Text style={styles.btnPrimaryText}>Send invite</Text>
+              <Text style={styles.btnPrimaryText}>{renewal ? 'Send renewal' : 'Send invite'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -492,9 +799,14 @@ function InviteModal({ sub, onClose, onSend }: {
 
 // ─── Review modal ────────────────────────────────────────────
 
-function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject, upsertPrequalPacket }: {
+function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChanges, onReject, onRenew, onResendNote, upsertPrequalPacket }: {
   packet: PrequalPacket | null;
+  /** #24 — whether `packet` is the row just re-read, still being re-read, or
+   *  this phone's cached copy (offline). Decisions wait for 'checking'. */
+  freshness: { state: 'checking' | 'fresh' | 'cached'; readAt?: number } | null;
   sub: Subcontractor | null;
+  onRenew: (packet: PrequalPacket) => void;
+  onResendNote: (packet: PrequalPacket) => void;
   onClose: () => void;
   onApprove: (packet: PrequalPacket) => void;
   onNeedsChanges: (packet: PrequalPacket, note: string) => void;
@@ -513,6 +825,11 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
   if (!packet) return null;
 
   const canCopyLink = !!packet.inviteToken;
+  const checking = !freshness || freshness.state === 'checking';
+  const renewable = canSendPrequalRenewal(packet.status, packet.expiresAt ? renewalBucket(packet.expiresAt) : null);
+  const cachedReadAt = freshness?.state === 'cached' && freshness.readAt
+    ? new Date(freshness.readAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : null;
 
   // Every date shown in this modal goes through formatPacketDate — see its
   // docblock. A bare `new Date(x).toLocaleDateString()` renders the literal
@@ -567,7 +884,9 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                   startedAt={packet.createdAt}
                   dueAt={packet.expiresAt || undefined}
                   onAdvance={
-                    isSideBranch('prequal', packet.status) || packet.status === 'submitted'
+                    // #24: no advance until the re-read has landed — the write
+                    // below spreads the packet it is given.
+                    checking || isSideBranch('prequal', packet.status) || packet.status === 'submitted'
                       ? undefined
                       : (next) => {
                           upsertPrequalPacket({
@@ -596,6 +915,32 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                 }]}>
                   <Text style={styles.reviewSummaryText}>{review.summary}</Text>
                 </View>
+              )}
+
+              {/* #24 — where the answers on this sheet came from. */}
+              {freshness?.state === 'cached' && (
+                <View style={styles.staleNote} testID="prequal-review-cached">
+                  <AlertTriangle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
+                  <Text style={styles.staleNoteText}>
+                    Couldn{"\u2019"}t reach the server — this may be out of date{cachedReadAt ? ` (last read ${cachedReadAt})` : ''}. The sub may have submitted since.
+                  </Text>
+                </View>
+              )}
+
+              {/* #111 — the decision note, resendable when the mail composer was dismissed. */}
+              {(packet.status === 'needs_changes' || packet.status === 'rejected') && (
+                <TouchableOpacity style={styles.copyLinkRow} onPress={() => onResendNote(packet)} accessibilityRole="button">
+                  <Mail size={14} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.copyLinkText}>Resend note to the sub</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* #32 — renew a decided, lapsed or due packet. */}
+              {renewable && (
+                <TouchableOpacity style={styles.copyLinkRow} onPress={() => onRenew(packet)} disabled={checking} accessibilityRole="button" accessibilityState={{ disabled: checking }}>
+                  <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.copyLinkText}>Send renewal</Text>
+                </TouchableOpacity>
               )}
 
               {/* Magic-link share */}
@@ -657,22 +1002,34 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
             </View>
           </ScrollView>
 
+          {checking && (
+            <Text style={styles.checkingNote} testID="prequal-review-checking">Checking for the sub{"\u2019"}s latest answers…</Text>
+          )}
           <View style={styles.modalFooter}>
             <TouchableOpacity
-              style={[styles.btnGhost, { flex: 0.8 }]}
+              style={[styles.btnGhost, { flex: 0.8 }, checking && styles.btnDisabled]}
               onPress={() => onReject(packet, note || 'Rejected by reviewer')}
+              disabled={checking}
+              accessibilityState={{ disabled: checking }}
             >
               <ShieldX size={14} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={[styles.btnGhostText, { color: themeColors.danger }]}>Reject</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btnGhost, { flex: 1 }]}
+              style={[styles.btnGhost, { flex: 1 }, checking && styles.btnDisabled]}
               onPress={() => onNeedsChanges(packet, note || 'Please provide missing fields')}
+              disabled={checking}
+              accessibilityState={{ disabled: checking }}
             >
               <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
               <Text style={[styles.btnGhostText, { color: Colors.warningLabel }]}>Needs changes</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => onApprove(packet)}>
+            <TouchableOpacity
+              style={[styles.btnPrimary, { flex: 1 }, checking && styles.btnDisabled]}
+              onPress={() => onApprove(packet)}
+              disabled={checking}
+              accessibilityState={{ disabled: checking }}
+            >
               <CheckCircle2 size={14} color={'#FFFFFF'} strokeWidth={1.75} />
               <Text style={styles.btnPrimaryText}>Approve</Text>
             </TouchableOpacity>
@@ -786,6 +1143,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   findingNote: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 1 },
 
   copyLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, marginBottom: 6 },
+  btnDisabled: { opacity: 0.45 },
+  checkingNote: { fontSize: Type.caption2.fontSize, color: t.textSecondary, textAlign: 'center', paddingTop: 10, paddingHorizontal: 16 },
+  staleNote: {
+    flexDirection: 'row', gap: 6, alignItems: 'flex-start', padding: 10, marginBottom: 10,
+    borderRadius: Tokens.radius.md, backgroundColor: t.warningSoft,
+  },
+  staleNoteText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text, lineHeight: 16 },
+  renewRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 4 },
+  renewAction: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' },
   copyLinkText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' },
 
   detailLine: { flexDirection: 'row', paddingVertical: 4 },

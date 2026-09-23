@@ -24,6 +24,16 @@
 // The component owns the busy/error state during parsing so the form
 // doesn't have to. A toast-style "filled X fields" preview appears
 // when parsing succeeds.
+//
+// OUTCOME (audit wave 5, #157). onTranscript may RETURN what happened:
+//   undefined / void        → exactly as before: "Filled from your voice —
+//                             review and edit before saving."
+//   { filled: false, note } → nothing was filled; that line is NOT shown (it
+//                             would be false) and the note is shown instead.
+//   { note }                → filled as usual, plus the note as one muted line
+//                             under it — e.g. "Heard budget $150,000 — not
+//                             saved here; set it on the estimate."
+// Every existing caller returns nothing and keeps today's behaviour.
 
 import React, { useState, useCallback } from 'react';
 import {
@@ -39,6 +49,31 @@ import VoiceCaptureModal from './VoiceCaptureModal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+/** What a form may report back after applying a transcript. */
+export interface VoiceFillOutcome {
+  /** false = nothing was filled, so "Filled from your voice" would be false. */
+  filled?: boolean;
+  /** One muted line shown under the fill (or instead of it when filled is false). */
+  note?: string;
+}
+
+/**
+ * The two lines the component shows for an onTranscript result. Exported so
+ * the rule is one function, not a render-time ternary: an undefined result is
+ * today's behaviour, and only an explicit `filled: false` drops the success
+ * line.
+ */
+export function voiceFillLines(result: void | VoiceFillOutcome | undefined): { filled: string | null; note: string | null } {
+  const outcome = (result && typeof result === 'object') ? result : undefined;
+  const note = typeof outcome?.note === 'string' && outcome.note.trim() ? outcome.note.trim() : null;
+  return {
+    filled: outcome?.filled === false ? null : FILLED_LINE,
+    note,
+  };
+}
+
+export const FILLED_LINE = 'Filled from your voice — review and edit before saving.';
+
 interface Props {
   /** Modal title (e.g. "Dictate this RFI"). */
   title?: string;
@@ -51,9 +86,11 @@ interface Props {
   /**
    * Called with the raw transcript. The form is responsible for
    * running its parser and applying the partial. This component shows
-   * a "Filling…" spinner while the promise is in flight.
+   * a "Filling…" spinner while the promise is in flight. May return a
+   * VoiceFillOutcome (see the header); returning nothing keeps the
+   * default success line.
    */
-  onTranscript: (transcript: string) => Promise<void> | void;
+  onTranscript: (transcript: string) => void | VoiceFillOutcome | Promise<void | VoiceFillOutcome>;
   /**
    * Optional: called with the count of fields filled, so the form can
    * show its own toast / haptic if desired. The component renders a
@@ -75,19 +112,23 @@ export default function InlineVoiceFill({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [filledMsg, setFilledMsg] = useState<string | null>(null);
+  const [noteMsg, setNoteMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleTranscript = useCallback(async (transcript: string) => {
     setBusy(true);
     setFilledMsg(null);
+    setNoteMsg(null);
     setErrorMsg(null);
     try {
       // Capture the time before so we can give a "filled X fields"
       // hint by counting how many setters fired (the parent owns that
       // count via onFilled — we just show a generic success here).
-      await onTranscript(transcript);
-      setFilledMsg('Filled from your voice — review and edit before saving.');
-      onFilled?.(0);
+      const result = await onTranscript(transcript);
+      const lines = voiceFillLines(result);
+      setFilledMsg(lines.filled);
+      setNoteMsg(lines.note);
+      if (lines.filled) onFilled?.(0);
       // Auto-clear the success line after 4s.
       setTimeout(() => setFilledMsg(prev => prev), 0); // no-op to avoid lint
     } catch (e) {
@@ -121,6 +162,10 @@ export default function InlineVoiceFill({
           <MageAIMark size={13} color={themeColors.success} />
           <Text style={styles.successText}>{filledMsg}</Text>
         </View>
+      )}
+
+      {!!noteMsg && !busy && (
+        <Text style={styles.noteText} testID="inline-voice-fill-note">{noteMsg}</Text>
       )}
 
       {!!errorMsg && !busy && (
@@ -179,6 +224,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     fontSize: Type.caption1.fontSize,
     color: t.text,
+  },
+  noteText: {
+    fontSize: Type.caption1.fontSize,
+    color: t.textMuted,
+    marginTop: -2,
+    marginBottom: 8,
+    lineHeight: 17,
   },
   errorCard: {
     flexDirection: 'row',

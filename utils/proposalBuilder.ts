@@ -63,6 +63,9 @@ export interface BuildProposalInput {
    * "Workmanship warranty" with no period at all.
    */
   warrantyMonths?: number | null;
+  /** His saved licence number (settings.branding.licenseNumber). Printed on the
+   *  Essential tier only when set — never an unstated "licensed, insured". */
+  licenseNumber?: string | null;
 }
 
 export interface ProposalTiersResult {
@@ -96,6 +99,14 @@ export interface SmartProposal {
    * small job. Filter on this to list Quick Quotes separately.
    */
   kind?: 'quick' | 'tiered';
+  /**
+   * A Quick Quote's client-safe breakdown (#90): each line at its SELL amount
+   * (markup folded in, never printed as its own row), the sales tax, and the
+   * total — every figure on the cent grid, so the printed lines foot to the
+   * printed total. Absent on quotes saved before it existed; those render
+   * their descriptions without amounts.
+   */
+  quick?: QuickQuoteClientBreakdown;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,6 +115,54 @@ export interface SmartProposal {
 export interface QuickQuoteLineItem {
   description: string;
   amount: number;
+}
+
+/** What the CLIENT sees of a Quick Quote — sell figures only. */
+export interface QuickQuoteClientBreakdown {
+  lines: QuickQuoteLineItem[];
+  /** Σ lines — the pre-tax price. */
+  subtotal: number;
+  taxPct: number;
+  tax: number;
+  total: number;
+}
+
+/** The whole Quick Quote arithmetic, for the screen AND the saved quote. */
+export interface QuickQuoteTotals extends QuickQuoteClientBreakdown {
+  /** Σ the amounts he typed (his figures, before markup). GC-only. */
+  costSubtotal: number;
+  markupPct: number;
+  /** subtotal − costSubtotal. GC-only. */
+  markup: number;
+}
+
+const cents = (n: number): number => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
+
+/**
+ * Quick Quote totals on the cent grid (#90).
+ *
+ * Every typed amount is rounded to the cent, each line's SELL amount is
+ * round2(amount × (1 + markup)), the pre-tax subtotal is the sum of those
+ * printed lines, tax is round2(subtotal × tax%), and the total is their sum —
+ * so what the client reads adds up line by line. $1,000 + $1,234.56 at 7% tax
+ * is $2,234.56 + $156.42 = $2,390.98. The share text used to print that as
+ * "$2,391" (formatMoney's default is whole dollars).
+ */
+export function quickQuoteTotals(input: Pick<BuildQuickQuoteInput, 'lineItems' | 'markupPct' | 'taxPct'>): QuickQuoteTotals {
+  const markupPct = input.markupPct && input.markupPct > 0 ? input.markupPct : 0;
+  const taxPct = input.taxPct && input.taxPct > 0 ? input.taxPct : 0;
+  const typed = input.lineItems.map(li => ({
+    description: li.description,
+    amount: cents(Number.isFinite(li.amount) ? li.amount : 0),
+  }));
+  const lines = typed.map(li => ({ description: li.description, amount: cents(li.amount * (1 + markupPct / 100)) }));
+  const costSubtotal = cents(typed.reduce((s, li) => s + li.amount, 0));
+  const subtotal = cents(lines.reduce((s, li) => s + li.amount, 0));
+  const tax = cents(subtotal * (taxPct / 100));
+  return {
+    lines, subtotal, taxPct, tax, total: cents(subtotal + tax),
+    costSubtotal, markupPct, markup: cents(subtotal - costSubtotal),
+  };
 }
 
 export interface BuildQuickQuoteInput {
@@ -128,27 +187,21 @@ export interface BuildQuickQuoteInput {
  * `proposalToShareText` (which just loops tiers) renders it unchanged.
  */
 export function buildQuickQuote(input: BuildQuickQuoteInput): SmartProposal {
-  const subtotal = input.lineItems.reduce(
-    (sum, li) => sum + (Number.isFinite(li.amount) ? li.amount : 0),
-    0,
-  );
-  const markupPct = input.markupPct && input.markupPct > 0 ? input.markupPct : 0;
-  const taxPct = input.taxPct && input.taxPct > 0 ? input.taxPct : 0;
-  const markup = subtotal * (markupPct / 100);
-  const tax = (subtotal + markup) * (taxPct / 100);
-  const total = subtotal + markup + tax;
+  const q = quickQuoteTotals(input);
 
   const now = new Date().toISOString();
   const tier: ProposalTier = {
     key: 'signature',
     label: input.jobTitle || 'Quote',
     tagline: input.scope ?? '',
-    price: total,
-    markup: markupPct ? markupPct / 100 : 0,
+    // The total on the cent grid — the number the client is asked to accept.
+    price: q.total,
+    markup: q.markupPct ? q.markupPct / 100 : 0,
     winProbability: 0,
     expectedProfit: 0,
     inclusions: input.lineItems.map((li) => li.description).filter(Boolean),
-    recommended: true,
+    // One option is not "the most popular" of anything (#90).
+    recommended: false,
   };
 
   return {
@@ -157,6 +210,7 @@ export function buildQuickQuote(input: BuildQuickQuoteInput): SmartProposal {
     projectName: input.jobTitle,
     tiers: [tier],
     kind: 'quick',
+    quick: { lines: q.lines, subtotal: q.subtotal, taxPct: q.taxPct, tax: q.tax, total: q.total },
     status: 'draft',
     createdAt: now,
     updatedAt: now,
@@ -174,11 +228,20 @@ export function normalizeMarkup(m: number | undefined): number | undefined {
 // The warranty line is NOT in these lists: until 2026-09-17 they promised a
 // 1-, 2- and 5-year guarantee the GC never stated. buildProposalTiers appends
 // workmanshipWarrantyLine(his saved months) to every tier instead.
+// Nor is "Licensed and insured crew" (#90): the app holds no insurance record
+// for him at all, and a licence only when he saved one. licenseLine() below
+// states the licence he saved, and nothing is said about insurance.
 const ESSENTIAL_INCLUSIONS: string[] = [
   'Full scope of work as discussed',
   'Quality standard-grade materials',
-  'Licensed and insured crew',
 ];
+
+/** "Licensed contractor — License #123", from his saved branding.licenseNumber
+ *  only; null when he has not saved one, so nothing is claimed (#90). */
+export function licenseLine(licenseNumber?: string | null): string | null {
+  const n = typeof licenseNumber === 'string' ? licenseNumber.trim() : '';
+  return n ? `Licensed contractor — License #${n.replace(/^#/, '')}` : null;
+}
 
 const SIGNATURE_INCLUSIONS: string[] = [
   'Everything in Essential',
@@ -213,6 +276,7 @@ export function buildProposalTiers(input: BuildProposalInput): ProposalTiersResu
   // Same warranty on every tier (founder decision 2026-09-17): his one saved
   // period, or "Workmanship warranty" with no period until he sets one.
   const warrantyLine = workmanshipWarrantyLine(input.warrantyMonths ?? null);
+  const license = licenseLine(input.licenseNumber);
 
   const tier = (
     key: ProposalTierKey,
@@ -239,7 +303,7 @@ export function buildProposalTiers(input: BuildProposalInput): ProposalTiersResu
       'Essential',
       'The job done right, at the sharpest price.',
       result.aggressive,
-      ESSENTIAL_INCLUSIONS,
+      license ? [...ESSENTIAL_INCLUSIONS, license] : ESSENTIAL_INCLUSIONS,
       false,
     ),
     tier(
@@ -274,26 +338,67 @@ export function buildProposalTiers(input: BuildProposalInput): ProposalTiersResu
  *
  * HARD RULE: nothing internal leaves the building. No win odds, no expected
  * profit, no markup, no cost basis — prices and inclusions only.
+ *
+ * A Quick Quote (kind 'quick') is ONE price, so it reads as a quote (#90):
+ * "QUOTE", its lines with their amounts, the total to the cent, one call to
+ * action — no "★ Most popular" on the only option and no "Every option…"
+ * footer. The tiered footer no longer claims a "licensed, insured team": the
+ * licence line prints only from his saved number (`opts.licenseNumber`), and
+ * insurance is never claimed because the app holds no record of it.
  */
-export function proposalToShareText(proposal: SmartProposal): string {
+export function proposalToShareText(
+  proposal: SmartProposal,
+  opts: { licenseNumber?: string | null } = {},
+): string {
   const lines: string[] = [];
   const divider = '──────────────────────';
+  const license = licenseLine(opts.licenseNumber);
+
+  if (proposal.kind === 'quick') {
+    const t = proposal.tiers[0];
+    const q = proposal.quick;
+    lines.push(`QUOTE${proposal.projectName ? ` — ${proposal.projectName}` : ''}`);
+    if (proposal.clientName) lines.push(`Prepared for ${proposal.clientName}`);
+    lines.push('');
+    lines.push(divider);
+    if (t?.tagline?.trim()) lines.push(t.tagline.trim());
+    if (q && q.lines.length > 0) {
+      for (const li of q.lines) lines.push(`  • ${li.description.trim() || 'Line item'} — ${formatMoney(li.amount, 2)}`);
+      if (q.tax > 0) {
+        lines.push('');
+        lines.push(`Subtotal — ${formatMoney(q.subtotal, 2)}`);
+        lines.push(`Sales tax (${q.taxPct}%) — ${formatMoney(q.tax, 2)}`);
+      }
+    } else if (t) {
+      // A quote saved before the breakdown existed: its descriptions only.
+      for (const inc of t.inclusions) lines.push(`  • ${inc}`);
+    }
+    lines.push('');
+    lines.push(`TOTAL — ${formatMoney(q?.total ?? t?.price ?? 0, 2)}`);
+    lines.push(divider);
+    if (license) lines.push(license);
+    lines.push('Reply to accept this quote.');
+    return lines.join('\n');
+  }
 
   lines.push(`PROPOSAL${proposal.projectName ? ` — ${proposal.projectName}` : ''}`);
   if (proposal.clientName) lines.push(`Prepared for ${proposal.clientName}`);
   lines.push('');
 
+  const several = proposal.tiers.length > 1;
   for (const t of proposal.tiers) {
     lines.push(divider);
-    lines.push(`${t.label.toUpperCase()}${t.recommended ? '  ★ Most popular' : ''} — ${formatMoney(t.price)}`);
-    lines.push(t.tagline);
+    lines.push(`${t.label.toUpperCase()}${several && t.recommended ? '  ★ Most popular' : ''} — ${formatMoney(t.price, 2)}`);
+    if (t.tagline?.trim()) lines.push(t.tagline.trim());
     for (const inc of t.inclusions) lines.push(`  • ${inc}`);
     lines.push('');
   }
 
   lines.push(divider);
-  lines.push('Every option is delivered by the same licensed, insured team.');
-  lines.push('To move forward, just reply with the option that fits best.');
+  if (license) lines.push(license);
+  lines.push(several
+    ? 'Every option is delivered by the same team. To move forward, just reply with the option that fits best.'
+    : 'To move forward, just reply to this message.');
 
   return lines.join('\n');
 }

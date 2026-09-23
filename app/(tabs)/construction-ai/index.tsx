@@ -42,6 +42,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { mageAISmart } from '@/utils/mageAI';
+import { nextAiResetLabel } from '@/utils/aiRateLimiterCore';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { supabase } from '@/lib/supabase';
@@ -1050,7 +1051,9 @@ Never invent a section number you are unsure of — leave section empty and desc
     ) : (
       <LimitReachedView
         title="Daily code check limit reached"
-        message={`You've used today's ${dailyCap} code checks. Resets at midnight.`}
+        // ai_usage_daily_* keys on the server's CURRENT_DATE (UTC), so the
+        // checks come back at 00:00 UTC — 8 PM in New York — not local midnight.
+        message={`You've used today's ${dailyCap} code checks. ${nextAiResetLabel().daily}.`}
         onClose={() => setOverLimit(false)}
       />
     );
@@ -1067,7 +1070,8 @@ Never invent a section number you are unsure of — leave section empty and desc
     ) : (
       <LimitReachedView
         title="Daily roadmap limit reached"
-        message={`You've used today's ${roadmapDailyCap} roadmap generations. Resets at midnight.`}
+        // Same UTC-dated counter as code checks (ai_usage_daily_*).
+        message={`You've used today's ${roadmapDailyCap} roadmap generations. ${nextAiResetLabel().daily}.`}
         onClose={() => setRoadmapOverLimit(false)}
       />
     );
@@ -1084,7 +1088,9 @@ Never invent a section number you are unsure of — leave section empty and desc
     ) : (
       <LimitReachedView
         title="Monthly plan review limit reached"
-        message={`You've used this month's ${planMonthlyCap} plan reviews. Resets on the 1st.`}
+        // ai_usage_get buckets on date_trunc('month', now()) in UTC, so the
+        // month rolls the evening before the 1st for anyone in the Americas.
+        message={`You've used this month's ${planMonthlyCap} plan reviews. ${nextAiResetLabel().monthly}.`}
         onClose={() => setPlanOverLimit(false)}
       />
     );

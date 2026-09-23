@@ -8,7 +8,7 @@
 //
 // Pure read over utils/estimateActuals — no new math, no network.
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -21,6 +21,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
+import EstimateJobPicker from '@/components/estimate/EstimateJobPicker';
+import { estimateProjectCandidates, pickEstimateProject } from '@/utils/estimateLanding';
 import { computeEstimateActuals, variancePct, type EstimateLineActual } from '@/utils/estimateActuals';
 import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
@@ -52,8 +54,25 @@ function EstimateAccuracyInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, commitments } = useProjects();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { projects, commitments, projectsLoaded } = useProjects();
+
+  // NO projectId IS NOT "PROJECT NOT FOUND" (#87). Pushed bare from the
+  // Estimate hub, the Summary tools sheet and the web sidebar, this screen
+  // defaults to the job it can say most about — the most recent completed or
+  // closed job with commitments (utils/estimateLanding pickEstimateProject
+  // 'accuracy') — puts it in the URL, and offers the others. "Project not
+  // found" is kept for a stale id only.
+  const candidates = useMemo(() => estimateProjectCandidates(projects), [projects]);
+  const fallback = useMemo(
+    () => (paramProjectId ? null : pickEstimateProject(projects, 'accuracy', commitments)),
+    [paramProjectId, projects, commitments],
+  );
+  const projectId = paramProjectId ?? fallback?.id;
+  useEffect(() => {
+    if (!paramProjectId && fallback) router.setParams({ projectId: fallback.id });
+  }, [paramProjectId, fallback, router]);
+  const noEstimateAnywhere = projectsLoaded && !paramProjectId && !fallback;
 
   const project = useMemo(
     () => projects.find(p => p.id === projectId),
@@ -83,33 +102,65 @@ function EstimateAccuracyInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      {!project || !report || !report.hasEstimate ? (
+      {!projectsLoaded && !project ? (
+        <View style={{ flex: 1 }} testID="accuracy-loading" />
+      ) : noEstimateAnywhere ? (
         <EmptyState
           icon={<Scale size={36} color={t.accent} strokeWidth={1.6} />}
-          title={!project ? 'Project not found' : 'No estimate to measure'}
-          message={
-            !project
-              ? 'Open this from a project to see how its bid compared to what it actually cost.'
-              : 'Estimate Accuracy compares each estimate line to what you signed and paid. To use it:'
-          }
-          steps={
-            !project
-              ? undefined
-              : [
-                  'Build an estimate with cost and markup.',
-                  'Award buyout so commitments link back to estimate lines.',
-                  'Record sub payments — actuals flow onto each line automatically.',
-                ]
-          }
-          actionLabel={!project ? 'Back' : 'Open buyout'}
-          onAction={() =>
-            !project
-              ? router.back()
-              : router.push({ pathname: '/buyout', params: { projectId: project.id } } as any)
-          }
+          title="No estimate yet"
+          message="Bid vs Actual compares each line of a job's estimate to what you signed and paid. None of your projects has an estimate with lines yet — build one, then come back."
+          actionLabel="Build an estimate"
+          onAction={() => router.push('/estimate-wizard' as never)}
         />
+      ) : !project || !report || !report.hasEstimate ? (
+        <View style={{ flex: 1 }}>
+          {candidates.length > 0 && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+              <EstimateJobPicker
+                label="Measure another job"
+                jobs={candidates}
+                selectedId={projectId}
+                onPick={(id) => router.setParams({ projectId: id })}
+                testID="accuracy-job-picker"
+              />
+            </View>
+          )}
+          <EmptyState
+            icon={<Scale size={36} color={t.accent} strokeWidth={1.6} />}
+            title={!project ? 'Project not found' : 'No estimate to measure'}
+            message={
+              !project
+                ? 'This link points to a project that isn\u2019t on this device any more. Pick a job above, or go back.'
+                : 'Estimate Accuracy compares each estimate line to what you signed and paid. To use it:'
+            }
+            steps={
+              !project
+                ? undefined
+                : [
+                    'Build an estimate with cost and markup.',
+                    'Award buyout so commitments link back to estimate lines.',
+                    'Record sub payments — actuals flow onto each line automatically.',
+                  ]
+            }
+            actionLabel={!project ? 'Back' : 'Open buyout'}
+            onAction={() =>
+              !project
+                ? router.back()
+                : router.push({ pathname: '/buyout', params: { projectId: project.id } } as any)
+            }
+          />
+        </View>
       ) : (
         <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+          {candidates.length > 1 && (
+            <EstimateJobPicker
+              label="Job"
+              jobs={candidates}
+              selectedId={projectId}
+              onPick={(id) => router.setParams({ projectId: id })}
+              testID="accuracy-job-picker"
+            />
+          )}
           {/* Bid → Committed → Actual KPIs */}
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}>

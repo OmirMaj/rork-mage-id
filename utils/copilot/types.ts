@@ -22,7 +22,11 @@ export interface Gap {
   field: string;
   impact: number;
   question: string;
-  groundedDefault: { value: unknown; basis: string };
+  /** `source`: 'history' only when the default really comes from his own
+   *  records (a saved setting, his past jobs); anything else is an assumption
+   *  and the shell files it under "ASSUMED — CHANGE ON THE GRID", never under
+   *  "SET FROM YOUR HISTORY" (#7). Unset = assumed. */
+  groundedDefault: { value: unknown; basis: string; source?: 'history' | 'assumed' };
   kind: 'number' | 'text' | 'enum' | 'date' | 'choice';
   choices?: { label: string; value: unknown; basis?: string; recommended?: boolean }[];
   /** Input hint for `text`/`number` gaps (rendered as the field placeholder). */
@@ -63,6 +67,12 @@ export interface CopilotCapability<Draft = any, Applied = any> {
    *  lifetime trials live in aiRateLimiterCore). Schedule uses scheduleCopilot,
    *  Estimate uses quickEstimate, etc. */
   aiFeature: AIFeature;
+  /** The meter the INTERVIEW turns draw on, when it differs from aiFeature.
+   *  The turns are cheap field extraction; the estimate capability meters them
+   *  as 'copilot' and charges its quickEstimate trial on the one pricing call,
+   *  so a Copilot estimate costs one trial, not two (#35/#38). Unset =
+   *  aiFeature. The mageAI call keeps `feature: aiFeature` for the server tag. */
+  turnMeterFeature?: AIFeature;
   maxQuestions?: number;
   askThreshold?: number;
   buildGrounding(ctx: CopilotContext): Promise<Grounding>;
@@ -81,7 +91,15 @@ export interface CopilotCapability<Draft = any, Applied = any> {
   /** When present, the shell's review phase renders THIS (e.g. an edit diff)
    *  instead of the generic reviewHeadline + Build button, wiring the passed
    *  confirm/cancel to the diff's Apply/Discard. */
-  renderReview?(a: { draft: Draft; ctx: CopilotContext; confirm: () => void; cancel: () => void }): import('react').ReactNode;
+  renderReview?(a: {
+    draft: Draft; ctx: CopilotContext; confirm: () => void; cancel: () => void;
+    /** Write into the draft without leaving review (e.g. the estimate review
+     *  stores its priced lines and the markup he picked, so Build commits
+     *  exactly what he saw — #38). */
+    patchDraft?: (patch: Partial<Draft>) => void;
+    /** Why the interview stopped early, when it did (e.g. the AI limit). */
+    note?: string;
+  }): import('react').ReactNode;
 }
 
 export interface CopilotCopy {
@@ -117,17 +135,26 @@ export interface CopilotState<Draft = any> {
   transcript: TranscriptTurn[];
   askedFields: string[];
   currentGap: Gap | null;
-  resolved: { field: string; label: string; basis: string }[];
+  resolved: { field: string; label: string; basis: string; source?: 'history' | 'assumed' }[];
   questionCount: number;
+  /** Set on an error: apply-phase (Build) errors keep the draft and can go
+   *  back to review; turn-phase errors re-open the mic. Limit reasons
+   *  (lifetime_cap / smart_cap / pro_only / daily_cap / monthly_cap) show
+   *  'See plans'; 'no_project' / 'no_estimate' offer the fix (#34/#35). */
   errorKind?: string;
   errorMessage?: string;
+  /** Shown on the review card when the interview was cut short (#35: "AI limit
+   *  reached — built from what you said so far"). */
+  reviewNote?: string;
 }
 
 export type CopilotAction<Draft = any> =
   | { type: 'START'; grounding: Grounding }
   | { type: 'UTTERANCE'; turnId: string; text: string }
   | { type: 'EDIT_TRANSCRIPT'; turnId: string; text: string }
-  | { type: 'AI_DRAFT'; draft: Draft; resolved: CopilotState['resolved']; nextGap: Gap | null; ready: boolean }
+  | { type: 'AI_DRAFT'; draft: Draft; resolved: CopilotState['resolved']; nextGap: Gap | null; ready: boolean; note?: string }
+  | { type: 'PATCH_DRAFT'; patch: Partial<Draft> }
+  | { type: 'BACK_TO_REVIEW' }
   | { type: 'ANSWER'; field: string; value: unknown }
   | { type: 'SKIP_QUESTION' }
   | { type: 'CONFIRM' }

@@ -1,8 +1,16 @@
 // /shared-photos?t=<token>
 //
 // Read-only chronological photo timeline shared via URL. Same magic-link
-// pattern as /shared-schedule — base64-encoded payload in the URL, no
-// backend round-trip, no login required for the viewer.
+// pattern as /shared-schedule — base64-encoded payload in the URL, no login
+// required for the viewer.
+//
+// v2 links (wave 5, #62) carry photo ids, not image URLs: on every load this
+// page asks the public shared-photos-sign edge function for fresh 1 h signed
+// URLs, and the function re-checks each id against the project (stored, not
+// drafted / recalled). So the link never goes blank a day later, and a photo
+// the GC recalls from the portal drops out of links already sent. v1 links
+// (embedded URLs, 24 h fuse) still render; tiles whose URL has died are
+// hidden rather than shown broken, and the page says how many.
 //
 // CompanyCam's wedge is the per-project chronological photo feed. This
 // is the same idea, but the GC can hand a client (or insurance adjuster,
@@ -13,9 +21,9 @@
 // recipient's browser. On native, expo-router still resolves the route
 // in case someone deep-links from the app itself.
 
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, Image, ScrollView, useWindowDimensions, Platform, TouchableOpacity,
+  View, Text, StyleSheet, Image, ScrollView, useWindowDimensions, Platform, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,8 +36,16 @@ import { Type } from '@/constants/typography';
 import {
   decodePhotoShareToken,
   groupPhotosByDay,
+  readSignedSharePhotos,
   type PhotoSharePayload,
+  type PhotoShareV2Photo,
 } from '@/utils/photoShareToken';
+import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
+import { readEdgeError } from '@/utils/edgeError';
+
+/** A tile ready to render: the payload's metadata plus a URL to show. */
+type ShareTile = PhotoShareV2Photo & { u: string };
+type SignState = 'idle' | 'loading' | 'ok' | 'denied' | 'error';
 
 export default function SharedPhotosScreen() {
   const { colors: themeColors } = useTheme();
@@ -43,12 +59,48 @@ export default function SharedPhotosScreen() {
     [t],
   );
 
+  // v2: sign the ids on every load (CONTRACT 11). Nothing is trusted from the
+  // response beyond https URLs for ids this link asked for.
+  const [signed, setSigned] = useState<Map<string, string>>(new Map());
+  const [signState, setSignState] = useState<SignState>('idle');
+  const [broken, setBroken] = useState<Set<string>>(new Set());
+  const loadSigned = useCallback(async () => {
+    if (!payload || payload.v !== 2) return;
+    const ids = payload.photos.map(p => p.id);
+    if (ids.length === 0) { setSignState('ok'); return; }
+    setSignState('loading');
+    const { data, error } = await invokeWithTimeout<unknown>('shared-photos-sign', {
+      body: { projectId: payload.pid, photoIds: ids },
+      timeoutMs: 20_000,
+    });
+    if (error) {
+      const info = await readEdgeError(error, 'Photos could not be loaded');
+      setSignState(info.code === 'http_401' || info.code === 'denied' || info.message === 'denied' ? 'denied' : 'error');
+      return;
+    }
+    setSigned(readSignedSharePhotos(data, ids));
+    setSignState('ok');
+  }, [payload]);
+  useEffect(() => { void loadSigned(); }, [loadSigned]);
+
+  // What can actually be shown: v2 tiles the server signed; v1 tiles whose
+  // embedded URL has not failed to load.
+  const tiles: ShareTile[] = useMemo(() => {
+    if (!payload) return [];
+    if (payload.v === 2) {
+      return payload.photos
+        .filter(p => signed.has(p.id) && !broken.has(p.id))
+        .map(p => ({ ...p, u: signed.get(p.id) as string }));
+    }
+    return payload.photos.filter(p => !!p.u && !broken.has(p.id));
+  }, [payload, signed, broken]);
+  const markBroken = useCallback((id: string) => {
+    setBroken(prev => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
+
   // Group by day, newest first. Each day is a section header + a wrapping
   // photo grid below it. Designed to scan top-to-bottom on a phone.
-  const days = useMemo(
-    () => (payload ? groupPhotosByDay(payload.photos) : []),
-    [payload],
-  );
+  const days = useMemo(() => groupPhotosByDay(tiles), [tiles]);
 
   // Responsive grid: 2 cols on phone, 3 on tablet, 4 on desktop.
   const cols = width >= 1100 ? 4 : width >= 700 ? 3 : 2;
@@ -82,6 +134,10 @@ export default function SharedPhotosScreen() {
   }
 
   const photoCount = payload.photos.length;
+  const signing = payload.v === 2 && (signState === 'idle' || signState === 'loading');
+  // Photos in the link that this page cannot show: not uploaded yet, recalled
+  // or deleted by the contractor (v2), or an embedded URL that expired (v1).
+  const unavailable = signing || signState === 'denied' || signState === 'error' ? 0 : photoCount - tiles.length;
   const dateRange = (() => {
     if (photoCount === 0) return '';
     const dates = payload.photos
@@ -130,6 +186,38 @@ export default function SharedPhotosScreen() {
           </Text>
         </View>
 
+        {signing && (
+          <View style={styles.emptyCard} testID="shared-photos-loading">
+            <ActivityIndicator color={themeColors.accent} />
+            <Text style={styles.emptyBody}>Loading photos…</Text>
+          </View>
+        )}
+        {signState === 'denied' && (
+          <View style={styles.emptyCard} testID="shared-photos-denied">
+            <ImageIcon size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.emptyTitle}>These photos aren&apos;t shared anymore</Text>
+            <Text style={styles.emptyBody}>The contractor may have withdrawn or deleted them, or they haven&apos;t finished uploading. Ask the contractor for a fresh link.</Text>
+          </View>
+        )}
+        {signState === 'error' && (
+          <View style={styles.emptyCard} testID="shared-photos-error">
+            <AlertCircle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.emptyTitle}>Couldn&apos;t load the photos</Text>
+            <Text style={styles.emptyBody}>No connection, or the server didn&apos;t answer.</Text>
+            <TouchableOpacity onPress={() => void loadSigned()} accessibilityRole="button">
+              <Text style={styles.footerLink}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {unavailable > 0 && (
+          <View style={styles.banner} testID="shared-photos-unavailable">
+            <AlertCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+            <Text style={styles.bannerText}>
+              {unavailable} photo{unavailable === 1 ? '' : 's'} in this link can&apos;t be shown — not uploaded yet, withdrawn by the contractor, or the link has expired.
+            </Text>
+          </View>
+        )}
+
         {/* Empty */}
         {photoCount === 0 && (
           <View style={styles.emptyCard}>
@@ -171,6 +259,7 @@ export default function SharedPhotosScreen() {
                         style={styles.tileImage}
                         resizeMode="cover"
                         accessibilityLabel={caption || 'Jobsite photo'}
+                        onError={() => markBroken(p.id)}
                       />
                       {p.t ? (
                         <View style={styles.tileTagBadge}>

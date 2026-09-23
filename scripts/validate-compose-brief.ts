@@ -21,6 +21,10 @@ import type {
 import type { CashFlowSummary } from '../utils/cashFlowEngine';
 import type { DidForYouEntry } from '../utils/brain/didForYou';
 import type { AccuracyReport } from '../utils/brain/accuracyReport';
+// fileURLToPath + join because the repo path contains a space.
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, extra = '') {
@@ -518,6 +522,47 @@ console.log('\nnudgeTime — nextMorningFireDate:');
   const bothIds = accessOf(both).map(i => i.id);
   ok('elevator + dock on one load produce two lines', bothIds.length === 2);
   ok('…with distinct ids', new Set(bothIds).size === 2);
+}
+
+// ─── #117: the brief actually receives RFIs and submittals ──────────────────
+//
+// composeBrief always had an overdue-RFI and a stuck-submittal check, and its
+// ONE caller (hooks/useMorningBrief.ts) never passed either list — so an RFI
+// past its required date, the architect holding the ball, never reached the
+// brief. The composer half is pinned by running it; the caller half by source,
+// comments stripped (bun cannot mount the hook).
+
+console.log('\n#117 — overdue RFIs reach the brief:');
+{
+  const p = project({ id: 'p-rfi', name: 'Ridgeline' });
+  // Raised by a TEAMMATE (createdBy someone else) and sent to the architect:
+  // the ball-holder named is the party it was sent to, not whoever raised it.
+  const rfi = {
+    id: 'rfi-9', projectId: 'p-rfi', number: 9, subject: 'Beam pocket', status: 'open',
+    dateSubmitted: daysAgoISO(20).slice(0, 10), dateRequired: daysAgoISO(5).slice(0, 10),
+    assignedTo: 'Kestrel Architects', createdBy: 'teammate-uid',
+  } as unknown as NonNullable<ComposeBriefInput['rfis']>[number];
+  const withRfis = composeBrief(baseInput({ projects: [p], rfis: [rfi], submittals: [] }));
+  const hit = withRfis.needsYou.find(i => i.id === 'rfi-rfi-9');
+  ok('an overdue RFI held by the architect lands in needsYou', !!hit, JSON.stringify(ids(withRfis.needsYou)));
+  ok('…naming the party it was sent to', /waiting on Kestrel Architects/.test(hit?.text ?? ''), hit?.text ?? '');
+  // The defect, as the composer sees it: no list handed in → nothing to flag.
+  const without = composeBrief(baseInput({ projects: [p] }));
+  ok('…and (the old caller) with no rfis passed, it is silently absent',
+    !without.needsYou.some(i => i.id === 'rfi-rfi-9'));
+
+  const hookSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'useMorningBrief.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const call = /composeBrief\(\{([\s\S]*?)\}\);/.exec(hookSrc)?.[1] ?? '';
+  ok('useMorningBrief passes rfis and submittals into composeBrief',
+    /\brfis\b/.test(call) && /\bsubmittals\b/.test(call), call);
+  ok('…with no `?? []` fallback (an empty list means "checked, none")',
+    !/rfis\s*\?\?|submittals\s*\?\?/.test(call));
+  ok('…read from useProjects()',
+    /buildingAccessRules, accessReservations, rfis, submittals,\s*\} = useProjects\(\);/.test(hookSrc));
+  const memoDeps = /\}, \[projects, invoices, changeOrders, punchItems[^\]]*\]\);/.exec(hookSrc)?.[0] ?? '';
+  ok('…and the brief re-composes when either changes',
+    /\brfis\b/.test(memoDeps) && /\bsubmittals\b/.test(memoDeps), memoDeps);
 }
 
 // ─── Result ──────────────────────────────────────────────────────────────────

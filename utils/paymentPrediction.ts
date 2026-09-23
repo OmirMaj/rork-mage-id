@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
 import type { Invoice, Project } from '@/types';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
+import { calendarDayOf, todayCalendarDay } from '@/utils/calendarDate';
 
 export interface InvoicePrediction {
   invoiceId: string;
@@ -195,36 +196,29 @@ function describePaymentHistory(inv: Invoice, allInvoices: Invoice[]): string {
   return `Avg pay time on prior ${paidOnes.length} invoice${paidOnes.length === 1 ? '' : 's'}: ${avg} days from issue.`;
 }
 
-export async function predictInvoicePayments(
-  invoices: Invoice[],
-  projectsById: Record<string, Project>,
-): Promise<PaymentPredictionResult> {
-  const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
-
-  // Only predict unpaid / partially paid
-  const unpaid = invoices.filter(i => {
+/** The invoices a forecast is about: a balance still owed, and not a draft. */
+function unpaidInvoices(invoices: Invoice[]): Invoice[] {
+  return invoices.filter(i => {
     const out = outstandingOf(i);
     return out > 0 && i.status !== 'draft';
   });
+}
 
-  if (unpaid.length === 0) {
-    return {
-      perInvoice: [],
-      expected7dInflow: 0,
-      expected14dInflow: 0,
-      expected30dInflow: 0,
-      atRiskAmount: 0,
-      // Real, not a default: zero unpaid invoices IS zero collection risk.
-      collectionRiskScore: 0,
-      unforecastCount: 0,
-      unforecastAmount: 0,
-      headline: 'No unpaid invoices to forecast.',
-      topAction: 'Keep the cadence going — issue your next progress invoice when milestones complete.',
-    };
-  }
-
-  const compact = unpaid.map(inv => {
+/**
+ * The per-invoice facts the model is handed — built in ONE place so the prompt
+ * and the fingerprint below cannot describe two different A/R books.
+ *
+ * TODAY is the GC's LOCAL calendar day (utils/calendarDate), not the UTC date
+ * `toISOString()` gives: after 5 pm in California that was already tomorrow, so
+ * every past-due count in the prompt was a day long for the evening.
+ */
+function compactUnpaid(
+  unpaid: Invoice[],
+  invoices: Invoice[],
+  projectsById: Record<string, Project>,
+  todayIso: string,
+) {
+  return unpaid.map(inv => {
     const project = projectsById[inv.projectId];
     const outstanding = outstandingOf(inv);
     const daysSinceIssue = daysBetween(inv.issueDate, todayIso);
@@ -252,6 +246,130 @@ export async function predictInvoicePayments(
       history: describePaymentHistory(inv, invoices),
     };
   });
+}
+
+// ─── One forecast per A/R state (#116, audit 2026-09-22) ─────────────────────
+//
+// The Friday Close card on Home ran this smart-tier AI call from an effect keyed
+// on ARRAY IDENTITY — every invoice / CO / project refresh, every tab switch
+// back to Home, every pull-to-refresh fired a new one, even after he had seen
+// the close, and each was charged to his monthly AI allowance on the server
+// while the app's own meter never counted it. The same A/R state now asks the
+// model once: the caller keys its query on this fingerprint and hands the same
+// string to mageAI as its cacheKey, so a cold start later that day reuses the
+// stored forecast too. Only a real payment, a new invoice, a changed due date,
+// a new day or another account changes it.
+
+/** 53-bit string hash (cyrb53) — a cache key, not a security boundary. */
+function hash53(str: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/**
+ * A stable fingerprint of exactly what the forecast prompt would say: every
+ * unpaid invoice's facts as handed to the model (id, balance, due date, status,
+ * payment count, the job's name and status, the payment history line…), in id
+ * order so a re-sorted list is not a new question, plus the local day and the
+ * account. `null` when there is nothing unpaid — no forecast to ask for.
+ */
+export function paymentForecastFingerprint(
+  invoices: Invoice[],
+  projectsById: Record<string, Project>,
+  userId: string | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  const unpaid = unpaidInvoices(invoices);
+  if (unpaid.length === 0) return null;
+  const todayIso = todayCalendarDay(now);
+  const rows = compactUnpaid(unpaid, invoices, projectsById, todayIso)
+    .map(r => ({ ...r, outstandingCents: Math.round(r.outstanding * 100) }))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map(r => JSON.stringify(r));
+  return `${hash53(`${userId ?? 'anon'}|${todayIso}|${rows.join('\n')}`)}-${unpaid.length}`;
+}
+
+/**
+ * True when at least one invoice the forecast would cover is PAST DUE on the
+ * local calendar — the only invoices the Friday Close's chase leg prints a
+ * landing date for (composeWeekClose.buildChaseLeg: balance > 0, due day before
+ * today, not paid). With none, the forecast would decorate nothing, so the
+ * caller does not spend an AI call on it.
+ */
+export function hasOverdueUnpaidInvoice(invoices: Invoice[], now: Date = new Date()): boolean {
+  const today = todayCalendarDay(now);
+  return unpaidInvoices(invoices).some(inv => {
+    if (inv.status === 'paid') return false;
+    const due = calendarDayOf(inv.dueDate);
+    return due !== null && due < today;
+  });
+}
+
+/** A forecast, and whether producing it spent a fresh AI call. */
+export interface PaymentPredictionRun {
+  result: PaymentPredictionResult;
+  /** true only when the model was actually called (not served from the
+   *  mageAI cache, and not skipped because nothing is unpaid) — the one case
+   *  the caller should record against the AI meter. */
+  freshAiCall: boolean;
+}
+
+/**
+ * predictInvoicePayments with the mageAI response cached under `cacheKey` for
+ * `cacheHours`. The Friday Close passes paymentForecastFingerprint's value, so
+ * the same A/R state on the same day is answered from the cache.
+ */
+export async function predictInvoicePaymentsCached(
+  invoices: Invoice[],
+  projectsById: Record<string, Project>,
+  cache: { cacheKey: string; cacheHours: number },
+): Promise<PaymentPredictionRun> {
+  return runPaymentPrediction(invoices, projectsById, cache);
+}
+
+export async function predictInvoicePayments(
+  invoices: Invoice[],
+  projectsById: Record<string, Project>,
+): Promise<PaymentPredictionResult> {
+  return (await runPaymentPrediction(invoices, projectsById)).result;
+}
+
+async function runPaymentPrediction(
+  invoices: Invoice[],
+  projectsById: Record<string, Project>,
+  cache?: { cacheKey: string; cacheHours: number },
+): Promise<PaymentPredictionRun> {
+  const today = new Date();
+  const todayIso = todayCalendarDay(today);
+
+  // Only predict unpaid / partially paid
+  const unpaid = unpaidInvoices(invoices);
+
+  if (unpaid.length === 0) {
+    return { freshAiCall: false, result: {
+      perInvoice: [],
+      expected7dInflow: 0,
+      expected14dInflow: 0,
+      expected30dInflow: 0,
+      atRiskAmount: 0,
+      // Real, not a default: zero unpaid invoices IS zero collection risk.
+      collectionRiskScore: 0,
+      unforecastCount: 0,
+      unforecastAmount: 0,
+      headline: 'No unpaid invoices to forecast.',
+      topAction: 'Keep the cadence going — issue your next progress invoice when milestones complete.',
+    } };
+  }
+
+  const compact = compactUnpaid(unpaid, invoices, projectsById, todayIso);
 
   const prompt = `You are a construction A/R analyst. For each unpaid invoice, predict payment timing based on client behavior signals and invoice characteristics.
 
@@ -285,6 +403,9 @@ Be concrete. Use specific invoice numbers and project names in headline/topActio
     // than as an anonymous ai_text spend (matches sibling metered call sites).
     // The screen is already client-gated at Pro (cash_flow_forecaster).
     feature: 'invoicePrediction',
+    // Only the cached path (the Friday Close) passes these; the forecast
+    // screen's explicit Run keeps asking afresh, exactly as before.
+    ...(cache ? { cacheKey: cache.cacheKey, cacheHours: cache.cacheHours } : {}),
   });
 
   if (!aiResult.success || !aiResult.data) {
@@ -348,7 +469,7 @@ Be concrete. Use specific invoice numbers and project names in headline/topActio
 
   const unforecast = perInvoice.filter(p => p.daysToPay === null || p.onTimeProbability === null);
 
-  return {
+  return { freshAiCall: !aiResult.fromCache, result: {
     perInvoice,
     expected7dInflow: inflowWithin(7),
     expected14dInflow: inflowWithin(14),
@@ -364,5 +485,5 @@ Be concrete. Use specific invoice numbers and project names in headline/topActio
     unforecastAmount: unforecast.reduce((s, p) => s + p.outstandingAmount, 0),
     headline: typeof parsed?.headline === 'string' ? parsed.headline : `Forecasting ${perInvoice.length} unpaid invoices.`,
     topAction: typeof parsed?.topAction === 'string' ? parsed.topAction : 'Review the highest-risk invoice first.',
-  };
+  } };
 }

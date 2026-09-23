@@ -45,6 +45,8 @@ import { captureBaseline } from '@/utils/scheduleOps';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { nailIt, oops } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
+import { edgeFunctionError, aiRefusalKind } from '@/utils/edgeError';
+import { showAiRefusal } from '@/utils/quotaPrecheck';
 import type {
   ScheduleImportResult, ScheduleImportField, ProjectResource, ProjectSchedule, ScheduleScenario,
 } from '@/types';
@@ -157,7 +159,9 @@ export default function ScheduleImportScreen() {
         'import-schedule',
         { body },
       );
-      if (error) throw new Error(error.message);
+      // The function's own sentence and code (a plan refusal, a bad file), not
+      // "Edge Function returned a non-2xx status code" — audit #124.
+      if (error) throw await edgeFunctionError(error, 'Import failed');
       const failed = data as unknown as { success?: boolean; error?: string } | null;
       if (failed?.success === false) throw new Error(failed.error ?? 'Import failed.');
       if (!data || !Array.isArray(data.rows)) throw new Error('The importer returned no rows.');
@@ -165,11 +169,18 @@ export default function ScheduleImportScreen() {
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
     } catch (err) {
       console.error('[ScheduleImport] pick/parse failed', err);
-      showAlert('Could not read that schedule', err instanceof Error ? err.message : 'Please try again.');
+      // A plan refusal is its own dialog, with See plans and no "try again"
+      // (CONTRACT 26); the hourly limit is the server's sentence as-is.
+      const refusal = showAiRefusal(err, router);
+      if (aiRefusalKind(err) === 'hourly') {
+        showAlert('Hourly limit reached', refusal ?? '');
+      } else if (!refusal) {
+        showAlert('Could not read that schedule', err instanceof Error ? err.message : 'Please try again.');
+      }
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [router]);
 
   const persist = useCallback((
     proj: NonNullable<typeof project>,

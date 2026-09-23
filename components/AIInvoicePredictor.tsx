@@ -12,7 +12,7 @@ import {
   predictInvoicePayment, getCachedResult, setCachedResult,
   type InvoicePredictionResult,
 } from '@/utils/aiService';
-import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useRouter } from 'expo-router';
 import { paymentHistoryForInvoice } from '@/utils/paymentPrediction';
@@ -103,7 +103,8 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
       // thing in the app that routes to /paywall. The inline copy is what's
       // left on the card after the sheet is dismissed.
       showAILimitAlert({ limit, router });
-      setError(limit.message ?? "You've used today's AI allowance — predictions reset at midnight.");
+      // The allowance rolls at 00:00 UTC, not local midnight (audit #123).
+      setError(limit.message ?? `You've used today's AI allowance. ${nextAiResetLabel().daily}.`);
       return;
     }
 

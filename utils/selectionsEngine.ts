@@ -140,6 +140,48 @@ export async function fetchSelectionsForProject(projectId: string): Promise<Sele
   return cats.map(c => rowToCategory(c as SelectionCategoryRow, byCategory.get(c.id) ?? []));
 }
 
+/**
+ * The selections read, failure-aware (wave 5, #52). fetchSelectionsForProject
+ * answers [] when the categories read fails and hands back categories with NO
+ * options when the options read fails — so the handover row read "No allowance
+ * categories yet" with no signal, and "0 of 4 picked" when only the options
+ * read dropped. Its return type is pinned by five other screens, so this is a
+ * separate reader: a failed read of EITHER table is `{ ok: false }`, never an
+ * empty answer.
+ */
+export async function loadSelectionsChecked(
+  projectId: string,
+): Promise<{ ok: true; value: SelectionCategory[] } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  try {
+    const { data: cats, error: catsErr } = await supabase
+      .from('selection_categories')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('display_order', { ascending: true });
+    if (catsErr || !cats) return { ok: false, error: catsErr?.message || 'The selections could not be read.' };
+    const ids = cats.map(c => c.id);
+    if (ids.length === 0) return { ok: true, value: [] };
+    const { data: opts, error: optsErr } = await supabase
+      .from('selection_options')
+      .select('*')
+      .in('category_id', ids)
+      .order('unit_price', { ascending: true });
+    if (optsErr || !opts) return { ok: false, error: optsErr?.message || 'The selection options could not be read.' };
+    const byCategory = new Map<string, SelectionOption[]>();
+    for (const o of opts) {
+      const opt = rowToOption(o as SelectionOptionRow);
+      const arr = byCategory.get(opt.categoryId) ?? [];
+      arr.push(opt);
+      byCategory.set(opt.categoryId, arr);
+    }
+    return { ok: true, value: cats.map(c => rowToCategory(c as SelectionCategoryRow, byCategory.get(c.id) ?? [])) };
+  } catch (e) {
+    // supabase-js can reject (not answer { error }) on a dropped connection.
+    return { ok: false, error: e instanceof Error ? e.message : 'The selections could not be read.' };
+  }
+}
+
 // ─── Save ──────────────────────────────────────────────────────────
 
 export async function saveSelectionCategory(c: Partial<SelectionCategory> & { id?: string; projectId: string; category: string; budget: number; styleBrief?: string }): Promise<SelectionCategory | null> {
@@ -175,8 +217,9 @@ export async function saveSelectionCategory(c: Partial<SelectionCategory> & { id
 // Due date on an EXISTING category. Deliberately a one-column update and not a
 // round-trip through saveSelectionCategory: that upsert rewrites the whole row
 // from whatever the screen last fetched, so a GC fixing a date on a stale card
-// would reset `status` to what it was before the homeowner picked in the
-// portal (and chooseSelectionOption's 'chosen'/'exceeded' with it). Routed
+// would put back the `status` that card was fetched with — undoing the
+// 'chosen' / 'exceeded' a later pick wrote (the homeowner's portal pick writes
+// it since 20260923140000, the GC's through gc_choose_selection). Routed
 // through the offline queue so a date typed on a jobsite with no signal is
 // queued, not lost. `null` clears the date.
 export async function saveSelectionCategoryDueDate(
@@ -235,50 +278,205 @@ export async function saveSelectionOption(o: Partial<SelectionOption> & { id?: s
   return rowToOption(data as SelectionOptionRow);
 }
 
-// Mark one option as chosen + un-mark every other option in the same
-// category. Done in two updates because Supabase doesn't have a single
-// "exactly-one" constraint pattern.
-export async function chooseSelectionOption(categoryId: string, optionId: string, role: 'homeowner' | 'gc'): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
+// ─── Queue-aware writes (wave 5, #137) ─────────────────────────────
+//
+// The functions above talk to Supabase directly: offline, adding a category or
+// deleting one simply failed, and the screen could not tell "saved" from "will
+// save when you're back" from "lost". These variants go through the offline
+// queue (supabaseWriteDetailed) and return its WriteOutcome. The originals keep
+// their signatures — app/selections.tsx and the dev seeders import them — and
+// the screen moves to these at the join.
+
+/** A category written through the queue. New categories get a CLIENT uuid so
+ *  the queued insert and the optimistic card share one id. */
+export async function saveSelectionCategoryDetailed(
+  c: Partial<SelectionCategory> & { id?: string; projectId: string; category: string; budget: number; styleBrief?: string },
+): Promise<{ outcome: WriteOutcome; category: SelectionCategory | null }> {
+  if (!isSupabaseConfigured) return { outcome: 'failed', category: null };
+  let userId: string | undefined;
+  try {
+    const session = await supabase.auth.getSession();
+    userId = session.data.session?.user?.id;
+  } catch { userId = undefined; }
+  if (!userId) return { outcome: 'failed', category: null };
   const now = new Date().toISOString();
-  // 1) Un-mark every other option in this category.
-  const { error: clearErr } = await supabase
-    .from('selection_options')
-    .update({ is_chosen: false, chosen_at: null, chosen_by_role: null })
-    .eq('category_id', categoryId)
-    .neq('id', optionId);
-  if (clearErr) {
-    console.warn('[selectionsEngine] clear-other error:', clearErr.message);
-    return false;
+  if (!c.id) {
+    const row = {
+      id: generateUUID(),
+      project_id: c.projectId,
+      user_id: userId,
+      category: c.category,
+      style_brief: c.styleBrief ?? '',
+      budget: c.budget,
+      due_date: c.dueDate ?? null,
+      status: c.status ?? 'pending',
+      notes: c.notes ?? '',
+      display_order: c.displayOrder ?? 0,
+    };
+    const outcome = await supabaseWriteDetailed('selection_categories', 'insert', row);
+    if (outcome === 'failed') return { outcome, category: null };
+    return {
+      outcome,
+      category: rowToCategory({ ...row, created_at: now, updated_at: now } as SelectionCategoryRow, []),
+    };
   }
-  // 2) Mark the chosen one.
-  const { error: setErr } = await supabase
-    .from('selection_options')
-    .update({ is_chosen: true, chosen_at: now, chosen_by_role: role })
-    .eq('id', optionId);
-  if (setErr) {
-    console.warn('[selectionsEngine] set-chosen error:', setErr.message);
-    return false;
+  // An existing category: send only what the caller set. Never `status` unless
+  // it was asked for — the whole-row upsert above is how a stale card undid a
+  // homeowner's pick.
+  const patch: Record<string, unknown> = { id: c.id, category: c.category, budget: c.budget };
+  if (c.styleBrief !== undefined) patch.style_brief = c.styleBrief;
+  if (c.notes !== undefined) patch.notes = c.notes;
+  if (c.displayOrder !== undefined) patch.display_order = c.displayOrder;
+  if (c.dueDate !== undefined) patch.due_date = c.dueDate ?? null;
+  if (c.status !== undefined) patch.status = c.status;
+  const outcome = await supabaseWriteDetailed('selection_categories', 'update', patch);
+  return { outcome, category: null };
+}
+
+export async function deleteSelectionCategoryDetailed(id: string): Promise<WriteOutcome> {
+  return supabaseWriteDetailed('selection_categories', 'delete', { id });
+}
+
+/** An option written through the queue. On an EXISTING option the pick columns
+ *  (is_chosen / chosen_at / chosen_by_role) are never sent — picks go through
+ *  chooseSelectionOptionDetailed — because saveSelectionOption's upsert writes
+ *  `is_chosen: o.isChosen ?? false`, so setting a photo on the chosen option
+ *  un-chose it. On an existing option unit price and quantity travel as a
+ *  PAIR (total = unitPrice × quantity, to the cent) or not at all: the same
+ *  upsert re-derived total as unitPrice × (quantity ?? 1), so a photo edit on
+ *  a 60 sq ft tile option rewrote its total to one square foot. Half a pair
+ *  is refused with OPTION_PRICE_NEEDS_QUANTITY rather than written or
+ *  silently dropped — a reported success must mean the price changed. */
+export const OPTION_PRICE_NEEDS_QUANTITY = 'A price change needs the quantity too, so the option total stays right. Nothing was saved.';
+
+export type NewSelectionOptionInput = Partial<SelectionOption> & {
+  id?: undefined; categoryId: string; productName: string; unitPrice: number;
+};
+export type SelectionOptionEditInput = Partial<SelectionOption> & {
+  id: string; categoryId: string; productName: string;
+};
+
+export async function saveSelectionOptionDetailed(
+  o: NewSelectionOptionInput | SelectionOptionEditInput,
+): Promise<{ outcome: WriteOutcome; option: SelectionOption | null; message?: string }> {
+  if (!isSupabaseConfigured) return { outcome: 'failed', option: null };
+  if (o.id && (o.unitPrice === undefined) !== (o.quantity === undefined)) {
+    return { outcome: 'failed', option: null, message: OPTION_PRICE_NEEDS_QUANTITY };
   }
-  // 3) Recompute the category's status — if chosen.total > budget mark
-  //    'exceeded', else 'chosen'. Pull the chosen option to compare.
-  const { data: opt } = await supabase
-    .from('selection_options')
-    .select('total, category_id')
-    .eq('id', optionId)
-    .maybeSingle();
-  if (opt) {
-    const { data: cat } = await supabase
-      .from('selection_categories')
-      .select('budget')
-      .eq('id', categoryId)
-      .maybeSingle();
-    const budget = Number(cat?.budget ?? 0);
-    const total = Number(opt.total ?? 0);
-    const newStatus: SelectionCategory['status'] = total > budget && budget > 0 ? 'exceeded' : 'chosen';
-    await supabase.from('selection_categories').update({ status: newStatus }).eq('id', categoryId);
+  const quantity = o.quantity ?? 1;
+  const total = Math.round((o.unitPrice ?? 0) * quantity * 100) / 100;
+  if (!o.id) {
+    const row = {
+      id: generateUUID(),
+      category_id: o.categoryId,
+      source: o.source ?? 'gc_added',
+      product_name: o.productName,
+      brand: o.brand ?? '',
+      sku: o.sku ?? '',
+      description: o.description ?? '',
+      image_url: o.imageUrl ?? null,
+      product_url: o.productUrl ?? null,
+      unit_price: o.unitPrice,
+      unit: o.unit ?? 'ea',
+      quantity,
+      total,
+      lead_time_days: o.leadTimeDays ?? null,
+      supplier: o.supplier ?? null,
+      highlights: o.highlights ?? [],
+      is_chosen: false,
+    };
+    const outcome = await supabaseWriteDetailed('selection_options', 'insert', row);
+    if (outcome === 'failed') return { outcome, option: null };
+    return {
+      outcome,
+      option: rowToOption({ ...row, chosen_at: null, chosen_by_role: null, created_at: new Date().toISOString() } as SelectionOptionRow),
+    };
   }
-  return true;
+  const patch: Record<string, unknown> = { id: o.id, product_name: o.productName };
+  if (o.unitPrice !== undefined && o.quantity !== undefined) {
+    patch.unit_price = o.unitPrice;
+    patch.quantity = quantity;
+    patch.total = total;
+  }
+  if (o.brand !== undefined) patch.brand = o.brand;
+  if (o.sku !== undefined) patch.sku = o.sku;
+  if (o.description !== undefined) patch.description = o.description;
+  if (o.imageUrl !== undefined) patch.image_url = o.imageUrl ?? null;
+  if (o.productUrl !== undefined) patch.product_url = o.productUrl ?? null;
+  if (o.unit !== undefined) patch.unit = o.unit;
+  if (o.leadTimeDays !== undefined) patch.lead_time_days = o.leadTimeDays ?? null;
+  if (o.supplier !== undefined) patch.supplier = o.supplier ?? null;
+  if (o.highlights !== undefined) patch.highlights = o.highlights;
+  const outcome = await supabaseWriteDetailed('selection_options', 'update', patch);
+  return { outcome, option: null };
+}
+
+// ─── Choose ────────────────────────────────────────────────────────
+
+export type ChooseOutcome =
+  | { ok: true; status: 'chosen' | 'exceeded'; /** dollars over the allowance, 0 when within */ over: number }
+  | { ok: false; reason: 'offline' | 'denied' | 'failed'; message: string };
+
+/** Choosing is refused offline rather than queued: the homeowner may be
+ *  picking the same category in the portal right now, and a pick replayed
+ *  hours later would silently overwrite his. */
+export const CHOOSE_OFFLINE_MESSAGE = 'Choosing needs signal — the homeowner may be picking in the portal right now. Try again when you\'re back online.';
+
+function looksLikeNetworkFailure(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes('network request failed') || m.includes('failed to fetch')
+    || m.includes('load failed') || m.includes('network') || m.includes('timed out') || m.includes('timeout');
+}
+
+/**
+ * The GC's pick, in ONE server transaction (gc_choose_selection,
+ * 20260923140000): owner check, clear the other options, set this one, set the
+ * category's 'chosen' / 'exceeded' status. It used to be three client writes —
+ * clear, set, status — so a timeout between the first two left the category
+ * with NO pick: the homeowner's earlier choice wiped and the GC's never saved.
+ * Now a failure anywhere rolls the whole thing back and the homeowner's pick
+ * stays.
+ */
+export async function chooseSelectionOptionDetailed(categoryId: string, optionId: string): Promise<ChooseOutcome> {
+  if (!isSupabaseConfigured) return { ok: false, reason: 'failed', message: 'No backend configured.' };
+  try {
+    const { data, error } = await supabase.rpc('gc_choose_selection', {
+      p_category_id: categoryId,
+      p_option_id: optionId,
+    });
+    if (error) {
+      const msg = error.message ?? '';
+      if (looksLikeNetworkFailure(msg)) return { ok: false, reason: 'offline', message: CHOOSE_OFFLINE_MESSAGE };
+      if (msg.includes('selection_denied') || (error as { code?: string }).code === '42501') {
+        return { ok: false, reason: 'denied', message: 'Only the project owner can choose on this category.' };
+      }
+      console.warn('[selectionsEngine] gc_choose_selection error:', msg);
+      return { ok: false, reason: 'failed', message: 'The pick was not saved. Nothing changed — try again.' };
+    }
+    const res = (data ?? {}) as { ok?: boolean; status?: string; over?: number | string };
+    if (!res.ok) return { ok: false, reason: 'failed', message: 'The pick was not saved. Nothing changed — try again.' };
+    return {
+      ok: true,
+      status: res.status === 'exceeded' ? 'exceeded' : 'chosen',
+      over: Math.max(0, Number(res.over ?? 0) || 0),
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (e instanceof TypeError || looksLikeNetworkFailure(msg)) {
+      return { ok: false, reason: 'offline', message: CHOOSE_OFFLINE_MESSAGE };
+    }
+    return { ok: false, reason: 'failed', message: 'The pick was not saved. Nothing changed — try again.' };
+  }
+}
+
+/**
+ * Boolean form, kept for app/selections.tsx and the dev seeders. `role` is no
+ * longer written: gc_choose_selection records every pick made from the GC's
+ * signed-in app as 'gc' — only the portal RPC may record a homeowner's pick,
+ * so the GC's app cannot attribute a choice to the client.
+ */
+export async function chooseSelectionOption(categoryId: string, optionId: string, _role: 'homeowner' | 'gc'): Promise<boolean> {
+  return (await chooseSelectionOptionDetailed(categoryId, optionId)).ok;
 }
 
 // ─── AI Curation ──────────────────────────────────────────────────
@@ -403,8 +601,17 @@ export async function saveCuratedOptions(categoryId: string, options: CuratedOpt
     return false;
   }
 
-  // Move the category status to 'browsing' since options now exist.
-  await supabase.from('selection_categories').update({ status: 'browsing' }).eq('id', categoryId);
+  // Move the category to 'browsing' now that options exist — but ONLY out of
+  // 'pending'. Unconditionally, re-curating after the homeowner had picked
+  // demoted a 'chosen' / 'exceeded' category back to 'browsing' (#137), and the
+  // overage CTA with it. The options themselves are saved either way, so a
+  // failed status write is reported in the log, not as a failed save.
+  const { error: statusErr } = await supabase
+    .from('selection_categories')
+    .update({ status: 'browsing' })
+    .eq('id', categoryId)
+    .eq('status', 'pending');
+  if (statusErr) console.warn('[selectionsEngine] browsing status error:', statusErr.message);
   return true;
 }
 

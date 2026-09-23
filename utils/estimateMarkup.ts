@@ -182,6 +182,23 @@ export function retotal(est: LinkedEstimate): LinkedEstimate {
   return { ...est, baseTotal, markupTotal: round2(grandTotal - baseTotal), grandTotal };
 }
 
+/**
+ * One line's COST — what the work costs him, before his markup. The same basis
+ * `retotal`'s baseTotal sums (and estimateActuals compares against):
+ * `unitPrice × quantity`, rounded to the cent. `unitPrice` already holds the
+ * bulk-or-retail base the estimator chose (full.tsx writes `unitPrice: base`),
+ * so this never swaps to `bulkPrice` a second time.
+ *
+ * Why it exists (#11): buyout budgets were summed from `lineTotal`, which is
+ * SELL. A sub who bid exactly the cost then showed as "buyout savings" equal
+ * to the GC's own markup — and that figure went on the homeowner's PDF as
+ * "Bulk Savings". A budget the buyout compares a sub's price against is a
+ * cost budget.
+ */
+export function lineCost(it: Pick<LinkedEstimateItem, 'unitPrice' | 'quantity'>): number {
+  return round2((it.unitPrice ?? 0) * (it.quantity ?? 0));
+}
+
 /** Apply a markup to a whole estimate and re-foot it. The composed operation
  *  every AI writer should use instead of hand-rolling the arithmetic. */
 export function withMarkup(

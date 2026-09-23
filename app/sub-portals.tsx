@@ -15,6 +15,7 @@ import Paywall from '@/components/Paywall';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 interface PairRow {
   key: string;
@@ -30,6 +31,7 @@ export default function SubPortalsListScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const goBack = useSafeBack();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -76,17 +78,24 @@ export default function SubPortalsListScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen
-        options={{
-          title: 'Sub Portals',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ title: 'Sub Portals' }} />
+      {/* THE BACK IS DRAWN IN THE BODY (audit 2026-09-23 #149). The root stack
+          hides this screen's header (app/_layout.tsx: headerShown: false), so
+          the headerLeft chevron that used to be declared here never rendered
+          on any platform — and it called router.back(), which does nothing
+          when this is the first route (the sub-invoice email's fallback link
+          opens it in a fresh Safari tab). useSafeBack falls through to Home. */}
       <View style={styles.headerWrap}>
+        <TouchableOpacity
+          onPress={goBack}
+          style={styles.backBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          testID="sub-portals-back"
+        >
+          <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
         <Text style={styles.title}>Sub portals</Text>
         <Text style={styles.subtitle}>
           One self-serve link per sub per project — they review scope, submit invoices, and track payment without asking you for updates.
@@ -184,6 +193,7 @@ function PairRowItem({ item, locked, onPress }: { item: PairRow; locked: boolean
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   headerWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18 },
+  backBtn: { alignSelf: 'flex-start', marginLeft: -6, marginBottom: 6, padding: 2 },
   title: { fontSize: Type.title1.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.5 },
   subtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, marginTop: 6, lineHeight: 20 },
 

@@ -1,7 +1,7 @@
 // utils/oneMind/followupMapping.ts — deterministic follow-up questions.
 //
 // After MAGE answers, it cites the fact blocks it drew from (ref taxonomy in
-// factBlocks.ts: MARGIN / RISK / SCHEDULE / PACE / RFI / MEMORY / CASH / WATCH /
+// factBlocks.ts: MARGIN / MARGINS / RISK / SCHEDULE / PACE / RFI / MEMORY / CASH / WATCH /
 // ACCURACY / LEAKS / RECORDS). We map each ref to one or two natural next
 // questions, so the ask screen can render tappable "ask this next" chips under
 // the answer — turning a one-shot reply into a guided investigation with ZERO
@@ -11,6 +11,10 @@ export const FOLLOWUP_BY_REF: Record<string, string[]> = {
   MARGIN: [
     "What's driving the margin change?",
     'Which line item is eating the margin?',
+  ],
+  MARGINS: [
+    "What's driving the worst job's margin?",
+    'Which jobs have no margin basis yet?',
   ],
   RISK: [
     'What should I do to lower the risk?',

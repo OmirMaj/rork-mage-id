@@ -62,12 +62,25 @@ export interface OnboardingChecklistProps {
   companyInfoDone: boolean;
   projectCount: number;
   estimateCount: number;
-  stripeConnected: boolean;
+  /** true / false once connect-status has ANSWERED; undefined while it has
+   *  not (loading, or every read so far failed — offline on site). Unknown is
+   *  shown as a neutral "Checking…" row: a failed check is not "not connected"
+   *  (audit wave 5, #153), and a step he finished must never un-tick because
+   *  the network dropped. */
+  stripeConnected: boolean | undefined;
+  /** Still unknown AND every retry has failed, nothing fetching now (offline
+   *  all session, or connect-status answering 500). "Checking…" would claim
+   *  work that has stopped, so the row says the check failed and how to rerun
+   *  it — still never "not connected", never un-ticked. */
+  stripeCheckFailed?: boolean;
   invoiceCount: number;
   /** True once the user has used any metered-free wow feature (voice,
    *  takeoff, or produced an estimate). Drives the value-first "Try it" step. */
   triedWowFeature: boolean;
 }
+
+/** Home's pull-to-refresh re-asks Stripe (app/(tabs)/(home)/index.tsx handleRefresh). */
+export const STRIPE_CHECK_FAILED_LABEL = "Couldn't check Stripe — pull down to refresh";
 
 interface ChecklistItem {
   key: 'tryit' | 'companyInfo' | 'project' | 'estimate' | 'stripe' | 'invoice';
@@ -83,10 +96,16 @@ interface ChecklistItem {
   /** Set when the step cannot be done yet. The row goes untappable and says
    *  why, rather than sending the user to a screen that dead-ends on him. */
   heldReason?: string;
+  /** Set when the app does not KNOW yet whether the step is done. The row is
+   *  neither ticked nor offered — it says so and waits. */
+  pendingLabel?: string;
+  /** The pending row is waiting on a check that is still running (a11y busy);
+   *  false for a check that has given up. */
+  pendingBusy?: boolean;
 }
 
 function OnboardingChecklistImpl({
-  companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount, triedWowFeature,
+  companyInfoDone, projectCount, estimateCount, stripeConnected, stripeCheckFailed, invoiceCount, triedWowFeature,
 }: OnboardingChecklistProps) {
   const router = useRouter();
   const { colors } = useTheme();
@@ -172,15 +191,22 @@ function OnboardingChecklistImpl({
     {
       key: 'stripe',
       title: 'Connect Stripe to get paid',
-      done: stripeConnected,
+      done: stripeConnected === true,
       Icon: Wallet,
       href: '/payments-setup',
       cta: 'Connect',
+      pendingLabel: stripeConnected === undefined
+        ? (stripeCheckFailed ? STRIPE_CHECK_FAILED_LABEL : 'Checking…')
+        : undefined,
+      pendingBusy: stripeConnected === undefined && !stripeCheckFailed,
     },
     {
       key: 'invoice',
       title: 'Send your first invoice',
-      done: invoiceCount > 0,
+      // Never 'done' while the row is held (audit wave 5, #155): a held row
+      // says the step can't be done yet, so a tick beside it would be a
+      // contradiction — seeded sample invoices used to produce exactly that.
+      done: invoiceCount > 0 && projectCount > 0,
       Icon: Receipt,
       href: '/invoice',
       cta: 'New invoice',
@@ -189,7 +215,7 @@ function OnboardingChecklistImpl({
       // that lands on that is a step which cannot be done in the order given.
       heldReason: projectCount === 0 ? 'after your first project' : undefined,
     },
-  ], [triedWowFeature, companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount, freeEstimatesLeft]);
+  ], [triedWowFeature, companyInfoDone, projectCount, estimateCount, stripeConnected, stripeCheckFailed, invoiceCount, freeEstimatesLeft]);
 
   const doneCount = items.filter(i => i.done).length;
   const total = items.length;
@@ -209,7 +235,7 @@ function OnboardingChecklistImpl({
   }, [enter]);
 
   const handleTap = useCallback((item: ChecklistItem) => {
-    if (item.heldReason) return;
+    if (item.heldReason || item.pendingLabel) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     router.push(item.href as never);
   }, [router]);
@@ -259,14 +285,16 @@ function OnboardingChecklistImpl({
       <View style={styles.list}>
         {items.map(item => {
           const Icon = item.Icon;
+          const inert = !!item.heldReason || !!item.pendingLabel;
           return (
             <TouchableOpacity
               key={item.key}
               style={[styles.item, item.done && styles.itemDone, !!item.heldReason && styles.itemHeld]}
               onPress={() => handleTap(item)}
-              activeOpacity={item.heldReason ? 1 : 0.85}
-              disabled={!!item.heldReason}
-              accessibilityState={{ disabled: !!item.heldReason }}
+              activeOpacity={inert ? 1 : 0.85}
+              disabled={inert}
+              accessibilityState={{ disabled: inert, busy: !!item.pendingBusy }}
+              accessibilityLabel={item.pendingLabel ? `${item.title}. ${item.pendingLabel}` : undefined}
               testID={`onboarding-checklist-${item.key}`}
             >
               <View style={styles.itemLeft}>
@@ -281,7 +309,9 @@ function OnboardingChecklistImpl({
                 </Text>
               </View>
               {!item.done && (
-                item.heldReason ? (
+                item.pendingLabel ? (
+                  <Text style={styles.itemHeldText} testID={`onboarding-checklist-${item.key}-pending`}>{item.pendingLabel}</Text>
+                ) : item.heldReason ? (
                   <Text style={styles.itemHeldText}>{item.heldReason}</Text>
                 ) : (
                   <View style={styles.itemCta}>

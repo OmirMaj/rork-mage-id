@@ -710,6 +710,30 @@ console.log('\n  8. the surfaces are wired to it');
     /buildCashBlock\([\s\S]{0,160}committed\.undated/.test(facts));
 }
 
+// ── 9. an unsigned change order is not cash (wave 5, #110) ────────────────
+// The runway counted every submitted CO as income on an invented date (today +
+// 21 days to approve + terms), so an answer the owner has not given lifted
+// every later balance and could clear a danger week. It is upside now, beside
+// the runway — and the brief and the AI facts inherit that through
+// calculateSummary. scripts/validate-w5-cashflow-forecast.ts has the full set.
+console.log('\n  9. a pending change order is upside, not balance');
+{
+  const payroll: CashFlowExpense = {
+    id: 'pr', name: 'Payroll', amount: 5_000, frequency: 'weekly', category: 'payroll',
+    startDate: today.toISOString(),
+  };
+  const co = { id: 'co', projectId: 'p1', number: 3, status: 'submitted', changeAmount: 25_000 } as never;
+  const without = generateForecast(10_000, [payroll], [], [], 12, 'net_30', []);
+  const withCo = generateForecast(10_000, [payroll], [], [], 12, 'net_30', [co]);
+  check('a lone $25K submitted CO changes no week\'s running balance',
+    without.every((w, i) => w.runningBalance === withCo[i].runningBalance));
+  const a = calculateSummary(without);
+  const b = calculateSummary(withCo);
+  check('...nor the danger weeks (which exist in this fixture)',
+    a.dangerWeeks.length > 0 && JSON.stringify(a.dangerWeeks) === JSON.stringify(b.dangerWeeks));
+  eq('...and is reported as upside', b.pendingCoUpside ?? 0, 25_000);
+}
+
 if (failures > 0) {
   console.error(`\n✗ validate-cashflow-honesty: ${failures} failure(s)\n`);
   process.exit(1);

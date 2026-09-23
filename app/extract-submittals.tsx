@@ -39,7 +39,7 @@ import {
   type AiSubmittalsResult,
 } from '@/utils/specMatcher';
 import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
-import { confirmQuotaFits } from '@/utils/quotaPrecheck';
+import { confirmQuotaFits, confirmDrawingAnalysesLeft, showAiRefusal } from '@/utils/quotaPrecheck';
 import {
   SPEC_PAGES_PER_PASS, specCoverage, specUnreadWarning, type SpecCoverage,
 } from '@/utils/plans/specBookRange';
@@ -156,12 +156,17 @@ export default function ExtractSubmittalsScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[extract-submittals] failed', e);
-      setError(String((e as Error).message ?? e));
+      // #124: a cap / plan / hourly refusal from convert-pdf-to-images or
+      // analyze-spec-book is the server's own sentence (a plan refusal also
+      // offers See plans), not "Spec book submittals call failed: Edge
+      // Function returned a non-2xx status code".
+      const refusal = showAiRefusal(e, router);
+      setError(refusal ?? String((e as Error).message ?? e));
       // A later pass that fails keeps what the earlier passes found; the
       // review screen shows the error above its list.
       setStep(startPage > 1 ? 'review' : 'idle');
     }
-  }, [project, getSubmittalsForProject]);
+  }, [project, getSubmittalsForProject, router]);
 
   // ── Pick + analyze ─────────────────────────────────────────────
   const handlePickAndAnalyze = useCallback(async () => {
@@ -174,6 +179,11 @@ export default function ExtractSubmittalsScreen() {
       showAILimitAlert({ limit, router, monthly: true });
       return;
     }
+    // #39: every pass renders pages (takeoff pages) and then analyze-spec-book
+    // spends one of the month's drawing analyses — the bucket takeoffs,
+    // Compare Drawings and the drawing analyzer share. With none left, stop
+    // BEFORE the picker so the render doesn't charge pages for a certain 429.
+    if (!(await confirmDrawingAnalysesLeft(router))) return;
 
     try {
       const picked = await DocumentPicker.getDocumentAsync({
@@ -212,7 +222,8 @@ export default function ExtractSubmittalsScreen() {
       await runPass(pickedBook, 1);
     } catch (e) {
       console.warn('[extract-submittals] failed', e);
-      setError(String((e as Error).message ?? e));
+      const refusal = showAiRefusal(e, router);
+      setError(refusal ?? String((e as Error).message ?? e));
       setStep('idle');
     }
   }, [project, tier, router, runPass]);
@@ -242,6 +253,8 @@ export default function ExtractSubmittalsScreen() {
       showAILimitAlert({ limit, router, monthly: true });
       return;
     }
+    // Each pass is its own drawing analysis (#39) — same check as the first.
+    if (!(await confirmDrawingAnalysesLeft(router))) return;
     // No client quota dialog for a later pass: confirmQuotaFits words its
     // refusal as "That PDF is N pages", and N would be this pass's range, not
     // the book. convert-pdf-to-images meters exactly the pages it will render

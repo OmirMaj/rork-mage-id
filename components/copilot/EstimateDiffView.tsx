@@ -28,7 +28,17 @@ export default function EstimateDiffView({ ops, ctx, onApply, onDiscard }: {
     const { nextEstimate, results } = interpretEstimateOps(ops, before);
     const diff = diffEstimates(before, nextEstimate);
     const rejected = results.filter(r => !r.ok).map(r => r.reason ?? 'skipped');
-    return { before, after: nextEstimate, diff, rejected, valid: results.some(r => r.ok) };
+    // Lines a voice op added, with the markup they were given — a new line
+    // carries the estimate's markup (#6), and saying so keeps the default loud.
+    const added = results
+      .filter(r => r.ok && r.addedId)
+      .map(r => ({ name: (r.op as { name?: string }).name ?? 'New line', markup: r.addedMarkup ?? 0 }));
+    // Which diff rows an op actually asked to change. A row that moves anyway
+    // is a recompute side effect — the class of bug #6 was (every labor row
+    // silently dropping its markup) — so it is labelled, not hidden.
+    const touchedAll = results.some(r => r.ok && r.op.op === 'setGlobalMarkup');
+    const touched = new Set(results.filter(r => r.ok && r.lineKey).map(r => r.lineKey as string));
+    return { before, after: nextEstimate, diff, rejected, added, touchedAll, touched, valid: results.some(r => r.ok) };
   }, [ops, ctx]);
 
   if (!view) return (
@@ -45,7 +55,13 @@ export default function EstimateDiffView({ ops, ctx, onApply, onDiscard }: {
           <Text style={styles.line}>Markup {view.before.globalMarkup}% → {view.after.globalMarkup}%</Text>
         )}
         {view.diff.categories.filter(c => c.delta !== 0).map((c, i) => (
-          <Text key={`c${i}`} style={c.delta > 0 ? styles.up : styles.down}>{c.label}: {signed(c.delta)}</Text>
+          <Text key={`c${i}`} style={c.delta > 0 ? styles.up : styles.down}>
+            {c.label}: {signed(c.delta)}
+            {!view.touchedAll && !view.touched.has(c.key) ? ' (unchanged by your request)' : ''}
+          </Text>
+        ))}
+        {view.added.map((a, i) => (
+          <Text key={`a${i}`} style={styles.line}>Added “{a.name}” at the estimate’s {a.markup}% markup</Text>
         ))}
         {view.rejected.map((r, i) => <Text key={`x${i}`} style={styles.reject}>couldn’t: {r}</Text>)}
         {!view.valid && <Text style={styles.reject}>Nothing to change — try rephrasing.</Text>}

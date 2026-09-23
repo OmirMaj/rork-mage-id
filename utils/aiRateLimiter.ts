@@ -6,8 +6,12 @@
 //
 // The model now distinguishes three failure modes the user can hit:
 //
-//   1. Daily fast-call cap (5 free / 75 pro / 200 business)
-//      → "You've used today's quick AI. Resets at midnight."
+//   1. Daily fast-call cap (5 free / 30 pro / 80 business / 150 enterprise —
+//      see LIMITS in ./aiRateLimiterCore). The day is the SERVER's UTC day
+//      (ai_daily_usage_* key on current_date; the local cache below keys on
+//      toISOString()), so the allowance refills at 00:00 UTC — 8 PM in New
+//      York — and the copy says so in the reader's clock via
+//      nextAiResetLabel(), never "at midnight" (audit #123/#128).
 //
 //   2. Free-tier lifetime cap (e.g. 3 quick estimates EVER on free)
 //      → "You've used your 3 free Quick Estimates. Upgrade to Pro for
@@ -31,6 +35,7 @@ import {
   FAIL_OPEN_RESULT,
   FEATURE_CONFIG,
   LIMITS,
+  nextAiResetLabel,
 } from './aiRateLimiterCore';
 import type {
   AIFeature,
@@ -42,7 +47,10 @@ import type {
 
 // Re-export the pure core so the public API of '@/utils/aiRateLimiter' is
 // unchanged for existing importers.
-export { evaluateLimit, FAIL_OPEN_RESULT, FEATURE_CONFIG, LIMITS } from './aiRateLimiterCore';
+export {
+  evaluateLimit, FAIL_OPEN_RESULT, FEATURE_CONFIG, LIMITS,
+  nextAiResetLabel, nextAiResetAt, timeUntilAiDailyReset, withLocalMonthlyReset,
+} from './aiRateLimiterCore';
 export type {
   AIFeature,
   FeatureConfig,
@@ -179,6 +187,9 @@ export async function checkAILimit(
       usage.count,
       usage.tier.smart,
       lifetimeUsed,
+      // The true reset in the reader's clock (00:00 UTC), read here so the
+      // core stays pure.
+      nextAiResetLabel().daily,
     );
   } catch (err) {
     console.warn('[aiRateLimiter] checkAILimit read failed — failing open', err);

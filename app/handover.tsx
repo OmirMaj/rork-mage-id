@@ -7,36 +7,57 @@
 //  - Punch list: zero open items
 //  - Warranties: at least one on file
 //  - Closeout binder: status === 'sent'
-//  - Final invoice: the highest-numbered invoice on the job — 'paid' is
-//    done, 'draft' is not started, everything in between is in progress.
-//  - Lien waivers: at least one signed waiver per active commitment
+//  - Final invoice: the WHOLE job's invoices (utils/handoverWaivers
+//    jobInvoiceHandoverState) — done only when nothing is outstanding, no
+//    draft is left unsent and no retention is still held (#139). It used to
+//    read only the highest-numbered invoice, so a paid #5 ticked the row over
+//    an overdue #4.
+//  - Lien waivers: an UNCONDITIONAL FINAL waiver per active commitment (#49) —
+//    a conditional final is progress, a progress waiver covers nothing here.
+//  - Permits & final inspection (#50): from the job's permits — a failed or
+//    denied or expired permit blocks, a missing Certificate of Occupancy on a
+//    building permit keeps it partial. A job with NO permits gets a manual
+//    "No permits required on this job" confirm instead of a hard block.
 //  - Final walk-through and Keys & access: manually-checked items
 //
-// Eight items, six of them read straight off the job — MAGE ticks those
-// itself, which is what the footer line on the screen tells the GC.
-// (This comment used to claim "we deliberately don't auto-mark anything
-// as done", which the six computed statuses and their green ticks have
-// never matched.) What the screen does refuse is a vacuous tick: a job
-// with no selection categories, no punch items, no commitments reads
-// 'open', not 'done', so "Ready to hand over" cannot come from an empty
-// project.
+// Nine items. Seven are read straight off the job — MAGE ticks those itself,
+// which is what the footer line on the screen tells the GC — and the permits
+// row turns into a manual confirm only when the job has no permits at all.
+// What the screen refuses is a vacuous tick: a job with no selection
+// categories, no punch items, no commitments reads 'open', not 'done', so
+// "Ready to hand over" cannot come from an empty project.
+//
+// It also refuses a tick — or an instruction — from a read that FAILED (#52).
+// Selections, the binder and the waivers come from Supabase; offline, those
+// reads used to answer [] / null, and the rows read "No allowance categories
+// yet" and "Compile and deliver the binder" on a job where both were done. A
+// failed read now renders a neutral "Couldn't load" row that is never counted
+// as done, and the reads re-run whenever the screen regains focus, so coming
+// back from /selections or /closeout-binder shows what he just changed.
+//
+// Selections, warranties, the binder, invoices and lien waivers live on the
+// PROJECT OWNER's account (owner-only RLS: selcat_gc_*, warranties_owner_all,
+// cb_gc_all, invoices_select, lw_gc_select). For an invited PM or foreman those
+// lists come back EMPTY, not failed — so for a non-owner those rows read
+// "Managed by the project owner" (#53) instead of an open status computed from
+// nothing, with no Add / Compile CTA.
 //
 // The two manual items are the ceremony half — the GC confirms those
 // standing next to the client, and the date is saved on the project.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator,
  Platform } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, CheckCircle2, Circle, AlertCircle, ChevronRight,
   ShoppingCart, CheckSquare, ShieldCheck, BookOpen, Receipt,
-  ScrollText, Footprints, Send,
+  ScrollText, Footprints, Send, CloudOff, Lock, Landmark,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -46,11 +67,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
-import type { InvoiceStatus, Project } from '@/types';
-import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
-import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
-import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
-import { lienWaiverCoverage } from '@/utils/handoverWaivers';
+import type { InvoiceStatus, LienWaiver, Permit, Project, SelectionCategory } from '@/types';
+import { loadSelectionsChecked } from '@/utils/selectionsEngine';
+import { loadCloseoutBinderChecked, type CloseoutBinder } from '@/utils/closeoutBinderEngine';
+import { loadLienWaiversChecked } from '@/utils/lienWaiverEngine';
+import {
+  lienWaiverCoverage, lienWaiverDetail, jobInvoiceHandoverState, permitsHandoverState,
+} from '@/utils/handoverWaivers';
+import { todayCalendarDay } from '@/utils/calendarDate';
+import { useAuth } from '@/contexts/AuthContext';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -59,7 +85,12 @@ interface HandoverItem {
   label: string;
   detail: string;
   icon: React.ComponentType<{ size?: number; color?: string }>;
-  status: 'done' | 'partial' | 'open';
+  /**
+   * 'unknown' = the read behind this row FAILED (offline); 'managed' = the row's
+   * records live on the project owner's account and this user can't read them.
+   * Neither is ever counted as done, and neither shows an Add / Compile CTA.
+   */
+  status: 'done' | 'partial' | 'open' | 'unknown' | 'managed';
   /** Optional CTA route if not done — taps on the item route to that screen. */
   cta?: string;
   ctaParams?: Record<string, string>;
@@ -68,11 +99,26 @@ interface HandoverItem {
   manual?: boolean;
 }
 
-const HANDOVER_MANUAL_KEYS = ['walkthrough', 'keys'] as const;
+const HANDOVER_MANUAL_KEYS = ['walkthrough', 'keys', 'permits_na'] as const;
 type ManualKey = typeof HANDOVER_MANUAL_KEYS[number];
 
+/** One failure-aware read: pending until it answers, then the value or why not. */
+type Read<T> = { state: 'pending' } | { state: 'ok'; value: T } | { state: 'error'; error: string };
+const PENDING = { state: 'pending' } as const;
+
+export const HANDOVER_LOAD_FAILED = "Couldn't load — check your signal. Tap to retry.";
+export const HANDOVER_MANAGED_BY_OWNER = "Managed by the project owner — these records are kept on their account.";
+
+// Re-exported so the smoke suite can pin the whole-job invoice row next to the
+// single-invoice ladder below (__tests__/smoke/polish-copy-honesty.test.tsx).
+export { jobInvoiceHandoverState };
+
 /**
- * The "Final invoice paid" row, from the highest-numbered invoice on the job.
+ * The single-invoice ladder — no longer what the row renders (it reads the
+ * whole job through jobInvoiceHandoverState since wave 5, #139), kept exported
+ * because the smoke suite pins it and describes the five statuses.
+ *
+ * Originally: the "Final invoice paid" row, from the highest-numbered invoice on the job.
  *
  * InvoiceStatus has FIVE members (types/index.ts:1520) and this ladder used to
  * handle two: 'overdue' and 'partially_paid' both fell into the else and the
@@ -160,10 +206,31 @@ export default function HandoverScreen() {
     [projectId, ctx],
   );
 
-  const [selectionsCats, setSelectionsCats] = useState<any[]>([]);
-  const [binder, setBinder] = useState<any>(null);
-  const [waivers, setWaivers] = useState<any[]>([]);
+  const projectPermits: Permit[] = useMemo(
+    () => projectId ? ctx.getPermitsForProject(projectId) : [],
+    [projectId, ctx],
+  );
+
+  // #53: who is looking. Selections, warranties, the binder, invoices and lien
+  // waivers are owner-only in RLS, so for an invitee they read EMPTY — the
+  // rows must say so rather than compute "open" from nothing. The resolved role
+  // wins; while it is still resolving (or offline and unknown) the project's
+  // own ownerUserId stamp decides — a job with no stamp, or his stamp, is his.
+  const { user } = useAuth();
+  const roleState = useProjectRoleState(project ? projectId : undefined);
+  const ownedByStamp = !project?.ownerUserId || project.ownerUserId === user?.id;
+  const isOwnerView = roleState.role ? roleState.role === 'owner' : ownedByStamp;
+
+  const [selRead, setSelRead] = useState<Read<SelectionCategory[]>>(PENDING);
+  const [binderRead, setBinderRead] = useState<Read<CloseoutBinder | null>>(PENDING);
+  const [waiverRead, setWaiverRead] = useState<Read<LienWaiver[]>>(PENDING);
   const [loading, setLoading] = useState(true);
+  // Out-of-order guard: a re-focus read that lands after a newer one (or after
+  // the picker moved to another project) is dropped, not painted.
+  const requestRef = useRef(0);
+  // The project whose reads are on screen — a re-read of the SAME project
+  // refreshes quietly (no spinner, no flash); a new project starts clean.
+  const shownForRef = useRef<string | null>(null);
 
   // Manual checkboxes — saved on the project itself so the state
   // survives re-opens. The shape is { [manualKey]: ISO timestamp }.
@@ -172,29 +239,36 @@ export default function HandoverScreen() {
     [project],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      if (!projectId) { setLoading(false); return; }
-      // Picking a project in the picker re-runs this effect with `loading`
-      // already false, so without this the checklist paints "0 of 8 done"
-      // from the previous project's empty selections/binder/waivers before
-      // the fetch lands — a wrong status on a screen whose whole point is
-      // what is genuinely outstanding on handover day.
+  const load = useCallback(() => {
+    const req = ++requestRef.current;
+    if (!projectId) { setLoading(false); return; }
+    if (shownForRef.current !== projectId) {
+      // Picking a project re-runs this with the previous project's rows on
+      // screen; without the reset the checklist paints them against the new
+      // job's name before the fetch lands.
+      setSelRead(PENDING);
+      setBinderRead(PENDING);
+      setWaiverRead(PENDING);
       setLoading(true);
+    }
+    void (async () => {
       const [sel, b, w] = await Promise.all([
-        fetchSelectionsForProject(projectId),
-        fetchCloseoutBinder(projectId),
-        fetchLienWaiversForProject(projectId),
+        loadSelectionsChecked(projectId),
+        loadCloseoutBinderChecked(projectId),
+        loadLienWaiversChecked(projectId),
       ]);
-      if (cancelled) return;
-      setSelectionsCats(sel);
-      setBinder(b);
-      setWaivers(w);
+      if (req !== requestRef.current) return;
+      setSelRead(sel.ok ? { state: 'ok', value: sel.value } : { state: 'error', error: sel.error });
+      setBinderRead(b.ok ? { state: 'ok', value: b.value } : { state: 'error', error: b.error });
+      setWaiverRead(w.ok ? { state: 'ok', value: w.waivers } : { state: 'error', error: w.error });
+      shownForRef.current = projectId;
       setLoading(false);
     })();
-    return () => { cancelled = true; };
   }, [projectId]);
+
+  // Re-read on every focus, not only on mount: coming back from /selections,
+  // /closeout-binder or /lien-waivers after fixing something must show it.
+  useFocusEffect(load);
 
   const toggleManual = useCallback((key: ManualKey) => {
     if (!projectId) return;
@@ -207,41 +281,30 @@ export default function HandoverScreen() {
 
   const items: HandoverItem[] = useMemo(() => {
     if (!project) return [];
+    const managedRow = (key: string, label: string, icon: HandoverItem['icon']): HandoverItem => ({
+      key, label, icon, status: 'managed', detail: HANDOVER_MANAGED_BY_OWNER,
+    });
+    const failedRow = (key: string, label: string, icon: HandoverItem['icon']): HandoverItem => ({
+      key, label, icon, status: 'unknown', detail: HANDOVER_LOAD_FAILED,
+    });
+    const pendingRow = (key: string, label: string, icon: HandoverItem['icon']): HandoverItem => ({
+      key, label, icon, status: 'unknown', detail: 'Loading…',
+    });
+
     // Selections — every category has a chosen option.
-    const totalCats = selectionsCats.length;
-    const chosenCats = selectionsCats.filter(c => (c.options ?? []).some((o: any) => o.isChosen)).length;
-    const selStatus: HandoverItem['status'] =
-      totalCats === 0 ? 'open'
-      : chosenCats === totalCats ? 'done'
-      : 'partial';
-
-    // Punch list — zero open items.
-    const openPunch = projectPunch.filter((p: any) => p.status !== 'closed').length;
-    const punchStatus: HandoverItem['status'] = openPunch === 0 && projectPunch.length > 0 ? 'done' : (openPunch > 0 ? 'partial' : 'open');
-
-    // Warranties — at least one on file.
-    const warrantyStatus: HandoverItem['status'] = projectWarranties.length > 0 ? 'done' : 'open';
-
-    // Closeout binder — must be sent.
-    const binderStatus: HandoverItem['status'] = binder?.status === 'sent' ? 'done' : binder?.status === 'finalized' ? 'partial' : 'open';
-
-    // Final invoice — last invoice marked sent or paid.
-    const sortedInvoices = [...projectInvoices].sort(
-      (a: any, b: any) => Number(b.number ?? 0) - Number(a.number ?? 0),
-    );
-    const finalInv = sortedInvoices[0];
-    const invoiceRow = finalInvoiceState(finalInv);
-
-    // Lien waivers — a signed waiver per active commitment, matched by the
-    // ids the app writes (commitmentId, then sub id, then name). It used to
-    // key on a Commitment.companyId that does not exist, so no waiver the app
-    // created could ever count (audit round 2, #22) — see utils/handoverWaivers.
-    const waiverCov = lienWaiverCoverage(projectCommitments, waivers);
-    const allCovered = waiverCov.status === 'done';
-    const waiverStatus: HandoverItem['status'] = waiverCov.status;
-
-    return [
-      {
+    let selectionsRow: HandoverItem;
+    if (!isOwnerView) selectionsRow = managedRow('selections', 'Selections confirmed', ShoppingCart);
+    else if (selRead.state === 'error') selectionsRow = failedRow('selections', 'Selections confirmed', ShoppingCart);
+    else if (selRead.state === 'pending') selectionsRow = pendingRow('selections', 'Selections confirmed', ShoppingCart);
+    else {
+      const cats = selRead.value;
+      const totalCats = cats.length;
+      const chosenCats = cats.filter(c => (c.options ?? []).some(o => o.isChosen)).length;
+      const selStatus: HandoverItem['status'] =
+        totalCats === 0 ? 'open'
+        : chosenCats === totalCats ? 'done'
+        : 'partial';
+      selectionsRow = {
         key: 'selections',
         label: 'Selections confirmed',
         detail: totalCats === 0
@@ -254,22 +317,19 @@ export default function HandoverScreen() {
         cta: '/selections',
         ctaParams: { projectId: project.id },
         ctaLabel: selStatus === 'done' ? 'Review' : 'Open selections',
-      },
-      {
-        key: 'punch',
-        label: 'Punch list cleared',
-        detail: projectPunch.length === 0
-          ? 'No punch list yet. If the project is move-in-ready, mark it manually.'
-          : openPunch === 0
-            ? `All ${projectPunch.length} punch items closed`
-            : `${openPunch} open · ${projectPunch.length - openPunch} closed`,
-        icon: CheckSquare,
-        status: punchStatus,
-        cta: '/punch-list',
-        ctaParams: { projectId: project.id },
-        ctaLabel: punchStatus === 'done' ? 'Review' : 'Open punch list',
-      },
-      {
+      };
+    }
+
+    // Punch list — zero open items. punch_items is collaborator-readable, so
+    // this row is real for an invitee too.
+    const openPunch = projectPunch.filter((p: any) => p.status !== 'closed').length;
+    const punchStatus: HandoverItem['status'] = openPunch === 0 && projectPunch.length > 0 ? 'done' : (openPunch > 0 ? 'partial' : 'open');
+
+    // Warranties — at least one on file (from ProjectContext, owner-only rows).
+    const warrantyStatus: HandoverItem['status'] = projectWarranties.length > 0 ? 'done' : 'open';
+    const warrantiesRow: HandoverItem = !isOwnerView
+      ? managedRow('warranties', 'Warranties on file', ShieldCheck)
+      : {
         key: 'warranties',
         label: 'Warranties on file',
         detail: projectWarranties.length === 0
@@ -280,8 +340,17 @@ export default function HandoverScreen() {
         cta: '/warranties',
         ctaParams: { projectId: project.id },
         ctaLabel: warrantyStatus === 'done' ? 'Review' : 'Add warranties',
-      },
-      {
+      };
+
+    // Closeout binder — must be sent.
+    let binderRow: HandoverItem;
+    if (!isOwnerView) binderRow = managedRow('binder', 'Closeout binder delivered', BookOpen);
+    else if (binderRead.state === 'error') binderRow = failedRow('binder', 'Closeout binder delivered', BookOpen);
+    else if (binderRead.state === 'pending') binderRow = pendingRow('binder', 'Closeout binder delivered', BookOpen);
+    else {
+      const binder = binderRead.value;
+      const binderStatus: HandoverItem['status'] = binder?.status === 'sent' ? 'done' : binder?.status === 'finalized' ? 'partial' : 'open';
+      binderRow = {
         key: 'binder',
         label: 'Closeout binder delivered',
         detail: !binder
@@ -296,34 +365,101 @@ export default function HandoverScreen() {
         cta: '/closeout-binder',
         ctaParams: { projectId: project.id },
         ctaLabel: binderStatus === 'done' ? 'Re-deliver' : 'Open binder',
-      },
-      {
+      };
+    }
+
+    // Final invoice — the whole job, not the top invoice (#139).
+    const today = todayCalendarDay();
+    let invoiceRow: HandoverItem;
+    if (!isOwnerView) invoiceRow = managedRow('invoice', 'Final invoice paid', Receipt);
+    else {
+      const inv = jobInvoiceHandoverState(projectInvoices, today);
+      invoiceRow = {
         key: 'invoice',
         label: 'Final invoice paid',
-        detail: invoiceRow.detail,
+        detail: inv.detail,
         icon: Receipt,
-        status: invoiceRow.status,
+        status: inv.status,
         cta: '/invoice',
         ctaParams: ({
           projectId: project.id,
-          ...(finalInv?.id ? { invoiceId: finalInv.id } : {}),
+          ...(inv.targetInvoiceId ? { invoiceId: inv.targetInvoiceId } : {}),
         }) as Record<string, string>,
-        ctaLabel: invoiceRow.status === 'done' ? 'Review' : 'Open invoice',
-      },
-      {
+        ctaLabel: inv.status === 'done' ? 'Review' : 'Open invoice',
+      };
+    }
+
+    // Lien waivers — an unconditional final per active commitment, matched by
+    // the ids the app writes (commitmentId, then sub id, then name). It used to
+    // key on a Commitment.companyId that does not exist (audit round 2, #22),
+    // and then counted any signed waiver, progress ones included (#49) — see
+    // utils/handoverWaivers.
+    let waiverRow: HandoverItem;
+    if (!isOwnerView) waiverRow = managedRow('waivers', 'Lien waivers collected', ScrollText);
+    else if (waiverRead.state === 'error') waiverRow = failedRow('waivers', 'Lien waivers collected', ScrollText);
+    else if (waiverRead.state === 'pending') waiverRow = pendingRow('waivers', 'Lien waivers collected', ScrollText);
+    else {
+      const waivers = waiverRead.value;
+      const waiverCov = lienWaiverCoverage(projectCommitments, waivers);
+      waiverRow = {
         key: 'waivers',
         label: 'Lien waivers collected',
-        detail: waiverCov.total === 0
-          ? 'No subcontractor commitments on file. Add commitments to track lien waivers.'
-          : allCovered
-            ? `Signed waiver for every commitment (${waiverCov.total})`
-            : `${waiverCov.covered} of ${waiverCov.total} commitments have a signed waiver`,
+        detail: lienWaiverDetail(waiverCov),
         icon: ScrollText,
-        status: waiverStatus,
+        status: waiverCov.status,
         cta: '/lien-waivers',
         ctaParams: { projectId: project.id },
         ctaLabel: 'Open lien waivers',
+      };
+    }
+
+    // Permits & final inspection (#50). permits is collaborator-readable
+    // (permits_collab_select), so it is computed for everyone. Zero permits is
+    // not a block — it is the GC's call, confirmed by tap and dated.
+    const permitState = permitsHandoverState(projectPermits, today);
+    const permitsRow: HandoverItem = permitState.status === 'none'
+      ? {
+        key: 'permits_na',
+        label: 'Permits & final inspection',
+        detail: manualChecks['permits_na']
+          ? `No permits required on this job — confirmed ${new Date(manualChecks['permits_na']).toLocaleDateString()}`
+          : 'No permits logged. Tap to confirm this job needed none — or log them on the Permits screen.',
+        icon: Landmark,
+        status: manualChecks['permits_na'] ? 'done' : 'open',
+        manual: true,
+      }
+      : {
+        key: 'permits',
+        label: 'Permits & final inspection',
+        detail: permitState.detail,
+        icon: Landmark,
+        status: permitState.status,
+        cta: '/permits',
+        ctaParams: { projectId: project.id },
+        ctaLabel: permitState.status === 'done' ? 'Review' : 'Open permits',
+      };
+
+    return [
+      selectionsRow,
+      {
+        key: 'punch',
+        label: 'Punch list cleared',
+        detail: projectPunch.length === 0
+          ? 'No punch list yet. If the project is move-in-ready, mark it manually.'
+          : openPunch === 0
+            ? `All ${projectPunch.length} punch items closed`
+            : `${openPunch} open · ${projectPunch.length - openPunch} closed`,
+        icon: CheckSquare,
+        status: punchStatus,
+        cta: '/punch-list',
+        ctaParams: { projectId: project.id },
+        ctaLabel: punchStatus === 'done' ? 'Review' : 'Open punch list',
       },
+      warrantiesRow,
+      binderRow,
+      invoiceRow,
+      waiverRow,
+      permitsRow,
       {
         key: 'walkthrough',
         label: 'Final walk-through completed',
@@ -345,12 +481,22 @@ export default function HandoverScreen() {
         manual: true,
       },
     ];
-  }, [project, selectionsCats, projectPunch, projectWarranties, binder, projectInvoices, projectCommitments, waivers, manualChecks]);
+  }, [project, isOwnerView, selRead, projectPunch, projectWarranties, binderRead, projectInvoices, projectCommitments, waiverRead, projectPermits, manualChecks]);
 
   const doneCount = items.filter(i => i.status === 'done').length;
   const partialCount = items.filter(i => i.status === 'partial').length;
+  const openCount = items.filter(i => i.status === 'open').length;
+  const unknownCount = items.filter(i => i.status === 'unknown').length;
+  const managedCount = items.filter(i => i.status === 'managed').length;
   const total = items.length;
+  // Only a real tick counts: a row that couldn't load, or that lives on the
+  // owner's account, can never make "Ready to hand over" true.
   const allDone = doneCount === total && total > 0;
+  const heroParts: string[] = [];
+  if (partialCount > 0) heroParts.push(`${partialCount} in progress`);
+  if (openCount > 0) heroParts.push(`${openCount} not started`);
+  if (unknownCount > 0) heroParts.push(`${unknownCount} couldn't load`);
+  if (managedCount > 0) heroParts.push(`${managedCount} kept by the project owner`);
 
   if (!projectId || !project) {
     return (
@@ -415,9 +561,7 @@ export default function HandoverScreen() {
             <Text style={styles.heroBody}>
               {allDone
                 ? 'Every box is ticked. Hand over the keys with confidence.'
-                : partialCount > 0
-                  ? `${partialCount} item${partialCount === 1 ? '' : 's'} in progress, ${total - doneCount - partialCount} not started.`
-                  : `${total - doneCount} item${total - doneCount === 1 ? '' : 's'} still open.`}
+                : `${heroParts.join(', ')}.`}
             </Text>
             {/* Progress bar */}
             <View style={styles.progressTrack}>
@@ -442,14 +586,17 @@ export default function HandoverScreen() {
                   toggleManual(item.key as ManualKey);
                   return;
                 }
-                if (!item.cta) return;
+                // A row whose read failed retries; a row kept on the owner's
+                // account has nothing to open.
+                if (item.status === 'unknown') { load(); return; }
+                if (item.status === 'managed' || !item.cta) return;
                 router.push({ pathname: item.cta as any, params: item.ctaParams ?? {} });
               }}
             />
           ))}
 
           <Text style={styles.fineprint}>
-            MAGE ticks what it can read from this job. Walk-through and keys are yours to tick — we save the date you do it.
+            MAGE ticks what it can read from this job. Walk-through and keys — and &quot;no permits required&quot; on a job with none logged — are yours to tick; we save the date you do it.
           </Text>
         </ScrollView>
       )}
@@ -464,6 +611,8 @@ function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: 
   const Status = (() => {
     if (item.status === 'done') return { Comp: CheckCircle2, color: Colors.successDark };
     if (item.status === 'partial') return { Comp: AlertCircle, color: '#C26A00' };
+    if (item.status === 'unknown') return { Comp: CloudOff, color: themeColors.textMuted };
+    if (item.status === 'managed') return { Comp: Lock, color: themeColors.textMuted };
     return { Comp: Circle, color: themeColors.textMuted };
   })();
   const SC = Status.Comp;
@@ -482,7 +631,7 @@ function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: 
           <SC size={16} color={Status.color} />
         </View>
         <Text style={styles.rowDetail}>{item.detail}</Text>
-        {item.ctaLabel && !item.manual && item.status !== 'done' && (
+        {item.ctaLabel && !item.manual && item.status !== 'done' && item.status !== 'unknown' && item.status !== 'managed' && (
           <View style={styles.rowCta}>
             <Text style={styles.rowCtaText}>{item.ctaLabel}</Text>
             <ChevronRight size={13} color={themeColors.accent} strokeWidth={1.75} />

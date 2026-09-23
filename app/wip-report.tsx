@@ -24,6 +24,9 @@ import { useWip } from '@/contexts/WipContext';
 import {
   computeWipRow, computeWipPortfolio, flagWipRow,
   suggestBillingsWithSource, sumApprovedChangeOrders, isWipReportableProject,
+  wipEvidenceFor, wipExclusionReason,
+  wipCostOverridesKey, normalizeWipCostOverrides, wipCostOverrideInForce,
+  WIP_COST_OVERRIDE_LEGACY_STAMP, type WipCostOverride,
   deriveOriginalContractWithSource, deriveEstimatedCostWithSource,
   suggestCostToDateWithSource, WIP_SOURCE_LABELS, wipSourceLabel,
   describeCostToDateComponents,
@@ -41,6 +44,8 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { wipPeriodToCSV, shareWipPeriodCsv, shareWipPeriodPdf } from '@/utils/wipExport';
 import { copyToClipboard } from '@/utils/clipboard';
+import { formatMoney } from '@/utils/formatters';
+import { pdfFailureMessage } from '@/utils/platformFile';
 import type { WipRowInput, Project } from '@/types';
 import { showAlert } from '@/utils/alert';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -73,11 +78,13 @@ function clampPct(n: number): number {
 //
 // One row per project, never the whole Record as a blob: correcting Henderson
 // on the phone must not wipe the Ridgeline override typed on the laptop.
-const WIP_COST_OVERRIDES_KEY = 'mageid_wip_cost_overrides';
+//
+// The cache key, the entry shape, the parser and the tombstone rule live in
+// utils/wip.ts (wipCostOverridesKey / WipCostOverride / normalizeWipCostOverrides
+// / wipCostOverrideInForce) since #37: the Friday Close reads the same override
+// to agree with this screen, and a key only one screen can build is a second
+// definition of the number it holds.
 const WIP_COST_OVERRIDES_TABLE = 'wip_cost_overrides';
-function costOverridesKey(userId: string | undefined): string {
-  return userId ? `${WIP_COST_OVERRIDES_KEY}_${userId}` : WIP_COST_OVERRIDES_KEY;
-}
 
 // ── ESTIMATED COST TO COMPLETE ──────────────────────────────────────────────
 //
@@ -109,44 +116,20 @@ function costOverridesKey(userId: string | undefined): string {
 // the same map through the same three, and computeWIPReport / computeProfit-
 // Report take it as a parameter.
 
-/**
- * One project's typed cost-to-date. `value` is COST incurred, not revenue.
- * `updatedAt` is an INSTANT (not a calendar day) — it is what decides whose
- * edit is newer when the phone and the laptop disagree. `synced` records
- * whether the server has taken this value yet, so the screen can say "this
- * device only" instead of letting the GC assume every device agrees.
- */
-interface CostOverride {
-  value: number;
-  updatedAt: string;
-  synced: boolean;
-  /**
-   * The GC took the override back off — he cleared the box, or typed the app's
-   * own figure back in. Kept as a dated entry rather than dropped from the map
-   * because the SERVER still holds the row: delete it locally and the next
-   * read-through hands the override straight back, so "clear" would not
-   * survive a reload. A tombstone wins the same updatedAt comparison a new
-   * figure would.
-   *
-   * `value` on a tombstone is inert. It carries the AUTOMATIC figure rather
-   * than the one that was taken off, so a reader that forgets to check this
-   * flag falls back to the app's own number instead of resurrecting the one
-   * the GC just rejected.
-   */
-  cleared?: boolean;
-}
+/** One project's typed cost-to-date — see utils/wip.WipCostOverride. */
+type CostOverride = WipCostOverride;
 
 /**
  * The override actually in force for a project, or undefined when there is
- * none. A tombstone is a record of a removal, never a figure — reading one as
- * a cost-to-date would put a stale number back on a bank-facing schedule.
+ * none — utils/wip.wipCostOverrideInForce, the one tombstone rule this screen
+ * and the Friday Close share. A tombstone is a record of a removal, never a
+ * figure.
  */
 function overrideInForce(
   map: Record<string, CostOverride>,
   projectId: string,
 ): CostOverride | undefined {
-  const entry = map[projectId];
-  return entry && !entry.cleared ? entry : undefined;
+  return wipCostOverrideInForce(map, projectId);
 }
 
 // A WIP SCHEDULE OF ZEROS IS STILL A BANK DOCUMENT (polish audit 2026-09-10).
@@ -164,35 +147,6 @@ const NOTHING_TO_REPORT =
   'A WIP schedule needs at least one active project with a cost-and-markup estimate. '
   + 'There is nothing to freeze or export yet — and a schedule of zeros is a document a '
   + 'bank or a surety would read as your actual position.';
-
-// Overrides written before this screen learned to sync were bare numbers with
-// no timestamp. Stamping them at the epoch means a server row — which by
-// definition was typed after the sync shipped — wins, while an override that
-// exists on NO other device is still kept and backfilled up on the next load.
-const LEGACY_OVERRIDE_STAMP = '1970-01-01T00:00:00.000Z';
-
-function normalizeOverrides(raw: unknown): Record<string, CostOverride> {
-  if (!raw || typeof raw !== 'object') return {};
-  const out: Record<string, CostOverride> = {};
-  for (const [projectId, entry] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof entry === 'number' && Number.isFinite(entry)) {
-      out[projectId] = { value: entry, updatedAt: LEGACY_OVERRIDE_STAMP, synced: false };
-      continue;
-    }
-    if (entry && typeof entry === 'object') {
-      const e = entry as Partial<CostOverride>;
-      if (typeof e.value === 'number' && Number.isFinite(e.value)) {
-        out[projectId] = {
-          value: e.value,
-          updatedAt: typeof e.updatedAt === 'string' ? e.updatedAt : LEGACY_OVERRIDE_STAMP,
-          synced: e.synced === true,
-          cleared: e.cleared === true,
-        };
-      }
-    }
-  }
-  return out;
-}
 
 export default function WipReportScreen() {
   const router = useRouter();
@@ -310,8 +264,8 @@ function WipReportScreenInner() {
     (async () => {
       let merged: Record<string, CostOverride> = {};
       try {
-        const raw = await AsyncStorage.getItem(costOverridesKey(userId));
-        if (raw) merged = normalizeOverrides(JSON.parse(raw));
+        const raw = await AsyncStorage.getItem(wipCostOverridesKey(userId));
+        if (raw) merged = normalizeWipCostOverrides(JSON.parse(raw));
       } catch { /* fresh install / bad cache → the server is the answer */ }
       if (cancelled) return;
       // Paint the cache NOW, before the round-trip. The comment above always
@@ -350,7 +304,7 @@ function WipReportScreenInner() {
               const serverMs = Date.parse(raw.updated_at ?? '');
               const serverAt = Number.isFinite(serverMs)
                 ? new Date(serverMs).toISOString()
-                : LEGACY_OVERRIDE_STAMP;
+                : WIP_COST_OVERRIDE_LEGACY_STAMP;
               const local = merged[projectId];
               if (local && Date.parse(local.updatedAt) > Date.parse(serverAt)) continue; // ours is newer
               // `cleared` travels. Without it the OTHER device's clear is
@@ -399,7 +353,7 @@ function WipReportScreenInner() {
   // a small map, and this is only the offline copy of the server's rows.
   useEffect(() => {
     if (!overridesHydratedRef.current) return;
-    void AsyncStorage.setItem(costOverridesKey(userId), JSON.stringify(costOverrides))
+    void AsyncStorage.setItem(wipCostOverridesKey(userId), JSON.stringify(costOverrides))
       .catch(() => { /* non-fatal cache write */ });
   }, [costOverrides, userId]);
 
@@ -437,18 +391,6 @@ function WipReportScreenInner() {
   // Controlled buffer for the cost-to-complete field, same shape and same
   // reason as the cost-to-date one above.
   const [drillEtcText, setDrillEtcText] = useState<string>('');
-
-  // Audit 2026-09-07 ("Do next" #2, axis 4). This was `() => projects` — every
-  // project, CLOSED ones included — while utils/financialReports.computeWIPReport,
-  // one sidebar row away, has always skipped closed jobs. So the two bank-facing
-  // WIP schedules in this app listed different jobs and restated backlog that no
-  // longer exists on a document a surety sizes a bond from. The population is
-  // now the shared predicate; neither surface gets its own opinion.
-  const activeProjects: Project[] = useMemo(
-    () => projects.filter(isWipReportableProject),
-    [projects],
-  );
-  const closedCount = projects.length - activeProjects.length;
 
   // Build one project's WIP inputs AND the provenance of each one, in a single
   // pass. Two passes is how the number and the explanation drift apart, and
@@ -559,6 +501,60 @@ function WipReportScreenInner() {
     (project: Project): WipRowInput => buildRow(project).input,
     [buildRow],
   );
+
+  // Audit 2026-09-07 ("Do next" #2, axis 4). This was `() => projects` — every
+  // project, CLOSED ones included — while utils/financialReports.computeWIPReport,
+  // one sidebar row away, has always skipped closed jobs. So the two bank-facing
+  // WIP schedules in this app listed different jobs and restated backlog that no
+  // longer exists on a document a surety sizes a bond from. The population is
+  // now the shared predicate; neither surface gets its own opinion.
+  //
+  // AND NOW SIGNED, OWN WORK ONLY (#18 / #19, audit 2026-09-22). A partner GC's
+  // job this account was invited onto, and an unsigned bid sitting at
+  // 'estimated', both passed the old closed-only test — so another company's
+  // contract and a $400,000 bid nobody signed sat on the schedule as backlog.
+  // The evidence comes from the ONE builder both engines call, with the same
+  // five inputs computeWIPReport passes: issued invoices, billable pay apps,
+  // approved COs, signed commitments and the AUTO cost to date. Not the typed
+  // cost override — /reports cannot see it, and a signal only one schedule has
+  // would list different jobs on the two documents again (axis 4).
+  //
+  // Not point-free: passing the predicate straight to `.filter` hands the array
+  // index in as the context argument.
+  //
+  // The cost to date is buildRow's own `auto` — the ONE sourced derivation on
+  // this screen — so the evidence and the row it admits cannot price the job
+  // two ways.
+  const wipEvidenceOf = useCallback((project: Project) => wipEvidenceFor(project, {
+    invoices: getInvoicesForProject(project.id),
+    payApps: getAIAPayAppsForProject(project.id),
+    changeOrders: getChangeOrdersForProject(project.id),
+    commitments: getCommitmentsForProject(project.id),
+    costToDate: buildRow(project).auto.value,
+  }), [getInvoicesForProject, getAIAPayAppsForProject, getChangeOrdersForProject, getCommitmentsForProject, buildRow]);
+  const activeProjects: Project[] = useMemo(
+    () => projects.filter(p => isWipReportableProject(p, { userId: userId ?? null, evidence: wipEvidenceOf(p) })),
+    [projects, userId, wipEvidenceOf],
+  );
+  // WHAT WAS LEFT OUT, BY REASON — a job must never leave a bank document
+  // without a word. Same predicate, same inputs, so these counts and the rows
+  // above cannot disagree.
+  const exclusions = useMemo(() => {
+    const out = { closed: 0, shared: 0, unsigned: 0, unsignedContract: 0 };
+    for (const p of projects) {
+      const reason = wipExclusionReason(p, { userId: userId ?? null, evidence: wipEvidenceOf(p) });
+      if (reason === 'closed') out.closed += 1;
+      else if (reason === 'shared') out.shared += 1;
+      else if (reason === 'unsigned') {
+        out.unsigned += 1;
+        out.unsignedContract += deriveOriginalContractWithSource(
+          p, getChangeOrdersForProject(p.id), getAIAPayAppsForProject(p.id),
+        ).value;
+      }
+    }
+    return out;
+  }, [projects, userId, wipEvidenceOf, getChangeOrdersForProject, getAIAPayAppsForProject]);
+  const closedCount = exclusions.closed;
 
   // Snapshot rows carry their provenance, so a period locked in March can still
   // answer the surety's question in June — recomputing it at export time would
@@ -1080,8 +1076,12 @@ function WipReportScreenInner() {
     // CONTRACTOR's financial position; the software's name on it is the first
     // thing a bonding agent sees and it is the wrong company. app/reports.tsx
     // has always done this correctly and `settings` was one destructure away.
+    //
+    // A blocked pop-up on the web is the one failure the GC can fix himself, so
+    // its sentence ("allow pop-ups …") is let through; anything else keeps this
+    // screen's own wording (#147, CONTRACT 25).
     try { await shareWipPeriodPdf(exportPeriod, settings?.branding?.companyName || 'MAGE ID', todayCalendarDay()); }
-    catch { showAlert('Export failed', 'Could not generate the WIP PDF.'); }
+    catch (err) { showAlert('Export failed', pdfFailureMessage(err, 'Could not generate the WIP PDF.')); }
   }, [exportPeriod, settings]);
 
   return (
@@ -1357,10 +1357,21 @@ function WipReportScreenInner() {
               <Text style={styles.under}>Under</Text> = earned more than billed (you are financing the client)
             </Text>
           </View>
-          {closedCount > 0 ? (
-            <Text style={styles.muted}>
-              {closedCount} closed project{closedCount === 1 ? ' is' : 's are'} excluded — a WIP schedule
-              carries work in progress only.
+          {closedCount > 0 || exclusions.shared > 0 || exclusions.unsigned > 0 ? (
+            <Text style={styles.muted} testID="wip-excluded">
+              {[
+                closedCount > 0 ? `${closedCount} closed` : '',
+                exclusions.shared > 0
+                  ? `${exclusions.shared} shared with you (another company's contract)`
+                  : '',
+                exclusions.unsigned > 0
+                  ? `${exclusions.unsigned} unsigned bid${exclusions.unsigned === 1 ? '' : 's'} `
+                    + `(${formatMoney(exclusions.unsignedContract, 2)}) — pipeline, not backlog`
+                  : '',
+              ].filter(Boolean).join(' · ')}
+              {' '}— not on this schedule. A WIP schedule carries your own signed work in progress only;
+              a bid joins it once it is invoiced, billed on a pay app, has an approved change order or a
+              signed subcontract, or has cost recorded against it.
             </Text>
           ) : null}
           {displayRows.length === 0 ? (

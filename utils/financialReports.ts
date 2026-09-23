@@ -20,7 +20,8 @@ import type { Project, Invoice, ChangeOrder, Commitment, SavedAIAPayApp } from '
 import { computeJobCost, type JobCostActualSources } from './jobCostEngine';
 import {
   deriveEstimatedCostWithSource, deriveOriginalContractWithSource,
-  suggestBillingsWithSource, type WipEstimatedCost, type WipSource,
+  suggestBillingsWithSource, isWipReportableProject, isSignedOwnWork, wipEvidenceFor, wipExclusionReason, isOwnCompanyProject,
+  type WipEstimatedCost, type WipSource,
 } from '@/utils/wip';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 
@@ -117,6 +118,22 @@ export interface WIPReport {
     noCostBasisCount: number;
     noCostBasisContract: number;
   };
+  /**
+   * The jobs this schedule LEFT OUT, and why (#18 / #19, audit 2026-09-22) —
+   * a job must never vanish from a bank document without a word. `shared` is
+   * counted only when the caller passed `opts.userId` (a caller that narrowed
+   * its own list first counts its own shared jobs). `unsignedContract` is the
+   * original contract of the unsigned bids, so the screen can say what was
+   * held back as pipeline. Optional: a hand-built report has none.
+   */
+  excluded?: WipExclusions;
+}
+
+export interface WipExclusions {
+  closed: number;
+  shared: number;
+  unsigned: number;
+  unsignedContract: number;
 }
 
 /**
@@ -287,10 +304,46 @@ export function computeWIPReport(
    * while the whole feature could be switched off with the guard still green).
    */
   costToCompleteByProject: Record<string, number> = {},
+  /**
+   * WHOSE BOOK THIS IS (#18, audit 2026-09-22). When `userId` is given, a job
+   * another company owns (one this account was invited onto) is left off —
+   * utils/wip.isOwnCompanyProject. Optional and trailing, so every existing
+   * call keeps its meaning; app/reports.tsx narrows its list to its own jobs
+   * BEFORE calling, which is the same rule applied one step earlier.
+   */
+  opts: { userId?: string | null } = {},
 ): WIPReport {
   const rows: WIPRow[] = [];
+  const excluded: WipExclusions = { closed: 0, shared: 0, unsigned: 0, unsignedContract: 0 };
   for (const project of projects) {
-    if (project.status === 'closed') continue;
+    // THE POPULATION — ONE DEFINITION, SHARED WITH app/wip-report.tsx (axis 4,
+    // widened 2026-09-22 for #18 / #19). This was `status === 'closed'` alone,
+    // so an unsigned bid ('draft' / 'estimated') sat on the bank schedule as
+    // full-value backlog and a partner's shared job sat beside it. The
+    // evidence is built from the arrays this function already holds, with the
+    // SAME five inputs /wip-report passes (wipEvidenceFor), so the two
+    // schedules list the same jobs. Cost to date is the engine's actual, which axis 9
+    // pins to the cent against /wip-report's figure.
+    if (project.status === 'closed') { excluded.closed += 1; continue; }
+    const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
+    const spentSoFar = job.actual;
+    const evidence = wipEvidenceFor(project, {
+      invoices, payApps, changeOrders, commitments, costToDate: spentSoFar,
+    });
+    const ctx = { evidence, ...(opts.userId !== undefined ? { userId: opts.userId } : {}) };
+    if (!isWipReportableProject(project, ctx)) {
+      if (wipExclusionReason(project, ctx) === 'shared') {
+        excluded.shared += 1;
+      } else {
+        excluded.unsigned += 1;
+        excluded.unsignedContract += deriveOriginalContractWithSource(
+          project,
+          changeOrders.filter(co => co.projectId === project.id && co.status === 'approved'),
+          payApps.filter(a => a.projectId === project.id),
+        ).value;
+      }
+      continue;
+    }
 
     const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
     const approvedChangeOrders = projectCOs.reduce((s, co) => s + co.changeAmount, 0);
@@ -349,7 +402,8 @@ export function computeWIPReport(
     // foot for the banker reading both.
     const retainageHeld = billings.retainageHeld;
 
-    const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
+    // (`job` — the engine's cost picture — is computed above, before the
+    // population test, because cost to date is one of the signed-work signals.)
     // COST AT COMPLETION — ONE DEFINITION, SHARED WITH app/wip-report.tsx
     // (polish audit 2026-09-10). This read `job.projectedFinal`, the job-cost
     // engine's per-phase EAC, while the other bank-facing WIP schedule read
@@ -492,7 +546,7 @@ export function computeWIPReport(
   totals.noCostBasisCount = rows.length - measurable.length;
   totals.noCostBasisContract = totals.revisedContract - measurableContract;
 
-  return { asOf: new Date().toISOString(), rows, totals };
+  return { asOf: new Date().toISOString(), rows, totals, excluded };
 }
 
 // ─── Profit per project ──────────────────────────────────────────────
@@ -532,6 +586,8 @@ export function computeProfitReport(
   payApps: SavedAIAPayApp[] = [],
   /** Same cost-to-complete map, same reason — see computeWIPReport. */
   costToCompleteByProject: Record<string, number> = {},
+  /** Same ownership option, same reason — see computeWIPReport. */
+  opts: { userId?: string | null } = {},
 ): {
   rows: ProfitRow[];
   totalRevenue: number;
@@ -540,10 +596,38 @@ export function computeProfitReport(
   measurableRevenue: number;
   noCostBasisCount: number;
   noCostBasisRevenue: number;
+  /** What was left out and why — see WIPReport.excluded (closed jobs stay on this report). */
+  excluded: Omit<WipExclusions, 'closed'>;
 } {
   const rows: ProfitRow[] = [];
+  const excluded: Omit<WipExclusions, 'closed'> = { shared: 0, unsigned: 0, unsignedContract: 0 };
   for (const project of projects) {
+    // SIGNED, OWN WORK ONLY (#18 / #19, audit 2026-09-22) — the same evidence
+    // rule and the same five inputs as the WIP tab, so an unsigned bid does not
+    // print a "projected profit" and a partner's shared job does not land in
+    // this GC's portfolio margin. ONE deliberate difference from the WIP
+    // schedule: a CLOSED job stays. A WIP schedule is work still in progress;
+    // a profit report is exactly where a finished job's realised margin
+    // belongs, and this report has always listed closed jobs.
+    const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
+    const spentSoFar = job.actual;
+    const ctx = {
+      evidence: wipEvidenceFor(project, { invoices, payApps, changeOrders, commitments, costToDate: spentSoFar }),
+      ...(opts.userId !== undefined ? { userId: opts.userId } : {}),
+    };
     const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
+    if (!isSignedOwnWork(project, ctx)) {
+      // Ownership asked directly, not through wipExclusionReason: that helper
+      // answers 'closed' first, and a closed job is ON this report.
+      if (opts.userId !== undefined && !isOwnCompanyProject(project, opts.userId)) excluded.shared += 1;
+      else {
+        excluded.unsigned += 1;
+        excluded.unsignedContract += deriveOriginalContractWithSource(
+          project, projectCOs, payApps.filter(a => a.projectId === project.id),
+        ).value;
+      }
+      continue;
+    }
     const approvedCOs = projectCOs.reduce((s, co) => s + co.changeAmount, 0);
     // The same one contract definition the WIP tab uses (axis 5). Two tabs of
     // ONE screen reporting different revenue for one job is the same defect as
@@ -554,7 +638,6 @@ export function computeProfitReport(
     ).value;
     const revenue = contractValue + approvedCOs;
 
-    const job = computeJobCost({ project, commitments, changeOrders, ...costSources });
     // Same one cost-at-completion the WIP tab now uses — and this tab is the
     // one that matters most, because app/reports.tsx lands every sub-Business
     // user straight on it. A free trialist who bought out two subs was being
@@ -633,6 +716,7 @@ export function computeProfitReport(
     /** How many rows carry a contract with no cost basis at all, and their revenue. */
     noCostBasisCount: rows.length - measurable.length,
     noCostBasisRevenue: totalRevenue - measurableRevenue,
+    excluded,
   };
 }
 

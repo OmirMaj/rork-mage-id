@@ -9,7 +9,10 @@
 // Three KPIs at the top:
 //   1. % bought out — committed dollars / estimate budget
 //   2. Buyout savings to date — sum of awarded packages'
-//      (estimateBudget - awardedAmount). Color-coded green/red.
+//      (budget AT COST - leveled award). Color-coded green/red. A package
+//      whose budget was stored at sell (the old auto-fill, #11) is left out
+//      and flagged "Budget includes markup — review": against sell, his own
+//      markup reads as savings.
 //   3. Packages awarded / total — pace indicator, with a pulsing
 //      red dot when any package is overdue (requiredByDate < today
 //      and status !== 'awarded').
@@ -24,7 +27,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, ChevronRight, AlertTriangle, CheckCircle2,
@@ -49,7 +52,9 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { cardSurface } from '@/components/ui';
 import { estimateItemsToScope } from '@/utils/estimateItemsToScope';
-import { fetchBidInvitesForProject } from '@/utils/bidInvites';
+import { deliverPendingBidInvites, fetchBidInvitesForProject } from '@/utils/bidInvites';
+import { lineCost, round2 } from '@/utils/estimateMarkup';
+import { isSellBasisBudget, parseBidAmountInput } from '@/utils/bulkSavings';
 import { bidDueLabel, bidDueState, inviteCoverage, type BidInviteRecord } from '@/utils/bidInviteCore';
 import { packageBuyoutSavings } from '@/utils/projectFinancials';
 
@@ -104,6 +109,13 @@ export default function BuyoutScreen() {
     return getBidPackagesForProject(project.id);
   }, [project, getBidPackagesForProject]);
 
+  // Packages whose stored budget is the estimate's SELL sum (#11) — their
+  // "savings" would be his own markup, so they are flagged, not counted.
+  const sellBasisIds = useMemo(() => {
+    const items = project?.linkedEstimate?.items;
+    return new Set(packages.filter(p => isSellBasisBudget(p, items)).map(p => p.id));
+  }, [packages, project]);
+
   // ── KPIs ───────────────────────────────────────────────────────
   const kpi = useMemo(() => {
     const total = packages.length;
@@ -118,8 +130,9 @@ export default function BuyoutScreen() {
     // Leveled savings — the figure the Award dialog showed him, not bid-only
     // (utils/projectFinancials.packageBuyoutSavings; audit round 2, #5).
     const savingsToDate = packages
-      .filter(p => p.status === 'awarded')
+      .filter(p => p.status === 'awarded' && !sellBasisIds.has(p.id))
       .reduce((s, p) => s + (packageBuyoutSavings(p, getBidsForPackage(p.id), commitments) ?? 0), 0);
+    const toReview = packages.filter(p => p.status === 'awarded' && sellBasisIds.has(p.id)).length;
     // OVERDUE now reads `dueDate`, the field the create sheet below actually
     // writes. It used to read `requiredByDate`, which has no writer anywhere in
     // the repo — so the badge and this count could never render, on a screen
@@ -133,10 +146,10 @@ export default function BuyoutScreen() {
       p.status !== 'awarded' && p.status !== 'cancelled' && !p.dueDate
     );
     return {
-      total, awarded, open, leveling, totalBudget, committedBudget, pctBoughtOut, savingsToDate,
+      total, awarded, open, leveling, totalBudget, committedBudget, pctBoughtOut, savingsToDate, toReview,
       overdue: overdue.length, undated: undated.length,
     };
-  }, [packages, getBidsForPackage, commitments]);
+  }, [packages, getBidsForPackage, commitments, sellBasisIds]);
 
   // ── Who still owes him a number, across every package ───────────────────
   // ONE project-scoped read, not one per card: finding out who had gone quiet
@@ -148,19 +161,28 @@ export default function BuyoutScreen() {
   // is simply omitted when we could not read, rather than rendered as zero.
   const [invites, setInvites] = useState<BidInviteRecord[]>([]);
   const [invitesLoaded, setInvitesLoaded] = useState(false);
-  useEffect(() => {
+  // Re-read on FOCUS (#15): a sub files his number through the link while the
+  // GC is inside a package or on another screen, and coming back to this list
+  // has to show it. The same read also emails any invite filed offline that
+  // has now uploaded (#14) — this list, like the package screen, is where the
+  // GC comes back to once he has signal.
+  const packageIdsKey = packages.map(p => p.id).join(',');
+  useFocusEffect(useCallback(() => {
     let cancelled = false;
     const projectId = project?.id;
     if (!projectId) { setInvites([]); setInvitesLoaded(false); return; }
-    setInvitesLoaded(false);
     void fetchBidInvitesForProject(projectId).then(rows => {
       if (cancelled) return;
-      if (rows === null) { setInvitesLoaded(false); return; }
+      // A failed re-read keeps what was last shown rather than blanking it.
+      if (rows === null) return;
       setInvites(rows);
       setInvitesLoaded(true);
+      void deliverPendingBidInvites(rows, new Set(packageIdsKey ? packageIdsKey.split(',') : []));
     });
     return () => { cancelled = true; };
-  }, [project?.id]);
+  }, [project?.id, packageIdsKey]));
+  // A different project is a different list — never show the last one's.
+  useEffect(() => { setInvites([]); setInvitesLoaded(false); }, [project?.id]);
 
   const invitesByPackage = useMemo(() => {
     const map = new Map<string, BidInviteRecord[]>();
@@ -193,13 +215,20 @@ export default function BuyoutScreen() {
     return [...items].sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
   }, [project]);
 
-  // Auto-compute budget from the picked items (user can override).
+  // Auto-compute budget from the picked items AT COST (user can override).
+  // It was Σ lineTotal — SELL — so a sub who bid exactly the cost showed his
+  // own markup as "buyout savings", and computeBulkSavings printed it on the
+  // homeowner's estimate PDF as Bulk Savings (#11). The sell subtotal is still
+  // shown beside it so he can see the markup is left out, not lost.
   const computedBudget = useMemo(() => {
     if (newPkgPickedItemIds.length === 0) return 0;
-    return projectEstimateItems
+    return round2(projectEstimateItems
       .filter(i => newPkgPickedItemIds.includes(i.materialId))
-      .reduce((s, i) => s + i.lineTotal, 0);
+      .reduce((s, i) => s + lineCost(i), 0));
   }, [newPkgPickedItemIds, projectEstimateItems]);
+  const pickedSellSubtotal = useMemo(() => round2(projectEstimateItems
+    .filter(i => newPkgPickedItemIds.includes(i.materialId))
+    .reduce((s, i) => s + (i.lineTotal ?? 0), 0)), [newPkgPickedItemIds, projectEstimateItems]);
 
   // Show allowance count among picked items.
   const allowanceCount = useMemo(() => {
@@ -212,7 +241,8 @@ export default function BuyoutScreen() {
   // (we can tell by storing the last auto-computed value).
   const lastAutoBudgetRef = useRef<string>('');
   useEffect(() => {
-    const auto = computedBudget > 0 ? String(Math.round(computedBudget)) : '';
+    // To the cent: rounding to whole dollars was a second price basis.
+    const auto = computedBudget > 0 ? String(computedBudget) : '';
     if (newPkgBudget === '' || newPkgBudget === lastAutoBudgetRef.current) {
       setNewPkgBudget(auto);
       lastAutoBudgetRef.current = auto;
@@ -235,7 +265,8 @@ export default function BuyoutScreen() {
       showAlert('Name required', 'Give the package a name like "Plumbing rough-in".');
       return;
     }
-    const budget = Number(newPkgBudget) || 0;
+    // "12,000" used to read as NaN → 0. Separators stripped, to the cent.
+    const budget = parseBidAmountInput(newPkgBudget) ?? 0;
     // Seed the scope from the line items he just ticked. `scopeDescription` is
     // the only description of the work the bidder ever sees — it is what the
     // invite email prints and what `bid_invite_get` hands the sub-facing page —
@@ -285,7 +316,7 @@ export default function BuyoutScreen() {
           subtitle="Take your estimate, send it for bids, lock in the lowest. We track every dollar saved between estimate and what you actually pay."
           explainer={{
             term: 'Buyout',
-            definition: 'In construction, "buyout" is the process of taking the bids you got from subcontractors and converting the lowest acceptable one into a signed contract. The savings between your original estimate and the awarded price is your "buyout savings" — straight to the bottom line.',
+            definition: 'In construction, "buyout" is the process of taking the bids you got from subcontractors and converting the lowest acceptable one into a signed contract. The difference between what your estimate says that work costs you — before your markup — and the awarded price is your "buyout savings": money you keep on top of the margin you already priced in.',
             whenToUse: [
               'After your estimate is approved, you\'re ready to start awarding work',
               'You want to track how much you saved (or overspent) by trade',
@@ -357,7 +388,9 @@ export default function BuyoutScreen() {
                 <Text style={[styles.kpiNum, { color: kpi.savingsToDate >= 0 ? themeColors.success : themeColors.danger }]} numberOfLines={1} adjustsFontSizeToFit>
                   {kpi.savingsToDate >= 0 ? '+' : ''}{formatMoney(kpi.savingsToDate)}
                 </Text>
-                <Text style={styles.kpiSub} numberOfLines={2}>vs. estimate</Text>
+                <Text style={styles.kpiSub} numberOfLines={2}>
+                  {kpi.toReview > 0 ? `vs. cost · ${kpi.toReview} to review` : 'vs. estimate cost'}
+                </Text>
               </View>
 
               <View style={styles.kpiTile}>
@@ -403,6 +436,7 @@ export default function BuyoutScreen() {
                   const lowest = bids.length > 0 ? bids.reduce((m, b) => b.amount < m ? b.amount : m, bids[0].amount) : 0;
                   const live = pkg.status !== 'awarded' && pkg.status !== 'cancelled';
                   const savings = packageBuyoutSavings(pkg, bids, commitments);
+                  const budgetAtSell = sellBasisIds.has(pkg.id);
                   const dueState = bidDueState(pkg.dueDate, Date.now());
                   const overdue = live && dueState === 'overdue';
                   // Only rendered when the invite read actually succeeded —
@@ -461,10 +495,15 @@ export default function BuyoutScreen() {
 
                       <View style={styles.pkgBudgetRow}>
                         <View style={styles.pkgBudgetCell}>
-                          <Text style={styles.pkgBudgetLabel}>Budget</Text>
+                          <Text style={styles.pkgBudgetLabel}>{budgetAtSell ? 'Budget (incl. markup)' : 'Budget at cost'}</Text>
                           <Text style={styles.pkgBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
                         </View>
-                        {savings != null ? (
+                        {budgetAtSell ? (
+                          <View style={styles.pkgBudgetCell}>
+                            <Text style={styles.pkgBudgetLabel}>Buyout savings</Text>
+                            <Text style={[styles.pkgBudgetValue, { color: themeColors.warningLabel }]} numberOfLines={2}>Budget includes markup — review</Text>
+                          </View>
+                        ) : savings != null ? (
                           <View style={styles.pkgBudgetCell}>
                             <Text style={styles.pkgBudgetLabel}>Buyout {savings >= 0 ? 'savings' : 'overrun'}</Text>
                             <Text style={[styles.pkgBudgetValue, { color: savings >= 0 ? themeColors.success : themeColors.danger }]}>
@@ -541,7 +580,7 @@ export default function BuyoutScreen() {
               {projectEstimateItems.length > 0 && (
                 <>
                   <Text style={styles.fieldLabel}>Estimate items in this package</Text>
-                  <Text style={styles.fieldHint}>Pick the line items this scope covers — budget auto-fills from the sum.</Text>
+                  <Text style={styles.fieldHint}>Pick the line items this scope covers — the budget auto-fills from their cost, before your markup.</Text>
                   <View style={styles.itemsList}>
                     {projectEstimateItems.map(item => {
                       const picked = newPkgPickedItemIds.includes(item.materialId);
@@ -567,7 +606,7 @@ export default function BuyoutScreen() {
                                 </View>
                               )}
                             </View>
-                            <Text style={styles.itemMeta}>{item.category} · {item.quantity} {item.unit} · ${Math.round(item.lineTotal).toLocaleString()}</Text>
+                            <Text style={styles.itemMeta}>{item.category} · {item.quantity} {item.unit} · {formatMoney(lineCost(item))} cost</Text>
                           </View>
                         </Pressable>
                       );
@@ -576,7 +615,7 @@ export default function BuyoutScreen() {
                   {newPkgPickedItemIds.length > 0 && (
                     <View style={styles.pickedSummary}>
                       <Text style={styles.pickedSummaryText}>
-                        {newPkgPickedItemIds.length} item{newPkgPickedItemIds.length === 1 ? '' : 's'} · ${Math.round(computedBudget).toLocaleString()} carry
+                        {newPkgPickedItemIds.length} item{newPkgPickedItemIds.length === 1 ? '' : 's'} · {formatMoney(computedBudget)} at cost · {formatMoney(pickedSellSubtotal)} at your sell price
                       </Text>
                       {allowanceCount > 0 && (
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 5 }}>
@@ -591,8 +630,13 @@ export default function BuyoutScreen() {
                 </>
               )}
 
-              <Text style={styles.fieldLabel}>Estimate budget (carry)</Text>
-              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Auto-fills from selected items, or type manually' placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
+              <Text style={styles.fieldLabel}>Budget at cost</Text>
+              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Auto-fills from selected items, or type manually' placeholderTextColor={themeColors.textMuted} keyboardType="decimal-pad" testID="buyout-budget-at-cost" />
+              <Text style={styles.fieldHint}>
+                {newPkgPickedItemIds.length > 0
+                  ? `What this work costs you — your sell subtotal for it is ${formatMoney(pickedSellSubtotal)}. Buyout savings are measured against cost, so your markup never counts as money saved.`
+                  : 'What this work costs you, before your markup. Buyout savings are measured against it.'}
+              </Text>
 
               {/* Bids due. The invite could only ever tell a sub "this link
                   stops working in 30 days" — the link's expiry, not a

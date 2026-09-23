@@ -23,9 +23,10 @@ const base = (): LinkedEstimate => ({
   baseTotal: 4900, markupTotal: 490, grandTotal: 5390,
 });
 
-// $100K of materials at 15% plus $50K of self-perform labor priced AT COST —
-// the estimator stamps labor markup: 0 because adjustedRate is the all-in rate.
-// This is the fixture that catches re-marking-up at-cost work.
+// OLD SHAPE: $100K of materials at 15% plus $50K of self-perform labor saved
+// at markup 0 — what the estimator wrote before it marked labor up. Such an
+// estimate must recompute byte-identical: the line's stored markup is the
+// contract, so a 0 stays a 0.
 const mixed = (): LinkedEstimate => ({
   id: 'est2', createdAt: '2026-01-01T00:00:00Z', globalMarkup: 15,
   items: [
@@ -33,6 +34,21 @@ const mixed = (): LinkedEstimate => ({
     mkItem('lab', { name: 'Carpenter', category: 'Labor', unit: 'hrs', quantity: 500, unitPrice: 100, bulkPrice: 100, markup: 0, lineTotal: 50000 }),
   ],
   baseTotal: 150000, markupTotal: 15000, grandTotal: 165000,
+});
+
+// CURRENT SHAPE (#6): what app/(tabs)/estimate/full.tsx:1061/:1078 writes now —
+// Labor and Assemblies lines stamped `markup: globalMarkup` with a
+// markup-inclusive lineTotal. $40K materials + $50K labor + $10K assemblies at
+// 20% = $120,000. A voice edit used to strip labor and assemblies to 0 here and
+// drop the contract by $12,000.
+const fullShape = (): LinkedEstimate => ({
+  id: 'est3', createdAt: '2026-01-01T00:00:00Z', globalMarkup: 20,
+  items: [
+    mkItem('tile', { name: 'Tile', quantity: 400, unitPrice: 100, bulkPrice: 100, markup: 20, lineTotal: 48000 }),
+    mkItem('lab', { name: 'Carpenter', category: 'Labor', unit: 'hrs', quantity: 500, unitPrice: 100, bulkPrice: 100, markup: 20, lineTotal: 60000 }),
+    mkItem('asm', { name: 'Bath assembly', category: 'Assemblies', unit: 'ea', quantity: 1, unitPrice: 10000, bulkPrice: 10000, markup: 20, lineTotal: 12000 }),
+  ],
+  baseTotal: 100000, markupTotal: 20000, grandTotal: 120000,
 });
 
 // --- normalizeEstimateOps ---
@@ -53,39 +69,46 @@ ok('addLine needs name+qty+price', normalizeEstimateOps([{ op: 'addLine', name: 
   ok('recompute lineTotal carries the line’s own markup', r.items.find(i => i.materialId === 'm1')!.lineTotal === 2640);
 }
 
-// --- at-cost lines (finding #22) ---
-// Recomputing an UNTOUCHED estimate must not move a dollar. Before the fix this
-// discarded each line's markup and re-applied globalMarkup to the whole base,
-// so labor priced at cost was marked up 15% and grandTotal came back 172500 —
-// a silent $7,500 raise on the contract value.
+// --- per-line markup is the contract (finding #22, then #6) ---
+// Recomputing an UNTOUCHED estimate must not move a dollar, whichever shape it
+// was saved in. #22 fixed a recompute that re-applied globalMarkup to at-cost
+// labor; the fix zeroed labor BY CATEGORY, which became #6 once the estimator
+// started marking labor up. The rule now: each line keeps its own markup.
 {
   const r = recomputeEstimate(mixed());
-  ok('recompute is idempotent on an untouched estimate', r.baseTotal === 150000 && r.markupTotal === 15000 && r.grandTotal === 165000);
-  ok('labor stays at cost through a recompute', r.items.find(i => i.materialId === 'lab')!.lineTotal === 50000);
+  ok('old shape (labor at 0) recomputes byte-identical', JSON.stringify(r) === JSON.stringify(mixed()));
+  ok('old shape: labor stays at its stored 0 through a recompute', r.items.find(i => i.materialId === 'lab')!.lineTotal === 50000);
 }
-ok('an unrelated quantity edit does not re-mark-up labor', (() => {
+{
+  const r = recomputeEstimate(fullShape());
+  ok('recompute keeps labor’s stored 20% markup', r.items.find(i => i.materialId === 'lab')!.markup === 20
+    && r.items.find(i => i.materialId === 'lab')!.lineTotal === 60000);
+  ok('recompute keeps assemblies’ stored 20% markup', r.items.find(i => i.materialId === 'asm')!.lineTotal === 12000);
+  ok('recompute of a full.tsx estimate at 20% is a no-op', r.grandTotal === 120000 && r.markupTotal === 20000 && r.baseTotal === 100000);
+}
+ok('a materials quantity edit leaves Labor/Assemblies lineTotals unchanged at 20%', (() => {
+  const { nextEstimate } = interpretEstimateOps([{ op: 'setQuantity', item: 'Tile', quantity: 300 }], fullShape());
+  const lab = nextEstimate.items.find(i => i.materialId === 'lab')!;
+  const asm = nextEstimate.items.find(i => i.materialId === 'asm')!;
+  // tile 300×100×1.2 = 36000; labor 60000 and assemblies 12000 untouched.
+  return lab.lineTotal === 60000 && lab.markup === 20 && asm.lineTotal === 12000 && asm.markup === 20
+    && nextEstimate.grandTotal === 108000 && nextEstimate.baseTotal === 90000;
+})());
+ok('an unrelated quantity edit on the old shape does not re-mark-up labor', (() => {
   const { nextEstimate } = interpretEstimateOps([{ op: 'setQuantity', item: 'mat', quantity: 900 }], mixed());
   const lab = nextEstimate.items.find(i => i.materialId === 'lab')!;
   // materials 900×100×1.15 = 103500, labor untouched at 50000.
   return lab.lineTotal === 50000 && nextEstimate.baseTotal === 140000 && nextEstimate.grandTotal === 153500 && nextEstimate.markupTotal === 13500;
 })());
-ok('a stray markup on an at-cost line is zeroed, not charged', (() => {
-  const est = mixed();
-  est.items = est.items.map(i => (i.materialId === 'lab' ? { ...i, markup: 15 } : i));
-  const r = recomputeEstimate(est);
-  const lab = r.items.find(i => i.materialId === 'lab')!;
-  return lab.markup === 0 && lab.lineTotal === 50000 && r.grandTotal === 165000;
+ok('setGlobalMarkup 25 on $100K materials + $50K labor reprices every line → $187,500', (() => {
+  const { nextEstimate, results } = interpretEstimateOps([{ op: 'setGlobalMarkup', markupPct: 25 }], mixed());
+  const lab = nextEstimate.items.find(i => i.materialId === 'lab')!;
+  return results[0].ok && nextEstimate.grandTotal === 187500 && lab.markup === 25 && lab.lineTotal === 62500
+    && nextEstimate.markupTotal === 37500;
 })());
-ok('assembly lines are at-cost too', (() => {
-  const est = mixed();
-  est.items = est.items.map(i => (i.materialId === 'lab' ? { ...i, category: 'Assemblies', markup: 25 } : i));
-  return recomputeEstimate(est).grandTotal === 165000;
-})());
-ok('applyGlobalMarkupToItems reprices materials only', (() => {
-  const est = mixed();
-  const r = recomputeEstimate({ ...est, globalMarkup: 25, items: applyGlobalMarkupToItems(est.items, 25) });
-  // materials 100000×1.25 = 125000 + labor at cost 50000.
-  return r.grandTotal === 175000 && r.items.find(i => i.materialId === 'lab')!.markup === 0;
+ok('applyGlobalMarkupToItems stamps every line, labor and assemblies included', (() => {
+  const items = applyGlobalMarkupToItems(fullShape().items, 25);
+  return items.every(i => i.markup === 25);
 })());
 
 // --- interpretEstimateOps ---
@@ -114,21 +137,36 @@ ok('setGlobalMarkup stamps every material line with the new markup', (() => {
     && nextEstimate.items.find(i => i.materialId === 'm1')!.lineTotal === 2880   // 200 × 12 × 1.2
     && nextEstimate.items.find(i => i.materialId === 'm2')!.lineTotal === 3000;  // 1 × 2500 × 1.2
 })());
-ok('setGlobalMarkup leaves cost and at-cost labor alone', (() => {
-  const { nextEstimate } = interpretEstimateOps([{ op: 'setGlobalMarkup', markupPct: 20 }], mixed());
-  const lab = nextEstimate.items.find(i => i.materialId === 'lab')!;
-  // materials 100000 × 1.2 = 120000 + labor at cost 50000.
-  return nextEstimate.globalMarkup === 20 && nextEstimate.baseTotal === 150000
-    && lab.markup === 0 && lab.lineTotal === 50000 && nextEstimate.grandTotal === 170000;
+ok('setGlobalMarkup 20 on the full.tsx shape keeps labor and assemblies at 20', (() => {
+  const { nextEstimate } = interpretEstimateOps([{ op: 'setGlobalMarkup', markupPct: 20 }], fullShape());
+  // "Bump the markup to 20%" on an estimate already at 20% everywhere must be
+  // a no-op — it used to take labor and assemblies to 0% ($12,000 lower).
+  return nextEstimate.grandTotal === 120000 && nextEstimate.items.every(i => i.markup === 20);
 })());
 ok('removeLine drops the line + recomputes', (() => {
   const { nextEstimate } = interpretEstimateOps([{ op: 'removeLine', item: 'Demolition' }], base());
   return nextEstimate.items.length === 1 && nextEstimate.baseTotal === 2400 && nextEstimate.grandTotal === 2640;
 })());
-ok('addLine appends + recomputes', (() => {
-  const { nextEstimate } = interpretEstimateOps([{ op: 'addLine', name: 'Paint', category: 'Finishes', unit: 'gal', quantity: 5, unitPrice: 40 }], base());
+ok('addLine appends + recomputes, carrying the estimate’s markup', (() => {
+  const { nextEstimate, results } = interpretEstimateOps([{ op: 'addLine', name: 'Paint', category: 'Finishes', unit: 'gal', quantity: 5, unitPrice: 40 }], base());
   const paint = nextEstimate.items.find(i => i.name === 'Paint')!;
-  return nextEstimate.items.length === 3 && paint.lineTotal === 200 && nextEstimate.baseTotal === 5100;
+  // 5 × $40 × 1.10 = 220 — a voice-added line used to be written at markup 0
+  // (priced at cost next to neighbours at 10%). The result reports the markup
+  // it applied so the diff can say it.
+  return nextEstimate.items.length === 3 && paint.markup === 10 && paint.lineTotal === 220
+    && nextEstimate.baseTotal === 5100 && nextEstimate.grandTotal === 5610
+    && results[0].addedMarkup === 10 && results[0].addedId === paint.materialId;
+})());
+ok('addLine after setGlobalMarkup in the same request takes the new markup', (() => {
+  const { nextEstimate } = interpretEstimateOps([
+    { op: 'setGlobalMarkup', markupPct: 20 },
+    { op: 'addLine', name: 'Paint', category: 'Finishes', unit: 'gal', quantity: 5, unitPrice: 40 },
+  ], base());
+  return nextEstimate.items.find(i => i.name === 'Paint')!.lineTotal === 240;
+})());
+ok('op results name the diff row they touched', (() => {
+  const { results } = interpretEstimateOps([{ op: 'setQuantity', item: 'Tile', quantity: 300 }], fullShape());
+  return results[0].lineKey === 'General';
 })());
 ok('partial application: valid applies, invalid reported', (() => {
   const { nextEstimate, results } = interpretEstimateOps([

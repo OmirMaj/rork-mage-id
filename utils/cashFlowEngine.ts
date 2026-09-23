@@ -3,7 +3,7 @@ import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 import { netBalanceDue, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { commitmentUnpaid } from '@/utils/jobCostEngine';
 import { addWorkingDays } from '@/utils/scheduleEngine';
-import { parseCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, calendarDayStart, addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import { paymentReceivedAt } from '@/utils/billingFlowCore';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
@@ -49,10 +49,27 @@ export interface ExpectedPayment {
 }
 
 export interface CashFlowWeek {
+  /** The week's first LOCAL calendar day, 'YYYY-MM-DD' (#107). Render it with
+   *  utils/calendarDate formatCalendarDay — `new Date(bareDay)` is UTC
+   *  midnight, the evening before anywhere in the Americas. */
   weekStart: string;
+  /** The week's last local calendar day, same shape. */
   weekEnd: string;
   incomeItems: { description: string; amount: number; confidence: string }[];
   expenseItems: { description: string; amount: number; category: string }[];
+  /**
+   * Submitted / under-review change orders that WOULD pay in this week if the
+   * owner signed them (#110). Deliberately NOT in incomeItems, totalIncome,
+   * netCashFlow or runningBalance: an unsigned CO is not money anyone owes
+   * the GC yet, and its date is invented (today + 21 days to approve + terms).
+   * Counting it lifted every later balance, the lowest-balance figure, the
+   * danger weeks and the verdict — and through calculateSummary the morning
+   * brief and the AI's cash facts too. Shown beside the runway as upside.
+   * Optional so a hand-built week (tests, fixtures) still type-checks.
+   */
+  pendingCoItems?: { description: string; amount: number; confidence: string }[];
+  /** Sum of pendingCoItems — upside, never part of the balance. */
+  pendingCoIncome?: number;
   totalIncome: number;
   totalExpenses: number;
   netCashFlow: number;
@@ -83,6 +100,13 @@ export interface CashFlowSummary {
   highestBalance: number;
   highestBalanceWeek: number;
   dangerWeeks: { weekNumber: number; weekDate: string; balance: number }[];
+  /**
+   * Unsigned change-order money that would land inside the horizon if every
+   * pending CO were approved (#110). Reported beside the runway, never inside
+   * it — none of the figures above include it. Optional so hand-built
+   * summaries elsewhere still type-check.
+   */
+  pendingCoUpside?: number;
 }
 
 /**
@@ -129,6 +153,54 @@ function getPaymentTermsDays(terms: string | undefined): number {
     case 'net_30':
     default: return 30;
   }
+}
+
+/**
+ * The day an invoice's money is DUE — the one date the forecast buckets a
+ * receivable by (#20).
+ *
+ * The invoice's own `dueDate` wins. It used to be ignored in favour of
+ * issueDate + terms, and those are not the same date: Bill-from-Estimate
+ * stages a draft on Aug 1, the GC sends it Sep 22 on net-30, and app/
+ * invoice.tsx re-dates only dueDate (Oct 22) on the send. issueDate + 30 was
+ * Aug 31 — already past — so the clamp below put the whole $40K into THIS
+ * week, lifting the week-1 balance and the home tile, while A/R Aging (which
+ * reads dueDate) said the same invoice was current until Oct 22. One
+ * definition now: both read dueDate.
+ *
+ * Read through utils/calendarDate: dueDate is an instant from most writers
+ * (getDueDate / dueDateForTerms) but a bare 'YYYY-MM-DD' on older or imported
+ * rows, and `new Date(bareDay)` is UTC midnight — the previous evening in
+ * every US zone, which slides the receivable into the week before when the
+ * due day is a week's first day. calendarDayStart gives the local day either
+ * shape names.
+ *
+ * issueDate + terms is the fallback ONLY for a row with no readable dueDate.
+ * Null when neither date can be read.
+ */
+export function invoiceDueDay(
+  inv: Pick<Invoice, 'dueDate' | 'issueDate' | 'paymentTerms'>,
+  defaultPaymentTerms: string = 'net_30',
+): Date | null {
+  const due = calendarDayStart(inv.dueDate);
+  if (due) return due;
+  const issued = calendarDayStart(inv.issueDate);
+  if (!issued) return null;
+  return addCalendarDays(issued, getPaymentTermsDays(inv.paymentTerms ?? defaultPaymentTerms));
+}
+
+/**
+ * '<job> · <what>' when the job's name is known, '<what>' otherwise (#108).
+ * The line used to carry an 8-character slice of the project's database id —
+ * 'Invoice #12 (3f2a9c1b)' — which tells a GC with several jobs nothing, and
+ * 'N/A' when there was no job. Never an id fragment: a job that isn't loaded
+ * or was deleted just shows the document number. The job comes first because
+ * the week-detail row is truncated to one line and the name is what tells two
+ * 'Invoice #3's apart.
+ */
+function withJobName(projectNames: Map<string, string>, projectId: string | null | undefined, what: string): string {
+  const job = projectId ? projectNames.get(projectId)?.trim() : undefined;
+  return job ? `${job} · ${what}` : what;
 }
 
 function isDateInWeek(dateStr: string, weekStart: Date, weekEnd: Date): boolean {
@@ -457,7 +529,10 @@ export function generateForecast(
   expectedPayments: ExpectedPayment[],
   weeksToForecast: number,
   defaultPaymentTerms: string = 'net_30',
-  changeOrders: ChangeOrder[] = []
+  changeOrders: ChangeOrder[] = [],
+  // LAST and defaulted (#108): the positional callers in scripts/validate-
+  // cashflow-*.ts and validate-invoice-billing.ts keep compiling unchanged.
+  projectNames: Map<string, string> = new Map(),
 ): CashFlowWeek[] {
   console.log('[CashFlowEngine] Generating forecast for', weeksToForecast, 'weeks (COs:', changeOrders.length, ')');
   const weeks: CashFlowWeek[] = [];
@@ -490,10 +565,11 @@ export function generateForecast(
       // at its original expected date (and a silently paid-in-full one is excluded).
       const effStatus = getEffectiveInvoiceStatus(inv);
       if (effStatus === 'paid' || effStatus === 'draft') return;
-      const termsDays = getPaymentTermsDays(inv.paymentTerms ?? defaultPaymentTerms);
-      const issueDate = new Date(inv.issueDate);
-      const expectedDate = new Date(issueDate);
-      expectedDate.setDate(expectedDate.getDate() + termsDays);
+      // The invoice's own due date, not issueDate + terms (#20) — see
+      // invoiceDueDay for the draft-staged-in-August case this closes. A row
+      // with no readable date at all is chased now, like an overdue one,
+      // rather than thrown away (the old `new Date('')` threw on toISOString).
+      const expectedDate = invoiceDueDay(inv, defaultPaymentTerms) ?? today;
       // RETENTION IS NOT COLLECTIBLE ON TERMS. `totalDue` is the GROSS figure —
       // it includes the retention the contract holds back until closeout — so
       // `totalDue - amountPaid` forecast that held-back money as cash arriving
@@ -530,7 +606,7 @@ export function generateForecast(
           effStatus === 'partially_paid' ? 'expected' :
           effStatus === 'sent' ? 'expected' : 'hopeful';
         incomeItems.push({
-          description: `Invoice #${inv.number} (${inv.projectId?.slice(0, 8) ?? 'N/A'})`,
+          description: withJobName(projectNames, inv.projectId, `Invoice #${inv.number}`),
           amount: remaining,
           confidence,
         });
@@ -542,8 +618,14 @@ export function generateForecast(
     // invoice, so its dollars already appear in that invoice's totalDue and
     // are captured by the invoice loop above. Projecting the standalone
     // approved-CO line too would double-count the same money.
-    // Pending / submitted COs are NOT yet invoiced, so they remain a
-    // legitimate 'hopeful' projection here.
+    // Pending / submitted COs are NOT yet invoiced — and NOT yet signed, so
+    // they are not income at all (#110). They used to be pushed into
+    // incomeItems on an invented date (today + 21 days to approve + terms),
+    // which lifted every later running balance, the lowest balance, the
+    // danger weeks and the verdict with money the owner has not agreed to pay.
+    // They go to a separate upside list the balance never reads. Overdue
+    // INVOICES stay in income as 'hopeful' — those are owed; these are asked.
+    const pendingCoItems: NonNullable<CashFlowWeek['pendingCoItems']> = [];
     changeOrders.forEach(co => {
       if (co.status === 'submitted' || co.status === 'under_review') {
         const projectedApproval = new Date(today);
@@ -551,8 +633,8 @@ export function generateForecast(
         const expectedDate = new Date(projectedApproval);
         expectedDate.setDate(expectedDate.getDate() + getPaymentTermsDays(defaultPaymentTerms));
         if (co.changeAmount > 0 && isDateInWeek(expectedDate.toISOString(), weekStart, weekEnd)) {
-          incomeItems.push({
-            description: `Change Order #${co.number} (pending)`,
+          pendingCoItems.push({
+            description: withJobName(projectNames, co.projectId, `Change Order #${co.number} (pending)`),
             amount: co.changeAmount,
             confidence: 'hopeful',
           });
@@ -585,15 +667,23 @@ export function generateForecast(
     });
 
     const totalIncome = incomeItems.reduce((s, i) => s + (Number.isFinite(i.amount) ? i.amount : 0), 0);
+    const pendingCoIncome = pendingCoItems.reduce((s, i) => s + (Number.isFinite(i.amount) ? i.amount : 0), 0);
     const totalExpenses = expenseItems.reduce((s, e) => s + (Number.isFinite(e.amount) ? e.amount : 0), 0);
     const netCashFlow = totalIncome - totalExpenses;
     balance += netCashFlow;
 
     weeks.push({
-      weekStart: weekStart.toISOString().split('T')[0],
-      weekEnd: weekEnd.toISOString().split('T')[0],
+      // LOCAL calendar days (#107). `toISOString().split('T')[0]` named the
+      // UTC date of local midnight — the right day in the Americas only by
+      // luck of the sign, the previous day east of Greenwich — and the screen
+      // then parsed it back with `new Date(bareDay)`, which is UTC midnight,
+      // so a US phone read every week as starting the day before.
+      weekStart: toCalendarDayString(weekStart),
+      weekEnd: toCalendarDayString(weekEnd),
       incomeItems,
       expenseItems,
+      pendingCoItems,
+      pendingCoIncome,
       totalIncome,
       totalExpenses,
       netCashFlow,
@@ -656,6 +746,9 @@ export interface ForecastInputs {
   /** The whole commitment breakdown, for the screens that show undated money
    *  and possible duplicates beside the runway. */
   committed: CommittedOutflows;
+  /** Project id → name, so income lines name the job (#108). Optional so a
+   *  hand-built ForecastInputs still type-checks; missing = no names. */
+  projectNames?: Map<string, string>;
 }
 
 /**
@@ -681,13 +774,31 @@ export function buildForecastInputs(args: {
   changeOrders: ChangeOrder[];
   /** Clock for the commitment draw dates only (generateForecast reads today). */
   now?: Date;
+  /**
+   * The invoices whose recorded payments move the BANK BALANCE (#21). The
+   * balance is the company's, so this is every invoice the GC has, even when
+   * `invoices` (the income side) is one job's. Omitted = `invoices`, which is
+   * already company-wide for the home tile, the brief and the AI facts.
+   *
+   * Without it the project view's "Company Balance" was the stored balance
+   * plus only THIS job's payments since it was set: $40K on Sep 1, $20K in
+   * from job A and $30K from job B read $60K on job A's screen and $90K on
+   * the company screen — the same label, two numbers.
+   */
+  balanceInvoices?: Invoice[];
+  /**
+   * The expected payments that belong in this view (#21). Omitted = every one
+   * in cashData. The project view passes only rows stamped with its projectId,
+   * so job B's promised check stops showing up as income in job A's weeks.
+   */
+  expectedPayments?: ExpectedPayment[];
 }): ForecastInputs {
   const { cashData, invoices, commitments, projects, changeOrders, now } = args;
   const typed = cashData?.expenses ?? [];
   const committed = buildCommittedOutflows({ commitments, projects, expenses: typed, now });
   return {
     startingBalance: cashData
-      ? getEffectiveStartingBalance(cashData.startingBalance, cashData.balanceAsOf, invoices)
+      ? getEffectiveStartingBalance(cashData.startingBalance, cashData.balanceAsOf, args.balanceInvoices ?? invoices)
       : 0,
     // Derived rows are concatenated here and NOWHERE else — they are never
     // handed to saveCashFlowData, so nothing generated from a commitment can be
@@ -695,10 +806,14 @@ export function buildForecastInputs(args: {
     // the live commitment on the next load.
     expenses: [...typed, ...committed.scheduled],
     invoices,
-    expectedPayments: cashData?.expectedPayments ?? [],
+    expectedPayments: args.expectedPayments ?? cashData?.expectedPayments ?? [],
     defaultPaymentTerms: cashData?.defaultPaymentTerms ?? 'net_30',
     changeOrders,
     committed,
+    // From the projects it already receives, so every surface built on this
+    // assembly (the screen, the Summary tile, the brief, the AI facts) names
+    // the job on an income line instead of an id fragment (#108).
+    projectNames: new Map(projects.map(p => [p.id, p.name?.trim() ?? ''])),
   };
 }
 
@@ -712,6 +827,7 @@ export function forecastFromInputs(inputs: ForecastInputs, weeks: number): CashF
     weeks,
     inputs.defaultPaymentTerms,
     inputs.changeOrders,
+    inputs.projectNames,
   );
 }
 
@@ -843,6 +959,37 @@ export function parseMoneyInput(text: string): number | null {
 }
 
 /**
+ * Shown under a money box parseMoneyInput refused (#148) — the Cash Flow
+ * setup wizard and the Retention release sheet. parseMoneyInput takes US
+ * grouping ('12,500', '$48,250.00') and refuses anything ambiguous ('3200,50'
+ * is a decimal comma in most of Europe), so the GC is told the shape to type
+ * rather than having `parseFloat('12,500')` quietly record $12.
+ */
+export const MONEY_FORMAT_HINT = 'Enter a dollar amount like 12500.00';
+
+/**
+ * The starting balance a box holds, or null when the GC typed something that
+ * isn't a dollar amount. An EMPTY box is a deliberate $0 (the placeholder
+ * reads 0 and the step can be skipped); a negative balance is an overdraft
+ * and is kept.
+ */
+export function setupBalanceFromInput(text: string): number | null {
+  if (text.trim().length === 0) return 0;
+  return parseMoneyInput(text);
+}
+
+/**
+ * A recurring-expense box → dollars, or null when it can't be read. Empty is
+ * 0 (the row is dropped on save, as before). A bill is money going OUT, so a
+ * negative figure is refused too — a credit belongs on the income side.
+ */
+export function setupExpenseFromInput(text: string): number | null {
+  if (text.trim().length === 0) return 0;
+  const n = parseMoneyInput(text);
+  return n === null || n < 0 ? null : n;
+}
+
+/**
  * Retention dollars billed but contractually held back, across open invoices.
  *
  * This money is real and the GC will eventually get it — it is simply not on
@@ -873,11 +1020,15 @@ export function calculateSummary(weeks: CashFlowWeek[]): CashFlowSummary {
   let highestBalanceWeek = 0;
   let totalIncome = 0;
   let totalExpenses = 0;
+  let pendingCoUpside = 0;
   const dangerWeeks: CashFlowSummary['dangerWeeks'] = [];
 
   weeks.forEach((w, i) => {
     totalIncome += w.totalIncome;
     totalExpenses += w.totalExpenses;
+    // Upside is summed for the "if approved" line only; nothing below reads
+    // it, so the lowest balance and the danger weeks stay on committed money.
+    pendingCoUpside += w.pendingCoIncome ?? 0;
     if (w.runningBalance < lowestBalance) {
       lowestBalance = w.runningBalance;
       lowestBalanceWeek = i + 1;
@@ -900,6 +1051,7 @@ export function calculateSummary(weeks: CashFlowWeek[]): CashFlowSummary {
     highestBalance: highestBalance === -Infinity ? 0 : highestBalance,
     highestBalanceWeek,
     dangerWeeks,
+    pendingCoUpside,
   };
 }
 

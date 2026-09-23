@@ -1,9 +1,11 @@
 // app/auto-bids.tsx — "MAGE bids for you".
 //
-// Inbound opportunities, already priced in YOUR numbers. Other AI bidding tools
-// find and match bids but can't price them — they don't know your costs. MAGE
-// prices each one from your own job history and the Win Optimizer's win curve,
-// then ranks by expected profit, so you review instead of estimating from zero.
+// Inbound opportunities, already priced. Other AI bidding tools find and match
+// bids but can't price them — they don't know your costs. MAGE prices each one
+// from what your closed jobs of that kind cost you (when you have any) and the
+// Win Optimizer's win curve, then ranks by expected profit. The screen says
+// "in your numbers" only when a row actually used your history, and names the
+// markup it assumed when you have never set one (audit wave 5, #16).
 //
 // Pro-gated (bid_scoring). Anti-slop: Colors/Type/Tokens + lucide only.
 
@@ -21,19 +23,28 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useBids } from '@/contexts/BidsContext';
-import { useCoreData, usePreconData } from '@/contexts/ProjectContext';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { formatMoney } from '@/utils/formatters';
-import { buildPricedBids, type PricedBid, type JobHistoryPoint } from '@/utils/autoBid';
-import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import {
+  buildPricedBids, historyFromProjects, ASSUMED_MARKUP, type PricedBid, type JobHistoryPoint,
+} from '@/utils/autoBid';
+import { suggestCostToDateWithSource } from '@/utils/wip';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 const BASIS_LABEL: Record<PricedBid['basis'], string> = {
-  your_history: 'priced from your job history',
+  your_history: 'priced from what your past jobs cost',
   their_budget: 'priced off their posted budget',
   none: '',
 };
+
+function pct(markup: number): string {
+  return `${Math.round(markup * 100)}%`;
+}
 
 export default function AutoBidsScreen() {
   const router = useRouter();
@@ -53,19 +64,32 @@ function AutoBidsInner() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { bids } = useBids();
-  const { projects } = useCoreData();
-  const { leads } = usePreconData();
+  const { projects, leads, commitments, equipment, permits } = useProjects();
+  const { receipts } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
+  const { globalMarkup, markupDecided } = useMaterialCart();
   const { isDesktop } = useResponsiveLayout();
 
-  // Cost anchor: what your COMPLETED jobs of each type actually ran. Estimate
-  // total is the closest per-job cost basis available portfolio-wide.
+  // His markup when he has set one; otherwise an 18% every row calls assumed.
+  const markupAssumed = markupDecided !== true || !Number.isFinite(globalMarkup);
+  const typicalMarkup = markupAssumed ? ASSUMED_MARKUP : globalMarkup / 100;
+
+  // Cost anchor: what his CLOSED jobs cost him — recorded job-costing actuals
+  // (the same sources /wip-report prices: sub/PO payments, receipts, priced
+  // crew hours, equipment days, permit fees) when they plausibly cover the
+  // job, else the estimate before markup. Never the sell price (#16).
   const history = useMemo<JobHistoryPoint[]>(
     () =>
-      projects
-        .filter((p) => p.status === 'completed' || p.status === 'closed')
-        .map((p) => ({ category: String(p.type ?? 'general'), cost: effectiveEstimateTotal(p) }))
-        .filter((h) => h.cost > 0),
-    [projects],
+      historyFromProjects(projects, (projectId) => {
+        const r = suggestCostToDateWithSource(
+          commitments.filter((c) => c.projectId === projectId),
+          receipts.filter((m) => m.projectId === projectId),
+          { projectId, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits },
+        );
+        return { value: r.value, complete: r.complete };
+      }),
+    [projects, commitments, receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits],
   );
 
   const priced = useMemo(
@@ -84,13 +108,18 @@ function AutoBidsInner() {
         })),
         history,
         leads: leads ?? [],
+        typicalMarkup,
+        markupAssumed,
         nowMs: Date.now(),
       }),
-    [bids, history, leads],
+    [bids, history, leads, typicalMarkup, markupAssumed],
   );
 
   const top = priced.slice(0, 25);
   const totalExpected = priced.reduce((s, b) => s + b.expectedProfit, 0);
+  // "In your numbers" is a claim about HIS costs: only when a row used them.
+  const anyHistory = priced.some((b) => b.basis === 'your_history');
+  const markupPhrase = markupAssumed ? `an assumed ${pct(typicalMarkup)} markup` : `your ${pct(typicalMarkup)} markup`;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -115,7 +144,7 @@ function AutoBidsInner() {
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           <View style={styles.hero}>
-            <Text style={styles.eyebrow}>Priced in your numbers</Text>
+            <Text style={styles.eyebrow}>{anyHistory ? 'Priced in your numbers' : 'Priced off posted budgets'}</Text>
             {priced.length > 0 ? (
               <>
                 <Text style={styles.heroStat}>{priced.length} ready to review</Text>
@@ -166,7 +195,7 @@ function AutoBidsInner() {
               </View>
 
               <Text style={styles.basis}>
-                {BASIS_LABEL[b.basis]} · {b.confidence} confidence
+                {BASIS_LABEL[b.basis]} · {b.markupAssumed ? `assumed ${pct(b.markup)} markup` : `your ${pct(b.markup)} markup`} · {b.confidence} confidence
               </Text>
 
               <View style={styles.flagRow}>
@@ -212,11 +241,15 @@ function AutoBidsInner() {
 
           <View style={styles.footnote}>
             <Text style={styles.footnoteText}>
-              Prices come from your own cost history and win record — not a generic catalog.
+              {anyHistory
+                ? `Prices come from what your closed jobs cost and your win record, at ${markupPhrase}.`
+                : `Priced off each owner's posted budget at ${markupPhrase} — close jobs to teach MAGE your costs.`}
             </Text>
             <InfoBubble
               title="How MAGE prices a bid"
-              what="MAGE estimates the job's cost from what your completed jobs of this type actually ran, then picks the price that maximizes expected profit — the balance of margin and your odds of winning."
+              what={anyHistory
+                ? `Where you have closed jobs of the same kind, MAGE starts from what they cost you (your recorded costs, or the estimate before markup when little was recorded), blended with the owner's posted budget at ${markupPhrase}. It then picks the price that maximizes expected profit — the balance of margin and your odds of winning.`
+                : `You have no closed jobs of these kinds yet, so MAGE backs a cost out of each owner's posted budget at ${markupPhrase}, then picks the price that maximizes expected profit — the balance of margin and your odds of winning.`}
               why="Bidding too high loses the job; too low wins work that isn't worth building. This finds the price that makes you the most money over many bids."
             />
           </View>

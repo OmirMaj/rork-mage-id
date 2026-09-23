@@ -341,7 +341,7 @@ function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () =>
     ? `, estimated fee ${formatMoney(payment.fee, 2)}`
     : payment.provider === 'card' ? ', processor fee unknown' : '';
   const rowLabel =
-    `${payment.clientName}, ${payment.projectName}, ${formatMoney(payment.amount)}${feeSpoken}, ` +
+    `${payment.clientName}, ${payment.projectName}, ${formatMoney(payment.amount, 2)}${feeSpoken}, ` +
     `${statusInfo.label}, ${providerInfo.label}, ${payment.description}`;
 
   return (
@@ -371,8 +371,11 @@ function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () =>
             <Text style={styles.payCardProject} numberOfLines={1}>{payment.projectName}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
+            {/* TO THE CENT (#109, audit 2026-09-22). This is a ledger the GC
+                matches against his bank deposit: $77,484.88 arrives, and the
+                row read "$77,485" while the fee under it was already exact. */}
             <Text style={[styles.payCardAmount, payment.status === 'failed' && { color: themeColors.dangerLabel }]}>
-              {formatMoney(payment.amount)}
+              {formatMoney(payment.amount, 2)}
             </Text>
             {payment.fee > 0 ? (
               <Text style={styles.payCardFee}>-{formatMoney(payment.fee, 2)} est. fee</Text>
@@ -450,7 +453,7 @@ export default function PaymentsScreen() {
     // so we never leave the user staring at a dead press).
     showAlert(
       'Payment Details',
-      `${formatMoney(payment.amount)} • ${providerLabel(payment.provider)}\n${payment.description}`,
+      `${formatMoney(payment.amount, 2)} • ${providerLabel(payment.provider)}\n${payment.description}`,
     );
   }, []);
 
@@ -508,7 +511,16 @@ export default function PaymentsScreen() {
             <View style={[styles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
               <ArrowDownRight size={18} color={themeColors.success} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.heroValue, { color: themeColors.success }]}>{formatMoney(stats.received)}</Text>
+            {/* Cents kept; a long figure SHRINKS to fit rather than rounding
+                (#109) — the whole point of this tile is matching the bank. */}
+            <Text
+              style={[styles.heroValue, { color: themeColors.success }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+            >
+              {formatMoney(stats.received, 2)}
+            </Text>
             <Text style={styles.heroLabel}>Received</Text>
             {/* Labelled, per MONEY-01: this is the money in, before fees — the
                 same figure the rows and each invoice's Amount Paid show. */}
@@ -518,11 +530,18 @@ export default function PaymentsScreen() {
             <View style={[styles.heroIconWrap, { backgroundColor: themeColors.warningSoft }]}>
               <Clock size={18} color={themeColors.warningLabel} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.heroValue, { color: themeColors.warningLabel }]}>{formatMoney(stats.pending)}</Text>
+            <Text
+              style={[styles.heroValue, { color: themeColors.warningLabel }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+            >
+              {formatMoney(stats.pending, 2)}
+            </Text>
             <Text style={styles.heroLabel}>Pending</Text>
             <Text style={styles.heroNote}>
               {stats.pendingRetentionHeld > 0
-                ? `Excludes ${formatMoney(stats.pendingRetentionHeld)} retention held`
+                ? `Excludes ${formatMoney(stats.pendingRetentionHeld, 2)} retention held`
                 : 'Owed to you now'}
             </Text>
           </View>

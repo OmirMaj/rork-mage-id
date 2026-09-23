@@ -78,11 +78,17 @@ function SubScorecardInner() {
     [subcontractors, commitments, changeOrders, punchItems, projects, rfis],
   );
 
-  // Derived entirely from deliveries already captured — no new input asked of
-  // the user, and it backfills across every job on file. Receipts (damage) are
-  // not loaded here yet, so that factor reports as not-applicable rather than
-  // pretending every uninspected load arrived clean.
-  const suppliers = useMemo(() => computeSupplierScorecards({ deliveries }), [deliveries]);
+  // Derived entirely from deliveries and receiving inspections already
+  // captured — no new input asked of the user, and it backfills across every
+  // job on file. The receipts are what the damage factor counts: without them
+  // every supplier read "0 inspected loads — need 3 to judge" even after the
+  // GC had logged damaged loads at receiving (audit #112). DeliveryReceipt
+  // carries { supplier, hasDamage } itself, so it is passed as is; it is in
+  // the deps so a receipt logged while this screen is open moves the grade.
+  const suppliers = useMemo(
+    () => computeSupplierScorecards({ deliveries, receipts: deliveryReceipts }),
+    [deliveries, deliveryReceipts],
+  );
 
   // Only bail when there is nothing to show in EITHER mode — a GC with
   // deliveries but no subs still has suppliers worth grading.

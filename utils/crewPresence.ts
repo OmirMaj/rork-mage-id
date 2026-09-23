@@ -32,6 +32,7 @@
 
 import type { DailyFieldReport } from '@/types';
 import { normalizeTradeKey } from '@/utils/laborSamples';
+import { calendarDayOf } from '@/utils/calendarDate';
 
 /** A trade must appear on this many reported days before "went quiet" can mean
  *  anything. One appearance is as likely to be a delivery, a measure-up or a
@@ -72,15 +73,18 @@ export interface CrewPresenceSummary {
   asOf: string;
 }
 
-/** Report dates are stored as ISO timestamps or plain YYYY-MM-DD. Take the
- *  calendar day verbatim: parsing a date-only string through Date lands at UTC
- *  midnight and shifts a day west of Greenwich. */
+/** Report dates are stored either as a plain YYYY-MM-DD or as a full ISO
+ *  INSTANT (a new daily report is stamped `new Date().toISOString()`). The two
+ *  need different reads (#168):
+ *   - a bare day is the day — never pushed through Date, which reads it as UTC
+ *     midnight and names the previous day west of Greenwich;
+ *   - an instant is the LOCAL day it fell on. Its first ten characters are its
+ *     UTC date, so a 5:30 pm Pacific report ('…T00:30:00Z' next day) used to
+ *     count as tomorrow — merging two reported days into one and printing
+ *     "off site since <tomorrow>" on the chase.
+ *  calendarDayOf does exactly that split, and returns null for junk. */
 function reportDay(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const s = raw.trim();
-  if (s.length < 10) return null;
-  const day = s.slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+  return calendarDayOf(raw?.trim());
 }
 
 /**

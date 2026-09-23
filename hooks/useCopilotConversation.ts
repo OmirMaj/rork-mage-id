@@ -6,6 +6,11 @@
 // go to review. The state machine (turnReducer) and the ask decision are pure +
 // validated; this hook is the thin async shell around them. No new edge fn —
 // each turn reuses utils/mageAI.ts → supabase/functions/ai.
+//
+// Metering (#35): ONE charge per interview at the capability's real cost class
+// — see utils/copilot/turnMeter.ts. A limit hit once the draft holds what he
+// said goes to review with a note instead of an error, because most apply()s
+// need no AI.
 import { useReducer, useCallback, useRef } from 'react';
 import { copilotReducer, initialCopilotState } from '@/utils/copilot/turnReducer';
 import { decideAsk } from '@/utils/copilot/askDecision';
@@ -13,13 +18,51 @@ import { getCapability } from '@/utils/copilot/registry';
 import { mageAI } from '@/utils/mageAI';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiterCore';
-import type { CopilotCapabilityId, CopilotContext, CopilotState } from '@/utils/copilot/types';
+import { createInterviewMeter, interviewMeterPlan, onLimitHit, LIMIT_REACHED_NOTE } from '@/utils/copilot/turnMeter';
+import { copilotPrecondition } from '@/utils/copilot/projectScope';
+import type { CopilotCapabilityId, CopilotContext, CopilotState, Grounding } from '@/utils/copilot/types';
 
 export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: CopilotContext) {
   const cap = getCapability(capabilityId)!;
   const [state, dispatch] = useReducer(copilotReducer, initialCopilotState(capabilityId, {}));
   const stateRef = useRef(state);
   stateRef.current = state;
+  // The subscription tier can resolve after mount; the meter reads it live.
+  const tierRef = useRef(ctx.tier);
+  tierRef.current = ctx.tier;
+  const meterRef = useRef<ReturnType<typeof createInterviewMeter> | null>(null);
+  if (!meterRef.current) {
+    meterRef.current = createInterviewMeter({
+      plan: () => interviewMeterPlan(cap),
+      check: (tier, feature) => checkAILimit(tierRef.current as SubscriptionTierKey, tier, feature),
+      record: (tier, feature) => recordAIUsage(tier, feature),
+    });
+  }
+  const meter = meterRef.current;
+
+  // Shown-not-asked defaults for a draft: gaps below the ask threshold.
+  const resolvedFor = useCallback((gaps: ReturnType<typeof cap.gaps>, threshold: number): CopilotState['resolved'] =>
+    gaps
+      .filter(g => g.impact < threshold)
+      .map(g => ({ field: g.field, label: g.question, basis: g.groundedDefault.basis, source: g.groundedDefault.source ?? 'assumed' })),
+  [cap]);
+
+  // A limit hit mid-interview. With something he said already in the draft it
+  // goes to review ("built from what you said so far") so Build can still run
+  // apply(); on an empty draft it is an error that names the real reason and
+  // offers the plans (never the old hard-coded 'monthly_cap' string).
+  const limitHit = useCallback((draft: object, grounding: Grounding, errorKind: string, message: string) => {
+    if (onLimitHit(draft) === 'review') {
+      const threshold = cap.askThreshold ?? 0.35;
+      dispatch({
+        type: 'AI_DRAFT', draft, nextGap: null, ready: true,
+        resolved: resolvedFor(cap.gaps(draft, grounding), threshold),
+        note: `${LIMIT_REACHED_NOTE} ${message}`.trim(),
+      });
+      return;
+    }
+    dispatch({ type: 'APPLY_ERR', errorKind, message });
+  }, [cap, resolvedFor]);
 
   // One AI turn: prompt → mageAI → merge → recompute gaps → ask or ready.
   //
@@ -62,17 +105,23 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
 
     const { prompt, schemaHint } = cap.buildTurnPrompt({ transcript: transcriptText, draft: baseDraft, grounding: s.grounding, asking });
 
-    const limit = await checkAILimit(ctx.tier as SubscriptionTierKey, 'smart', cap.aiFeature);
+    const limit = await meter.gate();
     if (!limit.allowed) {
-      dispatch({ type: 'APPLY_ERR', errorKind: 'monthly_cap', message: limit.message ?? 'You’ve used your free trials of this feature. Upgrade to keep going.' });
+      limitHit(baseDraft, s.grounding, limit.reason ?? 'daily_cap', limit.message ?? 'You’ve used your AI allowance for this. See plans to keep going.');
       return;
     }
-    const res = await mageAI({ prompt, schemaHint, tier: 'smart', feature: cap.aiFeature });
+    // The model call runs at the meter's cost class too: an interview turn is
+    // a small JSON extraction, which the fast ceiling covers.
+    const res = await mageAI({ prompt, schemaHint, tier: interviewMeterPlan(cap).tier, feature: cap.aiFeature });
+    meter.settle(res.success);
     if (!res.success) {
+      if (res.errorKind === 'monthly_cap') {
+        limitHit(baseDraft, s.grounding, 'monthly_cap', res.error ?? 'Monthly AI limit reached.');
+        return;
+      }
       dispatch({ type: 'APPLY_ERR', errorKind: res.errorKind ?? 'unknown', message: res.error ?? 'The AI couldn’t respond. Try again.' });
       return;
     }
-    void recordAIUsage('smart', cap.aiFeature);
 
     // Pass the raw utterance + the gap being answered so a capability can reject
     // a field the model *presumed* but the contractor never actually stated
@@ -83,9 +132,7 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
     const threshold = cap.askThreshold ?? 0.35;
     const decision = decideAsk(gaps, { asked: askedFields, count: questionCount, cap: cap.maxQuestions ?? 4, threshold });
     // Gaps below the ask threshold become stated (shown-not-asked) defaults.
-    const resolved: CopilotState['resolved'] = gaps
-      .filter(g => g.impact < threshold)
-      .map(g => ({ field: g.field, label: g.question, basis: g.groundedDefault.basis }));
+    const resolved = resolvedFor(gaps, threshold);
     dispatch({
       type: 'AI_DRAFT',
       draft,
@@ -93,12 +140,13 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
       nextGap: decision.kind === 'ask' ? decision.gap : null,
       ready: decision.kind !== 'ask',
     });
-  }, [cap, ctx.tier]);
+  }, [cap, meter, limitHit, resolvedFor]);
 
   const start = useCallback(async () => {
+    meter.reset();
     const grounding = await cap.buildGrounding(ctx);
     dispatch({ type: 'START', grounding });
-  }, [cap, ctx]);
+  }, [cap, ctx, meter]);
 
   const utterance = useCallback((text: string) => {
     dispatch({ type: 'UTTERANCE', turnId: 't' + Date.now(), text });
@@ -127,12 +175,18 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
       dispatch({ type: 'APPLY_OK' });
       return applied;
     } catch (e) {
-      dispatch({ type: 'APPLY_ERR', errorKind: 'unknown', message: (e as Error).message });
+      // Name a missing job / estimate so the shell can offer the fix ('Pick a
+      // job', 'Build the estimate first') and keep the draft (#34); anything
+      // else is an apply failure that can go back to review.
+      const pre = copilotPrecondition(cap.id, ctx.project);
+      dispatch({ type: 'APPLY_ERR', errorKind: pre.ok ? 'apply_failed' : pre.kind, message: (e as Error).message });
       return undefined;
     }
   }, [cap, ctx]);
 
-  const cancel = useCallback(() => dispatch({ type: 'CANCEL' }), []);
+  const cancel = useCallback(() => { meter.reset(); dispatch({ type: 'CANCEL' }); }, [meter]);
+  const patchDraft = useCallback((patch: Record<string, unknown>) => dispatch({ type: 'PATCH_DRAFT', patch }), []);
+  const backToReview = useCallback(() => dispatch({ type: 'BACK_TO_REVIEW' }), []);
 
-  return { state, cap, start, utterance, answer, skip, editTranscript, confirm, cancel };
+  return { state, cap, start, utterance, answer, skip, editTranscript, confirm, cancel, patchDraft, backToReview };
 }

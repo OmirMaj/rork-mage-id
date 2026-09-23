@@ -21,7 +21,10 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useSubscription, restoreOutcome } from '@/contexts/SubscriptionContext';
+import {
+  LIST_PRICE_MONTHLY, PRICE_AT_CHECKOUT, annualPerMonth, annualSavingsPercent,
+} from '@/constants/pricing';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -45,30 +48,18 @@ import { useProjects } from '@/contexts/ProjectContext';
  *   - Dismissable. The X sends the user to /home; we never hard-gate
  *     the app behind the paywall post-signup.
  *
- * Pricing is resolved from RevenueCat packages when available, falling
- * back to the canonical strings the user signed off on. Keeping fallbacks
- * means the screen renders correctly even before RC offerings have
- * hydrated (cold boot, offline, or a mis-configured build).
+ * Pricing is resolved from RevenueCat packages. Before they load (cold
+ * boot, offline, a mis-configured build) the monthly card shows the
+ * published list rate from constants/pricing.ts, labelled as such, and every
+ * ANNUAL figure — per-month equivalent, total, savings badge — says "Price
+ * shown at checkout" instead. See the pricing memo below for why (#42).
  */
 
 const STORAGE_KEY_FIRST_SEEN = 'mageid_onboarding_paywall_first_at';
 const STORAGE_KEY_LAST_SEEN = 'mageid_onboarding_paywall_last_at';
 
-// Canonical published pricing — MUST match app/paywall.tsx and the tiers in
-// CLAUDE.md: Pro $29/mo, Business $79/mo (Enterprise $150/mo lives in the full
-// paywall). Used as a fallback when RC hasn't loaded, and as source-of-truth
-// for the "SAVE 20%" annual copy. Annual figures are an exact 20% discount off
-// the monthly base so the badge and "billed annually" footnote stay truthful:
-//   Pro:      $29 × 12 × 0.8 = $278.40/yr  → $23.20/mo
-//   Business: $79 × 12 × 0.8 = $758.40/yr  → $63.20/mo
-const FALLBACK_PRICING = {
-  proMonthly: '$29.00',
-  proAnnualPerMonth: '$23.20',
-  proAnnualTotal: '$278.40',
-  businessMonthly: '$79.00',
-  businessAnnualPerMonth: '$63.20',
-  businessAnnualTotal: '$758.40',
-} as const;
+// (The hand-typed FALLBACK_PRICING table that lived here — $23.20/mo,
+// $278.40/yr, "SAVE 20%" — is gone: see the pricing memo in the component.)
 
 type Plan = 'pro' | 'business';
 type Period = 'monthly' | 'annual';
@@ -97,7 +88,9 @@ const FEATURES: Feature[] = [
   },
   {
     title: 'AI Photo Triage',
-    description: 'Snap jobsite photos and auto-build punch and issue items.',
+    // #41: punch items are Business (punch_list_closeout); this screen sells
+    // Pro first, so it must not promise them.
+    description: 'Sort jobsite photos into RFIs, daily-report notes and progress shots.',
     Icon: ClipboardList,
   },
   {
@@ -192,25 +185,32 @@ export default function OnboardingPaywallScreen() {
     })();
   }, []);
 
-  // Pull prices from RC when available, otherwise fall back to canonical
-  // strings. We don't derive the annual "per month" price from RC's
-  // totalled annual figure because intro-pricing and locale formatting
-  // can make the math off by a cent — the hand-authored per-month copy
-  // is what the user expects to see.
+  // #42: every figure comes from the store package or is not shown. This memo
+  // used to print a hand-typed per-month annual figure ($23.20) and "SAVE 20%"
+  // NEXT TO RevenueCat's real annual total ($289.99 = $24.16/mo) — two
+  // numbers on the first paid screen a new contractor sees that could not both
+  // be true. Now the per-month figure is the annual package's price / 12,
+  // floored to the cent in its own currency, and the savings percentage is
+  // computed from the two packages (constants/pricing.ts). Missing package →
+  // null → "Price shown at checkout" / no badge. The monthly list rate stays
+  // as a labelled fallback: it is the published price, not a derived one.
   const pricing = useMemo(() => {
+    const proMonthlyStore = proPackage?.product?.priceString ?? null;
+    const businessMonthlyStore = businessPackage?.product?.priceString ?? null;
     return {
-      proMonthly: proPackage?.product?.priceString ?? FALLBACK_PRICING.proMonthly,
-      proAnnualPerMonth: FALLBACK_PRICING.proAnnualPerMonth,
-      proAnnualTotal:
-        proAnnualPackage?.product?.priceString ?? FALLBACK_PRICING.proAnnualTotal,
-      businessMonthly:
-        businessPackage?.product?.priceString ?? FALLBACK_PRICING.businessMonthly,
-      businessAnnualPerMonth: FALLBACK_PRICING.businessAnnualPerMonth,
-      businessAnnualTotal:
-        businessAnnualPackage?.product?.priceString ??
-        FALLBACK_PRICING.businessAnnualTotal,
+      proMonthly: proMonthlyStore ?? LIST_PRICE_MONTHLY.pro,
+      proMonthlyIsList: proMonthlyStore === null,
+      proAnnualPerMonth: annualPerMonth(proAnnualPackage?.product),
+      proAnnualTotal: proAnnualPackage?.product?.priceString ?? null,
+      proSavePct: annualSavingsPercent(proPackage?.product, proAnnualPackage?.product),
+      businessMonthly: businessMonthlyStore ?? LIST_PRICE_MONTHLY.business,
+      businessMonthlyIsList: businessMonthlyStore === null,
+      businessAnnualPerMonth: annualPerMonth(businessAnnualPackage?.product),
+      businessAnnualTotal: businessAnnualPackage?.product?.priceString ?? null,
+      businessSavePct: annualSavingsPercent(businessPackage?.product, businessAnnualPackage?.product),
     };
   }, [proPackage, proAnnualPackage, businessPackage, businessAnnualPackage]);
+  const savePct = selectedPlan === 'pro' ? pricing.proSavePct : pricing.businessSavePct;
 
   /**
    * Where every exit from this screen lands.
@@ -281,15 +281,22 @@ export default function OnboardingPaywallScreen() {
     }
   }, [selectedPlan, selectedPeriod, purchasePro, purchaseBusiness, leaveToNextScreen]);
 
+  // #126: Restore used to announce "Your purchases have been restored" and
+  // LEAVE the screen whenever the call returned — including when the store
+  // found nothing — and labelled network failures "Nothing to Restore". Only a
+  // restored paid tier leaves; everything else says what happened and stays.
   const handleRestore = useCallback(async () => {
+    const store = Platform.OS === 'android' ? 'Google Play' : 'App Store';
+    let result: unknown;
     try {
-      await restorePurchases();
-      showAlert('Restored', 'Your purchases have been restored.');
-      void leaveToNextScreen();
+      result = await restorePurchases();
     } catch (err) {
       console.log('[OnboardingPaywall] restore failed', err);
-      showAlert('Nothing to Restore', 'We couldn\'t find an active subscription.');
+      result = err;
     }
+    const outcome = restoreOutcome(result, store);
+    showAlert(outcome.title, outcome.body);
+    if (outcome.leave) void leaveToNextScreen();
   }, [restorePurchases, leaveToNextScreen]);
 
   const openLegal = useCallback((kind: 'privacy' | 'terms') => {
@@ -312,14 +319,19 @@ export default function OnboardingPaywallScreen() {
   }, [selectedPlan, isPurchasing]);
 
   const priceFootnote = useMemo(() => {
-    if (selectedPlan === 'pro') {
-      return selectedPeriod === 'annual'
-        ? `${pricing.proAnnualPerMonth}/mo · billed annually (${pricing.proAnnualTotal}/yr)`
-        : `${pricing.proMonthly}/mo · billed monthly`;
+    const pro = selectedPlan === 'pro';
+    if (selectedPeriod === 'annual') {
+      const perMonth = pro ? pricing.proAnnualPerMonth : pricing.businessAnnualPerMonth;
+      const total = pro ? pricing.proAnnualTotal : pricing.businessAnnualTotal;
+      return perMonth && total
+        ? `${perMonth}/mo · billed annually (${total}/yr)`
+        : `Billed annually · ${PRICE_AT_CHECKOUT.toLowerCase()}`;
     }
-    return selectedPeriod === 'annual'
-      ? `${pricing.businessAnnualPerMonth}/mo · billed annually (${pricing.businessAnnualTotal}/yr)`
-      : `${pricing.businessMonthly}/mo · billed monthly`;
+    const monthly = pro ? pricing.proMonthly : pricing.businessMonthly;
+    const isList = pro ? pricing.proMonthlyIsList : pricing.businessMonthlyIsList;
+    return isList
+      ? `${monthly}/mo list price · billed monthly · exact price shown at checkout`
+      : `${monthly}/mo · billed monthly`;
   }, [selectedPlan, selectedPeriod, pricing]);
 
   return (
@@ -406,9 +418,13 @@ export default function OnboardingPaywallScreen() {
             >
               Annual
             </Text>
-            <View style={styles.saveBadge}>
-              <Text style={styles.saveBadgeText}>SAVE 20%</Text>
-            </View>
+            {/* Computed from the selected plan's two store packages; hidden
+                when either is missing rather than printing a typed 20%. */}
+            {savePct !== null && (
+              <View style={styles.saveBadge}>
+                <Text style={styles.saveBadgeText}>{`SAVE ${savePct}%`}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -442,8 +458,8 @@ export default function OnboardingPaywallScreen() {
             }
             priceBottom={
               selectedPeriod === 'annual'
-                ? `${pricing.proAnnualTotal}/yr`
-                : 'billed monthly'
+                ? (pricing.proAnnualTotal ? `${pricing.proAnnualTotal}/yr` : 'billed annually')
+                : (pricing.proMonthlyIsList ? 'list price, monthly' : 'billed monthly')
             }
             active={selectedPlan === 'pro'}
             onPress={() => {
@@ -463,8 +479,8 @@ export default function OnboardingPaywallScreen() {
             }
             priceBottom={
               selectedPeriod === 'annual'
-                ? `${pricing.businessAnnualTotal}/yr`
-                : 'billed monthly'
+                ? (pricing.businessAnnualTotal ? `${pricing.businessAnnualTotal}/yr` : 'billed annually')
+                : (pricing.businessMonthlyIsList ? 'list price, monthly' : 'billed monthly')
             }
             active={selectedPlan === 'business'}
             onPress={() => {
@@ -518,10 +534,16 @@ export default function OnboardingPaywallScreen() {
           <TouchableOpacity onPress={() => openLegal('privacy')}>
             <Text style={styles.legalLink}>Privacy</Text>
           </TouchableOpacity>
-          <Text style={styles.legalDot}>·</Text>
-          <TouchableOpacity onPress={handleRestore}>
-            <Text style={styles.legalLink}>Restore</Text>
-          </TouchableOpacity>
+          {/* No store on web — restore happens in the phone app, and the
+              full paywall already hides Restore there (#126). */}
+          {Platform.OS !== 'web' && (
+            <>
+              <Text style={styles.legalDot}>·</Text>
+              <TouchableOpacity onPress={handleRestore} testID="onboarding-paywall-restore">
+                <Text style={styles.legalLink}>Restore</Text>
+              </TouchableOpacity>
+            </>
+          )}
           <Text style={styles.legalDot}>·</Text>
           <TouchableOpacity onPress={() => openLegal('terms')}>
             <Text style={styles.legalLink}>Terms</Text>
@@ -535,7 +557,8 @@ export default function OnboardingPaywallScreen() {
 interface PlanCardProps {
   label: string;
   tagline: string;
-  priceTop: string;
+  /** null = the store has not given us this figure: "Price shown at checkout". */
+  priceTop: string | null;
   priceBottom: string;
   active: boolean;
   featured?: boolean;
@@ -569,12 +592,18 @@ function PlanCard({
       )}
       <Text style={[styles.planLabel, active && styles.planLabelActive]}>{label}</Text>
       <Text style={styles.planTagline}>{tagline}</Text>
-      <View style={styles.planPriceBlock}>
-        <Text style={[styles.planPriceTop, active && styles.planPriceTopActive]}>
-          {priceTop}
-        </Text>
-        <Text style={styles.planPriceUnit}>/mo</Text>
-      </View>
+      {priceTop ? (
+        <View style={styles.planPriceBlock}>
+          <Text style={[styles.planPriceTop, active && styles.planPriceTopActive]}>
+            {priceTop}
+          </Text>
+          <Text style={styles.planPriceUnit}>/mo</Text>
+        </View>
+      ) : (
+        <View style={styles.planPriceBlock}>
+          <Text style={styles.planPriceUnit}>{PRICE_AT_CHECKOUT}</Text>
+        </View>
+      )}
       <Text style={styles.planPriceBottom}>{priceBottom}</Text>
     </TouchableOpacity>
   );

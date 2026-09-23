@@ -34,10 +34,21 @@ export function useSchedulePresence(
 
   useEffect(() => {
     if (!projectId || !self) return;
+    // PRIVATE channel (#169). A public channel named `schedule:<projectId>`
+    // was readable with the anon key alone, and the project id is not a
+    // secret (the homeowner portal carries it; a removed collaborator keeps
+    // it), so anyone holding it could list who was editing and track() a fake
+    // peer into PresenceBar. Private channels are authorised by RLS on
+    // realtime.messages — migration 20260923160000 allows SELECT / INSERT on
+    // 'schedule:<id>' topics only to authenticated users who pass
+    // can_access_project(<id>, 'viewer'). ORDER: that migration ships BEFORE
+    // this code; a private join with no policy is refused and presence dies
+    // silently.
     const channel = supabase.channel(`schedule:${projectId}`, {
-      config: { presence: { key: self.userId } },
+      config: { private: true, presence: { key: self.userId } },
     });
     channelRef.current = channel;
+    let cancelled = false;
 
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState<SchedulePeer>();
@@ -46,19 +57,36 @@ export function useSchedulePresence(
         const metas = state[key];
         if (metas && metas.length) {
           const m = metas[metas.length - 1];
+          // A peer is keyed by its presence key (its own user id). A meta that
+          // claims a different userId than the key it arrived under is a
+          // forged identity — drop it rather than show it.
+          if (m.userId !== key) continue;
           list.push({ userId: m.userId, name: m.name, color: m.color, selectedTaskId: m.selectedTaskId ?? null });
         }
       }
       setPeers(list.filter((p) => p.userId !== self.userId));
     });
 
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        void channel.track({ userId: self.userId, name: self.name, color: selfColor, selectedTaskId: selectedRef.current });
+    // The join is authorised by the user's JWT, which the realtime socket
+    // only carries once setAuth() has handed it the current session token —
+    // subscribe after it resolves, never before (a join with the anon key is
+    // refused by the private-channel policy).
+    void (async () => {
+      try {
+        await supabase.realtime.setAuth();
+      } catch (err) {
+        console.log('[SchedulePresence] realtime setAuth failed:', err);
       }
-    });
+      if (cancelled) return;
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          void channel.track({ userId: self.userId, name: self.name, color: selfColor, selectedTaskId: selectedRef.current });
+        }
+      });
+    })();
 
     return () => {
+      cancelled = true;
       channelRef.current = null;
       void supabase.removeChannel(channel);
     };

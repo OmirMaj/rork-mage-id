@@ -369,11 +369,18 @@
         </div>
         <a href="https://app.mageid.app/?plan=free" class="tier-cta tier-cta-ghost">Start free</a>
       <ul class="tier-features">
-        <li>1 active project</li>
-        <li>Daily reports + voice-to-log</li>
+        <!-- "1 active project" was the wrong promise: the cap counts every
+             project you own that is not the sample, finished or not (jobs other
+             contractors share with you don't count; a job you win through an
+             RFP does, once it exists). Voice fill is a 3-use trial on Free
+             (FEATURE_CONFIG.voiceCapture.freeLifetimeCap), not an included
+             feature - the in-app plan table says "3 tries" for the same row. -->
+        <li>1 project (finished jobs still count)</li>
+        <li>Daily reports (voice fill: 3 free tries)</li>
         <li>Basic schedule (manual Gantt)</li>
         <li>Invoice CSV export (QuickBooks / Xero) + 1099-NEC</li>
-        <li>A few free AI trials (estimate, takeoff, voice)</li>
+        <!-- No takeoff: aiTakeoff is proOnly and the server gates it to Pro. -->
+        <li>A few free AI trials (estimate, schedule, voice)</li>
         <li>Community bids · 2/mo</li>
         <li class="muted">AI estimating &amp; takeoff (unlimited)</li>
         <li class="muted">Photo documentation &amp; AI photo triage</li>
@@ -411,6 +418,10 @@
         <li><strong>Cash flow + EVM</strong> · CPI, SPI, 12-week forecast</li>
         <li><strong>Schedule Pro</strong> · CPM, baselines, weather-sensitive task flags</li>
         <li><strong>Plans + drawing markup</strong></li>
+        <!-- RFIs & submittals unlock on PRO (utils/featureTiers.ts
+             rfis_submittals = 'pro'). They sat in the Business card, which sold
+             a $29 feature at $79. -->
+        <li><strong>RFIs &amp; submittals</strong> · ball-in-court, architect reply links</li>
         <li><strong>Photo documentation + AI photo triage</strong></li>
         <li><strong>Lien waivers</strong> · conditional &amp; unconditional</li>
       </ul>
@@ -447,7 +458,6 @@
         <li>WIP financial reporting (work-in-progress schedule)</li>
         <li>Crew / worker profiles — ID scan + verified certs</li>
         <li>Punch list &amp; closeout binder</li>
-        <li>RFIs &amp; submittals workflow</li>
         <li>Full budget dashboard</li>
         <li><strong>QuickBooks Online 2-way sync</strong> — customers, items, invoices and payments push out (payments your clients make through the Pay link go over on the next 30-minute reconcile, and a push that fails is retried there); QBO payments reconcile back and QBO bills land in a cost-review queue you approve line by line</li>
         <li><strong>Support from the person who wrote the code.</strong> Not a tier and not a queue &mdash; you email, the founder answers, usually the same day. Weekdays, within a few hours; evenings and weekends, by the next morning. There is nobody to escalate to because there is nobody in between</li>
@@ -563,7 +573,7 @@
 
       <div class="faq-item">
         <h3>What does "Free forever" actually cover?</h3>
-        <p><strong>The Free plan is free forever.</strong> One active project, daily reports, a basic schedule, and a few free AI trials — so you can run a job before you pay. The live client portal is a Pro feature.</p>
+        <p><strong>The Free plan is free forever.</strong> One project of your own (finished jobs still count), daily reports, a basic schedule, and a few free AI trials — so you can run a job before you pay. The live client portal is a Pro feature.</p>
       </div>
 
       <div class="faq-item">
@@ -580,20 +590,17 @@
              — whose own comment says they mirror App Store Connect. Business
              was therefore understated by $22 in the customer's disfavour: they
              would have read $792 here and been charged more.
-             The monthly figures disagree in the code too. app/paywall.tsx
-             falls back to "$29/mo" / "$79/mo" / "$150/mo" and calls that "the
-             published list rate"; components/Paywall.tsx says the App Store
-             products are $29.99 / $79.99 / $149.99. Both screens ship. Until
-             the store listing exists and settles which one a card is actually
-             charged, this page states the published monthly rate — the one the
-             upgrade screen shows and the one the whole site quotes — and
-             states NO yearly dollar figure at all, because every candidate we
-             have is either invented or unverifiable.
-             scripts/validate-marketing-claims.ts enforces exactly that, bound
-             to both files: while the two in-code price tables disagree it
-             fails if this page prints an annual figure, and the moment they
-             agree it flips and fails until the figure is printed here. So this
-             is a deletion when the till is fixed, not an archaeology dig. -->
+             The monthly figures disagreed in the code too, until wave 5 (#42)
+             folded the app's three fallback tables into ONE:
+             constants/pricing.ts LIST_PRICE_MONTHLY = $29 / $79 / $150, the
+             rate this page prints. That module deliberately holds NO annual
+             figure: the app now shows an annual price, per-month equivalent or
+             savings percentage only when the store's own package supplies it,
+             and "Price shown at checkout" otherwise. This page follows the same
+             rule - it states the published monthly rate and NO yearly dollar
+             figure, because nobody has confirmed what the store charges for a
+             year. When the store listing is live, the figure goes here and
+             nowhere else. -->
         <p>Yes &mdash; every paid tier has an annual plan, and Enterprise&rsquo;s discount is the steepest.</p>
         <p style="margin-top: 12px;">
           What we are <strong>not</strong> doing on this page is printing a yearly dollar figure, and
@@ -636,6 +643,12 @@
         <h3>What happens to my data if I cancel?</h3>
         <!-- ONE POLICY, WORD FOR WORD, ON ALL THREE PAGES. These gave three different answers to the question a one-person vendor is asked most: demo.html promised read-only access "for 90 days after cancel" (no code anywhere enforces a 90-day window, so it was a policy nobody could keep), pricing.html described downgrade-to-Free, and support.html said "until the end of the current billing period". If this paragraph changes, change it in all three places; scripts/validate-marketing-claims.ts asserts the three are word for word identical and goes red if one drifts. DONE 2026-09-11: terms.html section 3 (the wave that wrote this called it section 5) used to route BOTH cancellation and refunds through a store subscription only, which left a directly-billed customer with no way to cancel and no one to ask for a refund. Both bullets now name the direct route as well as the store one, the direct-refund sentence is word for word the one in this page's Refunds FAQ, and the Apple EULA notice in section 17 - which is legitimate and unrelated - was left alone. scripts/validate-marketing-claims.ts pins all four. -->
         <p>Nothing is deleted. Paid features become read-only on your existing data, and everything you have created stays viewable and exportable. You can export the full archive &mdash; every project with its estimate and revision history, plus invoices, change orders, daily reports, punch items, photos, RFIs, submittals, warranties, contacts and subcontractors &mdash; at any time, before or after cancelling, without asking us. Re-subscribe and everything picks up where it left off. We do not hold data hostage to force a retention call; there is nobody here to make one.</p>
+        <!-- Photos: the export holds photo RECORDS (tag, date, project) with a
+             link that works for 24 hours, not the photo files (audit wave 5,
+             #80) - say so here, next to the promise. The shared paragraph
+             above says "photos" on all three pages; its word-for-word edit is
+             handed to w5-join-screens. -->
+        <p>Photos come out as records &mdash; tag, date and project &mdash; with a download link valid for 24 hours, not as the photo files themselves; save the pictures you want from the gallery before you cancel.</p>
         <p><strong>Try the export on day one, before you trust us with anything.</strong> Settings &rarr; Data Export, one tap, JSON or CSV, human-readable. It was built before the paywall was, deliberately &mdash; proving you can leave is the cheapest way to find out whether the rest of this page is worth believing. <a href="/switch.html">What moves in and what moves out.</a></p>
       </div>
 

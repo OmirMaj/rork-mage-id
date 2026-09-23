@@ -29,7 +29,7 @@ import {
   buildCostDatabase, commitmentsMissingContractSum, missingContractSumNotice,
   type CostBookEntry, type CostSample,
 } from '@/utils/costDatabase';
-import { useCostBenchmark } from '@/hooks/useCostBenchmark';
+import { useCostBenchmark, publicIndexCopy, MARKET_BENCHMARK_PUBLISHED, MARKET_BENCHMARK_WITHHELD_COPY } from '@/hooks/useCostBenchmark';
 import CostTruthChip from '@/components/CostTruthChip';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -134,8 +134,10 @@ function CostDatabaseInner() {
     [projects, commitments, receipts, laborSamples, seeds],
   );
 
-  // Cost Truth: contribute my learned rates + read the cross-contractor
-  // regional benchmark (aggregate-only, k-anonymized).
+  // Cost Truth: contribute my learned rates. The cross-contractor market
+  // figure is NOT published (#84: any aggregate of posted rates can be
+  // worked back to one contractor's exact price), so no chip renders and the
+  // card below says why once.
   //
   // ONLY MEASURED RATES ARE PUBLISHED. This used to map db.entries with no
   // provenance filter, and useCostBenchmark upserts every row it is handed
@@ -154,7 +156,21 @@ function CostDatabaseInner() {
       .map((e) => ({ trade: e.trade, unit: e.unit, personalRate: e.personalRate, provenance: e.provenance, jobCount: e.jobCount })),
     [db.entries],
   );
-  const { statsFor, publicOptIn, setPublicOptIn } = useCostBenchmark(benchInputs);
+  const {
+    statsFor, publicOptIn, ratesOnFile, publishableCount, publicOptInUnreadable, setPublicOptIn,
+  } = useCostBenchmark(benchInputs);
+  // The switch moves only to what the server stored (#79): no optimistic flip
+  // over a write that may have matched nothing. While the write is in flight
+  // the switch is locked; a refusal says why under the card.
+  const [optInSaving, setOptInSaving] = useState(false);
+  const [optInError, setOptInError] = useState<string | null>(null);
+  const onTogglePublicIndex = useCallback(async (v: boolean) => {
+    setOptInSaving(true);
+    setOptInError(null);
+    const res = await setPublicOptIn(v);
+    setOptInSaving(false);
+    if (!res.ok) setOptInError(res.message);
+  }, [setPublicOptIn]);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = useCallback((key: string) => {
@@ -219,26 +235,39 @@ function CostDatabaseInner() {
         />
       ) : (
         <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
-          {/* Public Price Index opt-in. OFF by default and stated plainly —
-              your rates stay private unless you choose to publish, and even
-              then only an anonymous median across 5+ contractors is shown. */}
+          {/* Public Price Index opt-in. OFF by default and stated plainly.
+              Nothing is published either way today (#84): the copy says so
+              rather than implying his rates are live in an index. The choice
+              is per ACCOUNT and read back from the server, so the switch
+              never shows a state that wasn't saved (#79). */}
           <View style={styles.publicIndexCard}>
             <View style={styles.publicIndexTop}>
               <Globe size={15} color={t.accent} strokeWidth={2} />
               <Text style={styles.publicIndexTitle}>Public Price Index</Text>
               <Switch
                 value={publicOptIn === true}
-                onValueChange={(v) => { void setPublicOptIn(v); }}
-                disabled={publicOptIn === null}
+                onValueChange={(v) => { void onTogglePublicIndex(v); }}
+                disabled={publicOptIn === null || optInSaving}
                 trackColor={{ false: t.line, true: t.accent }}
                 testID="cost-public-index-toggle"
               />
             </View>
-            <Text style={styles.publicIndexBody}>
-              {publicOptIn
-                ? 'Your rates help build the only public index of what construction actually costs. Only an anonymous median across 5+ contractors is ever published — never your numbers, never your name.'
-                : 'Off. Your rates stay private. Turn this on to contribute an anonymous median (5+ contractors minimum) to the free public price index — the data RSMeans charges thousands for.'}
+            <Text style={styles.publicIndexBody} testID="cost-public-index-body">
+              {publicIndexCopy({ publicOptIn, unreadable: publicOptInUnreadable, ratesOnFile, publishableCount })}
             </Text>
+            {optInError ? (
+              <Text style={[styles.publicIndexBody, { color: t.dangerLabel }]} testID="cost-public-index-error">
+                {optInError}
+              </Text>
+            ) : null}
+            {/* Said once here, not as a "building" line under every rate: a
+                market figure isn't coming from more contributors — it is
+                withheld on purpose until rates are server-derived. */}
+            {!MARKET_BENCHMARK_PUBLISHED ? (
+              <Text style={styles.publicIndexBody} testID="cost-market-withheld">
+                {MARKET_BENCHMARK_WITHHELD_COPY}
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.kpiRow}>

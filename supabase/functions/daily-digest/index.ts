@@ -31,6 +31,8 @@ import {
   fmtMoney,
   escapeHtml,
   isEmailUnsubscribed,
+  fetchSignInEmail,
+  pickDigestRecipient,
 } from "../_shared/email.ts";
 // The unsubscribe gate shared with morning-digest (audit 2026-09-18 #15): the
 // footer link and List-Unsubscribe header on this email write an
@@ -103,10 +105,14 @@ async function sbInsert(table: string, body: unknown): Promise<void> {
 // notification_preferences.daily_digest.email must be the literal `true`
 // (not undefined / not false). Default behavior is OFF so we don't add
 // to inbox volume without consent.
+//
+// No filter on profiles.email any more (audit 2026-09-23 #130): that column is
+// the Company Profile address, not where this digest goes. processGc resolves
+// the SIGN-IN address per GC and skips the ones that have none.
 async function getOptedInGcs(): Promise<ProfileRow[]> {
   // PostgREST: filter on a JSONB key. Use the `->>` text accessor and
   // compare to 'true'.
-  const url = `profiles?notification_preferences->daily_digest->>email=eq.true&email=not.is.null&select=id,email,contact_name,company_name,phone,notification_preferences`;
+  const url = `profiles?notification_preferences->daily_digest->>email=eq.true&select=id,email,contact_name,company_name,phone,notification_preferences`;
   const rows = await sbGet(url) as ProfileRow[];
   return rows ?? [];
 }
@@ -258,7 +264,16 @@ function buildDigestEmail(opts: {
 }
 
 async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' | 'skipped_already' | 'skipped_no_email' | 'suppressed_unsubscribed' | 'failed'; reason?: string }> {
-  if (!gc.email) return { id: gc.id, status: 'skipped_no_email' };
+  // The ONE address this digest uses — send, unsubscribe check, footer +
+  // header link, outbox row: his sign-in address, the one the app's digest
+  // switch and its resume path key on (audit 2026-09-23 #130). gc.email (the
+  // Company Profile address) only when the account has no sign-in address.
+  // A failed lookup skips this run instead of guessing; no idempotency marker
+  // is written, so the next cron run tries again.
+  const recipient = pickDigestRecipient(await fetchSignInEmail(SUPABASE_URL, SERVICE_ROLE_KEY, gc.id), gc.email);
+  if (recipient.source === 'lookup_failed') return { id: gc.id, status: 'failed', reason: 'recipient_lookup_failed' };
+  if (!recipient.email) return { id: gc.id, status: 'skipped_no_email' };
+  const to = recipient.email;
   if (await alreadySentToday(gc.id)) return { id: gc.id, status: 'skipped_already' };
 
   const outbox = await getOutboxLast24h(gc.id).catch(() => [] as OutboxRow[]);
@@ -293,7 +308,7 @@ async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' |
     contactName: gc.contact_name,
     companyName: gc.company_name,
     phone: gc.phone,
-    email: gc.email,
+    email: to,
     groups,
     totalEvents,
     date,
@@ -302,7 +317,6 @@ async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' |
   // totalEvents is always > 0 here — processGc returned above otherwise.
   const subject = `Daily digest · ${totalEvents} update${totalEvents === 1 ? '' : 's'} on your jobs`;
 
-  const to = gc.email;
   let resp: unknown = null;
   // Checked before EVERY send, not once per run: he may have tapped
   // Unsubscribe on yesterday's copy of this very email.

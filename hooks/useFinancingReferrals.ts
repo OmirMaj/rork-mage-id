@@ -66,7 +66,9 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
         r => r.projectId === args.projectId && r.source === args.source,
       );
       if (existing) return existing.id;
-      const token = `fin_${generateUUID().replace(/-/g, '')}`;
+      // `fin_` + 32 lower-case hex: financing-redirect accepts exactly this
+      // shape (REF_RE) and treats the ref itself as the capability (#180).
+      const token = `fin_${generateUUID().replace(/-/g, '').toLowerCase()}`;
       const now = new Date().toISOString();
       const { error } = await supabase.from('financing_referrals').insert({
         id: token,
@@ -79,8 +81,15 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
         created_at: now,
         updated_at: now,
       });
-      if (error) console.log('[useFinancingReferrals] create failed:', error.message);
       void queryClient.invalidateQueries({ queryKey: ['financingReferrals', gcUserId] });
+      if (error) {
+        // No row, no link (#180): financing-redirect looks the ref up, so a
+        // token whose insert failed would send the homeowner to the MAGE ID
+        // homepage. '' tells the caller to leave the financing block out of
+        // the email instead of shipping a dead button.
+        console.warn('[useFinancingReferrals] create failed:', error.message);
+        return '';
+      }
       return token;
     },
     [gcUserId, referralsQ.data, queryClient],

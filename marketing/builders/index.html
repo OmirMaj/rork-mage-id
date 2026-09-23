@@ -317,6 +317,14 @@
     </div>
   </div>
 
+  <!-- Shown when the builder switched Publish off (public_profile_status). -->
+  <div id="taken-down" class="fallback" style="display:none">
+    <div class="fallback-card">
+      <h1>This page was taken down by the builder</h1>
+      <p>The contractor who shared this project page has unpublished it. Visit <a href="https://mageid.app">mageid.app</a> to learn more.</p>
+    </div>
+  </div>
+
   <div id="page" style="display:none">
     <header class="hero">
       <div class="hero-photo" id="hero-photo"></div>
@@ -488,10 +496,17 @@
     return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }
 
+  // Only a URL a stranger's browser can load: https, and not a signed storage
+  // URL, which expires (links made before 2026-09 carried file:// paths from
+  // the phone and 24-hour signed URLs; those tiles are simply left out).
+  function isLoadableUrl(u) {
+    return typeof u === 'string' && /^https:\/\//i.test(u) && !/\/object\/sign\//i.test(u);
+  }
+
   function render(data) {
     var company = data.company || {};
     var project = data.project || {};
-    var photos = (data.photos || []).filter(function (p) { return !!p.url; });
+    var photos = (data.photos || []).filter(function (p) { return p && isLoadableUrl(p.url); });
 
     document.getElementById('brand-mark').textContent = (company.name || 'M').charAt(0).toUpperCase();
     document.getElementById('brand-name').textContent = company.name || 'MAGE ID';
@@ -509,13 +524,27 @@
 
     var hide = project.hideStats || [];
     var metaParts = [];
-    if (project.address) metaParts.push(esc(project.address));
+    // The client's street address prints only when the builder turned "Show
+    // street address" on (the snapshot then says showAddress: true). Links made
+    // before that switch existed carry the address with no flag, so they print
+    // the city/state (locality) or nothing (audit wave 5, #78).
+    if (hide.indexOf('address') === -1) {
+      if (project.showAddress === true && project.address) metaParts.push(esc(project.address));
+      else if (project.locality) metaParts.push(esc(project.locality));
+    }
     if (project.type) metaParts.push(esc(project.type));
     if (project.completedAt) metaParts.push('Completed <strong>' + esc(fmtDate(project.completedAt)) + '</strong>');
     document.getElementById('project-meta').innerHTML = metaParts.join(' · ');
 
+    // The hero is set only once its image has loaded, so a dead URL leaves the
+    // hero on its plain background instead of an empty frame.
     if (photos.length > 0) {
-      document.getElementById('hero-photo').style.backgroundImage = 'url(' + photos[0].url + ')';
+      var heroUrl = photos[0].url;
+      var probe = new Image();
+      probe.onload = function () {
+        document.getElementById('hero-photo').style.backgroundImage = 'url("' + heroUrl.replace(/["\\]/g, '') + '")';
+      };
+      probe.src = heroUrl;
     }
 
     // Stats
@@ -555,6 +584,13 @@
         '<img loading="lazy" src="' + esc(p.url) + '" alt="' + esc(p.caption || '') + '"/>' + cap +
       '</div>';
     }).join('');
+    // A photo that fails to load hides its tile instead of a broken-image icon.
+    document.querySelectorAll('#gallery .gallery-photo img').forEach(function (img) {
+      img.addEventListener('error', function () {
+        var tile = img.closest('.gallery-photo');
+        if (tile) tile.style.display = 'none';
+      });
+    });
 
     // Testimonial
     if (data.testimonial && data.testimonial.quote) {
@@ -607,6 +643,10 @@
             // The account id baked into the snapshot routes the lead first;
             // the slug is the fallback for pages published before it existed.
             contractor_id: (company && company.contractorId) || '',
+            // The page's public_profiles id, so the intake can refuse a lead
+            // from a page the builder has taken down (render() never runs for
+            // one, but a cached tab can still hold the form).
+            profile_id: (data && typeof data.pid === 'string') ? data.pid : '',
             company_slug: slug, name: name, email: email, phone: phone,
             address: document.getElementById('lf-address').value.trim(),
             scope: document.getElementById('lf-scope').value.trim(),
@@ -631,10 +671,17 @@
         }).then(function () { btn.disabled = false; btn.textContent = 'Send request'; });
       });
     })();
-    if (company.logoUri) {
-      document.getElementById('credit-logo').innerHTML = '<img src="' + esc(company.logoUri) + '" alt="' + esc(company.name || '') + '"/>';
+    // A data: logo made links hundreds of KB long, and a file:// one never
+    // loaded. Only an https logo is drawn, and a failed load falls back to the
+    // company initial.
+    var initial = (company.name || 'M').charAt(0).toUpperCase();
+    var logoBox = document.getElementById('credit-logo');
+    if (isLoadableUrl(company.logoUri)) {
+      logoBox.innerHTML = '<img src="' + esc(company.logoUri) + '" alt="' + esc(company.name || '') + '"/>';
+      var logoImg = logoBox.querySelector('img');
+      if (logoImg) logoImg.addEventListener('error', function () { logoBox.textContent = initial; });
     } else {
-      document.getElementById('credit-logo').textContent = (company.name || 'M').charAt(0).toUpperCase();
+      logoBox.textContent = initial;
     }
 
     // Lightbox
@@ -654,9 +701,47 @@
     document.getElementById('page').style.display = 'block';
   }
 
+  // Is the page still published? Links made since 2026-09 carry `pid`, the id
+  // of the builder's public_profiles row. Before render() the page asks the
+  // anon RPC public_profile_status, which returns only { enabled }. A disabled
+  // or missing row shows "taken down" and render() never runs, so the photos,
+  // address and quote form are never drawn. Links without a pid render as
+  // before; they were made before the switch could reach them. If the check
+  // itself can't be reached (network, outage), the page renders. A stranger's
+  // bad signal must not hide a live page.
+  var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+  function checkPublished(pid) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 8000) : null;
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/public_profile_status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ p_id: pid }),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function (r) {
+      if (!r.ok) return null;
+      return r.json().then(function (j) { return j && typeof j.enabled === 'boolean' ? j.enabled : null; });
+    }).catch(function () { return null; }).then(function (v) {
+      if (timer) clearTimeout(timer);
+      return v;
+    });
+  }
+
   var data = decodeHash();
   if (!data) { document.getElementById('fallback').style.display = 'flex'; return; }
-  render(data);
+  if (typeof data.pid === 'string' && /^[0-9a-f-]{36}$/i.test(data.pid)) {
+    checkPublished(data.pid).then(function (enabled) {
+      if (enabled === false) { document.getElementById('taken-down').style.display = 'flex'; return; }
+      render(data);
+    });
+  } else {
+    render(data);
+  }
 })();
 </script>
   <script src="/motion.js" defer></script>

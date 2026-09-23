@@ -32,3 +32,20 @@
 // Settings. Mirrors the RFP_PAID_POST_ENABLED precedent in
 // components/ClientPaywall.tsx.
 export const RFP_BROWSE_ENABLED = false;
+
+// CONTRACTOR SERVICE AREAS — audit wave 5, finding #96.
+//
+// A homeowner RFP alerts only contractors whose companies row has a service
+// area that covers it (supabase/functions/notify-nearby-contractors/reach.ts
+// companyServesRfp). No screen in the app writes service_states or the service
+// origin yet (app/notifications-settings.tsx says "that setup isn't available
+// yet"), so today no post can reach anyone. While this is false the homeowner
+// is told exactly that - before she posts, in the posted alert, in My RFPs -
+// instead of "nobody will see this until a contractor who covers your area
+// joins", which joining could never change.
+//
+// Flip it to true in the same change that ships a service-area editor; the
+// reach copy goes back to reporting coverage by itself. The post-RFP entry
+// points stay visible meanwhile (productDecision #96 - hiding them is the
+// founder's call).
+export const SERVICE_AREA_SETUP_ENABLED = false;

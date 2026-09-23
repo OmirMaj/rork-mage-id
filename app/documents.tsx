@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
-  FileText, PenTool,
+  FileText, Clock, ShieldAlert, FolderOpen, ChevronRight,
   AlertCircle, Check, X as XIcon,
 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
@@ -16,37 +16,115 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import EmptyState from '@/components/EmptyState';
 import { documentTypeInfo } from '@/mocks/documents';
-import type { ProjectDocument, DocumentStatus } from '@/types';
+import type { DocumentType } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { parseCalendarDay } from '@/utils/calendarDate';
+import { parseCalendarDay, calendarDayOf, todayCalendarDay } from '@/utils/calendarDate';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
-// Themed per-status chip styling — a FUNCTION of the palette (not a module
+// ── WHAT A ROW SAYS ABOUT ITSELF (audit 2026-09-23 #161) ────────────────────
+// This feed used to squeeze every document into the five e-signature states of
+// DocumentStatus, which none of them actually has. A COI that FAILED its
+// insurance check (additional insured missing) fell through to a grey 'Draft'
+// and was counted nowhere; every saved AIA pay app was hard-coded 'Signed',
+// though nothing in the app signs one; an approved permit read 'Signed'. Each
+// row now carries the label its own lifecycle earns, plus a BUCKET that drives
+// the filter chips and counts, and a TONE for the chip colour. The rules are
+// plain functions of the record (no hooks, no imports) so
+// scripts/validate-w5-desktop-web-screens.ts can run them.
+type DocBucket = 'at_risk' | 'awaiting' | 'draft' | 'done' | 'expired' | 'void';
+type DocTone = 'danger' | 'warning' | 'success' | 'neutral' | 'muted';
+interface DocRowStatus { bucket: DocBucket; label: string; tone: DocTone }
+
+interface DocRow {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: DocumentType;
+  title: string;
+  status: DocRowStatus;
+  createdAt: string;
+  expiresAt?: string;
+  notes?: string;
+}
+
+/** A COI's standing. `expiryDay` is its earliest coverage expiry as a calendar
+ *  day, `today` the local day — a policy is good THROUGH its expiry day. Only a
+ *  COI nobody has checked reads 'Awaiting review'; a failed or flagged check is
+ *  at risk, never a harmless draft. */
+function coiDocStatus(
+  validation: { overallStatus?: string } | null | undefined,
+  expiryDay: string | null,
+  today: string,
+): DocRowStatus {
+  if (expiryDay && expiryDay < today) return { bucket: 'expired', label: 'Expired', tone: 'danger' };
+  const v = validation?.overallStatus;
+  if (v === 'fail') return { bucket: 'at_risk', label: 'Failed check', tone: 'danger' };
+  if (v === 'warn') return { bucket: 'at_risk', label: 'Needs review', tone: 'warning' };
+  if (v === 'pass') return { bucket: 'done', label: 'Passed check', tone: 'success' };
+  return { bucket: 'awaiting', label: 'Awaiting review', tone: 'warning' };
+}
+
+/** An AIA pay app's standing, from what the app actually knows: the Stripe
+ *  paid stamp, the linked invoice's status and the client-portal send state.
+ *  Nothing signs a pay app in MAGE ID, so no branch says 'Signed'. */
+function payAppDocStatus(
+  paidAt: string | undefined,
+  invoiceStatus: string | undefined,
+  portal: { status?: string; viewedAt?: string } | undefined,
+): DocRowStatus {
+  if (paidAt || invoiceStatus === 'paid') return { bucket: 'done', label: 'Paid', tone: 'success' };
+  if (invoiceStatus === 'partially_paid') return { bucket: 'awaiting', label: 'Partly paid', tone: 'warning' };
+  if (invoiceStatus === 'overdue') return { bucket: 'awaiting', label: 'Overdue', tone: 'danger' };
+  if (portal?.status === 'sent') {
+    return { bucket: 'awaiting', label: portal.viewedAt ? 'Viewed by client' : 'Sent to client', tone: 'warning' };
+  }
+  if (invoiceStatus === 'sent') return { bucket: 'awaiting', label: 'Awaiting payment', tone: 'warning' };
+  return { bucket: 'draft', label: 'Saved', tone: 'neutral' };
+}
+
+// Themed per-tone chip styling — a FUNCTION of the palette (not a module
 // static) so the chip fills flip with the theme instead of staying bright
 // light-theme pastels on dark cards. bgColor→soft tokens, color→label tokens
 // per the theme-sweep convention.
-const statusConfig = (t: ThemeColors): Record<DocumentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> => ({
-  draft: { label: 'Draft', color: t.textSecondary, bgColor: t.surfaceAlt, icon: FileText },
-  pending_signature: { label: 'Awaiting Signature', color: t.warningLabel, bgColor: t.warningSoft, icon: PenTool },
-  signed: { label: 'Signed', color: t.success, bgColor: t.successSoft, icon: Check },
-  expired: { label: 'Expired', color: t.dangerLabel, bgColor: t.dangerSoft, icon: AlertCircle },
-  void: { label: 'Void', color: t.textMuted, bgColor: t.surfaceAlt, icon: XIcon },
+const toneConfig = (t: ThemeColors): Record<DocTone, { color: string; bgColor: string }> => ({
+  danger: { color: t.dangerLabel, bgColor: t.dangerSoft },
+  warning: { color: t.warningLabel, bgColor: t.warningSoft },
+  success: { color: t.success, bgColor: t.successSoft },
+  neutral: { color: t.textSecondary, bgColor: t.surfaceAlt },
+  muted: { color: t.textMuted, bgColor: t.surfaceAlt },
 });
+const BUCKET_ICON: Record<DocBucket, React.ElementType> = {
+  at_risk: ShieldAlert,
+  awaiting: Clock,
+  draft: FileText,
+  done: Check,
+  expired: AlertCircle,
+  void: XIcon,
+};
 
-function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => void }) {
+/** Expiring within 30 days — judged for EVERY row that has an expiry and has
+ *  not already expired or been voided. It used to be judged only for rows the
+ *  old mapping called 'signed', so a COI with a failed check also lost its
+ *  expiry warning. */
+function isExpiringSoon(doc: Pick<DocRow, 'expiresAt' | 'status'>, nowMs: number): boolean {
+  if (!doc.expiresAt || doc.status.bucket === 'expired' || doc.status.bucket === 'void') return false;
+  const diff = new Date(doc.expiresAt).getTime() - nowMs;
+  return diff > 0 && diff < 30 * 86400000;
+}
+
+function DocumentCard({ doc, onPress }: { doc: DocRow; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const typeInfoMap = documentTypeInfo(themeColors);
   const typeInfo = typeInfoMap[doc.type] ?? typeInfoMap.other;
-  const statusInfo = statusConfig(themeColors)[doc.status];
-  const StatusIcon = statusInfo.icon;
+  const statusInfo = toneConfig(themeColors)[doc.status.tone];
+  const StatusIcon = BUCKET_ICON[doc.status.bucket];
 
-  const isExpiringSoon = doc.expiresAt && doc.status === 'signed' &&
-    new Date(doc.expiresAt).getTime() - Date.now() < 30 * 86400000 &&
-    new Date(doc.expiresAt).getTime() > Date.now();
+  const expiringSoon = isExpiringSoon(doc, Date.now());
 
   return (
     <Animated.View style={[styles.docCard, { transform: [{ scale: scaleAnim }] }]}>
@@ -64,7 +142,7 @@ function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => v
         <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
         <Text style={styles.docProject}>{doc.projectName}</Text>
 
-        {isExpiringSoon && (
+        {expiringSoon && (
           <View style={styles.expiryWarning}>
             <AlertCircle size={12} color={themeColors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.expiryWarningText}>
@@ -76,7 +154,7 @@ function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => v
         <View style={styles.docFooter}>
           <View style={[styles.docStatusBadge, { backgroundColor: statusInfo.bgColor }]}>
             <StatusIcon size={10} color={statusInfo.color} />
-            <Text style={[styles.docStatusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+            <Text style={[styles.docStatusText, { color: statusInfo.color }]}>{doc.status.label}</Text>
           </View>
           <Text style={styles.docDate}>
             {new Date(doc.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -104,30 +182,36 @@ export default function DocumentsScreen() {
   // just create drift. This screen is now a single dashboard that links
   // OUT to each document's home screen.
   const {
-    projects, cois, permits, submittals, aiaPayApps, subcontractors,
+    projects, cois, permits, submittals, aiaPayApps, subcontractors, invoices,
   } = useProjects();
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
-  const documents = useMemo<ProjectDocument[]>(() => {
+  const documents = useMemo<DocRow[]>(() => {
     const projectById = new Map(projects.map(p => [p.id, p.name]));
+    // The DERIVED status, never the stored one: nothing writes 'overdue' (it
+    // is computed from dueDate), and a stored 'paid' is distrusted once
+    // released retention reopens a balance. Reading i.status here meant a
+    // past-due pay app never read 'Overdue' and could say 'Paid' while the
+    // Invoice screen showed money still owed.
+    const invoiceStatusById = new Map(invoices.map(i => [i.id, getEffectiveInvoiceStatus(i)]));
+    const today = todayCalendarDay();
     // Subcontractor display name = companyName (DBA), with legalName as a
     // fallback for entries that haven't filled DBA in yet.
     const subById = new Map(subcontractors.map(s => [s.id, s.companyName || s.legalName || s.contactName]));
-    const out: ProjectDocument[] = [];
+    const out: DocRow[] = [];
 
     // COIs — one per sub. Status derives from the validation result and
-    // the earliest expiration in the coverages array. Empty validation
-    // means "uploaded but not yet validated."
+    // the earliest CONFIRMED coverage expiry (coiDocStatus above). Empty
+    // validation means "uploaded but not yet checked". The expiry is read as
+    // a calendar day: `new Date('2026-09-04')` is UTC midnight, which flipped
+    // a COI to expired the evening before its last covered day west of UTC.
     for (const c of cois) {
-      const earliestExpiration = (c.coverages ?? [])
-        .map(cov => cov.expiresAt)
+      const expiryDay = (c.coverages ?? [])
+        .map(cov => calendarDayOf(cov.expiresAt ?? null))
         .filter((d): d is string => !!d)
-        .sort()[0];
-      const expired = earliestExpiration && new Date(earliestExpiration).getTime() < Date.now();
-      let status: DocumentStatus = 'pending_signature';
-      if (expired) status = 'expired';
-      else if (c.validation?.overallStatus === 'pass') status = 'signed';
-      else if (c.uploadedAt) status = 'draft';
+        .sort()[0] ?? null;
+      const status = coiDocStatus(c.validation, expiryDay, today);
+      const expiryAt = expiryDay ? parseCalendarDay(expiryDay) : null;
       // Resolve the sub's name from the subcontractors collection — pre-fix
       // we showed the first 8 chars of the UUID (e.g. "COI · 9f2c1aab"),
       // which the GC could not visually reconcile with their roster. Fall
@@ -143,8 +227,7 @@ export default function DocumentsScreen() {
         title: `COI · ${subLabel}`,
         status,
         createdAt: c.uploadedAt ?? new Date().toISOString(),
-        expiresAt: earliestExpiration,
-        signedAt: c.uploadedAt,
+        expiresAt: expiryAt ? expiryAt.toISOString() : undefined,
       });
     }
 
@@ -161,12 +244,14 @@ export default function DocumentsScreen() {
       const appliedAt = p.appliedDate ? (parseCalendarDay(p.appliedDate) ?? new Date(p.appliedDate)) : null;
       const expiresAt = p.expiresDate ? (parseCalendarDay(p.expiresDate) ?? new Date(p.expiresDate)) : null;
       const expired = !!expiresAt && Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now();
-      const status: DocumentStatus = expired ? 'expired'
-        : p.status === 'approved' ? 'signed'
-        : p.status === 'inspection_passed' ? 'signed'
-        : p.status === 'denied' ? 'void'
-        : p.status === 'expired' ? 'expired'
-        : 'pending_signature';
+      // Permits are approved or passed, never 'Signed'.
+      const status: DocRowStatus = expired || p.status === 'expired' ? { bucket: 'expired', label: 'Expired', tone: 'danger' }
+        : p.status === 'approved' ? { bucket: 'done', label: 'Approved', tone: 'success' }
+        : p.status === 'inspection_passed' ? { bucket: 'done', label: 'Inspection passed', tone: 'success' }
+        : p.status === 'denied' ? { bucket: 'void', label: 'Denied', tone: 'muted' }
+        : p.status === 'inspection_failed' ? { bucket: 'awaiting', label: 'Inspection failed', tone: 'danger' }
+        : p.status === 'inspection_scheduled' ? { bucket: 'awaiting', label: 'Inspection scheduled', tone: 'warning' }
+        : { bucket: 'awaiting', label: 'Pending', tone: 'warning' };
       out.push({
         id: 'permit-' + p.id,
         projectId: p.projectId,
@@ -182,10 +267,12 @@ export default function DocumentsScreen() {
 
     // Submittals
     for (const s of submittals) {
-      const status: DocumentStatus = s.currentStatus === 'approved' ? 'signed'
-        : s.currentStatus === 'rejected' ? 'void'
-        : s.currentStatus === 'pending' ? 'draft'
-        : 'pending_signature';
+      const status: DocRowStatus = s.currentStatus === 'approved' ? { bucket: 'done', label: 'Approved', tone: 'success' }
+        : s.currentStatus === 'approved_as_noted' ? { bucket: 'done', label: 'Approved as noted', tone: 'success' }
+        : s.currentStatus === 'rejected' ? { bucket: 'void', label: 'Rejected', tone: 'muted' }
+        : s.currentStatus === 'revise_resubmit' ? { bucket: 'awaiting', label: 'Revise & resubmit', tone: 'warning' }
+        : s.currentStatus === 'pending' ? { bucket: 'draft', label: 'Pending', tone: 'neutral' }
+        : { bucket: 'awaiting', label: 'In review', tone: 'warning' };
       out.push({
         id: 'submittal-' + s.id,
         projectId: s.projectId,
@@ -198,7 +285,10 @@ export default function DocumentsScreen() {
       });
     }
 
-    // AIA pay apps — count as billing documents
+    // AIA pay apps — count as billing documents. Status from the paid stamp,
+    // the linked invoice and the portal send state (payAppDocStatus above);
+    // this was a hard-coded 'signed' on every one, saved-and-never-sent
+    // included.
     for (const a of aiaPayApps) {
       out.push({
         id: 'aia-' + a.id,
@@ -206,7 +296,7 @@ export default function DocumentsScreen() {
         projectName: projectById.get(a.projectId) ?? a.projectName,
         type: 'aia_billing',
         title: `AIA G702 · App #${a.applicationNumber}`,
-        status: 'signed',
+        status: payAppDocStatus(a.paidAt, a.invoiceId ? invoiceStatusById.get(a.invoiceId) : undefined, a.portalState),
         createdAt: a.applicationDate ?? a.savedAt ?? new Date().toISOString(),
         notes: a.payLinkUrl ? 'Pay link active' : undefined,
       });
@@ -214,9 +304,9 @@ export default function DocumentsScreen() {
 
     // Newest first
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [projects, cois, permits, submittals, aiaPayApps, subcontractors]);
+  }, [projects, cois, permits, submittals, aiaPayApps, subcontractors, invoices]);
 
-  const handleDocPress = useCallback((doc: ProjectDocument) => {
+  const handleDocPress = useCallback((doc: DocRow) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Route to the document's home screen so the user can see / edit /
     // sign there. The aggregator screen stays read-only. COI vault and
@@ -237,30 +327,46 @@ export default function DocumentsScreen() {
     } else router.push(`/project-detail?id=${doc.projectId}` as never);
   }, [router, aiaPayApps]);
 
-  const filters = [
+  // Chip names say what is in the bucket. 'Signed' used to hold approved
+  // permits and every pay app, none of which anybody signed.
+  const filters: { id: 'all' | DocBucket; label: string }[] = [
     { id: 'all', label: 'All' },
-    { id: 'pending_signature', label: 'Awaiting' },
-    { id: 'draft', label: 'Drafts' },
-    { id: 'signed', label: 'Signed' },
+    { id: 'at_risk', label: 'At risk' },
+    { id: 'awaiting', label: 'Waiting' },
+    { id: 'draft', label: 'Saved' },
+    { id: 'done', label: 'Done' },
     { id: 'expired', label: 'Expired' },
   ];
 
   const filtered = useMemo(() => {
     if (selectedFilter === 'all') return documents;
-    return documents.filter(d => d.status === selectedFilter);
+    return documents.filter(d => d.status.bucket === selectedFilter);
   }, [documents, selectedFilter]);
 
-  const stats = useMemo(() => ({
-    total: documents.length,
-    pending: documents.filter(d => d.status === 'pending_signature').length,
-    signed: documents.filter(d => d.status === 'signed').length,
-    expired: documents.filter(d => d.status === 'expired').length,
-    expiringSoon: documents.filter(d => {
-      if (!d.expiresAt || d.status !== 'signed') return false;
-      const diff = new Date(d.expiresAt).getTime() - Date.now();
-      return diff > 0 && diff < 30 * 86400000;
-    }).length,
-  }), [documents]);
+  const stats = useMemo(() => {
+    const nowMs = Date.now();
+    const coiRisk = documents.filter(d => d.type === 'coi' && d.status.bucket === 'at_risk');
+    return {
+      total: documents.length,
+      pending: documents.filter(d => d.status.bucket === 'awaiting').length,
+      done: documents.filter(d => d.status.bucket === 'done').length,
+      expired: documents.filter(d => d.status.bucket === 'expired').length,
+      coiFailed: coiRisk.filter(d => d.status.label === 'Failed check').length,
+      coiReview: coiRisk.filter(d => d.status.label === 'Needs review').length,
+      expiringSoon: documents.filter(d => isExpiringSoon(d, nowMs)).length,
+    };
+  }, [documents]);
+
+  // Files he uploaded and Scan Anything filed live in each project's Files,
+  // not in this feed. Searching 'files' used to land here with no way there.
+  const fileProjects = useMemo(
+    () => projects.filter(p => p.status !== 'closed').slice(0, 6),
+    [projects],
+  );
+  const openProjectFiles = useCallback((projectId: string) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push({ pathname: '/project-files', params: { projectId } } as never);
+  }, [router]);
 
   // The original Edit / Resend / status-detail handler was removed when
   // this screen converted from MOCK to a read-only aggregator. Tapping a
@@ -280,17 +386,41 @@ export default function DocumentsScreen() {
             <FileText size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.docsHeroTitle}>Documents</Text>
+          {/* No contracts here: contracts are not aggregated into this feed,
+              so the old 'Every contract, …' promise was false (#161). */}
           <Text style={styles.docsHeroSub}>
-            Every contract, COI, permit, submittal, and pay-app across your projects — in one feed. Tap any card to open it where it lives.
+            Your COIs, permits, submittals and AIA pay apps across your projects — in one feed. Tap any card to open it where it lives.
           </Text>
         </View>
         <View style={styles.alertsRow}>
+          {stats.coiFailed + stats.coiReview > 0 && (
+            <TouchableOpacity
+              style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}
+              onPress={() => router.push('/coi-vault' as never)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Open the COI Vault"
+              testID="documents-coi-risk"
+            >
+              <ShieldAlert size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>
+                  {[
+                    stats.coiFailed > 0 ? `${stats.coiFailed} COI${stats.coiFailed === 1 ? '' : 's'} failed the insurance check` : null,
+                    stats.coiReview > 0 ? `${stats.coiReview} need${stats.coiReview === 1 ? 's' : ''} review` : null,
+                  ].filter(Boolean).join(' · ')}
+                </Text>
+                <Text style={styles.alertDesc}>Open the COI Vault to see what is missing before the sub is on site</Text>
+              </View>
+              <ChevronRight size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            </TouchableOpacity>
+          )}
           {stats.pending > 0 && (
             <View style={[styles.alertCard, { backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]}>
-              <PenTool size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
+              <Clock size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: themeColors.warningLabel }]}>{stats.pending} Awaiting Signature</Text>
-                <Text style={styles.alertDesc}>Documents need attention</Text>
+                <Text style={[styles.alertTitle, { color: themeColors.warningLabel }]}>{stats.pending} Waiting</Text>
+                <Text style={styles.alertDesc}>On a review, an inspection or a payment</Text>
               </View>
             </View>
           )}
@@ -299,7 +429,7 @@ export default function DocumentsScreen() {
               <AlertCircle size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>{stats.expiringSoon} Expiring Soon</Text>
-                <Text style={styles.alertDesc}>COIs expiring within 30 days</Text>
+                <Text style={styles.alertDesc}>COIs and permits expiring within 30 days</Text>
               </View>
             </View>
           )}
@@ -312,11 +442,11 @@ export default function DocumentsScreen() {
           </View>
           <View style={styles.statCard}>
             <Text style={[styles.statValue, { color: themeColors.warningLabel }]}>{stats.pending}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
+            <Text style={styles.statLabel}>Waiting</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: themeColors.success }]}>{stats.signed}</Text>
-            <Text style={styles.statLabel}>Signed</Text>
+            <Text style={[styles.statValue, { color: themeColors.success }]}>{stats.done}</Text>
+            <Text style={styles.statLabel}>Done</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={[styles.statValue, { color: themeColors.dangerLabel }]}>{stats.expired}</Text>
@@ -327,6 +457,32 @@ export default function DocumentsScreen() {
         {/* "Create Document" CTA removed when this screen converted to a
             read-only aggregator. Each document type has its own home
             screen with its own create flow (coi-vault, permits, etc.). */}
+
+        {fileProjects.length > 0 && (
+          <View style={styles.filesCard} testID="documents-project-files">
+            <View style={styles.filesHead}>
+              <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.filesTitle}>Uploaded files and scans</Text>
+            </View>
+            <Text style={styles.filesBody}>
+              Files you upload and documents Scan Anything files are kept in each project&apos;s Files, not in this feed.
+            </Text>
+            <View style={styles.filesList}>
+              {fileProjects.map(p => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.filesRow}
+                  onPress={() => openProjectFiles(p.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open files for ${p.name}`}
+                >
+                  <Text style={styles.filesRowText} numberOfLines={1}>{p.name}</Text>
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         <ScrollView
           horizontal
@@ -453,6 +609,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     elevation: 3,
   },
   createButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
+  filesCard: {
+    marginHorizontal: 16, marginBottom: 16, padding: 14, gap: 8,
+    borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+  },
+  filesHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  filesTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  filesBody: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
+  filesList: { gap: 2 },
+  filesRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
+  },
+  filesRowText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, marginRight: 8 },
   filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
   filterChip: {
     paddingHorizontal: 16,

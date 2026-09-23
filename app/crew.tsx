@@ -1,16 +1,18 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { CraneSvg } from '@/components/CraneLoader';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useFocusEffect } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, X, ChevronLeft, ChevronRight, IdCard, ShieldCheck,
   UserCheck, ScanLine, Send, Trash2, Camera, Image as ImageIcon, Check,
+  AlertTriangle, Pencil,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -27,11 +29,15 @@ import type { CrewMember, IdDocumentType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
-import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified, type CertExpiryStatus } from '@/utils/crew';
+import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified } from '@/utils/crew';
+import { idExpiredLabel, crewCertRowStatus, type CrewCertRowStatus } from '@/utils/crew/verifiedBadge';
 import { scanGovernmentId, sendClaimInvite, type IdScanResult } from '@/utils/crewScan';
-import { uploadWorkerIdImage } from '@/utils/storage';
+import { uploadWorkerIdImage, deleteStorageFile } from '@/utils/storage';
+import { todayCalendarDay } from '@/utils/calendarDate';
+import { HIRE_ENABLED } from '@/contexts/HireContext';
+import { edgeErrorCode } from '@/utils/edgeError';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
-import { showAlert } from '@/utils/alert';
+import { showAlert, type AlertButton } from '@/utils/alert';
 
 export default function CrewScreen() {
   const router = useRouter();
@@ -48,6 +54,18 @@ export default function CrewScreen() {
     () => (userId ? crewMembers.filter(m => m.claimedByUserId === userId) : []),
     [crewMembers, userId],
   );
+
+  // Re-read the roster every time Crew gains focus (#70). CrewProvider lives
+  // at the app root with no refetch-on-focus on native, so the GC's copy could
+  // be hours old — a claim made on the worker's phone, or an ID scanned on the
+  // GC's other device, was invisible here, and the next edit was made against
+  // the stale copy. (The server now pins claim state and older ID scans on
+  // every write — 20260923160000 — so this is about what he SEES before he
+  // acts, not the last line of defence.)
+  const queryClient = useQueryClient();
+  useFocusEffect(useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['crew_members'] });
+  }, [queryClient]));
 
   if (!canAccess('crew_management')) {
     if (claimedSelf.length > 0) {
@@ -70,7 +88,20 @@ export default function CrewScreen() {
 // (phone, email, trades, visibility). GC-owned compliance fields (ID
 // verification, claim state) are read-only here and are frozen server-side by
 // crew_freeze_ownership_columns, so any stray write can never persist.
-function ClaimedWorkerSelfView({ members }: { members: CrewMember[] }) {
+//
+// Exported (#74): app/claim-crew.tsx renders it inline on success. /crew is
+// behind the persona gate, so a brand-new worker sent here after claiming was
+// bounced into contractor setup and never found the profile he'd just been
+// told he could edit. `embedded` skips this route's header title; `header` /
+// `footer` render inside the same scroll.
+export function ClaimedWorkerSelfView({
+  members, embedded = false, header, footer,
+}: {
+  members: CrewMember[];
+  embedded?: boolean;
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -85,11 +116,13 @@ function ClaimedWorkerSelfView({ members }: { members: CrewMember[] }) {
           this route in app/_layout.tsx) already prints the screen name, so an
           in-page copy of it rendered the same word twice, stacked. The title
           belongs to the header; the body starts with content. */}
-      <Stack.Screen options={{ title: 'My Profile' }} />
+      {!embedded && <Stack.Screen options={{ title: 'My Profile' }} />}
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+        {header}
         {members.map(m => (
           <SelfEditCard key={m.id} member={m} onSave={updateCrewMember} styles={styles} themeColors={themeColors} />
         ))}
+        {footer}
       </ScrollView>
     </View>
   );
@@ -124,12 +157,7 @@ function SelfEditCard({
       <View>
         <Text style={styles.crewName}>{member.fullName}</Text>
         <View style={styles.chipRow}>
-          {verifiedBadge(member) === 'id_verified' && (
-            <View style={styles.verifiedChip}>
-              <ShieldCheck size={12} color={themeColors.accent} strokeWidth={2} />
-              <Text style={styles.verifiedChipText}>ID Verified</Text>
-            </View>
-          )}
+          <IdBadgeChip member={member} styles={styles} themeColors={themeColors} />
           <View style={styles.claimedChip}>
             <UserCheck size={12} color={themeColors.success} strokeWidth={2} />
             <Text style={styles.claimedChipText}>Claimed</Text>
@@ -149,7 +177,14 @@ function SelfEditCard({
       <View style={styles.retainRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.retainLabel}>Show me for hire</Text>
-          <Text style={styles.retainHelp}>Controls whether your profile can appear in the hiring marketplace.</Text>
+          {/* #170: HIRE_ENABLED is off, so no contractor can find anyone yet.
+              The switch stays — is_public is exactly what surfacing reads the
+              day the flag flips — but it must not read as live. */}
+          <Text style={styles.retainHelp}>
+            {HIRE_ENABLED
+              ? 'Controls whether your profile can appear in the hiring marketplace.'
+              : 'Direct Hire isn\u2019t live yet. Turn this on to be listed when it opens.'}
+          </Text>
         </View>
         <Switch
           value={isPublic}
@@ -164,6 +199,36 @@ function SelfEditCard({
       </TouchableOpacity>
     </View>
   );
+}
+
+/** The ID chip on a roster card and on the worker's own profile (#165):
+ *  green "ID Verified", a warning "ID expired <date>" once the ID's own expiry
+ *  has passed, or nothing when there is no confirmed scan. */
+function IdBadgeChip({
+  member, styles, themeColors,
+}: {
+  member: CrewMember;
+  styles: ReturnType<typeof makeStyles>;
+  themeColors: ThemeColors;
+}) {
+  const badge = verifiedBadge(member, todayCalendarDay());
+  if (badge === 'id_verified') {
+    return (
+      <View style={styles.verifiedChip}>
+        <ShieldCheck size={12} color={themeColors.accent} strokeWidth={2} />
+        <Text style={styles.verifiedChipText}>ID Verified</Text>
+      </View>
+    );
+  }
+  if (badge === 'id_expired') {
+    return (
+      <View style={styles.expiredChip}>
+        <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />
+        <Text style={styles.expiredChipText}>{idExpiredLabel(member.idExpiry)}</Text>
+      </View>
+    );
+  }
+  return null;
 }
 
 function CrewScreenInner() {
@@ -204,6 +269,71 @@ function CrewScreenInner() {
 
   const member = useMemo(() => (detailId ? getCrewMember(detailId) : null), [detailId, getCrewMember]);
 
+  // Active first, inactive last (#71): an inactive worker stays on the roster
+  // (his certs, shifts and claim are kept) but out of the way. Stable sort —
+  // newest-first order holds inside each group.
+  const sortedMembers = useMemo(
+    () => [...crewMembers].sort((a, b) => (a.status === 'inactive' ? 1 : 0) - (b.status === 'inactive' ? 1 : 0)),
+    [crewMembers],
+  );
+
+  // ── Edit details (#71) ─────────────────────────────────────────────────
+  // There was no way to change a worker's name, trades, phone or email once
+  // he was added, so "Invite to claim" said "Add an email" with nowhere to
+  // add one. The editor is seeded from the member each time it opens, and
+  // closes whenever a different member is opened.
+  const [editOpen, setEditOpen] = useState(false);
+  const [focusEmail, setFocusEmail] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editTrades, setEditTrades] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  useEffect(() => { setEditOpen(false); setFocusEmail(false); }, [detailId]);
+
+  // Once he has claimed his profile, phone / email / trades are HIS
+  // (SelfEditCard), and the server keeps them from the owner's write
+  // (20260923160000). Locked here with the reason, instead of letting the GC
+  // type into fields that won't save. The GC's own self-claimed row is not
+  // locked — he is that worker.
+  const contactLocked = !!member?.claimedByUserId && member.claimedByUserId !== auth.user?.id;
+
+  const openEditor = useCallback((focusOnEmail: boolean) => {
+    if (!member) return;
+    setEditName(member.fullName);
+    setEditTrades(member.trades.join(', '));
+    setEditPhone(member.phone ?? '');
+    setEditEmail(member.email ?? '');
+    setFocusEmail(focusOnEmail);
+    setEditOpen(true);
+  }, [member]);
+
+  const handleSaveDetails = useCallback(() => {
+    if (!member) return;
+    const name = editName.trim();
+    if (!name) { showAlert('Name required'); return; }
+    const mail = editEmail.trim();
+    if (!contactLocked && mail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) {
+      showAlert('Check the email', `"${mail}" isn't a complete email address.`);
+      return;
+    }
+    const changes: Partial<CrewMember> = { fullName: name };
+    if (!contactLocked) {
+      changes.trades = editTrades.split(',').map(t => t.trim()).filter(Boolean);
+      changes.phone = editPhone.trim() || undefined;
+      changes.email = mail || undefined;
+    }
+    updateCrewMember(member.id, changes);
+    setEditOpen(false);
+    setFocusEmail(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [member, editName, editTrades, editPhone, editEmail, contactLocked, updateCrewMember]);
+
+  const handleSetActive = useCallback((active: boolean) => {
+    if (!member) return;
+    updateCrewMember(member.id, { status: active ? 'active' : 'inactive' });
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [member, updateCrewMember]);
+
   // Fully reset the sub-flow and purge any raw ID material from memory.
   const closeScan = useCallback(() => {
     setScanStage('closed');
@@ -242,10 +372,22 @@ function CrewScreenInner() {
       setScanFields(fields);
       setScanStage('review');
     } catch (e) {
-      showAlert('Scan failed', e instanceof Error ? e.message : 'Try a clearer, well-lit photo.');
+      // CONTRACT 26 (#124): the server's own sentence, and a cap or a plan
+      // gate goes to the plans page — "try again" would be refused again.
+      const code = edgeErrorCode(e);
+      const message = e instanceof Error && e.message ? e.message : 'Try a clearer, well-lit photo.';
+      if (code === 'monthly_cap_reached' || code === 'tier_required') {
+        closeScan();
+        showAlert(code === 'tier_required' ? 'Not on your plan' : 'Scan limit reached', message, [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'See plans', onPress: () => router.push('/paywall') },
+        ]);
+        return;
+      }
+      showAlert('Scan failed', message);
       setScanStage('capture');
     }
-  }, [subscription]);
+  }, [subscription, closeScan, router]);
 
   const handleTakeIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -282,13 +424,26 @@ function CrewScreenInner() {
     const { user } = auth; // useAuth()
     // Derive the masked last-4 ONCE from the raw number, then never persist raw.
     const maskedLast4 = maskIdLast4(scanFields.idNumberFull);
-    const verified = computeIdVerified({ scanCompleted: true, userConfirmed: true });
+    // #166: a scan that read no number used to save idVerified:true with an
+    // empty mask — the sheet closed on a success haptic and the badge still
+    // said "not verified". Save is disabled with the reason on screen; this
+    // is the belt to that brace, and the flag can never disagree with it.
+    if (!maskedLast4) return;
+    const verified = computeIdVerified({ scanCompleted: true, userConfirmed: true }) && !!maskedLast4;
+    const target = getCrewMember(scanTargetId);
+    const previousImage = target?.idImagePath;
     let idImagePath: string | undefined;
-    if (retainImage && capturedUri && user?.id) {
+    let imageNotKept = false;
+    if (retainImage && Platform.OS !== 'web' && capturedUri && user?.id) {
       // Opt-in retain: uploads to the private worker-ids bucket, returns a PATH.
       idImagePath = (await uploadWorkerIdImage(user.id, scanTargetId, capturedUri)) ?? undefined;
+      imageNotKept = !idImagePath;
     }
+    // #166: the name he corrected on the review step is written back (it
+    // was dropped). A blank field keeps the roster name — full_name is NOT NULL.
+    const fullName = scanFields.fullName.trim() || target?.fullName;
     updateCrewMember(scanTargetId, {
+      ...(fullName ? { fullName } : {}),
       idVerified: verified,
       idType: scanFields.idType,
       idMaskedLast4: maskedLast4,
@@ -297,11 +452,54 @@ function CrewScreenInner() {
       idScannedAt: new Date().toISOString(),
       idImagePath, // undefined on the default purge path — raw image never uploaded
     });
+    // A re-scan replaces the ID record (#165). A photo kept from the earlier
+    // scan would be left in worker-ids pointing at nothing — delete it. Paths
+    // are timestamped, so the new upload is never the old path.
+    if (previousImage && previousImage !== idImagePath) void deleteStorageFile('worker-ids', previousImage);
     // Purge the in-memory raw number/image — never persisted.
     setCapturedUri(null); setScanFields(null);
     setScanStage('closed'); setConsentChecked(false); setRetainImage(false); setScanTargetId(null);
+    if (imageNotKept) {
+      // He chose to keep the photo and it didn't upload. Say so, and no
+      // success haptic for a save that didn't do what he asked.
+      showAlert(
+        'ID photo not kept',
+        'It couldn\u2019t upload (no connection?). Only the masked number and expiry were saved. Scan again with signal to keep the photo.',
+      );
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [scanTargetId, scanFields, retainImage, capturedUri, auth, updateCrewMember]);
+  }, [scanTargetId, scanFields, retainImage, capturedUri, auth, updateCrewMember, getCrewMember]);
+
+  // Remove a wrong or outdated scan without deleting the worker (#165).
+  const handleClearId = useCallback(() => {
+    if (!member) return;
+    showAlert('Remove ID', `Remove the scanned ID from ${member.fullName}? The masked number, expiry and any kept photo are deleted.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          const oldPath = member.idImagePath;
+          updateCrewMember(member.id, {
+            idVerified: false,
+            idType: undefined,
+            idMaskedLast4: undefined,
+            idExpiry: undefined,
+            idIssuer: undefined,
+            idImagePath: undefined,
+            // A fresh stamp, not a blank one: the server lets the ID fields
+            // change only with a NEWER scan time (20260923160000) — that is
+            // what stops a stale copy erasing a real scan. The badge reads
+            // "not verified" all the same.
+            idScannedAt: new Date().toISOString(),
+          });
+          if (oldPath) void deleteStorageFile('worker-ids', oldPath);
+        },
+      },
+    ]);
+  }, [member, updateCrewMember]);
 
   const handleAdd = useCallback(() => {
     if (!fullName.trim()) { showAlert('Name required'); return; }
@@ -335,31 +533,60 @@ function CrewScreenInner() {
 
   const handleInvite = useCallback(async () => {
     if (!member) return;
-    if (!member.email) { showAlert('Email needed', 'Add an email to this crew member before inviting.'); return; }
+    if (!member.email) {
+      // #71: the alert used to send him nowhere. 'Add email' opens the
+      // editor with the email field focused.
+      showAlert('Email needed', `Add ${member.fullName}\u2019s email first \u2014 the claim link is sent there.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add email', onPress: () => openEditor(true) },
+      ]);
+      return;
+    }
     const token = startClaimInvite(member.id);
     if (!token) { showAlert('Could not start invite'); return; }
     try {
-      await sendClaimInvite(member.email, token);
-      showAlert('Invite sent', `${member.fullName} can now claim their profile from their email.`);
+      const { companyName } = await sendClaimInvite(member.email, token, member.id);
+      // #72: the invite now goes out in his company's name (read by the
+      // server from his own profile) — say which name the worker will see.
+      showAlert(
+        'Invite sent',
+        companyName
+          ? `${member.fullName} gets an email from ${companyName} to claim the profile.`
+          : `${member.fullName} gets an email from MAGE ID to claim the profile. Your profile has no company name yet, so it says \u201cYour contractor\u201d added them.`,
+      );
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       showAlert('Invite failed', e instanceof Error ? e.message : 'Try again.');
     }
-  }, [member, startClaimInvite]);
+  }, [member, startClaimInvite, openEditor]);
 
   const handleDelete = useCallback(() => {
     if (!member) return;
-    showAlert('Delete crew member', `Remove ${member.fullName} from your roster? Any attached ID is purged.`, [
+    // #71: Delete was the only way to take a worker who left off Clock In,
+    // and it takes his certificate links and claim with it. Offer the
+    // reversible option first.
+    const buttons: AlertButton[] = [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => { deleteCrewMember(member.id); setDetailId(null); },
-      },
-    ]);
-  }, [member, deleteCrewMember]);
+    ];
+    if (member.status !== 'inactive') {
+      buttons.push({ text: 'Mark inactive', onPress: () => handleSetActive(false) });
+    }
+    buttons.push({
+      text: 'Delete',
+      style: 'destructive',
+      onPress: () => { deleteCrewMember(member.id); setDetailId(null); },
+    });
+    showAlert(
+      'Delete crew member',
+      `Remove ${member.fullName} from your roster? Any attached ID is purged, and his certificate links${member.claimedByUserId ? ' and claimed profile' : ''} go with him. To keep his certificates and history, mark him inactive instead.`,
+      buttons,
+    );
+  }, [member, deleteCrewMember, handleSetActive]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // A LOCAL calendar day, read at render (#167). The UTC slice named
+  // tomorrow from ~8 pm Eastern and called a card expired on its last valid
+  // day — and the memo froze it for the screen's lifetime.
+  const today = todayCalendarDay();
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -414,8 +641,7 @@ function CrewScreenInner() {
             />
           </View>
         ) : (
-          crewMembers.map(m => {
-            const badge = verifiedBadge(m);
+          sortedMembers.map(m => {
             return (
               <TouchableOpacity
                 key={m.id}
@@ -431,12 +657,12 @@ function CrewScreenInner() {
                     <Text style={styles.crewTrades}>{m.trades.join(' · ')}</Text>
                   ) : null}
                   <View style={styles.chipRow}>
-                    {badge === 'id_verified' && (
-                      <View style={styles.verifiedChip}>
-                        <ShieldCheck size={12} color={themeColors.accent} strokeWidth={2} />
-                        <Text style={styles.verifiedChipText}>ID Verified</Text>
+                    <IdBadgeChip member={m} styles={styles} themeColors={themeColors} />
+                    {m.status === 'inactive' ? (
+                      <View style={styles.inactiveChip}>
+                        <Text style={styles.inactiveChipText}>Inactive</Text>
                       </View>
-                    )}
+                    ) : null}
                     {m.claimedByUserId ? (
                       <View style={styles.claimedChip}>
                         <UserCheck size={12} color={themeColors.success} strokeWidth={2} />
@@ -501,6 +727,7 @@ function CrewScreenInner() {
 
       {/* ── Member detail ───────────────────────────────────────── */}
       <Modal visible={detailId !== null} transparent animationType="slide" onRequestClose={() => setDetailId(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.modalOverlay}>
           <View style={[styles.detailCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }]}>
             {member ? (
@@ -515,39 +742,110 @@ function CrewScreenInner() {
                       <Text style={styles.detailTrades} numberOfLines={1}>{member.trades.join(' · ')}</Text>
                     ) : null}
                   </View>
-                  <View style={[styles.statusPill, member.status === 'active' ? styles.statusPillActive : styles.statusPillInactive]}>
-                    <Text style={[styles.statusPillText, { color: member.status === 'active' ? themeColors.success : themeColors.textMuted }]}>
-                      {member.status === 'active' ? 'Active' : 'Inactive'}
-                    </Text>
-                  </View>
                 </View>
 
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12, gap: 18 }} showsVerticalScrollIndicator={false}>
-                  {/* Identity */}
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12, gap: 18 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  {/* Status (#71) — the read-only pill became this switch.
+                      Time Tracking and the cert pickers already skip
+                      status 'inactive'; nothing ever set it. */}
+                  <View style={styles.retainRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.retainLabel}>{member.status === 'inactive' ? 'Inactive' : 'Active'}</Text>
+                      <Text style={styles.retainHelp}>
+                        Inactive workers drop off Clock In and cert pickers; their shifts and certs stay.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={member.status !== 'inactive'}
+                      onValueChange={handleSetActive}
+                      trackColor={{ true: themeColors.accent, false: themeColors.line }}
+                      accessibilityLabel="Active"
+                      testID="crew-active-switch"
+                    />
+                  </View>
+
+                  {/* Details (#71) */}
                   <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Identity</Text>
-                    {verifiedBadge(member) === 'id_verified' ? (
-                      <View style={styles.identityVerifiedRow}>
-                        <ShieldCheck size={16} color={themeColors.accent} strokeWidth={2} />
-                        <Text style={styles.identityVerifiedText}>
-                          ID Verified — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}
-                          {member.idExpiry ? `, exp ${member.idExpiry}` : ''}
-                        </Text>
-                      </View>
+                    <Text style={styles.sectionLabel}>Details</Text>
+                    {editOpen ? (
+                      <>
+                        <Text style={styles.fieldLabel}>Full name *</Text>
+                        <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="e.g. Maria Gonzalez" placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
+                        {contactLocked ? (
+                          <Text style={styles.lockedNote} testID="crew-contact-locked">
+                            He manages his contact details now — he claimed his profile, so his phone, email and trades are his to change.
+                          </Text>
+                        ) : null}
+                        <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
+                        <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editTrades} onChangeText={setEditTrades} editable={!contactLocked} placeholder="e.g. Electrical, Framing" placeholderTextColor={themeColors.textMuted} testID="crew-edit-trades" />
+                        <Text style={styles.fieldLabel}>Phone</Text>
+                        <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editPhone} onChangeText={setEditPhone} editable={!contactLocked} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" testID="crew-edit-phone" />
+                        <Text style={styles.fieldLabel}>Email</Text>
+                        <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editEmail} onChangeText={setEditEmail} editable={!contactLocked} autoFocus={focusEmail && !contactLocked} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" testID="crew-edit-email" />
+                        <View style={styles.formActions}>
+                          <TouchableOpacity style={styles.cancelBtn} onPress={() => { setEditOpen(false); setFocusEmail(false); }} accessibilityRole="button">
+                            <Text style={styles.cancelBtnText}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveDetails} activeOpacity={0.85} accessibilityRole="button" testID="crew-edit-save">
+                            <Text style={styles.saveBtnText}>Save details</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
                     ) : (
                       <>
-                        <Text style={styles.identityMutedText}>ID not verified</Text>
-                        <TouchableOpacity
-                          style={styles.scanBtn}
-                          onPress={() => openScan(member.id)}
-                          activeOpacity={0.85}
-                          testID="scan-id"
-                        >
-                          <ScanLine size={16} color={themeColors.accent} strokeWidth={1.75} />
-                          <Text style={styles.scanBtnText}>Scan ID</Text>
+                        <Text style={styles.detailLine}>{member.phone || 'No phone'}</Text>
+                        <Text style={styles.detailLine}>{member.email || 'No email'}</Text>
+                        <TouchableOpacity style={styles.scanBtn} onPress={() => openEditor(false)} activeOpacity={0.85} accessibilityRole="button" testID="edit-crew-details">
+                          <Pencil size={16} color={themeColors.accent} strokeWidth={1.75} />
+                          <Text style={styles.scanBtnText}>Edit details</Text>
                         </TouchableOpacity>
                       </>
                     )}
+                  </View>
+
+                  {/* Identity (#165: an ID can always be re-scanned, and an
+                      expired one says so instead of "ID Verified") */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>Identity</Text>
+                    {(() => {
+                      const badge = verifiedBadge(member, today);
+                      if (badge === 'id_verified') {
+                        return (
+                          <View style={styles.identityVerifiedRow}>
+                            <ShieldCheck size={16} color={themeColors.accent} strokeWidth={2} />
+                            <Text style={styles.identityVerifiedText}>
+                              ID Verified — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}
+                              {member.idExpiry ? `, exp ${member.idExpiry}` : ''}
+                            </Text>
+                          </View>
+                        );
+                      }
+                      if (badge === 'id_expired') {
+                        return (
+                          <View style={styles.identityExpiredRow} testID="crew-id-expired">
+                            <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={2} />
+                            <Text style={styles.identityVerifiedText}>
+                              {idExpiredLabel(member.idExpiry)} — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}. Re-scan his current ID.
+                            </Text>
+                          </View>
+                        );
+                      }
+                      return <Text style={styles.identityMutedText}>ID not verified</Text>;
+                    })()}
+                    <TouchableOpacity
+                      style={styles.scanBtn}
+                      onPress={() => openScan(member.id)}
+                      activeOpacity={0.85}
+                      testID="scan-id"
+                    >
+                      <ScanLine size={16} color={themeColors.accent} strokeWidth={1.75} />
+                      <Text style={styles.scanBtnText}>{member.idScannedAt || member.idMaskedLast4 ? 'Re-scan ID' : 'Scan ID'}</Text>
+                    </TouchableOpacity>
+                    {member.idVerified || member.idMaskedLast4 || member.idExpiry || member.idImagePath ? (
+                      <Text style={styles.clearIdLink} onPress={handleClearId} accessibilityRole="button" testID="clear-id">
+                        Remove ID
+                      </Text>
+                    ) : null}
                     <Text style={styles.disclaimer}>
                       MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.
                     </Text>
@@ -562,7 +860,7 @@ function CrewScreenInner() {
                         return <Text style={styles.emptyRowText}>No certifications on file yet.</Text>;
                       }
                       return certs.map(cert => {
-                        const status = certExpiryStatus(cert.expiresDate, today);
+                        const status = crewCertRowStatus(cert.expiresDate, certExpiryStatus(cert.expiresDate, today));
                         return (
                           <View key={cert.id} style={styles.certRow}>
                             <Text style={styles.certName} numberOfLines={1}>{cert.type}</Text>
@@ -635,6 +933,7 @@ function CrewScreenInner() {
             ) : null}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── ID-scan sub-flow (consent → capture → scanning → review) ─────── */}
@@ -775,24 +1074,52 @@ function CrewScreenInner() {
                     </View>
                   </View>
 
-                  <View style={styles.retainRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.retainLabel}>Retain original image</Text>
-                      <Text style={styles.retainHelp}>
-                        Off = we keep only the masked last 4 and expiry; the photo is discarded.
-                      </Text>
+                  {/* #166: uploadWorkerIdImage never uploads on web, so a
+                      switch there promised a photo that was never kept. */}
+                  {Platform.OS === 'web' ? (
+                    <Text style={styles.retainHelp} testID="scan-retain-web-note">
+                      Keeping the photo is iPhone-only. Here we keep only the masked last 4 and expiry; the photo is discarded.
+                    </Text>
+                  ) : (
+                    <View style={styles.retainRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.retainLabel}>Retain original image</Text>
+                        <Text style={styles.retainHelp}>
+                          Off = we keep only the masked last 4 and expiry; the photo is discarded.
+                        </Text>
+                      </View>
+                      <Switch
+                        value={retainImage}
+                        onValueChange={setRetainImage}
+                        trackColor={{ true: themeColors.accent, false: themeColors.line }}
+                        testID="scan-retain-switch"
+                      />
                     </View>
-                    <Switch
-                      value={retainImage}
-                      onValueChange={setRetainImage}
-                      trackColor={{ true: themeColors.accent, false: themeColors.line }}
-                      testID="scan-retain-switch"
-                    />
-                  </View>
+                  )}
 
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleSaveScan} activeOpacity={0.85} testID="scan-save">
-                    <Text style={styles.saveBtnText}>Save</Text>
-                  </TouchableOpacity>
+                  {(() => {
+                    // #166: no number, no save — the reason on screen.
+                    const canSave = !!maskIdLast4(scanFields.idNumberFull);
+                    return (
+                      <>
+                        {!canSave ? (
+                          <Text style={styles.scanBlockedText} testID="scan-save-blocked">
+                            We couldn’t read an ID number — retake the photo or type the number.
+                          </Text>
+                        ) : null}
+                        <TouchableOpacity
+                          style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
+                          onPress={handleSaveScan}
+                          disabled={!canSave}
+                          activeOpacity={0.85}
+                          accessibilityState={{ disabled: !canSave }}
+                          testID="scan-save"
+                        >
+                          <Text style={styles.saveBtnText}>Save</Text>
+                        </TouchableOpacity>
+                      </>
+                    );
+                  })()}
                 </ScrollView>
               ) : null}
             </View>
@@ -811,17 +1138,21 @@ const ID_TYPE_OPTIONS: { value: IdDocumentType; label: string }[] = [
 ];
 
 // Human-readable cert-expiry labels + status coloring for the crew detail view.
-const CERT_STATUS_LABEL: Record<CertExpiryStatus, string> = {
+// 'check_date' (#167): an expiry that is there but unreadable — never the grey
+// "No expiry" a missing date gets.
+const CERT_STATUS_LABEL: Record<CrewCertRowStatus, string> = {
   none: 'No expiry',
   valid: 'Valid',
   expiring: 'Expiring soon',
   expired: 'Expired',
+  check_date: 'Check date',
 };
-const CERT_STATUS_STYLE = (t: ThemeColors): Record<CertExpiryStatus, { color: string }> => ({
+const CERT_STATUS_STYLE = (t: ThemeColors): Record<CrewCertRowStatus, { color: string }> => ({
   none: { color: t.textSecondary },
   valid: { color: t.success },
   expiring: { color: t.accent },
   expired: { color: t.danger },
+  check_date: { color: t.danger },
 });
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
@@ -847,6 +1178,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.successSoft,
   },
   claimedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.success },
+  expiredChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    backgroundColor: themeColors.warningSoft,
+  },
+  expiredChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.warningLabel },
+  inactiveChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: themeColors.neutralSoft },
+  inactiveChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
 
   // Modal scaffolding
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' as const },
@@ -892,13 +1231,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   detailHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginBottom: 16 },
   detailName: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -0.3 },
   detailTrades: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 2 },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  statusPillActive: { backgroundColor: themeColors.successSoft },
-  statusPillInactive: { backgroundColor: themeColors.line },
-  statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
+  detailLine: { fontSize: Type.subhead.fontSize, color: themeColors.text },
+  lockedNote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 17 },
+  inputLocked: { opacity: 0.55 },
+  scanBlockedText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.dangerLabel },
+  clearIdLink: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.dangerLabel, textAlign: 'center' as const, paddingVertical: 6 },
   section: { gap: 8 },
   sectionLabel: { fontSize: 11, fontWeight: '800' as const, color: themeColors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
   identityVerifiedRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.md, padding: 12 },
+  identityExpiredRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: themeColors.warningSoft, borderRadius: Tokens.radius.md, padding: 12 },
   identityVerifiedText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   identityMutedText: { fontSize: Type.subhead.fontSize, color: themeColors.textMuted },
   scanBtn: {

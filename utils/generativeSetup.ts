@@ -24,6 +24,7 @@
 
 import type { Project, BidPackage, Submittal, LinkedEstimateItem } from '@/types';
 import { CSI_DIVISION_BY_NUMBER, classifyToCSIDivision } from '@/utils/csiMasterFormat';
+import { lineCost, round2 } from '@/utils/estimateMarkup';
 
 const UNCATEGORIZED = '00';
 
@@ -158,7 +159,13 @@ export function buildSetupPlan(
       skippedExistingPackages += 1;
       continue;
     }
-    const budget = items.reduce((s, it) => s + (it.lineTotal ?? 0), 0);
+    // AT COST, not sell (#11). The package budget is what a sub's price is
+    // compared against to call something "buyout savings"; summing lineTotal
+    // (cost × (1 + markup)) made a sub who bid exactly the cost read as a
+    // saving equal to the GC's own markup — and that figure reached the
+    // homeowner's estimate PDF as "Bulk Savings". The <= 0 skip runs on cost
+    // too: a division that costs nothing has nothing to buy out.
+    const budget = round2(items.reduce((s, it) => s + lineCost(it), 0));
     if (budget <= 0) continue;
     const sample = items
       .slice(0, 4)

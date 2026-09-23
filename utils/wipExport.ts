@@ -503,21 +503,36 @@ export function buildWipHtml(
   </body></html>`;
 }
 
-/** Render + share the WIP schedule as a PDF (mirrors financialReportPdf). */
+/** Render + share the WIP schedule as a PDF (mirrors financialReportPdf).
+ *
+ * THE WEB WINDOW OPENS BEFORE ANY AWAIT (audit 2026-09-23 #147). This used to
+ * `await import(...)` expo-print, expo-sharing and react-native first and only
+ * then call window.open — after the tap's user activation could be spent, so
+ * Safari could block even an allowed pop-up — and a null window returned
+ * normally, so the screen said nothing. The HTML is built first (buildWipHtml
+ * is synchronous), then react-native and utils/platformFile are loaded with a
+ * SYNCHRONOUS require: a top-level import would crash the bun validators that
+ * import this file's pure builders (see the NOTE at the top), and a dynamic
+ * import is an await. openPrintWindowOrThrow throws PRINT_WINDOW_BLOCKED_MESSAGE
+ * on a blocked window and prints once the images have settled; the screen
+ * passes the throw through pdfFailureMessage. expo-print / expo-sharing are
+ * loaded on the native branch only. */
 export async function shareWipPeriodPdf(
   period: WipPeriodWithSources,
   companyName: string,
   liveAsOf?: string,
 ): Promise<void> {
-  const Print = await import('expo-print');
-  const Sharing = await import('expo-sharing');
-  const { Platform } = await import('react-native');
   const html = buildWipHtml(period, companyName, liveAsOf);
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Platform } = require('react-native') as typeof import('react-native');
   if (Platform.OS === 'web') {
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { openPrintWindowOrThrow } = require('@/utils/platformFile') as typeof import('@/utils/platformFile');
+    openPrintWindowOrThrow(html);
     return;
   }
+  const Print = await import('expo-print');
+  const Sharing = await import('expo-sharing');
   const { uri } = await Print.printToFileAsync({ html, base64: false });
   const canShare = await Sharing.isAvailableAsync();
   if (canShare) {

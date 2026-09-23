@@ -138,6 +138,24 @@ console.log('\n  3. no setup, no money → no figure');
     cashBalanceTone(1) === 'success' && cashBalanceTone(0) === 'muted' && cashBalanceTone(null) === 'muted');
 }
 
+// ── 3b. the income line names the job (wave 5, #108) ─────────────────────
+console.log('\n  3b. an invoice line says which job the money is from');
+{
+  const inv = {
+    id: 'i2', projectId: 'p1', number: 12, type: 'full', status: 'sent',
+    issueDate: daysFromToday(-1).toISOString(), dueDate: daysFromToday(2).toISOString(),
+    paymentTerms: 'net_30', notes: '', lineItems: [], subtotal: 9_000, taxRate: 0, taxAmount: 0,
+    totalDue: 9_000, amountPaid: 0, payments: [],
+    createdAt: today.toISOString(), updatedAt: today.toISOString(),
+  } as unknown as Invoice;
+  const weeks = forecastFromInputs(buildForecastInputs({
+    cashData, invoices: [inv], commitments: [], projects: [project], changeOrders: [],
+  }), 12);
+  const descs = weeks.flatMap(w => w.incomeItems.map(i => i.description));
+  check('the line reads "Henderson · Invoice #12"', descs.includes('Henderson · Invoice #12'), descs.join(' | '));
+  check('...and carries no id fragment or N/A', !descs.some(d => d.includes('(p1') || d.includes('N/A')));
+}
+
 // ── 4. wiring ──────────────────────────────────────────────────────────────
 console.log('\n  4. both screens use the shared path');
 {

@@ -7,6 +7,7 @@
 // row with the actual product the architect specified.
 
 import { supabase } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 import type { SpecMatchResult, SpecEntry, TakeoffResult } from '@/types';
 
 export type SpecModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
@@ -52,7 +53,10 @@ export async function analyzeSpecBook(opts: AnalyzeSpecOpts): Promise<AnalyzeSpe
     usage?: { used: number; cap: number };
     error?: string;
   }>('analyze-spec-book', { body: opts });
-  if (error) throw new Error(`Spec book call failed: ${error.message}`);
+  // The function's own sentence and code (a monthly cap, the hourly limit, a
+  // plan refusal), not "Edge Function returned a non-2xx status code" — read
+  // once, through utils/edgeError (audit #124, CONTRACT 26).
+  if (error) throw await edgeFunctionError(error, 'Spec book analysis failed');
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Spec book returned an empty result.');
   }
@@ -163,7 +167,10 @@ export async function extractSubmittalsFromSpecBook(opts: ExtractSubmittalsOpts)
   }>('analyze-spec-book', {
     body: { ...opts, task: 'submittals' },
   });
-  if (error) throw new Error(`Spec book submittals call failed: ${error.message}`);
+  // The function's own sentence and code (a monthly cap, the hourly limit, a
+  // plan refusal), not "Edge Function returned a non-2xx status code" — read
+  // once, through utils/edgeError (audit #124, CONTRACT 26).
+  if (error) throw await edgeFunctionError(error, 'Spec book analysis failed');
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Spec book submittals returned empty.');
   }

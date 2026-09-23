@@ -48,6 +48,7 @@ import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 
 // Gemini occasionally swaps shapes — returning strings where objects are expected
 // or vice versa. These preprocess coercers normalize the payload so the UI never
@@ -290,6 +291,23 @@ function CashFlowScreenInner() {
     return allCommitments;
   }, [projectId, allCommitments, getCommitmentsForProject]);
 
+  // ONE list of the expected payments this view counts (#21), used by the
+  // forecast, the empty-forecast diagnosis, the Total Pending header, the
+  // Sources count and the income list alike. In a job's view only the rows
+  // stamped with that job count: job B's promised check was showing up as
+  // income in job A's weeks. Rows added from the company screen carry no
+  // projectId, so they belong to no job and stay out of every job's view —
+  // counted under their own note below, never silently as this job's money.
+  const allExpectedPayments = useMemo(() => cashFlowData?.expectedPayments ?? [], [cashFlowData?.expectedPayments]);
+  const relevantExpectedPayments = useMemo(
+    () => (projectId ? allExpectedPayments.filter(ep => ep.projectId === projectId) : allExpectedPayments),
+    [projectId, allExpectedPayments],
+  );
+  const companyWidePaymentsLeftOut = useMemo(
+    () => (projectId ? allExpectedPayments.filter(ep => !ep.projectId) : []),
+    [projectId, allExpectedPayments],
+  );
+
   // Everything the forecast is made of, assembled in ONE place the home tab's
   // CASH · 4WK tile also uses (audit round 2, #17): the stored balance plus the
   // payments recorded since it was set, the typed expenses plus the rows
@@ -298,13 +316,20 @@ function CashFlowScreenInner() {
   // whatever the GC had typed in, which tilts every week toward solvency — see
   // the long note on buildCommittedOutflows for how a hand-typed duplicate is
   // prevented and why undated money is reported instead of guessed at.
+  //
+  // The BALANCE is always the company's (#21): the hero says "Company
+  // Balance", so every payment recorded since the balance was set moves it,
+  // whichever job it came from — allInvoices in both modes. Income stays
+  // scoped to the job through `invoices` and `expectedPayments`.
   const forecastInputs = useMemo(() => buildForecastInputs({
     cashData: cashFlowData,
     invoices: relevantInvoices,
     commitments: relevantCommitments,
     projects,
     changeOrders: relevantChangeOrders,
-  }), [cashFlowData, relevantInvoices, relevantCommitments, projects, relevantChangeOrders]);
+    balanceInvoices: allInvoices,
+    expectedPayments: relevantExpectedPayments,
+  }), [cashFlowData, relevantInvoices, relevantCommitments, projects, relevantChangeOrders, allInvoices, relevantExpectedPayments]);
   const effectiveStartingBalance = forecastInputs.startingBalance;
   const committed = forecastInputs.committed;
 
@@ -368,9 +393,9 @@ function CashFlowScreenInner() {
   const noForecastReason = useMemo(() => diagnoseEmptyForecast({
     undatedCommitted: committed.undated,
     expenses: cashFlowData?.expenses ?? [],
-    expectedPayments: cashFlowData?.expectedPayments ?? [],
+    expectedPayments: relevantExpectedPayments,
     invoices: relevantInvoices,
-  }), [committed.undated, cashFlowData?.expenses, cashFlowData?.expectedPayments, relevantInvoices]);
+  }), [committed.undated, cashFlowData?.expenses, relevantExpectedPayments, relevantInvoices]);
 
   // `useMemo<string>`, not an inferred return: without the annotation a
   // fall-through out of the switch below is inferred as `string | undefined`
@@ -428,27 +453,36 @@ function CashFlowScreenInner() {
 
   // Aggregate "Total Pending" across every source of expected money that hasn't landed:
   //   - unpaid invoice balances, net of held retention (MONEY-F5: invoiceOutstanding)
-  //   - manually-entered expected payments
+  //   - manually-entered expected payments (this view's — #21)
   // Approved change orders are intentionally excluded — a CO is billed through a
   // progress invoice, so its dollars already live in that invoice's totalDue.
   // Adding the standalone approved-CO amount would double-count the same money.
+  // Submitted / under-review COs are excluded too, and so is the runway now
+  // (#110): an unsigned CO is upside, shown on its own "if approved" line, so
+  // this header and the forecast agree about what is counted.
   // Used for the Expected Income header so the GC can see the real dollar figure,
   // not just a "3 pending" count.
   const totalPending = useMemo(() => {
     const invoiceTotal = relevantInvoices
       .filter(i => i.status !== 'paid')
       .reduce((sum, i) => sum + invoiceOutstanding(i), 0);
-    const expectedTotal = (cashFlowData?.expectedPayments ?? [])
+    const expectedTotal = relevantExpectedPayments
       .reduce((sum, p) => sum + (p.amount ?? 0), 0);
     return invoiceTotal + expectedTotal;
-  }, [relevantInvoices, cashFlowData?.expectedPayments]);
+  }, [relevantInvoices, relevantExpectedPayments]);
 
+  // The same sources Total Pending sums, counted — nothing else. It used to
+  // add approved COs, whose dollars the figure beside it deliberately leaves
+  // out, so "Sources 4" sat next to three sources' worth of money (#110).
   const pendingCount = useMemo(() => {
     const inv = relevantInvoices.filter(i => i.status !== 'paid').length;
-    const exp = (cashFlowData?.expectedPayments ?? []).length;
-    const co = relevantChangeOrders.filter(c => c.status === 'approved').length;
-    return inv + exp + co;
-  }, [relevantInvoices, cashFlowData?.expectedPayments, relevantChangeOrders]);
+    const exp = relevantExpectedPayments.length;
+    return inv + exp;
+  }, [relevantInvoices, relevantExpectedPayments]);
+
+  // Unsigned CO money that would land inside the horizon if approved (#110) —
+  // from the engine, which keeps it out of every balance it computes.
+  const pendingCoUpside = summary.pendingCoUpside ?? 0;
 
   const selectedWeekData = useMemo(() => {
     if (selectedWeek === null || !forecast[selectedWeek]) return null;
@@ -578,7 +612,7 @@ COMMITTED OUTFLOW (signed subcontracts and POs, remaining balance spread across 
 ${committed.scheduled.map(e => `${e.name}: ${Math.round(e.amount)}/${e.frequency}`).join('\n') || 'None'}
 ${committed.undated > 0 ? `\nNOT in the weekly numbers above: ${Math.round(committed.undated)} of committed subcontract/PO balance that could not be dated — the job has no schedule, or it is finished and nothing recorded the payment. Say so rather than treating the runway as complete, and do not call it overdue: the app cannot tell an unpaid balance from an unrecorded payment.` : ''}
 
-PENDING INVOICES:
+${(summary.pendingCoUpside ?? 0) > 0 ? `NOT in the weekly numbers above: ${Math.round(summary.pendingCoUpside ?? 0)} of submitted change orders the owner has not approved. It is upside, not income — never count it toward the balance.\n\n` : ''}PENDING INVOICES:
 ${relevantInvoices.filter(i => i.status !== 'paid').map(i => `#${i.number}: ${i.totalDue} | Sent: ${i.issueDate} | Terms: ${i.paymentTerms} | Due: ${i.dueDate}`).join('\n') || 'None pending'}
 
 Identify any weeks where the balance goes negative or dangerously low (under $5,000). For each problem, give a SPECIFIC fix — not generic advice. Reference actual invoice numbers, expense names, and dollar amounts. Suggest billing optimizations and expense reductions specific to their actual data.`,
@@ -600,7 +634,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
     } finally {
       setAiLoading(false);
     }
-  }, [forecast, hasCashMovement, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId]);
+  }, [forecast, hasCashMovement, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId, summary.pendingCoUpside]);
 
   const toggleSection = useCallback((key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -895,7 +929,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {summary.dangerWeeks.map((dw, i) => (
                 <View key={i} style={styles.dangerRow}>
                   <Text style={styles.dangerDate}>
-                    Week {dw.weekNumber} · {new Date(dw.weekDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    Week {dw.weekNumber} · {formatCalendarDay(dw.weekDate, { month: 'short', day: 'numeric' })}
                   </Text>
                   <Text style={styles.dangerBalance}>{formatCurrency(dw.balance)}</Text>
                 </View>
@@ -907,7 +941,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         {selectedWeekData && selectedWeek !== null && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
-              WEEK {selectedWeek + 1} DETAIL · {new Date(selectedWeekData.weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              WEEK {selectedWeek + 1} DETAIL · {formatCalendarDay(selectedWeekData.weekStart, { month: 'short', day: 'numeric' })}
             </Text>
             <View style={styles.weekDetailCard}>
               <View style={styles.weekDetailRow}>
@@ -937,12 +971,39 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {selectedWeekData.incomeItems.length > 0 && (
                 <View style={styles.weekItemsGroup}>
                   <Text style={styles.weekItemsLabel}>Income</Text>
-                  {selectedWeekData.incomeItems.map((item, i) => (
+                  {/* The confidence goes on every row (#110): an overdue
+                      invoice is counted, but as 'Hopeful', and the GC should
+                      see which of this week's dollars are the soft ones. */}
+                  {selectedWeekData.incomeItems.map((item, i) => {
+                    const badge = confidenceBadge(item.confidence);
+                    return (
+                      <View key={i} style={styles.weekItemRow}>
+                        <Text style={styles.weekItemName} numberOfLines={1}>{item.description}</Text>
+                        <View style={[styles.confidenceBadge, { backgroundColor: badge.bg, marginRight: 8 }]}>
+                          <Text style={[styles.confidenceBadgeText, { color: badge.text }]}>{badge.label}</Text>
+                        </View>
+                        <Text style={[styles.weekItemAmount, { color: themeColors.success }]}>+{formatCurrency(item.amount)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Unsigned change orders, listed apart from income and never in
+                  the Balance above (#110). Their week is an assumption, and the
+                  row says so. */}
+              {(selectedWeekData.pendingCoItems ?? []).length > 0 && (
+                <View style={styles.weekItemsGroup} testID="cash-flow-week-pending-cos">
+                  <Text style={styles.weekItemsLabel}>If approved — not in the balance</Text>
+                  {(selectedWeekData.pendingCoItems ?? []).map((item, i) => (
                     <View key={i} style={styles.weekItemRow}>
                       <Text style={styles.weekItemName} numberOfLines={1}>{item.description}</Text>
-                      <Text style={[styles.weekItemAmount, { color: themeColors.success }]}>+{formatCurrency(item.amount)}</Text>
+                      <Text style={[styles.weekItemAmount, { color: themeColors.textMuted }]}>+{formatCurrency(item.amount)}</Text>
                     </View>
                   ))}
+                  <Text style={styles.listNote}>
+                    Unsigned. The week assumes the owner approves within 3 weeks and pays on your default terms.
+                  </Text>
                 </View>
               )}
 
@@ -958,7 +1019,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </View>
               )}
 
-              {selectedWeekData.incomeItems.length === 0 && selectedWeekData.expenseItems.length === 0 && (
+              {selectedWeekData.incomeItems.length === 0 && selectedWeekData.expenseItems.length === 0
+                && (selectedWeekData.pendingCoItems ?? []).length === 0 && (
                 <Text style={styles.emptyWeekText}>No transactions this week</Text>
               )}
             </View>
@@ -979,6 +1041,11 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {retentionHeld > 0 && (
                 <Text style={styles.summaryItemSub}>
                   + {formatCurrencyShort(retentionHeld)} retention held to closeout
+                </Text>
+              )}
+              {pendingCoUpside > 0 && (
+                <Text style={styles.summaryItemSub} testID="cash-flow-pending-co-upside">
+                  If pending COs are approved: +{formatCurrencyShort(pendingCoUpside)} (not in the balance)
                 </Text>
               )}
             </View>
@@ -1159,7 +1226,9 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                     <View style={styles.incomeListInfo}>
                       <Text style={styles.incomeListName}>Invoice #{inv.number}</Text>
                       <Text style={styles.incomeListMeta}>
-                        Due: {new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {inv.paymentTerms?.replace('_', ' ')}
+                        {/* The day the forecast buckets it by (#20). A bare
+                            'YYYY-MM-DD' through new Date() read a day early. */}
+                        Due: {formatCalendarDay(calendarDayOf(inv.dueDate), { month: 'short', day: 'numeric' }) || 'no due date'} · {inv.paymentTerms?.replace('_', ' ')}
                       </Text>
                     </View>
                     <Text style={styles.incomeListAmount}>{formatCurrency(remaining)}</Text>
@@ -1167,7 +1236,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 );
               })}
 
-              {cashFlowData?.expectedPayments.map(ep => {
+              {relevantExpectedPayments.map(ep => {
                 const badge = confidenceBadge(ep.confidence);
                 return (
                   <View key={ep.id} style={styles.incomeListRow}>
@@ -1190,8 +1259,17 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 );
               })}
 
-              {relevantInvoices.filter(i => i.status !== 'paid').length === 0 && (!cashFlowData?.expectedPayments || cashFlowData.expectedPayments.length === 0) && (
+              {relevantInvoices.filter(i => i.status !== 'paid').length === 0 && relevantExpectedPayments.length === 0 && (
                 <Text style={styles.emptyListText}>No income expected. Add invoices or expected payments.</Text>
+              )}
+              {/* Said, not dropped (#21): payments added from the company
+                  screen belong to no job, so a job's view leaves them out. */}
+              {companyWidePaymentsLeftOut.length > 0 && (
+                <Text style={styles.listNote} testID="cash-flow-company-wide-payments">
+                  {companyWidePaymentsLeftOut.length === 1
+                    ? `1 company-wide expected payment (${formatCurrency(companyWidePaymentsLeftOut[0].amount ?? 0)}) isn't tied to a job, so it is left out of this job's forecast. It counts on the company Cash Flow screen.`
+                    : `${companyWidePaymentsLeftOut.length} company-wide expected payments (${formatCurrency(companyWidePaymentsLeftOut.reduce((s, p) => s + (p.amount ?? 0), 0))}) aren't tied to a job, so they are left out of this job's forecast. They count on the company Cash Flow screen.`}
+                </Text>
               )}
               {/* Same jsonb-blob caveat as the expense list — the expected
                   payments sync as one list, not row by row. */}

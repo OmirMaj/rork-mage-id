@@ -1,10 +1,17 @@
 // app/sub-profile.tsx — the subcontractor's own profile.
 //
 // Subs are free on MAGE, but until now an invited sub got nothing of their own:
-// they did the GC's paperwork and left. This is theirs — work history across
-// every GC who hired them, reliability they earned, a shareable credential, and
-// a referral they can hand their OTHER GCs. That's the supply-side loop:
-// Procore/Buildertrend charge subs, so subs never pull GCs onto them.
+// they did the GC's paperwork and left. This is theirs — reliability they
+// earned, a shareable credential, and a referral they can hand their OTHER GCs.
+// That's the supply-side loop: Procore/Buildertrend charge subs, so subs never
+// pull GCs onto them.
+//
+// SCOPE, SAID ON SCREEN (#113). Today the history is built from ONE ledger —
+// this signed-in workspace. Each GC's records about a sub live in that GC's
+// workspace, behind that GC's RLS, and no server fan-out reads across them yet.
+// So the screen says "this workspace" and, with nothing in it, says why, rather
+// than promising history "across every contractor" or showing zeros that read
+// like a real record.
 //
 // Boundary: utils/subNetwork emits no money field at all, and a GC's records
 // are only ever read from that GC's own ledger. Enforced by its tests.
@@ -15,7 +22,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, HardHat } from 'lucide-react-native';
+import { ChevronLeft, HardHat, Info } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -96,11 +103,31 @@ export default function SubProfileScreen() {
         contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
         showsVerticalScrollIndicator={false}
       >
-        <SubNetworkProfileView
-          profile={profile}
-          onShareCredential={(text) => void share(text)}
-          onSendReferral={(text) => void share(text)}
-        />
+        {profile.isEmpty ? (
+          <View style={styles.emptyCard} testID="sub-profile-empty">
+            <HardHat size={28} color={t.accent} strokeWidth={1.75} />
+            <Text style={styles.emptyTitle}>No work history in this workspace yet</Text>
+            <Text style={styles.emptyBody}>
+              This page reads only this MAGE ID workspace. A contractor{"\u2019"}s records about your work
+              live in their own account, so jobs you did for other contractors do not show up here — MAGE
+              ID cannot read across contractors{"\u2019"} accounts yet.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.scopeNote} testID="sub-profile-scope">
+              <Info size={14} color={t.textMuted} strokeWidth={1.75} />
+              <Text style={styles.scopeNoteText}>
+                Built from this workspace only. Jobs you did for contractors in their own MAGE ID accounts are not included.
+              </Text>
+            </View>
+            <SubNetworkProfileView
+              profile={profile}
+              onShareCredential={(text) => void share(text)}
+              onSendReferral={(text) => void share(text)}
+            />
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -123,4 +150,15 @@ const makeStyles = (t: ThemeColors) =>
     headerTitle: { ...Type.serifHeadline, color: t.text, flexShrink: 1 },
     scroll: { paddingVertical: Tokens.spacing.md, paddingBottom: 40 },
     scrollDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center', paddingHorizontal: 24 },
+    emptyCard: {
+      margin: Tokens.spacing.md, padding: 24, alignItems: 'center', gap: 10,
+      borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+    },
+    emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, textAlign: 'center' },
+    emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 360 },
+    scopeNote: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+      marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm,
+    },
+    scopeNoteText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16 },
   });

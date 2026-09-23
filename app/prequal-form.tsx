@@ -20,13 +20,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ShieldCheck, CheckCircle2, ChevronLeft, Save, Send,
-  DollarSign, HardHat, FileText, Plus, Trash2, BadgeCheck,
+  DollarSign, HardHat, FileText, Plus, Trash2, BadgeCheck, AlertTriangle,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { generateUUID } from '@/utils/generateId';
@@ -78,6 +79,13 @@ function rowToPacket(r: Record<string, unknown>): PrequalPacket {
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
+}
+
+/** reviewed_at is a timestamptz — an instant, so a local date is right. */
+function formatReviewedOn(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export default function PrequalFormScreen() {
@@ -138,6 +146,12 @@ export default function PrequalFormScreen() {
   const saveViaRpc = useCallback(async (next: PrequalPacket) => {
     const { data, error } = await supabase.rpc('submit_prequal_packet', {
       p_token: token,
+      // #114: the server no longer WRITES criteria from this path
+      // (20260923130000) — the GC's thresholds are not the sub's to set. The
+      // value the lookup returned is still sent, never null: until that
+      // migration lands, an older server still writes this column, and a null
+      // or {} here would blank the GC's criteria. Dropping the parameter is a
+      // later cleanup, once every server is past the migration.
       p_criteria: next.criteria,
       p_financials: next.financials,
       p_safety: next.safety,
@@ -230,6 +244,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
   // Own router: the outer screen's `router` is not in scope here, and the
   // sub-profile link on the submitted state needs to push.
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [financials, setFinancials] = useState<PrequalFinancials>(packet.financials);
   const [safety, setSafety] = useState<PrequalSafetyRecord>(packet.safety);
   const [insurance, setInsurance] = useState<PrequalInsurance>(packet.insurance);
@@ -316,6 +331,12 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
   }, []);
 
   const isSubmitted = packet.status === 'submitted' || packet.status === 'approved';
+  // #111: the GC's decision, said to the sub. reviewer_notes came back from the
+  // lookup and was never rendered, so a sub sent back for changes reopened his
+  // link to a form that looked untouched.
+  const needsChanges = packet.status === 'needs_changes';
+  const rejected = packet.status === 'rejected';
+  const reviewedOn = packet.reviewedAt ? formatReviewedOn(packet.reviewedAt) : null;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -340,6 +361,30 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 160 + insets.bottom }} keyboardShouldPersistTaps="handled">
+          {/* #111 — the decision and the GC's note, word for word. */}
+          {(needsChanges || rejected) && (
+            <View style={[styles.decisionCard, rejected && styles.decisionCardRejected]} testID={needsChanges ? 'prequal-needs-changes' : 'prequal-rejected'}>
+              <AlertTriangle size={18} color={rejected ? themeColors.danger : Colors.warningLabel} strokeWidth={1.75} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.decisionTitle}>
+                  {needsChanges ? 'The GC asked for changes' : 'Not approved'}
+                  {reviewedOn ? ` · ${reviewedOn}` : ''}
+                </Text>
+                {packet.reviewerNotes ? (
+                  <Text style={styles.decisionNote}>{packet.reviewerNotes}</Text>
+                ) : null}
+                <Text style={styles.decisionBody}>
+                  {needsChanges
+                    ? 'Update the answers below, then tap Resubmit at the bottom.'
+                    // submit_prequal_packet moves only draft / invited /
+                    // needs_changes to submitted, so a rejected packet stays
+                    // rejected whatever is tapped here. Say so.
+                    : 'Your answers below still save, but this packet can’t be resubmitted from this link. If you want to be considered again, ask the GC to send you a renewal.'}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Intro */}
           <View style={styles.introCard}>
             <ShieldCheck size={18} color={themeColors.accent} strokeWidth={1.75} />
@@ -567,25 +612,43 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
                 {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
               </Text>
             </View>
-            {/* The sub has just handed over insurance, licences and safety
-                history and, until now, got nothing of their own back — they did
-                the GC's paperwork and left. /sub-profile is exactly that
-                something (work history across every GC who hired them, a
-                shareable credential, a referral for their OTHER GCs) and it had
-                ZERO click paths in the product; search only. This and
-                app/claim-crew.tsx are where a tradesperson actually lands
-                (audit 2026-09-07, built-but-unreachable #13). */}
-            <TouchableOpacity
-              style={styles.subProfileLink}
-              onPress={() => router.push('/sub-profile')}
-              accessibilityRole="link"
-              accessibilityLabel="See your own work history and reliability across every contractor who has hired you"
-            >
-              <Text style={styles.subProfileLinkText}>
-                See your work history across every contractor who has hired you
-              </Text>
-            </TouchableOpacity>
+            {/* #113: this link used to promise "your work history across every
+                contractor who has hired you". Signed out — the sub on a magic
+                link, the normal case — it bounced him to the login and lost this
+                page; signed in, /sub-profile reads only his own workspace, which
+                holds no GC's records about him. No server fan-out exists yet,
+                so nothing here claims cross-contractor history. Signed out he
+                is offered an account and told plainly what it is. */}
+            {isAuthenticated ? (
+              <TouchableOpacity
+                style={styles.subProfileLink}
+                onPress={() => router.push('/sub-profile')}
+                accessibilityRole="link"
+                accessibilityLabel="Open your work profile for this workspace"
+              >
+                <Text style={styles.subProfileLinkText}>Open your work profile (this workspace)</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.subProfileLink}
+                onPress={() => router.push('/signup')}
+                accessibilityRole="link"
+                accessibilityLabel="Create your free MAGE ID account"
+              >
+                <Text style={styles.subProfileLinkText}>Create your free MAGE ID account</Text>
+                <Text style={styles.subProfileLinkHint}>
+                  A free workspace for your own jobs. This packet stays with the contractor who sent it.
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
+        ) : rejected ? (
+          // No bare "Submit" on a rejected packet: the server keeps it
+          // rejected, and a "Submitted" alert over that would be a lie.
+          <View style={styles.submittedChip}>
+            <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
+            <Text style={styles.submittedText}>Not approved — ask the GC for a renewal to resubmit</Text>
+          </View>
         ) : (
           <TouchableOpacity
             style={[styles.submitBtn, preview.overall !== 'pass' && styles.submitBtnDisabled]}
@@ -594,11 +657,11 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
           >
             <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
             <Text style={styles.submitBtnText}>
-              {preview.overall === 'pass' ? 'Submit for review' : 'Submit anyway'}
+              {needsChanges ? 'Resubmit' : preview.overall === 'pass' ? 'Submit for review' : 'Submit anyway'}
             </Text>
           </TouchableOpacity>
         )}
-        {preview.overall !== 'pass' && !isSubmitted && (
+        {preview.overall !== 'pass' && !isSubmitted && !rejected && (
           <Text style={styles.submitHelper}>
             {preview.missingFields.length > 0
               ? 'Some fields are empty. You can still submit and the GC will follow up.'
@@ -769,6 +832,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   submittedText: { color: t.success, fontSize: Type.footnote.fontSize, fontWeight: '700' },
   subProfileLink: { paddingTop: 10, paddingBottom: 2, alignItems: 'center' as const },
   subProfileLinkText: { color: t.accentLabel, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, textAlign: 'center' as const },
+  subProfileLinkHint: { color: t.textMuted, fontSize: Type.caption2.fontSize, textAlign: 'center' as const, marginTop: 2 },
+
+  decisionCard: {
+    flexDirection: 'row' as const, gap: 10, padding: 14, marginBottom: 12,
+    borderRadius: Tokens.radius.md, borderLeftWidth: 3, borderLeftColor: Colors.warning, backgroundColor: Colors.warningLight,
+  },
+  decisionCardRejected: { borderLeftColor: t.danger, backgroundColor: Colors.errorLight },
+  decisionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: t.text },
+  decisionNote: { fontSize: Type.footnote.fontSize, color: t.text, marginTop: 6, lineHeight: 19, fontStyle: 'italic' as const },
+  decisionBody: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 6, lineHeight: 16 },
 
   // Still used by the "Loading…" branch above; the failure branches render
   // components/ErrorState.tsx, which carries its own type + button styles.

@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
 import { rfpReachLine } from '@/supabase/functions/notify-nearby-contractors/reach';
-import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+import { RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED } from '@/constants/featureFlags';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -192,9 +192,12 @@ export default function MyRfpsScreen() {
             </View>
             <Text style={styles.emptyTitle}>Post your first project</Text>
             <Text style={styles.emptyBody}>
-              Tell us what you want done — kitchen remodel, roof replacement, anything. We alert
-              MAGE ID contractors who cover your area and show you how many that was, then you pick
-              the bid you like best.
+              {/* Audit wave 5, #96: no contractor can set a service area yet,
+                  so "we alert contractors who cover your area" described an
+                  alert that can't happen. */}
+              {SERVICE_AREA_SETUP_ENABLED
+                ? 'Tell us what you want done — kitchen remodel, roof replacement, anything. We alert MAGE ID contractors who cover your area and show you how many that was, then you pick the bid you like best.'
+                : 'Tell us what you want done — kitchen remodel, roof replacement, anything. Contractor matching by service area isn\'t live in MAGE ID yet, so no contractor will see a post today; any bid that does come in shows up here.'}
             </Text>
             <TouchableOpacity style={styles.emptyCta} onPress={handleNew}>
               <Plus size={14} color="#FFF" strokeWidth={1.75} />
@@ -248,7 +251,7 @@ export default function MyRfpsScreen() {
                     "contractors will be notified" (audit round 2, #8). Only
                     for open posts: once awarded, the bids are the story. */}
                 {isOpen && (() => {
-                  const reach = rfpReachLine(r, Date.now(), RFP_BROWSE_ENABLED);
+                  const reach = rfpReachLine(r, Date.now(), RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED);
                   return (
                     <View style={styles.reachRow} testID={`my-rfps-reach-${r.id}`}>
                       <Megaphone size={11} color={reach.tone === 'some' ? themeColors.success : themeColors.textMuted} strokeWidth={1.75} />

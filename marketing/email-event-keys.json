@@ -1,0 +1,73 @@
+{
+  "about": "The ONE list of email categories a reader can turn off and back on. Fetched by marketing/preferences/index.html (the toggles) and marketing/unsubscribe/index.html (the confirm wording). Each key is the eventKey / prefKey a sender writes into its unsubscribe link and checks with is_email_unsubscribed. scripts/validate-w5-push-unsub-keys.ts fails when a sender uses a key that is neither here nor on its exclusion list. daily_digest is not listed on purpose: it is managed in the app (Settings -> Push & email preferences), where its truth lives.",
+  "version": 1,
+  "documents": {
+    "about": "Documents a contractor sends his own client or sub directly (send-email). They are transactional and no sender checks an unsubscribe before sending them, so neither page offers a switch for them: the preferences page says an earlier unsubscribe doesn't affect them, and the unsubscribe page says so instead of confirming. Same keys as TRANSACTIONAL_DOCUMENT_KEYS in supabase/functions/_shared/email.ts (scripts/validate-w5-push-unsub-keys.ts checks the two match).",
+    "label": "Documents from your contractor",
+    "note": "Your contractor sends these to you directly as part of your job, so this page can't turn them off. To stop them, reply to your contractor.",
+    "items": [
+      { "key": "estimate", "label": "Estimates", "noun": "estimates" },
+      { "key": "invoice", "label": "Invoices", "noun": "invoices" },
+      { "key": "daily_report", "label": "Daily reports", "noun": "daily reports" },
+      { "key": "weekly_update", "label": "Project updates", "noun": "project updates" },
+      { "key": "submittal", "label": "Submittals", "noun": "submittals" },
+      { "key": "lien_waiver", "label": "Lien waiver requests", "noun": "lien waiver requests" }
+    ]
+  },
+  "groups": [
+    {
+      "label": "Project activity",
+      "items": [
+        { "key": "portal_message", "label": "Portal messages", "desc": "When your client or contractor sends a message.", "noun": "message notifications" },
+        { "key": "budget_proposal", "label": "Budget proposals", "desc": "When a target budget is proposed.", "noun": "budget proposal alerts" },
+        { "key": "co_approval", "label": "Change orders", "desc": "When a CO is approved or declined.", "noun": "change-order approval alerts" },
+        { "key": "contract_signed", "label": "Contract signed", "desc": "When a contract is counter-signed.", "noun": "contract-signed alerts" },
+        { "key": "selection_chosen", "label": "Selections", "desc": "When the homeowner picks a fixture or finish.", "noun": "selection alerts" },
+        { "key": "closeout_binder", "label": "Closeout", "desc": "When the closeout binder is delivered.", "noun": "closeout binder alerts" },
+        { "key": "weekly_digest", "label": "Weekly project recap", "desc": "The weekly summary of your project from your contractor.", "noun": "weekly project recaps" }
+      ]
+    },
+    {
+      "label": "Invoices & payments",
+      "items": [
+        { "key": "invoice_paid", "label": "Client payments", "desc": "When a client pays an invoice, or a bank payment fails.", "noun": "client payment alerts" },
+        { "key": "payment_reminders", "label": "Invoice payment reminders", "desc": "Reminders about an invoice that is past due.", "noun": "invoice payment reminders" },
+        { "key": "sub_invoice", "label": "Sub invoices", "desc": "When a sub submits or you act on an invoice.", "noun": "sub-invoice alerts" }
+      ]
+    },
+    {
+      "label": "Your jobs",
+      "items": [
+        { "key": "field_report", "label": "Daily reports filed by your team", "desc": "When someone on your team files a daily report.", "noun": "daily report alerts" },
+        { "key": "punch_ready", "label": "Punch items ready for review", "desc": "When a sub marks a punch item done.", "noun": "punch-ready alerts" },
+        { "key": "pro_response", "label": "RFI and submittal responses", "desc": "When the design team or a reviewer responds.", "noun": "RFI and submittal response alerts" },
+        { "key": "lien_waiver_signed", "label": "Lien waivers signed", "desc": "When a sub signs a lien waiver you requested.", "noun": "lien waiver alerts" },
+        { "key": "prequal_submitted", "label": "Prequalification packets", "desc": "When a sub submits a prequalification packet.", "noun": "prequalification alerts" },
+        { "key": "safety_incident", "label": "Safety incidents", "desc": "When someone on your team files an incident report.", "noun": "safety incident alerts" }
+      ]
+    },
+    {
+      "label": "Bids & RFPs",
+      "items": [
+        { "key": "bid_invite", "label": "Bid invitations", "desc": "When a contractor invites you to bid a package.", "noun": "bid invitations" },
+        { "key": "bid_invite_received", "label": "Bids from your invite links", "desc": "When a sub files a bid through your invite link.", "noun": "bid-received alerts" },
+        { "key": "nearby_rfp_posted", "label": "New nearby RFPs", "desc": "When a homeowner posts a project in your area.", "noun": "new-project nearby alerts" },
+        { "key": "rfp_awarded", "label": "Bid awarded", "desc": "When a homeowner picks your bid.", "noun": "bid-awarded alerts" },
+        { "key": "bid_question_asked", "label": "Bid Q&A · asked", "desc": "When a contractor asks about your RFP.", "noun": "bid Q&A alerts" },
+        { "key": "bid_question_answered", "label": "Bid Q&A · answered", "desc": "When the homeowner answers a question.", "noun": "bid Q&A alerts" }
+      ]
+    },
+    {
+      "label": "Website leads",
+      "items": [
+        { "key": "lead_received", "label": "Website leads", "desc": "When someone asks for a price on your website.", "noun": "website lead alerts" }
+      ]
+    },
+    {
+      "label": "Onboarding",
+      "items": [
+        { "key": "portal_invite", "label": "Portal invitations", "desc": "When you're invited to a project portal.", "noun": "portal invitation emails" }
+      ]
+    }
+  ]
+}

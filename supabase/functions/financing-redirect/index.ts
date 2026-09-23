@@ -1,7 +1,8 @@
 // financing-redirect
 //
-// GET ?ref=<refToken>  — emailed invoice/estimate link.
-// GET ?project=<id>&src=portal — anonymous client-portal button.
+// GET ?ref=<refToken>                               — emailed invoice/estimate link.
+// GET ?project=<id>&src=portal&portal=<portalId>&t=<accessToken>
+//                                                   — client-portal button.
 // Records the homeowner click on the financing offer, then 302-redirects
 // to the partner's hosted prequalification page (prefilled with amount +
 // the GC's partner code + the ref token as the partner return key).
@@ -11,41 +12,35 @@
 // error page to the homeowner.
 //
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FINANCING_FALLBACK_URL
-// (optional; defaults to https://mageid.app).
-// FINANCING_CALLBACK_SECRET — shared HMAC key (same as financing-callback).
-//   ?ref=<token> branch: caller must send x-financing-signature: hex(HMAC(key,"ref")).
-//   ?project+src=portal branch: caller must send Authorization / apikey with
-//     a non-trivial (length ≥ 20) value (the portal already sends these).
-// Both fail-closed: no signature/token → DB write/insert skipped, redirect
-// still happens.
-
+// (optional; defaults to https://mageid.app). verify_jwt = false
+// (supabase/config.toml): a homeowner's browser has no JWT.
+//
+// HOW EACH ENTRY IS AUTHENTICATED (#180). Both used to demand a HEADER — an
+// x-financing-signature HMAC, or an Authorization/apikey of 20+ chars — that
+// a link opened in a browser can never send, so every real click fell back
+// to the MAGE ID homepage instead of the lender:
+//   ?ref=  The ref IS the capability: hooks/useFinancingReferrals mints it as
+//          `fin_` + 32 hex chars of a random UUID (122 random bits), under
+//          RLS, for the GC's own row. It must match REF_RE exactly and name an
+//          existing row; the only state it can move is created → clicked, so
+//          replaying a click advances nothing. (An HMAC over a value that is
+//          itself in the URL would add nothing — and the app could not mint
+//          one without shipping the secret.) FINANCING_CALLBACK_SECRET stays
+//          with financing-callback, where the partner's SERVER signs.
+//   portal The homeowner's portal access token (`t`) and portal id must
+//          resolve through portal_project_for_token — the same resolver the
+//          portal RPCs use (live, expiry-aware) — to exactly the `project` in
+//          the URL. Anything else falls back; nothing is inserted.
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const FALLBACK_URL = Deno.env.get("FINANCING_FALLBACK_URL") || "https://mageid.app";
-const FINANCING_CALLBACK_SECRET = Deno.env.get("FINANCING_CALLBACK_SECRET") || "";
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let d = 0;
-  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return d === 0;
-}
-
-async function validSignature(req: Request, signedPayload: string): Promise<boolean> {
-  if (!FINANCING_CALLBACK_SECRET) return false; // fail closed (financing dormant)
-  const provided = req.headers.get("x-financing-signature") || "";
-  if (!provided) return false;
-  const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(FINANCING_CALLBACK_SECRET),
-    { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
-  );
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedPayload));
-  const hex = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, "0")).join("");
-  return timingSafeEqual(hex, provided.toLowerCase());
-}
+// Exactly what useFinancingReferrals / the portal branch below mint:
+// `fin_` + a UUID with its dashes removed (lower-case hex).
+const REF_RE = /^fin_[0-9a-f]{32}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function redirect(url: string): Response {
   return new Response(null, { status: 302, headers: { Location: url } });
@@ -63,43 +58,49 @@ serve(async (req) => {
     // Two entry modes:
     //  (a) ?ref=<token>  — emailed invoice/estimate link (row pre-created
     //      by the authenticated GC via the app).
-    //  (b) ?project=<id>&src=portal — the anonymous client-portal button.
-    //      The homeowner has no auth.uid(), so it CANNOT insert under RLS;
-    //      instead this service-role fn find-or-creates the (project,
-    //      'portal') row itself. projectId in the URL leaks nothing — the
-    //      homeowner is already viewing that exact project in the portal.
+    //  (b) ?project=<id>&src=portal&portal=<portalId>&t=<accessToken> — the
+    //      client-portal button. The homeowner has no auth.uid(), so it
+    //      CANNOT insert under RLS; instead this service-role fn
+    //      find-or-creates the (project, 'portal') row itself, but only once
+    //      the portal token proves the caller is that project's homeowner.
     let row: {
       id: string; gc_user_id: string; amount_cents: number; status: string;
     } | null = null;
 
     if (ref) {
-      // Gate: require valid HMAC over the ref token to prevent arbitrary
-      // ref enumeration from advancing referral status.
-      const authed = await validSignature(req, ref);
-      if (!authed) return redirect(FALLBACK_URL);
+      // The ref is an unguessable capability (see header). Refuse anything
+      // that isn't one before touching the database.
+      if (!REF_RE.test(ref)) return redirect(FALLBACK_URL);
       const { data } = await db
         .from("financing_referrals").select("*").eq("id", ref).maybeSingle();
       row = data ?? null;
     } else if (projectParam && srcParam === "portal") {
-      // Gate: require the portal bearer token / apikey already sent by the
-      // portal client (mirrors the apikey sanity check in _shared/auth.ts).
-      const auth = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-      const bearer = auth.replace(/^Bearer\s+/i, "").trim();
-      const apikey = req.headers.get("apikey") || req.headers.get("Apikey") || "";
-      const hasToken = (bearer && bearer.length >= 20) || (apikey && apikey.length >= 20);
-      if (!hasToken) return redirect(FALLBACK_URL);
+      // The portal button carries the homeowner's portal id + access token.
+      // They must resolve to THIS project — otherwise anyone who learned a
+      // project id could mint referral rows against a GC's account.
+      const portalParam = params.get("portal") ?? "";
+      const accessToken = params.get("t") ?? "";
+      if (!UUID_RE.test(projectParam) || !portalParam || !accessToken) return redirect(FALLBACK_URL);
+      const { data: resolved, error: resolveErr } = await db.rpc("portal_project_for_token", {
+        p_portal_id: portalParam,
+        p_access_token: accessToken,
+      });
+      if (resolveErr || typeof resolved !== "string" || resolved.toLowerCase() !== projectParam.toLowerCase()) {
+        return redirect(FALLBACK_URL);
+      }
+      const projectId = resolved;
 
       const { data: existing } = await db
         .from("financing_referrals")
         .select("*")
-        .eq("project_id", projectParam)
+        .eq("project_id", projectId)
         .eq("source", "portal")
         .maybeSingle();
       if (existing) {
         row = existing;
       } else {
         const { data: proj } = await db
-          .from("projects").select("id,user_id").eq("id", projectParam).maybeSingle();
+          .from("projects").select("id,user_id").eq("id", projectId).maybeSingle();
         if (!proj) return redirect(FALLBACK_URL);
         const id = `fin_${crypto.randomUUID().replace(/-/g, "")}`;
         const now = new Date().toISOString();

@@ -6,6 +6,7 @@
 // what to double-check before committing to numbers.
 
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
+import { edgeFunctionError } from '@/utils/edgeError';
 
 export interface DrawingSeen {
   page: number;
@@ -195,7 +196,10 @@ export async function analyzeDrawings(opts: AnalyzeOpts): Promise<AnalyzeRespons
   }>('analyze-drawings', {
     body: body as unknown as Record<string, unknown>,
   });
-  if (error) throw new Error(`Analyzer call failed: ${error.message}`);
+  // The function's own sentence and code (a monthly cap, the hourly limit, a
+  // plan refusal), not "Edge Function returned a non-2xx status code" — read
+  // once, through utils/edgeError (audit #124, CONTRACT 26).
+  if (error) throw await edgeFunctionError(error, 'Drawing analysis failed');
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Analyzer returned an empty result.');
   }

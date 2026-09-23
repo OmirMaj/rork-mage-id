@@ -1,7 +1,9 @@
 // Permits screen
 //
-// Lists every permit across every project. The marketing site claims
-// "track permits and inspections" — this is the screen that delivers it.
+// Lists every permit across every project — or ONE job's, when opened with a
+// `projectId` (project detail's Permits tile, the Brain's "inspection in 2d"
+// alert). The marketing site claims "track permits and inspections" — this is
+// the screen that delivers it.
 //
 // Architecture notes:
 //   - Source of truth is ProjectContext.permits (local AsyncStorage,
@@ -12,8 +14,10 @@
 //     names phases differently and I'd rather not paint users into a
 //     corner. The chip filter in the header is built from whatever phases
 //     actually exist in the data.
-//   - Attachment uri is a local file:// — when we wire Supabase Storage
-//     for permit scans, swap to a remote URL but keep the field name.
+//   - Attachment uri is a project-photos bucket PATH (stagePermitScan queues
+//     the bytes), or a device-local uri on an account with no backend. It is
+//     never displayed raw: "View permit" signs it (resolvePhotoUrls) or shows
+//     the queued local original while the upload is still in flight.
 //
 // Stat cards on top, filter row, then a card per permit. Tap a card to
 // edit. The tile-grid + modal pattern matches project-detail per CLAUDE.md.
@@ -21,15 +25,15 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Pressable, TextInput, KeyboardAvoidingView,
-  useWindowDimensions, ActivityIndicator,
+  useWindowDimensions, ActivityIndicator, Image, Linking,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ClipboardCheck, Calendar, AlertTriangle, Check,
-  Clock, Plus, X, Save, Camera, FileText, Trash2, ChevronDown, CalendarDays,
+  Clock, Plus, X, Save, Camera, FileText, Trash2, ChevronDown, CalendarDays, Eye, ExternalLink,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -43,14 +47,18 @@ import type { Permit, PermitInspection, PermitInspectionResult, PermitStatus, Pe
 import { generateUUID } from '@/utils/generateId';
 import { useAuth } from '@/contexts/AuthContext';
 import { PhotoThumbGrid, burstSummary, captureBurst, pickPhotoBatch } from '@/components/PhotoCapture';
-import { queuePhotoUpload } from '@/utils/photoUploadQueue';
+import { queuePhotoUpload, getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 import {
-  buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, photoExtFromUri,
+  buildPhotoStoragePath, contentTypeForExt, isDeviceLocalUri, isHttpUrl, looksLikeStoragePath, photoExtFromUri,
 } from '@/utils/photoUploadCore';
+import { resolvePhotoUrls } from '@/utils/storage';
+import { permitExpiryState } from '@/utils/brainWatch';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
-import { parseCalendarDay, formatCalendarDay, todayCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
+import {
+  parseCalendarDay, formatCalendarDay, todayCalendarDay, daysUntilCalendarDay, calendarDayOf, addCalendarMonths,
+} from '@/utils/calendarDate';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
@@ -76,6 +84,7 @@ import {
   foldCurrentInspection,
   sortPermitInspections,
   inspectionHistorySummary,
+  openFailedInspection,
 } from '@/utils/permitInspectionHistory';
 
 const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection',
@@ -161,7 +170,44 @@ function jurisdictionOrNull(value: string | null | undefined): string | null {
   return v.length > 0 ? v : null;
 }
 
-function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }) {
+/**
+ * The expiry line on a permit card (#138). The state comes from brainWatch's
+ * permitExpiryState — the same rule Brain Watch and the Smart Inbox alert on —
+ * so the card, the alert and the inbox cannot disagree about whether a permit
+ * has lapsed. A date further out than that rule's horizon is shown plainly.
+ * A permit already marked `expired` with no printed date says nothing here:
+ * the status badge already does.
+ */
+function permitExpiryLine(permit: Permit, nowMs: number): { text: string; tone: 'bad' | 'warn' | 'neutral' } | null {
+  if (permit.status === 'denied') return null;
+  const state = permitExpiryState(permit, nowMs);
+  if (state) {
+    const d = state.daysToExpiry;
+    if (state.lapsed) {
+      return d !== null && d < 0
+        ? { text: `Expired ${-d} day${d === -1 ? '' : 's'} ago`, tone: 'bad' }
+        : null;
+    }
+    if (d === 0) return { text: 'Expires today', tone: 'warn' };
+    if (d !== null) return { text: `Expires in ${d} day${d === 1 ? '' : 's'}`, tone: 'warn' };
+    return null;
+  }
+  return parseCalendarDay(permit.expiresDate)
+    ? { text: `Expires ${formatCalendarDay(permit.expiresDate)}`, tone: 'neutral' }
+    : null;
+}
+
+/** "Scan saved" while the bytes are still in the upload queue (#67). */
+const SCAN_UPLOADING_NOTE = 'Scan saved — uploading, viewable once it lands.';
+
+function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
+  permit: Permit;
+  onPress: () => void;
+  /** Opens the saved permit scan full-screen (#67). */
+  onViewScan: () => void;
+  /** The history's still-open failed inspection, if any (#145). */
+  historyFailure: PermitInspection | null;
+}) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -173,7 +219,9 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
   // Date() of the bare form is UTC midnight, so the countdown ran a day early
   // west of Greenwich and the same permit changed date after a sync. Whole
   // local days: 0 = today, which the old `> Date.now()` test could never reach.
-  const daysToInspection = permit.status === 'inspection_scheduled'
+  // A failure still open in the history outranks a countdown to the visit it
+  // was (#145) — "Inspection in 2 days" beside a failed rough-in is the lie.
+  const daysToInspection = permit.status === 'inspection_scheduled' && !historyFailure
     ? daysUntilCalendarDay(permit.inspectionDate)
     : null;
   const isInspectionUpcoming = daysToInspection !== null && daysToInspection >= 0;
@@ -184,6 +232,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
   // own. Every read of it on this screen goes through the decoder.
   const decoded = useMemo(() => decodePermitInspectionNotes(permit.inspectionNotes), [permit.inspectionNotes]);
   const historySummary = useMemo(() => inspectionHistorySummary(decoded.inspections), [decoded.inspections]);
+  const expiry = permitExpiryLine(permit, Date.now());
 
   return (
     <Animated.View style={[styles.permitCard, { transform: [{ scale: scaleAnim }] }]}>
@@ -258,10 +307,27 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
           </View>
         )}
 
+        {expiry ? (
+          <View style={styles.attachRow} testID={`permit-expiry-${permit.id}`}>
+            <Clock size={12} color={expiry.tone === 'bad' ? themeColors.dangerLabel : expiry.tone === 'warn' ? themeColors.warningLabel : themeColors.textSecondary} strokeWidth={1.75} />
+            <Text style={[styles.attachText, expiry.tone === 'bad' ? { color: themeColors.dangerLabel, fontWeight: '700' as const } : expiry.tone === 'warn' ? { color: themeColors.warningLabel, fontWeight: '700' as const } : null]}>
+              {expiry.text}
+            </Text>
+          </View>
+        ) : null}
+
         {permit.status === 'inspection_failed' && decoded.notes ? (
           <View style={styles.failedAlert}>
             <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
             <Text style={styles.failedAlertText} numberOfLines={2}>{decoded.notes}</Text>
+          </View>
+        ) : historyFailure ? (
+          // Logged in the history, not (yet) in the status — still blocking.
+          <View style={styles.failedAlert} testID={`permit-history-failed-${permit.id}`}>
+            <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.failedAlertText} numberOfLines={2}>
+              {historyFailure.name} failed {formatCalendarDay(historyFailure.scheduledFor, { month: 'short', day: 'numeric' })}{historyFailure.notes ? ` — ${historyFailure.notes}` : ''}
+            </Text>
           </View>
         ) : null}
 
@@ -274,12 +340,22 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
           </View>
         ) : null}
 
-        {permit.attachmentUri && (
-          <View style={styles.attachRow}>
-            <FileText size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
-            <Text style={styles.attachText}>Permit document attached</Text>
-          </View>
-        )}
+        {/* #67: the saved scan is something he pulls up when the inspector
+            asks — a button of its own, not a line of text. Its own press
+            handler, so tapping it never also opens the edit form. */}
+        {permit.attachmentUri ? (
+          <Pressable
+            onPress={(e) => { e.stopPropagation?.(); onViewScan(); }}
+            style={styles.viewScanBtn}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="View permit"
+            testID={`permit-view-scan-${permit.id}`}
+          >
+            <Eye size={13} color={themeColors.accentLabel} strokeWidth={1.75} />
+            <Text style={styles.viewScanText}>View permit</Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.permitFooter}>
           <Text style={styles.permitFee}>{formatMoney(permit.fee)}</Text>
@@ -302,6 +378,8 @@ interface PermitFormState {
   appliedDate: string;
   inspectionDate: string;
   inspectionNotes: string;
+  /** #138: the day the permit lapses, bare 'YYYY-MM-DD'; '' = none printed. */
+  expiresDate: string;
   fee: string;
   phase: string;
   notes: string;
@@ -341,6 +419,7 @@ const EMPTY_FORM: PermitFormState = {
   appliedDate: todayCalendarDay(), // UX-F4: local day (refreshed again in openNewForm)
   inspectionDate: '',
   inspectionNotes: '',
+  expiresDate: '',
   fee: '',
   phase: '',
   notes: '',
@@ -399,7 +478,9 @@ export default function PermitsScreen() {
       />
     ) : <PermitsAccessNote gate={gate} onRetry={roleState.refetch} onClose={goBack} />;
   }
-  return <PermitsScreenInner />;
+  // #51: the job he came from scopes the whole screen. Callers with no job
+  // (Tools, the create menu, search) keep the account-wide view.
+  return <PermitsScreenInner scopedProjectId={projectId || undefined} />;
 }
 
 function PermitsAccessNote({ gate, onRetry, onClose }: {
@@ -428,8 +509,12 @@ function PermitsAccessNote({ gate, onRetry, onClose }: {
   );
 }
 
-function PermitsScreenInner() {
+/** What the edit form knows about the saved scan it opened with (#67). */
+type ScanPreviewState = 'none' | 'fresh' | 'local' | 'loading' | 'ready' | 'uploading' | 'unavailable';
+
+function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
   const { colors: themeColors } = useTheme();
+  const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
@@ -457,10 +542,41 @@ function PermitsScreenInner() {
   // The just-picked scan, so the form can say what it attached without asking
   // Storage to sign a path whose bytes may still be sitting in the queue.
   const [attachmentPreview, setAttachmentPreview] = useState<string | undefined>(undefined);
+  const [scanState, setScanState] = useState<ScanPreviewState>('none');
+  // Each open of the form / each new pick takes a ticket; a signing result
+  // that comes back under an older ticket belongs to another permit (or to a
+  // scan he has since replaced) and is dropped.
+  const scanTicketRef = useRef<string>('');
+  const [scanViewer, setScanViewer] = useState<{ uri: string; caption: string; note?: string; webUrl?: string } | null>(null);
+  const [scanViewerFailed, setScanViewerFailed] = useState(false);
   const { user } = useAuth();
   const [pickerOpen, setPickerOpen] = useState<'project' | 'type' | 'status' | 'specialCategory' | null>(null);
   // Which date field the DatePickerModal is currently editing (null = closed).
-  const [dateField, setDateField] = useState<'appliedDate' | 'inspectionDate' | 'lastReportDate' | 'logInspection' | null>(null);
+  const [dateField, setDateField] = useState<'appliedDate' | 'inspectionDate' | 'expiresDate' | 'lastReportDate' | 'logInspection' | null>(null);
+
+  // ── #51: one job, when he came from one ─────────────────────────────────
+  // Every derived view below reads `scopedPermits`, never `permits`: the
+  // list, the phase chips, the fee total, the next-inspection hero and the
+  // blockers were all jobs mixed together when he opened Permits from job B.
+  const scopedProject = useMemo(
+    () => (scopedProjectId ? projects.find(p => p.id === scopedProjectId) ?? null : null),
+    [projects, scopedProjectId],
+  );
+  const scopedPermits = useMemo(
+    () => (scopedProjectId ? permits.filter(p => p.projectId === scopedProjectId) : permits),
+    [permits, scopedProjectId],
+  );
+  // #145: the failure each permit's HISTORY still holds open, so a failed
+  // inspection logged only in the history editor reaches the blockers, the
+  // Failed count and the card, not just one logged through the status.
+  const historyFailures = useMemo(() => {
+    const out = new Map<string, PermitInspection>();
+    for (const p of scopedPermits) {
+      const open = openFailedInspection(decodePermitInspectionNotes(p.inspectionNotes).inspections, p);
+      if (open) out.set(p.id, open);
+    }
+    return out;
+  }, [scopedPermits]);
 
   const filters = [
     { id: 'all', label: 'All' },
@@ -471,12 +587,12 @@ function PermitsScreenInner() {
 
   const phaseFilters = useMemo(() => {
     const phases = new Set<string>();
-    permits.forEach(p => { if (p.phase?.trim()) phases.add(p.phase.trim()); });
+    scopedPermits.forEach(p => { if (p.phase?.trim()) phases.add(p.phase.trim()); });
     return Array.from(phases).slice(0, 8);
-  }, [permits]);
+  }, [scopedPermits]);
 
   const filtered = useMemo(() => {
-    let list = permits;
+    let list = scopedPermits;
     if (selectedFilter === 'active') list = list.filter(p => ['approved', 'inspection_scheduled', 'inspection_passed'].includes(p.status));
     else if (selectedFilter === 'inspections') list = list.filter(p => p.status.startsWith('inspection'));
     else if (selectedFilter === 'pending') list = list.filter(p => ['applied', 'under_review'].includes(p.status));
@@ -485,19 +601,20 @@ function PermitsScreenInner() {
       list = list.filter(p => p.phase === phase);
     }
     return list;
-  }, [permits, selectedFilter]);
+  }, [scopedPermits, selectedFilter]);
 
   const stats = useMemo(() => {
-    const totalFees = permits.reduce((s, p) => s + p.fee, 0);
-    const upcomingInspections = permits.filter(p =>
-      p.status === 'inspection_scheduled' && (daysUntilCalendarDay(p.inspectionDate) ?? -1) >= 0 // UX-F4
+    const totalFees = scopedPermits.reduce((s, p) => s + p.fee, 0);
+    const upcomingInspections = scopedPermits.filter(p =>
+      p.status === 'inspection_scheduled' && !historyFailures.has(p.id)
+      && (daysUntilCalendarDay(p.inspectionDate) ?? -1) >= 0 // UX-F4
     ).length;
-    const pending = permits.filter(p => ['applied', 'under_review'].includes(p.status)).length;
-    const passed = permits.filter(p => ['approved', 'inspection_passed'].includes(p.status)).length;
-    const failed = permits.filter(p => p.status === 'inspection_failed').length;
-    const denied = permits.filter(p => p.status === 'denied').length;
+    const pending = scopedPermits.filter(p => ['applied', 'under_review'].includes(p.status)).length;
+    const passed = scopedPermits.filter(p => ['approved', 'inspection_passed'].includes(p.status) && !historyFailures.has(p.id)).length;
+    const failed = scopedPermits.filter(p => p.status === 'inspection_failed' || historyFailures.has(p.id)).length;
+    const denied = scopedPermits.filter(p => p.status === 'denied').length;
     return { totalFees, upcomingInspections, pending, passed, failed, denied };
-  }, [permits]);
+  }, [scopedPermits, historyFailures]);
 
   // Surface the very next inspection so the GC sees it without scrolling.
   // Sorted by inspectionDate ascending so we always show the closest one.
@@ -505,17 +622,65 @@ function PermitsScreenInner() {
   const nextInspection = useMemo(() => {
     // UX-F4: local calendar days; an inspection scheduled for today still counts.
     const dayMs = (p: Permit) => parseCalendarDay(p.inspectionDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-    const upcoming = permits
-      .filter(p => p.status === 'inspection_scheduled' && (daysUntilCalendarDay(p.inspectionDate) ?? -1) >= 0)
+    const upcoming = scopedPermits
+      .filter(p => p.status === 'inspection_scheduled' && !historyFailures.has(p.id)
+        && (daysUntilCalendarDay(p.inspectionDate) ?? -1) >= 0)
       .sort((a, b) => dayMs(a) - dayMs(b));
     return upcoming[0] ?? null;
-  }, [permits]);
+  }, [scopedPermits, historyFailures]);
 
   // Failed-inspection alerts — these block work until reinspection so the
-  // GC needs to see them prominently. Same logic for denied permits.
+  // GC needs to see them prominently. Same logic for denied permits, and for
+  // a failure recorded only in the inspection history (#145).
   const blockers = useMemo(() => {
-    return permits.filter(p => p.status === 'inspection_failed' || p.status === 'denied');
-  }, [permits]);
+    return scopedPermits.filter(p => p.status === 'inspection_failed' || p.status === 'denied' || historyFailures.has(p.id));
+  }, [scopedPermits, historyFailures]);
+
+  /**
+   * #67: where the saved scan can be shown from. The bucket copy is signed;
+   * if it has not landed yet, the upload queue still holds the local original
+   * (read-only — utils/photoUploadQueue is not ours to change), which is shown
+   * with the "uploading" note. `unavailable` = neither: no signal to sign and
+   * no local copy on this phone.
+   */
+  const resolvePermitScan = useCallback(async (uri: string): Promise<
+    { kind: 'signed' | 'local' | 'queued'; uri: string } | { kind: 'unavailable' }
+  > => {
+    if (isHttpUrl(uri)) return { kind: 'signed', uri };
+    if (isDeviceLocalUri(uri)) return { kind: 'local', uri };
+    if (!looksLikeStoragePath(uri)) return { kind: 'unavailable' };
+    try {
+      const queued = (await getOwnPhotoUploadQueue()).find(t => t.storagePath === uri);
+      if (queued?.localUri) return { kind: 'queued', uri: queued.localUri };
+    } catch { /* no queue — try signing */ }
+    const signed = (await resolvePhotoUrls([uri])).get(uri);
+    return signed ? { kind: 'signed', uri: signed } : { kind: 'unavailable' };
+  }, []);
+
+  const openScanViewer = useCallback((uri: string, caption: string, note?: string, webUrl?: string) => {
+    setScanViewerFailed(false);
+    setScanViewer({ uri, caption, note, webUrl });
+  }, []);
+
+  const scanCaption = useCallback((p: Pick<Permit, 'type' | 'permitNumber'>) => {
+    const label = (PERMIT_TYPE_INFO[p.type] ?? PERMIT_TYPE_INFO.other).label;
+    return `${label} permit${p.permitNumber ? ` #${p.permitNumber}` : ''}`;
+  }, []);
+
+  const viewPermitScan = useCallback(async (permit: Permit) => {
+    const uri = permit.attachmentUri;
+    if (!uri) return;
+    const r = await resolvePermitScan(uri);
+    if (r.kind === 'unavailable') {
+      showAlert(
+        'Permit scan',
+        "Couldn't open the saved scan. Check your connection and try again — it is stored with the job, so any signed-in device can open it once it has signal.",
+      );
+      return;
+    }
+    openScanViewer(r.uri, scanCaption(permit), r.kind === 'queued' ? SCAN_UPLOADING_NOTE : undefined,
+      r.kind === 'signed' ? r.uri : undefined);
+  }, [resolvePermitScan, openScanViewer, scanCaption]);
 
   const openNewForm = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -523,14 +688,22 @@ function PermitsScreenInner() {
     setForm({
       ...EMPTY_FORM,
       appliedDate: todayCalendarDay(),
-      projectId: projects[0]?.id ?? '',
+      // #51: the job he is looking at. With no job in scope and more than one
+      // project, leave it EMPTY — handleSave's "Pick a project" guard makes
+      // him choose, instead of quietly filing it under whichever job happens
+      // to be first in the list.
+      projectId: scopedProjectId
+        ? (projects.some(p => p.id === scopedProjectId) ? scopedProjectId : '')
+        : projects.length === 1 ? projects[0].id : '',
     });
     setInspections([]);
+    scanTicketRef.current = `new:${Date.now()}`;
     setAttachmentPreview(undefined);
+    setScanState('none');
     setLogOpen(false);
     setLogDraft(EMPTY_INSPECTION_DRAFT);
     setShowForm(true);
-  }, [projects]);
+  }, [projects, scopedProjectId]);
 
   const openEditForm = useCallback((permit: Permit) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -541,7 +714,27 @@ function PermitsScreenInner() {
     const decoded = decodePermitInspectionNotes(permit.inspectionNotes);
     setEditingPermit(permit);
     setInspections(decoded.inspections);
+    // #67: show the scan it was saved with. The ticket carries the permit id,
+    // so a signing result that lands after he has opened ANOTHER permit (or
+    // re-shot this one) cannot fill the wrong form.
+    const ticket = `${permit.id}:${Date.now()}`;
+    scanTicketRef.current = ticket;
     setAttachmentPreview(undefined);
+    const saved = permit.attachmentUri;
+    if (!saved) {
+      setScanState('none');
+    } else if (isDeviceLocalUri(saved)) {
+      setAttachmentPreview(saved);
+      setScanState('local');
+    } else {
+      setScanState('loading');
+      void resolvePermitScan(saved).then((r) => {
+        if (scanTicketRef.current !== ticket) return;
+        if (r.kind === 'unavailable') { setScanState('unavailable'); return; }
+        setAttachmentPreview(r.uri);
+        setScanState(r.kind === 'queued' ? 'uploading' : 'ready');
+      });
+    }
     setLogOpen(false);
     setLogDraft(EMPTY_INSPECTION_DRAFT);
     setForm({
@@ -554,6 +747,9 @@ function PermitsScreenInner() {
       inspectionDate: permit.inspectionDate?.slice(0, 10) ?? '',
       // Only the human half. The encoded history behind it goes to `inspections`.
       inspectionNotes: decoded.notes,
+      // #138: a date the voice Copilot (or a sync) wrote shows up here and can
+      // be corrected; a full instant becomes the local day it names.
+      expiresDate: calendarDayOf(permit.expiresDate) ?? '',
       fee: String(permit.fee),
       phase: permit.phase ?? '',
       notes: permit.notes ?? '',
@@ -564,7 +760,7 @@ function PermitsScreenInner() {
       lastReportDate: permit.lastReportDate?.slice(0, 10) ?? '',
     });
     setShowForm(true);
-  }, []);
+  }, [resolvePermitScan]);
 
   const closeForm = useCallback(() => {
     setShowForm(false);
@@ -602,6 +798,12 @@ function PermitsScreenInner() {
   }, [user?.id]);
 
   const handleAttach = useCallback(async (source: 'camera' | 'library') => {
+    // The scan is filed under the job's folder in the bucket, so the job has
+    // to be known first — without it the scan could only stay on this phone.
+    if (!form.projectId) {
+      showAlert('Pick a project first', 'The permit scan is stored with its job — pick which project this permit belongs to, then attach it.');
+      return;
+    }
     const picked = source === 'library'
       ? await pickPhotoBatch({ remaining: 1, quality: 0.8 })
       : await (async () => {
@@ -615,7 +817,10 @@ function PermitsScreenInner() {
         })();
     if (picked.length === 0) return;
     const durable = stagePermitScan(picked[0].uri, form.projectId);
+    // A fresh pick wins over any signing still in flight for the old scan.
+    scanTicketRef.current = `pick:${Date.now()}`;
     setAttachmentPreview(picked[0].uri);
+    setScanState('fresh');
     setForm(f => ({ ...f, attachmentUri: durable }));
   }, [form.projectId, stagePermitScan]);
 
@@ -661,6 +866,11 @@ function PermitsScreenInner() {
       // see the codec at the top of this file for why it rides there.
       inspectionNotes: encodePermitInspectionNotes(form.inspectionNotes, foldedInspections),
       inspections: foldedInspections.length > 0 ? foldedInspections : undefined,
+      // #138: ALWAYS present, '' when cleared. updatePermit spreads this patch
+      // over the permit and permitToRow writes a falsy expiresDate as
+      // expires_date null — so clearing the field reaches the server. An
+      // absent key would keep the old date.
+      expiresDate: form.expiresDate,
       fee,
       phase: form.phase.trim() || undefined,
       notes: form.notes.trim() || undefined,
@@ -706,7 +916,44 @@ function PermitsScreenInner() {
     setLogDraft(EMPTY_INSPECTION_DRAFT);
     setLogOpen(false);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [logDraft, form.inspectorName]);
+
+    // #145: a verdict logged here for the visit the permit says is BOOKED
+    // (same day or later) is probably that visit being called. Ask — never
+    // flip the status silently: a past verdict logged beside an already
+    // booked re-inspection is exactly what this editor is for, and flipping
+    // that permit back to "failed" would be wrong.
+    const headDay = form.inspectionDate.slice(0, 10);
+    if ((row.result === 'failed' || row.result === 'passed')
+      && form.status === 'inspection_scheduled'
+      && (!headDay || row.scheduledFor >= headDay)) {
+      const verdict = row.result === 'failed' ? 'failed' : 'passed';
+      showAlert(
+        'Update the permit status?',
+        headDay
+          ? `This looks like the inspection booked for ${formatCalendarDay(headDay, { weekday: 'short', month: 'short', day: 'numeric' })}. Mark the permit Inspection ${verdict}?`
+          : `The permit still says an inspection is scheduled. Mark it Inspection ${verdict}?`,
+        [
+          { text: 'Keep as scheduled', style: 'cancel' },
+          {
+            text: 'Update status',
+            onPress: () => {
+              // The logged row IS the booked visit now: the booking's own
+              // 'scheduled' row for that day is dropped (never a verdict row),
+              // and the head's date is cleared so the save cannot fold a
+              // second copy of the same visit into the history.
+              setInspections(prev => prev.filter(i => !(headDay && i.result === 'scheduled' && i.scheduledFor.slice(0, 10) === headDay)));
+              setForm(f => ({
+                ...f,
+                status: row.result === 'failed' ? 'inspection_failed' : 'inspection_passed',
+                inspectionDate: '',
+                inspectionNotes: row.notes ?? f.inspectionNotes,
+              }));
+            },
+          },
+        ],
+      );
+    }
+  }, [logDraft, form.inspectorName, form.inspectionDate, form.status]);
 
   const removeLoggedInspection = useCallback((id: string) => {
     const row = inspections.find(i => i.id === id);
@@ -746,10 +993,16 @@ function PermitsScreenInner() {
 
   const selectedProjectName = projects.find(p => p.id === form.projectId)?.name ?? 'Pick a project';
 
+  // #138: "+6 / +12 months" counts from the day the permit was issued when it
+  // carries one, else from the applied date — and the chip says which.
+  const expiryBase = (editingPermit?.approvedDate && calendarDayOf(editingPermit.approvedDate)) || form.appliedDate;
+  const expiryBaseLabel = editingPermit?.approvedDate && calendarDayOf(editingPermit.approvedDate) ? 'approval' : 'applied date';
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Permits',
+        // #51: he can always tell one job from all of them.
+        title: scopedProject ? `Permits · ${scopedProject.name}` : 'Permits',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -762,6 +1015,23 @@ function PermitsScreenInner() {
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
       >
+        {scopedProjectId ? (
+          <View style={styles.scopeRow} testID="permits-scope">
+            <Text style={styles.scopeText} numberOfLines={1}>
+              {scopedProject ? `Showing ${scopedProject.name} only` : 'Showing one job only'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.setParams({ projectId: undefined })}
+              style={styles.scopeBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Show permits for all jobs"
+              testID="permits-scope-all"
+            >
+              <Text style={styles.scopeBtnText}>All jobs</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {/* Next-inspection hero — biggest visual on screen when there
             is one. Calculates days countdown live so "tomorrow" shows
             up amber. Tap to jump to the permit detail. */}
@@ -816,7 +1086,7 @@ function PermitsScreenInner() {
                   {(PERMIT_TYPE_INFO[b.type]?.label ?? b.type)} · {b.projectName}
                 </Text>
                 <Text style={styles.blockerStatus}>
-                  {b.status === 'inspection_failed' ? 'Failed inspection' : 'Permit denied'}
+                  {b.status === 'denied' ? 'Permit denied' : 'Failed inspection'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -828,7 +1098,7 @@ function PermitsScreenInner() {
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.accent + '14' }]}>
               <ClipboardCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
-            <Text style={styles.statValue}>{permits.length}</Text>
+            <Text style={styles.statValue}>{scopedPermits.length}</Text>
             <Text style={styles.statLabel}>Total</Text>
           </View>
           <View style={styles.statCard}>
@@ -903,7 +1173,7 @@ function PermitsScreenInner() {
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
               <ClipboardCheck size={32} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No permits yet</Text>
+              <Text style={styles.emptyTitle}>{scopedProject && scopedPermits.length === 0 ? `No permits on ${scopedProject.name} yet` : 'No permits yet'}</Text>
               <Text style={styles.emptySub}>Tap + above to log your first permit. We&apos;ll track inspections and renewal dates from there.</Text>
               <TouchableOpacity style={styles.emptyCta} onPress={openNewForm}>
                 <Plus size={16} color="#fff" strokeWidth={1.75} />
@@ -912,7 +1182,13 @@ function PermitsScreenInner() {
             </View>
           ) : (
             filtered.map(permit => (
-              <PermitCard key={permit.id} permit={permit} onPress={() => openEditForm(permit)} />
+              <PermitCard
+                key={permit.id}
+                permit={permit}
+                onPress={() => openEditForm(permit)}
+                onViewScan={() => { void viewPermitScan(permit); }}
+                historyFailure={historyFailures.get(permit.id) ?? null}
+              />
             ))
           )}
         </View>
@@ -1179,6 +1455,52 @@ function PermitsScreenInner() {
                   </View>
                 </View>
 
+                {/* #138: Brain Watch, the Smart Inbox and Documents all alert on
+                    a permit's expiry — and no form could enter one. Optional;
+                    a bare calendar day. */}
+                <Text style={styles.formLabel}>Permit Expires</Text>
+                <View style={styles.formRow}>
+                  <TouchableOpacity
+                    style={[styles.formPicker, { flex: 1 }]}
+                    onPress={() => { setPickerOpen(null); setDateField('expiresDate'); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={form.expiresDate ? `Permit expires ${formatDateLabel(form.expiresDate)}. Change the date` : 'Pick the date the permit expires'}
+                    testID="permit-expires-date"
+                  >
+                    <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                    <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.expiresDate && { color: themeColors.textMuted }]}>
+                      {form.expiresDate ? formatDateLabel(form.expiresDate) : 'Not set'}
+                    </Text>
+                  </TouchableOpacity>
+                  {form.expiresDate ? (
+                    <TouchableOpacity
+                      style={styles.expiryChip}
+                      onPress={() => setForm(f => ({ ...f, expiresDate: '' }))}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear the expiry date"
+                      testID="permit-expires-clear"
+                    >
+                      <Text style={styles.expiryChipText}>Clear</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                {parseCalendarDay(expiryBase) ? (
+                  <View style={styles.expiryChipRow}>
+                    {[6, 12].map(m => (
+                      <TouchableOpacity
+                        key={m}
+                        style={styles.expiryChip}
+                        onPress={() => setForm(f => ({ ...f, expiresDate: addCalendarMonths(expiryBase, m) ?? f.expiresDate }))}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Expires ${m} months from the ${expiryBaseLabel}`}
+                        testID={`permit-expires-plus-${m}`}
+                      >
+                        <Text style={styles.expiryChipText}>+{m} mo from {expiryBaseLabel}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+
                 <Text style={styles.formLabel}>Fee ($)</Text>
                 <TextInput
                   style={styles.formInput}
@@ -1334,16 +1656,43 @@ function PermitsScreenInner() {
                 {/* The raw value used to be printed here — a `file://` path,
                     which told the GC nothing and was the bug. Say what it IS,
                     and say plainly when it is device-local. */}
-                {/* What you just attached, at a size you can judge in daylight.
-                    Only the local original is shown: the bucket copy may still
-                    be queued, and signing a path whose bytes have not landed
-                    yet would render an empty frame. */}
+                {/* #67: the scan, at a size you can judge in daylight — the
+                    one just picked, or the SAVED one when the form opens on an
+                    existing permit (signed from the bucket, or the queued
+                    local original while the upload is still in flight). It
+                    used to reset to nothing on every reopen. */}
                 <PhotoThumbGrid uris={attachmentPreview ? [attachmentPreview] : []} size={96} testIDPrefix="permit-scan" />
+                {attachmentPreview ? (
+                  <TouchableOpacity
+                    style={styles.viewScanBtn}
+                    onPress={() => openScanViewer(
+                      attachmentPreview,
+                      editingPermit ? scanCaption(editingPermit) : 'Permit scan',
+                      scanState === 'uploading' ? SCAN_UPLOADING_NOTE : undefined,
+                      scanState === 'ready' ? attachmentPreview : undefined,
+                    )}
+                    accessibilityRole="button"
+                    accessibilityLabel="View permit full screen"
+                    testID="permit-form-view-scan"
+                  >
+                    <Eye size={13} color={themeColors.accentLabel} strokeWidth={1.75} />
+                    <Text style={styles.viewScanText}>View permit</Text>
+                  </TouchableOpacity>
+                ) : null}
                 {form.attachmentUri ? (
-                  <Text style={styles.attachHint} numberOfLines={2}>
-                    {isDeviceLocalUri(form.attachmentUri)
-                      ? 'Scan attached — stored on this device only. Sign in to have it upload.'
-                      : 'Scan attached. It uploads on its own as soon as you have signal.'}
+                  <Text style={styles.attachHint} numberOfLines={2} testID="permit-scan-hint">
+                    {scanState === 'loading'
+                      ? 'Loading the saved scan…'
+                      : scanState === 'ready'
+                        ? 'Permit scan on file.'
+                        : scanState === 'uploading'
+                          ? SCAN_UPLOADING_NOTE
+                          : scanState === 'unavailable'
+                            ? "Couldn't load the saved scan — check your connection. It is still attached."
+                            : isDeviceLocalUri(form.attachmentUri)
+                              ? 'Scan attached — stored on this device only. Sign in to have it upload.'
+                              // 'fresh': he just picked it, and it really is queued.
+                              : 'Scan attached. It uploads on its own as soon as you have signal.'}
                   </Text>
                 ) : null}
               </ScrollView>
@@ -1362,6 +1711,62 @@ function PermitsScreenInner() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* #67: the permit scan, full screen. Pinch to zoom on the phone (a
+          ScrollView with a zoom scale — iOS); on the web the signed copy also
+          opens in a new tab straight from this tap, where the browser zooms. */}
+      <Modal visible={!!scanViewer} transparent animationType="fade" onRequestClose={() => setScanViewer(null)}>
+        <View style={styles.scanBackdrop} testID="permit-scan-viewer">
+          <View style={[styles.scanHeader, { paddingTop: insets.top + 12 }]}>
+            <TouchableOpacity
+              onPress={() => setScanViewer(null)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Close permit scan"
+              testID="permit-scan-viewer-close"
+            >
+              <X size={22} color={SCAN_ON_BACKDROP} strokeWidth={1.75} />
+            </TouchableOpacity>
+            <Text style={styles.scanCaption} numberOfLines={2}>{scanViewer?.caption ?? ''}</Text>
+            {Platform.OS === 'web' && scanViewer?.webUrl ? (
+              <TouchableOpacity
+                onPress={() => { void Linking.openURL(scanViewer.webUrl!); }}
+                accessibilityRole="link"
+                accessibilityLabel="Open the permit scan in a new tab"
+                testID="permit-scan-viewer-newtab"
+              >
+                <ExternalLink size={20} color={SCAN_ON_BACKDROP} strokeWidth={1.75} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {scanViewer?.note || scanViewerFailed ? (
+            <Text style={styles.scanNote}>
+              {scanViewerFailed
+                ? (scanViewer?.note ?? "This scan can't be displayed here. Check your connection and try again.")
+                : scanViewer?.note}
+            </Text>
+          ) : null}
+          {scanViewer && !scanViewerFailed ? (
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              maximumZoomScale={5}
+              minimumZoomScale={1}
+              centerContent
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+            >
+              <Image
+                source={{ uri: scanViewer.uri }}
+                style={{ flex: 1, width: '100%', minHeight: windowHeight * 0.7 }}
+                resizeMode="contain"
+                onError={() => setScanViewerFailed(true)}
+                accessibilityLabel={scanViewer.caption}
+              />
+            </ScrollView>
+          ) : null}
+        </View>
+      </Modal>
+
       {/* Shared date picker for the permit form's three date fields. Applied
           + last-report dates are "today or earlier"; the inspection date can
           be scheduled in the future (it drives the countdown hero), so we
@@ -1378,10 +1783,11 @@ function PermitsScreenInner() {
         }
         // A logged inspection can be either — the booked re-inspection is next
         // Thursday, the footing that failed was three weeks ago.
-        allowFuture={dateField === 'inspectionDate' || dateField === 'logInspection'}
+        allowFuture={dateField === 'inspectionDate' || dateField === 'logInspection' || dateField === 'expiresDate'}
         title={
           dateField === 'appliedDate' ? 'Applied date'
           : dateField === 'inspectionDate' ? 'Inspection date'
+          : dateField === 'expiresDate' ? 'Permit expires'
           : dateField === 'logInspection' ? 'When was it called?'
           : 'Last report date'
         }
@@ -1421,6 +1827,11 @@ function formatDateLabel(value: string): string {
   // UX-F4: a calendar day, not an instant — unparseable input echoes back.
   return formatCalendarDay(value);
 }
+
+// A scan reads best on near-black whatever the theme (same as the punch
+// photo viewer); the ink on it is white.
+const SCAN_BACKDROP = 'rgba(0,0,0,0.95)';
+const SCAN_ON_BACKDROP = '#FFFFFF';
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
@@ -1663,6 +2074,30 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   failedAlertText: { fontSize: Type.caption1.fontSize, color: t.dangerLabel, flex: 1 },
   attachRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  viewScanBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' as const,
+    marginTop: 6, paddingVertical: 6, paddingHorizontal: 10,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.accent + '14',
+  },
+  viewScanText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  scopeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: Tokens.radius.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+  },
+  scopeText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  scopeBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.accent + '14' },
+  scopeBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  expiryChipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 8 },
+  expiryChip: {
+    paddingHorizontal: 12, paddingVertical: 8, minHeight: 36, justifyContent: 'center' as const,
+    borderRadius: Tokens.radius.md, backgroundColor: t.surfaceAlt,
+  },
+  expiryChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
+  scanBackdrop: { flex: 1, backgroundColor: SCAN_BACKDROP },
+  scanHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 16, paddingBottom: 12 },
+  scanCaption: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: SCAN_ON_BACKDROP },
+  scanNote: { fontSize: Type.footnote.fontSize, color: SCAN_ON_BACKDROP, paddingHorizontal: 16, paddingBottom: 10, opacity: 0.9 },
   attachText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   permitFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
   permitFee: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },

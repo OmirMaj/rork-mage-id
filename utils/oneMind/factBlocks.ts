@@ -197,6 +197,83 @@ export function buildMarginBlock(
   };
 }
 
+// ─── MARGINS (business scope: every active job's margin, worst first) ──────
+//
+// "Which project is over budget?" is the Home starter, and business scope had
+// no per-job margin at all — the model was handed WATCH/CASH/RECORDS and told
+// to say "not in your data yet" about a number the app computes for every job
+// (audit #36). This is the compact roll-up: computeLivingEstimate per active
+// job (the same engine as the MARGIN block and /portfolio-margin), the five
+// furthest below their bid margin, and the honest line for the jobs that have
+// no margin basis — never a guess for them. Its own function so the CASH
+// source below keeps the shape the cash-flow validators pin.
+
+/** How many jobs the roll-up names. The rest are counted, not dropped. */
+export const MARGIN_ROLLUP_LIMIT = 5;
+
+export function buildMarginRollupBlock(
+  bundle: Pick<OneMindBundle, 'projects' | 'changeOrders' | 'commitments' | 'invoices' | 'costSources'>,
+  limit: number = MARGIN_ROLLUP_LIMIT,
+): FactBlock | null {
+  const active = bundle.projects.filter(p => p.status !== 'closed' && p.status !== 'completed');
+  if (active.length === 0) return null;
+  const rows: { name: string; le: LivingEstimateSnapshot }[] = [];
+  const noBasis: string[] = [];
+  for (const project of active) {
+    let le: LivingEstimateSnapshot;
+    try {
+      le = computeLivingEstimate({
+        project,
+        changeOrders: bundle.changeOrders.filter(c => c.projectId === project.id),
+        commitments: bundle.commitments,
+        invoices: bundle.invoices.filter(i => i.projectId === project.id),
+        costSources: bundle.costSources,
+      });
+    } catch {
+      noBasis.push(project.name);
+      continue;
+    }
+    if (le.hasMarginBasis) rows.push({ name: project.name, le });
+    else noBasis.push(project.name);
+  }
+  const facts: string[] = [];
+  // Worst first: the most profit lost against the bid.
+  rows.sort((a, b) => a.le.marginErosionDollars - b.le.marginErosionDollars);
+  const below = rows.filter(r => r.le.marginErosionDollars < 0).length;
+  if (rows.length > 0) {
+    facts.push(
+      `${rows.length} active job(s) have a margin basis; ${below} ${below === 1 ? 'is' : 'are'} projected below the margin they were bid at.`,
+    );
+  }
+  for (const { name, le } of rows.slice(0, limit)) {
+    const subsOnly = !hasFullCostBasis(le);
+    const basisTag = subsOnly ? ` (subs only: ${SUBS_ONLY_COST_CAVEAT})` : '';
+    const trend = le.marginErosionDollars < 0
+      ? `down ${Math.abs(le.marginErosionPoints).toFixed(1)} pts (${fmtMoney(Math.abs(le.marginErosionDollars))}) from bid`
+      : 'at or above its bid margin';
+    facts.push(
+      `${name}: projected margin ${fmtPct1(le.projected.marginPct)} vs ${fmtPct1(le.original.marginPct)} bid — ${trend}; health ${le.health}${basisTag}.`,
+    );
+  }
+  if (rows.length > limit) {
+    facts.push(`${rows.length - limit} more job(s) with a margin basis are not listed here — /portfolio-margin ranks them all.`);
+  }
+  if (noBasis.length > 0) {
+    const named = noBasis.slice(0, limit).join(', ');
+    const more = noBasis.length > limit ? ` and ${noBasis.length - limit} more` : '';
+    facts.push(
+      `No margin basis for ${noBasis.length} active job(s) (${named}${more}): no linked estimate with a cost/markup split, so whether they are over budget cannot be computed.`,
+    );
+  }
+  if (facts.length === 0) return null;
+  return {
+    domain: 'JOB MARGINS',
+    ref: 'MARGINS',
+    facts,
+    drillIn: { pathname: '/portfolio-margin' },
+  };
+}
+
 // ─── RISK (computeMarginRisk) ────────────────────────────────────────────────
 
 export function buildRiskBlock(projectId: string, risk: MarginRiskScore): FactBlock | null {
@@ -653,6 +730,9 @@ export async function assembleFactBlocks(
     ...crossProjectSources,
     // WATCH — ranked attention across every active job + certs.
     () => buildBrainWatchBlock(collectAttentionItems(bundle, undefined, now)),
+    // MARGINS — every active job's projected vs bid margin, worst first, so
+    // "which project is over budget?" has an answer at business scope (#36).
+    () => buildMarginRollupBlock(bundle),
     // CASH — AsyncStorage inputs + pure forecast engine (lazy).
     async () => {
       const [{ loadCashFlowSettings }, engine, { supabase }] = await Promise.all([

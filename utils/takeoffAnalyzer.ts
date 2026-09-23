@@ -5,6 +5,7 @@
 // Output schema is types/index.ts:TakeoffResult.
 
 import { supabase } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 import type { TakeoffResult } from '@/types';
 
 export type TakeoffModel = 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'claude-sonnet-4-5';
@@ -58,7 +59,10 @@ export async function analyzeTakeoff(opts: AnalyzeTakeoffOpts): Promise<AnalyzeT
   }>('analyze-takeoff', {
     body: opts,
   });
-  if (error) throw new Error(`Takeoff call failed: ${error.message}`);
+  // The function's own sentence and code (a monthly cap, the hourly limit, a
+  // plan refusal), not "Edge Function returned a non-2xx status code" — read
+  // once, through utils/edgeError (audit #124, CONTRACT 26).
+  if (error) throw await edgeFunctionError(error, 'Takeoff failed');
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Takeoff returned an empty result.');
   }

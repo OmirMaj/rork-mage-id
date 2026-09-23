@@ -19,13 +19,14 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSegments, useRouter } from 'expo-router';
+import { useSegments, useRouter, useGlobalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Tokens } from '@/constants/designTokens';
 import { MageAIMark } from '@/components/icons';
 import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain/brainFabState';
+import { anchorProjectIdFor } from '@/utils/resolveStarters';
 
 // Routes where the Brain must NOT appear: tokenized public viewers handed to
 // clients/subs (they have no account and must see only what's shared), the
@@ -44,6 +45,7 @@ export function BrainFab() {
   const { colors } = useTheme();
   const router = useRouter();
   const segments = useSegments();
+  const globalParams = useGlobalSearchParams();
 
   // Scroll-away + per-screen suppression / lift. See brainFabState for why the
   // FAB owns this rather than every screen padding around it (audit defect #5).
@@ -96,8 +98,16 @@ export function BrainFab() {
     // Pass the innermost route name so Ask can offer screen-aware starters.
     const cleaned = segments.map(s => s.replace(/[()]/g, '')).filter(Boolean);
     const screen = cleaned[cleaned.length - 1];
-    router.push(screen ? { pathname: '/ask', params: { screen } } : '/ask');
-  }, [router, segments]);
+    // And the job on screen, so Ask answers for Henderson on Henderson's page
+    // instead of the whole business (audit #36). anchorProjectIdFor forwards
+    // only from the job screens — a bare `id` elsewhere is some other record.
+    const projectId = anchorProjectIdFor(screen, globalParams);
+    router.push(
+      screen
+        ? { pathname: '/ask', params: projectId ? { screen, projectId } : { screen } }
+        : '/ask',
+    );
+  }, [router, segments, globalParams]);
 
   // Hide on public/tokenized viewers and the pre-auth flow.
   if (HIDDEN_ROOTS.has((segments[0] as string) ?? '')) return null;

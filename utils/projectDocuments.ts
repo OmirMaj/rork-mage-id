@@ -221,8 +221,16 @@ export async function resolveDfrPhotosForDocument(
  * Open a saved document in the platform's default viewer. On native
  * we hand the publicUrl to React Native's Linking; on web we open in
  * a new tab so the browser PDF preview takes over.
+ *
+ * Refuses (throws) when there is no http(s) URL to open. Project Files hands
+ * this a signed URL that is '' when signing failed offline, and
+ * `Linking.openURL('')` / `window.open('')` did nothing at all — a tap with no
+ * answer (#160). The caller shows the message.
  */
+export const OPEN_DOCUMENT_NO_LINK = "Couldn't get a link to this file — no signal or the server didn't answer. Try again when you're back online.";
+
 export async function openSavedDocument(publicUrl: string): Promise<void> {
+  if (!/^https?:\/\//i.test((publicUrl ?? '').trim())) throw new Error(OPEN_DOCUMENT_NO_LINK);
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') {
       window.open(publicUrl, '_blank', 'noopener');

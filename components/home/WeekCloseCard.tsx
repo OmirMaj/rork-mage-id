@@ -64,7 +64,6 @@ export default function WeekCloseCard() {
   const { projects, invoices, dailyReports } = useProjects();
   const { user } = useAuth();
   const gated = canAccess('brain_accuracy');
-  const { close } = useWeekClose({ enabled: gated && isFridayWindow() });
 
   // F3: once-per-session catch-up sweep — auto-drafts COs from priced leak
   // scans when the autonomy gate and preference allow. Gated internally;
@@ -73,10 +72,24 @@ export default function WeekCloseCard() {
 
   // null = still reading storage (render nothing, no flicker).
   const [seenThisWeek, setSeenThisWeek] = useState<boolean | null>(null);
+  // Is Home the focused screen? False while /week-close (or anything else) is
+  // pushed over it — that screen runs its own useWeekClose.
+  const [homeFocused, setHomeFocused] = useState(true);
+
+  // THE CLOSE IS ASSEMBLED ONLY WHILE THIS CARD IS ON SCREEN (#116, audit
+  // 2026-09-22). It was enabled on every Friday-window render of Home — after
+  // he had already opened or dismissed the close, and underneath /week-close —
+  // and each assembly could fire a smart-tier AI payment forecast charged to
+  // his monthly allowance. Now: Business, Friday–Sunday, not seen this week
+  // (the exact conditions under which the card renders below), and Home
+  // focused.
+  const cardWillRender = gated && isFridayWindow() && seenThisWeek === false;
+  const { close } = useWeekClose({ enabled: cardWillRender && homeFocused });
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setHomeFocused(true);
       AsyncStorage.getItem(WEEK_CLOSE_LAST_SEEN_KEY)
         .then(v => {
           if (cancelled) return;
@@ -84,7 +97,7 @@ export default function WeekCloseCard() {
           setSeenThisWeek(isoWeek(v) === isoWeek(weekCloseTodayISO()));
         })
         .catch(() => { if (!cancelled) setSeenThisWeek(false); });
-      return () => { cancelled = true; };
+      return () => { cancelled = true; setHomeFocused(false); };
     }, []),
   );
 
@@ -155,7 +168,7 @@ export default function WeekCloseCard() {
 
   // Render nothing when: not gated, outside Fri-Sun, storage not yet read, or
   // already seen this week.
-  if (!gated || !isFridayWindow() || seenThisWeek !== false) return null;
+  if (!cardWillRender) return null;
 
   // Informational lines (reminders/notices) are not open work — count only
   // legs with actionable items, mirroring composeWeekClose's allQuiet rule.

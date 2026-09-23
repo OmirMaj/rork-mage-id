@@ -15,6 +15,21 @@
 //   reverse geocoding is opportunistic (fall back to "<lat>, <lng>" string)
 //   and uploads ride the existing offline queue (`utils/offlineQueue.ts`).
 //
+// Where a stamp is stored (audit #65 — until 20260923230000 a GALLERY photo's
+// stamp had no column: it lived in this phone's cache and the next server
+// re-read wiped it, so no other device, and eventually not this one, had it):
+//   - gallery photo → public.photos.latitude / longitude /
+//     location_accuracy_meters / location_label (migration
+//     20260923230000_photos_geo_stamp.sql; ProjectPhoto.latitude, longitude,
+//     locationAccuracyMeters, locationLabel — CONTRACT 18);
+//   - punch item's photo → public.punch_items.photo_latitude /
+//     photo_longitude / photo_accuracy_meters / photo_location_label
+//     (20260707120000_punch_location.sql).
+//   The photos columns are only as good as the mapper that writes them: the
+//   insert / update / read rows in contexts/ProjectContext.tsx must carry all
+//   four (the w5-join-core handoff), and the migration must be applied before
+//   the OTA that sends them.
+//
 // Behavior contract
 //   - Returns `{ latitude, longitude, accuracyMeters, label }` on success.
 //   - Returns `null` on permission denied, no fix, or timeout.

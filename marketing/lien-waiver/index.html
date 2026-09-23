@@ -431,7 +431,10 @@
       return;
     }
     if (w.status === 'voided') {
-      showState('This waiver was voided', 'The contractor cancelled it. There is nothing to sign, and you have '
+      // The server still finds a voided waiver by the token its void retired
+      // (lien_waiver_get_for_signing, 20260923130000), so this — not "this
+      // link no longer works" — is what a sub holding the old email reads.
+      showState('This waiver was voided by the contractor', 'The contractor cancelled it. There is nothing to sign, and you have '
         + 'given up nothing.', 'warn');
       return;
     }
@@ -551,6 +554,12 @@
               + 'Nothing has been signed.';
           } else if (why.indexOf('lien_waiver_signer_required') !== -1) {
             $('submit-note').textContent = 'Type your full legal name above. Nothing has been signed.';
+          } else if (why.indexOf('lien_waiver_voided') !== -1) {
+            // Voided while the sub had the page open: the server refuses the
+            // signature (20260923130000) and says why.
+            $('submit').disabled = true;
+            $('submit-note').textContent = 'This waiver was voided by the contractor while you had it open. '
+              + 'There is nothing to sign — nothing has been signed.';
           } else if (why.indexOf('lien_waiver_denied') !== -1) {
             $('submit-note').textContent = 'This signing link has been replaced — the contractor sent a newer '
               + 'one. Open the most recent email and sign there. Nothing has been signed here.';

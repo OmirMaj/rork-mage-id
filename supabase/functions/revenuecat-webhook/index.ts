@@ -16,6 +16,9 @@
 //                                     re-read the subscriber's CURRENT
 //                                     entitlements so we never infer tier from a
 //                                     single (possibly stale/out-of-order) event.
+//                                     REQUIRED in practice: without it every
+//                                     CANCELLATION / PAUSE / TRANSFER is
+//                                     answered 500 (retry) rather than guessed.
 //       SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — standard.
 //   - Point RevenueCat's webhook at:
 //       {SUPABASE_URL}/functions/v1/revenuecat-webhook
@@ -25,6 +28,21 @@
 // uuid. When app_user_id is a uuid we write straight to that user_id; if it's
 // still an anonymous RC id ($RCAnonymousID:...) we fall back to matching the
 // subscriptions row by revenuecat_customer_id.
+//
+// Hand-granted plans (audit wave 5, #2): paid plans are turned on by the
+// founder with the service key, with no RevenueCat purchase behind them. They
+// carry subscriptions.manual_tier (migration 20260923010000), and nothing here
+// writes a tier below it — so a later RevenueCat event (a sandbox purchase, an
+// alias, a transfer) can no longer wipe a plan the customer was given.
+//
+// Sandbox (TestFlight) events are processed like production ones, as they
+// always were. The phone counts a sandbox entitlement too
+// (tierFromCustomerInfo reads entitlements.active with no isSandbox check), so
+// ignoring sandbox here would put a TestFlight buyer on Pro on the phone and
+// Free on the server — the #2 split with the sides swapped. Whether a
+// TestFlight purchase should grant a real tier at all is an open founder
+// decision; if it changes, BOTH sides change together
+// (scripts/validate-w5-paywall-webhook.ts pins them to one rule).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -32,12 +50,6 @@ const REVENUECAT_WEBHOOK_SECRET = Deno.env.get("REVENUECAT_WEBHOOK_SECRET") || "
 const REVENUECAT_SECRET_API_KEY = Deno.env.get("REVENUECAT_SECRET_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-// Entitlement id → tier. Mirrors contexts/SubscriptionContext.tsx
-// tierFromCustomerInfo and the entitlement names documented in CLAUDE.md.
-type Tier = "free" | "pro" | "business" | "enterprise";
-const TIER_RANK: Record<Tier, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
-const ENTITLEMENT_TIERS: Tier[] = ["enterprise", "business", "pro"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,19 +72,130 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// --- BEGIN resolveWrite (pure; scripts/validate-w5-paywall-webhook.ts executes this block) ---
+// Entitlement id → tier. Mirrors contexts/SubscriptionContext.tsx
+// tierFromCustomerInfo and the entitlement names documented in CLAUDE.md.
+type Tier = "free" | "pro" | "business" | "enterprise";
+const TIER_RANK: Record<Tier, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+const ENTITLEMENT_TIERS: Tier[] = ["enterprise", "business", "pro"];
+
 interface RCEvent {
   type?: string;
   app_user_id?: string;
   original_app_user_id?: string;
   entitlement_ids?: string[] | null;
   aliases?: string[];
+  /** TRANSFER only: the ids the purchase moved FROM and TO (no app_user_id). */
+  transferred_from?: string[] | null;
+  transferred_to?: string[] | null;
+  /** 'PRODUCTION' | 'SANDBOX' — logged only; both are decided the same way. */
+  environment?: string;
 }
+
+/** The subscriptions row as the writer reads it before deciding. */
+interface ExistingRow {
+  tier: Tier | null;
+  /** A plan MAGE ID turned on by hand (migration 20260923010000). Never written below. */
+  manual_tier: Tier | null;
+}
+
+type WriteDecision =
+  | { writes: { uid: string; tier: Tier }[] }
+  | { retry: true; reason: string }
+  | { ignore: string };
+
+/** tier, raised to manual_tier when a hand grant outranks it (#2). */
+function floorAtManual(tier: Tier, manual: Tier | null | undefined): Tier {
+  return manual && TIER_RANK[manual] > TIER_RANK[tier] ? manual : tier;
+}
+
+/** Highest tier named by the event's own entitlement_ids. */
+function tierFromEventEntitlements(ev: RCEvent): Tier {
+  let best: Tier = "free";
+  for (const id of ev.entitlement_ids ?? []) {
+    const t = id.toLowerCase() as Tier;
+    if (t in TIER_RANK && TIER_RANK[t] > TIER_RANK[best]) best = t;
+  }
+  return best;
+}
+
+// Events that START or EXTEND paid access. Without a RevenueCat re-read their
+// own entitlement_ids may RAISE a tier — never lower one.
+const GRANTING_EVENTS = new Set([
+  "INITIAL_PURCHASE", "RENEWAL", "PRODUCT_CHANGE", "UNCANCELLATION", "NON_RENEWING_PURCHASE",
+]);
+
+/**
+ * What to write for one webhook event. Pure, so it can be pinned.
+ *
+ *   ev            — the event body.
+ *   authoritative — per app user id, the tier RevenueCat's REST API reports NOW
+ *                   (tierFromRevenueCat), null when that read failed or the
+ *                   secret key is unset.
+ *   existing      — per app user id, the subscriptions row (null: none).
+ *
+ * Rules (audit wave 5, #2 and #43):
+ *  - Nothing is ever written below the row's manual_tier: a plan the founder
+ *    turned on by hand is not RevenueCat's to take away.
+ *  - With a RevenueCat read, its answer is the tier (floored at manual_tier).
+ *  - Without one, the event alone decides only what it can decide safely:
+ *      EXPIRATION        → free (access HAS ended), floored at manual_tier;
+ *      granting events   → their entitlement_ids, only when that names a paid
+ *                          tier (a raise), floored at manual_tier;
+ *      everything else   → retry (HTTP 500, RevenueCat retries with backoff).
+ *    CANCELLATION and SUBSCRIPTION_PAUSED are sent when auto-renew is turned
+ *    OFF, not when access ends; writing 'free' for them (as this function
+ *    used to, while its comment claimed "no change") cut a paying customer
+ *    off mid-month the moment the RevenueCat lookup hiccuped.
+ *  - TRANSFER (a purchase restored onto another account) carries no
+ *    app_user_id — it used to be ignored, so the new account stayed Free on
+ *    the server while the phone showed Pro and the old account kept the plan
+ *    forever. Every id on both sides is re-read from RevenueCat and written;
+ *    any failed read → retry, never a guess.
+ *  - A SANDBOX event is decided like any other (see the header: the phone
+ *    counts sandbox entitlements, so the server must too).
+ */
+function resolveWrite(
+  ev: RCEvent,
+  authoritative: Record<string, Tier | null | undefined>,
+  existing: Record<string, ExistingRow | null | undefined>,
+): WriteDecision {
+  const type = (ev.type ?? "").toUpperCase();
+  if (type === "TEST") return { ignore: "test" };
+
+  if (type === "TRANSFER") {
+    const ids = [...new Set([...(ev.transferred_from ?? []), ...(ev.transferred_to ?? [])].filter(Boolean))];
+    if (ids.length === 0) return { ignore: "transfer without ids" };
+    const writes: { uid: string; tier: Tier }[] = [];
+    for (const uid of ids) {
+      const a = authoritative[uid];
+      if (a === null || a === undefined) return { retry: true, reason: `no RevenueCat read for ${uid}` };
+      writes.push({ uid, tier: floorAtManual(a, existing[uid]?.manual_tier) });
+    }
+    return { writes };
+  }
+
+  const uid = ev.app_user_id || ev.original_app_user_id || "";
+  if (!uid) return { ignore: "no app_user_id" };
+  const manual = existing[uid]?.manual_tier ?? null;
+  const a = authoritative[uid];
+  if (a !== null && a !== undefined) return { writes: [{ uid, tier: floorAtManual(a, manual) }] };
+
+  if (type === "EXPIRATION") return { writes: [{ uid, tier: floorAtManual("free", manual) }] };
+  if (GRANTING_EVENTS.has(type)) {
+    const t = tierFromEventEntitlements(ev);
+    if (t !== "free") return { writes: [{ uid, tier: floorAtManual(t, manual) }] };
+  }
+  return { retry: true, reason: `${type || "event"} with no RevenueCat read` };
+}
+// --- END resolveWrite ---
 
 /**
  * Ask RevenueCat for the subscriber's CURRENT active entitlements and resolve
- * the highest tier. Returns null if we can't reach RC (caller then falls back
- * to the event payload). This is authoritative and immune to out-of-order
- * webhook delivery.
+ * the highest tier. Returns null if we can't reach RC or the secret key is
+ * unset — resolveWrite then decides only what the event alone can decide
+ * safely, and asks RevenueCat to retry otherwise. This is authoritative and
+ * immune to out-of-order webhook delivery.
  */
 async function tierFromRevenueCat(appUserId: string): Promise<Tier | null> {
   if (!REVENUECAT_SECRET_API_KEY) return null;
@@ -101,24 +224,6 @@ async function tierFromRevenueCat(appUserId: string): Promise<Tier | null> {
   }
 }
 
-/** Best-effort tier from a single event when RC REST is unavailable. */
-function tierFromEvent(ev: RCEvent): Tier {
-  const type = (ev.type ?? "").toUpperCase();
-  if (type === "EXPIRATION" || type === "CANCELLATION" || type === "SUBSCRIPTION_PAUSED") {
-    // A cancellation isn't immediately "free" (access often runs to period end),
-    // but without RC REST we can't know the end date — be conservative and let a
-    // later RENEWAL/INITIAL_PURCHASE event or RC re-read restore a paid tier.
-    // We DON'T downgrade here to avoid yanking access mid-period on a stray
-    // event; we simply make no change (handled by the caller for these types).
-    return "free";
-  }
-  let best: Tier = "free";
-  for (const id of ev.entitlement_ids ?? []) {
-    const t = id.toLowerCase() as Tier;
-    if (t in TIER_RANK && TIER_RANK[t] > TIER_RANK[best]) best = t;
-  }
-  return best;
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -146,53 +251,91 @@ Deno.serve(async (req: Request) => {
 
   const ev = payload.event ?? {};
   const type = (ev.type ?? "").toUpperCase();
-  const appUserId = ev.app_user_id || ev.original_app_user_id || "";
-
-  // RC sends non-subscription events (TEST, TRANSFER, etc.) — ack and ignore.
-  if (type === "TEST") {
-    return new Response(JSON.stringify({ ok: true, ignored: "test" }), {
-      status: 200, headers: { ...corsHeaders, "content-type": "application/json" },
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status, headers: { ...corsHeaders, "content-type": "application/json" },
     });
-  }
-  if (!appUserId) {
-    return new Response(JSON.stringify({ ok: true, ignored: "no app_user_id" }), {
-      status: 200, headers: { ...corsHeaders, "content-type": "application/json" },
-    });
-  }
 
-  // Resolve the authoritative current tier (RC REST preferred, event fallback).
-  const authoritative = await tierFromRevenueCat(appUserId);
-  const tier: Tier = authoritative ?? tierFromEvent(ev);
+  // Settle ignores before any network call (TEST, no id).
+  const pre = resolveWrite(ev, {}, {});
+  if ("ignore" in pre) return json({ ok: true, ignored: pre.ignore });
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 
+  // Every app user id this event touches: both sides of a TRANSFER, else the one id.
+  const ids = type === "TRANSFER"
+    ? [...new Set([...(ev.transferred_from ?? []), ...(ev.transferred_to ?? [])].filter(Boolean))]
+    : [ev.app_user_id || ev.original_app_user_id || ""];
+
+  // Read RevenueCat (authoritative, immune to out-of-order delivery) and the
+  // existing row for each id. select('*') so a missing manual_tier column
+  // (migration 20260923010000 not yet applied) reads as null instead of
+  // failing the read.
+  const authoritative: Record<string, Tier | null> = {};
+  const existing: Record<string, ExistingRow | null> = {};
+  try {
+    for (const id of ids) {
+      authoritative[id] = await tierFromRevenueCat(id);
+      const q = supabase.from("subscriptions").select("*");
+      const { data, error } = UUID_RE.test(id)
+        ? await q.eq("user_id", id).maybeSingle()
+        : await q.eq("revenuecat_customer_id", id).limit(1).maybeSingle();
+      if (error) throw error;
+      const row = data as { tier?: Tier | null; manual_tier?: Tier | null } | null;
+      existing[id] = row ? { tier: row.tier ?? null, manual_tier: row.manual_tier ?? null } : null;
+    }
+  } catch (err) {
+    console.error("[rc-webhook] row read failed:", String(err));
+    return new Response("Read failed", { status: 500, headers: corsHeaders });
+  }
+
+  const decision = resolveWrite(ev, authoritative, existing);
+  if ("ignore" in decision) return json({ ok: true, ignored: decision.ignore });
+  if ("retry" in decision) {
+    // 500 so RevenueCat retries with backoff. Writing a guess here is how a
+    // cancelled-but-paid customer lost his plan mid-month (#43).
+    console.warn(`[rc-webhook] ${type}: ${decision.reason} — asking RevenueCat to retry`);
+    return new Response("Tier unknown — retry", { status: 500, headers: corsHeaders });
+  }
+
   // Map app_user_id → subscriptions row. Preferred: it's the Supabase user uuid.
   // Fallback: an anonymous RC id we previously stored as revenuecat_customer_id.
   try {
-    if (UUID_RE.test(appUserId)) {
-      const { error } = await supabase
-        .from("subscriptions")
-        .upsert(
-          {
-            user_id: appUserId,
-            tier,
-            revenuecat_customer_id: appUserId,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        );
-      if (error) throw error;
-    } else {
-      // Anonymous RC id — can only update an existing linked row.
-      const { error, count } = await supabase
-        .from("subscriptions")
-        .update({ tier, updated_at: new Date().toISOString() }, { count: "exact" })
-        .eq("revenuecat_customer_id", appUserId);
-      if (error) throw error;
-      if (!count) {
-        console.warn(`[rc-webhook] no subscriptions row for anonymous app_user_id=${appUserId}`);
+    for (const { uid, tier } of decision.writes) {
+      if (UUID_RE.test(uid)) {
+        const { error } = await supabase
+          .from("subscriptions")
+          .upsert(
+            {
+              user_id: uid,
+              tier,
+              revenuecat_customer_id: uid,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" },
+          );
+        if (error) throw error;
+      } else {
+        // Anonymous RC id — can only update existing linked rows, each floored
+        // at its OWN manual_tier (the table's trigger floors it as well).
+        const { data: rows, error: readErr } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("revenuecat_customer_id", uid);
+        if (readErr) throw readErr;
+        if (!rows?.length) {
+          console.warn(`[rc-webhook] no subscriptions row for anonymous app_user_id=${uid}`);
+          continue;
+        }
+        for (const r of rows as { user_id: string; manual_tier?: Tier | null }[]) {
+          const { error } = await supabase
+            .from("subscriptions")
+            .update({ tier: floorAtManual(tier, r.manual_tier), updated_at: new Date().toISOString() })
+            .eq("user_id", r.user_id);
+          if (error) throw error;
+        }
       }
     }
   } catch (err) {
@@ -201,8 +344,7 @@ Deno.serve(async (req: Request) => {
     return new Response("Write failed", { status: 500, headers: corsHeaders });
   }
 
-  console.log(`[rc-webhook] ${type} → tier=${tier} for ${appUserId} (authoritative=${authoritative !== null})`);
-  return new Response(JSON.stringify({ ok: true, tier }), {
-    status: 200, headers: { ...corsHeaders, "content-type": "application/json" },
-  });
+  const summary = decision.writes.map((w) => `${w.uid}=${w.tier}`).join(", ");
+  console.log(`[rc-webhook] ${type} → ${summary} (authoritative=${ids.every((id) => authoritative[id] !== null)})`);
+  return json({ ok: true, writes: decision.writes });
 });

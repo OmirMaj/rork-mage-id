@@ -39,6 +39,17 @@ export function financingDisclosure(cfg: FinancingConfig): string {
   return `Financing provided by ${cfg.partnerName}, a third party, subject to credit approval. MAGE ID is not a lender and may receive compensation.`;
 }
 
+/**
+ * The ref shape financing-redirect accepts (its REF_RE): `fin_` + 32 lower-
+ * case hex, as useFinancingReferrals.ensureReferral mints it. The ref is the
+ * whole capability — the link carries no signature — so anything else is not
+ * a link we can send.
+ */
+export const FINANCING_REF_RE = /^fin_[0-9a-f]{32}$/;
+export function isFinancingRefToken(refToken: string | null | undefined): boolean {
+  return typeof refToken === 'string' && FINANCING_REF_RE.test(refToken);
+}
+
 export function buildFinancingRedirectUrl(refToken: string): string {
   return `${SUPABASE_FUNCTIONS_URL}/financing-redirect?ref=${encodeURIComponent(refToken)}`;
 }
@@ -52,6 +63,9 @@ export function financingEmailBlockHtml(args: {
 }): string {
   const { settings, amountCents, refToken } = args;
   if (!isFinancingAvailable(settings)) return '';
+  // No referral row → financing-redirect can only fall back to the MAGE ID
+  // homepage (#180). Never email a button that can't reach the lender.
+  if (!isFinancingRefToken(refToken)) return '';
   const cfg = settings!.financing!;
   const url = buildFinancingRedirectUrl(refToken);
   const monthly = illustrativeMonthly(amountCents, cfg);

@@ -19,6 +19,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBids } from '@/contexts/BidsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { CERTIFICATIONS, CERT_COLORS } from '@/constants/certifications';
 import { supabase } from '@/lib/supabase';
@@ -141,6 +142,7 @@ export default function BidDetailScreen() {
   const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
   const router = useRouter();
   const { bids: localBids } = useBids();
+  const { user } = useAuth();
   const { companies } = useCompanies();
   const [trackedBid, setTrackedBid] = useState<TrackedBid | null>(null);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
@@ -242,12 +244,18 @@ export default function BidDetailScreen() {
     ?? '';
   const bidType = cachedBid?.bid_type ?? localBid?.bidType ?? '';
   const category = cachedBid?.category ?? localBid?.category ?? '';
-  const contactEmail = cachedBid?.contact_email ?? localBid?.contactEmail ?? '';
+  // Audit wave 5, #13: a homeowner RFP (a private person's post) never shows
+  // who posted it or their email to anyone but the homeowner herself — on
+  // both layouts, whatever reached this screen (a deep link, an old cache).
+  // The feed already drops these rows while browsing is off and the server
+  // no longer hands the fields out; this is the last line.
+  const hideHomeownerContact = !!localBid?.isHomeownerRfp && localBid.userId !== user?.id;
+  const contactEmail = hideHomeownerContact ? '' : (cachedBid?.contact_email ?? localBid?.contactEmail ?? '');
   const contactPhone = cachedBid?.contact_phone ?? '';
   const applyUrl = cachedBid?.apply_url ?? localBid?.applyUrl ?? '';
   const sourceUrl = cachedBid?.source_url ?? localBid?.sourceUrl ?? '';
   const sourceName = cachedBid?.source_name ?? localBid?.sourceName ?? '';
-  const postedBy = cachedBid?.posted_by ?? localBid?.postedBy ?? '';
+  const postedBy = hideHomeownerContact ? '' : (cachedBid?.posted_by ?? localBid?.postedBy ?? '');
   const postedDate = cachedBid?.posted_date ?? localBid?.postedDate ?? '';
   const department = cachedBid?.department ?? (localBid as PublicBid | null)?.issuingAgency ?? '';
   const naicsCode = cachedBid?.naics_code ?? '';

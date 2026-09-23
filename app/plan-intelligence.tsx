@@ -48,11 +48,9 @@ import {
   memorySummary, ROOM_TYPE_LABELS, type PlanRoom,
 } from '@/utils/planIntelligence';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
-// The canonical at-cost rule (labor / assemblies carry no markup), shared with
-// the estimator and the voice-edit recompute rather than restated here.
-import { isAtCostLine } from '@/utils/copilot/estimateEdit/estimateOps';
 import { roundCents } from '@/utils/invoiceBilling';
 import { generateUUID } from '@/utils/generateId';
+import { parseDecimalInput } from '@/utils/estimateLanding';
 import { formatMoney } from '@/utils/formatters';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
@@ -248,17 +246,18 @@ function PlanIntelligenceInner() {
     // certificate under-foot by exactly the markup, forever.
     //
     // Preserve the estimate's existing effective markup ratio — don't
-    // recompute markup policy from scratch — and give at-cost categories none,
-    // which is the rule recomputeEstimate would enforce anyway.
+    // recompute markup policy from scratch — on EVERY line, labor and
+    // assemblies included (#6). The estimator marks labor up
+    // (utils/estimateMarkup cartTotals: "LABOR AND ASSEMBLIES USED TO BE
+    // EXCLUDED"), and recomputeEstimate now keeps each line's own markup, so
+    // the old at-cost carve-out only gave margin away on a labor room.
     // --- BEGIN plan append ---
     // Lifted and EXECUTED by scripts/validate-invoice-billing.ts. Keep the
     // sentinels: the validator exits 1 if they go missing rather than quietly
     // stopping checking that this screen's lines foot to the contract.
     const addedBase = lines.reduce((s, l) => s + l.lineTotal, 0);
     const items: LinkedEstimateItem[] = lines.map((l) => {
-      const ratio = !isAtCostLine({ category: l.category }) && est.baseTotal > 0
-        ? est.markupTotal / est.baseTotal
-        : 0;
+      const ratio = est.baseTotal > 0 ? est.markupTotal / est.baseTotal : 0;
       const markupPct = ratio * 100;
       return {
         materialId: generateUUID(),
@@ -550,8 +549,12 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
 
   const save = () => {
     if (!room) return;
-    const sqft = Math.max(1, parseFloat(sqftStr) || room.sqft);
-    const rate = Math.max(0, parseFloat(rateStr) || room.ratePerSqft);
+    // Decimal boxes (#10). An unreadable box keeps the room's own figure; a
+    // typed 0 $/SF is his answer, so it is no longer swallowed by `|| rate`.
+    const sqftIn = parseDecimalInput(sqftStr);
+    const rateIn = parseDecimalInput(rateStr);
+    const sqft = sqftIn == null ? room.sqft : Math.max(1, sqftIn);
+    const rate = rateIn == null ? room.ratePerSqft : Math.max(0, rateIn);
     onSave({
       name: name.trim() || room.name,
       sqft,
@@ -579,14 +582,14 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
           <View style={styles.fieldRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>Square feet</Text>
-              <TextInput style={styles.fieldInput} value={sqftStr} onChangeText={setSqftStr} keyboardType="numeric" inputMode="numeric" placeholder="0" placeholderTextColor={t.textMuted} />
-              {room && Math.round(room.aiSqft) !== Math.round(parseFloat(sqftStr) || 0) ? (
+              <TextInput style={styles.fieldInput} value={sqftStr} onChangeText={setSqftStr} keyboardType="decimal-pad" inputMode="decimal" placeholder="0" placeholderTextColor={t.textMuted} />
+              {room && Math.round(room.aiSqft) !== Math.round(parseDecimalInput(sqftStr) ?? 0) ? (
                 <Text style={styles.fieldHint}>AI read {Math.round(room.aiSqft)} SF — your fix teaches it</Text>
               ) : null}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>Your $/SF</Text>
-              <TextInput style={styles.fieldInput} value={rateStr} onChangeText={setRateStr} keyboardType="numeric" inputMode="numeric" placeholder="0" placeholderTextColor={t.textMuted} />
+              <TextInput style={styles.fieldInput} value={rateStr} onChangeText={setRateStr} keyboardType="decimal-pad" inputMode="decimal" placeholder="0" placeholderTextColor={t.textMuted} />
             </View>
           </View>
 

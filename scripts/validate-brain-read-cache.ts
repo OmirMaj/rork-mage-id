@@ -15,6 +15,10 @@
 // of them misses a value-only cache. Test 1 is that case.
 
 import { createAsyncCache } from '@/utils/brain/readCache';
+// fileURLToPath + join because the repo path contains a space.
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let failures = 0;
 function assert(cond: boolean, msg: string) {
@@ -212,6 +216,26 @@ async function main() {
     let ok: number[] | null = null;
     try { ok = await cache.get('k', async () => { calls++; return [9]; }); } catch { /* reported below */ }
     assert(ok?.[0] === 9 && calls === 2, `the key is usable again after a rejection (saw ${calls} loads)`);
+  }
+
+  // ── 9. The LEDGER's loader surfaces a failure instead of caching [] ─────
+  //
+  // Test 7 proves readCache refuses to cache a rejected load. That guarantee is
+  // worth nothing if the loader never rejects: utils/brain/predictionLedger.ts
+  // used to end its loader in `if (error || !data) return []` inside a
+  // catch-all, so an offline read RESOLVED to [] and was cached as "no scans"
+  // for the whole TTL (#104 / #122, audit 2026-09-22). Source-pinned here
+  // (comments stripped) because this file runs readCache bare; the real loader
+  // is executed against a scripted server by validate-w5-brain-money-leak.
+  {
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'utils', 'brain', 'predictionLedger.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const loaders = [...src.matchAll(/readCache\.get\(cacheKey\([^)]*\),\s*async \(\) => \{([\s\S]*?)\n  \}\);/g)].map(m => m[1]);
+    assert(loaders.length >= 1, `the ledger reads through readCache (found ${loaders.length} loader(s))`);
+    assert(loaders.every(body => /if \(error\) throw /.test(body)),
+      'every ledger loader throws on a PostgREST error (so readCache drops it)');
+    assert(loaders.every(body => !/return \[\];/.test(body) && !/catch \{/.test(body)),
+      'no ledger loader swallows a failure into a cached [] (no `return [];`, no catch-all)');
   }
 
   if (failures > 0) {

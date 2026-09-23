@@ -28,7 +28,11 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { useSmartProposals } from '@/hooks/useSmartProposals';
 import { shareText } from '@/utils/shareText';
-import { buildQuickQuote, proposalToShareText, type SmartProposal } from '@/utils/proposalBuilder';
+import {
+  buildQuickQuote, proposalToShareText, quickQuoteTotals, type SmartProposal,
+} from '@/utils/proposalBuilder';
+import { parseDecimalInput } from '@/utils/estimateLanding';
+import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -50,8 +54,20 @@ const STATUS_LABEL: Record<SmartProposal['status'], string> = {
   declined: 'Declined',
 };
 
+/**
+ * A money / percent box → a non-negative number (#10). The keypads are
+ * decimal-pad now, and a comma-decimal region's keypad types "7,5": the old
+ * `replace(/[^0-9.]/g, '')` read that as 75. parseDecimalInput reads it as 7.5,
+ * de-groups "1,234.56", and refuses anything it can't read unambiguously —
+ * which counts as 0 here and is flagged under the row (amountUnreadable).
+ */
 function parseAmount(s: string): number {
-  return Math.max(0, parseFloat(s.replace(/[^0-9.]/g, '')) || 0);
+  return Math.max(0, parseDecimalInput(s) ?? 0);
+}
+
+/** A non-empty box the parser refused — said under the row, never guessed. */
+function amountUnreadable(s: string): boolean {
+  return s.trim().length > 0 && parseDecimalInput(s) == null;
 }
 
 export default function QuickQuoteScreen() {
@@ -64,6 +80,10 @@ export default function QuickQuoteScreen() {
   const goBack = useSafeBack();
   const { globalMarkup, markupDecided } = useMaterialCart();
   const { proposals, addProposal, updateProposal } = useSmartProposals();
+  // His saved licence number: the only licence claim the quote text makes,
+  // and none when blank (#90).
+  const { settings } = useProjects();
+  const licenseNumber = settings?.branding?.licenseNumber ?? '';
 
   const [clientName, setClientName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
@@ -89,15 +109,19 @@ export default function QuickQuoteScreen() {
   }, [markupDecided, globalMarkup]);
   const [taxStr, setTaxStr] = useState('');
 
-  const subtotal = useMemo(
-    () => lines.reduce((sum, l) => sum + parseAmount(l.amountStr), 0),
-    [lines],
-  );
-  const markupPct = Math.max(0, parseFloat(markupStr) || 0);
-  const taxPct = Math.max(0, parseFloat(taxStr) || 0);
-  const markupAmount = subtotal * (markupPct / 100);
-  const taxAmount = (subtotal + markupAmount) * (taxPct / 100);
-  const total = subtotal + markupAmount + taxAmount;
+  const markupPct = parseAmount(markupStr);
+  const taxPct = parseAmount(taxStr);
+  // The SAME arithmetic buildQuickQuote saves and the client text prints, on
+  // the cent grid (#90) — so the total on this screen is the total he sends.
+  const q = useMemo(() => quickQuoteTotals({
+    lineItems: lines.map(l => ({ description: l.description, amount: parseAmount(l.amountStr) })),
+    markupPct,
+    taxPct,
+  }), [lines, markupPct, taxPct]);
+  const subtotal = q.costSubtotal;
+  const markupAmount = q.markup;
+  const taxAmount = q.tax;
+  const total = q.total;
 
   const quickQuotes = useMemo(
     () => proposals.filter(p => p.kind === 'quick'),
@@ -151,7 +175,7 @@ export default function QuickQuoteScreen() {
       // check was `result.action === Share.sharedAction`, and on web
       // Share.share REJECTED before ever returning a result, so the proposal was
       // never marked sent and the catch logged it as a failure.
-      const outcome = await shareText({ message: proposalToShareText(quote) });
+      const outcome = await shareText({ message: proposalToShareText(quote, { licenseNumber }) });
       if (outcome === 'shared' || outcome === 'copied') {
         updateProposal(quote.id, { status: 'sent' });
       }
@@ -159,7 +183,7 @@ export default function QuickQuoteScreen() {
       console.warn('[quickQuote] share failed:', err);
     }
 
-    showAlert('Quote saved', `${formatMoney(quote.tiers[0]?.price ?? 0)} quote for ${name} is in Recent quotes below.`);
+    showAlert('Quote saved', `${formatMoney(quote.tiers[0]?.price ?? 0, 2)} quote for ${name} is in Recent quotes below.`);
 
     // Reset the form for the next quick quote.
     setClientName('');
@@ -172,7 +196,7 @@ export default function QuickQuoteScreen() {
     try {
       // 'copied' counts as sent for the same reason as the first-send path: on
       // a browser without Web Share, the clipboard IS how it leaves the app.
-      const outcome = await shareText({ message: proposalToShareText(record) });
+      const outcome = await shareText({ message: proposalToShareText(record, { licenseNumber }) });
       if ((outcome === 'shared' || outcome === 'copied') && record.status === 'draft') {
         updateProposal(record.id, { status: 'sent' });
       }
@@ -263,8 +287,8 @@ export default function QuickQuoteScreen() {
                     onChangeText={(v) => updateRow(line.id, { amountStr: v })}
                     placeholder="0"
                     placeholderTextColor={t.textMuted}
-                    keyboardType="numeric"
-                    inputMode="numeric"
+                    keyboardType="decimal-pad"
+                    inputMode="decimal"
                     returnKeyType="done"
                   />
                 </View>
@@ -279,6 +303,11 @@ export default function QuickQuoteScreen() {
                   <Trash2 size={16} color={lines.length <= 1 ? t.textMuted : t.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
+              {amountUnreadable(line.amountStr) && (
+                <Text style={styles.atCostNote} testID={`quick-quote-amount-unreadable-${i}`}>
+                  Can&apos;t read that amount — type it like 1234.56. It counts as $0 until it reads.
+                </Text>
+              )}
             </View>
           ))}
         </View>
@@ -290,7 +319,7 @@ export default function QuickQuoteScreen() {
 
         <View style={styles.subtotalRow}>
           <Text style={styles.subtotalLabel}>Subtotal</Text>
-          <Text style={styles.subtotalValue}>{formatMoney(subtotal)}</Text>
+          <Text style={styles.subtotalValue}>{formatMoney(subtotal, 2)}</Text>
         </View>
 
         {/* Markup + tax */}
@@ -304,8 +333,8 @@ export default function QuickQuoteScreen() {
                 onChangeText={setMarkupStr}
                 placeholder="0"
                 placeholderTextColor={t.textMuted}
-                keyboardType="numeric"
-                inputMode="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 returnKeyType="done"
               />
               <Text style={styles.inputSuffix}>%</Text>
@@ -321,8 +350,8 @@ export default function QuickQuoteScreen() {
                 onChangeText={setTaxStr}
                 placeholder="0"
                 placeholderTextColor={t.textMuted}
-                keyboardType="numeric"
-                inputMode="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 returnKeyType="done"
               />
               <Text style={styles.inputSuffix}>%</Text>
@@ -334,20 +363,20 @@ export default function QuickQuoteScreen() {
         <View style={styles.breakdownCard}>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Subtotal</Text>
-            <Text style={styles.breakdownValue}>{formatMoney(subtotal)}</Text>
+            <Text style={styles.breakdownValue}>{formatMoney(subtotal, 2)}</Text>
           </View>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Markup{markupPct > 0 ? ` (${markupPct}%)` : ''}</Text>
-            <Text style={styles.breakdownValue}>{formatMoney(markupAmount)}</Text>
+            <Text style={styles.breakdownValue}>{formatMoney(markupAmount, 2)}</Text>
           </View>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Tax{taxPct > 0 ? ` (${taxPct}%)` : ''}</Text>
-            <Text style={styles.breakdownValue}>{formatMoney(taxAmount)}</Text>
+            <Text style={styles.breakdownValue}>{formatMoney(taxAmount, 2)}</Text>
           </View>
           <View style={styles.breakdownDivider} />
           <View style={styles.breakdownRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatMoney(total)}</Text>
+            <Text style={styles.totalValue}>{formatMoney(total, 2)}</Text>
           </View>
           {/* Say what a 0% markup means rather than leaving a $0 row to be
               read as "nothing to see here". The line amounts a contractor
@@ -436,7 +465,7 @@ function QuoteRow({ record, t, styles, onAccept, onDecline, onReshare }: {
           )}
         </View>
         <View style={styles.quoteRight}>
-          <Text style={styles.quotePrice}>{formatMoney(price)}</Text>
+          <Text style={styles.quotePrice}>{formatMoney(price, 2)}</Text>
           <View style={[styles.statusChip, { backgroundColor: statusColor + '22' }]}>
             <Text style={[styles.statusChipText, { color: statusColor }]}>{STATUS_LABEL[record.status]}</Text>
           </View>

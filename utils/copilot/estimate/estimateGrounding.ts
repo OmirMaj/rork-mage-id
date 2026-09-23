@@ -8,13 +8,43 @@ import type { Project, Commitment, MaterialReceipt } from '@/types';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
-import { CONTRACTED_NOTE } from '@/utils/groundingChip';
+import { CONTRACTED_NOTE, scopeRelevance, type ScopeHints } from '@/utils/groundingChip';
+import { isMarkupSet } from '@/utils/estimateMarkup';
+
+/** How many matching cost-book trades the pricing prompt carries. */
+const MAX_GROUNDING_ENTRIES = 8;
+
+/** A cost-book entry that fed the prompt — the pricing step accepts a line's
+ *  'learned' / 'seeded' basis only when the line's trade matches one of these
+ *  (utils/copilot/estimate/estimatePricing.lineSourceFor). */
+export interface EstimateGroundingEntry { trade: string; provenance?: 'earned' | 'seeded' | 'mixed' }
+
+/**
+ * The cost-book entries that belong to THIS scope — relevance-ranked
+ * (utils/groundingChip.scopeRelevance: the trade named in the scope, or in the
+ * project type's usual trades), capped. #7/#38: this used to send
+ * `db.entries.slice(0, 4)` — the book's four biggest trades whatever the job —
+ * and the review then said "priced from your jobs" regardless. Unlike
+ * selectGroundingEntries this has NO top-N fallback: an unrelated rate is not
+ * grounding, and the headline counts only what matched.
+ */
+export function matchGroundingEntries<T extends { trade: string }>(entries: readonly T[], hints: ScopeHints, n = MAX_GROUNDING_ENTRIES): T[] {
+  return entries
+    .map((e, i) => ({ e, i, score: scopeRelevance(e, hints) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .slice(0, Math.max(0, n))
+    .map((x) => x.e);
+}
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-export async function buildEstimateGrounding(c: CopilotContext): Promise<Grounding> {
+/** `scope` (the spoken scope) narrows the cost book to this job's trades; the
+ *  interview's START grounding has no scope yet and matches on the project
+ *  type alone. */
+export async function buildEstimateGrounding(c: CopilotContext, scope?: string): Promise<Grounding> {
   const project = c.project;
-  const ctx = (c.ctx ?? {}) as { projects?: Project[]; commitments?: Commitment[]; receipts?: MaterialReceipt[]; laborSamples?: CostSample[]; seeds?: SeededRate[] };
+  const ctx = (c.ctx ?? {}) as { projects?: Project[]; commitments?: Commitment[]; receipts?: MaterialReceipt[]; laborSamples?: CostSample[]; seeds?: SeededRate[]; markupDecided?: boolean | null; markup?: number };
   const projects: Project[] = Array.isArray(ctx.projects) ? ctx.projects : [];
   const commitments: Commitment[] = Array.isArray(ctx.commitments) ? ctx.commitments : [];
   const receipts: MaterialReceipt[] | undefined = Array.isArray(ctx.receipts) ? ctx.receipts : undefined;
@@ -31,6 +61,11 @@ export async function buildEstimateGrounding(c: CopilotContext): Promise<Groundi
   const projectSqft = project?.squareFootage && project.squareFootage > 0 ? project.squareFootage : undefined;
   const globalMarkup = project?.linkedEstimate?.globalMarkup;
   const defaultMarkupPct = typeof globalMarkup === 'number' && globalMarkup > 0 ? globalMarkup : undefined;
+  // The markup he actually chose (MaterialCartContext: markupDecided === true
+  // and its globalMarkup), handed in through the ctx bag by app/copilot.tsx.
+  // "Never asked" and "still hydrating" are not decisions — #7: the copilot
+  // used to fall through to a hard-coded 18%.
+  const decidedMarkupPct = ctx.markupDecided === true && isMarkupSet(ctx.markup ?? null) ? ctx.markup : undefined;
 
   const facts: string[] = [];
   if (projectQuality || projectSqft) {
@@ -40,10 +75,13 @@ export async function buildEstimateGrounding(c: CopilotContext): Promise<Groundi
   // Learned unit costs + bid calibration — best-effort so a cost-book error
   // never blocks the interview.
   let costBookEntries = 0;
+  const groundingEntries: EstimateGroundingEntry[] = [];
   try {
     const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
     costBookEntries = db.entries.length;
-    for (const e of db.entries.slice(0, 4)) {
+    const matched = matchGroundingEntries(db.entries, { scope: scope ?? '', projectType: project?.type });
+    for (const e of matched) {
+      groundingEntries.push({ trade: e.trade, provenance: e.provenance });
       // A seeded-only entry is a rate the contractor STATED. Phrasing it as
       // "runs $X on your jobs (0 jobs)" would be both self-contradicting and
       // the exact conflation the seeding firewall exists to prevent, so the
@@ -74,5 +112,5 @@ export async function buildEstimateGrounding(c: CopilotContext): Promise<Groundi
 
   // Inline literal (not a named-interface variable) so it satisfies Grounding's
   // `Record<string, unknown>` data type; estimateGaps casts it back.
-  return { facts, data: { projectQuality, projectSqft, defaultMarkupPct, costBookEntries } };
+  return { facts, data: { projectQuality, projectSqft, defaultMarkupPct, decidedMarkupPct, costBookEntries, groundingEntries } };
 }
