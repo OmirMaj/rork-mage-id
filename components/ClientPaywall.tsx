@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 import { CheckCircle2, X, FileText, Home as HomeIcon, Briefcase } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 
@@ -144,7 +145,8 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
         body: { returnUrl },
       });
       const url = (data as { url?: string } | null)?.url;
-      if (error || !url) throw new Error(error?.message ?? 'Could not start checkout');
+      if (error) throw await edgeFunctionError(error, 'Could not start checkout');
+      if (!url) throw new Error('Could not start checkout');
 
       if (Platform.OS === 'web') {
         // Hand off to Stripe. We abort the current attempt (onClose resolves the

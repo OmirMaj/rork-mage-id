@@ -20,13 +20,9 @@ import type { EstimateGroundingEntry } from './estimateGrounding';
 import type { CopilotContext } from '../types';
 
 /** Where a line's unit price came from. 'learned' = his measured cost book;
- *  'seeded' = a rate he set himself; 'regional' = MAGE's typical-rate estimate. */
-export type EstimatePriceSource = 'learned' | 'seeded' | 'regional';
-
-/** CONTRACT 27 local extension: LinkedEstimateItem.priceSource lives here until
- *  w5-join-core folds it into types/index.ts (then this alias goes). Optional,
- *  so every existing reader of LinkedEstimateItem is unaffected. */
-export type LinkedEstimateItemW5 = LinkedEstimateItem & { priceSource?: EstimatePriceSource };
+ *  'seeded' = a rate he set himself; 'regional' = MAGE's typical-rate estimate.
+ *  The same union as LinkedEstimateItem.priceSource (types/index.ts). */
+export type EstimatePriceSource = NonNullable<LinkedEstimateItem['priceSource']>;
 
 /** One cost line as the model returns it (all fields untrusted). */
 export interface GenLine {
@@ -65,13 +61,13 @@ export function buildCostItems(
   rawLines: readonly GenLine[],
   entries: readonly EstimateGroundingEntry[],
   makeId: () => string,
-): LinkedEstimateItemW5[] {
+): LinkedEstimateItem[] {
   return rawLines
     .filter((l) => l && (l.name || l.category) && typeof l.unitPrice === 'number' && Number.isFinite(l.unitPrice))
     .map((l) => {
       const quantity = typeof l.quantity === 'number' && Number.isFinite(l.quantity) && l.quantity > 0 ? l.quantity : 1;
       const unitPrice = round2(Math.max(0, Number(l.unitPrice) || 0));
-      const item: LinkedEstimateItemW5 = {
+      const item: LinkedEstimateItem = {
         materialId: makeId(),
         name: l.name ?? l.category ?? 'Line item',
         category: l.category ?? 'General',
@@ -133,7 +129,7 @@ export function markupSourceLabel(s: MarkupSource): string {
  *  withMarkup(force), so baseTotal + markupTotal === grandTotal === Σ lineTotal
  *  and recomputeEstimate / applyCalibration are no-ops on a fresh build. */
 export function buildCopilotLinkedEstimate(
-  costItems: readonly LinkedEstimateItemW5[],
+  costItems: readonly LinkedEstimateItem[],
   markupPct: number,
   id: string,
   createdAt: string,
@@ -180,7 +176,7 @@ export function replaceWarning(current: Pick<LinkedEstimate, 'items' | 'grandTot
  *  the interview draft (PATCH_DRAFT) so Build commits exactly what he saw and
  *  never asks the model a second time. */
 export interface PricedEstimate {
-  costItems: LinkedEstimateItemW5[];
+  costItems: LinkedEstimateItem[];
   notes: string[];
   /** Matching cost-book entries that fed the prompt. */
   fedEntries: number;

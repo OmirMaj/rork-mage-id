@@ -6,7 +6,7 @@
 // the GC will actually finish with — plus a driver breakdown of what moved it
 // off the bid. See utils/livingEstimate for the math.
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
@@ -30,6 +30,8 @@ import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
 import { unpricedLaborFor, unpricedLaborLine, type JobCostActualSources } from '@/utils/jobCostEngine';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
+import EstimateJobPicker from '@/components/estimate/EstimateJobPicker';
+import { estimateProjectCandidates, pickEstimateProject } from '@/utils/estimateLanding';
 import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
@@ -70,10 +72,28 @@ function LivingEstimateInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const {
     getProject, changeOrders, commitments, invoices, equipment, permits, subcontractors,
+    projects, projectsLoaded,
   } = useProjects();
+  // NO projectId IS NOT "NO PROJECT" (#87, the estimate-confidence pattern).
+  // The Estimate hub, the Summary tools sheet and the web sidebar push this
+  // route bare. Default to the most recently updated job with estimate lines
+  // and put it in the URL (router.setParams) so Back and a shared link keep
+  // it; the picker switches jobs. "Project not found" is for a STALE id only.
+  const candidates = useMemo(() => estimateProjectCandidates(projects), [projects]);
+  const fallback = useMemo(
+    () => (paramProjectId ? null : pickEstimateProject(projects, 'estimate')),
+    [paramProjectId, projects],
+  );
+  const projectId = paramProjectId ?? fallback?.id;
+  useEffect(() => {
+    if (!paramProjectId && fallback) router.setParams({ projectId: fallback.id });
+  }, [paramProjectId, fallback, router]);
+  // Until the list has hydrated, "no estimate anywhere" and "not found" are
+  // both unknown — say neither.
+  const noEstimateAnywhere = projectsLoaded && !paramProjectId && !fallback;
   // The cost streams Job Costing prices — receipts (incl. QBO bills confirmed
   // into receipts), priced crew hours, equipment, permits, the sub roster.
   // Without them this screen priced the job on subcontracts alone and a
@@ -102,21 +122,46 @@ function LivingEstimateInner() {
   }, [project, changeOrders, commitments, invoices, costSources]);
 
   if (!project) {
+    if (!projectsLoaded) {
+      return <View style={{ flex: 1, backgroundColor: t.bg }} testID="living-estimate-loading-projects"><Stack.Screen options={{ title: 'Living Estimate' }} /></View>;
+    }
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
         <Stack.Screen options={{ title: 'Living Estimate' }} />
-        <EmptyState
-          icon={<Activity size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No project to track yet"
-          message="The Living Estimate recomputes your projected margin as change orders, buyout, and actual costs land. To see one:"
-          steps={[
-            'Open or create a project from the Projects tab.',
-            'Build an estimate with markup so there is a margin to track.',
-            'Approve a change order or log a sub commitment and watch it move.',
-          ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as any)}
-        />
+        {noEstimateAnywhere ? (
+          <EmptyState
+            icon={<Activity size={36} color={t.accent} strokeWidth={1.6} />}
+            title="No estimate yet"
+            message="The Living Estimate recomputes your projected margin as change orders, buyout, and actual costs land. None of your projects has an estimate with lines yet. To see one:"
+            steps={[
+              'Build an estimate with markup so there is a margin to track.',
+              'Approve a change order or log a sub commitment and watch it move.',
+            ]}
+            actionLabel="Build an estimate"
+            onAction={() => router.push('/estimate-wizard' as never)}
+          />
+        ) : (
+          <View style={{ flex: 1 }}>
+            {candidates.length > 0 && (
+              <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+                <EstimateJobPicker
+                  label="Track another job"
+                  jobs={candidates}
+                  selectedId={projectId}
+                  onPick={(id) => router.setParams({ projectId: id })}
+                  testID="living-estimate-job-picker"
+                />
+              </View>
+            )}
+            <EmptyState
+              icon={<Activity size={36} color={t.accent} strokeWidth={1.6} />}
+              title="Project not found"
+              message={'This link points to a project that isn\u2019t on this device any more. Pick a job above, or go back.'}
+              actionLabel="Back"
+              onAction={() => router.back()}
+            />
+          </View>
+        )}
       </View>
     );
   }
@@ -147,6 +192,15 @@ function LivingEstimateInner() {
       </View>
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+        {candidates.length > 1 && (
+          <EstimateJobPicker
+            label="Job"
+            jobs={candidates}
+            selectedId={projectId}
+            onPick={(id) => router.setParams({ projectId: id })}
+            testID="living-estimate-job-picker"
+          />
+        )}
         {!costSourcesReady ? (
           <View
             style={styles.loading}

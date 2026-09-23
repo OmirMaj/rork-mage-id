@@ -24,6 +24,7 @@ import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useClaimedCrewProfile } from '@/hooks/useClaimedCrewProfile';
 import { featureFor, type FeatureId } from '@/utils/featureRegistry';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -244,6 +245,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const insets = useSafeAreaInsets();
   const { openSearch } = useSearch();
   const { canAccess } = useTierAccess();
+  const claimedCrewWorker = useClaimedCrewProfile();
   const { colors } = useTheme();
   const { userRole, projects } = useCoreData();
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
@@ -319,7 +321,11 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     const Icon = item.icon;
     // Gate read from the registry, never from a field on the row — see NavItem.
     const requires = item.feature ? featureFor(item.feature).requires : undefined;
-    const locked = !!requires && !canAccess(requires);
+    // #74 (wave 5): a claimed crew worker without the crew plan sees his own
+    // profile here — "My Profile", unlocked (the screen opens for him).
+    const asProfile = item.feature === 'crew' && claimedCrewWorker && !!requires && !canAccess(requires);
+    const locked = !asProfile && !!requires && !canAccess(requires);
+    const label = asProfile ? 'My Profile' : item.label;
     const baseColor = dimmed ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.6)';
 
     return (
@@ -338,7 +344,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         } as any : {})}
         testID={`sidebar-${item.key}`}
         accessibilityRole="button"
-        accessibilityLabel={`${item.label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
+        accessibilityLabel={`${label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
         accessibilityState={{ selected: active, disabled: locked }}
       >
         <Icon
@@ -352,7 +358,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
           active && styles.navLabelActive,
           hovered && !active && styles.navLabelHovered,
         ]}>
-          {item.label}
+          {label}
         </Text>
         {locked && (
           <View style={styles.lockBadge}>
@@ -361,7 +367,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         )}
       </TouchableOpacity>
     );
-  }, [pathname, hoveredKey, canAccess, colors.accentFill, handleNav]);
+  }, [pathname, hoveredKey, canAccess, colors.accentFill, handleNav, claimedCrewWorker]);
 
   return (
     <View

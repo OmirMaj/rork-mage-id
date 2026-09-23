@@ -61,9 +61,9 @@ const STANDALONE_OK: Record<string, string> = {
 // Wave-4-owned screens with the same dead end, routed to wave 5's join lane
 // (w5-join-screens). Listed so the gap is visible, and asserted still-open so
 // the entry is removed the moment the screen is fixed.
-const KNOWN_GAPS: Record<string, string> = {
-  '/living-estimate': 'app/living-estimate.tsx is wave-4 owned — w5-join-screens adds the pickEstimateProject default',
-};
+// (w5-join-screens landed the pickEstimateProject default on /living-estimate,
+// so it left this list — a fixed gap still listed here fails, see below.)
+const KNOWN_GAPS: Record<string, string> = {};
 const MUST_PICK = new Set(['/estimate-confidence', '/estimate-accuracy', '/area-takeoff']);
 const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 

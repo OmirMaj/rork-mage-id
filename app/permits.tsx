@@ -62,7 +62,7 @@ import {
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
-import { Button } from '@/components/ui';
+import { Button, cardSurface } from '@/components/ui';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -357,11 +357,23 @@ function PermitCard({ permit, onPress, onViewScan, historyFailure }: {
           </Pressable>
         ) : null}
 
+        {/* Scan Anything (wave 5): a scanned permit whose fee the reader
+            couldn't find is saved at 0 with a note — "$0" would read as a free
+            permit. And a scan with no application date shows its issue date
+            (or nothing), never an invented "Applied today". */}
         <View style={styles.permitFooter}>
-          <Text style={styles.permitFee}>{formatMoney(permit.fee)}</Text>
-          <Text style={styles.permitDate}>
-            Applied {formatCalendarDay(permit.appliedDate, { month: 'short', day: 'numeric' })}
+          <Text style={styles.permitFee}>
+            {permit.fee === 0 && /Fee not read from the scan/.test(permit.notes ?? '') ? 'Fee not recorded' : formatMoney(permit.fee)}
           </Text>
+          {permit.appliedDate ? (
+            <Text style={styles.permitDate}>
+              Applied {formatCalendarDay(permit.appliedDate, { month: 'short', day: 'numeric' })}
+            </Text>
+          ) : permit.approvedDate ? (
+            <Text style={styles.permitDate}>
+              Issued {formatCalendarDay(calendarDayOf(permit.approvedDate) || permit.approvedDate, { month: 'short', day: 'numeric' })}
+            </Text>
+          ) : null}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -858,7 +870,10 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
       status: form.status,
       // UX-F4: stored as bare calendar days — exactly what the `date` columns
       // hand back after a sync, so a local row and its synced twin render alike.
-      appliedDate: form.appliedDate || todayCalendarDay(),
+      // A NEW permit defaults to today; an existing one whose application
+      // date was never known (a scan) keeps '' — stamping today on its first
+      // edit invented a date the permit office never gave.
+      appliedDate: form.appliedDate || (editingPermit && !editingPermit.appliedDate ? '' : todayCalendarDay()),
       inspectionDate: form.inspectionDate || undefined,
       // The single inspectionDate/Notes pair is folded into the history FIRST,
       // so the act of booking the next inspection can no longer erase the last
@@ -2081,9 +2096,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   viewScanText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.accentLabel },
   scopeRow: {
+    ...cardSurface(t, { radius: 'md', pad: 'none' }),
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
     marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: Tokens.radius.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
   },
   scopeText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
   scopeBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.accent + '14' },

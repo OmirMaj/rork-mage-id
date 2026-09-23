@@ -542,9 +542,11 @@ function CrewScreenInner() {
       ]);
       return;
     }
-    const token = startClaimInvite(member.id);
-    if (!token) { showAlert('Could not start invite'); return; }
     try {
+      // Async: the token is read back from the server's row, so the link
+      // carries the token the server actually stored (CrewContext).
+      const token = await startClaimInvite(member.id);
+      if (!token) { showAlert('Could not start invite', 'This worker isn\u2019t on your crew list any more.'); return; }
       const { companyName } = await sendClaimInvite(member.email, token, member.id);
       // #72: the invite now goes out in his company's name (read by the
       // server from his own profile) — say which name the worker will see.

@@ -67,6 +67,9 @@ const PRODUCTION_BUCKETS = [
   'branding', 'documents', 'pdf-uploads', 'plan-sheets', 'profiles',
   'project-documents', 'project-photos', 'rfp-attachments',
   'secure-contracts', 'sub-documents', 'worker-ids',
+  // wave 5 (portfolio, CONTRACT 12): the PUBLIC project-page bucket, written
+  // only under <auth.uid()>/… — delete-account lists it in USER_KEYED_BUCKETS.
+  'portfolio',
 ];
 
 for (const bucket of PRODUCTION_BUCKETS) {

@@ -7,7 +7,7 @@
 // Nothing here touches React, AsyncStorage, Supabase or the offline queue — the
 // context passes data in and writes results out.
 
-import type { CertificateOfInsurance, ClientPortalSettings, COICoverage, PaymentSplit, ProjectCollaborator, SavedAIAPayApp } from '@/types';
+import type { CertificateOfInsurance, ClientPortalSettings, COICoverage, CrewMember, PaymentSplit, Project, ProjectCollaborator, ProjectPhoto, PrequalPacket, SavedAIAPayApp, Subcontractor } from '@/types';
 import { isValidStamp, sameSplit } from '@/utils/paymentTerms';
 import { invoiceIsSettled } from '@/utils/invoiceBilling';
 import { isFinancialsBlinded } from '@/utils/roleBlinding';
@@ -1464,16 +1464,71 @@ export function coRealtimeShouldRefetch(
  * is a local one.
  */
 export const DELETE_NOT_OWNER_REASON = 'Only the project owner can delete this job. You can leave it instead.';
+/**
+ * Wave 5 #61 (CONTRACT 22): the safety rule, checked after the owner rule. A
+ * job with injury / near-miss records on the OSHA 300 log is not deleted —
+ * those records must be kept for 5 years, and deleting the job cascaded them
+ * away. `safety.incidentCount` is the job's count as the caller knows it (the
+ * device's incidents, else the server's head count — see ProjectContext
+ * deleteProject); absent or 0 passes.
+ */
 export function deleteProjectRefusal(
-  project: { ownerUserId?: string | null; myRole?: ProjectRole | undefined } | undefined,
+  project: { ownerUserId?: string | null; myRole?: ProjectRole | undefined; name?: string } | undefined,
   userId: string | null | undefined,
+  safety?: { incidentCount?: number | null },
 ): string | null {
   if (!project) return null;
+  let owner: string | null;
   if (project.ownerUserId) {
-    if (!userId) return null;
-    return project.ownerUserId === userId ? null : DELETE_NOT_OWNER_REASON;
+    owner = !userId || project.ownerUserId === userId ? null : DELETE_NOT_OWNER_REASON;
+  } else {
+    owner = !project.myRole || project.myRole === 'owner' ? null : DELETE_NOT_OWNER_REASON;
   }
-  return !project.myRole || project.myRole === 'owner' ? null : DELETE_NOT_OWNER_REASON;
+  if (owner) return owner;
+  return deleteProjectSafetyRefusal(project.name, safety?.incidentCount);
+}
+
+/** The server could not be asked (offline, timed out, refused the read) and
+ *  the device knows of no incident: the delete waits — a guess either way
+ *  would erase records OSHA says to keep. */
+export const SAFETY_CHECK_OFFLINE_REASON = 'Can’t check this job’s safety records offline — try again with signal.';
+
+/** The action a safety refusal offers instead of Delete. */
+export const DELETE_SAFETY_ACTION = 'mark_closed' as const;
+
+/** '<Job> has N injury/near-miss record(s) on your OSHA 300 log, which must be
+ *  kept for 5 years. Mark the job Closed instead.' — null for no records. */
+export function deleteProjectSafetyRefusal(jobName: string | null | undefined, incidentCount: number | null | undefined): string | null {
+  const n = typeof incidentCount === 'number' && Number.isFinite(incidentCount) ? Math.floor(incidentCount) : 0;
+  if (n <= 0) return null;
+  const job = (jobName ?? '').trim() || 'This job';
+  return `${job} has ${n} injury/near-miss record${n === 1 ? '' : 's'} on your OSHA 300 log, which must be kept for 5 years. Mark the job Closed instead.`;
+}
+
+/**
+ * The job's incidents this DEVICE knows of: its cached incident list (the
+ * SafetyContext copy) plus incident inserts still in the offline queue — one
+ * filed in a basement is on no server yet, and the server's count cannot see
+ * it. Each id counted once.
+ */
+export function localSafetyIncidentCount(
+  projectId: string,
+  cached: readonly { id?: unknown; projectId?: unknown }[] | null | undefined,
+  queue: readonly QueueEntryLike[] | null | undefined,
+): number {
+  const ids = new Set<string>();
+  let anonymous = 0;
+  for (const i of cached ?? []) {
+    if (!i || i.projectId !== projectId) continue;
+    if (typeof i.id === 'string' && i.id) ids.add(i.id); else anonymous++;
+  }
+  for (const q of queue ?? []) {
+    if (q.table !== 'safety_incidents' || (q.operation !== 'insert' && q.operation !== 'upsert')) continue;
+    if (q.data?.project_id !== projectId) continue;
+    const id = q.data?.id;
+    if (typeof id === 'string' && id) ids.add(id); else anonymous++;
+  }
+  return ids.size + anonymous;
 }
 
 /**
@@ -2567,4 +2622,308 @@ export function ledgerLineAsQueueEntry(
   if (f.row) return { table: f.table, operation: f.operation, data: f.row };
   if (f.recordId) return { table: f.table, operation: f.operation, data: { id: f.recordId } };
   return null;
+}
+
+
+// ─── Wave 5 · join-core helpers ──────────────────────────────────────────────
+
+/**
+ * #82 (CONTRACT 13) · The homeowner portal blob as the OWNER's projects upsert
+ * sends it: everything but `accessToken`. The key now lives in
+ * portal_credentials (owner-only), and portal_set_access_token keeps the
+ * stored key for the row's portal id when the blob arrives without one
+ * (20260923170000) — so the phone no longer ships the credential on every
+ * edit of the job. The passcode still rides until validate-portal-passcode
+ * reads portal_credentials. stripPortalCredentials (both keys) stays the
+ * guard for a collaborator's copy.
+ */
+export function ownerClientPortalForWrite(cp: ClientPortalSettings | null | undefined): ClientPortalSettings | undefined {
+  if (cp == null) return undefined;
+  const { accessToken: _token, ...rest } = cp;
+  return rest;
+}
+
+/**
+ * #1 (CONTRACT 21) · The Not-saved reason for a job that exists only on this
+ * phone: its create never reached MAGE (the old free-plan cap refused it, or
+ * a flush dropped it before the ledger existed), so it was kept on the phone
+ * with nothing left that would ever send it — and no sync badge said so.
+ */
+export const LOCAL_ONLY_PROJECT_REASON = 'This job is only on this phone — it never reached MAGE. Retry sends it; Discard removes it from this phone.';
+
+/** The ledger line id for a local-only job — stable, so a later load that
+ *  finds the same job records the same line (mergeFailures dedupes by id). */
+export function localOnlyProjectLineId(projectId: string): string {
+  return `local-only-project-${projectId}`;
+}
+
+/**
+ * #1 fix round 2 · The append-only "ever confirmed on the server" set for the
+ * local-only rule. It only grows: every trusted load's answer and every
+ * landed owner upsert are unioned in, and nothing is removed except by the
+ * account wipe (its key is under mageid_). The replace-on-load set
+ * (serverProjectIdsRef) must NOT feed the local-only rule on its own: a load
+ * drops a job deleted on the web from it, the loader keeps his own copy on
+ * the phone, and the NEXT load would then read that job as "never reached
+ * MAGE" and offer a Retry that re-creates a job he deleted on purpose.
+ */
+export function withServerConfirmed(ever: ReadonlySet<string>, ids: Iterable<string>): Set<string> {
+  const out = new Set(ever);
+  for (const id of ids) if (typeof id === 'string' && id.length > 0) out.add(id);
+  return out;
+}
+
+/**
+ * #1 · Which of the device's jobs become Not-saved lines after a TRUSTED
+ * server read: his own (owner stamp is his, or no stamp and no collaborator
+ * role), absent from the server's answer, never confirmed on the server
+ * (`confirmedBefore` — the APPEND-ONLY ever-confirmed ids, withServerConfirmed,
+ * plus the replace-on-load set as it stood before this read; and no loader
+ * stamp on the device copy), with no write queued, on the wire or already under Not saved,
+ * and not a job he was removed from. Never resent automatically: the line
+ * waits for Retry or Discard.
+ *
+ * Fix round 1: the caller builds `pending` and `unsaved` AT RECORD TIME (after
+ * the SELECT answered), not from the sets captured when the load started — a
+ * job created, queued or refused while the SELECT was out is not "only on this
+ * phone", and a line for it would park its own queued create behind itself.
+ */
+export function localOnlyOwnedProjectIds(input: {
+  local: readonly { id: string; ownerUserId?: string | null; myRole?: ProjectRole | undefined; financialsLoaded?: boolean }[];
+  remoteIds: ReadonlySet<string>;
+  userId: string;
+  confirmedBefore: ReadonlySet<string>;
+  pending: ReadonlySet<string>;
+  unsaved: ReadonlySet<string>;
+  revoked: ReadonlySet<string>;
+  /** Fix round 1 · ids written on this device after the load started (the
+   *  projectWriteLog past its `since`). A job created while the SELECT was
+   *  out is absent from the answer only because the read predates it: its
+   *  create is on the wire or waiting, not lost. */
+  written?: ReadonlySet<string>;
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const p of input.local) {
+    if (!p || typeof p.id !== 'string' || !p.id || seen.has(p.id)) continue;
+    seen.add(p.id);
+    // Integration round 1 (data-security): only a copy STAMPED with this
+    // account counts as his. The projects cache (PROJECTS_KEY) is not keyed
+    // by account, so an unstamped legacy job could be a previous account's
+    // that survived an account switch; a line for it would let Retry INSERT
+    // another account's job under this user_id (localOnlyProjectInsertRow) —
+    // before this line existed such a job was PATCHed by id and matched 0
+    // rows. Every create since 2026-09-06 is stamped (claimProjectForUser),
+    // and an unknown owner is written as a collaborator elsewhere too
+    // (classifyProjectSync, A-1). What this gives up: a job made while
+    // signed out, never stamped and never synced, gets no "only on this
+    // phone" line.
+    if (!p.ownerUserId || p.ownerUserId !== input.userId) continue;
+    if (input.remoteIds.has(p.id) || input.confirmedBefore.has(p.id)) continue;
+    // Fix round 2 · the device copy itself says it was READ from the server:
+    // financialsLoaded is a loader stamp (the row mapper always sets it, and
+    // claimProjectForUser strips it from every copy a create path makes), so
+    // a job carrying it existed on the server at some load. Gone from the
+    // answer now means deleted elsewhere (the web, a second phone) — never
+    // "never reached MAGE". This covers jobs deleted elsewhere before the
+    // append-only confirmed set existed (the first loads after the OTA).
+    if (typeof p.financialsLoaded === 'boolean') continue;
+    if (input.pending.has(p.id) || input.unsaved.has(p.id) || input.revoked.has(p.id)) continue;
+    if (input.written?.has(p.id)) continue;
+    out.push(p.id);
+  }
+  return out;
+}
+
+/**
+ * #1 · The projects INSERT a local-only job's line carries — the owner row
+ * ProjectContext.syncProjectToSupabase upserts, with the schedule (a create
+ * must carry it) and without the portal key (#82). Retry sends it as an
+ * INSERT: if the row turns out to be on the server after all, the queue reads
+ * the primary-key duplicate as landed. Money rides the legacy columns, as on a
+ * refused owner upsert; the job's next edit writes project_financials.
+ * validate-w5-join-core-mappers keeps its keys in step with the sync's owner
+ * upsert (syncProjectToSupabase's row literal).
+ */
+export function localOnlyProjectInsertRow(project: Project, userId: string): Record<string, unknown> {
+  return {
+    id: project.id, name: project.name, type: project.type,
+    location: project.location, square_footage: project.squareFootage, quality: project.quality,
+    location_latitude: project.locationLatitude ?? null,
+    location_longitude: project.locationLongitude ?? null,
+    location_geocoded_at: project.locationGeocodedAt ?? null,
+    description: project.description,
+    scope: (project.scope ?? null) as unknown,
+    schedule: (project.schedule ?? null) as unknown,
+    status: project.status,
+    collaborators: (project.collaborators ?? []) as unknown,
+    primary_contact: project.primaryContact ?? null,
+    lead_source: project.leadSource ?? null,
+    target_timeline_notes: project.targetTimelineNotes ?? null,
+    handover_checklist: (project.handoverChecklist ?? {}) as unknown,
+    closed_at: project.closedAt,
+    substantial_completion_date: project.substantialCompletionDate,
+    warranty_walk_completed_at: project.warrantyWalkCompletedAt,
+    photo_count: project.photoCount,
+    updated_at: project.updatedAt,
+    user_id: userId, created_at: project.createdAt,
+    client_portal: ownerClientPortalForWrite(project.clientPortal) as unknown,
+    estimate: project.estimate as unknown,
+    linked_estimate: project.linkedEstimate as unknown,
+    estimate_versions: project.estimateVersions as unknown,
+    target_budget: project.targetBudget as unknown,
+  };
+}
+
+/**
+ * #27 (CONTRACT 17) · subcontractors.legal_name, tax_id_last4,
+ * license_verified_at, coi_verified_at, w9_doc_path → the Subcontractor
+ * fields. Before these were mapped the Subs form saved them on the phone and
+ * the next server read rebuilt the sub without them (1099 export "TIN
+ * missing", badges back to "Not verified", the W-9 button asking again).
+ * coi_last_warned_for is the COI watcher's own marker: never read, never
+ * written by the app.
+ */
+export function subcontractorExtrasFromRow(r: Record<string, unknown>): Pick<Subcontractor, 'legalName' | 'taxIdLast4' | 'licenseVerifiedAt' | 'coiVerifiedAt' | 'w9DocPath'> {
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v.length > 0 ? v : undefined);
+  return {
+    legalName: str(r.legal_name),
+    taxIdLast4: str(r.tax_id_last4),
+    licenseVerifiedAt: str(r.license_verified_at),
+    coiVerifiedAt: str(r.coi_verified_at),
+    w9DocPath: str(r.w9_doc_path),
+  };
+}
+
+/**
+ * The same five, the other way — ONLY the ones this copy holds a value for,
+ * so a device that never loaded a stamp (or a stale copy) cannot null one
+ * written from another device. tax_id_last4 goes only as exactly four digits,
+ * or '' → null (a deliberate clear); anything else stays off the row (the
+ * server's trigger would pin it anyway, 20260923150000).
+ */
+export function subcontractorExtraColumns(s: Partial<Subcontractor>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (s.legalName !== undefined) out.legal_name = s.legalName;
+  if (typeof s.taxIdLast4 === 'string') {
+    const tin = s.taxIdLast4.trim();
+    if (/^[0-9]{4}$/.test(tin)) out.tax_id_last4 = tin;
+    else if (tin === '') out.tax_id_last4 = null;
+  }
+  if (s.licenseVerifiedAt !== undefined) out.license_verified_at = s.licenseVerifiedAt || null;
+  if (s.coiVerifiedAt !== undefined) out.coi_verified_at = s.coiVerifiedAt || null;
+  if (s.w9DocPath !== undefined) out.w9_doc_path = s.w9DocPath || null;
+  return out;
+}
+
+/**
+ * #65 (CONTRACT 18) · photos.latitude / longitude / location_accuracy_meters /
+ * location_label → ProjectPhoto. The capture flows stamp them, but nothing
+ * wrote or read them, so the pin on "where was this taken" was gone the moment
+ * the photo left the phone that took it.
+ */
+export function photoGeoFromRow(r: Record<string, unknown>): Pick<ProjectPhoto, 'latitude' | 'longitude' | 'locationAccuracyMeters' | 'locationLabel'> {
+  const num = (v: unknown): number | undefined => {
+    if (v == null || v === '') return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  return {
+    latitude: num(r.latitude),
+    longitude: num(r.longitude),
+    locationAccuracyMeters: num(r.location_accuracy_meters),
+    locationLabel: typeof r.location_label === 'string' && r.location_label.length > 0 ? r.location_label : undefined,
+  };
+}
+
+/** The same four, the other way — only the ones present on `p` (an insert
+ *  sends what the capture stamped; an update sends what the caller changed). */
+export function photoGeoColumns(p: Partial<ProjectPhoto>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (p.latitude !== undefined) out.latitude = Number.isFinite(p.latitude) ? p.latitude : null;
+  if (p.longitude !== undefined) out.longitude = Number.isFinite(p.longitude) ? p.longitude : null;
+  if (p.locationAccuracyMeters !== undefined) out.location_accuracy_meters = Number.isFinite(p.locationAccuracyMeters) ? p.locationAccuracyMeters : null;
+  if (p.locationLabel !== undefined) out.location_label = p.locationLabel || null;
+  return out;
+}
+
+/**
+ * #70 (CONTRACT 19) · crew_members columns by CrewMember key. updateCrewMember
+ * sent the WHOLE row (toRow) on every edit, so a phone holding a day-old copy
+ * put back phone, email, project_ids and status another device had changed.
+ * It now sends only the keys the caller changed.
+ */
+export const CREW_MEMBER_COLUMNS: Readonly<Record<string, string>> = {
+  companyUserId: 'user_id', fullName: 'full_name', trades: 'trades', phone: 'phone', email: 'email',
+  photoUrl: 'photo_url', status: 'status', idVerified: 'id_verified', idType: 'id_type',
+  idMaskedLast4: 'id_masked_last4', idExpiry: 'id_expiry', idIssuer: 'id_issuer', idScannedAt: 'id_scanned_at',
+  idImagePath: 'id_image_path', claimToken: 'claim_token', claimedByUserId: 'claimed_by_user_id', claimedAt: 'claimed_at',
+  isPublic: 'is_public', marketplaceProfileId: 'marketplace_profile_id', projectIds: 'project_ids',
+};
+
+/** Keys a client never sends on an UPDATE: the row's owner and creation
+ *  stamp, and the claim state the server pins (crew_freeze_ownership_columns). */
+const CREW_UPDATE_NEVER = new Set(['companyUserId', 'claimedByUserId', 'claimedAt', 'createdAt', 'id', 'updatedAt']);
+
+/**
+ * The UPDATE payload for a crew edit: `{ id, <changed columns>, updated_at }`.
+ * A key the caller passed as `undefined` is a CLEAR and goes as null (Remove ID
+ * and the purge-path scan clear the id_* fields that way); a key it did not
+ * pass is not sent at all.
+ */
+export function crewMemberUpdateRow(
+  id: string,
+  changes: Partial<CrewMember>,
+  updatedAt: string,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = { id };
+  for (const key of Object.keys(changes)) {
+    if (CREW_UPDATE_NEVER.has(key)) continue;
+    const col = CREW_MEMBER_COLUMNS[key];
+    if (!col) continue;
+    const v = (changes as Record<string, unknown>)[key];
+    row[col] = v === undefined ? null : v;
+  }
+  row.updated_at = updatedAt;
+  return row;
+}
+
+/**
+ * #24 · The columns a prequal REVIEW writes. The review used to upsert the
+ * whole packet the GC's phone held — so a review made from a copy loaded before
+ * the sub submitted wrote the sub's answers back over what he had just sent.
+ * Only the reviewer's columns go (the ones present on the patch).
+ */
+export const PREQUAL_REVIEW_COLUMNS: Readonly<Record<string, string>> = {
+  status: 'status',
+  reviewerNotes: 'reviewer_notes',
+  reviewedAt: 'reviewed_at',
+  reviewedBy: 'reviewed_by',
+  expiresAt: 'expires_at',
+  autoReviewFindings: 'auto_review_findings',
+  updatedAt: 'updated_at',
+};
+
+export type PrequalReviewPatch = Partial<Pick<PrequalPacket, 'status' | 'reviewerNotes' | 'reviewedAt' | 'reviewedBy' | 'expiresAt' | 'autoReviewFindings' | 'updatedAt'>>;
+
+export function prequalReviewRow(id: string, patch: PrequalReviewPatch, now: string): Record<string, unknown> {
+  const row: Record<string, unknown> = { id };
+  for (const [key, col] of Object.entries(PREQUAL_REVIEW_COLUMNS)) {
+    if (!(key in patch)) continue;
+    const v = (patch as Record<string, unknown>)[key];
+    row[col] = v === undefined ? null : v;
+  }
+  row.updated_at = (typeof patch.updatedAt === 'string' && patch.updatedAt) ? patch.updatedAt : now;
+  return row;
+}
+
+/**
+ * coi-subs (wave 5) · May saving this certificate stamp the sub's
+ * coiVerifiedAt ("COI verified today")? Not while any coverage on it is
+ * still only what the model read (source 'ai'): an unconfirmed AI read is not
+ * a GC who looked at the certificate. The expiry still moves — that reads
+ * `expiresAt` only (subCoiExpiryAcross), which an AI read never fills.
+ */
+export function coiSaveStampsVerified(cert: Pick<CertificateOfInsurance, 'coverages'> | null | undefined): boolean {
+  return !(cert?.coverages ?? []).some(c => c?.source === 'ai');
 }

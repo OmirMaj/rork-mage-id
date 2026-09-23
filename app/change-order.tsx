@@ -67,6 +67,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
+import { pdfFailureMessage } from '@/utils/platformFile';
 import { cardSurface } from '@/components/ui';
 
 /**
@@ -1866,7 +1867,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[CCD] Generate failed:', err);
-      showAlert('Could not generate', err instanceof Error ? err.message : 'Try again.');
+      // CONTRACT 25 (#147): the blocked-window sentence passes through; any
+      // other failure reads plainly. No success haptic on this path.
+      showAlert('Could not generate', pdfFailureMessage(err, "Couldn't build the G714 form. Try again."));
     }
   }, [project, settings, description, lineItems, nextCoNumber, parsedImpactDays]);
 
@@ -2219,7 +2222,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       const co = confirmedNumber != null && confirmedNumber !== existingCO.number ? { ...existingCO, number: confirmedNumber } : existingCO;
       await generateChangeOrderPDF(co, project, branding);
     } catch (err) {
-      showAlert('Could not make the PDF', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Could not make the PDF', pdfFailureMessage(err, "Couldn't build the change order PDF. Try again."));
     } finally {
       pdfBusyRef.current = false;
     }

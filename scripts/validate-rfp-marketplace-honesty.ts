@@ -93,21 +93,42 @@ console.log('\n#8 — what the homeowner is told');
 const NOW = Date.parse('2026-09-18T12:00:00Z');
 const fresh = new Date(NOW - 60_000).toISOString();
 const stale = new Date(NOW - REACH_REPORT_GRACE_MS - 60_000).toISOString();
-const zero = rfpReachLine({ notified_count: 0, notified_at: fresh, posted_date: fresh }, NOW, false);
+const zero = rfpReachLine({ notified_count: 0, notified_at: fresh, posted_date: fresh }, NOW, false, true);
 ok('0 reached is said as 0', zero.tone === 'none' && /nobody was alerted/.test(zero.text), zero.text);
-const zeroVerified = rfpReachLine({ notified_count: 0, notified_at: fresh, verified_only: true, posted_date: fresh }, NOW, false);
+const zeroVerified = rfpReachLine({ notified_count: 0, notified_at: fresh, verified_only: true, posted_date: fresh }, NOW, false, true);
 ok('verified-only with 0 reached names the license filter', /license on file/.test(zeroVerified.text), zeroVerified.text);
-const three = rfpReachLine({ notified_count: 3, notified_at: fresh, posted_date: fresh }, NOW, false);
+const three = rfpReachLine({ notified_count: 3, notified_at: fresh, posted_date: fresh }, NOW, false, true);
 ok('a real count is shown as that count', three.tone === 'some' && three.text.startsWith('3 contractors'), three.text);
 ok('no report yet, just posted → "checking", not a number',
-  rfpReachLine({ notified_count: null, notified_at: null, posted_date: fresh }, NOW, false).tone === 'pending');
-const noReport = rfpReachLine({ notified_count: null, notified_at: null, posted_date: stale }, NOW, false);
+  rfpReachLine({ notified_count: null, notified_at: null, posted_date: fresh }, NOW, false, true).tone === 'pending');
+const noReport = rfpReachLine({ notified_count: null, notified_at: null, posted_date: stale }, NOW, false, true);
 ok('no report after the grace window → "no record", never a promise and never a zero',
   noReport.tone === 'unknown' && !/will be notified|nobody was alerted/.test(noReport.text), noReport.text);
 ok('the post-rfp alert promises nothing about who "will be notified"',
-  !/will be notified/i.test(postedAlertBody('Austin', false, false)) && /My RFPs shows how many/.test(postedAlertBody('Austin', true, false)));
+  !/will be notified/i.test(postedAlertBody('Austin', false, false, true)) && /My RFPs shows how many/.test(postedAlertBody('Austin', true, false, true)));
 ok('a count says "were alerted" — the fan-out counts only notify-reported deliveries',
   /were alerted/.test(three.text), three.text);
+
+// WAVE 5 (#96, productDecision): SERVICE_AREA_SETUP_ENABLED is false until a
+// contractor can set a service area — then no post reaches anyone, and every
+// surface must say so instead of the matching-live wording above.
+console.log('\n#96 — while service-area matching is not live (flag false)');
+for (const browse of [false, true]) {
+  for (const row of [
+    { notified_count: 0, notified_at: fresh, posted_date: fresh },
+    { notified_count: null, notified_at: null, posted_date: fresh },
+    { notified_count: null, notified_at: null, posted_date: stale },
+  ]) {
+    const off = rfpReachLine(row, NOW, browse, false);
+    ok(`reach line (browse ${browse ? 'on' : 'off'}, count ${row.notified_count}) says matching isn't live`,
+      /isn't live in MAGE ID yet/.test(off.text) && !/Checking which contractors|will be notified/.test(off.text), off.text);
+  }
+  const body = postedAlertBody('Austin', false, browse, false);
+  ok(`posted alert (browse ${browse ? 'on' : 'off'}) says matching isn't live and promises no alert`,
+    /isn't live in MAGE ID yet/.test(body) && !/We alert MAGE ID contractors/.test(body), body);
+}
+ok('the flag is off today (no service-area editor exists)',
+  /export const SERVICE_AREA_SETUP_ENABLED\s*=\s*false/.test(read('constants/featureFlags.ts')));
 {
   const notifySrc = read('supabase/functions/notify/index.ts');
   ok('notify reports `delivered` only when a push or email was actually sent',
@@ -125,7 +146,7 @@ ok('a count says "were alerted" — the fan-out counts only notify-reported deli
 // the post is listed or browsable, and a zero must say nobody will see it.
 const browseOff = [
   zero.text, zeroVerified.text, three.text, noReport.text,
-  postedAlertBody('Austin', false, false), postedAlertBody('Austin', true, false),
+  postedAlertBody('Austin', false, false, true), postedAlertBody('Austin', true, false, true),
 ];
 ok('browsing off → no line claims the post is "listed" or browsable nearby',
   browseOff.every(t => !/listed|browse nearby/i.test(t)), browseOff.find(t => /listed|browse nearby/i.test(t)));
@@ -134,8 +155,8 @@ ok('browsing off → every line says contractors can\'t browse posted projects y
 ok('browsing off and 0 alerted → says nobody will see it',
   /Nobody will see this post/.test(zero.text) && /Nobody will see this post/.test(zeroVerified.text));
 ok('browsing on → the listed sentence is used instead',
-  /stays listed/.test(rfpReachLine({ notified_count: 0, notified_at: fresh }, NOW, true).text)
-  && /stays listed/.test(postedAlertBody('Austin', false, true)));
+  /stays listed/.test(rfpReachLine({ notified_count: 0, notified_at: fresh }, NOW, true, true).text)
+  && /stays listed/.test(postedAlertBody('Austin', false, true, true)));
 const flags = read('constants/featureFlags.ts');
 ok('RFP_BROWSE_ENABLED is the flag these screens pass (still exported)',
   /export const RFP_BROWSE_ENABLED = (true|false);/.test(flags));
@@ -143,8 +164,8 @@ ok('RFP_BROWSE_ENABLED is the flag these screens pass (still exported)',
 const post = read('app/post-rfp.tsx');
 const postCode = code(post);
 ok('post-rfp success alert comes from postedAlertBody',
-  /postedAlertBody\(cityState\.city, verifiedOnly, RFP_BROWSE_ENABLED\)/.test(postCode)
-  && /import \{ RFP_BROWSE_ENABLED \} from '@\/constants\/featureFlags'/.test(post));
+  /postedAlertBody\(cityState\.city, verifiedOnly, RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED\)/.test(postCode)
+  && /import \{ RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED \} from '@\/constants\/featureFlags'/.test(post));
 ok('post-rfp says, under the verified-only toggle, that it can mean nobody is alerted',
   /If no contractor with a license on file covers your area, nobody is alerted\./.test(postCode));
 ok('post-rfp no longer promises contractors "will be notified" or "verified contractors near you"',
@@ -153,8 +174,8 @@ ok('post-rfp no longer promises contractors "will be notified" or "verified cont
 const myRfps = read('app/my-rfps.tsx');
 const myCode = code(myRfps);
 ok('my-rfps reads the fan-out count and renders it through rfpReachLine',
-  /notified_count,notified_at,verified_only/.test(myCode) && /rfpReachLine\(r, Date\.now\(\), RFP_BROWSE_ENABLED\)/.test(myCode)
-  && /import \{ RFP_BROWSE_ENABLED \} from '@\/constants\/featureFlags'/.test(myRfps));
+  /notified_count,notified_at,verified_only/.test(myCode) && /rfpReachLine\(r, Date\.now\(\), RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED\)/.test(myCode)
+  && /import \{ RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED \} from '@\/constants\/featureFlags'/.test(myRfps));
 ok('my-rfps retries without the reach columns when the migration is missing (never an empty list for real posts)',
   /error\.code === '42703' \|\| error\.code === 'PGRST204'/.test(myCode) && /fetchRfps\(BASE_COLS\)/.test(myCode));
 ok('my-rfps empty state no longer promises "verified contractors near you get notified" or "No fees"',
@@ -214,7 +235,7 @@ ok('the award screen says the contractor will send the portal link, to the email
   /data\.homeownerEmail/.test(review) && /send the link to \$\{email\}/.test(review));
 
 ok('both award alerts name only what award_rfp carried (built from the RFP header)',
-  /select\('id,user_id,title,status,awarded_response_id,address_line,photo_urls,drawing_urls'\)/.test(review)
+  /select\('id,user_id,title,status,awarded_response_id,photo_urls,drawing_urls'\)/.test(review) && /supabase\.rpc\('get_rfp_private'/.test(review)
   && (review.match(/awardCarriedItems\(rfp \?\? \{\}/g) ?? []).length >= 2
   && /'Awarded!',\s*`\$\{company\} has been notified\. \$\{carried\.charAt\(0\)/.test(review)
   && !/your address, photos, any drawings/i.test(review));

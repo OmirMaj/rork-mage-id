@@ -42,6 +42,7 @@ import {
   Upload, Trash2, AlertTriangle, CheckCircle2, FileText, Calendar,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { cardSurface } from '@/components/ui';
 import type { ThemeColors } from '@/constants/colors';
 import { neutralInk } from '@/components/ui/ink';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -62,10 +63,10 @@ import {
   resolveCoiFileUrl, coiFileLocation, coiFileType, coiStoragePath, subDocumentsFileUri, isPdfCoiFile,
   hasUnconfirmedAi, confirmAiCoverage, pickCoverageDate,
   SUB_DOCUMENTS_BUCKET, COI_PENDING_UPLOADS_KEY,
-  type COICoverageW5, type PendingCoiUpload,
+  type PendingCoiUpload,
 } from '@/utils/coiFiles';
 import { vaultCoiExpiry, vaultCoiStatus, type VaultCoiStatus } from '@/utils/subCompliance';
-import type { CertificateOfInsurance, COICoverageType, Subcontractor } from '@/types';
+import type { CertificateOfInsurance, COICoverage, COICoverageType, Subcontractor } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -548,10 +549,10 @@ const COVERAGE_TYPES: { key: COICoverageType; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
-const emptyRow = (): COICoverageW5 => ({ type: 'general_liability', source: 'manual' });
+const emptyRow = (): COICoverage => ({ type: 'general_liability', source: 'manual' });
 
 /** A row with nothing typed is dropped on save rather than stored. */
-function rowHasContent(c: COICoverageW5): boolean {
+function rowHasContent(c: COICoverage): boolean {
   return !!(c.policyNumber?.trim() || c.carrierName?.trim() || c.expiresAt || c.effectiveDate || c.aiExpiresAt || c.aiEffectiveDate);
 }
 
@@ -571,7 +572,7 @@ function COICard({
   const v = coi.validation;
   const { Icon, color, label } = statusToVisuals(v?.overallStatus ?? 'warn', themeColors);
   const readUnavailable = (v?.issues ?? []).some(i => i.code === 'ai_validation_unavailable');
-  const stored = useMemo(() => (coi.coverages ?? []) as COICoverageW5[], [coi.coverages]);
+  const stored = useMemo(() => coi.coverages ?? [], [coi.coverages]);
 
   // ── The file ──
   const [file, setFile] = useState<{ state: 'loading' | 'ok' | 'none'; url: string }>({ state: 'loading', url: '' });
@@ -599,7 +600,7 @@ function COICard({
   }, []);
 
   // ── Coverage rows (the manual path; AI rows land here unconfirmed) ──
-  const [draft, setDraft] = useState<COICoverageW5[]>(() => (stored.length > 0 ? stored : [emptyRow()]));
+  const [draft, setDraft] = useState<COICoverage[]>(() => (stored.length > 0 ? stored : [emptyRow()]));
   const [dirty, setDirty] = useState(false);
   // An AI read (or another device's edit) replaces the rows unless the GC is
   // mid-edit — his typing is never overwritten.
@@ -609,13 +610,13 @@ function COICard({
   }, [stored, dirty]);
   const [picking, setPicking] = useState<null | { row: number; field: 'effectiveDate' | 'expiresAt' }>(null);
 
-  const patchRow = useCallback((i: number, patch: Partial<COICoverageW5>) => {
+  const patchRow = useCallback((i: number, patch: Partial<COICoverage>) => {
     setDraft(d => d.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
     setDirty(true);
   }, []);
   // Whole-row replacement — confirmAiCoverage / pickCoverageDate DROP the ai*
   // suggestion keys, which a spread-merge patch would leave behind.
-  const replaceRow = useCallback((i: number, row: COICoverageW5) => {
+  const replaceRow = useCallback((i: number, row: COICoverage) => {
     setDraft(d => d.map((c, idx) => (idx === i ? row : c)));
     setDirty(true);
   }, []);
@@ -1003,14 +1004,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   unconfirmedRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
   unconfirmedText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.warningLabel },
   confirmBtn: {
+    ...cardSurface(t, { radius: 'full', pad: 'none' }),
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full,
-    borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+    paddingHorizontal: 10, paddingVertical: 5,
   },
   confirmBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   typeChip: {
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full,
-    borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+    ...cardSurface(t, { radius: 'full', pad: 'none' }),
+    paddingHorizontal: 10, paddingVertical: 5,
   },
   typeChipActive: { backgroundColor: t.accentFill, borderColor: t.accentFill },
   typeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textSecondary },
@@ -1018,9 +1019,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   inlineRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
   inlineInput: { flex: 1, minHeight: 40 },
   dateBtn: {
+    ...cardSurface(t, { radius: 'md', pad: 10 }),
     flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
-    borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 10, paddingVertical: 10, backgroundColor: t.surface,
   },
   dateBtnText: { fontSize: Type.caption1.fontSize, color: t.text, flexShrink: 1 },
   addRowBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingVertical: 10, flex: 1 },

@@ -6,6 +6,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { clientEstimateLineRows, CLIENT_CONTINGENCY_LABEL } from '@/utils/clientEstimateView';
 // DIRECTION B ("ask when it matters"): the payment schedule and the warranty
 // period a new contract prints are the GC's own answers, resolved by
 // utils/paymentTerms.ts — the one place a split becomes milestones and a month
@@ -198,12 +199,24 @@ export function buildProposalFromRevision(
   const { split, warrantyMonths } = terms;
 
   // Build readable scope body from the revision's frozen line items.
-  const items = revision.snapshot.items ?? [];
+  //
+  // #9 (wave 5): through clientEstimateLineRows, NOT the raw items. This text
+  // is the homeowner's proposal — it is published to the portal ('Scope of
+  // work') and printed on the contract PDF. A Cost X-Ray line the GC kept
+  // GC-only (xray.clientVisible === false) is named after the suspected hidden
+  // condition ("Possible knob-and-tube behind panel"); listing it here told the
+  // client the finding. Those lines fold into ONE 'Contingency — lump sum'
+  // bullet, with no quantity (a quantity could hint at the finding). The
+  // proposal price is revision.grandTotal either way, so nothing moves.
+  const items = clientEstimateLineRows(revision.snapshot.items ?? []);
   let scopeText: string;
   if (items.length > 0) {
     const header = `${project.name} — Project Proposal (Estimate Rev ${revision.revNumber})`;
     const itemLines = items
       .map(item => {
+        if (item.quantity == null && item.name === CLIENT_CONTINGENCY_LABEL) {
+          return `• ${CLIENT_CONTINGENCY_LABEL} — lump sum`;
+        }
         if (item.quantity != null && item.unit) {
           return `• ${item.name} — ${item.quantity} ${item.unit}`;
         }

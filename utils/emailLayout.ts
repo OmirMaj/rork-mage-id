@@ -299,6 +299,21 @@ function brandLineHtml(growthBadge?: boolean): string {
       </p>`;
 }
 
+/**
+ * Wave 5 (push-unsub, #45/#76): the document kinds a contractor sends his own
+ * client — an estimate, an invoice, a daily report, a weekly update, a
+ * submittal, a lien waiver. They are transactional: send-email puts no
+ * one-click header on them, and the unsubscribe page refuses them with an
+ * explanation, so a footer "Unsubscribe" link here would offer something
+ * nothing honours. Same list as supabase/functions/_shared/email.ts
+ * TRANSACTIONAL_DOCUMENT_KEYS (Deno — not importable here; the join validator
+ * pins the two lists equal).
+ */
+export const TRANSACTIONAL_DOCUMENT_KEYS = ['estimate', 'invoice', 'daily_report', 'weekly_update', 'submittal', 'lien_waiver'] as const;
+export function isTransactionalDocumentKey(key: string | null | undefined): boolean {
+  return !!key && (TRANSACTIONAL_DOCUMENT_KEYS as readonly string[]).includes(key);
+}
+
 function footerHtml(opts: {
   sender?: { name?: string; email?: string; phone?: string };
   unsubscribe?: UnsubscribeOpts;
@@ -308,11 +323,17 @@ function footerHtml(opts: {
     ? `<p style="margin:0 0 6px;font-family:${FONT_STACK};font-size:12px;color:${STONE};line-height:1.5;">Sent by <strong style="color:${INK}">${escapeHtml(opts.sender?.name ?? '')}</strong>${opts.sender?.email ? ` · ${escapeHtml(opts.sender.email)}` : ''}${opts.sender?.phone ? ` · ${escapeHtml(opts.sender.phone)}` : ''}. Replies go to them, not us.</p>`
     : '';
 
-  const unsubUrl = opts.unsubscribe ? buildUnsubscribeUrl(opts.unsubscribe) : null;
+  // A contractor's own document to his client offers no unsubscribe (see
+  // TRANSACTIONAL_DOCUMENT_KEYS); the preferences link stays, for his other mail.
+  const transactional = isTransactionalDocumentKey(opts.unsubscribe?.eventKey);
+  const unsubUrl = opts.unsubscribe && !transactional ? buildUnsubscribeUrl(opts.unsubscribe) : null;
   const prefsUrl = opts.unsubscribe?.recipientEmail ? buildPreferencesUrl(opts.unsubscribe.recipientEmail) : null;
+  const linkStyle = `color:${FOG};text-decoration:underline;`;
   const unsubLine = unsubUrl
-    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="color:${FOG};text-decoration:underline;">manage email preferences</a>` : ''}</p>`
-    : '';
+    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="${linkStyle}">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="${linkStyle}">manage email preferences</a>` : ''}</p>`
+    : transactional && prefsUrl
+      ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(prefsUrl)}" style="${linkStyle}">Manage email preferences</a></p>`
+      : '';
 
   return `
     <tr><td style="padding:22px 32px 28px;background:#FAFAF7;border-top:1px solid ${SAND};">

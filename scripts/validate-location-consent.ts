@@ -460,7 +460,7 @@ const DECLARED_TRIGGERS: { file: string; why: string; covers: string }[] = [
   { file: 'utils/location.ts', why: 'the distance hook behind "Use my location" / "Near me"', covers: 'Use my location' },
   { file: 'utils/photoGeoStamp.ts', why: 'the shared GPS stamper (photos + the field-ticket signature)', covers: 'jobsite photo' },
   { file: 'app/daily-report.tsx', why: 'daily-report photo stamp', covers: 'jobsite photo' },
-  { file: 'app/project-detail.tsx', why: 'project gallery photo stamp — camera AND library', covers: 'add a jobsite photo' },
+  { file: 'app/project-detail.tsx', why: 'project gallery photo stamp — camera captures on a phone only (never a library pick or a web upload)', covers: 'add a jobsite photo' },
   { file: 'app/punch-walk.tsx', why: 'punch-walk photo stamp', covers: 'jobsite photo' },
   { file: 'app/ai-punch.tsx', why: 'AI punch photo stamp', covers: 'jobsite photo' },
   { file: 'app/plan-viewer.tsx', why: 'plan-pin photo stamp', covers: 'jobsite photo' },
@@ -498,6 +498,28 @@ ok('no declared trigger has gone away (the string would be over-disclosing)',
 for (const t of DECLARED_TRIGGERS) {
   ok(`the purpose string covers ${t.file} (${t.why})`,
     purpose.includes(t.covers), `expected the string to contain "${t.covers}"`);
+}
+
+// ── E2. "GPS proof" means where the picture was TAKEN ───────────────────────
+// The purpose string promises the stamp is GPS proof. The phone's CURRENT
+// position is only that for a camera capture on a phone: a library pick (and
+// every web upload — web's 'Take Photo' is a file picker) may have been taken
+// anywhere, any time. Wave 5 (#65) made project-detail's late stamp durable,
+// and it reaches the client (shared-timeline map pin, handover packet, Home
+// Passport 'Address:' doc), so a library pick stamped at the GC's home would
+// publish his home address as the photo's location. daily-report and
+// field-ticket already follow this rule; project-detail must too.
+console.log('\nE2. project-detail stamps camera captures on a phone only');
+{
+  const pd = stripComments(read('app/project-detail.tsx'));
+  const start = pd.indexOf('const handleCapturePhoto = useCallback(');
+  const body = start >= 0 ? pd.slice(start, pd.indexOf('}, [project, addProjectPhoto, updateProjectPhoto]);', start)) : '';
+  const stampAt = body.search(/\bstampPhotoLocation\s*\(/);
+  const guardAt = body.search(/if \(source !== 'camera' \|\| Platform\.OS === 'web'\) return;/);
+  ok('handleCapturePhoto is found and still stamps camera captures', start >= 0 && stampAt > 0);
+  ok('a library pick or a web upload returns before stampPhotoLocation() runs',
+    guardAt > 0 && guardAt < stampAt,
+    'stamping the phone\'s current position onto a library pick publishes a guess as GPS proof');
 }
 
 // ── F. the generated Info.plist on disk ─────────────────────────────────────

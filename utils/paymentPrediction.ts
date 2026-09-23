@@ -335,6 +335,48 @@ export async function predictInvoicePaymentsCached(
   return runPaymentPrediction(invoices, projectsById, cache);
 }
 
+/** The app's AI meter, injected so the rule below runs under bun. */
+export interface BackgroundForecastMeter {
+  /** Would mageAI answer this cacheKey from the device cache (no spend)? */
+  isCached: (cacheKey: string) => Promise<boolean>;
+  /** checkAILimit(tier, 'smart', 'invoicePrediction').allowed */
+  allowFresh: () => Promise<boolean>;
+  /** recordAIUsage('smart', 'invoicePrediction') */
+  record: () => Promise<void>;
+}
+
+/**
+ * The Friday Close's forecast, run in the BACKGROUND on Home — so it asks the
+ * user's AI allowance before a fresh call instead of just recording one after
+ * (integration review, wave 5: each fresh call is counted against the ADVANCED
+ * daily allowance, and a Pro GC who ran 5 advanced calls himself was told he
+ * had used all 6). A cached answer costs nothing and is always served. A fresh
+ * one runs only when the allowance allows it, and is then recorded. Refused →
+ * null: the close renders without payment dates, as when the forecast fails.
+ */
+export async function predictInvoicePaymentsWithinAllowance(
+  invoices: Invoice[],
+  projectsById: Record<string, Project>,
+  cache: { cacheKey: string; cacheHours: number },
+  meter: BackgroundForecastMeter,
+): Promise<PaymentPredictionResult | null> {
+  let cached = false;
+  try { cached = await meter.isCached(cache.cacheKey); } catch { cached = false; }
+  if (!cached) {
+    let allowed = false;
+    // A limit read that throws refuses: this call is optional background work,
+    // so when in doubt it does not spend. (checkAILimit itself fails open on a
+    // storage read error — that answer is taken as given.)
+    try { allowed = await meter.allowFresh(); } catch { allowed = false; }
+    if (!allowed) return null;
+  }
+  const run = await runPaymentPrediction(invoices, projectsById, cache);
+  if (run.freshAiCall) {
+    try { await meter.record(); } catch { /* meter is advisory */ }
+  }
+  return run.result;
+}
+
 export async function predictInvoicePayments(
   invoices: Invoice[],
   projectsById: Record<string, Project>,

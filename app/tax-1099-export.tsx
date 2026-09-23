@@ -22,6 +22,7 @@ import {
   ChevronLeft, FileSpreadsheet, Calendar, AlertTriangle, CheckCircle2, Share2, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { cardSurface } from '@/components/ui';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -585,12 +586,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md, backgroundColor: t.dangerSoft,
     borderWidth: 1, borderColor: t.danger + '40',
   },
-  errorTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.dangerLabel, marginBottom: 2 },
+  errorTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.dangerLabel, marginBottom: 2 },
   errorBody: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17 },
   retryBtn: {
+    ...cardSurface(t, { radius: 'full', pad: 'none' }),
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: t.surface, borderWidth: 1, borderColor: t.accent,
+    marginTop: 8, paddingHorizontal: 12, paddingVertical: 7,
+    borderColor: t.accent,
   },
   retryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
   blockedNote: {

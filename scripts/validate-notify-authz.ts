@@ -275,5 +275,27 @@ ok('anon loses EXECUTE on fire_notify; authenticated keeps it (SECURITY INVOKER 
   ok('the owner\'s own case never notifies him', /if v_owner is null or v_owner = NEW\.user_id then\s+return NEW;/.test(mig));
 }
 
+// Wave 5 (CONTRACT 8): bid_invite_received, lien_waiver_signed and
+// prequal_submitted are raised only by their AFTER triggers. A JWT forging
+// "your sub bid $1" at another GC — or the anon page — is refused, and the
+// recipient is the SOURCE ROW's owner, re-read with the service role.
+{
+  const m = /SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set\(\[([\s\S]*?)\]\)/.exec(notify);
+  const members = new Set((m?.[1] ?? '').match(/'[a-z_]+'/g)?.map((x) => x.slice(1, -1)) ?? []);
+  for (const e of ['bid_invite_received', 'lien_waiver_signed', 'prequal_submitted']) {
+    ok(`${e} is service-only (trigger path)`, members.has(e));
+    ok(`anon may NOT raise ${e}`, !ANON_ALLOWED_EVENTS.has(e));
+    ok(`${e} is not a cross-tenant / RFP event`, !CROSS_TENANT_EVENTS.has(e) && !RFP_EVENTS.has(e));
+  }
+  ok('the three are resolved from the source row before any project / GC lookup',
+    /if \(WAVE5_SOURCE_EVENTS\.has\(event\)\) \{\s*const src = await loadWave5Source\(event, payload\);\s*if \(!src\.ok\) return \{ ok: false, reason: src\.reason, event \};\s*wave5 = src;\s*gcUserId = src\.ownerId;\s*projectId = src\.projectId;\s*\}/.test(notify)
+      && notify.indexOf('loadWave5Source(event, payload)') < notify.indexOf('const projectCtx = await getProjectContext('));
+  const loader = notify.slice(notify.indexOf('async function loadWave5Source('), notify.indexOf('// ─── Preference check'));
+  ok('each source row must belong to payload.user_id', /invite\.user_id !== ownerId \|\| pkg\.user_id !== ownerId/.test(loader)
+    && /w\.user_id !== ownerId/.test(loader) && /pk\.user_id !== ownerId/.test(loader));
+  ok('the bid is read by the INVITE ROW\'s bid id and this package, never the payload\'s', /const bidId = uuidOrNull\(invite\.bid_id\)/.test(loader) && /package_id=eq\.\$\{pkg\.id\}/.test(loader) && !/payload\.bid_id/.test(loader));
+  ok('a project is named only when the owner owns it', /projects\?id=eq\.\$\{projectId\}&user_id=eq\.\$\{ownerId\}/.test(notify));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

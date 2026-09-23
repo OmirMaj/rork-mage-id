@@ -106,6 +106,9 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
   const assumed = state.resolved.filter(r => r.source !== 'history');
   const limitError = isLimitErrorKind(state.errorKind);
   const applyError = state.errorKind === 'no_project' || state.errorKind === 'no_estimate' || state.errorKind === 'apply_failed';
+  // #57 / #156: the free plan's one-job cap refused a new job — a plan fixes
+  // it, a re-dictation doesn't.
+  const capError = state.errorKind === 'project_cap';
 
   return (
     <View style={styles.root}>
@@ -137,7 +140,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
       <View style={styles.topbar}>
         <View style={styles.topRow}>
           <Text style={styles.brand}>MAGE&nbsp;COPILOT</Text>
-          <TouchableOpacity onPress={close} accessibilityLabel="Close" hitSlop={10}>
+          <TouchableOpacity accessibilityRole="button" onPress={close} accessibilityLabel="Close" hitSlop={10}>
             <X size={20} color={colors.textMuted} strokeWidth={2} />
           </TouchableOpacity>
         </View>
@@ -180,7 +183,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               multiline
               testID="copilot-compose"
             />
-            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={submitCompose} testID="copilot-send">
+            <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={submitCompose} testID="copilot-send">
               <Text style={styles.buildBtnText}>Continue</Text>
             </TouchableOpacity>
           </View>
@@ -204,7 +207,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 Yes/No — open the date wheel so the answer is a true ISO date. */}
             {state.currentGap.kind === 'date' ? (
               <View style={styles.options}>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={[styles.opt, styles.optRec]}
                   activeOpacity={0.85}
                   onPress={() => setDatePickerOpen(true)}
@@ -233,7 +236,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                   autoFocus
                   testID="copilot-gap-input"
                 />
-                <TouchableOpacity style={[styles.opt, styles.optRec]} activeOpacity={0.85} onPress={submitEntry} testID="copilot-gap-submit">
+                <TouchableOpacity accessibilityRole="button" style={[styles.opt, styles.optRec]} activeOpacity={0.85} onPress={submitEntry} testID="copilot-gap-submit">
                   <View style={[styles.radio, styles.radioRec]} />
                   <View style={styles.optLab}>
                     <Text style={styles.optText}>{entry.trim() ? 'Use this answer' : 'Skip — use the default'}</Text>
@@ -245,7 +248,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             ) : (
               <View style={styles.options}>
                 {optionsForGap(state.currentGap).map((c, i) => (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     key={i}
                     style={[styles.opt, c.recommended && styles.optRec]}
                     activeOpacity={0.85}
@@ -264,7 +267,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
             {/* editable transcript chip */}
             {state.transcript.length > 0 && (
-              <TouchableOpacity style={styles.heard} onPress={() => setMicOpen(true)} activeOpacity={0.7}>
+              <TouchableOpacity accessibilityRole="button" style={styles.heard} onPress={() => setMicOpen(true)} activeOpacity={0.7}>
                 <Text style={styles.heardLabel}>YOU SAID</Text>
                 <Text style={styles.heardText} numberOfLines={2}>“{state.transcript[state.transcript.length - 1].text}”</Text>
                 <Pencil size={14} color={colors.textMuted} strokeWidth={1.9} />
@@ -293,7 +296,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
               {!!state.reviewNote && <Text style={styles.grounding} testID="copilot-review-note">{state.reviewNote}</Text>}
               <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
-              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={buildAndLeave}>
+              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={buildAndLeave}>
                 <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Build it</Text>
               </TouchableOpacity>
@@ -313,37 +316,38 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 AI turn and throws the same error; a limit needs a plan. */}
             <Text style={styles.askEyebrow}>
               {limitError ? 'AI LIMIT REACHED'
+                : capError ? 'FREE COVERS ONE JOB'
                 : state.errorKind === 'no_project' ? 'WHICH JOB IS THIS FOR?'
                 : state.errorKind === 'no_estimate' ? 'THIS JOB NEEDS AN ESTIMATE'
                 : applyError ? 'COULDN’T BUILD IT'
                 : 'SOMETHING WENT WRONG'}
             </Text>
             <Text style={styles.question}>{state.errorMessage ?? 'Try again.'}</Text>
-            {limitError && (
-              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={() => { onDone(); router.push('/paywall' as never); }} testID="copilot-see-plans">
+            {(limitError || capError) && (
+              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={() => { onDone(); router.push('/paywall' as never); }} testID="copilot-see-plans">
                 <Text style={styles.buildBtnText}>See plans</Text>
               </TouchableOpacity>
             )}
             {state.errorKind === 'no_project' && onPickProject && (
-              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={onPickProject} testID="copilot-pick-job">
+              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={onPickProject} testID="copilot-pick-job">
                 <Briefcase size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Pick a job</Text>
               </TouchableOpacity>
             )}
             {state.errorKind === 'no_estimate' && onBuildEstimate && (
-              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={onBuildEstimate} testID="copilot-build-estimate">
+              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={onBuildEstimate} testID="copilot-build-estimate">
                 <Receipt size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Build the estimate first</Text>
               </TouchableOpacity>
             )}
             {applyError && (
-              <TouchableOpacity style={styles.ghostBtn} activeOpacity={0.8} onPress={backToReview} testID="copilot-back-to-review">
+              <TouchableOpacity accessibilityRole="button" style={styles.ghostBtn} activeOpacity={0.8} onPress={backToReview} testID="copilot-back-to-review">
                 <ArrowLeft size={16} color={colors.textSecondary} strokeWidth={2} />
                 <Text style={styles.ghostBtnText}>Back to review</Text>
               </TouchableOpacity>
             )}
-            {!limitError && !applyError && (
-              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={() => setMicOpen(true)}>
+            {!limitError && !applyError && !capError && (
+              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={() => setMicOpen(true)}>
                 <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Try again</Text>
               </TouchableOpacity>
@@ -354,17 +358,17 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
       {/* persistent escapes */}
       <View style={styles.actionbar}>
-        <TouchableOpacity style={styles.mic} onPress={() => setMicOpen(true)} accessibilityLabel="Answer by voice">
+        <TouchableOpacity accessibilityRole="button" style={styles.mic} onPress={() => setMicOpen(true)} accessibilityLabel="Answer by voice">
           <Mic size={22} color={Colors.textOnAccent} strokeWidth={1.9} />
         </TouchableOpacity>
         <View style={styles.escapes}>
           {state.phase === 'asking' && (
-            <TouchableOpacity style={styles.ghost} onPress={skip}>
+            <TouchableOpacity accessibilityRole="button" style={styles.ghost} onPress={skip}>
               <Check size={14} color={colors.textMuted} strokeWidth={1.9} />
               <Text style={styles.ghostText}>Build it now — skip the rest</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.ghost} onPress={openWeb}>
+          <TouchableOpacity accessibilityRole="button" style={styles.ghost} onPress={openWeb}>
             <Monitor size={14} color={colors.textMuted} strokeWidth={1.9} />
             <Text style={styles.ghostText}>Open on web to fine-tune</Text>
             <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.9} />

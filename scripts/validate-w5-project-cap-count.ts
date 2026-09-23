@@ -29,7 +29,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  SAMPLE_PROJECT_PREFIX, isSampleProjectName, countsTowardFreeCap, capProjectCount,
+  SAMPLE_PROJECT_PREFIX, isSampleProjectName, countsTowardFreeCap, capProjectCount, partitionImportForCap,
 } from '../utils/projectCap';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -149,6 +149,31 @@ ok('count is the live rule + id <> NEW.id, with NO awarded_rfp filter (#127)',
 ok("at the cap: UPDATE pins the name and returns, INSERT raises check_violation 'Free tier is limited to 1 project' (CONTRACT 21)",
   /if v_count >= 1 then\s+if TG_OP = 'UPDATE' then\s+NEW\.name := OLD\.name;\s+return NEW;\s+end if;\s+raise exception 'Free tier is limited to 1 project\. Upgrade to Pro for unlimited projects\.'\s+using errcode = 'check_violation';\s+end if;/i.test(mig));
 ok('exactly one raise in the function (the INSERT refusal)', (mig.match(/raise exception/gi) ?? []).length === 1);
+
+// ── Data import is a create path too (integration review, wave 5) ─────────
+console.log('\ndata import — the cap applies to a backup file');
+{
+  const freeCan = (n: number) => n < 1;      // useTierAccess().canCreateProject on free
+  const proCan = (_n: number) => true;
+  const file = [{ name: 'Henderson' }, { name: `${SAMPLE_PROJECT_PREFIX}Demo` }, { name: 'Maple' }, { name: 'Oak' }];
+  const empty = partitionImportForCap(file, 0, freeCan);
+  eq('free, no job yet: the first real project and every sample come in, the rest are held (file order)',
+    [empty.admit.map(p => p.name), empty.held.map(p => p.name)],
+    [['Henderson', `${SAMPLE_PROJECT_PREFIX}Demo`], ['Maple', 'Oak']]);
+  const full = partitionImportForCap(file, 1, freeCan);
+  eq('free, already at the cap: only samples come in', [full.admit.length, full.held.length], [1, 3]);
+  const pro = partitionImportForCap(file, 5, proCan);
+  eq('a paid plan holds nothing back', [pro.admit.length, pro.held.length], [4, 0]);
+  // Raw source, not strip(): the screen's DocumentPicker type list holds the
+  // string '*/*', which the block-comment stripper reads as a comment opener.
+  const scr = read('app/data-import.tsx');
+  ok('the import screen imports only the admitted projects and says how many were held back',
+    /partitionImportForCap\(toAdd, capProjectCount\(projects, user\?\.id\), canCreateProject\)/.test(scr)
+      && /projects: projectSplit\.admit,/.test(scr)
+      && !/projects: parsed\.data\.projects \?\? \[\]/.test(scr)
+      && /setResult\(\{ \.\.\.r, projectsHeld: heldProjects \}\)/.test(scr)
+      && /HELD BACK BY YOUR PLAN/.test(scr));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

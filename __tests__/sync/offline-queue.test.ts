@@ -37,6 +37,8 @@ import {
   supabaseRpcDetailed,
   configureAutoDrain,
   takeDoomedProjectIds,
+  onProjectDeleteRefused,
+  onQueueFlushed,
   type OfflineMutation,
 } from '@/utils/offlineQueue';
 import {
@@ -1879,5 +1881,128 @@ describe('integration round 3 — the profile row: one refused save does not hol
     const asEntries = (await readSyncFailuresOrThrow()).map((f) => ({ table: f.table!, operation: f.operation!, data: f.row! }));
     expect(settingsRowWritePending(asEntries, USER_A)).toBe(true);
     expect(settingsRowWritePending([{ table: 'profiles', operation: 'update', data: { id: USER_A, push_token: 't' } }], USER_A)).toBe(false);
+  });
+});
+
+// ── Wave 5 (w5-join-core) — the refusals the server now answers by name ─────
+// CONTRACT 21: a NEW project past the free plan's one is refused 23514 with
+// 'Free tier is limited to 1 project…' — no "violates" in it, so it used to
+// burn every retry. CONTRACT 22: a delete of a job with OSHA incidents is
+// refused 23001 'project_has_safety_records' — never 23503, which is how a
+// child whose job is not on the server yet reads (and must keep reading).
+describe('wave 5 — known refusals are terminal with their reasons', () => {
+  const CAP = pg('Free tier is limited to 1 project. Upgrade to Pro for unlimited projects.', '23514');
+  const SAFETY = pg('project_has_safety_records', '23001');
+  const settle = async () => {
+    for (let i = 0; i < 20 && (await readSyncFailuresOrThrow()).length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+  };
+
+  test('flush: a projects INSERT refused by the cap is dropped on the FIRST answer, kept under Not saved with its row', async () => {
+    await seed([{ id: 'm-cap', table: 'projects', operation: 'insert', data: { id: 'p2', name: 'Second job' } }]);
+    installScript(CAP);
+    const res = await processOfflineQueue();
+    expect(calls).toHaveLength(1);
+    expect(res.failed).toBe(1);
+    expect(await getOfflineQueue()).toHaveLength(0);
+    await settle();
+    const [line] = await readSyncFailuresOrThrow();
+    expect(line).toMatchObject({ id: 'm-cap', table: 'projects', recordId: 'p2', operation: 'insert', reason: 'Free plan allows 1 project — upgrade, or delete a job first' });
+    expect(line.row).toMatchObject({ name: 'Second job' });
+    expect(String(oops.mock.calls[0]?.[0] ?? '')).toContain('Free plan allows 1 project');
+  });
+
+  test('flush: the owner UPSERT refused by the cap is terminal too, and its queued children go with it (recorded, not lost)', async () => {
+    await seed([
+      { id: 'm-job', table: 'projects', operation: 'upsert', data: { id: 'p2', name: 'Second job' }, timestamp: 1 },
+      { id: 'm-dr', table: 'daily_reports', operation: 'insert', data: { id: 'dr1', project_id: 'p2' }, timestamp: 2 },
+    ]);
+    installScript(CAP);
+    await processOfflineQueue();
+    expect(calls.map((c) => c.table)).toEqual(['projects']);
+    expect(await getOfflineQueue()).toHaveLength(0);
+    await settle();
+    const lines = await readSyncFailuresOrThrow();
+    expect(lines.find((l) => l.id === 'm-job')).toMatchObject({ reason: 'Free plan allows 1 project — upgrade, or delete a job first', operation: 'upsert' });
+    expect(lines.find((l) => l.id === 'm-dr')).toMatchObject({ table: 'daily_reports', recordId: 'dr1' });
+  });
+
+  test('flush: a projects DELETE refused for safety records is a NOTE (no Retry) and the job is announced for restoring', async () => {
+    await seed([{ id: 'm-del', table: 'projects', operation: 'delete', data: { id: 'p9' } }]);
+    installScript(SAFETY);
+    const heard: string[] = [];
+    const off = onProjectDeleteRefused((pid) => { heard.push(pid); });
+    // Fix round 1: SafetyContext pruned the job's OSHA lists on the local
+    // delete; the refusal names those tables on the flush channel so it
+    // re-reads them from the server.
+    const flushed: string[][] = [];
+    const offFlush = onQueueFlushed((tables) => { flushed.push([...tables].sort()); });
+    try {
+      const res = await processOfflineQueue();
+      expect(res.failed).toBe(1);
+      expect(calls).toHaveLength(1);
+      expect(await getOfflineQueue()).toHaveLength(0);
+      expect(heard).toEqual(['p9']);
+      await settle();
+      const [line] = await readSyncFailuresOrThrow();
+      expect(line.reason).toBe('This job has safety records — it was not deleted');
+      expect(line.table).toBeUndefined();
+      expect(line.row).toBeUndefined();
+      // Not a delete line: nothing keeps the job hidden on the phone.
+      expect([...(await unsavedWriteIds('projects'))]).toEqual([]);
+      expect(flushed).toContainEqual(['hazards', 'jhas', 'safety_incidents', 'safety_inspections', 'toolbox_talks']);
+    } finally {
+      off();
+      offFlush();
+    }
+  });
+
+  test('live: an owner upsert refused by the cap answers failed, recorded with its row and the cap sentence', async () => {
+    installScript(CAP);
+    await expect(supabaseWriteDetailed('projects', 'upsert', { id: 'p3', name: 'Third job' })).resolves.toBe('failed');
+    await settle();
+    const [line] = await readSyncFailuresOrThrow();
+    expect(line).toMatchObject({ table: 'projects', recordId: 'p3', operation: 'upsert', reason: 'Free plan allows 1 project — upgrade, or delete a job first' });
+    expect(String(oops.mock.calls[0]?.[0] ?? '')).toContain('Free plan allows 1 project');
+  });
+
+  test('live: a delete refused for safety records is a note, and the job is announced', async () => {
+    installScript(SAFETY);
+    const heard: string[] = [];
+    const off = onProjectDeleteRefused((pid) => { heard.push(pid); });
+    const flushed: string[][] = [];
+    const offFlush = onQueueFlushed((tables) => { flushed.push([...tables].sort()); });
+    try {
+      await expect(supabaseWriteDetailed('projects', 'delete', { id: 'p4' })).resolves.toBe('failed');
+      await settle();
+      const [line] = await readSyncFailuresOrThrow();
+      expect(line.reason).toBe('This job has safety records — it was not deleted');
+      expect(line.table).toBeUndefined();
+      expect(heard).toEqual(['p4']);
+      // SafetyContext re-reads the job's OSHA lists it pruned on the local delete.
+      expect(flushed).toContainEqual(['hazards', 'jhas', 'safety_incidents', 'safety_inspections', 'toolbox_talks']);
+    } finally {
+      off();
+      offFlush();
+    }
+  });
+
+  test('a 23503 on a CHILD row stays parent-missing: queued behind its job, not terminal', async () => {
+    installScript(async (c) => {
+      if (c.table === 'projects') throw new TypeError('Network request failed');
+      return { error: { message: 'insert or update on table "daily_reports" violates foreign key constraint "daily_reports_project_id_fkey"', code: '23503' } };
+    });
+    await expect(supabaseWriteDetailed('projects', 'upsert', { id: 'p5' })).resolves.toBe('queued');
+    await expect(supabaseWriteDetailed('daily_reports', 'insert', { id: 'dr5', project_id: 'p5' })).resolves.toBe('queued');
+    expect((await getOfflineQueue()).map((m) => m.table)).toEqual(['projects', 'daily_reports']);
+    expect(await readSyncFailuresOrThrow()).toHaveLength(0);
+  });
+
+  test('flush: a 23503 on a child spends ONE retry and stays queued (not dropped as a known refusal)', async () => {
+    await seed([{ id: 'm-c', table: 'daily_reports', operation: 'insert', data: { id: 'dr6', project_id: 'p-missing' } }]);
+    installScript(pg('insert or update on table "daily_reports" violates foreign key constraint "daily_reports_project_id_fkey"', '23503'));
+    await processOfflineQueue();
+    const q = await getOfflineQueue();
+    expect(q).toHaveLength(1);
+    expect(q[0].retryCount).toBe(1);
   });
 });

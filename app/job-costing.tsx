@@ -61,6 +61,7 @@ import { sharePurchaseOrderPDF } from '@/utils/purchaseOrderPdf';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { pdfFailureMessage } from '@/utils/platformFile';
 
 // ─────────────────────────────────────────────────────────────
 // Root
@@ -230,7 +231,8 @@ function JobCostingInner() {
       await sharePurchaseOrderPDF(c, project, poBranding, subcontractors, deliveries);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      showAlert('Could not build the PO', e instanceof Error ? e.message : 'Try again.');
+      // CONTRACT 25 (#147): PO_PDF_WINDOW_BLOCKED_MESSAGE passes through.
+      showAlert('Could not build the PO', pdfFailureMessage(e, "Couldn't build the PO. Try again."));
     } finally {
       setIssuingPo(null);
     }

@@ -91,7 +91,11 @@ console.log('\n#27 · the Subs form:');
     /if \(tin && !\/\^\[0-9\]\{4\}\$\/\.test\(tin\)\) \{/.test(save) && /return;/.test(save));
   ok('"View W-9" mints a signed link on demand', /signW9Url\(path\)/.test(subs) && /accessibilityLabel="View W-9"/.test(subs));
   ok('the W-9 upload reads bytes with readFileBytes (not a 0-byte fetch Blob)', /await readFileBytes\(asset\.uri\)/.test(subs) && !/fetch\(asset\.uri\)/.test(subs));
-  ok('the w9DocPath cast goes through the SubcontractorW5 alias (w5-join-core folds it)', /as SubcontractorW5\)\.w9DocPath/.test(subs) && !/Subcontractor & \{ w9DocPath\?: string \}/.test(subs));
+  // w5-join-core folded Subcontractor.w9DocPath into types/index.ts (CONTRACT
+  // 27): the screen reads and writes it with no cast and no alias.
+  ok('w9DocPath is read and written as a plain Subcontractor field (the W5 alias is folded)',
+    /setW9DocPath\(sub\.w9DocPath\)/.test(subs) && /updateSubcontractor\(editingSub\.id, \{ w9OnFile: true, w9DocPath: path \}\)/.test(subs)
+      && !/SubcontractorW5/.test(subs) && !/Subcontractor & \{ w9DocPath\?: string \}/.test(subs));
 }
 
 console.log('\n#17 (carry) · deleting a paid sub:');

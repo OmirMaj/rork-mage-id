@@ -23,7 +23,7 @@ import { useProjects, useCoreData } from '@/contexts/ProjectContext';
 import { PROFILE_FAILED_REASON, PROFILE_FAILED_TITLE, PROFILE_LOADING_REASON } from '@/utils/settingsLoadGuard';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase } from '@/lib/supabase';
-import { resumeDigestErrorKind, resumeRefusedCopy, RESUME_NETWORK_COPY, morningPreviewCopy, type RpcErrorLike } from '@/utils/digestSettingsCopy';
+import { resumeDigestErrorKind, resumeRefusedCopy, RESUME_NETWORK_COPY, morningPreviewCopy, digestRecipientLine, type RpcErrorLike } from '@/utils/digestSettingsCopy';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { armDailyBriefNudge, disarmDailyBriefNudge } from '@/utils/brief/nudge';
@@ -46,7 +46,8 @@ interface CategoryDef {
     | 'portal_message' | 'budget_proposal' | 'co_approval' | 'sub_invoice'
     | 'contract_signed' | 'selection_chosen'
     | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted' | 'lead_received'
-    | 'invoice_paid' | 'field_report' | 'pro_response' | 'punch_ready' | 'safety_incident';
+    | 'invoice_paid' | 'field_report' | 'pro_response' | 'punch_ready' | 'safety_incident'
+    | 'bid_invite_received' | 'lien_waiver_signed' | 'prequal_submitted';
   label: string;
   description: string;
   icon: React.ReactNode;
@@ -158,6 +159,29 @@ const CATEGORIES: CategoryDef[] = [
     icon: <ListChecks size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
   },
+  // Wave 5 (CONTRACT 8): notify sends these three under their event names,
+  // each raised only by its database trigger when the sub acts on a link.
+  {
+    key: 'bid_invite_received',
+    label: 'Sub bids received',
+    description: 'A subcontractor files a bid through an invite link you sent.',
+    icon: <Banknote size={18} color="#AF52DE" strokeWidth={1.75} />,
+    group: 'sub',
+  },
+  {
+    key: 'lien_waiver_signed',
+    label: 'Lien waiver signed',
+    description: 'A subcontractor signs a lien waiver you requested.',
+    icon: <PenTool size={18} color="#AF52DE" strokeWidth={1.75} />,
+    group: 'sub',
+  },
+  {
+    key: 'prequal_submitted',
+    label: 'Prequalification submitted',
+    description: 'A subcontractor submits the prequalification packet you sent them.',
+    icon: <FileCheck size={18} color="#AF52DE" strokeWidth={1.75} />,
+    group: 'sub',
+  },
   // ─── Marketplace ───
   {
     key: 'nearby_rfp_posted',
@@ -189,7 +213,7 @@ const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: stri
   leads:       { title: 'Website → You',        subtitle: 'When a homeowner asks for a price on your website.' },
   client:      { title: 'Client → You',         subtitle: 'When the homeowner does something on the portal.' },
   team:        { title: 'Your team → You',      subtitle: 'When your field crew or a design pro sends something back.' },
-  sub:         { title: 'Subcontractor → You',  subtitle: 'When a sub does something through their portal link.' },
+  sub:         { title: 'Subcontractor → You',  subtitle: 'When a sub does something through a link you sent them.' },
   marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
 };
 
@@ -477,8 +501,10 @@ export default function NotificationsSettingsScreen() {
       });
       if (error) throw error;
       // Names the real reason nothing was emailed (unsubscribed, Email off,
-      // no projects) — utils/digestSettingsCopy.ts.
-      const copy = morningPreviewCopy(data as { sent?: unknown; reason?: unknown } | null);
+      // no projects) — utils/digestSettingsCopy.ts — and, when it went, the
+      // sign-in address it went to (#130: the digests send there, not to the
+      // Company Profile email).
+      const copy = morningPreviewCopy(data as { sent?: unknown; reason?: unknown } | null, user?.email ?? null);
       showAlert(copy.title, copy.message);
     } catch (err) {
       console.log('[NotificationsSettings] preview failed', err);
@@ -489,7 +515,7 @@ export default function NotificationsSettingsScreen() {
     } finally {
       setPreviewing(false);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.email]);
 
   const toggle = useCallback(async (key: string, channel: 'push' | 'email', value: boolean) => {
     void Haptics.selectionAsync().catch(() => {});
@@ -743,6 +769,11 @@ export default function NotificationsSettingsScreen() {
                     thumbColor="#FFF"
                   />
                 </View>
+                {/* #130: where the digest goes — the sign-in address, the one
+                    the unsubscribe check and this switch's resume key on. */}
+                {digestEmailOn && !!digestRecipientLine(user?.email) && (
+                  <Text style={styles.nudgeNote}>{digestRecipientLine(user?.email)}</Text>
+                )}
                 {digestEmailSuppressed && (
                   <Text style={styles.nudgeNote}>
                     {digestSuppression === 'all'

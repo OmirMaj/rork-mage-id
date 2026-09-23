@@ -194,7 +194,18 @@ if (getStart < 0 || submitStart < 0) {
   process.exit(1);
 }
 
-const getBody = sql.slice(getStart, submitStart);
+// WAVE 5 (#99/#178): bid_invite_get was redefined to also return the
+// package's bid due date (bids_due_on). The NEWEST definition is the live
+// contract, so its returned keys and token floor are read from there;
+// bid_invite_submit is unchanged and still read from the original file.
+const GET_REDEFINED = 'supabase/migrations/20260923220000_bid_invite_due_and_received.sql';
+const getSql = read(GET_REDEFINED);
+const newGetStart = getSql.indexOf('function public.bid_invite_get');
+const newGetEnd = getSql.indexOf('revoke all on function public.bid_invite_get', newGetStart);
+ok('the newest bid_invite_get definition is readable (20260923220000)', newGetStart > -1 && newGetEnd > newGetStart);
+const getBody = newGetStart > -1 && newGetEnd > newGetStart
+  ? getSql.slice(newGetStart, newGetEnd)
+  : sql.slice(getStart, submitStart);
 const submitBody = sql.slice(submitStart);
 
 /** The `< N` in `length(p_token) < N`, per function. */
@@ -226,6 +237,7 @@ const returnedKeys = (() => {
 ok('bid_invite_get returns a parseable set of fields', returnedKeys.length >= 5, returnedKeys.join(', '));
 ok('and estimate_budget is NOT one of them (the anchoring guard the migration argues for)',
   !returnedKeys.includes('estimate_budget'), returnedKeys.join(', '));
+ok('and the bid due date IS one of them (bids_due_on, #99/#178)', returnedKeys.includes('bids_due_on'), returnedKeys.join(', '));
 
 // The submit signature, in the order PostgREST will name them.
 const submitParams = splitTopLevel(balanced(submitBody, submitBody.indexOf('(')))
@@ -316,7 +328,7 @@ ok('and the screen renders that difference rather than an empty state',
 // notification_outbox, is not suppressed by an unsubscribe, and nobody knows
 // it exists until a sub says they never got anything.
 ok('the invite email leaves through the notify edge function',
-  /notifyEvent\(\s*'bid_invite_sent'/.test(clientSrc));
+  /notifyEvent(Detailed)?\(\s*'bid_invite_sent'/.test(clientSrc));
 ok('and the email carries no budget figure (same anchoring reason the RPC withholds it)',
   !/budget/i.test(clientSrc), 'the GC\'s own number must not travel to the bidder');
 

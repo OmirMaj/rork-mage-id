@@ -299,7 +299,17 @@ for (const h of ['handleApprove', 'handleNeedsChanges', 'handleReject']) {
   const body = pm.slice(pm.indexOf(`const ${h} = useCallback(`), pm.indexOf('}, [', pm.indexOf(`const ${h} = useCallback(`)));
   ok(`#24 ${h} writes applyPrequalReview(fresh, …), never a spread of the stale copy`,
     /applyPrequalReview\(packet, \{/.test(body) && !/\.\.\.packet,/.test(body), body.slice(0, 120));
+  // w5-join-screens: the server write is the context's narrow review write
+  // (review columns only) — never the full-row upsert.
+  ok(`#24 ${h} sends only the review columns (writePrequalReview(packet.id, …)), never upsertPrequalPacket`,
+    /writePrequalReview\(packet\.id, prequalReviewPatchOf\(updated\)\)/.test(body) && !/upsertPrequalPacket\(/.test(body), body.slice(0, 160));
 }
+ok('#24 the pipeline advance writes the status only', /writePrequalReview\(packet\.id, \{\s*status: next as PrequalPacket\['status'\],\s*updatedAt:/.test(pm)
+  && !/upsertPrequalPacket\(\{\s*\.\.\.packet,/.test(pm));
+ok('#24 prequalReviewPatchOf names review columns only',
+  (() => { const b = pm.slice(pm.indexOf('function prequalReviewPatchOf('), pm.indexOf('\n}\n', pm.indexOf('function prequalReviewPatchOf('))); return b.length > 0 && !/financials|insurance|licenses|safety|w9|submittedAt|criteria/.test(b); })());
+ok('CONTRACT 8: ?packetId opens that packet\'s review', /const \{ packetId \} = useLocalSearchParams<\{ packetId\?: string \}>\(\)/.test(pm)
+  && /prequalPackets\.find\(p => p\.id === packetId\)/.test(pm) && /setReviewingPacket\(target\);/.test(pm));
 ok('#24 opening the review re-reads that packet by id', /from\('prequal_packets'\)\.select\('\*'\)\.eq\('id', packet\.id\)\.maybeSingle\(\)/.test(pm)
   && /setReviewingPacketState\(rowToPrequalPacket\(data as Record<string, unknown>\)\)/.test(pm));
 ok('#24 every decision button waits for the re-read',

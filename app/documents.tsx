@@ -12,6 +12,7 @@ import {
   AlertCircle, Check, X as XIcon,
 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
+import { cardSurface } from '@/components/ui';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import EmptyState from '@/components/EmptyState';
@@ -610,8 +611,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   createButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   filesCard: {
-    marginHorizontal: 16, marginBottom: 16, padding: 14, gap: 8,
-    borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+    ...cardSurface(t, { radius: 'card', pad: 14 }),
+    marginHorizontal: 16, marginBottom: 16, gap: 8,
   },
   filesHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   filesTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },

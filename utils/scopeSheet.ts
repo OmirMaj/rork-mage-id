@@ -15,6 +15,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mageAI } from '@/utils/mageAI';
+import { isGcOnlyEstimateLine } from '@/utils/clientEstimateView';
 import type { Project, ScopeSheet, ScopeSheetItem } from '@/types';
 
 const STORAGE_KEY = 'mageid_scope_sheets'; // map: projectId -> ScopeSheet
@@ -25,7 +26,13 @@ interface DigestItem { name: string; group: string; qty: number; unit: string; t
 function estimateItems(project: Project): DigestItem[] {
   const le = project.linkedEstimate;
   if (le && le.items.length > 0) {
-    return le.items.map((i) => ({
+    // #9: a GC-only Cost X-Ray line (xray.clientVisible === false) is the
+    // GC's contingency for a suspected hidden condition. The scope sheet is
+    // attached to proposals and shared with the client, and these lines are
+    // isAllowance, so they would print by name under Allowances. Leave them
+    // out of the heuristic sheet and the AI prompt alike. The client's
+    // documents show that money only as 'Contingency'.
+    return le.items.filter((i) => !isGcOnlyEstimateLine(i)).map((i) => ({
       name: i.name,
       group: i.csiDivision ? `CSI ${i.csiDivision}` : (i.category || 'General'),
       qty: i.quantity,

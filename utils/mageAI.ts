@@ -70,6 +70,17 @@ async function getCache(key: string): Promise<MageAIResult | null> {
   } catch { return null; }
 }
 
+/**
+ * Whether mageAI({ cacheKey: key }) would answer from the device cache right
+ * now — i.e. without a network call and without spending an AI allowance.
+ * For a BACKGROUND caller that must check the user's AI limit before a fresh
+ * call but should not be refused a result it already paid for (the Friday
+ * Close's payment forecast, hooks/useWeekClose). Read-only; never throws.
+ */
+export async function hasCachedMageAIResult(key: string): Promise<boolean> {
+  return (await getCache(key)) !== null;
+}
+
 async function setCache(key: string, result: MageAIResult, hours: number) {
   try {
     await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ result, expiresAt: Date.now() + hours * 3600000 }));

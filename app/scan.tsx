@@ -51,7 +51,6 @@ import {
   resolveDestination, defaultTitleFor, recordKindPhrase, scanFolderLabel, scanFiledMessage,
   scanPageFileName, scanPayloadTooLarge, coiPickerSubs, scanCoiCoverages, scanCalendarDay,
   buildScanPermit, buildScanWarranty, buildScanReceipt, scanInvoiceLines, scanOwnerOnlyGate,
-  type ScanRecordKindW5,
 } from '@/utils/scanRouting';
 import { linkableCommitments, autoLinkCommitment, commitmentChipLabel } from '@/utils/commitmentLinking';
 import { uploadProjectFile, ProjectFileEmptyError } from '@/utils/projectFiles';
@@ -63,7 +62,7 @@ import { edgeFunctionError, edgeErrorCode } from '@/utils/edgeError';
 import { generateUUID } from '@/utils/generateId';
 import { formatMoney } from '@/utils/formatters';
 import type {
-  ScanDocType, Contact, CertificateOfInsurance,
+  ScanDocType, ScanRecordKind, Contact, CertificateOfInsurance,
 } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -147,7 +146,7 @@ function ScanInner() {
   const [subPick, setSubPick] = useState<string | null>(null);
   const [commitmentPick, setCommitmentPick] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<{ kind: ScanRecordKindW5; folder: string; pages: number } | null>(null);
+  const [saved, setSaved] = useState<{ kind: ScanRecordKind; folder: string; pages: number } | null>(null);
   // #64: pages already on the server for THIS scan, so a retry after a
   // partial failure files only the rest (never a duplicate). The stamp and
   // title are frozen at the first attempt so a retry re-targets the same names.
@@ -214,8 +213,9 @@ function ScanInner() {
     [destination?.recordKind, editedFields, effectiveProjectId, project?.name],
   );
 
-  // Product decision #53 (owner-only interim): a permit or warranty is
-  // created only by the job's OWNER. An invited PM's warranty would land on
+  // Product decision #53 (owner-only interim): a permit or warranty — and a
+  // bill or COI (owner-only RLS, integration round 1) — is created only by
+  // the job's OWNER. An invited PM's warranty would land on
   // HIS account (warranties RLS is auth.uid() = user_id) — the GC's list,
   // handover, binder and portal would never see it while the banner said
   // "added the warranty". Unknown role = not the owner.
@@ -231,7 +231,7 @@ function ScanInner() {
   // unfindable compliance record, an unlinked COI files as a plain document.
   // Likewise a warranty whose dates didn't read, and a permit / warranty on a
   // job he doesn't own.
-  const effectiveRecordKind: ScanRecordKindW5 | null = destination
+  const effectiveRecordKind: ScanRecordKind | null = destination
     ? (destination.recordKind === 'sub_compliance' && !effectiveSubId ? 'file_only'
       : ownerGate.state === 'blocked' ? 'file_only'
       : destination.recordKind === 'warranty' && warrantyCheck && !warrantyCheck.ok ? 'file_only'
@@ -271,10 +271,23 @@ function ScanInner() {
     }
   }, [captures.length]);
 
+  // #64 partial filing: once any page of this scan is in Project Files,
+  // removing a page would clear the result — the next Scan is another charged
+  // AI call, and it resets `landed` and the name stem, so the pages already
+  // filed would upload AGAIN under a new stamp (orphaned duplicates). Refuse
+  // with the reason and the way out instead (Start over below).
+  const landedCount = Object.keys(landed).length;
   const removeCapture = useCallback((idx: number) => {
+    if (landedCount > 0) {
+      showAlert(
+        'Pages already filed',
+        `${landedCount} page${landedCount === 1 ? ' of this scan is' : 's of this scan are'} already in ${project?.name ?? 'this job'}'s files. Finish filing the rest here, or tap Start over (the filed pages stay in Project Files).`,
+      );
+      return;
+    }
     setCaptures(prev => prev.filter((_, i) => i !== idx));
     setResult(null);
-  }, []);
+  }, [landedCount, project?.name]);
 
   // ── Scan (edge fn) ───────────────────────────────────────────
   const runScan = useCallback(async () => {
@@ -351,7 +364,7 @@ function ScanInner() {
   // (CONTRACT 7): a record stores the PATH, never the 7-day signed URL that
   // went blank a week later (#66).
   const createDomainRecord = useCallback((
-    kind: ScanRecordKindW5,
+    kind: ScanRecordKind,
     fields: Record<string, unknown>,
     pages: LandedPage[],
   ): string | undefined => {
@@ -498,7 +511,7 @@ function ScanInner() {
       // Domain-record creation is best-effort — the files are already saved;
       // the banner below then says no record was made rather than claiming one.
     }
-    const madeKind: ScanRecordKindW5 = effectiveRecordKind === 'file_only' || linkedRecordId
+    const madeKind: ScanRecordKind = effectiveRecordKind === 'file_only' || linkedRecordId
       ? effectiveRecordKind
       : 'file_only';
 
@@ -538,13 +551,12 @@ function ScanInner() {
   // would file page 1 (in the old job) as the record of the new one and split
   // the rest across two jobs. Refuse with the reason. Otherwise switch and
   // drop the explicit sub / commitment picks — they belonged to the old job.
-  const landedCount = Object.keys(landed).length;
   const pickProject = useCallback((id: string) => {
     if (id === effectiveProjectId) return;
     if (landedCount > 0) {
       showAlert(
         'Pages already filed',
-        `${landedCount} page${landedCount === 1 ? ' is' : 's are'} already in ${project?.name ?? 'this job'}'s files. Finish filing here, or tap Scan another to start over.`,
+        `${landedCount} page${landedCount === 1 ? ' is' : 's are'} already in ${project?.name ?? 'this job'}'s files. Finish filing here, or tap Start over (the filed pages stay in Project Files).`,
       );
       return;
     }
@@ -680,6 +692,14 @@ function ScanInner() {
             <Text style={styles.secondaryBtnText}>Scan another</Text>
           </TouchableOpacity>
         )}
+        {/* #64 partial filing: the way out the refusals above name. The pages
+            that landed stay in Project Files; nothing is re-uploaded. */}
+        {!saved && landedCount > 0 && (
+          <TouchableOpacity style={styles.secondaryBtn} onPress={scanAnother} activeOpacity={0.85} testID="scan-start-over" accessibilityRole="button" accessibilityLabel="Start over — the filed pages stay in Project Files">
+            <ScanLine size={16} color={t.accent} strokeWidth={1.75} />
+            <Text style={styles.secondaryBtnText}>Start over</Text>
+          </TouchableOpacity>
+        )}
 
         {/* ── Gov-ID redirect card (PII boundary) ── */}
         {result && isRedirect && (
@@ -725,9 +745,13 @@ function ScanInner() {
               <Text style={styles.helpText} testID="scan-owner-only">{ownerGate.reason}</Text>
             )}
 
-            {/* Sub picker (COI only). Always shown for a COI — an empty list
-                says why it will file as a plain document and where to fix it. */}
-            {destination.recordKind === 'sub_compliance' && (
+            {/* Sub picker (COI only). Shown for every COI the user may file
+                — an empty list says why it will file as a plain document and
+                where to fix it. Hidden while the owner-only gate is not open:
+                the reason above already says this files as an image only, and
+                a picker saying 'needed to file as compliance' under it would
+                contradict it. */}
+            {destination.recordKind === 'sub_compliance' && ownerGate.state === 'open' && (
               <View style={styles.pickerWrap} testID="scan-coi-sub-picker">
                 <Text style={styles.pickerLabel}>Link to subcontractor (needed to file as compliance)</Text>
                 {coiSubs.subs.length > 0 ? (
@@ -759,8 +783,10 @@ function ScanInner() {
               </View>
             )}
 
-            {/* Pays against (invoice only) — #63. */}
-            {destination.recordKind === 'cost' && (
+            {/* Pays against (invoice only) — #63. Hidden unless the owner-only
+                gate is open: a blocked bill files as an image only, so 'counts
+                against that PO' / 'books as direct cost' would be false. */}
+            {destination.recordKind === 'cost' && ownerGate.state === 'open' && (
               <View style={styles.pickerWrap} testID="scan-commitment-picker">
                 <Text style={styles.pickerLabel}>Pays against</Text>
                 {linkable.length > 0 ? (

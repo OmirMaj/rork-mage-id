@@ -1096,6 +1096,14 @@ export const subEvaluationSchema = z.object({
 
 export type SubEvaluationResult = z.infer<typeof subEvaluationSchema>;
 
+/**
+ * #115 (wave 5): the prompt used to send `Bid history: 0 bids (0 won)` and
+ * `Assigned projects: 0` — two fields nothing in the app fills — so every sub
+ * read as "no track record" and the model said so. The track record now comes
+ * only from `projectContext`, which the Subs sheet builds from the sub's real
+ * scorecard (buildSubEvaluationGrounding: grade, commitments and their exact
+ * total, awarded jobs, per-factor values).
+ */
 export async function evaluateSubcontractor(
   sub: Subcontractor,
   projectContext: string,
@@ -1112,14 +1120,12 @@ License #: ${sub.licenseNumber || 'N/A'}
 License expiry: ${sub.licenseExpiry || 'N/A'}
 COI expiry: ${sub.coiExpiry || 'N/A'}
 W9 on file: ${sub.w9OnFile ? 'Yes' : 'No'}
-Bid history: ${sub.bidHistory.length} bids (${sub.bidHistory.filter(b => b.outcome === 'won').length} won)
-Assigned projects: ${sub.assignedProjects.length}
 Notes: ${sub.notes || 'None'}
 
 CONTEXT:
 ${projectContext}
 
-Provide: questions to ask before hiring, red flags to watch for, and overall recommendation. If they have bid history, summarize their track record.
+Provide: questions to ask before hiring, red flags to watch for, and overall recommendation. Summarize their track record ONLY from the scorecard facts in CONTEXT; if CONTEXT says there are no signed commitments on record, return trackRecord as an empty string.
 
 Do NOT state wage rates, unit prices or any other dollar figure — you have no rate data for this trade or this market, and the app shows the contractor their own measured rate instead.`,
     schema: subEvaluationSchema,

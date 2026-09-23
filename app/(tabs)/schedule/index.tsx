@@ -43,6 +43,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useProjectCapGate } from '@/hooks/useProjectCapGate';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import type { Project, ProjectSchedule, ScheduleTask, DependencyLink, DependencyType } from '@/types';
@@ -909,6 +910,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     });
   }, [liveSortedTasks, projectStartDate, activeSchedule]);
 
+  const capGate = useProjectCapGate();
   const saveSchedule = useCallback((schedule: ProjectSchedule, project: Project | null) => {
     console.log('[Schedule] Saving schedule', { projectId: project?.id, taskCount: schedule.tasks.length });
     if (project) {
@@ -954,6 +956,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       });
       return;
     }
+    // #57 / #156 (CONTRACT 5): a schedule with no job makes one — which the
+    // free plan's cap refuses on the server once he has a job of his own, and
+    // a refused job (with this schedule in it) would live on this phone only.
+    if (!capGate.canCreate('Schedule Project')) { capGate.explainAndOfferUpgrade(); return; }
     const now = new Date().toISOString();
     const newProject: Project = {
       id: createId('project'), name: 'Schedule Project', type: 'renovation',
@@ -966,7 +972,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     };
     addProject(newProject);
     setSelectedProjectId(newProject.id);
-  }, [addProject, updateProject, refuseScheduleWrite]);
+  }, [addProject, updateProject, refuseScheduleWrite, capGate]);
 
   // One opener for every "set start date" door (both start bars and the
   // undated-lock refusal), so each opens pre-filled with the date on screen

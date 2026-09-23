@@ -369,6 +369,12 @@ export class ProjectFileEmptyError extends Error {
  * copy of it. A read-back that can't answer (offline blip) does not fail an
  * upload Storage already accepted — the bytes were checked non-empty first.
  */
+/** The per-file upload ceiling, and its refusal. Exported so a picker can
+ *  refuse an oversized file from its reported size BEFORE reading it into
+ *  memory (a base64 read + decode costs several times the file's size). */
+export const PROJECT_FILE_MAX_BYTES = 100 * 1024 * 1024;
+export const PROJECT_FILE_TOO_LARGE = 'Files must be under 100 MB. Try splitting larger uploads.';
+
 export async function uploadProjectFile(args: UploadFileArgs): Promise<ProjectFile> {
   const { projectId, folderKey, fileName, bytes, contentType } = args;
   const session = await supabase.auth.getSession();
@@ -377,8 +383,8 @@ export async function uploadProjectFile(args: UploadFileArgs): Promise<ProjectFi
   }
   const size = bytes?.byteLength ?? 0;
   if (size === 0) throw new Error('That file is empty.');
-  if (size > 100 * 1024 * 1024) {
-    throw new Error('Files must be under 100 MB. Try splitting larger uploads.');
+  if (size > PROJECT_FILE_MAX_BYTES) {
+    throw new Error(PROJECT_FILE_TOO_LARGE);
   }
 
   const path = `${safeSegment(projectId)}/${safeSegment(folderKey)}/${safeSegment(fileName)}`;

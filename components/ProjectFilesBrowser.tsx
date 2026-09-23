@@ -49,6 +49,8 @@ import {
   deleteProjectFile,
   resolveProjectFileUrl,
   formatBytes,
+  PROJECT_FILE_MAX_BYTES,
+  PROJECT_FILE_TOO_LARGE,
   type ProjectFile,
 } from '@/utils/projectFiles';
 import { readFileBytes } from '@/utils/fileBytes';
@@ -143,6 +145,14 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       });
       if (picked.canceled || !picked.assets?.[0]) return;
       const asset = picked.assets[0];
+      // Refuse an oversized file from the picker's reported size, BEFORE
+      // readFileBytes pulls the whole thing into JS memory as base64 (several
+      // times its size — a large plan set could take an older iPhone down,
+      // only to be refused by uploadProjectFile's same check afterwards).
+      if (typeof asset.size === 'number' && asset.size > PROJECT_FILE_MAX_BYTES) {
+        showAlert('File too large', PROJECT_FILE_TOO_LARGE);
+        return;
+      }
 
       setUploading(true);
       // readFileBytes, never fetch(uri).blob(): on React Native that Blob

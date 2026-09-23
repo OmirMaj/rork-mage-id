@@ -8,14 +8,13 @@
 // "Add to estimate" inject "Hidden Conditions" contingency lines
 // (commitEstimatePatch) plus a field-verify PunchItem per accepted tell.
 //
-// NOT GC-ONLY (audit #9). The lines are written as allowances
-// (`isAllowance: true`), and utils/clientEstimateView lists every allowance
-// on the client proposal and portal by name — the tell text and its price.
-// `xray.clientVisible: false` is written but nothing reads it yet; hiding the
-// lines is the client view's job (handed to wave 5's join lane). Until then
-// this screen says the lines reach the client, rather than promising
-// otherwise. isAllowance is deliberately NOT flipped here: it would change
-// allowance semantics everywhere and leave every line already saved exposed.
+// GC-ONLY WORDING, CLIENT-VISIBLE MONEY (audit #9, wave 5). The lines are
+// written with `xray.clientVisible: false`, and utils/clientEstimateView (the
+// proposal, the portal) plus the estimate PDF and email now honour it: the
+// tell text never reaches the client, and the lines' money is shown as one
+// neutral "Contingency" scope line so the price still ties to the cent.
+// isAllowance is deliberately NOT flipped here: it would change allowance
+// semantics everywhere, and the view hides the name whatever that flag says.
 //
 // Pure pricing lives in utils/costXray; detection is server-side. Business
 // tier; OTA-safe (no new native modules).
@@ -142,12 +141,12 @@ function xrayApplySummary(r: {
 }): string {
   const parts: string[] = [];
   if (r.linesAdded > 0) {
-    parts.push(`${r.linesAdded} hidden-condition line${r.linesAdded === 1 ? '' : 's'} (+${formatMoney(r.dollarsAdded)}) added to your estimate as allowances — they show on the client's proposal.`);
+    parts.push(`${r.linesAdded} hidden-condition line${r.linesAdded === 1 ? '' : 's'} (+${formatMoney(r.dollarsAdded)}) added to your estimate — the client's proposal shows the amount as one "Contingency" line, never the finding, and invoices and pay apps bill it as "Contingency" too.`);
   }
   if (r.pricedNotAdded > 0) {
     parts.push(`${formatMoney(r.dollarsNotAdded)} of hidden-condition contingency was NOT added — this project has no estimate yet. Build one, then re-run the scan.`);
   }
-  parts.push(`${r.verifyTasks} field-verify task${r.verifyTasks === 1 ? '' : 's'} created.`);
+  parts.push(`${r.verifyTasks} field-verify task${r.verifyTasks === 1 ? '' : 's'} created on the crew list (internal — never shown to the client).`);
   return parts.join(' ');
 }
 
@@ -459,6 +458,17 @@ export default function CostXrayScreen() {
         photoUri: r.sourcePhotoUri,
         createdAt: now,
         updatedAt: now,
+        // On the internal crew list, never the formal punch list. `xray`
+        // (with clientVisible: false) exists only in memory: punch_items has
+        // no column for it, so after the first server re-read the task comes
+        // back without it and every `xray?.clientVisible !== false` filter
+        // lets it through — the portal punch list, the handover packet, the
+        // client preview and the weekly update would all print "Verify
+        // before demo/order: <finding>". list_type IS persisted (written on
+        // insert and update, read back by the loader), and every client
+        // surface already drops crew items, so this is the rule that holds
+        // on every device and after every refetch.
+        listType: 'crew',
         xray: meta,
       });
     }
@@ -664,7 +674,7 @@ export default function CostXrayScreen() {
             <Text style={styles.sectionTitle}>{reviews.length} tell{reviews.length === 1 ? '' : 's'} found</Text>
             <Text style={styles.sectionSub}>
               {canPrice
-                ? 'Accept the ones worth carrying. Priced tells become contingency allowance lines on the estimate — named on the client\u2019s proposal, so edit the wording before you send it. Every accepted tell also spawns a field-verify task.'
+                ? 'Accept the ones worth carrying. Priced tells become contingency lines on the estimate — the client\u2019s proposal shows only their total, as one \u201cContingency\u201d line, never the finding. Invoices and pay apps bill them as \u201cContingency\u201d too. Every accepted tell also spawns a field-verify task.'
                 : 'Accept the ones worth carrying. Every accepted tell spawns a field-verify task. This project has no estimate yet, so priced tells can\u2019t be added as lines — build one first.'}
             </Text>
 

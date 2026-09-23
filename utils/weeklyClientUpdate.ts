@@ -254,7 +254,9 @@ export function gatherWeeklyContext(
     // "sweep the corridor" into the client's open-items number and break that
     // promise. Filtered at the source so no section below can reintroduce it.
     punchItems: allPunchItems
-      .filter(p => p.projectId === project.id && punchListTypeOf(p) === 'punch'),
+      .filter(p => p.projectId === project.id && punchListTypeOf(p) === 'punch')
+      // #9 (wave 5): nor a Cost X-Ray verify task (GC-only, like the portal).
+      .filter(p => p.xray?.clientVisible !== false),
     rfis: allRfis
       .filter(r => r.projectId === project.id),
     weekEndingISO: new Date().toISOString(),

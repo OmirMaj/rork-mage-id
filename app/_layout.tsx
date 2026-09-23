@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects, useProjectActions } from "@/contexts/ProjectContext";
 import { SafetyProvider } from "@/contexts/SafetyContext";
 import { CrewProvider } from "@/contexts/CrewContext";
+import { useClaimedCrewProfile } from "@/hooks/useClaimedCrewProfile";
 import { TimeEntriesProvider } from "@/contexts/TimeEntriesContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
@@ -547,6 +548,11 @@ function RootLayoutNav() {
   globalParamsRef.current = globalParams;
   const { isAuthenticated, isLoading: authLoading, user, session } = useAuth();
   const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
+  // #74 (wave 5): a worker who claimed his crew profile (claim-crew) has an
+  // account but may not have picked a persona — he came to see HIS profile,
+  // not to set up a contracting business. CrewProvider sits above this, and
+  // its roster already includes the rows he claimed.
+  const claimedCrewWorker = useClaimedCrewProfile();
   // #107 / #131: the invite token signup() stored on the account
   // (user_metadata.invite_token). Read as a primitive so the gate re-runs only
   // when the token itself changes, not on every token refresh.
@@ -660,6 +666,11 @@ function RootLayoutNav() {
     // migration) were grandfathered as 'contractor' via the DB migration,
     // so they never hit this redirect. `userRole === null` after the
     // query resolves means the user has not yet picked.
+    // #74: a claimed crew worker with no persona yet may stay on /crew — his
+    // own profile. The persona question still meets him anywhere else (the
+    // claim page's "Set up your own MAGE account" goes through it).
+    const inCrew = (segments[0] as string) === 'crew';
+    if (isAuthenticated && userRole === null && inCrew && claimedCrewWorker) return;
     if (isAuthenticated && userRole === null && !inPersonaSelect && !inOnboardingPaywall) {
       console.log('[Layout] No persona set — redirecting to /persona-select');
       router.replace('/persona-select' as never);
@@ -677,7 +688,34 @@ function RootLayoutNav() {
       router.replace('/(tabs)/(home)' as any);
       return;
     }
-  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, pathname, accountInviteHref, accountInviteToken]);
+  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, claimedCrewWorker, pathname, accountInviteHref, accountInviteToken]);
+
+  // #74 (wave 5): claim-crew's "Sign in" stashes the claim address and sends
+  // him to /login. The general replay below waits for a persona AND the GC
+  // onboarding — minutes of setup a worker never asked for, long enough for
+  // the stash's 10-minute life to run out, and the claim was lost. /claim-crew
+  // is a PUBLIC route (exempt from every gate), so it is replayed as soon as
+  // he is signed in, ahead of the persona question. Any other stash is put
+  // back untouched for the general replay.
+  const claimReplayRef = useRef(false);
+  useEffect(() => {
+    // Only once the persona is KNOWN to be unset (loads settled): a returning
+    // user's null-while-loading must not take the stash the general replay
+    // is about to read.
+    if (authLoading || projectLoading || !isAuthenticated || userRole !== null || claimReplayRef.current) return;
+    claimReplayRef.current = true;
+    void (async () => {
+      try {
+        const pending = await takePendingDeepLink();
+        if (!pending) return;
+        const route = pending.replace(/^\//, '').split('?')[0];
+        if (route === 'claim-crew') { router.replace(pending as never); return; }
+        await setPendingDeepLink(pending);
+      } catch {
+        // Storage unavailable: the general replay (or none) applies.
+      }
+    })();
+  }, [isAuthenticated, userRole, router, authLoading, projectLoading]);
 
   // Post-login deep-link replay: when the user completes sign-in AND all
   // onboarding gates (persona + onboarding screen), check for a stashed

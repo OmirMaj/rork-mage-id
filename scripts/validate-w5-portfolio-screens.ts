@@ -57,8 +57,17 @@ console.log('\napp/public-profile-setup.tsx');
   const util = strip(readFileSync('utils/portfolioPublish.ts', 'utf8'));
   ok("the flag write goes through supabaseWriteDetailed('public_profiles', 'upsert', …) with the derived id",
     /supabaseWriteDetailed\('public_profiles', 'upsert', \{\s*id: publicProfileIdFor\(ownerId, projectId\)/.test(util));
-  ok('photos are copied from their storagePath into the portfolio bucket (never p.uri)',
-    /\.copy\(src, dest, \{ destinationBucket: PORTFOLIO_BUCKET \}\)/.test(util) && !/p\.uri|\.uri\b(?!\))/.test(util.replace(/res\.uri/g, '')));
+  // Integration round 1 (web-comms-ai): a server-side storage copy published
+  // the original bytes, EXIF GPS included. The photo now comes down from its
+  // storagePath, its metadata is stripped, and only the clean bytes go up.
+  const copyFn = util.slice(util.indexOf('async function copyOnePhoto('), util.indexOf('function logoTarget('));
+  ok('photos are read from their storagePath (never p.uri), metadata-stripped, then uploaded — no server-side copy',
+    /const bytes = await downloadPrivatePhoto\(src\);/.test(copyFn)
+    && /const clean = stripImageMetadata\(bytes\);\s*if \(!clean\) \{[\s\S]*?return false;\s*\}/.test(copyFn)
+    && /\.upload\(dest, clean\.bytes, \{ contentType: clean\.contentType, upsert: true \}\)/.test(copyFn)
+    && !/\.copy\(/.test(util)
+    && !/p\.uri|\.uri\b(?!\))/.test(util.replace(/res\.uri/g, '')));
+  ok('the logo is metadata-stripped too', /const bytes = stripImageMetadata\(raw\)\?\.bytes \?\? raw;/.test(util));
   ok("readPublicProfileStatus asks the page's own anon RPC", /supabase\.rpc\('public_profile_status', \{ p_id: pid \}\)/.test(util));
 
   // Owner gate (fix round 1 review): a collaborator's publish copied the

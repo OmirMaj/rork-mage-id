@@ -83,6 +83,9 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
     serverScheduleTasksRef: { current: new Map([['a1', [t({ id: 'x' })]]]) } as Ref<Map<string, ScheduleTask[]>>,
     serverProjectIdsRef: { current: new Set(['a1', 'a2', 'a3']) } as Ref<Set<string>>,
     serverIdsSeededRef: { current: true } as Ref<boolean>,
+    // Wave 5 (#1 fix round 2): the append-only ever-confirmed set is A's.
+    everConfirmedProjectIdsRef: { current: new Set(['a1', 'a9']) } as Ref<Set<string>>,
+    everConfirmedSeededRef: { current: true } as Ref<boolean>,
     syncDebounceMap: { current: new Map([['a1', { timer: null, inFlight: false }]]) } as Ref<Map<string, unknown>>,
     inFlightProjectSyncsRef: { current: new Map([[{}, 'a2']]) } as Ref<Map<unknown, string>>,
     projectsRef: { current: aList } as Ref<P[]>,
@@ -152,6 +155,8 @@ console.log('\n#6 — a sign-out and a different sign-in leave nothing of the fi
       && refs.projectsLoadTasksRef.current.size === 0 && refs.projectsReloadOwedRef.current === false
       && refs.serverIdsSeededRef.current === false && refs.projectsLoadLandedRef.current === false
       && refs.projectsHydratedForRef.current === undefined);
+  ok('...and A\'s append-only ever-confirmed set (#1) is not B\'s, and is re-read for B',
+    refs.everConfirmedProjectIdsRef.current.size === 0 && refs.everConfirmedSeededRef.current === false);
   ok('...and A\'s "removed from" verdicts and owed cleanup (#90) do not carry into B',
     refs.projectsLoadRevokedRef.current.size === 0 && refs.revokedCleanupOwedRef.current === null && refs.revokedSweepRef.current.size === 0);
   ok('...A\'s waiting debounced syncs are dropped (they must not fire under B\'s session), and A\'s in-flight ones no longer count as B\'s pending',

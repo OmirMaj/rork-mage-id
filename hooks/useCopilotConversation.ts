@@ -179,7 +179,10 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
       // job', 'Build the estimate first') and keep the draft (#34); anything
       // else is an apply failure that can go back to review.
       const pre = copilotPrecondition(cap.id, ctx.project);
-      dispatch({ type: 'APPLY_ERR', errorKind: pre.ok ? 'apply_failed' : pre.kind, message: (e as Error).message });
+      // #57 / #156: the free plan's job cap refused the create — the shell
+      // shows the sentence with See plans, not "Couldn't build it".
+      const capRefused = (e as { code?: unknown } | null)?.code === 'project_cap';
+      dispatch({ type: 'APPLY_ERR', errorKind: capRefused ? 'project_cap' : (pre.ok ? 'apply_failed' : pre.kind), message: (e as Error).message });
       return undefined;
     }
   }, [cap, ctx]);

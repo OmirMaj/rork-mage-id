@@ -210,7 +210,7 @@ PACKAGE
   Name: ${pkg.name}
   Phase: ${pkg.phase || '(unspecified)'}
   CSI: ${pkg.csiDivision || '(unspecified)'}
-  Estimate budget (carry): $${pkg.estimateBudget.toLocaleString()}
+  Budget at cost: $${pkg.estimateBudget.toLocaleString()}
   Scope description: ${pkg.scopeDescription || '(see line items)'}
 ${costBookSection}
 

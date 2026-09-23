@@ -38,6 +38,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useSafety } from '@/contexts/SafetyContext';
+import { useProjectCapGate } from '@/hooks/useProjectCapGate';
+import { isSampleProjectName } from '@/utils/projectCap';
+import { deleteProjectSafetyRefusal, DELETE_SAFETY_ACTION } from '@/utils/projectContextPure';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -91,7 +95,7 @@ import { computeARAgingReport } from '@/utils/financialReports';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
-import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
+import { loadLienWaiversChecked } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
 import { supabase } from '@/lib/supabase';
 import { portalShareUrl, maskPortalLinkToken, proposalBlockReason } from '@/utils/portalSnapshot';
@@ -467,7 +471,8 @@ export default function ProjectDetailScreen() {
           fetchActiveContract(id).catch(() => null),
           fetchSelectionsForProject(id).catch(() => []),
           fetchCloseoutBinder(id).catch(() => null),
-          fetchLienWaiversForProject(id).catch(() => []),
+          // #30 (CONTRACT 6): a failed read is said, never shown as none.
+          loadLienWaiversChecked(id).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : 'read failed' })),
         ]);
         if (cancelled) return;
         // Kept for the Client Portal "Terms needed" badge below, which needs
@@ -498,10 +503,12 @@ export default function ProjectDetailScreen() {
           else next.closeoutBinder = { label: 'Draft', tone: 'neutral' };
         }
         // Lien waivers
-        if (waivers.length > 0) {
-          const open = waivers.filter(w => w.status === 'requested').length;
+        if (!waivers.ok) {
+          next.lienWaivers = { label: 'Couldn\u2019t check', tone: 'neutral' };
+        } else if (waivers.waivers.length > 0) {
+          const open = waivers.waivers.filter(w => w.status === 'requested').length;
           next.lienWaivers = open === 0
-            ? { label: `${waivers.length} on file`, tone: 'success' }
+            ? { label: `${waivers.waivers.length} on file`, tone: 'success' }
             : { label: `${open} pending`, tone: 'pending' };
         }
         // Merge, don't replace — the sibling scope-badge effect writes a
@@ -630,9 +637,11 @@ export default function ProjectDetailScreen() {
 
   // Real buyout savings — derived from awarded BidPackages + signed Commitments.
   // Shows NOTHING when no packages have been awarded yet (hasRealData = false).
+  // #11 (wave 5): the estimate lines ride along so a package whose budget was
+  // stored at SELL is refused, never printed as Bulk Savings on a client PDF.
   const bulkSavingsSummary = useMemo(
-    () => computeBulkSavings(id ?? '', projectBidPackages, projectCommitments, bidPackageBids),
-    [id, projectBidPackages, projectCommitments, bidPackageBids],
+    () => computeBulkSavings(id ?? '', projectBidPackages, projectCommitments, bidPackageBids, undefined, { estimateItems: project?.linkedEstimate?.items }),
+    [id, projectBidPackages, projectCommitments, bidPackageBids, project?.linkedEstimate?.items],
   );
   const totalBulkSavings = bulkSavingsSummary.bulkSavings;
   const showBulkSavings = bulkSavingsSummary.hasRealData && bulkSavingsSummary.bulkSavings > 0;
@@ -1055,11 +1064,22 @@ export default function ProjectDetailScreen() {
     };
   }, [editContractMode, editGmpCap, editFeeKind, editFee, editRetainage, editRetainageTouched, feeApplies, project?.retainagePercent, project?.retainagePercentAssumed]);
 
+  const capGate = useProjectCapGate();
   const handleSaveEdit = useCallback(() => {
     if (!id) return;
     const name = editName.trim();
     if (!name) {
       showAlert('Missing Name', 'Please enter a project name.');
+      return;
+    }
+    // #156 (CONTRACT 21): renaming a 'Sample — ' job to a real name makes it
+    // count toward the free plan's one job. At the cap the server keeps the
+    // sample name (20260923040000) without an error, so the rename would seem
+    // to save and then revert on the next load. Put the name back, keep his
+    // other edits in the sheet, and say why.
+    if (project && isSampleProjectName(project.name) && !isSampleProjectName(name) && !capGate.canCreate(name)) {
+      setEditName(project.name);
+      capGate.explainAndOfferUpgrade();
       return;
     }
     let contractPatch: Partial<Project> = {};
@@ -1083,7 +1103,7 @@ export default function ProjectDetailScreen() {
     setShowEditModal(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     console.log('[ProjectDetail] Project updated:', id);
-  }, [id, editName, editDescription, editLocation, editType, editSquareFootage, updateProject, contractAccess, buildContractPatch]);
+  }, [id, editName, editDescription, editLocation, editType, editSquareFootage, updateProject, contractAccess, buildContractPatch, project, capGate]);
 
   const branding = useMemo(() => settings.branding ?? {
     companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
@@ -1317,8 +1337,11 @@ export default function ProjectDetailScreen() {
           showAlert('Closeout Packet', 'Could not generate the closeout packet. Please try again.');
         }
       } catch (err) {
+        // CONTRACT 25 (#147): on web a blocked window now THROWS (it used to
+        // return true and show "built and shared" with nothing opened). The
+        // blocked sentence passes through; no success toast on this path.
         console.error('[ProjectDetail] Closeout packet error:', err);
-        showAlert('Error', 'Failed to generate closeout packet.');
+        showAlert('Closeout Packet', pdfFailureMessage(err, 'Failed to generate closeout packet.'));
       } finally {
         setGeneratingCloseout(false);
       }
@@ -1440,6 +1463,16 @@ export default function ProjectDetailScreen() {
       // photo deleted while the fix was still running is simply not found, so
       // a late stamp can never resurrect it. A photo that never gets a fix
       // keeps no coordinates — the documented contract of stampPhotoLocation.
+      //
+      // Camera captures on a phone ONLY. A Library pick (and every web upload —
+      // on web 'Take Photo' is a file picker too) may have been taken anywhere
+      // at any time; the phone's CURRENT position is not where that picture was
+      // taken. The stamp is persisted and reaches the client (shared-timeline
+      // caption with a map pin, the handover packet, the Home Passport's
+      // 'Address:' doc), so stamping a library pick would publish a guess — often
+      // the GC's own home address — as GPS proof. Same rule as
+      // app/daily-report.tsx and app/field-ticket.tsx.
+      if (source !== 'camera' || Platform.OS === 'web') return;
       void stampPhotoLocation()
         .then(stamp => {
           if (!stamp) return;
@@ -1463,17 +1496,22 @@ export default function ProjectDetailScreen() {
       showAlert('Photo timeline', 'No photos to share yet. Take some jobsite photos first.');
       return;
     }
-    const { payload, droppedLocal, droppedExcess } = buildPhotoSharePayload(
+    // #62 / #164 (CONTRACT 11): a v2 share carries photo ids, not URLs —
+    // the page re-signs them for an hour each time it is opened — and leaves
+    // out photos drafted or recalled in the client portal.
+    const { payload, droppedLocal, droppedExcess, droppedWithdrawn } = buildPhotoSharePayload(
       project.name ?? 'Project',
       projectPhotos,
-      { gcName: settings?.branding?.companyName },
+      { gcName: settings?.branding?.companyName, projectId: project.id },
     );
     if (payload.photos.length === 0) {
       showAlert(
         'Photo timeline',
-        droppedLocal > 0
-          ? 'These photos haven’t synced yet. Wait until the offline-sync pill shows "Synced," then try again.'
-          : 'No shareable photos found.',
+        droppedWithdrawn > 0 && droppedLocal === 0
+          ? 'These photos are drafted or recalled in the client portal — send them first.'
+          : droppedLocal > 0
+            ? 'These photos haven’t synced yet. Wait until the offline-sync pill shows "Synced," then try again.'
+            : 'No shareable photos found.',
       );
       return;
     }
@@ -1484,9 +1522,10 @@ export default function ProjectDetailScreen() {
     const extras: string[] = [];
     if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);
     if (droppedExcess > 0) extras.push(`oldest ${droppedExcess} trimmed (cap ${PHOTO_SHARE_MAX})`);
+    if (droppedWithdrawn > 0) extras.push(`${droppedWithdrawn} withdrawn from the client portal`);
     const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
     if (ok) {
-      showAlert('Photo timeline copied', `Link copied to clipboard. Paste it into a text, email, or client portal.${detail}`);
+      showAlert('Photo timeline copied', `Link copied to clipboard. Paste it into a text, email, or client portal. The link keeps working — photos load fresh each time it is opened.${detail}`);
     } else {
       showAlert('Photo timeline link', `${url}${detail}`);
     }
@@ -1498,6 +1537,58 @@ export default function ProjectDetailScreen() {
   // deleteProject(id) (project becomes null) and router.back() completing
   // shows the loading state, not a "Project not found" flash.
   const deletingRef = useRef(false);
+  // #61 (wave 5, CONTRACT 22): what the job's safety log holds, as this device
+  // knows it. The incident count is passed to deleteProject so the refusal is
+  // decided on the same list the screen shows — but only once the log has
+  // hydrated: before that an empty list means "not loaded", and passing 0
+  // would skip the context's own device + server check.
+  const safetyCtx = useSafety();
+  const jobSafety = useMemo(() => {
+    if (!id) return { incidents: 0, jhas: 0, talks: 0, hazards: 0, hydrated: false };
+    return {
+      incidents: safetyCtx.getIncidentsForProject(id).length,
+      jhas: safetyCtx.getJhasForProject(id).length,
+      talks: safetyCtx.getToolboxTalksForProject(id).length,
+      hazards: safetyCtx.getHazardsForProject(id).length,
+      hydrated: safetyCtx.incidentsHydrated,
+    };
+  }, [id, safetyCtx]);
+
+  // #61: what the confirm says about the job's safety log, and the up-front
+  // refusal — OSHA keeps the 300 log for 5 years, so a job with injury /
+  // near-miss records is refused before Delete is offered, in the same
+  // sentence the context refuses with.
+  const deleteSafety = useMemo(() => {
+    const knownIncidents = jobSafety.hydrated ? jobSafety.incidents : undefined;
+    const parts: string[] = [];
+    if (jobSafety.jhas > 0) parts.push(`${jobSafety.jhas} JHA${jobSafety.jhas === 1 ? '' : 's'}`);
+    if (jobSafety.talks > 0) parts.push(`${jobSafety.talks} toolbox talk${jobSafety.talks === 1 ? '' : 's'}`);
+    if (jobSafety.hazards > 0) parts.push(`${jobSafety.hazards} hazard${jobSafety.hazards === 1 ? '' : 's'}`);
+    return {
+      knownIncidents,
+      refusal: deleteProjectSafetyRefusal(project?.name, knownIncidents),
+      safetyLine: parts.length > 0 ? `\n\nThis job's safety records go with it: ${parts.join(', ')}.` : '',
+    };
+  }, [jobSafety, project?.name]);
+
+  // The refusal's way forward: close the job (records kept) instead.
+  const markJobClosed = useCallback(() => {
+    if (!id) return;
+    if (project?.status === 'closed') { nailIt('Job is already closed'); return; }
+    updateProject(id, { status: 'closed', closedAt: new Date().toISOString() });
+    nailIt('Job marked closed');
+  }, [id, project?.status, updateProject]);
+
+  const showDeleteRefusal = useCallback((reason: string, offerClose: boolean) => {
+    showAlert(
+      offerClose ? 'Keep this job — mark it closed' : "Couldn't delete this job",
+      reason,
+      offerClose
+        ? [{ text: 'Cancel', style: 'cancel' }, { text: 'Mark closed', onPress: markJobClosed }]
+        : [{ text: 'OK' }],
+    );
+  }, [markJobClosed]);
+
   const handleDelete = useCallback(() => {
     // #92: only the owner's delete reaches the server. Anyone else's matched
     // 0 rows under RLS while this device wiped the job and every cached child
@@ -1519,26 +1610,43 @@ export default function ProjectDetailScreen() {
     // dialog lives inside the loaded-project branch, so the fallback is only
     // for the impossible case.
     const name = project?.name?.trim() || 'this project';
+    if (deleteSafety.refusal) { showDeleteRefusal(deleteSafety.refusal, true); return; } // #61
+    const { knownIncidents, safetyLine } = deleteSafety;
     showAlert(
       `Delete ${name}?`,
-      `This permanently removes ${name} and everything in it: invoices, change orders, daily reports, punch items, photos, RFIs, submittals, permits, COIs, warranties, OAC meetings, and field tickets. This cannot be undone.`,
+      `This permanently removes ${name} and everything in it: invoices, change orders, daily reports, punch items, photos, RFIs, submittals, permits, COIs, warranties, OAC meetings, field tickets, and its safety records (JHAs, toolbox talks, hazards). A job with injury or near-miss records can't be deleted — close it instead. This cannot be undone.${safetyLine}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
+            if (!id) return;
             deletingRef.current = true;
-            if (id) deleteProject(id);
-            if (Platform.OS !== 'web') {
-              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            }
-            router.back();
+            void (async () => {
+              // CONTRACT 22: deleteProject refuses BEFORE anything local is
+              // touched — nothing is removed and we stay on the job.
+              // Only a POSITIVE count is passed. SafetyContext marks incidents
+              // hydrated even when the server read failed and it fell back to
+              // this phone's cache, so a 0 here can be stale (an incident filed
+              // on another device). With no count the context runs its own
+              // device + queue + server check and refuses offline.
+              const res = await deleteProject(id, knownIncidents !== undefined && knownIncidents > 0 ? { safetyIncidentCount: knownIncidents } : undefined);
+              if (!res.ok) {
+                deletingRef.current = false;
+                showDeleteRefusal(res.reason, res.action === DELETE_SAFETY_ACTION);
+                return;
+              }
+              if (Platform.OS !== 'web') {
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              }
+              router.back();
+            })();
           },
         },
       ]
     );
-  }, [id, project?.name, deleteProject, router, hubPerms.canDelete, hubPerms.canLeave]);
+  }, [id, project?.name, deleteProject, router, hubPerms.canDelete, hubPerms.canLeave, deleteSafety, showDeleteRefusal]);
 
   // #92 — a collaborator's way off a job. Delete is the owner's alone (RLS
   // refuses anyone else's delete with 0 rows and no error, which the queue
@@ -3886,24 +3994,32 @@ export default function ProjectDetailScreen() {
                 <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Manage Punch List</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.coAddBtn, { marginTop: 8 }]}
-                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'warranty', projectId: id ?? '' } })}
-                activeOpacity={0.7}
-                testID="add-warranty-voice-btn"
-              >
-                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log a warranty by voice</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.coAddBtn}
-                onPress={() => navigateFromTile({ pathname: '/warranties' as any, params: { projectId: id } })}
-                activeOpacity={0.7}
-                testID="open-warranties-btn"
-              >
-                <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Warranties</Text>
-              </TouchableOpacity>
+              {/* #53 (productDecision, owner-only interim): warranties live on
+                  the project owner's account, so only the owner is offered the
+                  log / list buttons. An invitee who reaches /warranties anyway
+                  reads why (app/warranties.tsx). */}
+              {hubRole === 'owner' && (
+                <>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'warranty', projectId: id ?? '' } })}
+                  activeOpacity={0.7}
+                  testID="add-warranty-voice-btn"
+                >
+                  <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log a warranty by voice</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.coAddBtn}
+                  onPress={() => navigateFromTile({ pathname: '/warranties' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-warranties-btn"
+                >
+                  <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Warranties</Text>
+                </TouchableOpacity>
+                </>
+              )}
               <TouchableOpacity
                 style={[styles.coAddBtn, { marginTop: 8 }]}
                 onPress={() => navigateFromTile({ pathname: '/retention' as any, params: { projectId: id } })}

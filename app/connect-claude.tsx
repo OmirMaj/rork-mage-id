@@ -26,6 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useRouter } from 'expo-router';
 import { supabase, SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
@@ -63,7 +64,9 @@ export default function ConnectClaudeScreen() {
     try {
       setLoading(true);
       const { data, error } = await supabase.functions.invoke('mcp-token', { body: { action: 'list' } });
-      if (error) throw new Error(error.message);
+      // CONTRACT 26: the function's own sentence, never supabase-js's
+      // generic "non-2xx status code".
+      if (error) throw await edgeFunctionError(error, "Couldn't reach MAGE ID. Try again.");
       if (data?.error) throw new Error(data.error);
       setTokens(Array.isArray(data?.tokens) ? data.tokens : []);
     } catch (err) {
@@ -90,7 +93,9 @@ export default function ConnectClaudeScreen() {
       const { data, error } = await supabase.functions.invoke('mcp-token', {
         body: { action: 'create', name: name.trim() || 'Claude' },
       });
-      if (error) throw new Error(error.message);
+      // CONTRACT 26: the function's own sentence, never supabase-js's
+      // generic "non-2xx status code".
+      if (error) throw await edgeFunctionError(error, "Couldn't reach MAGE ID. Try again.");
       if (data?.error || !data?.token) throw new Error(data?.error || 'No token returned.');
       setFreshToken(data.token as string);
       setName('');
@@ -118,7 +123,7 @@ export default function ConnectClaudeScreen() {
               const { data, error } = await supabase.functions.invoke('mcp-token', {
                 body: { action: 'revoke', id: row.id },
               });
-              if (error) throw new Error(error.message);
+              if (error) throw await edgeFunctionError(error, "Couldn't reach MAGE ID. Try again.");
               if (data?.error) throw new Error(data.error);
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               await load();

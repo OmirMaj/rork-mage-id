@@ -36,8 +36,9 @@ import {
 import {
   paymentForecastFingerprint, hasOverdueUnpaidInvoice, type PaymentPredictionResult,
 } from '@/utils/paymentPrediction';
-import { todayCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
+import { todayCalendarDay } from '@/utils/calendarDate';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchLastPlannerStore } from '@/hooks/useLastPlanner';
 import type { WeekClose } from '@/utils/weekClose/types';
@@ -206,34 +207,53 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
   }, [projects]);
   // Both are computed AS OF the local day, so a new day is a new question even
   // when nothing else changed (local midnight of that day reads back as it).
+  // Local midnight of today — the day the forecast is AS OF. (Not a schedule
+  // anchor; built directly so no "?? new Date()" fallback is needed: today's
+  // calendar day always parses.)
+  const forecastAt = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+    // forecastDay is the key: a new local day is a new "as of".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forecastDay]);
   const forecastKey = useMemo(
-    () => paymentForecastFingerprint(invoices, projectsById, userId, parseCalendarDay(forecastDay) ?? new Date()),
-    [invoices, projectsById, userId, forecastDay],
+    () => paymentForecastFingerprint(invoices, projectsById, userId, forecastAt),
+    [invoices, projectsById, userId, forecastAt],
   );
   const hasOverdue = useMemo(
-    () => hasOverdueUnpaidInvoice(invoices, parseCalendarDay(forecastDay) ?? new Date()),
-    [invoices, forecastDay],
+    () => hasOverdueUnpaidInvoice(invoices, forecastAt),
+    [invoices, forecastAt],
   );
   // The query function reads the inputs the key was computed from through a
   // ref, so a new array identity with the same content is not a new call.
-  const forecastInputsRef = useRef({ invoices, projectsById });
-  forecastInputsRef.current = { invoices, projectsById };
-  const forecastQuery = useQuery<PaymentPredictionResult>({
+  // The plan is read through a ref too: a plan change is not a new forecast.
+  const { tier: subscriptionTier } = useSubscription();
+  const forecastInputsRef = useRef({ invoices, projectsById, subscriptionTier });
+  forecastInputsRef.current = { invoices, projectsById, subscriptionTier };
+  const forecastQuery = useQuery<PaymentPredictionResult | null>({
     queryKey: ['weekClosePaymentForecast', userId, forecastKey],
     queryFn: async () => {
-      const [{ predictInvoicePaymentsCached }, { recordAIUsage }] = await Promise.all([
+      const [{ predictInvoicePaymentsWithinAllowance }, { recordAIUsage, checkAILimit }, { hasCachedMageAIResult }] = await Promise.all([
         import('@/utils/paymentPrediction'),
         import('@/utils/aiRateLimiter'),
+        import('@/utils/mageAI'),
       ]);
-      const { invoices: inv, projectsById: byId } = forecastInputsRef.current;
-      const run = await predictInvoicePaymentsCached(inv, byId, {
+      const { invoices: inv, projectsById: byId, subscriptionTier: tierNow } = forecastInputsRef.current;
+      // CHECK THE ALLOWANCE BEFORE A FRESH CALL (integration review, wave 5).
+      // This runs in the background on Home, and each fresh call counts
+      // against the user's ADVANCED daily allowance. A cached answer is free
+      // and always served; a fresh one only when checkAILimit allows it, and
+      // is then recorded. Refused → null: the close renders without payment
+      // dates. The key carries the local day, so tomorrow asks again.
+      return predictInvoicePaymentsWithinAllowance(inv, byId, {
         cacheKey: `week_close_forecast_${forecastKey}`,
         cacheHours: 12,
+      }, {
+        isCached: hasCachedMageAIResult,
+        allowFresh: async () => (await checkAILimit(tierNow, 'smart', 'invoicePrediction')).allowed,
+        record: () => recordAIUsage('smart', 'invoicePrediction'),
       });
-      if (run.freshAiCall) {
-        try { await recordAIUsage('smart', 'invoicePrediction'); } catch { /* meter is advisory */ }
-      }
-      return run.result;
     },
     enabled: enabled && forecastKey !== null && hasOverdue,
     staleTime: 12 * 60 * 60 * 1000,

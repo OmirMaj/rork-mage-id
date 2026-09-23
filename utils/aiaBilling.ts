@@ -20,6 +20,7 @@ import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 // CO billed through either entry point lands on the right G703 row.
 import { changeOrderBillKey, CO_BILL_KEY_PREFIX } from '@/utils/changeOrderBilling';
 import { CO_APPROVAL_ACTIONS } from '@/utils/coApproval';
+import { isGcOnlyEstimateLine, CLIENT_CONTINGENCY_LABEL } from '@/utils/clientEstimateView';
 
 // Re-exported so the pay-app module keeps offering the retainage rule it is the
 // reference implementation of, and existing importers (utils/portalSnapshot)
@@ -497,7 +498,11 @@ export function buildAIASovLines(
       lines.push({
         id: uniqueId(`sov_${key}`),
         itemNo: String(lines.length + 1),
-        description: item.name,
+        // #9: the G703 goes to the owner / architect. A GC-only Cost X-Ray
+        // line (a suspected hidden condition) prints as the neutral
+        // contingency label, never the finding; the match below still uses
+        // the real key / name, which never leave this function.
+        description: isGcOnlyEstimateLine(item) ? CLIENT_CONTINGENCY_LABEL : item.name,
         scheduledValue: roundCents(item.lineTotal),
         fromPreviousApp: 0,
         thisPeriod: billedAgainst(key, item.name),
@@ -2330,12 +2335,14 @@ export async function generateAIAPayAppPDF(
   const { Platform } = await import('react-native');
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') {
-      const newWindow = window.open('', '_blank');
-      if (newWindow) {
-        newWindow.document.write(html);
-        newWindow.document.close();
-        setTimeout(() => newWindow.print(), 400);
-      }
+      // CONTRACT 25 (#147): the shared print window, which THROWS
+      // PRINT_WINDOW_BLOCKED_MESSAGE on a blocked popup — this path used to
+      // skip the write when window.open returned null and resolve as if the
+      // PDF had opened. Loaded lazily like react-native above, so this module
+      // stays importable under Bun; both imports resolve in the same tick on
+      // web (same bundle), inside the tap's activation window.
+      const { openPrintWindowOrThrow } = await import('./platformFile');
+      openPrintWindowOrThrow(html);
     }
     return;
   }

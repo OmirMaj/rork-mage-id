@@ -95,6 +95,21 @@ language plpgsql
 set search_path to 'public'
 as $function$
 begin
+  -- A void is final for a signed-in client. saveLienWaiver upserts the status
+  -- its card last showed, so a stale card on another device (loaded before the
+  -- void) would put the release back to 'requested' — the link stays dead
+  -- (the token moved to voided_sign_token) but the GC's list would show it
+  -- awaiting signature again. Pinned silently, like the signed rows below: a
+  -- raise would strand the queued write and lose its other edits. The app has
+  -- no un-void; the service role and SECURITY DEFINER RPCs are unaffected.
+  -- This runs FIRST so the void branch below re-kills any sign_token the
+  -- stale copy carried back in.
+  if old.status = 'voided'
+     and auth.uid() is not null
+     and current_user = 'authenticated' then
+    new.status := old.status;
+  end if;
+
   -- A void kills the signing link for every caller, late offline voids
   -- included. The token is kept (not destroyed) so the signing page can tell
   -- the sub the contractor voided it.

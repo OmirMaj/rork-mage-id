@@ -93,6 +93,12 @@ export interface OneMindBundle {
    * is overstated by the whole of it. Optional so existing callers compile.
    */
   aiaPayApps?: SavedAIAPayApp[];
+  /**
+   * Wave 5 (reports): the signed-in account. buildPipelineHorizon counts only
+   * THIS company's jobs as backlog — a partner's shared job is not his. Absent
+   * (older callers) → the horizon applies the unsigned-bid rule only.
+   */
+  userId?: string | null;
   /** Judges-assembly parity; reserved for cost-book fact blocks (v1.1). */
   receipts?: MaterialReceipt[];
   /**
@@ -785,6 +791,7 @@ export async function assembleFactBlocks(
           leads: bundle.leads, projects: bundle.projects, invoices: bundle.invoices,
           changeOrders: bundle.changeOrders, commitments: bundle.commitments,
           bidResponses: bundle.bidResponses, aiaPayApps: bundle.aiaPayApps, now,
+          ...(bundle.userId !== undefined ? { userId: bundle.userId } : {}),
         })));
       } catch { /* additive */ }
       try {

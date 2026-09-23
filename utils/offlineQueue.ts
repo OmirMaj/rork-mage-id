@@ -646,6 +646,63 @@ export async function addToOfflineQueue(mutation: NewMutation): Promise<void> {
   return withQueueLock(() => appendEntryLocked(entry));
 }
 
+// Wave 5 (CONTRACT 21 / 22): the two `projects` refusals the app knows by name
+// — the free plan's one-project cap on a new job (23514) and a delete of a job
+// with safety records (23001). Neither message says "violates", so
+// isTerminalError below missed them and the cap refusal burned all five
+// retries. The classifier lives in utils/syncLedger (pure), required lazily
+// like every other ledger use here; a failed require classifies nothing.
+type KnownRefusalKind = import('@/utils/syncLedger').KnownRefusal;
+function knownRefusal(table: string, operation: string, message: string, code?: string): KnownRefusalKind | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
+    return ledger.knownRefusalOf(table, operation, message, code);
+  } catch {
+    return null;
+  }
+}
+function knownRefusalReason(kind: KnownRefusalKind): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
+    return ledger.KNOWN_REFUSAL_REASON[kind];
+  } catch {
+    return kind === 'free_plan_project_cap'
+      ? 'Free plan allows 1 project — upgrade, or delete a job first'
+      : 'This job has safety records — it was not deleted';
+  }
+}
+
+// #61 (CONTRACT 22): a projects DELETE the server refused for safety records.
+// The job was removed from the phone before the write was sent (and, when the
+// delete sat in the queue, maybe days before); the server still has it and
+// every record under it. ProjectContext listens and re-reads, which puts the
+// job and its lists back — the refusal is recorded as a NOTE, never as a
+// delete line (a delete line would keep the job hidden until Discard).
+type DeleteRefusedListener = (projectId: string, reason: string) => void;
+const deleteRefusedListeners = new Set<DeleteRefusedListener>();
+export function onProjectDeleteRefused(listener: DeleteRefusedListener): () => void {
+  deleteRefusedListeners.add(listener);
+  return () => { deleteRefusedListeners.delete(listener); };
+}
+// Fix round 1 · The job's safety lists. The local delete fired ProjectContext's
+// projectDeletion signal, and SafetyContext pruned this job's incidents, JHAs,
+// toolbox talks, hazards and inspections from memory and its cache — the very
+// OSHA records that blocked the delete. ProjectContext's re-read cannot reach
+// them (SafetyProvider sits BELOW it and owns its own lists), so the refusal
+// also announces these tables on the flush channel: SafetyContext already
+// re-reads a table named there (onQueueFlushed → rereadTables), and the server
+// still holds every row. An extra re-read for any other listener is harmless.
+const PROJECT_SAFETY_TABLES = ['safety_incidents', 'jhas', 'toolbox_talks', 'hazards', 'safety_inspections'] as const;
+function notifyProjectDeleteRefused(projectId: unknown, reason: string): void {
+  if (typeof projectId !== 'string' || projectId.length === 0) return;
+  for (const listener of deleteRefusedListeners) {
+    try { listener(projectId, reason); } catch { /* never let a listener break the queue */ }
+  }
+  notifyFlushed(new Set<string>(PROJECT_SAFETY_TABLES));
+}
+
 // Auth/permission errors are terminal — the queue can't recover by retrying,
 // and a stuck 401 from a stale session would otherwise loop forever.
 //
@@ -887,6 +944,19 @@ async function recordDropsInLedger(entries: readonly OfflineMutation[], reason: 
   } catch {/* a ledger write must never wedge the queue */}
 }
 
+/** Entries bucketed by the reason `reasons` names for each (insertion order). */
+function groupByReason(entries: readonly OfflineMutation[], reasons: ReadonlyMap<string, string>): Map<string, OfflineMutation[]> {
+  const out = new Map<string, OfflineMutation[]>();
+  for (const m of entries) {
+    const why = reasons.get(m.id);
+    if (!why) continue;
+    const list = out.get(why) ?? [];
+    list.push(m);
+    out.set(why, list);
+  }
+  return out;
+}
+
 interface DropNoticeOpts {
   /** Record as notes (no payload, no Retry) — see discardQueuedWrites. */
   asNotes?: boolean;
@@ -934,10 +1004,16 @@ function notifyDropListeners(entries: readonly OfflineMutation[], reason: string
   const unclaimed = entries.filter((m) => !claimed.has(m.id));
   if (unclaimed.length > 0 && !noToast) {
     const tableList = [...new Set(unclaimed.map((m) => m.table))].join(', ');
+    // Wave 5: a known refusal says what happened and what to do, not "re-check".
+    let known: string | null = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      known = (require('@/utils/syncLedger') as typeof import('@/utils/syncLedger')).knownRefusalToast(reason);
+    } catch { known = null; }
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { oops } = require('@/components/animations/NailItToast');
-      oops(`${unclaimed.length} change(s) couldn't be synced (${tableList}). Please re-check that data.`);
+      oops(known ?? `${unclaimed.length} change(s) couldn't be synced (${tableList}). Please re-check that data.`);
     } catch {/* toast host not mounted — nothing actionable */}
   }
   try {
@@ -1121,6 +1197,10 @@ async function runOfflineQueue(): Promise<FlushResult> {
   // lost its session it never resumes, even if the same user signs back in
   // before it winds down (that sign-in starts its own drain).
   let stopped = false;
+  // Wave 5 (CONTRACT 22): projects whose delete the server refused this flush,
+  // announced once the flush has written everything back — a re-read started
+  // earlier would still find the delete queued and keep the job hidden.
+  const refusedDeletes: { id: unknown; reason: string }[] = [];
   async function sessionStillOurs(): Promise<boolean> {
     if (stopped) return false;
     const live = await currentSessionUser();
@@ -1156,8 +1236,13 @@ async function runOfflineQueue(): Promise<FlushResult> {
   // Process one group serially; return its accounting totals. `conflicts` is
   // the subset of `dropped` that collided with a row the user cannot see
   // (#122) — reported under its own reason, not as a generic failure.
-  async function processGroup(group: OfflineMutation[]): Promise<{ processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[]; processedTables: Set<string>; doomsChildren: boolean; conflicts?: OfflineMutation[] }> {
+  async function processGroup(group: OfflineMutation[]): Promise<{ processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[]; processedTables: Set<string>; doomsChildren: boolean; conflicts?: OfflineMutation[]; reasons?: Map<string, string>; notes?: Set<string> }> {
     const gConflicts: OfflineMutation[] = [];
+    // Wave 5 (CONTRACT 21 / 22): a drop with its own sentence (the known
+    // refusals) — recorded under it instead of DROP_REASON — and the drops
+    // recorded as NOTES (no payload, no Retry: the safety refusal).
+    const gReasons = new Map<string, string>();
+    const gNotes = new Set<string>();
     let gProcessed = 0;
     let gFailed = 0;
     const gRemaining: OfflineMutation[] = [];
@@ -1379,6 +1464,28 @@ async function runOfflineQueue(): Promise<FlushResult> {
           gRemaining.push(...group.slice(index));
           break;
         }
+        // Wave 5 (CONTRACT 21 / 22): a known refusal is a verdict on the FIRST
+        // answer — no bearer check (both triggers run only after RLS let a
+        // signed-in caller through), no retry budget. The cap refusal keeps
+        // its row for Retry and, like any refused create, dooms the job's
+        // queued children (they are recorded with their rows too). The safety
+        // refusal is recorded as a note and ProjectContext puts the job back.
+        const known = knownRefusal(mutation.table, mutation.operation, msg, code);
+        if (known) {
+          const reason = knownRefusalReason(known);
+          console.warn('[OfflineQueue] Refused by the server, not retried:', mutation.table, mutation.operation, known);
+          const lost = group.slice(index);
+          gFailed += lost.length;
+          gDropped.push(...lost);
+          for (const m of lost) gReasons.set(m.id, reason);
+          if (known === 'project_has_safety_records') {
+            for (const m of lost) gNotes.add(m.id);
+            refusedDeletes.push({ id: mutation.data?.id, reason });
+          } else if (mutation.table === 'projects') {
+            gDoomsChildren = true;
+          }
+          break;
+        }
         if (isTerminalError(msg) || code === '42501') {
           // A4: a rejection answered to a request that carried NO user token
           // (the access token expired and gotrue could not refresh it, so
@@ -1443,17 +1550,28 @@ async function runOfflineQueue(): Promise<FlushResult> {
       }
     }
 
-    return { processed: gProcessed, failed: gFailed, remaining: gRemaining, dropped: gDropped, processedTables: gProcessedTables, doomsChildren: gDoomsChildren, conflicts: gConflicts };
+    return { processed: gProcessed, failed: gFailed, remaining: gRemaining, dropped: gDropped, processedTables: gProcessedTables, doomsChildren: gDoomsChildren, conflicts: gConflicts, reasons: gReasons, notes: gNotes };
   }
 
   type GroupResult = Awaited<ReturnType<typeof processGroup>>;
 
   const DROP_REASON = 'terminal error or retry exhaustion';
-  async function recordGroupDrops(result: GroupResult): Promise<void> {
-    if (result.dropped.length === 0) return;
+  async function recordGroupDrops(group: GroupResult): Promise<void> {
+    if (group.dropped.length === 0) return;
+    // Wave 5: a drop with its own sentence (a known refusal) is recorded
+    // under it below; `result` is every other drop, recorded as before.
+    const reasons = group.reasons ?? new Map<string, string>();
+    const notes = group.notes ?? new Set<string>();
+    const result = { ...group, dropped: group.dropped.filter((m) => !reasons.has(m.id)) };
     const conflictIds = new Set((result.conflicts ?? []).map((m) => m.id));
     await recordDropsInLedger(result.dropped.filter((m) => !conflictIds.has(m.id)), DROP_REASON);
     await recordDropsInLedger(result.dropped.filter((m) => conflictIds.has(m.id)), NOT_VISIBLE_CONFLICT);
+    // Each known refusal under its own sentence; the safety refusal as a
+    // note (see notifyProjectDeleteRefused).
+    for (const [reason, entries] of groupByReason(group.dropped.filter((m) => reasons.has(m.id)), reasons)) {
+      await recordDropsInLedger(entries.filter((m) => !notes.has(m.id)), reason);
+      await recordDropsInLedger(entries.filter((m) => notes.has(m.id)), reason, true);
+    }
   }
 
   // SYNC-F4: write back PER GROUP, under the queue lock, the moment the group
@@ -1665,11 +1783,20 @@ async function runOfflineQueue(): Promise<FlushResult> {
   let processed = 0;
   let failed = 0;
   const conflicts: OfflineMutation[] = [];
+  // Wave 5: drops with their own sentence (the known refusals), reported
+  // under it — the toast then says why ("Free plan allows 1 project…").
+  const namedReasons = new Map<string, string>();
+  const named: OfflineMutation[] = [];
   for (const r of results) {
     processed += r.processed;
     failed += r.failed;
     const conflictIds = new Set((r.conflicts ?? []).map((m) => m.id));
-    for (const m of r.dropped) (conflictIds.has(m.id) ? conflicts : dropped).push(m);
+    for (const m of r.dropped) {
+      const why = r.reasons?.get(m.id);
+      if (conflictIds.has(m.id)) conflicts.push(m);
+      else if (why) { named.push(m); namedReasons.set(m.id, why); }
+      else dropped.push(m);
+    }
     for (const table of r.processedTables) processedTables.add(table);
   }
   failed += doomedChildren.length;
@@ -1687,6 +1814,9 @@ async function runOfflineQueue(): Promise<FlushResult> {
   if (conflicts.length > 0) {
     await notifyDroppedWrites(conflicts, NOT_VISIBLE_CONFLICT, { alreadyRecorded: true });
   }
+  for (const [reason, entries] of groupByReason(named, namedReasons)) {
+    await notifyDroppedWrites(entries, reason, { alreadyRecorded: true });
+  }
 
   // Each group already reconciled itself into storage (writeBackGroup); the
   // depth reported here is whatever is persisted now — kept entries plus
@@ -1696,6 +1826,7 @@ async function runOfflineQueue(): Promise<FlushResult> {
   // A queued write for a cached table just landed on the server — tell any read
   // cache to drop its snapshot so the next read re-queries the now-current row.
   notifyFlushed(processedTables);
+  for (const r of refusedDeletes) notifyProjectDeleteRefused(r.id, r.reason);
 
   console.log('[OfflineQueue] Done. Processed:', processed, 'Failed:', failed, 'Remaining:', remainingCount, 'Foreign:', foreignCount);
   return { processed, failed, remaining: remainingCount, foreign: foreignCount };
@@ -2150,6 +2281,12 @@ async function failDirectWrite(
     ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
   } catch { ledger = null; }
   const why = ledger ? ledger.humanWriteReason(msg, code) : msg.slice(0, 80);
+  // Wave 5 (CONTRACT 22): a delete refused for safety records is written down
+  // as a NOTE — no row, no Retry: the same delete is refused again, and a
+  // delete line would keep the job hidden on this phone while the server still
+  // holds it. ProjectContext re-reads and the job comes back.
+  const known = knownRefusal(table, operation, msg, code);
+  const asNote = known === 'project_has_safety_records';
   // Who is signed in NOW. undefined = the session could not be read (treated
   // as the writer's, as before).
   let liveId: string | null | undefined;
@@ -2179,22 +2316,28 @@ async function failDirectWrite(
       // Tagged for the WRITER (integration round 1): a refusal that lands after
       // a sign-out (no one signed in yet) is that account's line, for its next
       // session — unreadable by any other session, never its Retry button.
-      await ledger.recordSyncFailures([{
-        id: `direct-${now}-${Math.random().toString(36).slice(2, 8)}`,
-        kind: 'write',
-        label: ledger.labelForWrite(table, operation === 'rpc' ? m.rpc : undefined),
-        reason: why,
-        at: now,
-        ...(writerId ? { userId: writerId } : {}),
-        table,
-        ...(rid !== null ? { recordId: rid } : {}),
-        operation,
-        ...(operation === 'rpc' ? (m.rpc ? { rpc: m.rpc } : {}) : { row: m.data }),
-        ...(m.rides && m.rides.length > 0 ? { rides: m.rides } : {}),
-        queuedAt: madeAt,
-      }]);
+      const lineId = `direct-${now}-${Math.random().toString(36).slice(2, 8)}`;
+      const label = ledger.labelForWrite(table, operation === 'rpc' ? m.rpc : undefined);
+      await ledger.recordSyncFailures([asNote
+        ? { id: lineId, kind: 'write', label, reason: why, at: now, ...(writerId ? { userId: writerId } : {}) }
+        : {
+          id: lineId,
+          kind: 'write',
+          label,
+          reason: why,
+          at: now,
+          ...(writerId ? { userId: writerId } : {}),
+          table,
+          ...(rid !== null ? { recordId: rid } : {}),
+          operation,
+          ...(operation === 'rpc' ? (m.rpc ? { rpc: m.rpc } : {}) : { row: m.data }),
+          ...(m.rides && m.rides.length > 0 ? { rides: m.rides } : {}),
+          queuedAt: madeAt,
+        }]);
     } catch { /* a ledger write must never break the caller */ }
   }
+  // …and the job goes back on the phone (not for another account's write).
+  if (asNote && !foreignSession) notifyProjectDeleteRefused(m.data?.id, why);
   // Not the live session's write any more: its toast would tell the new user
   // about a record he never touched.
   const sameSession = !writerId || liveId === undefined || liveId === writerId;
@@ -2207,7 +2350,8 @@ async function failDirectWrite(
       const { oops } = require('@/components/animations/NailItToast');
       let plain: string | undefined;
       try { plain = opts?.describeFailure?.(msg, code); } catch { plain = undefined; }
-      oops(plain ?? `Couldn't save (${ledger ? ledger.labelForTable(table) : table}): ${why}. Tap the sync badge to retry.`);
+      const knownToast = known && ledger ? ledger.knownRefusalToast(why) : null;
+      oops(plain ?? knownToast ?? `Couldn't save (${ledger ? ledger.labelForTable(table) : table}): ${why}. Tap the sync badge to retry.`);
     } catch {/* ignore */}
   }
   // Forward to Sentry so we can see what's failing in prod.

@@ -251,7 +251,8 @@ console.log('\n§6 app/selections.tsx');
 const SCREEN = readFileSync(resolve(__dirname, '../app/selections.tsx'), 'utf8');
 {
   const handleAdd = SCREEN.slice(SCREEN.indexOf('const handleAddCategory'), SCREEN.indexOf('const handleCurate'));
-  ok('handleAddCategory passes dueDate into saveSelectionCategory', /saveSelectionCategory\(\{[\s\S]*dueDate: input\.dueDate[\s\S]*\}\)/.test(handleAdd), handleAdd.slice(0, 400));
+  // (w5-join-screens moved the add to the queued write, saveSelectionCategoryDetailed.)
+  ok('handleAddCategory passes dueDate into saveSelectionCategory', /saveSelectionCategory(?:Detailed)?\(\{[\s\S]*dueDate: input\.dueDate[\s\S]*\}\)/.test(handleAdd), handleAdd.slice(0, 400));
   const modalStart = SCREEN.indexOf('function AddCategoryModal');
   const modal = SCREEN.slice(modalStart, SCREEN.indexOf('const makeStyles'));
   ok('AddCategoryModal hands its date to onAdd', /onAdd\(\{[^}]*dueDate[^}]*\}\)/.test(modal));

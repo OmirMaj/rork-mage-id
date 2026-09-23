@@ -34,6 +34,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
@@ -207,7 +208,9 @@ export default function RfpResponsesReviewScreen() {
       const { data, error } = await supabase.functions.invoke('award-rfp', {
         body: { bidId, responseId: response.id },
       });
-      if (error) throw new Error(error.message);
+      // CONTRACT 26: award-rfp answers a withdrawn bid with a 409 and a plain
+      // sentence — supabase-js hides it behind "non-2xx status code".
+      if (error) throw await edgeFunctionError(error, 'Award failed.');
       if (!data?.success) throw new Error(data?.error ?? 'Award failed.');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // award-rfp moved the PM's work order posted as this RFP to 'assigned'

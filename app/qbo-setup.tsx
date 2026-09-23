@@ -20,6 +20,7 @@ import { useQboCostLines } from '@/hooks/useQboCostLines';
 import { showAlert } from '@/utils/alert';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Invoice } from '@/types';
 
@@ -247,7 +248,8 @@ async function registerQboConnection(): Promise<{ sweepFloor: string | null }> {
   // the 10-minute staleTime, so the visit where he reconnects (the server
   // answers 409 while the connection is reauth_required) never registered
   // the zone. A thrown failure is retried on the next mount / status change.
-  if (error || !data?.success) throw new Error(error?.message ?? 'QuickBooks connection not registered');
+  if (error) throw await edgeFunctionError(error, 'QuickBooks connection not registered');
+  if (!data?.success) throw new Error('QuickBooks connection not registered');
   return { sweepFloor: typeof data.sweepFloor === 'string' ? data.sweepFloor : null };
 }
 

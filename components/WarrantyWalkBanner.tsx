@@ -1,5 +1,6 @@
 // WarrantyWalkBanner — slim banner on the home screen surfacing
-// projects whose 11-month warranty walk is coming up (or overdue).
+// projects whose warranty walk (a month before the warranty ends — 11 months
+// on the default 12-month term) is coming up (or overdue).
 // Hidden when there are no walks to flag, so the home screen stays
 // quiet during normal operation. Tappable: opens the project so the
 // GC can schedule / log the walk from there.
@@ -16,7 +17,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { WarrantyWalkAlert } from '@/utils/warrantyWalks';
-import { describeWalkTiming } from '@/utils/warrantyWalks';
+import { describeWalkTiming, warrantyWalkTitle } from '@/utils/warrantyWalks';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -54,7 +55,10 @@ export default function WarrantyWalkBanner({ alerts }: Props) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.title, { color: accent }]} numberOfLines={1}>
-                11-month warranty walk
+                {/* The walk is a month before THIS job's warranty ends (CONTRACT 4:
+                    alerts carry the real term). An assumed term says only
+                    "Warranty walk" rather than a month count nobody chose. */}
+                {a.warrantyMonthsAssumed ? 'Warranty walk' : warrantyWalkTitle(a.warrantyMonths)}
               </Text>
               <Text style={styles.body} numberOfLines={1}>
                 <Text style={styles.bodyStrong}>{a.project.name}</Text> · {describeWalkTiming(a)}

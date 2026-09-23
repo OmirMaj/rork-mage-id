@@ -174,8 +174,17 @@ export default function ReportsScreen() {
     const theirs = new Set(projects.filter(p => !isOwnCompanyProject(p, userId)).map(p => p.id));
     return allInvoices.filter(inv => !theirs.has(inv.projectId));
   }, [projects, allInvoices, userId]);
+  // Two counts, because the two reports keep different populations: the WIP
+  // schedule leaves closed jobs off entirely (so a closed shared job is not
+  // "left out" of it), while the Profit report keeps closed jobs — so a closed
+  // job another company shared with him IS excluded from Profit and has to be
+  // counted in its "Not on this report" line (integration review, wave 5).
   const sharedJobCount = useMemo(
     () => projects.filter(p => p.status !== 'closed' && !isOwnCompanyProject(p, userId)).length,
+    [projects, userId],
+  );
+  const sharedJobCountAll = useMemo(
+    () => projects.filter(p => !isOwnCompanyProject(p, userId)).length,
     [projects, userId],
   );
 
@@ -335,7 +344,7 @@ export default function ReportsScreen() {
         </View>
 
         {tab === 'wip' && !wipLocked && <WIPView    report={wip} sharedJobCount={sharedJobCount} />}
-        {tab === 'profit'               && <ProfitView profit={profit} sharedJobCount={sharedJobCount} />}
+        {tab === 'profit'               && <ProfitView profit={profit} sharedJobCount={sharedJobCountAll} />}
         {tab === 'aging'                && (
           <AgingView
             report={aging}

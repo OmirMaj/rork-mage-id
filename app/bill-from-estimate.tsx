@@ -58,6 +58,7 @@ import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { loadCashFlowSettings } from '@/utils/cashFlowStorage';
 import { dueDateForTerms } from '@/utils/retainage';
+import { isGcOnlyEstimateLine, CLIENT_CONTINGENCY_LABEL } from '@/utils/clientEstimateView';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -357,15 +358,22 @@ export default function BillFromEstimateScreen() {
           // counted those at 100% and blocked billing the remainder.
           .reduce((sum, { li, inv, anyPreScaled }) => sum + billedAmountForLine(li, inv, anyPreScaled), 0);
         const remaining = Math.max(0, full - already);
+        // #9: a GC-only Cost X-Ray line (xray.clientVisible === false) is his
+        // contingency for a suspected hidden condition. The invoice it becomes
+        // goes to the client (PDF, email, portal), so it bills as one lump-sum
+        // 'Contingency' line: no finding, and no quantity / unit ("200 LF")
+        // that could hint at one. `key` (its materialId) and the already-billed
+        // match above still use the real item, so billed-through stays right.
+        const gcOnly = isGcOnlyEstimateLine(item);
         return {
           key,
-          name: item.name,
-          category: item.category,
-          unit: item.unit,
-          quantity: item.quantity,
+          name: gcOnly ? CLIENT_CONTINGENCY_LABEL : item.name,
+          category: gcOnly ? CLIENT_CONTINGENCY_LABEL : item.category,
+          unit: gcOnly ? 'LS' : item.unit,
+          quantity: gcOnly ? 1 : item.quantity,
           // MONEY-F14: the invoice shows the markup-inclusive unit price, not
           // the estimate's cost basis — see utils/billFromEstimateCore.
-          unitPrice: billFromEstimateUnitPrice(full, item.quantity, effectivePrice),
+          unitPrice: gcOnly ? full : billFromEstimateUnitPrice(full, item.quantity, effectivePrice),
           lineTotal: full,
           alreadyBilled: already,
           remaining,

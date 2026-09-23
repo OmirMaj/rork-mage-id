@@ -109,12 +109,15 @@ export async function primeWorld(state: WorldState): Promise<void> {
   // either screen. Roughly half the app sits behind hooks/useTierAccess.ts, so
   // a free-tier run is a suite that mostly tests the paywall component.
   //
-  // It goes through the AsyncStorage mirror (`mageid_subscription_tier`, read
-  // by SubscriptionContext's localTierQuery) rather than through the
-  // RevenueCat mock, because RevenueCat never configures under test — there is
-  // no EXPO_PUBLIC_REVENUECAT_* key in the jest environment, so `rcConfigured`
-  // is false and the entitlements path is skipped entirely. The mirror is the
-  // app's own documented fallback for exactly that case.
+  // It goes through the AsyncStorage mirror (`mageid_subscription_tier`)
+  // rather than through the RevenueCat mock, because RevenueCat never
+  // configures under test — there is no EXPO_PUBLIC_REVENUECAT_* key in the
+  // jest environment, so `rcConfigured` is false and the entitlements path is
+  // skipped entirely. Since wave 5 (#2) SubscriptionContext treats the
+  // server's subscriptions row as the truth (a "no row" answer is a definitive
+  // Free) and reads the mirror only while the server has not answered — so
+  // the tier reaches the app through the MOCKED subscriptions row
+  // (__tests__/mocks/supabase.ts subscriptionRow), which mirrors this key.
   //
   // Cost: the locked branches are not covered. Accepted — /paywall and
   // /onboarding-paywall are themselves routes the suite mounts directly.

@@ -2,6 +2,8 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding, ContractSignature, PaymentSplit, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, FieldTicket, ScheduleTask, RFI, Submittal, PhotoMarkup } from '@/types';
+import { clientEstimateLineRows } from './clientEstimateView';
+import { footLines } from './estimateEmailBody';
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
 import { netBalanceDue, effectiveRetentionHeld, pendingRetentionHeld } from './invoiceBilling';
 import { calendarDayStart, dayOrInstantDate, formatCalendarDay } from './calendarDate';
@@ -392,6 +394,26 @@ function buildSignatureSvg(paths: string[]): string {
   return `<svg width="200" height="80" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg" style="border-bottom:1px solid #ccc">${pathElements}</svg>`;
 }
 
+
+/**
+ * #93 (wave 5): the buyout figure is budget minus the awarded commitments — the
+ * GC's gain on buying out, NOT a discount on the client's price, and the
+ * Estimate Total above it is not reduced by it. It printed as a negative
+ * negative savings row inside the totals, which read as a deduction the
+ * total never took. When the GC opts in it prints as a note OUTSIDE the
+ * totals, saying it is not deducted. Nothing when there is no real saving.
+ */
+export function bulkSavingsNoteText(amount: number | undefined | null): string {
+  return (amount ?? 0) > 0
+    ? `Buyout savings: ${formatCurrency(amount ?? 0)} (what the awarded subcontracts came in under budget; not deducted from the total above)\n`
+    : '';
+}
+function bulkSavingsNoteHtml(amount: number | undefined | null): string {
+  return (amount ?? 0) > 0
+    ? `<p class="summary-note" style="margin:8px 0 0;font-size:12px;color:#555">Buyout savings: ${formatCurrency(amount ?? 0)} — what the awarded subcontracts came in under budget. Not deducted from the Estimate Total above.</p>`
+    : '';
+}
+
 function buildEstimateHtml(
   project: Project,
   branding: CompanyBranding,
@@ -423,39 +445,44 @@ function buildEstimateHtml(
   let itemsHtml = '';
 
   if (est && est.items.length > 0) {
+    // SELL BASIS ONLY (#55's rule, carried to the PDF — integration review,
+    // wave 5). This document is the one the GC shares with / attaches for the
+    // homeowner (project-detail Share, the Full Estimator's mail draft). It
+    // printed each line's COST unit price and markup %, then "Base Cost" and
+    // "Markup (X%)" above the total — his cost buildup, which
+    // utils/clientEstimateView and utils/estimateEmailBody already refuse to
+    // show a client. A row is now its quantity and its SELL line total, footed
+    // to the Estimate Total (footLines) so the printed lines add up to it.
+    // #9: GC-only Cost X-Ray lines fold into ONE lump-sum Contingency row (no
+    // finding, no quantity that could hint at one).
+    const clientRows = clientEstimateLineRows(est.items);
+    const rowCents = footLines(clientRows.map(r => r.lineTotal), est.grandTotal);
     itemsHtml = `
       <h2>Materials & Items</h2>
       <table>
         <thead>
           <tr>
-            <th style="text-align:left;width:30%">Item</th>
+            <th style="text-align:left;width:40%">Item</th>
             <th>Category</th>
             <th>Qty</th>
-            <th>Unit Price</th>
-            <th>Markup</th>
             <th style="text-align:right">Line Total</th>
           </tr>
         </thead>
         <tbody>
-          ${est.items.map((item, i) => `
+          ${clientRows.map((row, i) => `
             <tr class="${i % 2 === 0 ? 'alt' : ''}">
-              <td style="text-align:left;font-weight:500">${escapeHtml(item.name)}</td>
-              <td>${escapeHtml(item.category)}</td>
-              <td>${item.quantity} ${escapeHtml(item.unit)}</td>
-              <td>${formatCurrency(item.unitPrice)}</td>
-              <td>${item.markup}%</td>
-              <td style="text-align:right;font-weight:600">${formatCurrency(item.lineTotal)}</td>
+              <td style="text-align:left;font-weight:500">${escapeHtml(row.name)}</td>
+              <td>${escapeHtml(row.category)}</td>
+              <td>${row.quantity == null ? 'Lump sum' : `${row.quantity} ${escapeHtml(row.unit)}`}</td>
+              <td style="text-align:right;font-weight:600">${formatCurrency(rowCents[i] / 100)}</td>
             </tr>
           `).join('')}
         </tbody>
       </table>
       <div class="summary-box">
-        <div class="summary-row"><span>Base Cost</span><span>${formatCurrency(est.baseTotal)}</span></div>
-        <div class="summary-row"><span>Markup (${est.globalMarkup}%)</span><span>+${formatCurrency(est.markupTotal)}</span></div>
-        ${(est.bulkSavingsTotal ?? 0) > 0 ? `<div class="summary-row savings"><span>Bulk Savings</span><span>-${formatCurrency(est.bulkSavingsTotal ?? 0)}</span></div>` : ''}
-        <div class="summary-divider"></div>
         <div class="summary-row total"><span>Estimate Total</span><span>${formatCurrency(est.grandTotal)}</span></div>
-      </div>`;
+      </div>
+      ${bulkSavingsNoteHtml(est.bulkSavingsTotal)}`;
   } else if (legacyEst) {
     itemsHtml = `
       <h2>Materials</h2>
@@ -513,12 +540,12 @@ function buildEstimateHtml(
         <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(legacyEst.subtotal)}</span></div>
         <div class="summary-row"><span>Tax</span><span>${formatCurrency(legacyEst.tax)}</span></div>
         <div class="summary-row"><span>Contingency</span><span>${formatCurrency(legacyEst.contingency)}</span></div>
-        ${(legacyEst.bulkSavingsTotal ?? 0) > 0 ? `<div class="summary-row savings"><span>Bulk Savings</span><span>-${formatCurrency(legacyEst.bulkSavingsTotal ?? 0)}</span></div>` : ''}
         <div class="summary-divider thick"></div>
         <div class="summary-row total"><span>Grand Total</span><span>${formatCurrency(legacyEst.grandTotal)}</span></div>
         ${legacyEst.pricePerSqFt > 0 ? `<div class="summary-row sub"><span>Price per Sq Ft</span><span>${formatCurrency(legacyEst.pricePerSqFt)}</span></div>` : ''}
         ${legacyEst.estimatedDuration ? `<div class="summary-row sub"><span>Est. Duration</span><span>${escapeHtml(legacyEst.estimatedDuration)}</span></div>` : ''}
-      </div>`;
+      </div>
+      ${bulkSavingsNoteHtml(legacyEst.bulkSavingsTotal)}`;
   }
 
   let scheduleHtml = '';
@@ -1845,18 +1872,20 @@ export function buildEstimateTextForEmail(
   const est = project.linkedEstimate;
   if (est && est.items.length > 0) {
     text += `ITEMS\n${divider}\n`;
-    est.items.forEach((item, i) => {
-      text += `${i + 1}. ${item.name}\n`;
-      text += `   ${item.quantity} ${item.unit} @ ${formatCurrency(item.unitPrice)} (${item.markup}% markup)\n`;
-      text += `   Line Total: ${formatCurrency(item.lineTotal)}\n\n`;
+    // #9: same rows as the PDF — GC-only lines as one lump-sum Contingency.
+    // Sell basis only, like the PDF: quantity and SELL line total footed to
+    // the TOTAL; never a cost unit price, a markup %, Base Cost or Markup.
+    const clientRows = clientEstimateLineRows(est.items);
+    const rowCents = footLines(clientRows.map(r => r.lineTotal), est.grandTotal);
+    clientRows.forEach((row, i) => {
+      text += `${i + 1}. ${row.name}\n`;
+      text += row.quantity != null ? `   ${row.quantity} ${row.unit}\n` : `   Lump sum\n`;
+      text += `   Line Total: ${formatCurrency(rowCents[i] / 100)}\n\n`;
     });
     text += `${divider}\n`;
-    text += `Base Cost:    ${formatCurrency(est.baseTotal)}\n`;
-    text += `Markup:       +${formatCurrency(est.markupTotal)}\n`;
-    if ((est.bulkSavingsTotal ?? 0) > 0) {
-      text += `Bulk Savings:  -${formatCurrency(est.bulkSavingsTotal ?? 0)}\n`;
-    }
-    text += `TOTAL:        ${formatCurrency(est.grandTotal)}\n\n`;
+    text += `TOTAL:        ${formatCurrency(est.grandTotal)}\n`;
+    text += bulkSavingsNoteText(est.bulkSavingsTotal);
+    text += '\n';
   }
 
   const legacyEst = project.estimate;
@@ -1870,14 +1899,12 @@ export function buildEstimateTextForEmail(
     text += `Subtotal:      ${formatCurrency(legacyEst.subtotal)}\n`;
     text += `Tax:           ${formatCurrency(legacyEst.tax)}\n`;
     text += `Contingency:   ${formatCurrency(legacyEst.contingency)}\n`;
-    // Only when there is a real saving. bulkSavingsTotal is never COMPUTED
-    // anywhere in the app — it exists only in demo seed data — so for a real
-    // user this is undefined and printed "Bulk Savings: -$0.00" to their client.
-    if ((legacyEst.bulkSavingsTotal ?? 0) > 0) {
-      text += `Bulk Savings:  -${formatCurrency(legacyEst.bulkSavingsTotal ?? 0)}\n`;
-    }
     text += `${divider}\n`;
     text += `GRAND TOTAL:   ${formatCurrency(legacyEst.grandTotal)}\n`;
+    // Only when there is a real saving (the helper guards > 0 — a real user's
+    // legacy estimate has none, and printed "-$0.00" before that guard), and
+    // as a note after the total, never a deduction row (#93).
+    text += bulkSavingsNoteText(legacyEst.bulkSavingsTotal);
     if (legacyEst.pricePerSqFt > 0) text += `Per Sq Ft:     ${formatCurrency(legacyEst.pricePerSqFt)}\n`;
     text += '\n';
   }

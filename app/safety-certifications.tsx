@@ -27,6 +27,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { certStatus } from '@/utils/safety/certStatus';
 import type { Certification, CertificationStatus, CrewMember } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { edgeErrorCode } from '@/utils/edgeError';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
@@ -123,6 +124,7 @@ function SafetyCertificationsInner() {
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
   const { user } = useAuth();
+  const router = useRouter();
   const userId = user?.id ?? null;
 
   const { certifications, certificationsWithStatus, addCertification, updateCertification, deleteCertification } = useSafety();
@@ -249,11 +251,30 @@ function SafetyCertificationsInner() {
         + (exp ? 'Check the dates against the card before saving.' : 'No expiry date could be read — type it from the card.'),
       );
     } catch (e) {
-      setScanNote(e instanceof Error ? `Scan failed: ${e.message}` : 'Scan failed — try a clearer, well-lit photo.');
+      // CONTRACT 26 (#124): scanCertification throws edgeFunctionError, so a
+      // plan refusal carries the server's code and sentence. That is not a
+      // "try a clearer photo" failure — say it, and offer the plans, no retry.
+      const code = edgeErrorCode(e);
+      if (code === 'monthly_cap_reached' || code === 'tier_required') {
+        const msg = e instanceof Error ? e.message : '';
+        setScanNote(msg || "Card scanning isn't available on your plan right now.");
+        showAlert(
+          code === 'tier_required' ? 'Not included in your plan' : "You've hit this month's limit",
+          msg || "Card scanning isn't available on your plan right now.",
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+          ],
+        );
+      } else if (code === 'hourly_limit') {
+        setScanNote(e instanceof Error ? e.message : 'Too many scans this hour — try again later.');
+      } else {
+        setScanNote(e instanceof Error ? `Scan failed: ${e.message}` : 'Scan failed — try a clearer, well-lit photo.');
+      }
     } finally {
       setScanning(false);
     }
-  }, [tier]);
+  }, [tier, router]);
 
   const pickMember = useCallback((member: CrewMember) => {
     setWorkerId(member.id);

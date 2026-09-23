@@ -125,7 +125,7 @@ console.log('\n#90 — the provider applies it:');
   const late = slice(CTX, 'const swept = revokedSweepRef.current;', '}, revokedSweepLists as unknown[]);');
   ok('a list that hydrates AFTER the cleanup is swept again (silently)',
     /if \(!listsHoldRevoked\(revokedSweepLists, ids\)\) return;/.test(late) && /sweepRevokedJobs\(ids, new Map\(swept\)\)/.test(late) && !/showAlert/.test(late));
-  const del = slice(CTX, 'const deleteProject = useCallback(', '}, [userId, projects, saveProjectsMutation, syncProjectToSupabase, forgetProjectsLocally]);');
+  const del = slice(CTX, 'const deleteProject = useCallback(', '}, [userId, projects, saveProjectsMutation, syncProjectToSupabase, forgetProjectsLocally, canSync, seedServerProjectIds]);');
   ok('deleteProject still refuses a non-owner first, then cascades through the same forgetProjectsLocally',
     del.indexOf('deleteProjectRefusal(toDelete, userId)') >= 0 && del.indexOf('deleteProjectRefusal') < del.indexOf('forgetProjectsLocally(new Set([id]));'));
   const fsp = slice(CTX, 'const forgetSharedProject = useCallback((id: string)', '}, [userId, saveProjectsMutation, forgetProjectsLocally]);');

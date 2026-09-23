@@ -158,6 +158,21 @@ console.log('\n#62 plan shares pick photos by storage copy:');
   const unsigned = buildPlanSharePayload({ projectName: 'M', sheet, zones: [], tasks: [], pins, photos });
   eq('stored but unsigned photos are counted apart from unsynced ones', [unsigned.droppedLocal, unsigned.droppedUnsigned, unsigned.payload.photos.length], [1, 2, 0]);
   ok('no file:// ever reaches a plan payload', !JSON.stringify(unsigned.payload).includes('file:'));
+  // A pinned photo that is a field seat's draft or was recalled from the
+  // client portal never rides the homeowner link (same rule as the timeline),
+  // even when the caller signed it.
+  const withdrawnPins: DrawingPin[] = [4, 5, 6].map(n => ({ id: `pin${n}`, planSheetId: 's1', projectId: PID, x: 0.1, y: 0.1, kind: 'photo', linkedPhotoId: id(n), createdAt: '', updatedAt: '' }) as DrawingPin);
+  const withdrawnPhotos = [
+    photo(4, { portalState: { status: 'draft' } } as Partial<ProjectPhoto>),
+    photo(5, { portalState: { status: 'recalled' } } as Partial<ProjectPhoto>),
+    photo(6, { portalState: { status: 'sent' } } as Partial<ProjectPhoto>),
+  ];
+  const w = buildPlanSharePayload({ projectName: 'M', sheet, zones: [], tasks: [], pins: withdrawnPins, photos: withdrawnPhotos,
+    photoUrls: { [id(4)]: 'https://x/s-4', [id(5)]: 'https://x/s-5', [id(6)]: 'https://x/s-6' } });
+  eq('draft / recalled pinned photos are left out and counted', [w.payload.photos.map(p => p.id), w.droppedWithdrawn, w.droppedLocal, w.droppedUnsigned], [[id(6)], 2, 0, 0]);
+  const MSS = readFileSync(join(__dirname, '..', 'components/schedule/mobile/MobileScheduleScreen.tsx'), 'utf8');
+  ok('the plan share tells the GC what it left out, and never signs a withdrawn photo',
+    /droppedWithdrawn > 0\) extras\.push\(/.test(MSS) && /!!p\.storagePath && isPhotoShareable\(p\)\)/.test(MSS));
   const storedSheet = { ...sheet, imageUri: 'file:///local.png', storagePath: `${PID}/s1-page-1.png` } as PlanSheet;
   const r2 = buildPlanSharePayload({ projectName: 'M', sheet: storedSheet, zones: [], tasks: [], pins: [], photos: [] });
   eq('a stored sheet with no URL is refused but flagged as unsigned, not unsynced', [r2.planNotSynced, r2.planUnsigned, r2.payload.img], [true, true, '']);

@@ -107,9 +107,9 @@ const projectDetail = read('app/project-detail.tsx');
 const estimateFull = read('app/(tabs)/estimate/full.tsx');
 const jobCosting = read('app/job-costing.tsx');
 ok('project page Bulk Savings (hero, modal, PDFs) is leveled off the awarded bids',
-  /computeBulkSavings\(id \?\? '', projectBidPackages, projectCommitments, bidPackageBids\)/.test(projectDetail));
+  /computeBulkSavings\(id \?\? '', projectBidPackages, projectCommitments, bidPackageBids[,)]/.test(projectDetail));
 ok('the client estimate PDF\'s Bulk Savings is leveled off the awarded bids',
-  /computeBulkSavings\(pendingLinkProject\.id, pkgs, commitments, bidPackageBids\)/.test(estimateFull));
+  /computeBulkSavings\(pendingLinkProject\.id, pkgs, commitments, bidPackageBids[,)]/.test(estimateFull));
 ok('Job Costing lists the excluded scope as uncommitted, estimated — off the awarded bid, minus what the commitment absorbed',
   /openExcludedScope\(bid, committed\?\.amount\)/.test(jobCosting) && /const committed = awardedCommitmentOf\(p, projectCommitments\);/.test(jobCosting)
     && /testID="uncovered-scope-notice"/.test(jobCosting));

@@ -139,8 +139,13 @@ const URLS = { photoUrls: ['https://x.supabase.co/storage/v1/object/sign/a.jpg?t
   invokeQueue = [() => ({ data: null, error: cap })];
   let thrown: unknown = null;
   try { await triagePhotos(URLS); } catch (e) { thrown = e; }
+  // w5-join-screens (#123/#128, ai-limits handoff): edgeFunctionError now
+  // rewrites "Resets on the 1st." to the real local moment ("Resets Sep 30,
+  // 8:00 PM."), so the sentence is the server's up to its reset clause.
+  const capHead = CAP_SENTENCE.replace(/\s*Resets (?:on )?the 1st[^.]*\.?$/i, '');
   ok('a 429 cap throws the server sentence, not "Edge Function returned a non-2xx status code"',
-    (thrown as Error)?.message === CAP_SENTENCE, String((thrown as Error)?.message));
+    typeof (thrown as Error)?.message === 'string' && (thrown as Error).message.startsWith(capHead)
+    && !/the 1st/i.test((thrown as Error).message) && !/non-2xx/.test((thrown as Error).message), String((thrown as Error)?.message));
   ok('…with code monthly_cap_reached', edge.edgeErrorCode(thrown) === 'monthly_cap_reached');
   ok('…and no "Photo analyzer call failed:" prefix', !/call failed/i.test(String((thrown as Error)?.message)));
   ok('a 429 is NOT retried (one call)', invokeCalls.length === 1, String(invokeCalls.length));
@@ -190,8 +195,12 @@ for (const [name, run] of [
   invokeQueue = [() => ({ data: null, error: httpError(429, { error: DRAW_SENTENCE, code: 'monthly_cap_reached' }) })];
   let thrown: unknown = null;
   try { await (run as () => Promise<unknown>)(); } catch (e) { thrown = e; }
+  // (reset clause localized by edgeFunctionError — see section B)
   ok(`${name}: the server sentence, code monthly_cap_reached`,
-    (thrown as Error)?.message === DRAW_SENTENCE && edge.edgeErrorCode(thrown) === 'monthly_cap_reached',
+    typeof (thrown as Error)?.message === 'string'
+    && (thrown as Error).message.startsWith(DRAW_SENTENCE.replace(/\s*Resets on the 1st\.$/, ''))
+    && !/the 1st/i.test((thrown as Error).message)
+    && edge.edgeErrorCode(thrown) === 'monthly_cap_reached',
     `${(thrown as Error)?.message} / ${edge.edgeErrorCode(thrown)}`);
 }
 {

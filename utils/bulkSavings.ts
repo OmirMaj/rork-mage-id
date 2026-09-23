@@ -172,13 +172,25 @@ export function packageCostBudget(
 // silence. On web a typed "4,800" became NaN the same way. A bid amount is a
 // real, positive, finite number to the cent, or it is "needs an amount".
 
-/** Typed text → dollars to the cent, or null. Separators and a "$" are
- *  stripped first ("4,800" is 4800, "$12,345.50" is 12345.5); a second
- *  decimal point, zero, or a negative is refused rather than guessed. */
+/** Typed text → dollars to the cent, or null. A "$" and spaces are stripped
+ *  and US thousands grouping is accepted ("4,800" is 4800, "$12,345.50" is
+ *  12345.5); anything else is refused rather than guessed: a second decimal
+ *  point, zero, a negative, words, and ANY other comma.
+ *
+ *  WHY A COMMA IS REFUSED (integration review, wave 5). This used to strip
+ *  every character but digits and '.', and both bid fields and the package
+ *  budget are decimal-pad keyboards — which type ',' as the decimal mark in
+ *  comma-decimal locales. '4800,50' became 480050: a $4,800.50 bid saved as
+ *  $480,050, awardable into a commitment and the A401 contract sum. '-500'
+ *  became 500. The same rule as cashFlowEngine.parseMoneyInput (refuse the
+ *  ambiguous shape, say what to type); inlined, not imported, so this pure
+ *  module does not pull the cash-flow engine into the buyout screens. */
 export function parseBidAmountInput(text: string): number | null {
-  const raw = String(text ?? '').replace(/[^0-9.]/g, '');
-  if (!raw || (raw.match(/\./g) ?? []).length > 1) return null;
-  const n = Number(raw);
+  const stripped = String(text ?? '').replace(/[$\s]/g, '');
+  // Digits, optional US grouping, optional decimals — and nothing else. No
+  // leading '-' (a bid or a budget is never negative), no comma decimal.
+  if (!/^(?:(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d*)?|\.\d+)$/.test(stripped)) return null;
+  const n = Number(stripped.replace(/,/g, ''));
   if (!Number.isFinite(n) || n <= 0) return null;
   const c = cents(n);
   return c > 0 ? c : null;

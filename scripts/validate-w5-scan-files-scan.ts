@@ -18,6 +18,7 @@ import {
   resolveDestination, scanPageFileName, scanPayloadTooLarge, coiPickerSubs, scanCoiCoverages,
   coiCoverageType, buildScanPermit, buildScanWarranty, warrantyMonthsFromTerm, scanCalendarDay,
   buildScanReceipt, scanFiledMessage, recordKindPhrase, SCAN_MAX_BYTES_TOTAL, scanOwnerOnlyGate,
+  materialReceiptOwnerGate,
 } from '../utils/scanRouting';
 import { linkableCommitments, autoLinkCommitment, commitmentCounterparty } from '../utils/commitmentLinking';
 import { computeJobCost } from '../utils/jobCostEngine';
@@ -50,6 +51,17 @@ console.log('\n#64 every page is filed:');
   ok('the captures are cleared only after the all-landed branch',
     SCAN.indexOf('setCaptures([]);', SCAN.indexOf('if (done < total)')) > SCAN.indexOf('if (done < total)'));
   ok('every page path is kept on the ScanRecord (fields._pages)', /_pages: pages\.map\(p => p\.path\)/.test(SCAN));
+  // Integration round 1: after a partial filing, removing an unfiled page
+  // cleared the result — a re-scan is another charged AI call that resets
+  // `landed` and the stem, so the filed pages uploaded again (duplicates).
+  {
+    const rm = SCAN.slice(SCAN.indexOf('const removeCapture = useCallback('), SCAN.indexOf('const runScan = useCallback('));
+    ok('removing a page is refused once any page landed (before result is cleared)',
+      /if \(landedCount > 0\) \{[\s\S]*?showAlert\([\s\S]*?return;\s*\}/.test(rm)
+      && rm.indexOf('if (landedCount > 0)') > -1 && rm.indexOf('if (landedCount > 0)') < rm.indexOf('setResult(null)'));
+    ok('…and the Start over way out it names is rendered while pages sit filed',
+      /\{!saved && landedCount > 0 && \([\s\S]*?onPress=\{scanAnother\}[\s\S]*?Start over/.test(SCAN));
+  }
   // Review round 1: a 0-byte object a field seat can't delete holds the name
   // for good — the page moves to a new name instead of colliding forever.
   eq('a retry after an undeletable 0-byte landing moves that page to -pN-rA',
@@ -189,7 +201,13 @@ console.log('\n#53 interim — a scan on a job he does not own never creates a p
   ok('the warranty refusal says where it belongs', w.state === 'blocked' && /Warranties are kept on the project owner's account — ask them to log it/.test(w.reason));
   eq('a role still loading decides nothing', scanOwnerOnlyGate('warranty', r(null, true)).state, 'checking');
   eq('a failed / unknown role is not ownership', [scanOwnerOnlyGate('permit', r(null, false, true)).state, scanOwnerOnlyGate('permit', r(null)).state], ['blocked', 'blocked']);
-  eq('other kinds are not gated', [scanOwnerOnlyGate('cost', r('field')).state, scanOwnerOnlyGate('sub_compliance', r('editor')).state], ['open', 'open']);
+  // Integration round 1: material_receipts and cois are owner-only by RLS —
+  // an invitee's bill / COI landed on HIS account, invisible to the GC.
+  eq('an invitee\'s bill and COI file as images only', [scanOwnerOnlyGate('cost', r('field')).state, scanOwnerOnlyGate('sub_compliance', r('editor')).state], ['blocked', 'blocked']);
+  eq('the owner books the bill and files the COI', [scanOwnerOnlyGate('cost', r('owner')).state, scanOwnerOnlyGate('sub_compliance', r('owner')).state], ['open', 'open']);
+  const cg = scanOwnerOnlyGate('cost', r('editor'));
+  ok('the bill refusal says where bills are booked', cg.state === 'blocked' && /project owner's account/.test(cg.reason) && /image only/.test(cg.reason));
+  eq('a contact (his own address book) is not gated', scanOwnerOnlyGate('contact', r('field')).state, 'open');
   ok('scan.tsx reads the role for the effective project',
     /const roleState = useProjectRoleState\(effectiveProjectId \|\| undefined\);/.test(SCAN)
     && /const ownerGate = scanOwnerOnlyGate\(destination\?\.recordKind, \{\s*role: roleState\.role, isLoading: roleState\.isLoading, isError: roleState\.isError,\s*\}\);/.test(SCAN));
@@ -199,6 +217,43 @@ console.log('\n#53 interim — a scan on a job he does not own never creates a p
     /disabled=\{saving \|\| ownerGate\.state === 'checking'\}/.test(SCAN)
     && /if \(ownerGate\.state === 'checking'\) return;/.test(SCAN)
     && /\{ownerGate\.state !== 'open' && \(/.test(SCAN));
+  // Integration round 2: the blocked card said 'this scan files as an image
+  // only' directly above 'Pays against … counts against that PO' / 'Link to
+  // subcontractor (needed to file as compliance)'. Both pickers now render
+  // only while the gate is open.
+  ok('…the Pays-against and COI sub pickers render only while the gate is open',
+    /\{destination\.recordKind === 'cost' && ownerGate\.state === 'open' && \(/.test(SCAN)
+    && /\{destination\.recordKind === 'sub_compliance' && ownerGate\.state === 'open' && \(/.test(SCAN)
+    && !/\{destination\.recordKind === '(cost|sub_compliance)' && \(/.test(SCAN));
+}
+
+// ── integration round 2: the same rule on the direct Material Receipt path ──
+// Job Costing (open to editor / viewer invitees) links straight to Material
+// Receipt; material_receipts is owner-only by RLS, so an invited PM's receipt
+// landed on HIS account while the screen said it was saved. Save is blocked
+// on a job he doesn't own and the card says why.
+console.log('\nMaterial Receipt — a receipt on a job he does not own is not saved:');
+{
+  const r = (role: string | null, isLoading = false, isError = false) => ({ role, isLoading, isError });
+  eq('the owner saves', materialReceiptOwnerGate('p1', r('owner')).state, 'open');
+  eq('no project picked yet is not a refusal', materialReceiptOwnerGate('', r(null)).state, 'open');
+  for (const role of ['editor', 'field', 'viewer']) {
+    eq(`an invited ${role} is blocked`, materialReceiptOwnerGate('p1', r(role)).state, 'blocked');
+  }
+  eq('a role still loading waits', materialReceiptOwnerGate('p1', r(null, true)).state, 'checking');
+  eq('a failed / unknown role is not ownership', [materialReceiptOwnerGate('p1', r(null, false, true)).state, materialReceiptOwnerGate('p1', r(null)).state], ['blocked', 'blocked']);
+  const b = materialReceiptOwnerGate('p1', r('editor'));
+  ok('the refusal names where bills are booked', b.state === 'blocked' && /project owner's account — job costing only counts theirs/.test(b.reason));
+  const MR = strip(readFileSync('app/material-receipt.tsx', 'utf8'));
+  ok('material-receipt reads the role for the picked project and gates on it',
+    /const roleState = useProjectRoleState\(projectId \|\| undefined\);/.test(MR)
+    && /materialReceiptOwnerGate\(projectId, \{/.test(MR));
+  const save = MR.slice(MR.indexOf('const save = useCallback('), MR.indexOf('}, [draft, projectId, commitmentId, addReceipt, ownerGate]);'));
+  ok('save() refuses before addReceipt when the gate is not open',
+    /if \(ownerGate\.state !== 'open'\) \{ showAlert\([^;]*ownerGate\.reason\); return; \}/.test(save)
+    && save.indexOf("ownerGate.state !== 'open'") < save.indexOf('addReceipt('));
+  ok('the Save button is disabled and the reason is rendered',
+    /disabled=\{ownerGate\.state !== 'open'\}/.test(MR) && /testID="receipt-owner-only"/.test(MR));
 }
 
 // ── review round 1: a pick never crosses jobs ───────────────────────────────

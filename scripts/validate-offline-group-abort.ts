@@ -518,7 +518,9 @@ ok('…including the prefix sweep, which is pinned to dropOfflineQueue: false (A
   // retry (the refusal is recorded in the sync ledger), but a caller's own
   // words still win.
   ok('supabaseWriteDetailed lets the caller word a refusal',
-    /try \{ plain = opts\?\.describeFailure\?\.\(msg, code\); \} catch \{ plain = undefined; \}\s*oops\(plain \?\? `Couldn't save \(/.test(oq));
+    // Wave 5 (w5-join-core): a known refusal's own toast sits between the
+    // caller's words and the generic line — the caller's still win.
+    /try \{ plain = opts\?\.describeFailure\?\.\(msg, code\); \} catch \{ plain = undefined; \}\s*const knownToast = known && ledger \? ledger\.knownRefusalToast\(why\) : null;\s*oops\(plain \?\? knownToast \?\? `Couldn't save \(/.test(oq));
 }
 
 if (fail > 0) {

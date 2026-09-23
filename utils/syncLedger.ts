@@ -458,6 +458,10 @@ export function unsavedPaymentAppendsIn(all: readonly SyncFailure[], userId: str
 export function humanWriteReason(message: string, code?: string): string {
   const m = (message ?? '').toLowerCase();
   if (m === NOT_VISIBLE_CONFLICT) return humanDropReason(NOT_VISIBLE_CONFLICT);
+  // CONTRACT 21 / 22 before the generic classes: the cap refusal IS a 23514
+  // and used to read "a value was not accepted" — true, and no use to him.
+  const known = knownRefusalOfError(message, code);
+  if (known) return KNOWN_REFUSAL_REASON[known];
   if (code === '23502' || m.includes('null value in column')) return 'a required field was missing';
   if (code === '23503' || m.includes('foreign key')) return 'the job or record it belongs to is not on the server';
   if (code === '23505' || m.includes('duplicate key')) return 'a record with the same number already exists';
@@ -465,6 +469,79 @@ export function humanWriteReason(message: string, code?: string): string {
   if (m.includes('free tier')) return 'your plan’s project limit refused it';
   if (code === '42501' || m.includes('row-level security') || m.includes('permission denied')) return 'you do not have permission to save this';
   return 'the server refused it';
+}
+
+// ── Server refusals the app knows by name (wave 5, CONTRACT 21 / 22) ─────────
+// Two triggers on `projects` answer a write with a verdict that no retry can
+// change, and neither message contains "violates", so the flush's text
+// classifier used to spend all five retries on them and then drop the write as
+// "the server refused it after several tries":
+//   • enforce_free_tier_project_cap (20260923040000) — a NEW project row past
+//     the free plan's one job: SQLSTATE 23514 (check_violation), message
+//     starting 'Free tier is limited to 1 project'. Only an INSERT (or the
+//     insert half of the owner's upsert) raises; a rename is pinned silently.
+//   • projects_keep_safety_records (20260923170000) — a DELETE of a job with
+//     OSHA-recordable incidents: SQLSTATE 23001 (restrict_violation), message
+//     'project_has_safety_records'. Never keyed on 23503: offlineQueue's
+//     isParentMissingRefusal reads that as "the child's job is not on the
+//     server yet" and queues it.
+// Both are terminal on the first answer. The cap refusal keeps its payload
+// (Retry lands it after an upgrade, or after he deletes a job); the safety
+// refusal is a NOTE — resending the delete is refused again, and a delete line
+// would keep the job hidden on the phone while the server still has it.
+
+export type KnownRefusal = 'free_plan_project_cap' | 'project_has_safety_records';
+
+export const FREE_PLAN_PROJECT_CAP_REASON = 'Free plan allows 1 project — upgrade, or delete a job first';
+export const SAFETY_RECORDS_DELETE_REASON = 'This job has safety records — it was not deleted';
+
+export const KNOWN_REFUSAL_REASON: Record<KnownRefusal, string> = {
+  free_plan_project_cap: FREE_PLAN_PROJECT_CAP_REASON,
+  project_has_safety_records: SAFETY_RECORDS_DELETE_REASON,
+};
+
+/** Pure: which known refusal an error is, from its SQLSTATE and text alone. */
+export function knownRefusalOfError(message: string | null | undefined, code: string | null | undefined): KnownRefusal | null {
+  const m = (message ?? '').trim();
+  if (code === '23514' && /^free tier is limited to 1 project/i.test(m)) return 'free_plan_project_cap';
+  if (code === '23001' && /^project_has_safety_records\b/.test(m)) return 'project_has_safety_records';
+  return null;
+}
+
+/**
+ * Pure: the known refusal of one write, or null. Scoped to the write that can
+ * meet it — a projects insert/upsert for the cap, a projects delete for the
+ * safety rule — so a look-alike message on another table never borrows the
+ * sentence.
+ */
+export function knownRefusalOf(
+  table: string,
+  operation: string,
+  message: string | null | undefined,
+  code: string | null | undefined,
+): KnownRefusal | null {
+  if (table !== 'projects') return null;
+  const known = knownRefusalOfError(message, code);
+  if (known === 'free_plan_project_cap') return operation === 'insert' || operation === 'upsert' ? known : null;
+  if (known === 'project_has_safety_records') return operation === 'delete' ? known : null;
+  return null;
+}
+
+/** The toast for a known refusal (null for any other reason): what happened
+ *  and the one thing he can do about it. */
+export function knownRefusalToast(reason: string | null | undefined): string | null {
+  if (reason === FREE_PLAN_PROJECT_CAP_REASON) {
+    return `${FREE_PLAN_PROJECT_CAP_REASON}. The job is kept under Not saved on the sync badge — Retry once you have upgraded or deleted a job.`;
+  }
+  if (reason === SAFETY_RECORDS_DELETE_REASON) {
+    return `${SAFETY_RECORDS_DELETE_REASON}. Its injury and near-miss records must be kept — mark the job Closed instead.`;
+  }
+  return null;
+}
+
+/** Is this recorded reason one of the known-refusal sentences? */
+export function isKnownRefusalReason(reason: string | null | undefined): boolean {
+  return reason === FREE_PLAN_PROJECT_CAP_REASON || reason === SAFETY_RECORDS_DELETE_REASON;
 }
 
 /**
@@ -512,6 +589,8 @@ const TABLE_LABELS: Record<string, string> = {
   // notification choices, the push token) is one record — its line used to
   // read the raw table name on the sheet and in every "Not sent yet" toast.
   profiles: 'Profile & settings',
+  // Wave 5 (portfolio): the public project page's on/off flag.
+  public_profiles: 'Project page',
 };
 
 export function labelForTable(table: string): string {

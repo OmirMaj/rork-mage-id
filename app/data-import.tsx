@@ -30,6 +30,10 @@ import {
   parseMageExport, partitionNew, IMPORTABLE_COLLECTIONS, DEFERRED_COLLECTIONS,
   type ParsedImport, type ImportableKey,
 } from '@/utils/dataImport';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { capProjectCount, partitionImportForCap } from '@/utils/projectCap';
+import type { Project } from '@/types';
 
 interface PlanRow { key: ImportableKey; label: string; incoming: number; toAdd: number; duplicates: number }
 interface DeferredRow { label: string; count: number }
@@ -43,12 +47,14 @@ export default function DataImportScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const { projects, contacts, subcontractors, importData } = useProjects();
+  const { user } = useAuth();
+  const { canCreateProject } = useTierAccess();
 
   const [busy, setBusy] = useState<boolean>(false);
   const [importing, setImporting] = useState<boolean>(false);
   const [parsed, setParsed] = useState<ParsedImport | null>(null);
   const [fileName, setFileName] = useState<string>('');
-  const [result, setResult] = useState<{ projects: number; contacts: number; subcontractors: number } | null>(null);
+  const [result, setResult] = useState<{ projects: number; contacts: number; subcontractors: number; projectsHeld: number } | null>(null);
 
   const existingIds = useMemo(() => ({
     projects: new Set(projects.map(p => p.id)),
@@ -56,14 +62,30 @@ export default function DataImportScreen() {
     subcontractors: new Set(subcontractors.map(s => s.id)),
   }), [projects, contacts, subcontractors]);
 
+  // THE FREE PLAN'S PROJECT CAP (integration review, wave 5). Every project
+  // in the file is claimed by him on import, so each non-sample one takes a
+  // slot and the server refuses every INSERT past the cap — the screen used
+  // to say they were all imported. Split the NEW ones the way the server
+  // will: the plan's slots in file order are imported, the rest are held
+  // back and said, with the upgrade offered. A paid plan holds nothing back.
+  const projectSplit = useMemo(() => {
+    const incoming = ((parsed?.data.projects as Project[] | undefined) ?? []);
+    const { toAdd } = partitionNew(incoming, existingIds.projects);
+    return partitionImportForCap(toAdd, capProjectCount(projects, user?.id), canCreateProject);
+  }, [parsed, existingIds, projects, user?.id, canCreateProject]);
+  const heldProjects = projectSplit.held.length;
+
   const plan: PlanRow[] = useMemo(() => {
     if (!parsed) return [];
     return IMPORTABLE_COLLECTIONS.map(({ key, label }) => {
       const incoming = ((parsed.data[key] as { id: string }[]) ?? []);
       const { toAdd, duplicates } = partitionNew(incoming, existingIds[key]);
-      return { key, label, incoming: incoming.length, toAdd: toAdd.length, duplicates };
+      // Projects: only what the plan admits is "new" here; the held-back ones
+      // are shown on their own line below, never counted as imported.
+      const adding = key === 'projects' ? projectSplit.admit.length : toAdd.length;
+      return { key, label, incoming: incoming.length, toAdd: adding, duplicates };
     });
-  }, [parsed, existingIds]);
+  }, [parsed, existingIds, projectSplit]);
 
   const deferredFound: DeferredRow[] = useMemo(() => {
     if (!parsed) return [];
@@ -114,7 +136,10 @@ export default function DataImportScreen() {
     if (!parsed || totalToAdd === 0) return;
     showAlert(
       'Import these records?',
-      `${totalToAdd} new record(s) will be added. Nothing already in your account is changed or removed.`,
+      `${totalToAdd} new record(s) will be added. Nothing already in your account is changed or removed.`
+        + (heldProjects > 0
+          ? ` ${heldProjects} project${heldProjects === 1 ? '' : 's'} in the file will be left out — the free plan covers one project of your own.`
+          : ''),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -124,11 +149,13 @@ export default function DataImportScreen() {
               setImporting(true);
               if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               const r = importData({
-                projects: parsed.data.projects ?? [],
+                // Only the projects the plan admits — a held-back one would be
+                // refused by the server and live on this phone alone.
+                projects: projectSplit.admit,
                 contacts: parsed.data.contacts ?? [],
                 subcontractors: parsed.data.subcontractors ?? [],
               });
-              setResult(r);
+              setResult({ ...r, projectsHeld: heldProjects });
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (err) {
               console.error('[DataImport] import failed', err);
@@ -140,7 +167,7 @@ export default function DataImportScreen() {
         },
       ],
     );
-  }, [parsed, totalToAdd, importData]);
+  }, [parsed, totalToAdd, importData, projectSplit, heldProjects]);
 
   const importedTotal = result ? result.projects + result.contacts + result.subcontractors : 0;
 
@@ -187,6 +214,20 @@ export default function DataImportScreen() {
               ))}
             </View>
 
+            {heldProjects > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>HELD BACK BY YOUR PLAN</Text>
+                <View style={styles.hintCard}>
+                  <AlertTriangle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+                  <Text style={styles.hintText}>
+                    {heldProjects} project{heldProjects === 1 ? '' : 's'} in this file won{'\u2019'}t be imported: the free plan covers one project of your own, and a finished job still counts.
+                    {' '}Pro takes the cap off — import the file again after upgrading and they come in (nothing is imported twice).
+                    <Text style={styles.hintLink} onPress={() => router.push('/paywall' as never)} testID="import-see-plans">{'  '}See plans</Text>
+                  </Text>
+                </View>
+              </>
+            )}
+
             {deferredFound.length > 0 && (
               <>
                 <Text style={styles.sectionLabel}>IN THE FILE, NOT IMPORTED YET</Text>
@@ -207,6 +248,11 @@ export default function DataImportScreen() {
                 <Text style={styles.resultDetail}>
                   {result.projects} project(s) · {result.contacts} contact(s) · {result.subcontractors} sub(s)
                 </Text>
+                {result.projectsHeld > 0 && (
+                  <Text style={styles.resultDetail}>
+                    {result.projectsHeld} project{result.projectsHeld === 1 ? ' was' : 's were'} held back — the free plan covers one project of your own.
+                  </Text>
+                )}
                 <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()} activeOpacity={0.85}>
                   <Text style={styles.doneBtnText}>Done</Text>
                   <ArrowRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
@@ -300,6 +346,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: `${t.accent}08`, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 16,
   },
   hintText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
+  hintLink: { color: t.accentLabel, fontWeight: '700' },
 
   importBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

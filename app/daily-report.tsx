@@ -772,6 +772,24 @@ export function dfrNewPortalState(canPublish: boolean): { status: 'draft' } | un
 }
 
 /**
+ * #65 (CONTRACT 18) — the capture-time GPS stamp a DFR photo carries, in the
+ * gallery's shape. Empty when the photo was never stamped (no permission, no
+ * fix in time), so the mirror never writes a guessed location. Exported so the
+ * join validator can check the mapping without mounting the screen.
+ */
+export function dfrPhotoGeo(p: Pick<DFRPhoto, 'latitude' | 'longitude' | 'locationAccuracyMeters' | 'locationLabel'>): {
+  latitude?: number; longitude?: number; locationAccuracyMeters?: number; locationLabel?: string;
+} {
+  if (p.latitude == null || p.longitude == null) return {};
+  return {
+    latitude: p.latitude,
+    longitude: p.longitude,
+    ...(p.locationAccuracyMeters != null ? { locationAccuracyMeters: p.locationAccuracyMeters } : {}),
+    ...(p.locationLabel ? { locationLabel: p.locationLabel } : {}),
+  };
+}
+
+/**
  * #17/#59 — what a field or viewer seat is told about the homeowner. Every
  * branch is what is true for HIS row: a job with no portal says so; a row
  * the GC already shared says so; anything else waits on the GC. Null for a
@@ -2850,6 +2868,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           createdAt: p.timestamp,
           // #59: a field/viewer seat's photos wait for the GC's review too.
           portalState: dfrNewPortalState(publishAccess.allowed),
+          // #65 (CONTRACT 18): carry the capture-time GPS stamp into the
+          // gallery row — photos.latitude/… are synced columns now, so the
+          // map and "where was this taken" survive a reload.
+          ...dfrPhotoGeo(p),
         });
       }
       if (!silent) {
@@ -2895,6 +2917,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           tag: 'Daily Report',
           createdAt: p.timestamp,
           portalState: dfrNewPortalState(publishAccess.allowed),
+          ...dfrPhotoGeo(p),
         });
       }
       if (!silent) {

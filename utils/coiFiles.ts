@@ -27,7 +27,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { resolveProjectFileUrl } from '@/utils/projectFiles';
-import type { COICoverage, Subcontractor } from '@/types';
+import type { COICoverage } from '@/types';
 
 export const SUB_DOCUMENTS_BUCKET = 'sub-documents';
 /** fileUri scheme for an object in the sub-documents bucket (CONTRACT 7a).
@@ -45,13 +45,11 @@ export const COI_PENDING_UPLOADS_KEY = 'mageid_coi_pending_uploads';
 const DEVICE_LOCAL_SCHEME = /^(file|blob|data|content|ph|assets-library):/i;
 
 /**
- * CONTRACT 27 local type extensions — w5-join-core folds these into
- * types/index.ts and deletes the aliases.
- *
- * COICoverageW5: `source` says who wrote the row. 'ai' rows are what the model
- * read off the certificate and show as UNCONFIRMED until the GC confirms them
- * (confirming rewrites the row as 'manual' with `confirmedAt`). A row with no
- * `source` predates this and is shown as it always was.
+ * COICoverage.source (wave 5, folded into types/index.ts by w5-join-core):
+ * 'ai' rows are what the model read off the certificate and show as
+ * UNCONFIRMED until the GC confirms them (confirming rewrites the row as
+ * 'manual' with `confirmedAt`). A row with no `source` predates this and is
+ * shown as it always was.
  *
  * The DATES the model read never go into effectiveDate / expiresAt. Those two
  * fields are what ProjectContext.syncSubCoiExpiry (subCoiExpiryAcross) writes
@@ -62,17 +60,9 @@ const DEVICE_LOCAL_SCHEME = /^(file|blob|data|content|ph|assets-library):/i;
  * shows as "AI read: … — unconfirmed"; Confirm (or picking the date) moves a
  * suggestion into the real field — see confirmAiCoverage / pickCoverageDate.
  */
-export type COICoverageW5 = COICoverage & {
-  source?: 'ai' | 'manual';
-  confirmedAt?: string;
-  /** Model-read effective day (YYYY-MM-DD), unconfirmed. Never counted. */
-  aiEffectiveDate?: string;
-  /** Model-read expiry day (YYYY-MM-DD), unconfirmed. Never counted. */
-  aiExpiresAt?: string;
-};
 
 /** True while any part of the row is still only what the model read. */
-export function hasUnconfirmedAi(c: COICoverageW5): boolean {
+export function hasUnconfirmedAi(c: COICoverage): boolean {
   return c.source === 'ai' || !!c.aiExpiresAt || !!c.aiEffectiveDate;
 }
 
@@ -80,7 +70,7 @@ export function hasUnconfirmedAi(c: COICoverageW5): boolean {
  * The GC checked the row against the certificate: every AI-read day he hasn't
  * already typed moves into the real field, and the row becomes his.
  */
-export function confirmAiCoverage(c: COICoverageW5, now: Date = new Date()): COICoverageW5 {
+export function confirmAiCoverage(c: COICoverage, now: Date = new Date()): COICoverage {
   const { aiEffectiveDate, aiExpiresAt, ...rest } = c;
   return {
     ...rest,
@@ -98,12 +88,12 @@ export function confirmAiCoverage(c: COICoverageW5, now: Date = new Date()): COI
  * the expiry is not a confirmation of the effective date.
  */
 export function pickCoverageDate(
-  c: COICoverageW5,
+  c: COICoverage,
   field: 'effectiveDate' | 'expiresAt',
   day: string,
   now: Date = new Date(),
-): COICoverageW5 {
-  const next: COICoverageW5 = { ...c, [field]: day };
+): COICoverage {
+  const next: COICoverage = { ...c, [field]: day };
   if (field === 'expiresAt') delete next.aiExpiresAt;
   else delete next.aiEffectiveDate;
   if (!next.aiExpiresAt && !next.aiEffectiveDate && next.source === 'ai') {
@@ -112,10 +102,6 @@ export function pickCoverageDate(
   }
   return next;
 }
-
-/** SubcontractorW5: the W-9's storage path in sub-documents (CONTRACT 17,
- *  subcontractors.w9_doc_path). */
-export type SubcontractorW5 = Subcontractor & { w9DocPath?: string };
 
 /** The storage path a vault upload goes to: '<subId>/coi-<coiId>.<ext>'. */
 export function coiStoragePath(subId: string, coiId: string, ext: string): string {

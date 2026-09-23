@@ -22,7 +22,7 @@ import {
   hasActiveClientSubscription as hasActiveClientSub,
   type ClientSubState,
 } from '@/utils/clientPricing';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, dropPendingWrites } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel } from '@/utils/platformFees';
@@ -57,6 +57,11 @@ import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 import { countOwnUnsavedRecords, requestSyncSheet } from '@/utils/syncLedger';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+// Kept by "Reset this device" (see resetThisDevice). The same strings as
+// ProjectContext's USER_ROLE_KEY / ONBOARDING_KEY — validate-w5-settings-reset
+// fails if they drift apart.
+const RESET_KEEPS: ReadonlySet<string> = new Set(['mageid_user_role', 'mageid_onboarding_complete']);
 
 // OPS-F13: what this device is actually running — the JS version, the OTA
 // that is live (its first 8 hex chars, or "embedded" when the bundle shipped
@@ -193,7 +198,7 @@ export default function SettingsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { settings, settingsLoaded, settingsLoadFailed, retryRemoteReads, updateSettings, userRole } = useCoreData();
+  const { settings, settingsLoaded, settingsLoadFailed, retryRemoteReads, reloadLocalMirrors, sourceFailed, updateSettings, userRole } = useCoreData();
   // "How you get paid" shortcut. The answer lives on Company Profile and is
   // asked the first time a document prints it; this row only exists because a
   // GC hunting for "deposit" looks in Settings first. It opens the same ask
@@ -730,9 +735,29 @@ export default function SettingsScreen() {
     // Supabase's own sb-*-auth-token session plus Stripe/RevenueCat/Sentry
     // state (see CLAUDE.md). The sweep includes the offline queues, which is
     // why the dialog counted them first.
+    //
+    // Pending work goes FIRST, through AuthContext's dropPendingWrites — the
+    // same lock-holding clear functions a sign-out uses. The sweep used to
+    // multiRemove the queue keys unlocked: a flush already in flight could
+    // write the queue back after it, and clearPhotoUploadQueue's unlink of
+    // the durable photo copies never ran, leaving orphaned files in
+    // documentDirectory. The sweep then runs with dropOfflineQueue:false so it
+    // never touches a queue key outside its lock.
+    //
+    // RESET_KEEPS: his persona and onboarding-done flag stay. Both queries
+    // re-read the profile after the reset and fall back to these device keys
+    // when that read fails (no signal, a 5xx) — with the keys gone, userRole
+    // became null and the root layout sent a working GC to persona-select and
+    // onboarding. They belong to this same account, so keeping them leaks
+    // nothing; the profile re-read still overwrites them when it lands.
+    if (sourceFailed) {
+      showAlert('Reset needs a connection', 'MAGE can’t reach your account right now, so your jobs couldn’t reload after a reset. Nothing was changed. Try again when you’re back online.');
+      return;
+    }
+    await dropPendingWrites();
     try {
       const allKeys = await AsyncStorage.getAllKeys();
-      const keysToWipe = selectTenantKeysToWipe(allKeys);
+      const keysToWipe = selectTenantKeysToWipe(allKeys, { dropOfflineQueue: false }).filter((k) => !RESET_KEEPS.has(k));
       if (keysToWipe.length > 0) await AsyncStorage.multiRemove(keysToWipe);
     } catch (e) {
       showAlert('Reset didn’t finish', `MAGE couldn’t clear this device’s saved copy (${e instanceof Error ? e.message : 'storage error'}). Nothing on your account was changed. Try again.`);
@@ -746,6 +771,17 @@ export default function SettingsScreen() {
     // settings, role, onboarding) and reloads warranties, so each list is
     // replaced by the server's copy as it lands — the same path as the
     // "couldn't reach MAGE" Retry.
+    // The plan lists (sheets, pins, markups, calibrations, zones, reviews,
+    // permit roadmaps) live in memory, outside react-query, so nothing above
+    // touches them: without this, a sheet whose upload sat in the queue the
+    // sweep just wiped stays on screen and the next plan edit writes it back
+    // to disk — the reset would not clear what it says it clears. This drops
+    // them and re-reads the plans from the server. A failed re-read is not a
+    // failed reset (the device copy is already gone), so it cannot stop the
+    // rest of the reload.
+    try {
+      await reloadLocalMirrors();
+    } catch { /* the lists are emptied first; retryRemoteReads below re-asks the rest */ }
     if (userId) {
       await Promise.all(
         ['projects', 'changeOrders', 'invoices', 'dailyReports', 'punchItems', 'projectPhotos', 'rfis', 'submittals']
@@ -755,25 +791,33 @@ export default function SettingsScreen() {
     retryRemoteReads();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Done', 'This device was reset. Your jobs are reloading from your account.');
-  }, [user?.id, queryClient, retryRemoteReads]);
+  }, [user?.id, queryClient, retryRemoteReads, reloadLocalMirrors, sourceFailed]);
 
   const handleClearAll = useCallback(async () => {
     // Count what the sweep will lose BEFORE asking: the offline queue and the
     // photo upload queue are local keys, so changes and photos that have not
     // reached MAGE yet are gone once he confirms. Read-only helpers, scoped to
     // this session's account.
-    const [queued, photos] = await Promise.all([
+    const [queued, photos, unsaved] = await Promise.all([
       getOwnOfflineQueue().then((q) => q.length).catch(() => 0),
       getOwnPhotoUploadQueue().then((q) => q.length).catch(() => 0),
+      // Wave 4 made the Not-saved list (mageid_sync_failures) the ONLY copy
+      // of a record the server refused, and the reset sweep removes it — so a
+      // reset is a Discard for those. Same sentence sign-out uses, adapted.
+      countOwnUnsavedRecords().catch(() => 0),
     ]);
+    const unsavedLine = unsaved > 0
+      ? `\n\n${countNoun(unsaved, 'record')} under Not saved on the sync badge ${unsaved === 1 ? 'was' : 'were'} refused by the server and ${unsaved === 1 ? 'is' : 'are'} only on this phone. Resetting deletes ${unsaved === 1 ? 'it' : 'them'} — retry or review ${unsaved === 1 ? 'it' : 'them'} first.`
+      : '';
     const pendingLine = queued + photos > 0
       ? `\n\n${[queued > 0 ? countNoun(queued, 'change') : '', photos > 0 ? countNoun(photos, 'photo') : ''].filter(Boolean).join(' and ')} on this phone ${queued + photos === 1 ? "hasn't" : "haven't"} reached MAGE and will be lost. Cancel and let ${queued + photos === 1 ? 'it' : 'them'} sync first if you need ${queued + photos === 1 ? 'it' : 'them'}.`
       : '';
     showAlert(
       'Reset this device?',
-      `Removes MAGE ID’s saved copy from this device. Your jobs stay on your account and reload — nothing on your account, your other devices, your clients’ portals or your team’s access is deleted. Your appearance setting is kept.${pendingLine}`,
+      `Removes MAGE ID’s saved copy from this device. Your jobs stay on your account and reload — nothing on your account, your other devices, your clients’ portals or your team’s access is deleted. Your appearance setting is kept.${unsavedLine}${pendingLine}`,
       [
         { text: 'Cancel', style: 'cancel' },
+        ...(unsaved > 0 ? [{ text: 'Review Not saved', onPress: () => requestSyncSheet() }] : []),
         { text: 'Reset this device', style: 'destructive', onPress: () => { void resetThisDevice(); } },
       ],
     );

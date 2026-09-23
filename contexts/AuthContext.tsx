@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase, onSessionExpired } from '@/lib/supabase';
+import { edgeFunctionError } from '@/utils/edgeError';
 import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { PENDING_DEEPLINK_KEY } from '@/utils/pendingDeepLink';
 import { SIGNUP_INTENT_KEY } from '@/utils/signupIntent';
@@ -22,6 +23,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import type { Session, User } from '@supabase/supabase-js';
 import { showAlert } from '@/utils/alert';
 import { clearPlanSheetUrlCache } from '@/utils/planSheetUrls';
+import { registerForPushNotifications } from '@/utils/notifications';
 import { inviteTokenFromMetadata, markInviteTokenHandled, sanitizeInviteToken, signupMetadata, INVITE_METADATA_FIELD } from '@/utils/deepLinksInvite';
 import { createAuthEventHold, holdAuthEvents, offerAuthEvent, releaseAuthEvents, type AuthEventHold } from '@/utils/authEventHold';
 
@@ -264,7 +266,11 @@ const LOCAL_USER_CACHE_KEYS = [
 // The queues go through their OWN clear functions (A2, review 2026-09-05 round
 // 3 — the lock the flush's write-back also takes). The owner-stamped keys are a
 // plain multiRemove in their own try, so a queue-clear failure cannot skip them.
-async function dropPendingWrites(): Promise<void> {
+// Exported for Settings → "Reset this device" (wave 5 integration): the reset
+// drops pending work too, and must do it under the same locks — an unlocked
+// multiRemove lets an in-flight flush write the queue back, and skips
+// clearPhotoUploadQueue's unlink of the durable photo copies.
+export async function dropPendingWrites(): Promise<void> {
   try {
     await clearOfflineQueue();
     await clearPhotoUploadQueue();
@@ -307,6 +313,48 @@ async function dropPendingWrites(): Promise<void> {
 // The explicit multiRemove of LOCAL_USER_CACHE_KEYS is kept as a FALLBACK for
 // the one failure mode the sweep has: if getAllKeys() throws, the highest-value
 // keys still go. Do NOT add new keys to that list — the sweep already has them.
+/** #44 (wave 5) · Release THIS device's push token from the signed-in
+ *  profile, bounded to 3 s. Never throws. See logout.
+ *
+ *  Fix round 1: profiles holds ONE push_token — whichever device registered
+ *  last. Clearing it unconditionally meant signing out of the web app (which
+ *  has no token) or of a second phone silenced the phone that really holds
+ *  it, and that phone re-registers only on a relaunch or a new sign-in, so
+ *  "client paid" and CO-signed pushes stopped. So: web does nothing, and a
+ *  phone clears the column only while it still holds THIS phone's own token
+ *  (`.eq('push_token', thisToken)`). No token on this phone (permission never
+ *  granted, or it can't be read) → nothing to release. The token read never
+ *  prompts (`prompt: false`) and sits inside the same 3 s bound. */
+const PUSH_RELEASE_TIMEOUT_MS = 3000;
+async function releasePushTokenBeforeSignOut(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const { data } = await supabase.auth.getSession();
+    const uid = data?.session?.user?.id;
+    if (!uid) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const release = async (): Promise<void> => {
+      try {
+        const thisToken = await registerForPushNotifications({ prompt: false });
+        if (!thisToken) return;
+        const { error } = await supabase.from('profiles')
+          .update({ push_token: null, push_token_platform: null, push_token_updated_at: null })
+          .eq('id', uid)
+          .eq('push_token', thisToken);
+        if (error) console.log('[Auth] Releasing the push token failed:', error.message);
+      } catch (err) {
+        console.log('[Auth] Releasing the push token failed:', err);
+      }
+    };
+    await Promise.race([
+      release(),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, PUSH_RELEASE_TIMEOUT_MS); }),
+    ]).finally(() => { if (timer) clearTimeout(timer); });
+  } catch (err) {
+    console.log('[Auth] Releasing the push token failed:', err);
+  }
+}
+
 async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean; keepLastUserMarker?: boolean }): Promise<void> {
   const dropOfflineQueue = opts?.dropOfflineQueue ?? true;
   // The marker lives under the swept prefix; read it first when the caller
@@ -1217,6 +1265,17 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       // own the moment the session below is gone (utils/offlineQueue.ts B1) —
       // it cannot send anything anonymously or under the next user.
       await flushQueuesBeforeSignOut();
+      // #44 (wave 5): release this phone's push token WHILE the session still
+      // lives — only when the profile still holds THIS phone's token (web and
+      // a second device leave the phone that owns it alone). Left on the profile, every push to this account (notify,
+      // morning-digest, bid questions) kept going to the phone after he signed
+      // out — to whoever signs in on it next. Direct, not through the offline
+      // queue: after sign-out the queue has no session to send it with, and
+      // the wipe below empties it. Best-effort and bounded — a failure or an
+      // offline sign-out never holds sign-out up; the token left behind is
+      // cleared server-side when the next account on this phone registers it
+      // (profiles_claim_push_token, 20260923240000).
+      await releasePushTokenBeforeSignOut();
       const { error } = await supabase.auth.signOut();
       if (error) {
         // A FAILED signOut LEAVES THE SESSION ON THE DEVICE. The default scope is
@@ -1443,7 +1502,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     });
     if (error) {
       console.log('[Auth] Magic link edge function error:', error.message);
-      throw new Error(error.message);
+      // CONTRACT 26: the function's own sentence (rate limit, bad address),
+      // not supabase-js's generic "non-2xx status code".
+      throw await edgeFunctionError(error, "Couldn't send the sign-in link. Try again.");
     }
     if (!data?.ok) {
       const msg = data?.error ?? 'Could not send sign-in email. Please try again.';

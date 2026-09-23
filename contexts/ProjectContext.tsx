@@ -16,7 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
 import { useFieldDayPackWarmer } from '@/hooks/useFieldDayPack';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { supabaseWrite, supabaseWriteDetailed, supabaseRpcDetailed, bearerStillLive, getOfflineQueue, getOwnOfflineQueue, addToOfflineQueue, onQueueChanged, onQueueFlushed, onQueueDropped, currentSessionUserId, discardQueuedWrites, type WriteOutcome } from '@/utils/offlineQueue';
+import { supabaseWrite, supabaseWriteDetailed, supabaseRpcDetailed, bearerStillLive, getOfflineQueue, getOwnOfflineQueue, addToOfflineQueue, onQueueChanged, onQueueFlushed, onQueueDropped, onProjectDeleteRefused, currentSessionUserId, discardQueuedWrites, type WriteOutcome } from '@/utils/offlineQueue';
 import { writePortalMessageOrdered, isPortalLockRefusal, portalRefusalCopy } from '@/utils/portalMessageWrite';
 import { mergeInvoiceUpdate, invoiceUpdatePayload, invoiceInsertStillQueued, insertStillQueued, writeBehindQueuedInsert, sharedDraftIssuePatch } from '@/utils/invoiceWrites';
 import { freezeForPortal, MAX_PORTAL_SNAPSHOT_BYTES } from '@/utils/portalFreeze';
@@ -34,7 +34,7 @@ import {
   financialsLoadedFor, keepPendingPinFields, legacyMoneyPresent, mergeLocalOnly, myRoleAfterLoad, pendingIdsByTable, pendingIdsForTable,
   pendingPinIdsInQueue, pinOverlayIds,
   queryKeysForFlushedTables, savedToAiaRow, stripPortalCredentials,
-  subCoiExpiryAcross, vanishedPendingIds,
+  subCoiExpiryAcross, vanishedPendingIds, coiSaveStampsVerified,
   changeOrderTaxColumns, changeOrderTaxFromRow, chunkForAppend, dailyReportColumns, deleteProjectRefusal,
   invoiceBillToColumns, invoiceBillToFromRow, mergeServerKeepingPending, newAuditEntries, portalWriteRefusal,
   portalLiteOutcomeSettles, portalLiteSignature,
@@ -48,6 +48,11 @@ import {
   SUBMITTAL_FIELD_COLUMNS, RFI_GUARDED_COLUMNS, SUBMITTAL_GUARDED_COLUMNS, submittalIntakeColumns, submittalIntakeFromRow, unionServerFirst, PLAN_SYNC_TABLES,
   mintedShareToken, withServerShareToken, classifyCoAuditError, coAuditRefusalIsFinal, submittalCycleQueueHold, closeCycleHoldReason,
   alreadyClosedCycleReason, withMarkedApproved, planSheetsAfterDelete, fieldSeatCreatesDraft,
+  // Wave 5 (w5-join-core)
+  ownerClientPortalForWrite, localOnlyOwnedProjectIds, localOnlyProjectInsertRow, localOnlyProjectLineId, LOCAL_ONLY_PROJECT_REASON, withServerConfirmed,
+  subcontractorExtrasFromRow, subcontractorExtraColumns, photoGeoFromRow, photoGeoColumns, prequalReviewRow,
+  deleteProjectSafetyRefusal, localSafetyIncidentCount, SAFETY_CHECK_OFFLINE_REASON, DELETE_SAFETY_ACTION,
+  type PrequalReviewPatch,
 } from '@/utils/projectContextPure';
 import { rememberServerChangeOrderNumbers } from '@/hooks/useServerChangeOrderNumber';
 
@@ -98,7 +103,7 @@ import {
 } from '@/utils/photoUploadCore';
 import { queuePhotoUpload, countQueuedPhotoUploadsForProject, discardQueuedPhotoUploads } from '@/utils/photoUploadQueue';
 import { deviceCopyForServerRow, type PriorDeviceCopy } from '@/utils/deviceLocalCopy';
-import { unsavedWriteIds, readSyncFailuresOrThrow, ownFailures, onUnsavedDiscarded, onUnsavedRetried, ownUnsavedWrites, noteUnsavedWrites } from '@/utils/syncLedger';
+import { unsavedWriteIds, readSyncFailuresOrThrow, ownFailures, onUnsavedDiscarded, onUnsavedRetried, ownUnsavedWrites, noteUnsavedWrites, recordSyncFailures, labelForWrite, acknowledgeSyncFailures, isRecordRetrying } from '@/utils/syncLedger';
 import { resolvePhotoUrls, deleteProjectPhotoObject } from '@/utils/storage';
 import {
   carryDeviceLocalPlanSheetUris, durablePlanSheetValue, localPlanSheetValue,
@@ -475,6 +480,11 @@ const SUB_PORTAL_LINKS_KEY = 'mageid_sub_portal_links';
 // #7: the project ids the server is known to hold, stamped with the account
 // (utils/projectsLoadGuard ownerUpsertCarriesSchedule has the why).
 const SERVER_PROJECT_IDS_KEY = 'mageid_projects_server_ids';
+// #1 fix round 2: the APPEND-ONLY "ever confirmed on the server" ids, per
+// account (withServerConfirmed). Kept apart from SERVER_PROJECT_IDS_KEY, whose
+// replace-on-load semantics the schedule / create decisions need. Swept with
+// the account (mageid_ prefix).
+const EVER_CONFIRMED_PROJECT_IDS_KEY = 'mageid_projects_ever_confirmed';
 // The device's last-user marker, written by AuthContext (LAST_USER_ID_KEY
 // there; offlineQueue repeats the literal too, for the same reason: neither
 // module exports it). Read-only here.
@@ -736,6 +746,20 @@ type CoreDataValue = {
   /** Re-run every read this provider owns, plus the probe that reported the
    *  failure. What a Retry button on a `sourceFailed` surface calls. */
   retryRemoteReads: () => void;
+  /** CONTRACT 24 (wave 5, #150): the foreground re-read, on demand — the
+   *  projects (unless a project write is still out: then it is owed and runs
+   *  when that write reports), invoices, pay apps, profile, RFIs,
+   *  submittals, punch, change orders, reports, photos, permits, warranties
+   *  and prequal packets, each skipped while this device has that kind of
+   *  write still out. What a pull-to-refresh awaits. */
+  refreshAll: () => Promise<void>;
+  /** Wave 5 (settings #3/#4): after "Reset this device" swept the device
+   *  caches, drop the in-memory plan lists (sheets, pins, markups,
+   *  calibrations, zones, reviews, permit roadmaps) — they are not
+   *  react-query data, so the invalidations do not touch them and the next
+   *  plan edit would have written them straight back — and re-read the plans
+   *  from the server. */
+  reloadLocalMirrors: () => Promise<void>;
   /** #23 round 2: every list a homeowner-portal publish is built from was
    *  read from the SERVER since the latest return to the foreground. A
    *  screen that publishes a portal snapshot itself (project-detail) waits
@@ -755,9 +779,16 @@ type CoreDataValue = {
   /** #4 (wave 4): resolves with how the job's create write ended. */
   addProject: (project: Project) => Promise<WriteOutcome>;
   updateProject: (id: string, updates: Partial<Project>) => void;
-  /** Refused — with the reason — for a project he does not own (#92): the
-   *  server would match 0 rows while the local cascade wiped his copy. */
-  deleteProject: (id: string) => { ok: true } | { ok: false; reason: string };
+  /** Refused — with the reason, BEFORE anything on the phone changes — for a
+   *  project he does not own (#92: the server would match 0 rows while the
+   *  local cascade wiped his copy), and (wave 5 #61, CONTRACT 22) for a job
+   *  with injury / near-miss records on the OSHA 300 log (`action:
+   *  'mark_closed'` — offer Mark closed instead). Pass the job's incident
+   *  count when the caller has it (project-detail reads useSafety()); without
+   *  one the device's incidents and queue are counted, then the server is
+   *  asked, and a job that cannot be checked (offline) is refused with
+   *  SAFETY_CHECK_OFFLINE_REASON. Resolves once the local delete is done. */
+  deleteProject: (id: string, opts?: { safetyIncidentCount?: number }) => Promise<DeleteProjectResult>;
   /** A job he is a TEAMMATE on, off this phone (project-hub's Leave, once the
    *  server confirmed it): the row, its child records and its queued writes —
    *  no server delete, and no "removed from a job" alert for a job he left
@@ -803,6 +834,12 @@ export function worstWriteOutcome(outcomes: RecordWriteOutcome[]): RecordWriteOu
   return 'synced';
 }
 
+/** What deleteProject answers (wave 5, CONTRACT 22). `action: 'mark_closed'`
+ *  = the job keeps safety records: offer Mark closed instead of Delete. */
+export type DeleteProjectResult =
+  | { ok: true }
+  | { ok: false; reason: string; action?: typeof DELETE_SAFETY_ACTION };
+
 type FinancialsDataValue = {
   changeOrders: ChangeOrder[];
   /** True once THIS account's change orders are in `changeOrders` (server
@@ -811,6 +848,10 @@ type FinancialsDataValue = {
    *  wait for this before it mounts an editor that seeds from the record, or
    *  it shows — and can save — a blank form over the real CO. */
   changeOrdersLoaded: boolean;
+  /** Wave 5 (home #151): true once THIS account's invoices read has answered
+   *  (server, or the device copy it falls back to). Before that an empty
+   *  `invoices` means "not loaded yet", not "no invoices". */
+  invoicesLoaded: boolean;
   /** Resolves to where the CO actually landed (see RecordWriteOutcome) — a
    *  "saved" message must say queued or failed when that is what happened.
    *  Local state and the device copy are updated synchronously either way. */
@@ -844,6 +885,13 @@ type FinancialsDataValue = {
   getCommitmentsForProject: (projectId: string) => Commitment[];
   prequalPackets: PrequalPacket[];
   upsertPrequalPacket: (packet: PrequalPacket) => void;
+  /** #24 (wave 5): a REVIEW (approve / needs changes / reject / pipeline step)
+   *  writes only the reviewer's columns — status, reviewer_notes, reviewed_at,
+   *  reviewed_by, expires_at, auto_review_findings, updated_at — and merges
+   *  them into the device copy. Never the whole packet: a copy loaded before
+   *  the sub submitted put his old answers back over the ones he just sent.
+   *  Invite, renewal and create stay on upsertPrequalPacket. */
+  reviewPrequalPacket: (id: string, patch: PrequalReviewPatch) => void;
   deletePrequalPacket: (id: string) => void;
   getPrequalPacketForSub: (subId: string) => PrequalPacket | null;
   getPrequalPacketByToken: (token: string) => PrequalPacket | null;
@@ -1213,6 +1261,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // while the server kept it. Same pattern as punchItemsRef below.
   const projectsRef = useRef<Project[]>([]);
   useEffect(() => { projectsRef.current = projects; }, [projects]);
+  // #1 (wave 5): take jobs that never reached the server off this phone —
+  // the Discard of their Not-saved create. Assigned next to deleteProject
+  // (it needs forgetProjectsLocally, declared far below).
+  const dropLocalOnlyJobsRef = useRef<(ids: ReadonlySet<string>) => void>(() => undefined);
   // A load must not undo a write made while it was out (utils/projectsLoadGuard
   // has the bug). Every local project write takes a sequence number here — in
   // syncProjectToSupabase, which every synced write goes through, and in
@@ -1459,6 +1511,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // else reads "loading" until THEIR rows land, not "loaded" on the last
   // account's. ('' = signed out, which loads the device copy.)
   const [changeOrdersLoadedFor, setChangeOrdersLoadedFor] = useState<string | null>(null);
+  // Wave 5 (home #151): the same stamp for the invoices list.
+  const [invoicesLoadedFor, setInvoicesLoadedFor] = useState<string | null>(null);
   const [dailyReportsLoadedFor, setDailyReportsLoadedFor] = useState<string | null>(null);
   const [leadsLoadedFor, setLeadsLoadedFor] = useState<string | null>(null);
   const [photosLoadedFor, setPhotosLoadedFor] = useState<string | null>(null);
@@ -1580,6 +1634,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const serverProjectIdsRef = useRef<Set<string>>(new Set());
   // #7: serverProjectIdsRef has taken in the persisted copy for this account.
   const serverIdsSeededRef = useRef(false);
+  // #1 fix round 2: ids the server has EVER confirmed for this account — only
+  // grows (withServerConfirmed); feeds the local-only rule, never the
+  // schedule / create decisions above.
+  const everConfirmedProjectIdsRef = useRef<Set<string>>(new Set());
+  const everConfirmedSeededRef = useRef(false);
 
   // #6 — CROSS-TENANT. Every ref above describes ONE account's projects, and
   // this provider stays mounted across a sign-out (logout wipes storage and
@@ -1736,6 +1795,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       serverScheduleTasksRef.current = new Map();
       serverProjectIdsRef.current = new Set();
       serverIdsSeededRef.current = false;
+      everConfirmedProjectIdsRef.current = new Set();
+      everConfirmedSeededRef.current = false;
       // The previous account's debounced syncs must not fire under the next
       // session: their rows carry A's user_id and A's data, and a queued one
       // would flush as B. The session they belonged to is already gone. One
@@ -1796,6 +1857,32 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     serverIdsSeededRef.current = true;
   }, [userId]);
   useEffect(() => { if (canSync) void seedServerProjectIds(); }, [canSync, seedServerProjectIds]);
+  // #1 fix round 2: the append-only confirmed set, read once per account.
+  // false = unread (storage refused / account changed): the loader then
+  // records no local-only line, and nothing persists over the stored copy.
+  const seedEverConfirmedProjectIds = useCallback(async (): Promise<boolean> => {
+    if (everConfirmedSeededRef.current) return true;
+    if (!userId) return false;
+    let raw: string | null = null;
+    try { raw = await AsyncStorage.getItem(EVER_CONFIRMED_PROJECT_IDS_KEY); } catch { return false; }
+    if (liveUserIdRef.current !== userId) return false;
+    if (everConfirmedSeededRef.current) return true;
+    // Union, never replace: ids added in memory before the read are kept.
+    everConfirmedProjectIdsRef.current = withServerConfirmed(everConfirmedProjectIdsRef.current, parseServerConfirmedIds(raw, userId));
+    everConfirmedSeededRef.current = true;
+    return true;
+  }, [userId]);
+  useEffect(() => { if (canSync) void seedEverConfirmedProjectIds(); }, [canSync, seedEverConfirmedProjectIds]);
+  const persistEverConfirmedProjectIds = useCallback(async (): Promise<void> => {
+    // Only after the stored copy was read in: before that, the in-memory set
+    // is a subset and would overwrite history.
+    if (!userId || !everConfirmedSeededRef.current || liveUserIdRef.current !== userId) return;
+    try {
+      await AsyncStorage.setItem(EVER_CONFIRMED_PROJECT_IDS_KEY, serializeServerConfirmedIds(userId, everConfirmedProjectIdsRef.current));
+    } catch (err) {
+      console.log('[ProjectContext] Saving ever-confirmed project ids failed:', err);
+    }
+  }, [userId]);
   const persistServerProjectIds = useCallback(async (): Promise<void> => {
     if (!userId || !serverIdsSeededRef.current || liveUserIdRef.current !== userId) return;
     try {
@@ -2037,6 +2124,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // (server-synced) location, so a carried confirm cannot outlive
               // an address change made on another device — it reads stale.
               structuredAddress: cached?.structuredAddress,
+              // Wave 5 (portfolio): the public project page's headline, story,
+              // testimonial, slug and switch are device-kept the same way
+              // (projects has no column for them; the page's on/off truth is
+              // public_profiles, read on open). Without this every successful
+              // fetch wiped what he typed.
+              publicProfile: cached?.publicProfile,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               estimate: (pick('estimate', r.estimate, cached?.estimate) ?? null) as Project['estimate'],
               schedule: r.schedule as Project['schedule'],
@@ -2130,9 +2223,110 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               for (const p of [...projectsRef.current, ...localForMerge]) if (revoked.has(p.id) && !names.has(p.id)) names.set(p.id, p.name ?? '');
               revokedCleanupOwedRef.current = { userId, names };
             }
+            // #1 (wave 5, CONTRACT 21): his jobs that exist only on this phone —
+            // never confirmed on the server, nothing queued, on the wire or
+            // under Not saved — were merged back in above and then nothing
+            // ever sent them (the creates the old free-plan cap refused, or a
+            // flush dropped before the ledger existed): no badge, no Retry.
+            // Each becomes a Not-saved line with its INSERT (Retry / Discard);
+            // never resent on its own. A job that WAS on the server and is
+            // gone now (deleted on the web or a second phone) is never offered
+            // for re-creation, on this load or any later one (fix round 2):
+            // `confirmedBefore` is the APPEND-ONLY ever-confirmed set plus the
+            // replace-on-load set as it stood before this read — the latter
+            // alone forgot the job one load later, while the loader kept his
+            // copy — and the selector also skips a device copy carrying the
+            // loader's stamp (read from the server at some load). If the
+            // append-only set could not be read, nothing is recorded.
+            await seedServerProjectIds();
+            const everSeeded = await seedEverConfirmedProjectIds();
+            if (liveUserIdRef.current !== userId) throw new StaleAccountLoadError();
+            const confirmedBefore = withServerConfirmed(everConfirmedProjectIdsRef.current, serverProjectIdsRef.current);
+            if (userId) {
+              // Fix round 1: the exclusions are rebuilt NOW, after the SELECT
+              // answered — not taken from pendingAtStart / unsavedProjects,
+              // which were captured before it went out. A job created,
+              // queued, put on the wire or refused (failDirectWrite's own
+              // line) while the SELECT was out is absent from the answer only
+              // because the read predates it; a local-only line for it would
+              // park its own queued create behind itself (parkBehindUnsaved-
+              // Write keys on table + recordId) and lay a stale insert row
+              // over the server's. Queue first, then the ledger, as every
+              // loader reads them. Either read refused → record nothing this
+              // load (the job stays on the phone; the next load asks again).
+              let recordNow: { pending: Set<string>; unsaved: Set<string>; lineIds: Set<string> } | null = null;
+              try {
+                const pendingNow = unconfirmedProjectSyncIds(syncDebounceMap.current, inFlightProjectSyncsRef.current);
+                for (const id of pendingAtStart) pendingNow.add(id);
+                for (const id of await ownQueuedProjectIds(userId)) pendingNow.add(id);
+                const queuedNow = await queuedIdsFor('projects');
+                const ownNow = ownFailures(await readSyncFailuresOrThrow(), userId);
+                const pinsNow = unsavedProjectPinsIn(ownNow, queuedNow);
+                const unsavedNow = new Set([...unsavedProjects, ...pinsNow.whole, ...pinsNow.moneyOnly, ...pinsNow.deleted]);
+                // Any own line naming the job (an rpc-only projects line too).
+                for (const f of ownNow) if ((f.table === 'projects' || f.table === 'project_financials') && f.recordId) unsavedNow.add(f.recordId);
+                recordNow = { pending: pendingNow, unsaved: unsavedNow, lineIds: new Set(ownNow.map((f) => f.id)) };
+              } catch (err) {
+                console.log('[ProjectContext] Re-reading the queue / Not saved before recording local-only jobs failed:', err);
+              }
+              if (liveUserIdRef.current !== userId) throw new StaleAccountLoadError();
+              // Self-heal: a local-only line whose job the server DID return
+              // (its create landed after all — e.g. a line an older build
+              // recorded while that create was on the wire) is stale. It only
+              // parks the job's edits and lays an old insert row over the
+              // server's, so it is cleared. Acknowledged, not discarded: the
+              // Discard listener removes the job from the phone, and the job
+              // is safely on the server. Only the local-only line itself goes;
+              // any edit parked behind it stays under Not saved with Retry.
+              if (recordNow) {
+                const stale = [...remoteIds].filter((pid) => !isRecordRetrying('projects', pid)).map(localOnlyProjectLineId).filter((lid) => recordNow!.lineIds.has(lid));
+                if (stale.length > 0) {
+                  await acknowledgeSyncFailures(stale);
+                  console.log('[ProjectContext] Cleared local-only lines for jobs the server now has:', stale.length);
+                }
+              }
+              const writtenDuringLoad = new Set<string>();
+              for (const [id, seq] of projectWriteLogRef.current.byId) if (seq > writeSeqAtStart) writtenDuringLoad.add(id);
+              const localOnly = recordNow && everSeeded ? localOnlyOwnedProjectIds({
+                local: merged, remoteIds, userId, confirmedBefore,
+                pending: recordNow.pending, unsaved: recordNow.unsaved, revoked,
+                written: writtenDuringLoad,
+              }) : [];
+              if (localOnly.length > 0) {
+                const byId = new Map(merged.map((p) => [p.id, p] as const));
+                const at = Date.now();
+                try {
+                  await recordSyncFailures(localOnly.map((pid) => {
+                    const p = byId.get(pid)!;
+                    const madeAt = Date.parse(p.createdAt);
+                    return {
+                      id: localOnlyProjectLineId(pid),
+                      kind: 'write' as const,
+                      label: labelForWrite('projects'),
+                      reason: LOCAL_ONLY_PROJECT_REASON,
+                      at,
+                      userId,
+                      table: 'projects',
+                      recordId: pid,
+                      operation: 'insert' as const,
+                      row: localOnlyProjectInsertRow(p, userId),
+                      queuedAt: Number.isFinite(madeAt) ? madeAt : at,
+                    };
+                  }));
+                  console.log('[ProjectContext] Jobs only on this phone, now under Not saved:', localOnly.length);
+                } catch (err) {
+                  console.log('[ProjectContext] Recording local-only jobs under Not saved failed:', err);
+                }
+              }
+            }
+            // Fix round 2: the append-only set takes in the old confirmed set
+            // and this answer BEFORE the replace-on-load set forgets anything.
+            everConfirmedProjectIdsRef.current = withServerConfirmed(
+              withServerConfirmed(everConfirmedProjectIdsRef.current, serverProjectIdsRef.current), remoteIds);
             serverProjectIdsRef.current = new Set(remoteIds);
             serverIdsSeededRef.current = true;
             void persistServerProjectIds();
+            void persistEverConfirmedProjectIds();
             // #96: the base advances only where the device copy took the
             // server's tasks. For a row kept whole it stays behind, or the
             // next realtime echo would read the server's unseen value (the
@@ -2663,8 +2857,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               expiresAt: (r.expires_at as string | null) ?? undefined,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
             })) as PrequalPacket[];
-            await saveOwnedLocal(userId, PREQUAL_KEY, mapped);
-            return mapped;
+            // #24 (wave 5): the packets now join the foreground re-read, so a
+            // review made offline (queued) or refused (under Not saved) keeps
+            // the device row until it lands — the SELECT still holds the old
+            // status — and a queued delete stays gone.
+            const prior = await loadLocal<PrequalPacket[]>(PREQUAL_KEY, []);
+            const merged = mergeLocalOnly(mapped, prior,
+              new Set([...await queuedIdsFor('prequal_packets'), ...await unsavedWriteIds('prequal_packets')]),
+              { deletedIds: await queuedDeletesFor('prequal_packets') });
+            await saveOwnedLocal(userId, PREQUAL_KEY, merged);
+            return merged;
           }
         } catch (err) { if (err instanceof StaleAccountLoadError) throw err; /* fallback */ }
       }
@@ -3174,6 +3376,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               w9OnFile: (r.w9_on_file as boolean) ?? false, bidHistory: (r.bid_history as Subcontractor['bidHistory']) ?? [],
               assignedProjects: (r.assigned_projects as string[]) ?? [], notes: (r.notes as string) ?? '',
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // #27 (wave 5, CONTRACT 17): legal name, TIN last-4, the two
+              // verification stamps and the W-9 path — saved on the phone and
+              // lost at the next read until these were mapped.
+              ...subcontractorExtrasFromRow(r),
             })) as Subcontractor[];
             await saveOwnedLocal(userId, SUBS_KEY, mapped);
             return mapped;
@@ -3343,6 +3549,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               // Who took it (photos.user_id), for #17's "another member's shared
               // photo arrived" — read-only, never written back.
               userId: (r.user_id as string | null) ?? undefined,
+              // #65 (wave 5, CONTRACT 18): where it was taken — stamped at
+              // capture, and until now never written or read back.
+              ...photoGeoFromRow(r),
               };
             }) as ProjectPhoto[];
             // SYNC-F3: keep offline-created rows whose write is still queued — the
@@ -3817,7 +4026,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setChangeOrders(changeOrdersQuery.data);
     setChangeOrdersLoadedFor(userId ?? '');
   }, [changeOrdersQuery.data, userId]);
-  useEffect(() => { if (invoicesQuery.data) setInvoices(invoicesQuery.data); }, [invoicesQuery.data]);
+  useEffect(() => {
+    if (!invoicesQuery.data) return;
+    setInvoices(invoicesQuery.data);
+    setInvoicesLoadedFor(userId ?? '');
+  }, [invoicesQuery.data, userId]);
   useEffect(() => { if (commitmentsQuery.data) setCommitments(commitmentsQuery.data); }, [commitmentsQuery.data]);
   useEffect(() => { if (prequalQuery.data) setPrequalPackets(prequalQuery.data); }, [prequalQuery.data]);
   useEffect(() => {
@@ -3833,6 +4046,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // typed or "saved" in between was thrown away. A null userId only means
   // "signed out" once auth has said so.
   const changeOrdersLoaded = !authLoading && changeOrdersLoadedFor === (userId ?? '');
+  const invoicesLoaded = !authLoading && invoicesLoadedFor === (userId ?? '');
   const dailyReportsLoaded = !authLoading && dailyReportsLoadedFor === (userId ?? '');
   useEffect(() => { if (fieldTicketsQuery.data) setFieldTickets(fieldTicketsQuery.data); }, [fieldTicketsQuery.data]);
   useEffect(() => { if (delayEventsQuery.data) setDelayEvents(delayEventsQuery.data); }, [delayEventsQuery.data]);
@@ -4224,7 +4438,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // next launch would revert them locally.
             : await supabaseWrite('projects', 'upsert', {
                 ...base, user_id: userId, created_at: project.createdAt,
-                client_portal: project.clientPortal as unknown,
+                // #82 (wave 5, CONTRACT 13): never the homeowner portal key —
+                // it lives in portal_credentials, and portal_set_access_token
+                // keeps the stored key for this portal id (20260923170000).
+                client_portal: ownerClientPortalForWrite(project.clientPortal) as unknown,
                 estimate: project.estimate as unknown,
                 linked_estimate: project.linkedEstimate as unknown,
                 estimate_versions: project.estimateVersions as unknown,
@@ -4269,6 +4486,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               created_at: project.createdAt, updated_at: project.updatedAt,
             });
           }
+          // #1 fix round 2: a landed create is "ever confirmed" for good — a
+          // job made here, synced, then deleted on the web before this phone
+          // next loads carries no loader stamp, and must still never read as
+          // "only on this phone". (After the money write, which
+          // validate-project-financials-split wants next to the upsert.)
+          if (landed && !shared && liveUserIdRef.current === userId && !everConfirmedProjectIdsRef.current.has(project.id)) {
+            everConfirmedProjectIdsRef.current.add(project.id);
+            void persistEverConfirmedProjectIds();
+          }
         }
       } finally {
         if (syncDebounceMap.current.get(project.id) === entry) syncDebounceMap.current.delete(project.id);
@@ -4298,7 +4524,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     } else {
       entry.timer = setTimeout(run, 800);
     }
-  }, [canSync, userId, userEmail, seedServerProjectIds, persistServerProjectIds, settleOwedProjectsReload]);
+  }, [canSync, userId, userEmail, seedServerProjectIds, persistServerProjectIds, persistEverConfirmedProjectIds, settleOwedProjectsReload]);
 
   // SYNC-F7: run every debounced project sync NOW. The root layout calls this
   // from its AppState handler on background/inactive (and `pagehide` on web):
@@ -4472,6 +4698,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       // status + sub_note change; the GC sees Ready for Review on return
       // instead of after a pull-to-refresh. Queued edits keep the device row.
       queryClient.invalidateQueries({ queryKey: ['punchItems', userId] }),
+      // #24 (wave 5): a sub submits his prequal packet from the magic link
+      // while the phone is in a pocket; the GC reviewed the copy loaded at
+      // launch. The loader keeps the device row of a packet with a review
+      // write still queued or under Not saved.
+      queryClient.invalidateQueries({ queryKey: ['prequalPackets', userId] }),
     ]);
   }, [queryClient, userId]);
   // #23 round 2 (data-session critic) · the rest of the portal-fed lists.
@@ -4521,6 +4752,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     })));
   }, [userId, refetchProjectsOnForeground, refetchMoneyAndProfileOnForeground, refetchProDocsOnForeground, refetchPortalListsOnForeground]);
   useProjectsFocusRefetch(canSync, refetchAllOnForeground);
+  // CONTRACT 24 (wave 5, #150): the same pass, on demand (pull-to-refresh).
+  const refreshAll = refetchAllOnForeground;
+
+  // #61 (wave 5, CONTRACT 22) · The server refused a projects DELETE: the job
+  // has safety records. It left this phone when the delete was made (and its
+  // lists with it); the server still holds all of it. Re-read everything —
+  // the projects read waits for the delete's own write to report if it is
+  // still out (refetchProjectsOnForeground owes it), and the child lists the
+  // foreground pass does not cover are re-read too. Plan data kept only on
+  // this phone does not come back; the delete screen's check (deleteProject)
+  // is what keeps a refused delete from getting this far.
+  useEffect(() => onProjectDeleteRefused((projectId) => {
+    if (!userId) return;
+    console.log('[ProjectContext] The server kept a job with safety records — re-reading it:', projectId);
+    void refetchAllOnForeground().catch(() => {});
+    for (const key of ['commitments', 'fieldTickets', 'delayEvents', 'deliveries', 'deliveryReceipts', 'buildingAccess', 'accessReservations', 'cois', 'commEvents', 'subPortalLinks', 'bid_packages', 'bid_package_bids', 'oac_meetings']) {
+      void queryClient.invalidateQueries({ queryKey: [key, userId] });
+    }
+    void refetchPlansRef.current().catch(() => {});
+  }), [userId, queryClient, refetchAllOnForeground]);
 
   // SYNC-F3: after the offline queue drains, re-pull the collections it wrote
   // so an offline-created record is replaced by its server copy and anything
@@ -5316,6 +5567,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const tables = new Set<string>();
     const coDrops = coAuditDropsForDiscard(discarded);
     for (const f of discarded) if (f.table) tables.add(f.table);
+    // #1 (wave 5): a discarded CREATE of a job the server never confirmed
+    // (a refused create, or a job that was only on this phone) — "the phone
+    // goes back to MAGE's copy", and MAGE has none. The projects loader keeps
+    // every local-only job, so without this the job stayed, and the next load
+    // wrote its line again. Only once the confirmed set is known: an edit
+    // line of a job that IS on the server never removes it.
+    if (serverIdsSeededRef.current) {
+      const gone = new Set<string>();
+      for (const f of discarded) {
+        if (f.table !== 'projects' || !f.recordId || (f.operation !== 'insert' && f.operation !== 'upsert')) continue;
+        if (f.userId && f.userId !== liveUserIdRef.current) continue;
+        if (!serverProjectIdsRef.current.has(f.recordId)) gone.add(f.recordId);
+      }
+      if (gone.size > 0) dropLocalOnlyJobsRef.current(gone);
+    }
     if (coDrops.size > 0) {
       void (async () => {
         await coAuditLoadRef.current;
@@ -6044,6 +6310,27 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }
   }, [prequalPackets, savePrequalMutation, canSync, userId, prequalToRow]);
 
+  // #24 (wave 5) · A review writes only the reviewer's columns and merges
+  // them into the device copy (see the type). The sub's answers on the row
+  // are never sent from here, so a copy loaded before he submitted cannot
+  // put his old answers back.
+  const reviewPrequalPacket = useCallback((id: string, patch: PrequalReviewPatch) => {
+    const now = new Date().toISOString();
+    const merged: PrequalReviewPatch = { ...patch, updatedAt: patch.updatedAt ?? now };
+    let found = false;
+    const updated = prequalPackets.map(p => {
+      if (p.id !== id) return p;
+      found = true;
+      return { ...p, ...merged };
+    });
+    if (!found) return;
+    setPrequalPackets(updated);
+    savePrequalMutation.mutate(updated);
+    if (canSync && userId) {
+      void supabaseWrite('prequal_packets', 'update', prequalReviewRow(id, merged, now));
+    }
+  }, [prequalPackets, savePrequalMutation, canSync, userId]);
+
   const deletePrequalPacket = useCallback((id: string) => {
     const updated = prequalPackets.filter(p => p.id !== id);
     setPrequalPackets(updated);
@@ -6312,7 +6599,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setFieldTickets(updated);
     saveFieldTicketsMutation.mutate(updated);
     const next = updated.find(t => t.id === id);
-    if (canSync && next) void touchedWrite(proDocWriteTouchRef, id, () => supabaseWrite('field_tickets', 'update', fieldTicketRow(next)));
+    // #85 (wave 5): an UPDATE never carries user_id — the row's owner is the
+    // server's (aa_collab_freeze_ownership pins it for anyone else anyway),
+    // and a collaborator's edit must not claim the ticket.
+    if (canSync && next) {
+      const { user_id: _owner, ...updateRow } = fieldTicketRow(next);
+      void touchedWrite(proDocWriteTouchRef, id, () => supabaseWrite('field_tickets', 'update', updateRow));
+    }
     return true;
   }, [fieldTickets, saveFieldTicketsMutation, canSync, stageTicketPhotos, fieldTicketRow]);
 
@@ -7499,6 +7792,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         license_number: sub.licenseNumber, license_expiry: sub.licenseExpiry, coi_expiry: sub.coiExpiry,
         w9_on_file: sub.w9OnFile, bid_history: sub.bidHistory, assigned_projects: sub.assignedProjects,
         notes: sub.notes, created_at: sub.createdAt, updated_at: sub.updatedAt,
+        // CONTRACT 17: only the ones this copy holds a value for.
+        ...subcontractorExtraColumns(sub),
       });
     }
   }, [subcontractors, saveSubsMutation, canSync, userId]);
@@ -7528,6 +7823,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           address: s.address, trade: s.trade, license_number: s.licenseNumber, license_expiry: s.licenseExpiry,
           coi_expiry: s.coiExpiry, w9_on_file: s.w9OnFile, bid_history: s.bidHistory,
           assigned_projects: s.assignedProjects, notes: s.notes, updated_at: now,
+          // CONTRACT 17: only the ones this copy holds a value for, so a copy
+          // that never loaded a stamp cannot null one set on another device.
+          ...subcontractorExtraColumns(s),
         });
       }
     }
@@ -7750,6 +8048,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // several photos. `prev` composes the batched adds correctly.
     setProjectPhotos(prev => {
       const updated = [finalPhoto, ...prev];
+      // Keep the live ref current too, so an updateProjectPhoto in the same
+      // tick (before the commit effect runs) finds this photo.
+      projectPhotosRef.current = updated;
       savePhotosMutation.mutate(updated);
       return updated;
     });
@@ -7763,6 +8064,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         linked_task_id: finalPhoto.linkedTaskId, linked_task_name: finalPhoto.linkedTaskName,
         markup: finalPhoto.markup, created_at: finalPhoto.createdAt,
         portal_state: finalPhoto.portalState,
+        // #65 (CONTRACT 18): the capture's geo stamp, when it has one.
+        ...photoGeoColumns(finalPhoto),
       }));
     }
   }, [savePhotosMutation, canSync, userId, initialPortalState]);
@@ -7779,8 +8082,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       // same image. DFR photos are mirrored into the gallery under the same id,
       // so they share one object; removing it here would blank a photo out of a
       // filed report, which is a document we must not alter after the fact.
+      // …or a punch item: an item raised from a gallery photo (web, or photo
+      // triage) carries that photo's storage path (stagePunchPhoto #12), so
+      // deleting the gallery copy must not take the punch photo's bytes
+      // (photo-ai, wave 5).
       const stillReferenced = doomed?.storagePath
         ? dailyReports.some(dr => (dr.photos ?? []).some(p => p.storagePath === doomed.storagePath))
+          || punchItemsRef.current.some(pi => pi.photoStoragePath === doomed.storagePath)
         : true;
       if (doomed?.storagePath && !stillReferenced) void deleteProjectPhotoObject(doomed.storagePath);
     }
@@ -7790,7 +8098,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // gallery to retag, and by clients downstream that want to update a
   // caption / location without re-uploading the image.
   const updateProjectPhoto = useCallback((id: string, updates: Partial<ProjectPhoto>) => {
-    const existing = projectPhotos.find(p => p.id === id);
+    // Read the LIVE list (ref), never the closure's `projectPhotos`: a late
+    // caller — project-detail's GPS stamp lands 1-4.5 s after the capture, via
+    // the updateProjectPhoto it captured when the tap started — holds a copy
+    // from before its own photo was added, and mapping that copy dropped the
+    // new photo from the gallery and the device cache (#65 late stamp).
+    const existing = projectPhotosRef.current.find(p => p.id === id);
     // A caller replacing the image (e.g. a re-shot photo) hands us a fresh
     // local URI. Stage its bytes and reserve a path here too, or this write
     // would re-introduce a `file://` through the side door.
@@ -7804,9 +8117,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       ...(nextStoragePath ? { storagePath: nextStoragePath } : {}),
       ...(updates.uri !== undefined && isDeviceLocalUri(updates.uri) ? { localUri: updates.uri } : {}),
     };
-    const updated = projectPhotos.map(p => p.id === id ? { ...p, ...patched } : p);
-    setProjectPhotos(updated);
-    savePhotosMutation.mutate(updated);
+    // Functional updater, like addProjectPhoto: `prev` is the committed list
+    // including adds React hasn't rendered yet.
+    setProjectPhotos(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, ...patched } : p);
+      projectPhotosRef.current = updated;
+      savePhotosMutation.mutate(updated);
+      return updated;
+    });
     if (canSync) {
       const patch: Record<string, unknown> = { id };
       if (updates.uri !== undefined) patch.uri = durablePhotoValue(nextStoragePath, updates.uri);
@@ -7815,9 +8133,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (updates.linkedTaskId !== undefined) patch.linked_task_id = updates.linkedTaskId;
       if (updates.linkedTaskName !== undefined) patch.linked_task_name = updates.linkedTaskName;
       if (updates.markup !== undefined) patch.markup = updates.markup;
-      void touchedWrite(proDocWriteTouchRef, id, () => supabaseWrite('photos', 'update', patch));
+      // #65 (CONTRACT 18): a late geo stamp (the fix arrived after the photo
+      // was saved) — only the fields the caller passed.
+      Object.assign(patch, photoGeoColumns(updates));
+      // An update that changes no column would send `{ id }` alone — nothing
+      // to write, and a PATCH with an empty body is not a thing to queue.
+      if (Object.keys(patch).length > 1) {
+        void touchedWrite(proDocWriteTouchRef, id, () => supabaseWrite('photos', 'update', patch));
+      }
     }
-  }, [projectPhotos, savePhotosMutation, canSync, userId]);
+  }, [savePhotosMutation, canSync, userId]);
 
   const getPhotosForProject = useCallback((projectId: string) => projectPhotos.filter(p => p.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [projectPhotos]);
 
@@ -8684,6 +9009,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // being edited regressed the sub to an older certificate. `verified` stamps
   // coiVerifiedAt (a cert was uploaded or edited, so it was looked at); a
   // delete only moves the date. No usable date anywhere → nothing changes.
+  // coi-subs (wave 5): `verified` stamps only when the saved certificate has
+  // no coverage that is still an unconfirmed AI read (coiSaveStampsVerified)
+  // — the date still moves, since it reads expiresAt only.
   const syncSubCoiExpiry = useCallback((subcontractorId: string | undefined, all: CertificateOfInsurance[], verified: boolean) => {
     if (!subcontractorId) return;
     const latest = subCoiExpiryAcross(all.filter(c => c.subcontractorId === subcontractorId));
@@ -8699,7 +9027,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setCois(updated);
     saveCOIsMutation.mutate(updated);
     if (canSync) void supabaseWrite('cois', 'insert', coiToRow(coi));
-    syncSubCoiExpiry(coi.subcontractorId, updated, true);
+    syncSubCoiExpiry(coi.subcontractorId, updated, coiSaveStampsVerified(coi));
   }, [cois, saveCOIsMutation, canSync, coiToRow, syncSubCoiExpiry]);
 
   const updateCOI = useCallback((id: string, patch: Partial<CertificateOfInsurance>) => {
@@ -8712,7 +9040,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       void supabaseWrite('cois', 'update', coiToRow(merged));
     }
     if (merged) {
-      syncSubCoiExpiry(merged.subcontractorId, updated, true);
+      syncSubCoiExpiry(merged.subcontractorId, updated, coiSaveStampsVerified(merged));
       // Re-filed under another sub: the previous sub loses this cert too.
       if (prior && prior.subcontractorId !== merged.subcontractorId) syncSubCoiExpiry(prior.subcontractorId, updated, false);
     }
@@ -8877,9 +9205,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // hoisting the helper is cheaper than relocating the two portal callbacks.
 
   const computeWarrantyStatus = useCallback((w: Warranty): Warranty['status'] => {
-    // Delegate to the single shared implementation in utils/workflowPipelines.
-    // 'unknown' is not in WarrantyStatus because endDate is a required field;
-    // the cast is safe — NaN endDate cannot occur on a fully-constructed Warranty.
+    // Delegate to the single shared implementation in utils/workflowPipelines
+    // — the same local-calendar-day and open-claim rules the warranty chips
+    // use (#135 / #144), so a tile and a chip cannot disagree.
+    // NOTE (wave 5, corrected): 'unknown' is NOT impossible. A server row with
+    // a null end_date maps to endDate '' and derives 'unknown' ("No end
+    // date"), which WarrantyStatus does not list. It is stored as-is: no
+    // counter matches it (none claims such a warranty is active or expiring),
+    // and app/warranties.tsx re-derives its own display status, 'unknown'
+    // included, rather than trusting this field.
     return warrantyStatus(w, Date.now()).key as Warranty['status'];
   }, []);
 
@@ -8953,12 +9287,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const addWarrantyClaim = useCallback((warrantyId: string, claim: Omit<WarrantyClaim, 'id'>) => {
     const id = `claim-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const newClaim: WarrantyClaim = { id, ...claim };
-    const next = warranties.map(w => w.id === warrantyId ? { ...w, claims: [newClaim, ...(w.claims ?? [])], updatedAt: new Date().toISOString() } : w);
+    // closeout (wave 5): the stored status follows the claim — an open claim
+    // is 'claimed' (#144) — so the list, the tiles and the packet agree
+    // without waiting for the next edit to recompute it.
+    const next = warranties.map(w => {
+      if (w.id !== warrantyId) return w;
+      const withClaim: Warranty = { ...w, claims: [newClaim, ...(w.claims ?? [])], updatedAt: new Date().toISOString() };
+      return { ...withClaim, status: computeWarrantyStatus(withClaim) };
+    });
     persistWarranties(next);
     // Mirror the claim to Supabase so the warranty's claims jsonb stays in sync.
     const after = next.find(w => w.id === warrantyId);
     if (canSync && userId && after) void touchedWrite(proDocWriteTouchRef, after.id, () => supabaseWrite('warranties', 'update', warrantyToRow(after)));
-  }, [warranties, persistWarranties, canSync, userId, warrantyToRow]);
+  }, [warranties, persistWarranties, computeWarrantyStatus, canSync, userId, warrantyToRow]);
 
   // Portal messages — client ↔ GC Q&A thread, local-only storage.
   const [portalMessages, setPortalMessages] = useState<PortalMessage[]>([]);
@@ -9288,6 +9629,29 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, [canSync, userId, pullPlansFromServer]);
 
   useEffect(() => { void hydratePlansFromServer(); }, [hydratePlansFromServer]);
+
+  // Wave 5 (settings #3/#4) · After "Reset this device" swept the caches: the
+  // plan lists live in memory, outside react-query, so the reset's
+  // invalidations never touched them — and a re-read UNIONS device rows the
+  // server did not return (unionServerFirst), so a sheet whose upload sat in
+  // the wiped queue stayed on screen and the next plan edit wrote it back to
+  // disk. Empty them, re-read the (now empty) device copies of the local-only
+  // lists, and run the launch hydration, which REPLACES the lists with the
+  // server's.
+  const reloadLocalMirrors = useCallback(async (): Promise<void> => {
+    planSheetsRef.current = [];
+    drawingPinsRef.current = [];
+    setPlanSheets([]); setDrawingPins([]); setPlanMarkups([]); setPlanCalibrations([]);
+    const owner = userId;
+    const [zones, reviews, roadmaps] = await Promise.all([
+      loadLocal<PlanZone[]>(PLAN_ZONES_KEY, []),
+      loadLocal<PlanReview[]>(PLAN_REVIEWS_KEY, []),
+      loadLocal<PermitRoadmap[]>(PLAN_ROADMAPS_KEY, []),
+    ]);
+    if (liveUserIdRef.current !== owner) return;
+    setPlanZones(zones); setPlanReviews(reviews); setPermitRoadmaps(roadmaps);
+    await hydratePlansFromServer();
+  }, [userId, hydratePlansFromServer]);
 
   useEffect(() => {
     const owner = userId;
@@ -9818,7 +10182,53 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     planCalibrations, persistPlanCalibrations,
   ]);
 
-  const deleteProject = useCallback((id: string): { ok: true } | { ok: false; reason: string } => {
+  // The latest cascade, for a delete that finished its safety check a few
+  // hundred ms after the render it closed over (see deleteProject).
+  const forgetProjectsLocallyRef = useRef(forgetProjectsLocally);
+  forgetProjectsLocallyRef.current = forgetProjectsLocally;
+  dropLocalOnlyJobsRef.current = (ids: ReadonlySet<string>) => {
+    if (ids.size === 0) return;
+    const next = projectsRef.current.filter(p => !ids.has(p.id));
+    if (next.length === projectsRef.current.length) return;
+    projectsRef.current = next;
+    setProjects(next);
+    saveProjectsMutation.mutate(next);
+    forgetProjectsLocallyRef.current(ids);
+  };
+
+  // #61 (wave 5, CONTRACT 22) · How many injury / near-miss records the job
+  // has, as best this device can know BEFORE anything is removed — null when
+  // it cannot tell (the server could not be asked). The device's own incidents
+  // first (SafetyContext's per-account cache — the literal key is repeated
+  // because SafetyProvider sits BELOW this provider — plus incident inserts
+  // still queued: one filed in a basement is on no server yet). Only a job the
+  // server has confirmed is asked about; one that never reached it can hold no
+  // server-side incident.
+  const safetyIncidentCountForDelete = async (projectId: string): Promise<number | null> => {
+    let local = 0;
+    try {
+      const [cached, queue] = await Promise.all([
+        loadLocal<{ id?: string; projectId?: string }[]>(`mageid_safety_incidents_${userId ?? 'anon'}`, []),
+        getOwnOfflineQueue().catch(() => []),
+      ]);
+      local = localSafetyIncidentCount(projectId, cached, queue);
+    } catch { local = 0; }
+    if (local > 0) return local;
+    if (!canSync) return 0; // signed out: the job is this device's alone
+    await seedServerProjectIds();
+    if (!serverProjectIdsRef.current.has(projectId)) return 0;
+    try {
+      const head = supabase.from('safety_incidents').select('id', { count: 'exact', head: true }).eq('project_id', projectId);
+      const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+      const res = await Promise.race([head, timeout]);
+      if (!res || res.error || typeof res.count !== 'number') return null;
+      return res.count;
+    } catch {
+      return null;
+    }
+  };
+
+  const deleteProject = useCallback(async (id: string, opts?: { safetyIncidentCount?: number }): Promise<DeleteProjectResult> => {
     const toDelete = projects.find(p => p.id === id);
     // #92: only the owner deletes. For anyone else RLS matches 0 rows and the
     // queue calls that done, while the cascade below had already wiped every
@@ -9827,20 +10237,45 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const refusal = deleteProjectRefusal(toDelete, userId);
     if (refusal) return { ok: false, reason: refusal };
 
-    // 1) Remove the project row.
-    const updatedProjects = projects.filter(p => p.id !== id);
+    // #61 (wave 5, CONTRACT 22): a job with injury / near-miss records keeps
+    // them — OSHA says 5 years, and the delete cascaded them away. Checked
+    // BEFORE anything local changes too: the caller's count (project-detail
+    // reads useSafety()) or, without one, what this device and the server
+    // know. A job that cannot be checked waits. The server refuses the delete
+    // as well (23001), and the queue puts the job back if one slips through.
+    let fresh = true;
+    if (toDelete) {
+      let count: number | null | undefined = opts?.safetyIncidentCount;
+      if (count === undefined) {
+        count = await safetyIncidentCountForDelete(id);
+        fresh = false;
+        if (count === null) return { ok: false, reason: SAFETY_CHECK_OFFLINE_REASON };
+      }
+      const safety = deleteProjectSafetyRefusal(toDelete.name, count);
+      if (safety) return { ok: false, reason: safety, action: DELETE_SAFETY_ACTION };
+    }
+
+    // 1) Remove the project row — from the LATEST list: the check above may
+    //    have awaited, and this render's list can be a write behind.
+    const updatedProjects = (fresh ? projects : projectsRef.current).filter(p => p.id !== id);
+    projectsRef.current = updatedProjects;
     setProjects(updatedProjects);
     saveProjectsMutation.mutate(updatedProjects);
 
     // 2) Every project-scoped child collection, and the signal provider-
-    //    siblings (SafetyContext) prune on — see forgetProjectsLocally.
-    forgetProjectsLocally(new Set([id]));
+    //    siblings (SafetyContext) prune on — see forgetProjectsLocally. After
+    //    an await, the latest render's cascade (its lists are current).
+    if (!fresh) forgetProjectsLocallyRef.current(new Set([id]));
+    else forgetProjectsLocally(new Set([id]));
 
     // 3) Server: parent delete (children fall to FK cascade — see note above).
     if (toDelete) syncProjectToSupabase(toDelete, 'delete');
 
     return { ok: true };
-  }, [userId, projects, saveProjectsMutation, syncProjectToSupabase, forgetProjectsLocally]);
+  // safetyIncidentCountForDelete reads refs and module functions; seeded
+  // server ids through seedServerProjectIds.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, projects, saveProjectsMutation, syncProjectToSupabase, forgetProjectsLocally, canSync, seedServerProjectIds]);
 
   // Review round 1: the lists read at cleanup time are not enough. On a cold
   // launch the projects load can land before the child lists hydrate, so the
@@ -10314,27 +10749,29 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     retryRemoteReads,
     portalListsServerRead,
     portalAiaListServerRead: portalAiaFresh,
+    refreshAll,
+    reloadLocalMirrors,
     projectsFetching: projectsQuery.isFetching,
     addProject, updateProject, deleteProject, forgetSharedProject, getProject, updateSettings, savePaymentTerms,
     addCollaborator, removeCollaborator,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, projectsQuery.isFetching, settingsBootLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, reachability.failed, retryRemoteReads, portalListsServerRead, portalAiaFresh, settingsLoaded, settingsLoadFailed, addProject, updateProject, deleteProject, forgetSharedProject, getProject, updateSettings, savePaymentTerms, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
+  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, projectsQuery.isFetching, settingsBootLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, reachability.failed, retryRemoteReads, portalListsServerRead, portalAiaFresh, settingsLoaded, settingsLoadFailed, addProject, updateProject, deleteProject, forgetSharedProject, getProject, updateSettings, savePaymentTerms, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, refreshAll, reloadLocalMirrors]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
-    changeOrders, changeOrdersLoaded, addChangeOrder, addChangeOrders, getChangeOrdersForProject,
+    changeOrders, changeOrdersLoaded, invoicesLoaded, addChangeOrder, addChangeOrders, getChangeOrdersForProject,
     addInvoice, updateInvoice, awaitInvoiceInsert, getInvoicesForProject, getTotalOutstandingBalance, invoices,
     recordInvoicePayment,
     commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject,
-    prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
+    prequalPackets, upsertPrequalPacket, reviewPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
     delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject,
     deliveries, addDelivery, updateDelivery, deleteDelivery,
     buildingAccessRules, getBuildingAccess, setBuildingAccess,
     accessReservations, addReservation, updateReservation, deleteReservation,
     deliveryReceipts, addDeliveryReceipt, getReceiptsForProject,
-  }), [changeOrders, changeOrdersLoaded, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, awaitInvoiceInsert, recordInvoicePayment, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject, deliveries, addDelivery, updateDelivery, deleteDelivery, buildingAccessRules, getBuildingAccess, setBuildingAccess, accessReservations, addReservation, updateReservation, deleteReservation, deliveryReceipts, addDeliveryReceipt, getReceiptsForProject]);
+  }), [changeOrders, changeOrdersLoaded, invoicesLoaded, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, awaitInvoiceInsert, recordInvoicePayment, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, reviewPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, delayEvents, addDelayEvent, updateDelayEvent, deleteDelayEvent, getDelayEventsForProject, deliveries, addDelivery, updateDelivery, deleteDelivery, buildingAccessRules, getBuildingAccess, setBuildingAccess, accessReservations, addReservation, updateReservation, deleteReservation, deliveryReceipts, addDeliveryReceipt, getReceiptsForProject]);
 
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, dailyReportsLoaded, getDailyReportsForProject,
@@ -10442,6 +10879,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           license_number: s.licenseNumber, license_expiry: s.licenseExpiry, coi_expiry: s.coiExpiry,
           w9_on_file: s.w9OnFile, bid_history: s.bidHistory, assigned_projects: s.assignedProjects,
           notes: s.notes, created_at: s.createdAt, updated_at: s.updatedAt,
+          ...subcontractorExtraColumns(s),
         }));
         result.subcontractors = add.length;
       }

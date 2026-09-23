@@ -108,7 +108,10 @@ export async function deliverTextFile(
 /** The one sentence a blocked print window reads as (web, #124). Screens pass
  *  any thrown error through pdfFailureMessage so THIS reaches the user, while a
  *  generic failure keeps the screen's own wording. */
-export const PRINT_WINDOW_BLOCKED_MESSAGE = 'Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and tap Share again.';
+// The verb is neutral on purpose: this throw now backs Share, Export PDF,
+// Generate, Reprint and Export buttons (CONTRACT 25), so naming one button
+// would send him looking for a control that isn't on his screen.
+export const PRINT_WINDOW_BLOCKED_MESSAGE = 'Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and try again.';
 export function pdfFailureMessage(err: unknown, fallback: string): string {
   // Both blocked-window throws (Share / Print) start with the same sentence.
   return err instanceof Error && err.message.startsWith('Your browser blocked the PDF window.') ? err.message : fallback;

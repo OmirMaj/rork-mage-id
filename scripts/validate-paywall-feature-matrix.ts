@@ -69,7 +69,9 @@ const LITERAL_ROW_ALLOWLIST: Record<string, string> = {
   'Manual Daily Reports': 'ungated — nothing checks a FeatureKey',
   'AI Takeoff (PDF → LF/SF)': "metered by FEATURE_CONFIG.aiTakeoff (proOnly), not a tier gate",
   'Voice-to-Report (Android: beta)': 'metered by FEATURE_CONFIG.voiceCapture (freeLifetimeCap), not a tier gate',
-  'AI Photo Triage / Punch': 'spans two gates (photo_documentation Pro + punch_list_closeout Business)',
+  // ('AI Photo Triage / Punch' left this list in wave 5: the row became two
+  // keyed rows — photo_documentation at Pro, punch_list_closeout at Business —
+  // so no literal row spans two gates any more.)
 };
 
 // Isolate the spec table so unrelated tables (FINTECH_PERKS, AI_LIMITS) and

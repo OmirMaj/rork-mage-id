@@ -71,7 +71,7 @@ import { changeOrderBillKey } from '../utils/changeOrderBilling';
 // AIA-F11: the canonical at-cost rule and the canonical total recompute, so the
 // two estimate writers below are checked against the estimator's own contract
 // rather than against a hand-copied formula.
-import { isAtCostLine, recomputeEstimate } from '../utils/copilot/estimateEdit/estimateOps';
+import { recomputeEstimate } from '../utils/copilot/estimateEdit/estimateOps';
 import { billFromEstimateUnitPrice } from '../utils/billFromEstimateCore';
 import { getEffectiveStartingBalance, generateForecast, calculateSummary } from '../utils/cashFlowEngine';
 import { computeWIPReport } from '../utils/financialReports';
@@ -3475,22 +3475,20 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
 
   const takeoffAppend = new Function(
     'est', 'costLineTotal', 'category', 'qty', 'effectiveRate', 'name', 'unit',
-    'isAtCostLine', 'roundCents', 'generateUUID',
+    'roundCents', 'generateUUID',
     `${lift('app/area-takeoff.tsx', '// --- BEGIN takeoff append ---', '// --- END takeoff append ---')}\nreturn next;`,
   ) as (
     est: Est, costLineTotal: number, category: string, qty: number, rate: number,
     name: string, unit: string,
-    isAtCost: (i: { category: string }) => boolean,
     round: (n: number) => number, uuid: () => string,
   ) => Est;
 
   const planAppend = new Function(
-    'est', 'lines', 'isAtCostLine', 'roundCents', 'generateUUID',
+    'est', 'lines', 'roundCents', 'generateUUID',
     `${lift('app/plan-intelligence.tsx', '// --- BEGIN plan append ---', '// --- END plan append ---')}\nreturn next;`,
   ) as (
     est: Est,
     lines: { name: string; category: string; unit: string; quantity: number; unitPrice: number; lineTotal: number }[],
-    isAtCost: (i: { category: string }) => boolean,
     round: (n: number) => number, uuid: () => string,
   ) => Est;
 
@@ -3512,7 +3510,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   // ── Visual Takeoff: 40,000 SF at $1.00 onto the 18% job ──────────────────
   const afterTakeoff = takeoffAppend(
     cleanEstimate(), 40_000, 'Drywall', 40_000, 1, 'Drywall (takeoff)', 'SF',
-    isAtCostLine as never, roundCents, uuid);
+    roundCents, uuid);
   const takeoffLine = afterTakeoff.items[1];
   eq('Visual Takeoff prices the appended line at SELL, not cost',
     [takeoffLine.lineTotal, takeoffLine.unitPrice, roundCents(takeoffLine.markup)],
@@ -3530,7 +3528,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     { name: 'Kitchen — finish-out (plan AI)', category: 'Kitchen', unit: 'SF', quantity: 240, unitPrice: 55, lineTotal: 13_200 },
     { name: 'Primary bath — finish-out (plan AI)', category: 'Bathroom', unit: 'SF', quantity: 110, unitPrice: 95, lineTotal: 10_450 },
     { name: 'Living — finish-out (plan AI)', category: 'Living', unit: 'SF', quantity: 420, unitPrice: 28, lineTotal: 11_760 },
-  ], isAtCostLine as never, roundCents, uuid);
+  ], roundCents, uuid);
   eq('Plan Intelligence prices every appended room at SELL',
     afterPlan.items.slice(1).map(i => i.lineTotal), [15_576, 12_331, 13_876.8]);
   eq('…Σ lineTotal is the contract, to the cent',
@@ -3565,7 +3563,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
   });
   const afterThird = takeoffAppend(
     thirdEstimate(), 40_000, 'Drywall', 40_000, 1, 'Drywall (takeoff)', 'SF',
-    isAtCostLine as never, roundCents, uuid);
+    roundCents, uuid);
   eq('a markup that does not divide still lands on a whole cent',
     afterThird.items[1].lineTotal, 53_333.33);
 
@@ -3584,36 +3582,35 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
       [est.baseTotal, est.markupTotal, est.grandTotal, est.items.map(i => i.lineTotal)]);
   }
 
-  // AT-COST LINES TAKE NO MARKUP, because recomputeEstimate would strip it and
-  // the estimate would stop footing the moment anything touched it.
+  // WAVE 5 (#6): NO LINE IS AT COST BY CATEGORY ANY MORE. recomputeEstimate
+  // keeps each line's STORED markup whatever its category (it used to zero
+  // Labor / Assemblies, which is why the writers left them at cost), and
+  // applyGlobalMarkupToItems stamps markupPct on every line. So a Labor line
+  // appended by either writer takes the estimate's effective markup like any
+  // other line — and the estimate must still foot, before and after the
+  // canonical recompute. Both writers are run, for the reason the old at-cost
+  // pin gave: a rule only one of them is executed against is only half proved.
   const labourTakeoff = takeoffAppend(
     cleanEstimate(), 10_000, 'Labor', 100, 100, 'Framing crew', 'hrs',
-    isAtCostLine as never, roundCents, uuid);
-  eq('a LABOR takeoff line stays at cost, and the estimate still foots',
+    roundCents, uuid);
+  eq('a LABOR takeoff line takes the estimate markup like every other line, and the estimate still foots',
     [labourTakeoff.items[1].markup, labourTakeoff.items[1].lineTotal,
       roundCents(labourTakeoff.items.reduce((s, i) => s + i.lineTotal, 0)), labourTakeoff.grandTotal],
-    [0, 10_000, 128_000, 128_000]);
-  // …AND SO DOES THE OTHER WRITER'S. The at-cost rule is shared, but only ONE
-  // of the two writers was ever run against it: deleting
-  // `!isAtCostLine({ category: l.category }) &&` from plan-intelligence left
-  // the suite green while the identical deletion in area-takeoff went red.
-  // Today the branch is defensive — ROOM_TYPE_LABELS never yields 'labor' or
-  // 'assemblies' — but the writer takes its lines as an argument and the
-  // teach/AI paths are what feed it, so the rule is only as proved as it is
-  // executed. Also carries a markup that does not divide, for the same
-  // rounding invariant the takeoff fixture above pins.
+    [18, 11_800, 129_800, 129_800]);
+  // …AND SO DOES THE OTHER WRITER'S, with a markup that does not divide, for
+  // the same rounding invariant the takeoff fixture above pins.
   const planMixed = planAppend(thirdEstimate(), [
     { name: 'Primary bath — finish-out (plan AI)', category: 'Bathroom', unit: 'SF', quantity: 110, unitPrice: 95, lineTotal: 10_450 },
     { name: 'Framing crew', category: 'Labor', unit: 'hrs', quantity: 100, unitPrice: 100, lineTotal: 10_000 },
-  ], isAtCostLine as never, roundCents, uuid);
-  eq('a LABOR plan line stays at cost while the room beside it takes markup',
+  ], roundCents, uuid);
+  eq('a LABOR plan line takes the same markup as the room beside it',
     [planMixed.items[1].markup, planMixed.items[1].lineTotal,
       planMixed.items[2].markup, planMixed.items[2].lineTotal],
-    [33.33333333333333, 13_933.33, 0, 10_000]);
+    [33.33333333333333, 13_933.33, 33.33333333333333, 13_333.33]);
   eq('…and that estimate foots, on the cent, after the canonical recompute',
     [roundCents(planMixed.items.reduce((s, i) => s + i.lineTotal, 0)), planMixed.grandTotal,
       (recomputeEstimate(planMixed as never) as unknown as Est).items.map(i => i.lineTotal)],
-    [63_933.33, 63_933.33, planMixed.items.map(i => i.lineTotal)]);
+    [67_266.66, 67_266.66, planMixed.items.map(i => i.lineTotal)]);
 
   // AN ESTIMATE WITH NO MARKUP appends at cost and still foots — the zero-ratio
   // branch, which is what a cost-plus job looks like.
@@ -3627,7 +3624,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     }],
   };
   const flat = takeoffAppend(noMarkup, 5_000, 'Drywall', 5_000, 1, 'Drywall', 'SF',
-    isAtCostLine as never, roundCents, uuid);
+    roundCents, uuid);
   eq('a cost-plus estimate appends at cost and still foots',
     [flat.items[1].markup, flat.grandTotal, roundCents(flat.items.reduce((s, i) => s + i.lineTotal, 0))],
     [0, 55_000, 55_000]);

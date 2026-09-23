@@ -975,11 +975,22 @@ export function computeJobCost({
   // spend. A receipt linked to a PO commitment lands in that commitment's
   // phase (the whole receipt); an unlinked receipt is split per line by the
   // line's category → phase, so material cost shows up against the right scope.
+  //
+  // A RECEIPT WITH NO LINES costs its total (integration review, wave 5). A
+  // snapped receipt whose lines the scan didn't break out still has a total,
+  // and utils/wip.suggestCostToDate (the /wip-report evidence) prices every
+  // receipt at r.total. Summing only lines priced it at $0 here, so an
+  // estimated job whose only cost evidence was such a receipt was on
+  // /wip-report and missing from the Reports WIP tab and its PDF (#19 makes
+  // cost-to-date decide who is on the schedule). Lined receipts are unchanged.
+  const unlinedTotal = (r: MaterialReceipt): number | null =>
+    (r.lines?.length ?? 0) === 0 && Number.isFinite(r.total) && (r.total ?? 0) !== 0 ? (r.total as number) : null;
   for (const r of projectReceipts) {
     const linked = r.commitmentId ? projectCommitments.find(c => c.id === r.commitmentId) : undefined;
+    const bare = unlinedTotal(r);
     if (linked) {
       const existing = bucket(commitmentPhase(linked));
-      const receiptTotal = r.lines.reduce((s, l) => s + (l.lineTotal || 0), 0);
+      const receiptTotal = bare ?? (r.lines ?? []).reduce((s, l) => s + (l.lineTotal || 0), 0);
       existing.actual += receiptTotal;
       // NOT direct. A receipt SNAPPED to a commitment is material delivered
       // against that PO, so it buys down the PO's remaining balance exactly
@@ -990,6 +1001,12 @@ export function computeJobCost({
       // "over by $6,000" on a job that is exactly on budget — the same
       // double-count the split was written to remove, pointed the other way.
       // Only the UNLINKED branch below is direct.
+      existing.sources.receipts.push(r.id);
+    } else if (bare !== null) {
+      // No lines to split by category → the uncategorized phase, direct cost.
+      const existing = bucket(PHASE_UNCATEGORIZED);
+      existing.actual += bare;
+      addDirect(PHASE_UNCATEGORIZED, bare);
       existing.sources.receipts.push(r.id);
     } else {
       for (const line of r.lines) {

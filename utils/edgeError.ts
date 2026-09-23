@@ -11,6 +11,8 @@
 //
 // The body can be read ONCE. Read it here, and nowhere else.
 
+import { withLocalMonthlyReset } from '@/utils/aiRateLimiterCore';
+
 export interface EdgeErrorInfo {
   /** The function's own sentence (already written for the user), else a
    *  fallback with the HTTP status, else the transport error's message. */
@@ -46,7 +48,14 @@ export type EdgeFunctionError = Error & { code: string };
 
 export async function edgeFunctionError(error: unknown, fallback: string): Promise<EdgeFunctionError> {
   const info = await readEdgeError(error, fallback);
-  return Object.assign(new Error(info.message), { code: info.code });
+  // #123/#128 (wave 5): the vision / scan functions' 429 bodies say "Resets on
+  // the 1st." — the 1st at 00:00 UTC, which is the evening of the last day of
+  // the month in the Americas. Swap in the real local moment ("Resets Sep 30,
+  // 8:00 PM") so no screen that shows this sentence names the wrong day.
+  const message = info.code === 'monthly_cap_reached' || /Resets (?:on )?the 1st/i.test(info.message)
+    ? withLocalMonthlyReset(info.message)
+    : info.message;
+  return Object.assign(new Error(message), { code: info.code });
 }
 
 /** The `code` of an error thrown by edgeFunctionError, '' for anything else. */

@@ -5,7 +5,8 @@
 // to be reachable by a stranger for as long as the link sits on his website.
 // His project photos live in the PRIVATE project-photos bucket and the app only
 // ever holds file:// paths or 24-hour signed URLs for them. This module copies
-// the chosen photos (and a data:/file: logo) into the public `portfolio` bucket
+// the chosen photos, with their EXIF / XMP metadata removed (copyOnePhoto), and
+// a data:/file: logo into the public `portfolio` bucket
 // at deterministic paths, so republishing is stable, and hands back the
 // permanent public URLs. It also writes and reads the page's public_profiles
 // row, which the page checks before it renders.
@@ -19,6 +20,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWriteDetailed, type WriteOutcome } from '@/utils/offlineQueue';
 import { readFileBytes } from '@/utils/fileBytes';
 import { base64ToBytes } from '@/utils/base64Bytes';
+import { stripImageMetadata } from '@/utils/imageMetadataStrip';
 import { PHOTO_BUCKET } from '@/utils/photoUploadCore';
 import type { ProjectPhoto } from '@/types';
 import {
@@ -87,15 +89,25 @@ async function copyOnePhoto(ownerId: string, projectId: string, p: ProjectPhoto)
   const dest = portfolioPhotoPath(ownerId, projectId, p.id);
   const src = (p.storagePath ?? '').trim();
   if (!src) return false;
-  // Server-side copy: no bytes through the phone. An object already at the
-  // deterministic path is this same photo from an earlier publish.
-  const copied = await supabase.storage.from(PHOTO_BUCKET).copy(src, dest, { destinationBucket: PORTFOLIO_BUCKET });
-  if (!copied.error || isAlreadyExists(copied.error)) return true;
+  // Never a server-side storage copy: that published the original bytes, and
+  // a photo uploaded from the web app still carries the camera's EXIF, which
+  // can hold the GPS position of the client's house, on a public, permanent
+  // URL (even with "Show street address" off). The bytes come down, the
+  // metadata is dropped (utils/imageMetadataStrip: a byte filter, no re-encode,
+  // no native module), and the cleaned copy goes up. upsert: a republish
+  // overwrites a copy an earlier build published with its EXIF intact. A photo
+  // whose format can't be cleaned (HEIC, GIF, a truncated file) is left out
+  // and reported, never published as-is. Costs: the bytes cross the phone.
   try {
     const bytes = await downloadPrivatePhoto(src);
     if (bytes.byteLength === 0) return false;
+    const clean = stripImageMetadata(bytes);
+    if (!clean) {
+      console.warn('[portfolioPublish] photo left out: its metadata could not be removed', p.id);
+      return false;
+    }
     const up = await supabase.storage.from(PORTFOLIO_BUCKET)
-      .upload(dest, bytes, { contentType: 'image/jpeg', upsert: true });
+      .upload(dest, clean.bytes, { contentType: clean.contentType, upsert: true });
     return !up.error;
   } catch (e) {
     console.warn('[portfolioPublish] photo copy failed', p.id, e instanceof Error ? e.message : e);
@@ -119,8 +131,12 @@ async function publishLogo(ownerId: string, logoUri: string | undefined): Promis
   if (!/^(data:image\/|file:|content:|blob:|ph:|assets-library:)/i.test(uri)) return undefined;
   const { path, contentType } = logoTarget(ownerId, uri);
   try {
-    const bytes = /^data:/i.test(uri) ? base64ToBytes(uri) : await readFileBytes(uri);
-    if (bytes.byteLength === 0) return undefined;
+    const raw = /^data:/i.test(uri) ? base64ToBytes(uri) : await readFileBytes(uri);
+    if (raw.byteLength === 0) return undefined;
+    // A logo picked from the camera roll can carry EXIF too. Cleaned when the
+    // format allows; a logo format the filter doesn't read (GIF) goes up as
+    // picked (it is his brand mark, not a jobsite photo).
+    const bytes = stripImageMetadata(raw)?.bytes ?? raw;
     const { error } = await supabase.storage.from(PORTFOLIO_BUCKET).upload(path, bytes, { contentType, upsert: true });
     if (error && !isAlreadyExists(error)) return undefined;
     return portfolioPublicUrl(path);

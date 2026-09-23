@@ -56,6 +56,7 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useProjectCapGate } from '@/hooks/useProjectCapGate';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
@@ -877,6 +878,7 @@ function EstimateWizardScreenInner() {
    * his default pricing market and never 'United States'. The pricing answer
    * itself stays in scope.location, where regional pricing reads it.
    */
+  const capGate = useProjectCapGate();
   const persistNewProject = useCallback((pct: MarkupPct, name: string, jobsite: string): string | null => {
     if (!costResult || !name.trim()) return null;
     const now = new Date().toISOString();
@@ -1182,9 +1184,13 @@ function EstimateWizardScreenInner() {
       showAlert('Name required', 'Give this project a name so you can find it later.');
       return;
     }
+    // #57 / #156 (CONTRACT 5): the free plan's one-job cap, asked BEFORE the
+    // markup sheet — the server refuses a second job's insert, and a job it
+    // refuses lives on this phone only, with this estimate inside it.
+    if (!capGate.canCreate(newProjectName)) { setShowSaveModal(false); capGate.explainAndOfferUpgrade(); return; }
     if (!requireMarkup(createAt)) { setShowSaveModal(false); return; }
     createAt(markupPct as number);
-  }, [costResult, newProjectName, requireMarkup, markupPct, createAt]);
+  }, [costResult, newProjectName, requireMarkup, markupPct, createAt, capGate]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 

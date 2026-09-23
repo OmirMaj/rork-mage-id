@@ -110,9 +110,32 @@ const INCLUDED_ADMIN_SEATS: Record<string, number> = {
 const BILLABLE_ROLES = new Set(["editor", "viewer"]);
 const isBillableRole = (role: string) => BILLABLE_ROLES.has(role);
 
+/** A master account (the team's own logins) — public.is_master_account, the
+ *  SQL copy of _shared/auth.ts MASTER_EMAILS that the project-cap trigger also
+ *  reads (validate-w5-project-cap-master-lists keeps the copies in sync). Read
+ *  through the service role (EXECUTE is service-role only), so this function
+ *  carries no fourth copy of the list. A failed read is "not master": the
+ *  subscriptions row still decides, exactly as before this check existed. */
+async function isMasterAccount(userId: string): Promise<boolean> {
+  try {
+    const r = await rest("rpc/is_master_account", {
+      method: "POST",
+      body: JSON.stringify({ p_user_id: userId }),
+    });
+    if (!r.ok) return false;
+    return (await r.json()) === true;
+  } catch {
+    return false;
+  }
+}
+
 /** The caller's current tier, read from `subscriptions` (same source as
- *  _shared/auth.ts). Unknown/absent ⇒ free. */
+ *  _shared/auth.ts). Unknown/absent ⇒ free. A master account is Business,
+ *  whatever its row says — the same override requireTier applies (audit wave
+ *  5, #1: the founder's account, whose row reads 'free', was refused seats
+ *  here while every other gate treated him as Business). */
 async function callerTier(userId: string): Promise<string> {
+  if (await isMasterAccount(userId)) return "business";
   const r = await rest(
     `subscriptions?user_id=eq.${encodeURIComponent(userId)}&select=tier,end_date&order=updated_at.desc&limit=1`,
   );

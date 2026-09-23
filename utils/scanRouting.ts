@@ -1,21 +1,9 @@
 import type {
-  ScanDocType, ScanRecordKind, ScanRecord, COICoverage, COICoverageType,
+  ScanDocType, ScanRecordKind, ScanDestination, COICoverage, COICoverageType,
   Permit, PermitType, Warranty, WarrantyCategory, Subcontractor, MaterialReceipt,
 } from '@/types';
 import { parseCalendarDay, addCalendarMonths } from '@/utils/calendarDate';
 import { normalizeExtraction } from '@/utils/materialReceipt';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// W5 local type extension (CONTRACT 27 — types/index.ts is frozen for this
-// wave). A scanned permit or warranty now CREATES the domain record the
-// confirm card promised, so it needs a record kind of its own instead of
-// 'file_only'. scan_records.record_kind is free text, so no migration.
-// w5-join-core folds 'permit' | 'warranty' into ScanRecordKind and deletes
-// these aliases.
-// ─────────────────────────────────────────────────────────────────────────────
-export type ScanRecordKindW5 = ScanRecordKind | 'permit' | 'warranty';
-export interface ScanDestinationW5 { folder: string; recordKind: ScanRecordKindW5 }
-export type ScanRecordW5 = Omit<ScanRecord, 'recordKind'> & { recordKind: ScanRecordKindW5 };
 
 // Exhaustive: `satisfies` forces a compile error if a docType is missing.
 const ROUTING = {
@@ -33,9 +21,9 @@ const ROUTING = {
   inspection_notice:  { folder: 'photos',        recordKind: 'file_only' },
   government_id:      { folder: 'photos',        recordKind: 'file_only' }, // never reached (redirect)
   other:              { folder: 'photos',        recordKind: 'file_only' },
-} satisfies Record<ScanDocType, ScanDestinationW5>;
+} satisfies Record<ScanDocType, ScanDestination>;
 
-export function resolveDestination(docType: ScanDocType): ScanDestinationW5 {
+export function resolveDestination(docType: ScanDocType): ScanDestination {
   return ROUTING[docType] ?? ROUTING.other;
 }
 
@@ -130,7 +118,7 @@ export function scanCalendarDay(v: unknown): string | null {
 }
 
 /** What the confirm card says the auto-file will DO, per record kind. */
-export function recordKindPhrase(kind: ScanRecordKindW5): string {
+export function recordKindPhrase(kind: ScanRecordKind): string {
   switch (kind) {
     case 'cost': return 'logs a cost entry';
     case 'contact': return 'creates a contact';
@@ -151,18 +139,30 @@ export function recordKindPhrase(kind: ScanRecordKindW5): string {
  * still loading nothing is decided ('checking'); a failed, offline or empty
  * read is not ownership, so it files as an image and says it couldn't confirm.
  * `open` when the record may be created.
+ *
+ * Integration round 1: the same holds for a scanned bill ('cost') and a COI
+ * ('sub_compliance'). material_receipts and cois are owner-only by RLS, so an
+ * invited PM's bill or COI landed on HIS account while the banner said
+ * "logged the bill as a cost entry" / "filed the COI on the sub" — the GC's
+ * job costing and COI vault never saw it. Contacts stay open: a contact is
+ * his own address book, not the job's record.
  */
 export type ScanOwnerGate =
   | { state: 'open' }
   | { state: 'checking'; reason: string }
   | { state: 'blocked'; reason: string };
 export function scanOwnerOnlyGate(
-  recordKind: ScanRecordKindW5 | null | undefined,
+  recordKind: ScanRecordKind | null | undefined,
   role: { role: string | null; isLoading: boolean; isError: boolean },
 ): ScanOwnerGate {
-  if (recordKind !== 'warranty' && recordKind !== 'permit') return { state: 'open' };
+  if (recordKind !== 'warranty' && recordKind !== 'permit' && recordKind !== 'cost' && recordKind !== 'sub_compliance') {
+    return { state: 'open' };
+  }
   if (role.role === 'owner') return { state: 'open' };
-  const noun = recordKind === 'warranty' ? 'warranty' : 'permit';
+  const noun = recordKind === 'warranty' ? 'warranty'
+    : recordKind === 'permit' ? 'permit'
+    : recordKind === 'cost' ? 'cost entry'
+    : 'COI';
   if (role.isLoading) return { state: 'checking', reason: `Checking your role on this job before adding the ${noun}…` };
   // A failed / offline / settled-null read is not ownership: never create
   // the record on a guess, and don't blame a role he may not have.
@@ -173,7 +173,35 @@ export function scanOwnerOnlyGate(
     state: 'blocked',
     reason: recordKind === 'warranty'
       ? "Warranties are kept on the project owner's account — ask them to log it. This scan files as an image only."
-      : 'Permits are managed by the project owner — this scan files as an image only.',
+      : recordKind === 'permit'
+        ? 'Permits are managed by the project owner — this scan files as an image only.'
+        : recordKind === 'cost'
+          ? "Bills are booked on the project owner's account — job costing only counts theirs. Ask them to log it; this scan files as an image only."
+          : "COIs are kept on the project owner's sub records — ask them to file it. This scan files as an image only.",
+  };
+}
+
+/**
+ * The same owner-only rule on the DIRECT path: app/material-receipt.tsx.
+ * Job Costing is open to editor and viewer invitees and links straight to
+ * Material Receipt, and material_receipts RLS is owner-only, so an invited
+ * PM's receipt was written to HIS account while the screen said "Saved to your
+ * account — it counts on the web and your other devices"; the GC's job
+ * costing and budget never counted it. No projectId = nothing to decide yet
+ * ('open'; the screen asks him to pick a project before it extracts).
+ */
+export function materialReceiptOwnerGate(
+  projectId: string | null | undefined,
+  role: { role: string | null; isLoading: boolean; isError: boolean },
+): ScanOwnerGate {
+  if (!projectId || role.role === 'owner') return { state: 'open' };
+  if (role.isLoading) return { state: 'checking', reason: 'Checking your role on this job before saving the receipt…' };
+  if (role.isError || role.role == null) {
+    return { state: 'blocked', reason: "Couldn't confirm you own this job, so this receipt can't be saved to its job costing." };
+  }
+  return {
+    state: 'blocked',
+    reason: "Bills are booked on the project owner's account — job costing only counts theirs. Ask them to log this receipt.",
   };
 }
 
@@ -187,7 +215,7 @@ export function scanFolderLabel(key: string): string {
  * logged" used to print for every kind, including file_only, where the fields
  * the card showed were thrown away (#162).
  */
-export function scanFiledMessage(kind: ScanRecordKindW5, folder: string, pages: number): string {
+export function scanFiledMessage(kind: ScanRecordKind, folder: string, pages: number): string {
   const where = `Project Files › ${scanFolderLabel(folder)}`;
   const saved = pages > 1 ? `Saved all ${pages} pages to ${where}` : `Saved the image to ${where}`;
   switch (kind) {

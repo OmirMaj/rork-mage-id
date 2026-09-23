@@ -10,6 +10,7 @@ import * as Sharing from 'expo-sharing';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProjectContract, Project, CompanyBranding } from '@/types';
 import { generateContractPDFUri } from './pdfGenerator';
+import { edgeFunctionError } from './edgeError';
 
 export interface SealContractResult {
   signedPdfUrl: string;
@@ -82,7 +83,11 @@ export async function sealSignedContract(input: {
   const { data, error } = await supabase.functions.invoke('seal-document', {
     body: { contract_id: contract.id, storage_path: storagePath, client_hash: clientHash },
   });
-  if (error) throw new Error(`seal-document failed: ${error.message}`);
+  if (error) {
+    // CONTRACT 26: the function's own sentence (hash mismatch, not signed…).
+    const e = await edgeFunctionError(error, 'seal-document failed');
+    throw new Error(`seal-document failed: ${e.message}`);
+  }
   const payload = data as { signed_pdf_url?: string; document_hash?: string; sealed_at?: string } | null;
   if (!payload || !payload.signed_pdf_url || !payload.document_hash || !payload.sealed_at) {
     throw new Error('seal-document returned an incomplete result.');

@@ -2,7 +2,7 @@
 -- 20260923181000_plan_sheets_private.sql — moved out of held/ by wave 5
 -- (lane benchmark-financing, #83; productDecision #83). The body below is
 -- held/20260904101100_plan_sheets_private.sql BYTE-FOR-BYTE; only this header
--- is new.
+-- and the self-guard just below it are new.
 --
 -- ██ DO NOT APPLY until ALL of these are true — it is here, not in held/, so
 -- ██ the repo names the file production will record, but it is applied ONLY
@@ -47,6 +47,28 @@
 --     (wave 4 owns that function — not touched); once private, a key alone
 --     reads nothing.
 -- ============================================================================
+
+-- ── SELF-GUARD (integration review, wave 5) ─────────────────────────────────
+-- This file sits at the top level of supabase/migrations/, so every
+-- pre-deploy diff of repo names against list_migrations shows it as
+-- "unapplied", and a bulk / catch-up apply would flip the bucket before the
+-- OTA reaches devices (precondition 4). The header alone can't stop that; this
+-- statement can. It runs FIRST, before the byte-for-byte body, and refuses
+-- unless the operator opted in within the same apply.
+--
+-- TO APPLY (only once 1-4 above are all true): make the first line of the
+-- apply_migration query
+--     set mageid.founder_ok_83 = 'yes';
+-- followed by this whole file. Anything else — `supabase db push`, a
+-- catch-up script, a copy-paste of the file alone — fails here, loudly, with
+-- the bucket still public and nothing changed.
+do $g$
+begin
+  if coalesce(current_setting('mageid.founder_ok_83', true), '') <> 'yes' then
+    raise exception 'held: founder decision #83 — plan-sheets stays public until the founder says yes (see this file''s header)';
+  end if;
+end
+$g$;
 
 -- ============================================================================
 -- HELD — do not apply until the client resolves plan-sheet images through

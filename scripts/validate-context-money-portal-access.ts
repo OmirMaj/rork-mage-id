@@ -66,12 +66,14 @@ async function main() {
     ok('signed out (local-only) → allowed', deleteProjectRefusal({ ownerUserId: 'u1' }, null) === null);
 
     const calls: string[] = [];
-    const del = runCallback<(id: string) => { ok: boolean; reason?: string }>(CTX, 'deleteProject', {
+    // Wave 5 (#61): deleteProject is async now (it may ask the server for the
+    // job's safety records first); the owner refusal still comes before it.
+    const del = runCallback<(id: string) => Promise<{ ok: boolean; reason?: string }>>(CTX, 'deleteProject', {
       projects: [{ id: 'p1', ownerUserId: 'gc', myRole: 'field' }], userId: 'u1', deleteProjectRefusal,
       setProjects: () => { calls.push('setProjects'); }, saveProjectsMutation: { mutate: () => { calls.push('save'); } },
       syncProjectToSupabase: () => { calls.push('sync'); },
     }, calls);
-    const res = del('p1');
+    const res = await del('p1');
     ok('deleteProject on a shared job returns the refusal and touches NOTHING (no local cascade, no server delete)',
       res.ok === false && res.reason === DELETE_NOT_OWNER_REASON && calls.length === 0, calls.join());
   }

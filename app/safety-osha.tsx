@@ -28,6 +28,7 @@ import { Card, Button, StatusPill } from '@/components/ui';
 import { exportOsha300Pdf, shareOsha300Csv } from '@/utils/safety/oshaExport';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { pdfFailureMessage } from '@/utils/platformFile';
 
 export default function SafetyOshaScreen() {
   const router = useRouter();
@@ -147,8 +148,9 @@ function SafetyOshaInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     try {
       await exportOsha300Pdf(scopedIncidents, est, summaryInput);
-    } catch {
-      showAlert('Export failed', 'Could not generate the OSHA 300 PDF. Please try again.');
+    } catch (err) {
+      // CONTRACT 25 (#147): a blocked web window throws the blocked sentence.
+      showAlert('Export failed', pdfFailureMessage(err, 'Could not generate the OSHA 300 PDF. Please try again.'));
     }
   }, [scopedIncidents, est, summaryInput, companyName]);
 

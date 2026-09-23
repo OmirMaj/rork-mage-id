@@ -280,6 +280,9 @@ export function gradeLeak(
   let dollarsBilled = 0;
   let dollarsEaten = 0;
   let unresolvedCount = 0;
+  // #22 (wave 5): the unmatched items' own prices, so an open job graded past
+  // its window reports the dollars eaten, not just the item count.
+  let unresolvedDollars = 0;
 
   for (const item of items) {
     const estPrice = item.estPrice ?? 0;
@@ -305,6 +308,7 @@ export function gradeLeak(
     } else {
       // Window hasn't closed and no match yet — not resolvable yet
       unresolvedCount++;
+      unresolvedDollars += estPrice;
     }
   }
 
@@ -312,11 +316,12 @@ export function gradeLeak(
   if (unresolvedCount > 0 && !isClosed && Date.now() <= windowEnd) return null;
 
   // Remaining unmatched items on an open project past the window: eaten
+  // (unresolvedCount was items not matched on a still-open project — treated
+  // as eaten now, count AND dollars; dollarsEaten used to read low by exactly
+  // these items' prices.)
   if (unresolvedCount > 0) {
     itemsEaten += unresolvedCount;
-    // We don't have estPrice for the unmatched items easily here — already counted above
-    // so just add the remaining items that weren't matched or billed
-    // (unresolvedCount was items not matched and project still open — treat as eaten now)
+    dollarsEaten += unresolvedDollars;
   }
 
   return {

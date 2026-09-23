@@ -839,7 +839,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md, borderLeftWidth: 3, borderLeftColor: Colors.warning, backgroundColor: Colors.warningLight,
   },
   decisionCardRejected: { borderLeftColor: t.danger, backgroundColor: Colors.errorLight },
-  decisionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: t.text },
+  decisionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
   decisionNote: { fontSize: Type.footnote.fontSize, color: t.text, marginTop: 6, lineHeight: 19, fontStyle: 'italic' as const },
   decisionBody: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 6, lineHeight: 16 },
 

@@ -29,8 +29,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // Type-only (erased at runtime), so the bun stubs below still load first.
-import type { Subcontractor } from '../types';
-import type { COICoverageW5 } from '../utils/coiFiles';
+import type { Subcontractor, COICoverage } from '../types';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -229,7 +228,15 @@ console.log('\n8 · the migration:');
     && /IF TG_OP = 'UPDATE' THEN\s*NEW\.tax_id_last4 := OLD\.tax_id_last4;\s*ELSE\s*NEW\.tax_id_last4 := NULL;\s*END IF;/.test(guard)
     && !/RAISE/.test(guard), guard);
   ok('material_receipts has the CONTRACT 16 columns',
-    ['id text PRIMARY KEY', 'user_id uuid NOT NULL', 'project_id text', 'commitment_id text', 'payload jsonb NOT NULL', 'updated_at timestamptz NOT NULL', 'deleted_at timestamptz'].every(c => sql.includes(c)));
+    ['id text NOT NULL', 'user_id uuid NOT NULL', 'project_id text', 'commitment_id text', 'payload jsonb NOT NULL', 'updated_at timestamptz NOT NULL', 'deleted_at timestamptz'].every(c => sql.includes(c)));
+  // Integration round 1 (data-security): receipt ids are client-made and not
+  // globally unique — a QuickBooks receipt's id is qbo-<type>-<per-company
+  // QuickBooks id>-<line> — so a global key let one tenant's row block
+  // another's upsert (42501, Retry failing forever). The key is per account.
+  const tableDef = sql.slice(sql.indexOf('CREATE TABLE IF NOT EXISTS public.material_receipts'), sql.indexOf('CREATE INDEX IF NOT EXISTS material_receipts_user_idx'));
+  ok('material_receipts is keyed per account: PRIMARY KEY (user_id, id), never id alone',
+    /PRIMARY KEY \(user_id, id\)/.test(tableDef) && !/\bid text PRIMARY KEY/.test(tableDef)
+    && /IF v_cols IS DISTINCT FROM 'user_id,id' THEN/.test(tableDef), tableDef.slice(0, 200));
   ok('owner-only RLS on all four commands', ['SELECT', 'INSERT', 'UPDATE', 'DELETE'].every(c => new RegExp(`FOR ${c} TO authenticated [^;]*auth\\.uid\\(\\) = user_id`).test(sql)));
   ok('anon has nothing; authenticated has the four grants',
     /REVOKE ALL ON public\.material_receipts FROM anon;/.test(sql) && /GRANT SELECT, INSERT, UPDATE, DELETE ON public\.material_receipts TO authenticated;/.test(sql));
@@ -239,7 +246,7 @@ console.log('\n9 · an AI-only certificate clears nothing until the GC confirms 
 {
   const { confirmAiCoverage, pickCoverageDate, hasUnconfirmedAi } = await import('../utils/coiFiles');
   // Exactly what a read hands the vault: the model's days as suggestions only.
-  const aiOnly: COICoverageW5[] = [{ type: 'general_liability', policyNumber: 'GL-9', aiEffectiveDate: '2026-06-30', aiExpiresAt: '2027-06-30', source: 'ai' }];
+  const aiOnly: COICoverage[] = [{ type: 'general_liability', policyNumber: 'GL-9', aiEffectiveDate: '2026-06-30', aiExpiresAt: '2027-06-30', source: 'ai' }];
   const expiredSub: Subcontractor = { id: 's', companyName: 'Acme', contactName: '', phone: '', email: '', address: '', trade: 'General', licenseNumber: '', licenseExpiry: '2099-01-01', coiExpiry: '2025-01-01', w9OnFile: true, bidHistory: [], assignedProjects: [], notes: '', createdAt: '', updatedAt: '' };
   ok('subCoiExpiryAcross (→ subcontractors.coi_expiry, coiVerifiedAt) writes NOTHING for it',
     subCoiExpiryAcross([{ coverages: aiOnly }]) === undefined, String(subCoiExpiryAcross([{ coverages: aiOnly }])));

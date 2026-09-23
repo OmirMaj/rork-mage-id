@@ -2029,9 +2029,37 @@ function LivingFloorPlanContainer({
       showAlert('Share floor plan', 'Draw at least one zone (tap "Edit zones") so there’s something for your client to watch fill in.');
       return;
     }
-    const { buildPlanSharePayload, encodePlanShareToken, PLAN_SHARE_MAX_PHOTOS } =
-      await import('@/utils/planShareToken');
-    const { payload, droppedLocal, droppedExcess, planNotSynced } = buildPlanSharePayload({
+    const [{ buildPlanSharePayload, encodePlanShareToken, PLAN_SHARE_MAX_PHOTOS }, { isPhotoShareable }] =
+      await Promise.all([import('@/utils/planShareToken'), import('@/utils/photoShareToken')]);
+    // #62 (wave 5): the phone that took a photo keeps a file:// uri for good,
+    // and a private-bucket sheet is a bare path — so the link would ship
+    // without them. Sign the pinned photos' and the sheet's storage copies
+    // first (24 h URLs, like before) and hand them to the builder.
+    const pinnedPhotoIds = new Set(pins.filter((p) => p.planSheetId === firstSheet.id && !!p.linkedPhotoId).map((p) => p.linkedPhotoId as string));
+    // Only photos the builder will ship: a draft / recalled photo is never
+    // signed for a homeowner link (the builder drops it and counts it).
+    const pinnedStored = photos.filter((p) => pinnedPhotoIds.has(p.id) && !!p.storagePath && isPhotoShareable(p));
+    const photoUrls: Record<string, string> = {};
+    let sheetUrl: string | undefined;
+    try {
+      const [{ resolvePhotoUrls }, { resolvePlanSheetUrls }] = await Promise.all([
+        import('@/utils/storage'), import('@/utils/planSheetUrls'),
+      ]);
+      const sheetRef = firstSheet.storagePath || firstSheet.imageUri;
+      const [signedPhotos, signedSheets] = await Promise.all([
+        resolvePhotoUrls(pinnedStored.map((p) => p.storagePath as string)),
+        sheetRef ? resolvePlanSheetUrls([sheetRef]) : Promise.resolve(new Map<string, string>()),
+      ]);
+      for (const p of pinnedStored) {
+        const url = signedPhotos.get(p.storagePath as string);
+        if (url) photoUrls[p.id] = url;
+      }
+      sheetUrl = sheetRef ? signedSheets.get(sheetRef) : undefined;
+    } catch {
+      // Offline or signing refused: the builder reports what it could not
+      // embed (planUnsigned / droppedUnsigned) and the copy below says so.
+    }
+    const { payload, droppedLocal, droppedExcess, droppedUnsigned, droppedWithdrawn, planNotSynced, planUnsigned } = buildPlanSharePayload({
       projectName: project.name ?? 'Project',
       gcName: settings?.branding?.companyName,
       scheduleStartDate: project.schedule?.startDate,
@@ -2040,9 +2068,13 @@ function LivingFloorPlanContainer({
       tasks: project.schedule?.tasks ?? [],
       pins,
       photos,
+      photoUrls,
+      sheetUrl,
     });
     if (planNotSynced) {
-      showAlert('Share floor plan', 'This plan hasn’t synced yet, so the link would open blank. Wait until the offline-sync pill shows "Synced," then try again.');
+      showAlert('Share floor plan', planUnsigned
+        ? 'Couldn’t get a link for this plan — check your signal and try again.'
+        : 'This plan hasn’t synced yet, so the link would open blank. Wait until the offline-sync pill shows "Synced," then try again.');
       return;
     }
     const token = encodePlanShareToken(payload);
@@ -2052,6 +2084,8 @@ function LivingFloorPlanContainer({
     const extras: string[] = [];
     if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);
     if (droppedExcess > 0) extras.push(`oldest ${droppedExcess} trimmed (cap ${PLAN_SHARE_MAX_PHOTOS})`);
+    if (droppedUnsigned > 0) extras.push(`${droppedUnsigned} photo${droppedUnsigned === 1 ? '' : 's'} skipped (couldn’t get a link — try again online)`);
+    if (droppedWithdrawn > 0) extras.push(`${droppedWithdrawn} photo${droppedWithdrawn === 1 ? '' : 's'} left out (draft or recalled from the client portal)`);
     const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
     if (ok) {
       showAlert('Floor plan link copied', `Paste it into a text or email. Your client sees rooms, trades, and photos — never costs or task detail.${detail}`);

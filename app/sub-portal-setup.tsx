@@ -14,7 +14,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { LienWaiver, SubPortalLink } from '@/types';
-import { fetchLienWaiversForProject, WAIVER_LABELS } from '@/utils/lienWaiverEngine';
+import { loadLienWaiversChecked, WAIVER_LABELS } from '@/utils/lienWaiverEngine';
 import { shareText } from '@/utils/shareText';
 import { generateUUID } from '@/utils/generateId';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
@@ -353,12 +353,20 @@ function SubPortalSetupEditor() {
   // two different facts they are. Re-read on focus: the release is created on
   // /lien-waivers and this screen is what the GC comes back to.
   const [releases, setReleases] = useState<LienWaiver[]>([]);
+  // #30 (CONTRACT 6): a failed read is not "no release on file" — reading it
+  // that way offered "Collect release" for a payment already released, and a
+  // second waiver sent to a sub who signed the first.
+  const [releasesReadFailed, setReleasesReadFailed] = useState(false);
   useFocusEffect(useCallback(() => {
     if (!projectId) return;
     let live = true;
-    void fetchLienWaiversForProject(projectId)
-      .then(list => { if (live) setReleases(list); })
-      .catch(() => { /* no row → the row offers "Collect release", which is the safe reading */ });
+    void loadLienWaiversChecked(projectId)
+      .then(res => {
+        if (!live) return;
+        if (res.ok) { setReleases(res.waivers); setReleasesReadFailed(false); }
+        else setReleasesReadFailed(true);
+      })
+      .catch(() => { if (live) setReleasesReadFailed(true); });
     return () => { live = false; };
   }, [projectId]));
   const releasesByInvoice = useMemo(() => {
@@ -1068,10 +1076,11 @@ function SubPortalSetupEditor() {
                           >
                             {shown
                               ? `${WAIVER_LABELS[shown.waiverType].short} release ${shown.status === 'requested' ? (shown.signRequestedAt ? 'sent, not signed' : 'drafted, not sent') : shown.status}`
+                              : releasesReadFailed ? 'Couldn\u2019t check lien releases \u2014 check your signal'
                               : inv.status === 'paid' ? 'Paid · no lien release collected' : 'No lien release yet'}
                             {shown && needsUnconditional ? ' · unconditional still needed' : ''}
                           </Text>
-                          {(!shown || needsUnconditional) ? (
+                          {(!shown || needsUnconditional) && !releasesReadFailed ? (
                             <TouchableOpacity
                               onPress={() => openRelease(inv.id)}
                               style={styles.reconBtn}

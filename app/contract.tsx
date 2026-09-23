@@ -74,7 +74,8 @@ import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import { portalShareUrl } from '@/utils/portalSnapshot';
 import SignaturePad from '@/components/SignaturePad';
 import { supabase } from '@/lib/supabase';
-import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError } from '@/utils/contractSealing';
+import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError, SEALED_PDF_DOWNLOAD_FAILED_MESSAGE } from '@/utils/contractSealing';
+import { pdfFailureMessage } from '@/utils/platformFile';
 import { nailIt } from '@/components/animations/NailItToast';
 import { fireConfetti } from '@/components/animations/Confetti';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
@@ -1095,7 +1096,12 @@ function ContractScreenInner() {
       await downloadSealedContractPdf({ contract, userId: user.id, supabase });
     } catch (err) {
       console.error('[Contract] Download sealed PDF error:', err);
-      showAlert('Download failed', err instanceof Error ? err.message : 'Could not download the sealed PDF.');
+      // CONTRACT 25 (#147): the blocked-window sentence and the helper's own
+      // download-failed sentence pass through; anything else (a raw storage
+      // or network error) reads as the plain fallback.
+      showAlert('Download failed', err instanceof Error && err.message === SEALED_PDF_DOWNLOAD_FAILED_MESSAGE
+        ? err.message
+        : pdfFailureMessage(err, SEALED_PDF_DOWNLOAD_FAILED_MESSAGE));
     }
   }, [contract, user?.id]);
 

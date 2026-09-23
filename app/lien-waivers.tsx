@@ -1239,7 +1239,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: Colors.warning + '30',
   },
   staleBannerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text, lineHeight: 16 },
-  staleBannerAction: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.accent },
+  staleBannerAction: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },

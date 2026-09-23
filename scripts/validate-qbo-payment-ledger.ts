@@ -972,7 +972,11 @@ console.log('\n  9. post-ship: credit is not cash, a payment goes once, the righ
     check('#98: the unknown-zone sentinel is non-empty and qbo-sync refuses to store it (no guessed UTC)',
       !!unknownTz && !storedByServer && !/objectId: timeZone \|\| 'UTC'/.test(screen));
     check('#98: a failed registration throws (not cached as {sweepFloor:null})',
-      /if \(error \|\| !data\?\.success\) throw new Error\(/.test(screen) && !/return \{ sweepFloor: null \}/.test(screen));
+      // w5-join-screens (CONTRACT 26): the function's own sentence rides the
+      // throw (edgeFunctionError), and a non-success answer still throws.
+      (/if \(error \|\| !data\?\.success\) throw new Error\(/.test(screen)
+        || (/if \(error\) throw await edgeFunctionError\(error, /.test(screen) && /if \(!data\?\.success\) throw new Error\(/.test(screen)))
+      && !/return \{ sweepFloor: null \}/.test(screen));
     check('#98: registration is enabled only while connected, keyed on that status',
       /enabled: !!user\?\.id && qboConnected,/.test(screen) && /queryKey: \['qbo-setup-connection', user\?\.id \?\? 'anon', qboConnected \?/.test(screen));
   }

@@ -116,13 +116,30 @@ type PrequalReviewPatch = Pick<PrequalPacket, 'status' | 'updatedAt'> & Partial<
  * The packet a decision writes: the FRESH server copy with only the review
  * fields laid over it. The old code spread the GC's in-memory copy — read
  * before the sub submitted — and so wrote `financials: {}` and friends over the
- * sub's answers. Until ProjectContext grows a narrow review write (w5-join-core:
- * reviewPrequalPacket), the full-row upsert carries the fresh copy's values.
+ * sub's answers. The merged packet is what this screen shows and emails; the
+ * SERVER write is the context's narrow reviewPrequalPacket (review columns
+ * only, via prequalReviewPatchOf), so no copy of the sub's answers is sent.
  */
 function applyPrequalReview(fresh: PrequalPacket, patch: PrequalReviewPatch): PrequalPacket {
   // The patch type admits review fields only, so the spread can reach nothing
   // the sub wrote; a field the patch does not name stays as the server has it.
   return { ...fresh, ...patch };
+}
+
+/** The review columns of a decided packet — exactly what the context's narrow
+ *  write (reviewPrequalPacket) sends. `reviewedBy` rides along only when set. */
+function prequalReviewPatchOf(p: PrequalPacket): PrequalReviewPatch {
+  const all: PrequalReviewPatch = {
+    status: p.status,
+    updatedAt: p.updatedAt,
+    reviewerNotes: p.reviewerNotes,
+    reviewedAt: p.reviewedAt,
+    reviewedBy: p.reviewedBy,
+    expiresAt: p.expiresAt,
+    autoReviewFindings: p.autoReviewFindings,
+  };
+  // Only the keys that are set: an absent key is left as the server has it.
+  return Object.fromEntries(Object.entries(all).filter(([, v]) => v !== undefined)) as PrequalReviewPatch;
 }
 
 /** Which packets can be sent a renewal (#32): a decided or lapsed packet, or
@@ -232,7 +249,9 @@ function PrequalManagerInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { subcontractors, upsertPrequalPacket, getPrequalPacketForSub } = useProjects();
+  // The context's narrow review write (#24, w5-join-core) — aliased: this file
+  // already imports prequalEngine's reviewPrequalPacket (the auto-review).
+  const { subcontractors, upsertPrequalPacket, reviewPrequalPacket: writePrequalReview, getPrequalPacketForSub, prequalPackets } = useProjects();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -321,6 +340,19 @@ function PrequalManagerInner() {
     else if (existing) setReviewingPacket(existing);
     else setInvitingSub(target);
   }, [inviteSubId, subcontractors, getPrequalPacketForSub, setReviewingPacket]);
+
+  // `packetId` — the 'prequal_submitted' notification (CONTRACT 8) opens the
+  // packet the sub just submitted. Once, when the list has it; the review
+  // re-reads the row by id, so a list read before the submit is fine.
+  const { packetId } = useLocalSearchParams<{ packetId?: string }>();
+  const handledPacketParam = useRef(false);
+  useEffect(() => {
+    if (!packetId || handledPacketParam.current) return;
+    const target = prequalPackets.find(p => p.id === packetId);
+    if (!target) return;
+    handledPacketParam.current = true;
+    setReviewingPacket(target);
+  }, [packetId, prequalPackets, setReviewingPacket]);
 
   // Build a row per sub with packet+status+review info.
   const rows = useMemo(() => {
@@ -454,25 +486,27 @@ function PrequalManagerInner() {
       })),
       updatedAt: now,
     });
-    upsertPrequalPacket(updated);
+    // #24: only the reviewer's columns go to the server — never the sub's
+    // answers, which a row upsert would rewrite from whatever copy we hold.
+    writePrequalReview(packet.id, prequalReviewPatchOf(updated));
     setReviewingPacket(null);
-  }, [upsertPrequalPacket, setReviewingPacket]);
+  }, [writePrequalReview, setReviewingPacket]);
 
   const handleNeedsChanges = useCallback((packet: PrequalPacket, note: string) => {
     const now = new Date().toISOString();
     const updated = applyPrequalReview(packet, { status: 'needs_changes', reviewerNotes: note, reviewedAt: now, updatedAt: now });
-    upsertPrequalPacket(updated);
+    writePrequalReview(packet.id, prequalReviewPatchOf(updated));
     setReviewingPacket(null);
     void emailDecision(updated, 'needs_changes', note);
-  }, [upsertPrequalPacket, setReviewingPacket, emailDecision]);
+  }, [writePrequalReview, setReviewingPacket, emailDecision]);
 
   const handleReject = useCallback((packet: PrequalPacket, note: string) => {
     const now = new Date().toISOString();
     const updated = applyPrequalReview(packet, { status: 'rejected', reviewerNotes: note, reviewedAt: now, updatedAt: now });
-    upsertPrequalPacket(updated);
+    writePrequalReview(packet.id, prequalReviewPatchOf(updated));
     setReviewingPacket(null);
     void emailDecision(updated, 'rejected', note);
-  }, [upsertPrequalPacket, setReviewingPacket, emailDecision]);
+  }, [writePrequalReview, setReviewingPacket, emailDecision]);
 
   /** Resend the decision note (#111) — for a mail composer that was dismissed. */
   const handleResendNote = useCallback((packet: PrequalPacket) => {
@@ -685,7 +719,7 @@ function PrequalManagerInner() {
           setRenewing({ packet, sub });
         }}
         onResendNote={handleResendNote}
-        upsertPrequalPacket={upsertPrequalPacket}
+        writePrequalReview={writePrequalReview}
       />
     </View>
   );
@@ -799,7 +833,7 @@ function InviteModal({ sub, renewal, onClose, onSend }: {
 
 // ─── Review modal ────────────────────────────────────────────
 
-function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChanges, onReject, onRenew, onResendNote, upsertPrequalPacket }: {
+function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChanges, onReject, onRenew, onResendNote, writePrequalReview }: {
   packet: PrequalPacket | null;
   /** #24 — whether `packet` is the row just re-read, still being re-read, or
    *  this phone's cached copy (offline). Decisions wait for 'checking'. */
@@ -811,9 +845,9 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
   onApprove: (packet: PrequalPacket) => void;
   onNeedsChanges: (packet: PrequalPacket, note: string) => void;
   onReject: (packet: PrequalPacket, note: string) => void;
-  /** Passed down from PrequalManagerInner — upsertPrequalPacket is not in scope
-   *  inside this component, so it is threaded in as a prop. */
-  upsertPrequalPacket: (packet: PrequalPacket) => void;
+  /** The context's narrow review write (#24), threaded down from
+   *  PrequalManagerInner — the pipeline advance sends the status only. */
+  writePrequalReview: (id: string, patch: PrequalReviewPatch) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -889,8 +923,8 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
                     checking || isSideBranch('prequal', packet.status) || packet.status === 'submitted'
                       ? undefined
                       : (next) => {
-                          upsertPrequalPacket({
-                            ...packet,
+                          // #24: status only — never the sub's answers.
+                          writePrequalReview(packet.id, {
                             status: next as PrequalPacket['status'],
                             updatedAt: new Date().toISOString(),
                           });

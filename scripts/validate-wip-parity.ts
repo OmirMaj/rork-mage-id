@@ -276,9 +276,8 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
   // is in production (the screen's sourced derivation; the report's costSources).
   {
     const receipt = {
-      // WITH a line: the job-cost engine sums line totals while the sourced
-      // derivation reads `total`, so a line-less receipt is priced by one and
-      // not the other (a pre-existing axis-9 gap, reported, not this guard's).
+      // WITH a line. (A line-less receipt used to be priced by the sourced
+      // derivation and not the job-cost engine; fixed and pinned just below.)
       id: 'r1', projectId: 'p1', vendor: 'Lumber Co',
       lines: [{ id: 'l1', description: '2x4', quantity: 1, unit: 'ea', unitPrice: 4_000, lineTotal: 4_000, category: 'lumber' }],
       subtotal: 4_000, total: 4_000,
@@ -293,6 +292,34 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
     });
     const reportWithCost = computeWIPReport([bid], [], [], [], { receipts: [receipt] }, [], {}, { userId: ME }).rows.length === 1;
     eq('…or cost recorded against it (a $4,000 receipt), on both', [screenWithCost, reportWithCost], [true, true]);
+
+    // A LINE-LESS receipt (integration review, wave 5): the scan kept only the
+    // total. The sourced derivation prices it at `total`; the job-cost engine
+    // summed lines only → $0 → the job was on /wip-report and off the Reports
+    // WIP tab. Both now price it at its total.
+    const bare = { ...receipt, id: 'r2', lines: [], subtotal: 0, total: 4_000 } as unknown as MaterialReceipt;
+    const screenBare = isWipReportableProject(bid, {
+      userId: ME,
+      evidence: wipEvidenceFor(bid, {
+        invoices: [], payApps: [], changeOrders: [], commitments: [],
+        costToDate: suggestCostToDateWithSource([], [bare], { projectId: bid.id }).value,
+      }),
+    });
+    const reportBare = computeWIPReport([bid], [], [], [], { receipts: [bare] }, [], {}, { userId: ME }).rows.length === 1;
+    eq('…and a receipt with NO lines (only a total) puts it on both, not just /wip-report',
+      [screenBare, reportBare], [true, true]);
+    // The cost itself, to the cent, on both branches of the job-cost engine
+    // (unlinked → uncategorized phase; snapped to a PO → the PO's phase), the
+    // same figure the sourced derivation reads.
+    const po = { ...commitment(0), id: 'po1', type: 'purchase_order' } as Commitment;
+    const bareLinked = { ...bare, id: 'r3', commitmentId: 'po1' } as unknown as MaterialReceipt;
+    eq('…the job-cost engine prices a line-less receipt at its total, as the sourced derivation does',
+      [
+        computeJobCost({ project: bid, commitments: [], changeOrders: [], receipts: [bare] }).actual,
+        computeJobCost({ project: bid, commitments: [po], changeOrders: [], receipts: [bareLinked] }).actual,
+        suggestCostToDateWithSource([], [bare], { projectId: bid.id }).value,
+      ],
+      [4_000, 4_000, 4_000]);
   }
   eq('a DRAFT-status job with a sent invoice is signed work too',
     both(project({ status: 'draft' } as Partial<Project>), [SENT], []), [true, true]);
@@ -1275,6 +1302,14 @@ console.log('\na contract with no cost basis is unmeasurable on both:');
   eq('…and the pay apps come from the project context',
     /aiaPayApps,\s*\n\s*\} = useProjects\(\)/.test(REPORTS)
     || /\baiaPayApps\b[\s\S]{0,400}?= useProjects\(\)/.test(REPORTS), true);
+  // The "Not on this report" line counts the shared jobs EACH report left
+  // out. WIP drops closed jobs anyway, so it counts open shared jobs; Profit
+  // keeps closed jobs, so a closed shared job is excluded from it and must be
+  // counted (integration review, wave 5).
+  eq('…the Profit tab discloses every shared job it left out, closed ones included',
+    /const sharedJobCountAll = useMemo\(\s*\(\) => projects\.filter\(p => !isOwnCompanyProject\(p, userId\)\)\.length,/.test(REPORTS)
+      && /<ProfitView profit=\{profit\} sharedJobCount=\{sharedJobCountAll\} \/>/.test(REPORTS)
+      && /<WIPView\s+report=\{wip\} sharedJobCount=\{sharedJobCount\} \/>/.test(REPORTS), true);
 }
 
 // ── #37: THE FRIDAY CLOSE PRINTS THE WIP SCREEN'S UNDERBILLING ──────────────

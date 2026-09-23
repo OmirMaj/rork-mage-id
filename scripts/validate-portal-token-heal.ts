@@ -143,12 +143,15 @@ console.log('\n2. Read before write');
 
 const readerStart = src.search(/async\s+function\s+readServerPortalToken\s*\(/);
 const readerBody = readerStart >= 0 ? src.slice(readerStart, matchBrace(src, src.indexOf('{', src.indexOf(')', src.indexOf('Promise<', readerStart))))) : '';
-ok('2a. readServerPortalToken selects client_portal from projects by id',
-  /\.from\(\s*'projects'\s*\)\s*\.select\(\s*'client_portal'\s*\)\s*\.eq\(\s*'id'/.test(readerBody),
-  'The heal must learn what the SERVER holds before deciding anything.');
+// Wave 5 (#82, CONTRACT 13): the key moved to owner-only portal_credentials,
+// so the owner reads it through portal_get_owner_token, never the row.
+ok('2a. readServerPortalToken asks the owner-only getter (portal_get_owner_token) by project id',
+  /supabase\.rpc\(\s*'portal_get_owner_token'\s*,\s*\{\s*p_project_id:\s*projectId\s*\}\s*\)/.test(readerBody)
+  && !/\.select\(\s*'client_portal'\s*\)/.test(readerBody),
+  'The heal must learn what the SERVER holds before deciding anything — through the getter, not the row the strip empties.');
 ok('2a. readServerPortalToken reports a failed read as not-ok (never as "no token")',
-  /if\s*\(\s*error\s*\)\s*return\s*\{\s*ok:\s*false\s*\}/.test(readerBody),
-  'A failed read treated as "none" would trigger a write on every offline visit.');
+  /if\s*\(\s*error\s*\)\s*\{[\s\S]*?code\s*===\s*'42501'\)\s*return\s*\{\s*ok:\s*true,\s*token:\s*null\s*\};\s*return\s*\{\s*ok:\s*false\s*\};\s*\}/.test(readerBody),
+  'A failed read treated as "none" would trigger a write on every offline visit. Only the getter\'s own refusal (42501 — no owned row on the server yet, after ownership is confirmed) reads as none.');
 ok('2a. readServerPortalToken never logs', !/console\./.test(readerBody),
   'The token is a capability secret — never log it, or anything next to it.');
 

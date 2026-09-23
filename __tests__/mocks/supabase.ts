@@ -75,6 +75,17 @@ async function mirroredRows(table: string): Promise<unknown[]> {
   }
 }
 
+/** The signed-in user's subscriptions row, mirrored from `mageid_subscription_tier`. */
+async function subscriptionRow(): Promise<unknown> {
+  try {
+    const tier = await AsyncStorage.getItem('mageid_subscription_tier');
+    if (tier !== 'pro' && tier !== 'business' && tier !== 'enterprise') return null;
+    return { tier, end_date: null, tier_source: 'manual', manual_tier: tier };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A postgrest-like builder. Every unknown method returns `this` so arbitrary
  * chains work; the terminal shape is decided by which of select/insert/... was
@@ -98,6 +109,15 @@ function makeBuilder(table?: string): any {
 
   const builder: any = {
     then(onFulfilled: (v: QueryResult) => unknown, onRejected?: (e: unknown) => unknown) {
+      // The server's subscriptions row agrees with the seeded tier mirror.
+      // SubscriptionContext treats a server "no row" as a definitive Free
+      // (audit wave 5, #2 review) and consults the mirror only while the
+      // server has not answered, so the seeded tier must come from here.
+      if (!resolvesToList && isSelect && !isWrite && table === 'subscriptions') {
+        return subscriptionRow()
+          .then((row): QueryResult => ({ ...emptyResult(), data: row, count: row ? 1 : 0 }))
+          .then(onFulfilled, onRejected);
+      }
       if (resolvesToList && isSelect && !isWrite && !filtered && table && SERVER_MIRROR[table]) {
         return mirroredRows(table)
           .then((rows): QueryResult => ({ ...emptyListResult(), data: rows, count: rows.length }))

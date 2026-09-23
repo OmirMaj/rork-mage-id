@@ -18,7 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   buildPublicProfileSnapshot, buildPublicProfileUrl, slugify, choosePortfolioPhotos,
   publicLocationFor, publicProfileIdFor, PORTFOLIO_URL_WARN_LENGTH, sha256Hex,
-  ownsForPortfolio, makeSerialQueue, type PublicProfileSettingsW5,
+  ownsForPortfolio, makeSerialQueue,
 } from '@/utils/publicProfileSnapshot';
 import {
   planPortfolioPhotos, publishPortfolioAssets, removePortfolioCopies,
@@ -26,7 +26,7 @@ import {
   type PublishAssetsResult,
 } from '@/utils/portfolioPublish';
 import { isSampleProjectName } from '@/utils/projectCap';
-import type { Project } from '@/types';
+import type { Project, PublicProfileSettings } from '@/types';
 import { shareText } from '@/utils/shareText';
 import { formatMoney } from '@/utils/formatters';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -115,8 +115,8 @@ export default function PublicProfileSetupScreen() {
   const project = useMemo(() => id ? getProject(id) : undefined, [id, getProject]);
   const photos = useMemo(() => id ? getPhotosForProject(id) : [], [id, getPhotosForProject]);
 
-  const [profile, setProfile] = useState<PublicProfileSettingsW5>(() => {
-    return (project?.publicProfile as PublicProfileSettingsW5 | undefined) ?? {
+  const [profile, setProfile] = useState<PublicProfileSettings>(() => {
+    return project?.publicProfile ?? {
       enabled: false,
       slug: slugify(project?.name),
       publicHeadline: '',
@@ -160,7 +160,7 @@ export default function PublicProfileSetupScreen() {
   // after a cold start — and the initializer above only ever saw the first one.
   useEffect(() => {
     if (!project) return;
-    setProfile((project.publicProfile as PublicProfileSettingsW5 | undefined) ?? {
+    setProfile(project.publicProfile ?? {
       enabled: false, slug: slugify(project.name), publicHeadline: '', publicBody: '',
     });
     genRef.current++;
@@ -179,12 +179,11 @@ export default function PublicProfileSetupScreen() {
     return [...projects].sort((a, b) => mine(a) - mine(b) || rank(a.status) - rank(b.status) || a.name.localeCompare(b.name));
   }, [projects, ownerId]);
 
-  const persist = useCallback((updates: Partial<PublicProfileSettingsW5>) => {
+  const persist = useCallback((updates: Partial<PublicProfileSettings>) => {
     if (!id || !project) return;
-    const next: PublicProfileSettingsW5 = { ...profile, ...updates };
+    const next: PublicProfileSettings = { ...profile, ...updates };
     setProfile(next);
-    // w5-join-core folds showAddress / 'address' into PublicProfileSettings.
-    updateProject(id, { publicProfile: next as NonNullable<typeof project.publicProfile> });
+    updateProject(id, { publicProfile: next });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [id, project, profile, updateProject]);
 
@@ -210,12 +209,12 @@ export default function PublicProfileSetupScreen() {
       if (!touchedRef.current) {
         const localOn = !!project.publicProfile?.enabled;
         if (server !== null && server !== localOn) {
-          const next: PublicProfileSettingsW5 = {
-            ...((project.publicProfile as PublicProfileSettingsW5 | undefined) ?? { slug: slugify(project.name), publicHeadline: '', publicBody: '' }),
+          const next: PublicProfileSettings = {
+            ...(project.publicProfile ?? { slug: slugify(project.name), publicHeadline: '', publicBody: '' }),
             enabled: server,
           };
           setProfile(next);
-          updateProject(project.id, { publicProfile: next as NonNullable<typeof project.publicProfile> });
+          updateProject(project.id, { publicProfile: next });
         }
         if ((server ?? localOn) === false) void serialRef.current(() => removePortfolioCopies(ownerId, project.id));
       }
@@ -321,7 +320,7 @@ export default function PublicProfileSetupScreen() {
   const buildLink = useCallback((photoUrls: Record<string, string>, logoUrl?: string): string => {
     if (!project) return '';
     const snap = buildPublicProfileSnapshot({
-      project: { ...project, publicProfile: profile as NonNullable<typeof project.publicProfile> },
+      project: { ...project, publicProfile: profile },
       settings,
       photos,
       // The page's quote form routes the lead by this account id first; the
@@ -337,7 +336,7 @@ export default function PublicProfileSetupScreen() {
 
   const snapshot = useMemo(() => {
     if (!project) return null;
-    return buildPublicProfileSnapshot({ project: { ...project, publicProfile: profile as NonNullable<typeof project.publicProfile> }, settings, photos });
+    return buildPublicProfileSnapshot({ project: { ...project, publicProfile: profile }, settings, photos });
   }, [project, profile, settings, photos]);
 
   // The link is built from what actually landed in the last preparation for

@@ -82,6 +82,7 @@ import {
   taxBasisRetentionOverhold,
 } from '@/utils/invoiceBilling';
 import { billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
+import { isGcOnlyEstimateLine, CLIENT_CONTINGENCY_LABEL } from '@/utils/clientEstimateView';
 import { formatMoney } from '@/utils/formatters';
 import { markMilestoneInvoiced, markMilestonePaidByInvoice } from '@/utils/contractEngine';
 import {
@@ -488,23 +489,47 @@ function InvoiceInner() {
     if (!project) return [];
     const linked = project.linkedEstimate;
     if (linked && linked.items.length > 0) {
-      return linked.items.map(item => ({
-        id: createId('ili'),
-        name: item.name,
-        description: item.category,
-        quantity: item.quantity,
-        // The estimate stores a PRE-markup unitPrice but a markup-INCLUSIVE
-        // lineTotal. Copying both verbatim makes the printed row not foot
-        // (100 × $10 shown beside a $1,200 total). Fold markup into the shown
-        // unit price so quantity × unitPrice = total; `total` stays the source
-        // of truth, so this changes nothing about what the client is charged.
-        // The unit price is UNROUNDED (utils/billFromEstimateCore): rounding it
-        // to cents breaks the foot on any line whose sell price is not
-        // cent-exact (3 × $33.33 ≠ $100.00). Only the line total is rounded.
-        unit: item.unit,
-        unitPrice: billFromEstimateUnitPrice(item.lineTotal, item.quantity, item.usesBulk ? item.bulkPrice : item.unitPrice),
-        total: Math.round(item.lineTotal * 100) / 100,
-      }));
+      return linked.items.map(item => {
+        // #9: a GC-only Cost X-Ray line (xray.clientVisible === false) is his
+        // contingency for a suspected hidden condition, and this invoice goes
+        // to the client (PDF, email, portal). It bills as one lump-sum
+        // 'Contingency' line, the same shape Bill from Estimate writes: no
+        // finding, and no quantity / unit ("200 LF") that could hint at one.
+        // The renamed line no longer matches the estimate by name, so it is
+        // stamped with the estimate row's key instead. Bill from Estimate's
+        // already-billed sum and the G703 (utils/aiaBilling billedAgainst)
+        // match a keyed line by key, so the line is still counted as billed.
+        if (isGcOnlyEstimateLine(item)) {
+          const total = Math.round(item.lineTotal * 100) / 100;
+          return {
+            id: createId('ili'),
+            name: CLIENT_CONTINGENCY_LABEL,
+            description: CLIENT_CONTINGENCY_LABEL,
+            quantity: 1,
+            unit: 'LS',
+            unitPrice: total,
+            total,
+            sourceEstimateItemId: item.materialId || item.name,
+          };
+        }
+        return {
+          id: createId('ili'),
+          name: item.name,
+          description: item.category,
+          quantity: item.quantity,
+          // The estimate stores a PRE-markup unitPrice but a markup-INCLUSIVE
+          // lineTotal. Copying both verbatim makes the printed row not foot
+          // (100 × $10 shown beside a $1,200 total). Fold markup into the shown
+          // unit price so quantity × unitPrice = total; `total` stays the source
+          // of truth, so this changes nothing about what the client is charged.
+          // The unit price is UNROUNDED (utils/billFromEstimateCore): rounding it
+          // to cents breaks the foot on any line whose sell price is not
+          // cent-exact (3 × $33.33 ≠ $100.00). Only the line total is rounded.
+          unit: item.unit,
+          unitPrice: billFromEstimateUnitPrice(item.lineTotal, item.quantity, item.usesBulk ? item.bulkPrice : item.unitPrice),
+          total: Math.round(item.lineTotal * 100) / 100,
+        };
+      });
     }
     const legacy = project.estimate;
     if (legacy) {
@@ -1430,6 +1455,8 @@ function InvoiceInner() {
         totalDue,
         dueDate,
         status: 'sent',
+        // #20: a draft's first send is its issue date (not the day it was staged).
+        ...(existingInvoice.status === 'draft' ? { issueDate: new Date().toISOString() } : {}),
         progressPercent: isProgressType ? pctValue : undefined,
         // MISS-05: persist a deliberate 0% AS 0 rather than erasing it with
         // `|| undefined`, so the row records that this invoice withheld nothing
@@ -2532,9 +2559,12 @@ function InvoiceInner() {
                   // saved in September and marked sent in October drew a
                   // "34 days overdue / FINAL NOTICE" as its first reminder.
                   if (next === 'sent' && existingInvoice.status === 'draft') {
+                    // #20: and the issue date is the day it went out, like Send.
+                    const sentAt = new Date().toISOString();
                     updateInvoice(existingInvoice.id, {
                       status: 'sent',
-                      dueDate: getDueDate(new Date().toISOString(), existingInvoice.paymentTerms),
+                      issueDate: sentAt,
+                      dueDate: getDueDate(sentAt, existingInvoice.paymentTerms),
                     });
                     return;
                   }
@@ -3683,6 +3713,10 @@ function InvoiceInner() {
           onSend={handleSendPDF}
           defaultRecipient={pdfDefaultRecipient}
           documentType="invoice"
+          // #93 follow-up (wave 5): the invoice PDF prints one layout and reads
+          // no section toggle, so offering Line Items / Payment Terms / Tax /
+          // Branding switches was a control that did nothing. None shown.
+          sections={[]}
           projectName={project.name}
           documentNumber={existingInvoice.number}
           contacts={contacts}

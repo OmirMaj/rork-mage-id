@@ -459,7 +459,6 @@ const ALLOWED: Allowed[] = [
   { file: 'app/(tabs)/mage-id-bids/index.tsx', line: 'new Date(a.posted_date)', added: '2026-09-04', reason: 'same sort key, other operand' },
   { file: 'app/nearby-rfps.tsx', line: 'new Date(b.posted_date)', added: '2026-09-04', reason: 'posted_date instant (app/post-rfp.tsx:390); sort key' },
   { file: 'app/nearby-rfps.tsx', line: 'new Date(a.posted_date)', added: '2026-09-04', reason: 'same sort key, other operand' },
-  { file: 'app/cash-flow.tsx', line: 'new Date(inv.dueDate)', added: '2026-09-04', reason: 'Invoice.dueDate instant' },
   { file: 'app/cash-flow.tsx', line: 'new Date(ep.expectedDate)', added: '2026-09-04', reason: 'expectedDate: date.toISOString() (app/cash-flow.tsx:360)' },
   { file: 'app/bid-detail.tsx', line: 'new Date(dateStr)', added: '2026-09-04', reason: 'formats public_bids timestamptz fields (posted_date / response_deadline)' },
   { file: 'app/bid-detail.tsx', line: 'new Date(deadline)', added: '2026-09-04', reason: 'getCountdown(bid.response_deadline): timestamptz' },
@@ -524,8 +523,6 @@ const UNRESOLVED: Unresolved[] = [
   { file: 'app/equipment-detail.tsx', line: 'new Date(b.date)', status: 'unverified', added: '2026-09-04', reason: 'same field, sort key' },
   { file: 'app/(tabs)/subs/index.tsx', line: 'new Date(bid.date)', status: 'unverified', added: '2026-09-04',
     reason: 'SubBidRecord.date — writer not traced' },
-  { file: 'app/cash-flow.tsx', line: 'new Date(dw.weekDate)', status: 'unverified', added: '2026-09-04',
-    reason: 'utils/cashFlowEngine.ts weekStart string; construction not verified' },
 ];
 
 interface Hit { file: string; lineNo: number; snippet: string }

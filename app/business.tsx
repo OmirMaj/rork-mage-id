@@ -26,6 +26,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useAuth } from '@/contexts/AuthContext';
 import Paywall from '@/components/Paywall';
 import {
   useCoreData, useFinancialsData, useFieldData, usePreconData,
@@ -148,6 +149,7 @@ function BusinessInner() {
   const { dailyReports } = useFieldData();
   const { leads } = usePreconData();
   const { bidResponses } = useBidResponsesPortfolio();
+  const { user } = useAuth();
 
   const now = useMemo(() => new Date(), []);
 
@@ -159,8 +161,9 @@ function BusinessInner() {
   );
 
   const pipeline = useMemo(
-    () => buildPipelineHorizon({ leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now }),
-    [leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now],
+    // Wave 5 (reports): a partner's shared job is not this company's backlog.
+    () => buildPipelineHorizon({ leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now, userId: user?.id ?? null }),
+    [leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now, user?.id],
   );
 
   const clientBook = useMemo(

@@ -173,6 +173,14 @@ console.log('\nProject Files screen:');
   ok('Delete is disabled below editor, with the reason',
     /useProjectRoleState\(projectId\)/.test(B) && /role !== 'viewer' && role !== 'field'/.test(B) && /DELETE_NEEDS_EDITOR/.test(B));
   ok('Open re-signs the file on tap', /resolveProjectFileUrl\(file\.path\)/.test(B));
+  // Integration round 1: an oversized pick is refused from asset.size BEFORE
+  // readFileBytes pulls it into JS memory as base64.
+  ok('an oversized file is refused before it is read into memory',
+    /asset\.size > PROJECT_FILE_MAX_BYTES/.test(B)
+    && B.indexOf('asset.size > PROJECT_FILE_MAX_BYTES') < B.indexOf('await readFileBytes(asset.uri)'));
+  const PF = readFileSync('utils/projectFiles.ts', 'utf8');
+  ok('…against the same ceiling uploadProjectFile enforces',
+    /export const PROJECT_FILE_MAX_BYTES = 100 \* 1024 \* 1024;/.test(PF) && /if \(size > PROJECT_FILE_MAX_BYTES\) \{/.test(PF));
   ok('Open failures are shown, not voided', /showAlert\("Couldn't open file"/.test(B));
   // Raw source: the comment stripper would eat the `\/\/` inside the regex.
   const D = readFileSync('utils/projectDocuments.ts', 'utf8');

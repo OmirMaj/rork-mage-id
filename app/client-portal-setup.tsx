@@ -108,14 +108,20 @@ function portalOwnershipOf(ownerUserId: string | undefined, userId: string | nul
 async function readServerPortalToken(
   projectId: string,
 ): Promise<{ ok: true; token: string | null } | { ok: false }> {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('client_portal')
-    .eq('id', projectId)
-    .maybeSingle();
-  if (error) return { ok: false };
-  const raw = (data?.client_portal as { accessToken?: unknown } | null | undefined)?.accessToken;
-  return { ok: true, token: typeof raw === 'string' && raw.length > 0 ? raw : null };
+  // Through the owner-only getter (20260923170000, #82): the key now lives in
+  // portal_credentials, which no client can SELECT, and the projects row's
+  // mirror is stripped once the held migration lands — so a direct
+  // direct read of the row's client_portal column would go blind then.
+  const { data, error } = await supabase.rpc('portal_get_owner_token', { p_project_id: projectId });
+  if (error) {
+    // 42501 is the getter's refusal: no row this account owns. The caller has
+    // already confirmed ownership (locally or from user_id), so here it means
+    // the job's insert hasn't reached the server yet — the same "none" the
+    // old row read returned for a missing row. Anything else is a failed read.
+    if ((error as { code?: string }).code === '42501') return { ok: true, token: null };
+    return { ok: false };
+  }
+  return { ok: true, token: typeof data === 'string' && data.length > 0 ? data : null };
 }
 
 /**

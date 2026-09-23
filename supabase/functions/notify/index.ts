@@ -38,6 +38,12 @@
 //                                    (trigger only; audit round 2, #9)
 //     'safety_incident_filed'      — invited collaborator files an incident → GC
 //                                    (trigger only; wave 4, #119; no PHI)
+//     'bid_invite_sent'            — GC invites a sub to bid → sub (answers
+//                                    ok:false + reason when the email did not go)
+//     'bid_invite_received'        — a sub files a bid through an invite link → GC
+//     'lien_waiver_signed'         — a sub signs a requested lien waiver → GC
+//     'prequal_submitted'          — a sub submits a prequalification packet → GC
+//                                    (the last three: trigger only; wave 5, CONTRACT 8)
 //
 // DEPLOY ORDER (review 2026-09-04, advisory 4): marketing/portal/index.html must
 // be live BEFORE this function is deployed. Anonymous callers (that page) now
@@ -156,6 +162,10 @@ interface SubPortalLinkRow {
   user_id: string | null;
   access_token: string | null;
   enabled: boolean | null;
+  /** The sub (subcontractors.id) and job the link is for — #149: the
+   *  sub_invoice_submitted email opens /sub-portal-setup for THAT sub. */
+  subcontractor_id?: string | null;
+  project_id?: string | null;
 }
 
 interface BidQuestionRow {
@@ -736,7 +746,7 @@ async function newestBidQuestionBy(rfpId: string, userId: string): Promise<BidQu
 
 async function getSubPortalLink(subPortalId: string): Promise<SubPortalLinkRow | null> {
   try {
-    const rows = await sbGet(`sub_portal_links?id=eq.${encodeURIComponent(subPortalId)}&select=id,user_id,access_token,enabled&limit=1`) as SubPortalLinkRow[];
+    const rows = await sbGet(`sub_portal_links?id=eq.${encodeURIComponent(subPortalId)}&select=id,user_id,access_token,enabled,subcontractor_id,project_id&limit=1`) as SubPortalLinkRow[];
     return rows[0] ?? null;
   } catch {
     return null;
@@ -773,6 +783,226 @@ async function isAcceptedCollaborator(projectId: string | null, userId: string):
   } catch {
     return false;
   }
+}
+
+// >>> wave5-notify-text (pure; scripts/validate-w5-join-server-events.ts evaluates
+//     this block together with notify-format)
+/**
+ * The three sub-side GC events of wave 5 (CONTRACT 8). Each is raised ONLY by
+ * its AFTER trigger (fire_notify, the cron secret) and carries ids only; every
+ * fact printed here was re-read from the source row with the service role by
+ * loadWave5Source, never taken from the payload a trigger (or anyone) sent.
+ *
+ *   bid_invite_received  a sub filed his number through an invite link (#15)
+ *   lien_waiver_signed   a sub signed a lien waiver the GC requested (#31)
+ *   prequal_submitted    a sub submitted a prequalification packet (#111)
+ *
+ * The sub typed his company / signer name, so every string is flattened to one
+ * line and clipped here; the dispatch escapes each stat row and wrapEmailHtml
+ * escapes title / subtitle / preheader. prefKey is the event name (each has a
+ * row in app/notifications-settings.tsx and marketing/email-event-keys.json).
+ * Money is exact to the cent with both decimals ("$48,250.00"): it is a bid he
+ * will compare against other bids, not a headline.
+ */
+function fmtMoney2(v: unknown): string | null {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : typeof v === 'number' ? v : NaN;
+  if (!Number.isFinite(n)) return null;
+  const cents = Math.round(Math.abs(n) * 100);
+  const whole = Math.floor(cents / 100).toLocaleString('en-US');
+  return `${n < 0 && cents > 0 ? '-' : ''}$${whole}.${String(cents % 100).padStart(2, '0')}`;
+}
+
+/** 'conditional_progress' → 'Conditional progress'. Unknown → null. */
+function waiverTypeLabel(v: unknown): string | null {
+  if (typeof v !== 'string' || !/^[a-z_]{3,40}$/.test(v.trim())) return null;
+  const words = v.trim().replace(/_/g, ' ');
+  return words[0].toUpperCase() + words.slice(1);
+}
+
+/** 'Sep 15, 2026' for a bare calendar day, read as that day (never a UTC
+ *  instant); anything else → null, so no guessed date is printed. */
+function throughDayLabel(v: unknown): string | null {
+  const m = typeof v === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim()) : null;
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const at = new Date(Date.UTC(y, mo - 1, d, 12));
+  if (at.getUTCFullYear() !== y || at.getUTCMonth() !== mo - 1 || at.getUTCDate() !== d) return null;
+  return at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+function wave5NotifyText(event: string, f: Record<string, unknown>, projectName: string | null): {
+  prefKey: string; pushTitle: string; pushBody: string; emailSubject: string;
+  eyebrow: string; title: string; subtitle: string; rows: [string, string, boolean?][]; ctaLabel: string;
+} | null {
+  const one = (v: unknown, n: number) => {
+    const t = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+    return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
+  };
+  const onJob = projectName ? ` · ${projectName}` : '';
+  switch (event) {
+    case 'bid_invite_received': {
+      const who = one(f.vendor_name, 80) || one(f.sub_name, 80) || 'A subcontractor';
+      const pkg = one(f.package_name, 80) || 'your bid package';
+      const amt = fmtMoney2(f.amount);
+      const rows: [string, string, boolean?][] = [['Package', pkg], ['From', who]];
+      rows.push(['Bid', amt ?? 'Open the package to see it', !!amt]);
+      if (projectName) rows.push(['Project', projectName]);
+      return {
+        prefKey: 'bid_invite_received',
+        pushTitle: `Bid received · ${pkg}`,
+        pushBody: amt ? `${who} bid ${amt} on ${pkg}${projectName ? ` (${projectName})` : ''}.` : `${who} filed a bid on ${pkg}${projectName ? ` (${projectName})` : ''}.`,
+        emailSubject: amt ? `${who} bid ${amt} · ${pkg}${onJob}` : `${who} filed a bid · ${pkg}${onJob}`,
+        eyebrow: 'Bid received',
+        title: amt ? `${who} bid ${amt}` : `${who} filed a bid`,
+        subtitle: `On ${pkg}, through the invite link you sent. It is in the package's bid matrix, ready to level against the others.`,
+        rows,
+        ctaLabel: 'Open the package',
+      };
+    }
+    case 'lien_waiver_signed': {
+      const signer = one(f.signer_name, 80);
+      const company = one(f.sub_company, 80);
+      const who = company || signer || 'A subcontractor';
+      const type = waiverTypeLabel(f.waiver_type);
+      const through = throughDayLabel(f.through_date);
+      const amt = fmtMoney2(f.paid_amount);
+      const rows: [string, string, boolean?][] = [['Sub', who]];
+      if (signer && signer !== who) rows.push(['Signed by', signer]);
+      if (type) rows.push(['Waiver', type]);
+      if (through) rows.push(['Through', through]);
+      if (amt) rows.push(['Amount', amt, true]);
+      return {
+        prefKey: 'lien_waiver_signed',
+        pushTitle: `Lien waiver signed${onJob}`,
+        pushBody: `${who} signed their ${type ? `${type.toLowerCase()} ` : ''}lien waiver${amt ? ` for ${amt}` : ''}.`,
+        emailSubject: `${who} signed their lien waiver${onJob}`,
+        eyebrow: 'Lien waiver signed',
+        title: `${who} signed their lien waiver`,
+        subtitle: 'The signed waiver is on the job’s lien waiver list.',
+        rows,
+        ctaLabel: 'Open lien waivers',
+      };
+    }
+    case 'prequal_submitted': {
+      const who = one(f.sub_name, 80) || 'A subcontractor';
+      return {
+        prefKey: 'prequal_submitted',
+        pushTitle: 'Prequalification submitted',
+        pushBody: `${who} submitted their prequalification packet. Review it before you award them work.`,
+        emailSubject: `${who} submitted their prequalification packet`,
+        eyebrow: 'Prequalification',
+        title: `${who} submitted their prequalification packet`,
+        subtitle: 'Run the auto-review, then approve it or send it back with what needs changing.',
+        rows: [['From', who], ...(projectName ? [['Project', projectName] as [string, string]] : [])],
+        ctaLabel: 'Review the packet',
+      };
+    }
+    default:
+      return null;
+  }
+}
+// <<< wave5-notify-text
+
+// ─── Wave 5 sub-side events (CONTRACT 8) ──────────────────────────────
+/** Raised only by trg_notify_bid_invite_received / trg_notify_lien_waiver_signed
+ *  / trg_notify_prequal_submitted — all three are in SERVICE_ONLY_EVENTS. */
+const WAVE5_SOURCE_EVENTS: ReadonlySet<string> = new Set(['bid_invite_received', 'lien_waiver_signed', 'prequal_submitted']);
+
+type Wave5Source =
+  | { ok: true; ownerId: string; projectId: string | null; facts: Record<string, unknown>; pushData: Record<string, unknown> }
+  | { ok: false; reason: string };
+
+/** The project id when the project exists AND belongs to `ownerId`; else null
+ *  (the email then names no job rather than someone else's). */
+async function ownedProjectId(projectId: unknown, ownerId: string): Promise<string | null> {
+  if (!isUuid(projectId)) return null;
+  try {
+    const rows = await sbGet(`projects?id=eq.${projectId}&user_id=eq.${ownerId}&select=id&limit=1`) as { id: string }[];
+    return rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function firstRow<T>(path: string): Promise<T | null> {
+  try {
+    const rows = await sbGet(path) as T[];
+    return Array.isArray(rows) ? rows[0] ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Re-read the row a wave-5 trigger fired for, with the service role. The
+ * payload carries ids only (CONTRACT 8); the recipient is the row's owner and
+ * must equal payload.user_id, and every name / amount the email prints comes
+ * from these reads — nothing an anonymous sub typed rides in the payload, and a
+ * forged payload pairing one GC's id with another GC's row is refused.
+ */
+async function loadWave5Source(event: string, payload: Record<string, unknown>): Promise<Wave5Source> {
+  const ownerId = uuidOrNull(payload.user_id);
+  if (!ownerId) return { ok: false, reason: 'bad_payload' };
+  if (event === 'bid_invite_received') {
+    const inviteId = uuidOrNull(payload.invite_id);
+    const packageId = uuidOrNull(payload.package_id);
+    if (!inviteId || !packageId) return { ok: false, reason: 'bad_payload' };
+    const invite = await firstRow<{ id: string; user_id: string | null; package_id: string | null; sub_name: string | null; bid_id: string | null; responded_at: string | null }>(
+      `bid_package_invites?id=eq.${inviteId}&select=id,user_id,package_id,sub_name,bid_id,responded_at&limit=1`);
+    const pkg = await firstRow<{ id: string; user_id: string | null; project_id: string | null; name: string | null }>(
+      `bid_packages?id=eq.${packageId}&select=id,user_id,project_id,name&limit=1`);
+    if (!invite || !pkg || invite.user_id !== ownerId || pkg.user_id !== ownerId || invite.package_id !== pkg.id || !invite.responded_at) {
+      return { ok: false, reason: 'source_mismatch' };
+    }
+    // The ROW's bid id, and only a bid on this package.
+    const bidId = uuidOrNull(invite.bid_id);
+    const bid = bidId
+      ? await firstRow<{ vendor_name: string | null; amount: number | string | null }>(
+        `bid_package_bids?id=eq.${bidId}&package_id=eq.${pkg.id}&select=vendor_name,amount&limit=1`)
+      : null;
+    return {
+      ok: true, ownerId,
+      projectId: await ownedProjectId(pkg.project_id, ownerId),
+      facts: { package_name: pkg.name, vendor_name: bid?.vendor_name ?? null, sub_name: invite.sub_name, amount: bid?.amount ?? null },
+      pushData: { packageId: pkg.id },
+    };
+  }
+  if (event === 'lien_waiver_signed') {
+    const waiverId = uuidOrNull(payload.waiver_id);
+    if (!waiverId) return { ok: false, reason: 'bad_payload' };
+    const w = await firstRow<{ id: string; user_id: string | null; project_id: string | null; waiver_type: string | null; sub_name: string | null; through_date: string | null; paid_amount: number | string | null; signed_at: string | null; sub_signature: { name?: unknown; role?: unknown } | null }>(
+      `lien_waivers?id=eq.${waiverId}&select=id,user_id,project_id,waiver_type,sub_name,through_date,paid_amount,signed_at,sub_signature&limit=1`);
+    if (!w || w.user_id !== ownerId || !w.signed_at) return { ok: false, reason: 'source_mismatch' };
+    // The GC's own paper record is not news to the GC (the trigger skips it too).
+    if (w.sub_signature && w.sub_signature.role === 'gc') return { ok: false, reason: 'gc_paper_record' };
+    return {
+      ok: true, ownerId,
+      projectId: await ownedProjectId(w.project_id, ownerId),
+      facts: {
+        signer_name: typeof w.sub_signature?.name === 'string' ? w.sub_signature.name : null,
+        sub_company: w.sub_name, waiver_type: w.waiver_type, through_date: w.through_date, paid_amount: w.paid_amount,
+      },
+      pushData: { waiverId: w.id },
+    };
+  }
+  if (event === 'prequal_submitted') {
+    const packetId = uuidOrNull(payload.packet_id);
+    if (!packetId) return { ok: false, reason: 'bad_payload' };
+    const pk = await firstRow<{ id: string; user_id: string | null; subcontractor_id: string | null; project_id: string | null; status: string | null }>(
+      `prequal_packets?id=eq.${packetId}&select=id,user_id,subcontractor_id,project_id,status&limit=1`);
+    if (!pk || pk.user_id !== ownerId || pk.status !== 'submitted') return { ok: false, reason: 'source_mismatch' };
+    // The name from the GC's OWN roster row (prequal_packets carries none).
+    const sub = isUuid(pk.subcontractor_id)
+      ? await firstRow<{ company_name: string | null }>(`subcontractors?id=eq.${pk.subcontractor_id}&user_id=eq.${ownerId}&select=company_name&limit=1`)
+      : null;
+    return {
+      ok: true, ownerId,
+      projectId: await ownedProjectId(pk.project_id, ownerId),
+      facts: { sub_name: sub?.company_name ?? null },
+      pushData: { packetId: pk.id },
+    };
+  }
+  return { ok: false, reason: 'unknown_event' };
 }
 
 // ─── Preference check ─────────────────────────────────────────────────
@@ -915,6 +1145,9 @@ const SERVICE_ONLY_EVENTS: ReadonlySet<string> = new Set([
   'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready',
   // wave 4 (#119): raised only by trg_notify_safety_incident_filed.
   'safety_incident_filed',
+  // wave 5 (CONTRACT 8): raised only by trg_notify_bid_invite_received,
+  // trg_notify_lien_waiver_signed and trg_notify_prequal_submitted.
+  'bid_invite_received', 'lien_waiver_signed', 'prequal_submitted',
 ]);
 
 interface DispatchResult {
@@ -1055,6 +1288,19 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     projectId = uuidOrNull(owned.invoice.project_id) ?? projectId;
   }
 
+  // Wave 5 (CONTRACT 8): the three sub-side trigger events name their
+  // recipient by the SOURCE ROW's owner, re-read here with the service role
+  // (they are service-only, so only a trigger reaches this). The payload's
+  // ids pick the row; nothing else in it is trusted.
+  let wave5: Extract<Wave5Source, { ok: true }> | null = null;
+  if (WAVE5_SOURCE_EVENTS.has(event)) {
+    const src = await loadWave5Source(event, payload);
+    if (!src.ok) return { ok: false, reason: src.reason, event };
+    wave5 = src;
+    gcUserId = src.ownerId;
+    projectId = src.projectId;
+  }
+
   // Portal-first project lookup: one service-role read yields the GC, the
   // email context AND client_portal for the tokenized portal URL (EDGE-F6).
   // Anon: look the project up by the id the token PROVED, not by the portal id
@@ -1064,8 +1310,10 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
   if (!gcUserId && effectivePortalId && projectCtx.viaPortal) gcUserId = projectCtx.user_id ?? null;
 
   let subPortalLink: string | null = null;
+  let trustedSubLink: SubPortalLinkRow | null = null;
   if (subPortalId) {
     const link = await getSubPortalLink(subPortalId);
+    trustedSubLink = link;
     subPortalLink = subPortalUrlFor(link);
     if (!gcUserId && link && isUuid(link.user_id)) gcUserId = link.user_id;
   } else if (ownedSubLink) {
@@ -1388,6 +1636,14 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
     }
 
     case 'sub_invoice_submitted': {
+      // #149: name the sub the link belongs to, so the email / push / inbox
+      // open /sub-portal-setup for THAT sub (routes.ts reads sub_id) instead
+      // of the /sub-portals list. Only from the trusted link row, and only
+      // when it is this GC's link on this job.
+      const linkSubId = strOrNull(trustedSubLink?.subcontractor_id);
+      if (linkSubId && trustedSubLink?.user_id === gcUserId && projectId && trustedSubLink?.project_id === projectId) {
+        payload.sub_id = linkSubId;
+      }
       const num = (payload.invoice_number as string) || '';
       const amount = payload.amount as number | string;
       const submitter = (payload.submitted_by_name as string) || 'sub';
@@ -1396,7 +1652,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         prefKey: 'sub_invoice',
         pushTitle: `Sub invoice · ${fmtMoney(amount)}`,
         pushBody: `${submitter} submitted invoice #${num}`,
-        pushData: { projectId, kind: 'sub_invoice', subPortalId },
+        pushData: { projectId, kind: 'sub_invoice', subPortalId, subId: strOrNull(payload.sub_id) ?? undefined },
         pushToken: gc.push_token,
         email: gc.email,
         emailSubject: `New invoice: ${fmtMoney(amount)} from ${submitter}`,
@@ -1406,7 +1662,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           title: `${submitter} sent invoice #${num}`,
           subtitle: 'Review the lines, approve, and mark paid when the wire clears.',
           bodyHtml: emailStatCard(`${emailStatRow('Invoice', `#${escapeHtml(num)}`)}${emailStatRow('From', escapeHtml(submitter))}${lineCount ? emailStatRow('Line items', String(lineCount)) : ''}${emailStatRow('Total due', fmtMoney(amount), { emphasize: true })}`),
-          cta: { label: 'Review invoice', href: appLink('sub_invoice_submitted', projectData) },
+          cta: { label: 'Review invoice', href: appLink('sub_invoice_submitted', { project_id: projectId, sub_id: payload.sub_id }) },
         },
       });
       break;
@@ -1525,6 +1781,37 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
             ? emailStatCard(text.rows.map(([k, v, em]) => emailStatRow(k, escapeHtml(v), em ? { emphasize: true } : undefined)).join(''))
             : '',
           cta: { label: text.ctaLabel, href: appLink(event, { ...payload, project_id: projectId }) },
+        },
+      });
+      break;
+    }
+
+    case 'bid_invite_received':
+    case 'lien_waiver_signed':
+    case 'prequal_submitted': {
+      if (!wave5) break; // unreachable: loadWave5Source ran above
+      // What the inbox and daily-digest read later: the server-read facts,
+      // replacing anything the trigger sent under the same keys.
+      Object.assign(payload, wave5.facts);
+      const text = wave5NotifyText(event, wave5.facts, projectCtx.id ? projectCtx.name : null);
+      if (!text) break;
+      await dispatchOne('gc', {
+        prefKey: text.prefKey,
+        pushTitle: text.pushTitle,
+        pushBody: text.pushBody,
+        pushData: { kind: event, projectId: projectId ?? undefined, ...wave5.pushData },
+        pushToken: gc.push_token,
+        email: gc.email,
+        // Mail TO the GC about his sub: no "Sent by <himself>".
+        sender: null,
+        emailSubject: text.emailSubject,
+        emailWrap: {
+          preheader: text.pushBody,
+          eyebrow: text.eyebrow,
+          title: text.title,
+          subtitle: text.subtitle,
+          bodyHtml: emailStatCard(text.rows.map(([k, v, em]) => emailStatRow(k, escapeHtml(v), em ? { emphasize: true } : undefined)).join('')),
+          cta: { label: text.ctaLabel, href: appLink(event, { ...payload, project_id: projectId, package_id: wave5.pushData.packageId, packet_id: wave5.pushData.packetId }) },
         },
       });
       break;
@@ -1879,7 +2166,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           recipient_kind: 'sub', recipient_email: subEmail,
           email_status: 'skipped_no_email', payload,
         }).catch(() => {});
-        break;
+        // CONTRACT 8: the GC's "invite emailed" reads result.ok / result.reason
+        // (utils/notifyClient.notifyEventDetailed) — nothing went, so say so.
+        return { ok: false, reason: 'no_recipient', event };
       }
       const html = wrapEmailHtml({
         // preheader / title / subtitle go in RAW: wrapEmailHtml escapes all
@@ -1916,6 +2205,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         email_response: r.resp, payload,
         delivered_at: r.ok ? new Date().toISOString() : null,
       }).catch(() => {});
+      // CONTRACT 8: a suppressed or failed send is not "emailed" — the app
+      // tells the GC to text the link instead (notifyEventDetailed).
+      if (!r.ok) return { ok: false, reason: r.suppressed ? 'suppressed_unsubscribed' : 'email_send_failed', event };
       break;
     }
 

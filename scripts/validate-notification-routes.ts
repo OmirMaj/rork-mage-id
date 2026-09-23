@@ -90,6 +90,7 @@ const CO = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const FULL: Record<string, unknown> = {
   project_id: P, change_order_id: CO, rfp_id: 'rfp-1', sub_id: 'sub-1', lead_id: 'lead-1',
   invoice_id: 'inv-1', report_id: 'dr-1', item_id: 'item-1', kind: 'rfi', incident_id: 'inc-1',
+  package_id: 'pkg-1', packet_id: 'pq-1', waiver_id: 'lw-1',
 };
 const EVENTS = [
   'portal_message', 'budget_proposal', 'co_approval', 'contract_signed', 'selection_chosen',
@@ -98,6 +99,8 @@ const EVENTS = [
   'rfp_awarded', 'lead_received', 'margin_alert', 'morning_brief', 'week_close',
   'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready',
   'safety_incident_filed',
+  // Wave 5 (CONTRACT 8)
+  'bid_invite_received', 'lien_waiver_signed', 'prequal_submitted',
 ];
 
 async function main() {
@@ -146,6 +149,15 @@ async function main() {
   ok('a filed incident opens that case', at('safety_incident_filed') === `/safety-incidents?projectId=${P}&incidentId=inc-1`, String(at('safety_incident_filed')));
   ok('an incident push (camelCase) opens the same case', at('safety_incident_filed', { projectId: P, incidentId: 'inc-1', kind: 'safety_incident_filed' }) === `/safety-incidents?projectId=${P}&incidentId=inc-1`);
   ok('an incident event with no case id opens the job\'s incidents', at('safety_incident_filed', { project_id: P }) === `/safety-incidents?projectId=${P}`);
+  // Wave 5 (CONTRACT 8): the sub-side trigger events.
+  ok('a sub\'s bid opens THAT bid package', at('bid_invite_received') === '/buyout-package?packageId=pkg-1', String(at('bid_invite_received')));
+  ok('a bid push (camelCase packageId) opens the same package', at('bid_invite_received', { packageId: 'pkg-1', kind: 'bid_invite_received' }) === '/buyout-package?packageId=pkg-1');
+  ok('a bid event with no package opens nothing (never a blank buyout)', routes.notificationRoute('bid_invite_received', { project_id: P }) === null);
+  ok('a signed lien waiver opens the job\'s waiver list', at('lien_waiver_signed') === `/lien-waivers?projectId=${P}`, String(at('lien_waiver_signed')));
+  ok('a waiver event with no job opens nothing', routes.notificationRoute('lien_waiver_signed', { waiver_id: 'lw-1' }) === null);
+  ok('a submitted prequal packet opens THAT packet in the prequal manager', at('prequal_submitted') === '/prequal-manager?packetId=pq-1', String(at('prequal_submitted')));
+  ok('a prequal push (camelCase packetId) opens the same packet', at('prequal_submitted', { packetId: 'pq-1', kind: 'prequal_submitted' }) === '/prequal-manager?packetId=pq-1');
+  ok('a prequal event with no packet id still opens the manager', at('prequal_submitted', {}) === '/prequal-manager');
   ok('param values are URI-encoded', routes.routeHref({ pathname: '/x', params: { a: 'b&c=d' } }) === '/x?a=b%26c%3Dd');
 
   console.log('\n#12 no surface keeps its own table');

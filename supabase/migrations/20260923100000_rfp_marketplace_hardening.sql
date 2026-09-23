@@ -2,9 +2,10 @@
 --
 -- Wave 5, lane rfp-marketplace (findings #12, #13/#86). ADDITIVE: apply BEFORE
 -- the OTA. The column revoke that finishes #86 is the separate file
--- 20260923101000_public_bids_private_columns.sql, applied only AFTER the OTA has
--- reached devices (a pre-OTA client still reads public_bids with select('*'),
--- and Postgres refuses a whole query that names one revoked column).
+-- held/20260923101000_public_bids_private_columns.sql, applied only AFTER the OTA
+-- has reached devices (a pre-OTA client still reads public_bids with select('*'),
+-- and Postgres refuses a whole query that names one revoked column). It is
+-- parked under held/ so a bulk apply of this wave cannot land it early.
 --
 -- ── 1. #12 - a homeowner could rewrite a contractor's bid, then award it ─────
 -- br_homeowner_update_status lets the RFP poster UPDATE any bid_responses row

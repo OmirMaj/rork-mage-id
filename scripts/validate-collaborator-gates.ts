@@ -112,6 +112,12 @@ const ROLE_USE_EXCEPTIONS: Record<string, string> = {
   'app/job-costing.tsx': 'money blinding — canViewFinancials(null) is false (fails closed), not a gate',
   'components/ProjectHero.tsx': 'money blinding — canViewFinancials(null) is false (fails closed), not a gate',
   'app/daily-report.tsx': 'publish / owner-only controls: dfrPublishAccess reads roleLoading; a settled null is "not the owner", disabled with the stated reason',
+  // wave 5 (#53, closeout lane; documented by w5-join-screens): not a gate —
+  // it picks which ROW TEXT an owner-only row shows. With no resolved role
+  // (loading, offline, error) the project's own ownerUserId stamp decides, so
+  // there is no spinner and no false "open"; an invitee's rows read "Managed
+  // by the project owner", and RLS returns him nothing either way.
+  'app/handover.tsx': 'owner-only row wording: an unresolved role falls back to the project\'s ownerUserId stamp (never a spinner, never a gate)',
 };
 /** Role readers whose settled-null handling is a post-chain handoff. */
 const KNOWN_ROLE_GAPS: Record<string, string> = {

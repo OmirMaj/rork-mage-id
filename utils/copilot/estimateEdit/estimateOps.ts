@@ -14,8 +14,8 @@
 // saved with. The estimator now marks up labor and assemblies too
 // (full.tsx:1061/:1078 stamp `markup: globalMarkup` on both; cartTotals in
 // utils/estimateMarkup applies the global rate to every bucket), so the line's
-// own stored `markup` is the contract — not its category. See isAtCostLine for
-// the rule this replaced.
+// own stored `markup` is the contract — not its category (the at-cost-by-
+// category rule this replaced, isAtCostLine, was removed in audit wave 5, #6).
 //
 // The header here used to claim "Per-item markup is intentionally NOT an edit
 // lever — globalMarkup is the canonical markup control", and the code matched
@@ -82,22 +82,10 @@ export function normalizeEstimateOps(raw: unknown): EstimateEditOp[] {
   return out;
 }
 
-/** Category labels an OLDER estimator wrote at cost (markup: 0).
- *  @deprecated No longer used by recomputeEstimate or applyGlobalMarkupToItems
- *  (audit wave 5, #6). The estimator marks labor and assemblies up now
- *  (full.tsx:1061/:1078, cartTotals), so zeroing them by category stripped the
- *  markup off every labor and assembly line on each voice edit — a $50K labor
- *  line at 20% lost $10,000 of contract value to "change the tile quantity".
- *  Kept exported with its predicate unchanged only because app/area-takeoff.tsx
- *  and app/plan-intelligence.tsx still import it (the estimating lane's carry
- *  and w5-join-screens' cleanup remove those callers; then delete this). */
-const AT_COST_CATEGORIES = new Set(['labor', 'assemblies']);
-
-/** @deprecated See AT_COST_CATEGORIES. True when a line's category is one an
- *  older estimator priced at cost. Not a pricing rule any more. */
-export function isAtCostLine(item: Pick<LinkedEstimateItem, 'category'>): boolean {
-  return AT_COST_CATEGORIES.has(String(item.category ?? '').trim().toLowerCase());
-}
+// (Audit wave 5, #6: the old at-cost-by-category rule — isAtCostLine over
+// 'labor' / 'assemblies' — is gone. recomputeEstimate and
+// applyGlobalMarkupToItems honour each line's stored markup, and the takeoff /
+// plan writers stamp the estimate's effective markup on every line they add.)
 
 /** Cascade a new global markup across EVERY line, mirroring the estimator's
  *  global-markup chips and utils/estimateMarkup.cartTotals, which apply one

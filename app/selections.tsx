@@ -25,8 +25,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
-  fetchSelectionsForProject, saveSelectionCategory, deleteSelectionCategory,
-  saveSelectionOption, chooseSelectionOption, curateSelectionsAI,
+  fetchSelectionsForProject, saveSelectionCategoryDetailed, deleteSelectionCategoryDetailed,
+  saveSelectionOptionDetailed, chooseSelectionOptionDetailed, curateSelectionsAI,
   saveCuratedOptions, summarizeAllowances, saveSelectionCategoryDueDate,
   suggestSelectionDueDate, scheduleTaskCalendarStart, SELECTION_DUE_BUFFER_DAYS,
 } from '@/utils/selectionsEngine';
@@ -82,11 +82,25 @@ export default function SelectionsScreen() {
   // dropped once the server row agrees (the queue drained) or a later edit
   // syncs directly.
   const pendingDueRef = useRef<Record<string, string | null>>({});
+  // #137 (wave 5): categories added / deleted while offline ride the queue
+  // (the *Detailed writes answer 'queued'). refresh() reads the server, which
+  // hasn't got them yet — so the same overlay: a queued add stays on screen
+  // until the server has it, a queued delete stays off it until the server
+  // has dropped it.
+  const pendingAddsRef = useRef<Record<string, SelectionCategory>>({});
+  const pendingDeletesRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     if (!projectId) { setLoading(false); return; }
-    const cats = await fetchSelectionsForProject(projectId);
+    const fetched = await fetchSelectionsForProject(projectId);
     const pending = pendingDueRef.current;
+    const onServer = new Set(fetched.map(c => c.id));
+    for (const id of Object.keys(pendingAddsRef.current)) if (onServer.has(id)) delete pendingAddsRef.current[id];
+    for (const id of [...pendingDeletesRef.current]) if (!onServer.has(id)) pendingDeletesRef.current.delete(id);
+    const cats = [
+      ...fetched.filter(c => !pendingDeletesRef.current.has(c.id)),
+      ...Object.values(pendingAddsRef.current).filter(c => c.projectId === projectId),
+    ];
     setCategories(cats.map(c => {
       if (!(c.id in pending)) return c;
       const want = pending[c.id];
@@ -107,7 +121,8 @@ export default function SelectionsScreen() {
 
   const handleAddCategory = useCallback(async (input: { category: string; budget: number; styleBrief: string; dueDate?: string }) => {
     if (!projectId || !input.category.trim() || input.budget <= 0) return;
-    const saved = await saveSelectionCategory({
+    // #137: say where the write landed — synced, queued offline, or refused.
+    const { outcome, category: saved } = await saveSelectionCategoryDetailed({
       projectId,
       category: input.category.trim(),
       styleBrief: input.styleBrief.trim(),
@@ -115,14 +130,19 @@ export default function SelectionsScreen() {
       dueDate: input.dueDate,
       displayOrder: categories.length,
     });
-    if (saved) {
-      setCategories(prev => [...prev, saved]);
-      setAddModal(false);
-      publishPortal();
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      showAlert('Save failed', 'Could not save the category.');
+    if (outcome === 'failed' || !saved) {
+      showAlert('Save failed', 'Could not save the category. Nothing was added — check your connection and try again.');
+      return;
     }
+    setCategories(prev => [...prev, saved]);
+    setAddModal(false);
+    if (outcome === 'queued') {
+      pendingAddsRef.current[saved.id] = saved;
+      showAlert('Saved offline', 'The category reaches the homeowner\'s portal once you are back online.');
+    } else {
+      publishPortal();
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [projectId, categories.length, publishPortal]);
 
   const handleCurate = useCallback(async (cat: SelectionCategory) => {
@@ -169,8 +189,20 @@ export default function SelectionsScreen() {
       if (!url || !url.trim()) return;
       const imageUrl = await resolveSelectionImage({ url: url.trim() });
       if (!imageUrl) { showAlert('No image found', "Couldn't find a photo at that link."); return; }
-      await saveSelectionOption({ id: option.id, categoryId: option.categoryId, productName: option.productName, unitPrice: option.unitPrice, productUrl: url.trim(), imageUrl });
+      // #137: the photo and link ONLY. The old whole-option upsert wrote
+      // is_chosen:false (un-choosing the homeowner's pick) and total =
+      // unitPrice × 1 (a 60 sq ft tile option became one square foot). No
+      // unitPrice here, so neither total nor the pick is touched.
+      const res = await saveSelectionOptionDetailed({ id: option.id, categoryId: option.categoryId, productName: option.productName, productUrl: url.trim(), imageUrl });
+      if (res.outcome === 'failed') {
+        showAlert('Photo not saved', res.message ?? 'Could not save the photo. Check your connection and try again.');
+        return;
+      }
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
+      if (res.outcome === 'queued') {
+        showAlert('Saved offline', 'The photo reaches the homeowner\'s portal once you are back online.');
+        return;
+      }
       await refresh();
       publishPortal();
     }, 'plain-text');
@@ -196,11 +228,18 @@ export default function SelectionsScreen() {
   }, [publishPortal]);
 
   const handleChoose = useCallback(async (categoryId: string, option: SelectionOption) => {
-    const ok = await chooseSelectionOption(categoryId, option.id, 'gc');
-    if (ok) {
-      if (Platform.OS !== 'web') void Haptics.selectionAsync();
-      await refresh();
-      publishPortal();
+    // #48: one server transaction (gc_choose_selection). A refusal says why —
+    // offline is refused, not queued (the homeowner may be picking now).
+    const res = await chooseSelectionOptionDetailed(categoryId, option.id);
+    if (!res.ok) {
+      showAlert('Not chosen', res.message);
+      return;
+    }
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    await refresh();
+    publishPortal();
+    if (res.status === 'exceeded' && res.over > 0) {
+      showAlert('Over allowance', `${option.productName} is ${formatMoney(res.over)} over this allowance. Draft a change order from the card to bill the difference.`);
     }
   }, [refresh, publishPortal]);
 
@@ -214,12 +253,20 @@ export default function SelectionsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const ok = await deleteSelectionCategory(cat.id);
-            if (ok) {
-              setCategories(prev => prev.filter(c => c.id !== cat.id));
-              publishPortal();
-              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            const outcome = await deleteSelectionCategoryDetailed(cat.id);
+            if (outcome === 'failed') {
+              showAlert('Not deleted', 'Could not delete the category. Check your connection and try again.');
+              return;
             }
+            setCategories(prev => prev.filter(c => c.id !== cat.id));
+            delete pendingAddsRef.current[cat.id];
+            if (outcome === 'queued') {
+              pendingDeletesRef.current.add(cat.id);
+              showAlert('Deleted offline', 'The homeowner stops seeing it once you are back online.');
+            } else {
+              publishPortal();
+            }
+            if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
       ],
@@ -428,8 +475,12 @@ function CategoryCard({
   const styles = useThemedStyles(makeStyles);
   const opts = category.options ?? [];
   const chosen = opts.find(o => o.isChosen);
-  const isExceeded = category.status === 'exceeded';
-  const isChosen   = category.status === 'chosen';
+  // #48 belt-and-braces: a pick whose total is over the allowance IS over it,
+  // whatever a status column written by an older path says — the card must
+  // never read "Chosen" for a pick that needs a change order.
+  const overByTotal = !!chosen && category.budget > 0 && chosen.total > category.budget;
+  const isExceeded = category.status === 'exceeded' || overByTotal;
+  const isChosen   = !isExceeded && (category.status === 'chosen' || !!chosen);
 
   return (
     <View style={styles.catCard}>
@@ -535,7 +586,8 @@ function DueDateSection({ category, schedule, installTaskId, onEdit, onClear, on
   const opts = useMemo(() => options ?? [], [options]);
   const due = category.dueDate ? category.dueDate.slice(0, 10) : undefined;
   const daysLeft = due ? daysUntilCalendarDay(due) : null;
-  const decided = category.status === 'chosen' || category.status === 'exceeded';
+  // #48: decided = a status says so OR an option is actually chosen.
+  const decided = category.status === 'chosen' || category.status === 'exceeded' || opts.some(o => o.isChosen);
   const late = daysLeft != null && daysLeft < 0 && !decided;
 
   const suggestion = useMemo(

@@ -92,7 +92,7 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
   // maxProjects.free = 1 blocks the second one, and the block is headed with
   // the literal string from this table. So the pricing screen made the promise
   // that the app then broke, in the same session, to the same person. The cap
-  // is the published product (marketing/pricing.html "1 active project";
+  // is the published product (marketing/pricing.html "1 project (finished jobs still count)";
   // Settings' own FAQ says the same), so the table is what was wrong.
   // freeNote prints the number rather than an X, because "no projects on Free"
   // would be the opposite lie. What the "1" counts (the live server rule,

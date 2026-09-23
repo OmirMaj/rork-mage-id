@@ -49,25 +49,25 @@ const ctx = read('contexts/ProjectContext.tsx');
 // ── #150 pull-to-refresh re-reads the lists the cards are drawn from ────────
 console.log('\n#150 pull-to-refresh:');
 {
-  const m = /const HOME_REFRESH_QUERY_KEYS = \[([\s\S]*?)\] as const;/.exec(home);
-  const keys = m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : [];
-  ok('the refresh key list exists', keys.length > 0);
-  for (const need of ['dailyReports', 'changeOrders', 'rfis', 'submittals', 'punchItems', 'permits', 'projects', 'invoices']) {
-    ok(`refresh re-reads ['${need}']`, keys.includes(need), keys.join(','));
-  }
-  // Every key must be the first element of a REAL ProjectContext query key —
-  // the dead ['daily-reports'] matched nothing for months.
-  for (const k of keys) {
-    ok(`'${k}' is a real ProjectContext query prefix`, new RegExp(`queryKey: \\['${k}', userId\\]`).test(ctx));
+  // w5-join-screens (CONTRACT 24): the pull is the context's refreshAll — its
+  // foreground refetch, which re-reads projects, money, pro docs (daily
+  // reports, COs, RFIs, submittals, punch items, permits) and portal lists,
+  // bumps the portal epoch and skips the projects re-read while a write is
+  // queued. No raw invalidation of ['projects'] / ['invoices'] here.
+  const hr = home.slice(home.indexOf('const handleRefresh = useCallback('), home.indexOf('}, [refreshAll', home.indexOf('const handleRefresh = useCallback(')));
+  ok('handleRefresh exists and is keyed on refreshAll', hr.length > 0 && /\}, \[refreshAll, user\?\.id, refetchStripe\]\);/.test(home));
+  ok('handleRefresh awaits refreshAll() (CONTRACT 24)', /await Promise\.all\(\[refreshAll\(\),/.test(hr));
+  ok("handleRefresh does no raw ['projects'] / ['invoices'] invalidation",
+    !/invalidateQueries\(\{ queryKey: \['projects'\] \}\)/.test(hr) && !/invalidateQueries/.test(hr) && !/HOME_REFRESH_QUERY_KEYS/.test(home));
+  ok('refreshAll is the foreground refetch in ProjectContext', /const refreshAll = refetchAllOnForeground;/.test(ctx));
+  for (const need of ['dailyReports', 'changeOrders', 'rfis', 'submittals', 'punchItems', 'permits', 'invoices']) {
+    ok(`the foreground refetch re-reads ['${need}']`, new RegExp(`queryKey: \\['${need}', userId\\]`).test(ctx));
   }
   ok("the dead ['daily-reports'] key is gone", !/'daily-reports'/.test(home));
-  ok('handleRefresh invalidates every key and awaits them',
-    /await Promise\.all\(\[\s*\.\.\.HOME_REFRESH_QUERY_KEYS\.map\(key =>\s*queryClient\.invalidateQueries\(\{ queryKey: \[key\] \}\),?\s*\),/.test(home));
   ok('…and re-asks Stripe (the failed-check row tells him to pull down)',
     /user\?\.id \? refetchStripe\(\) : Promise\.resolve\(\),\s*\]\);/.test(home)
     && /const refetchStripe = stripeStatusQ\.refetch;/.test(home));
-  ok('the TODO names useProjects().refreshAll (CONTRACT 24) for w5-join-screens',
-    /TODO\(w5-join-screens\)[\s\S]{0,200}refreshAll\(\)/.test(read(HOME)));
+  ok('the TODO is gone (the switch landed)', !/TODO\(w5-join-screens\)/.test(read(HOME)));
 }
 
 // ── #151 Burn from real invoices, '—' before they load ──────────────────────
@@ -88,7 +88,9 @@ console.log('\n#151 burn:');
   ok('billed-to-date is the shared getInvoicedToDate', /invoicedToDate: getInvoicedToDate\(/.test(cloneSrc));
   ok('divided by the revised contract (getContractValue: estimate + approved COs)',
     /revisedContract: getContractValue\(p, /.test(cloneSrc));
-  ok('the invoices-read test asks the real query key', /getQueryState\(\['invoices', userId\]\)/.test(home));
+  // w5-join-screens: the context's per-account invoicesLoaded stamp (set with
+  // the data) replaces the raw query-cache probe.
+  ok('the invoices-read test is the context\'s invoicesLoaded stamp', /const invoicesRead = invoicesLoaded;/.test(home) && /invoicesLoaded: boolean;/.test(ctx));
   ok('home builds the map with the pure buildBurnByProject, with the signed-in user',
     /const burnByProject = useMemo\(\(\) => buildBurnByProject\(\{\s*projects, invoices, changeOrders, userId, invoicesRead, changeOrdersLoaded,\s*\}\), \[[^\]]*\buserId\b[^\]]*\]\);/.test(home));
 

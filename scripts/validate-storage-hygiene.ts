@@ -141,6 +141,13 @@ const NOT_STORAGE_KEYS = new Map<string, string>([
   // storage API; the _PREFIX in the const name is what KEY_CONST_RE looks for.
   // Added 2026-09-17 (audit round 2, #19/#23).
   ['plan-sheet:', 'utils/plans/memoryIndexCore.ts — a memory_embeddings doc_id prefix on the server, never a storage key'],
+  // SAMPLE_PROJECT_PREFIX (wave 5, project-cap). The demo job NAME prefix,
+  // byte-identical to enforce_free_tier_project_cap's LIKE 'Sample — %':
+  // isSampleProjectName() reads it to leave samples out of the free plan's
+  // count. utils/projectCap.ts imports only a type — no storage API at all —
+  // but the _PREFIX in the const name is what KEY_CONST_RE looks for. Added
+  // 2026-09-23 by w5-join-core.
+  ['Sample — ', 'utils/projectCap.ts — the demo job NAME prefix, never a storage key'],
 ]);
 
 const discovered = new Map<string, string>(); // key -> first file that writes it

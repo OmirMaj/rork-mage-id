@@ -134,6 +134,24 @@ export function notificationRoute(event: string, data: Record<string, unknown> |
       if (projectId && incidentId) return { pathname: '/safety-incidents', params: { projectId, incidentId } };
       return projectId ? { pathname: '/safety-incidents', params: { projectId } } : null;
     }
+    // Wave 5 (CONTRACT 8): the three sub-side events raised by AFTER triggers.
+    case 'bid_invite_received': {
+      // The package the sub bid on — buyout-package reads ?packageId=.
+      const packageId = pick(d, 'package_id', 'packageId');
+      return packageId ? { pathname: '/buyout-package', params: { packageId } } : null;
+    }
+    case 'lien_waiver_signed':
+      // The job's waiver list (lien-waivers reads ?projectId=); the signed
+      // waiver shows there with its signature.
+      return projectId ? { pathname: '/lien-waivers', params: { projectId } } : null;
+    case 'prequal_submitted': {
+      // CONTRACT 8: THE packet the sub just submitted. app/prequal-manager.tsx
+      // reads ?packetId= and opens that packet's review once the list has it.
+      // The trigger payload carries packet_id; the push carries packetId. With
+      // no id it still opens the manager (the packet is listed as Submitted).
+      const packetId = pick(d, 'packet_id', 'packetId');
+      return { pathname: '/prequal-manager', params: packetId ? { packetId } : {} };
+    }
     default:
       return null;
   }

@@ -1581,6 +1581,10 @@ export interface LinkedEstimateItem {
   firmPricedAt?: string;
   /** Cost X-Ray provenance for a hidden-condition contingency line (set with isAllowance: true). */
   xray?: CostXrayMeta;
+  /** Where the line's unit price came from (wave 5, copilot #7): 'learned' =
+   *  his measured cost book, 'seeded' = a rate he set himself, 'regional' =
+   *  MAGE's typical-rate estimate. Absent on lines priced before it existed. */
+  priceSource?: 'learned' | 'seeded' | 'regional';
 }
 
 export interface ChangeOrderLineItem {
@@ -2725,6 +2729,10 @@ export interface Subcontractor {
    *  this is when WE last confirmed it's still in force. Recommended
    *  cadence: every 90 days or before a new project starts. */
   coiVerifiedAt?: string;
+  /** The W-9's storage path in the private sub-documents bucket (wave 5,
+   *  CONTRACT 17: subcontractors.w9_doc_path). Opened through a short-lived
+   *  signed URL (utils/coiFiles signW9Url), never stored as a URL. */
+  w9DocPath?: string;
   bidHistory: SubBidRecord[];
   assignedProjects: string[];
   notes: string;
@@ -3566,7 +3574,11 @@ export interface PublicProfileSettings {
   testimonialQuote?: string;
   testimonialAuthor?: string;
   // Hides specific stats from the public page (default: nothing hidden).
-  hideStats?: ('value' | 'duration' | 'sqft')[];
+  // 'address' (wave 5, portfolio): no location line at all, not even the city.
+  hideStats?: ('value' | 'duration' | 'sqft' | 'address')[];
+  /** Opt-in (wave 5, portfolio): print the full `project.location`. Default
+   *  false — the page shows the city only. */
+  showAddress?: boolean;
   publishedAt?: string;
 }
 
@@ -3844,7 +3856,10 @@ export type ScanDocType =
   | 'invoice' | 'delivery_ticket' | 'permit' | 'insurance_coi' | 'contract'
   | 'business_card' | 'spec_sheet' | 'equipment_nameplate' | 'material_tag'
   | 'warranty' | 'inspection_notice' | 'plan_sheet' | 'government_id' | 'other';
-export type ScanRecordKind = 'cost' | 'contact' | 'sub_compliance' | 'file_only';
+/** 'permit' | 'warranty' (wave 5, scan-files #162): a scanned permit or
+ *  warranty creates the domain record the confirm card promised.
+ *  scan_records.record_kind is free text, so no migration. */
+export type ScanRecordKind = 'cost' | 'contact' | 'sub_compliance' | 'file_only' | 'permit' | 'warranty';
 export interface ScanDestination { folder: string; recordKind: ScanRecordKind }
 export interface ScanRecord {
   id: string; userId: string; projectId: string;
@@ -4649,6 +4664,21 @@ export interface COICoverage {
   eachOccurrence?: number;
   /** General aggregate, in dollars. */
   generalAggregate?: number;
+  /**
+   * Wave 5 (coi-subs): who wrote the row. 'ai' rows are what the model read
+   * off the certificate and show as UNCONFIRMED until the GC confirms them
+   * (confirming rewrites the row as 'manual' with `confirmedAt`). A row with
+   * no `source` predates this and is shown as it always was.
+   */
+  source?: 'ai' | 'manual';
+  confirmedAt?: string;
+  /** Model-read effective day (YYYY-MM-DD), unconfirmed. Never counted: the
+   *  model's days never go into effectiveDate / expiresAt, which feed
+   *  subcontractors.coi_expiry (reminders, badge, award gate) and
+   *  coiVerifiedAt — see utils/coiFiles confirmAiCoverage. */
+  aiEffectiveDate?: string;
+  /** Model-read expiry day (YYYY-MM-DD), unconfirmed. Never counted. */
+  aiExpiresAt?: string;
 }
 
 export interface COIValidationResult {
@@ -4679,7 +4709,15 @@ export interface CertificateOfInsurance {
   /** Optional project association — when set, the COI is "for this project."
    *  When null, the COI is the sub's general blanket COI on file. */
   projectId?: string;
-  /** Local file URI of the COI scan. Required. */
+  /**
+   * Where the certificate file lives (CONTRACT 7). New rows hold a storage
+   * PATH, never a signed / public URL or a device file:// URI:
+   *   • 'sub-documents:<subId>/coi-<coiId>.<ext>' — a COI vault upload;
+   *   • '<projectId>/<folder>/<file>' — a bare project-documents path
+   *     (= ProjectFile.path), written by Scan Anything.
+   * utils/coiFiles resolveCoiFileUrl turns either into a URL to open ('' when
+   * it cannot). Rows from before wave 5 may still hold a device URI.
+   */
   fileUri: string;
   /** When the GC uploaded it. */
   uploadedAt: string;

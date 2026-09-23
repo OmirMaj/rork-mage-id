@@ -293,6 +293,9 @@ export default function ClientViewScreen() {
     // portal hides — a preview that lies about what the client sees.
     () => (localProject
       ? getPunchItemsForProject(localProject.id).filter(p => punchListTypeOf(p) === 'punch')
+        // #9 (wave 5): and no Cost X-Ray verify task — the real portal
+        // (utils/portalSnapshot) drops it, its text is the GC-only finding.
+        .filter(p => p.xray?.clientVisible !== false)
       : hydrated?.punchItems ?? []),
     [localProject, getPunchItemsForProject, hydrated],
   );
@@ -1480,13 +1483,21 @@ export default function ClientViewScreen() {
                     ))}
                   </View>
                 )}
-                {financingEnabledForPortal && project?.id && (
+                {/* #180 (wave 5): financing-redirect only completes when the
+                    homeowner's portal id + access key resolve (through
+                    portal_project_for_token) to this exact project — without
+                    them it falls back to the marketing site. So the link
+                    carries both, and the button is hidden where they are
+                    missing (the GC's own preview), rather than shown dead. */}
+                {financingEnabledForPortal && project?.id
+                  && typeof portalId === 'string' && portalId.length > 0
+                  && typeof accessTokenParam === 'string' && accessTokenParam.length > 0 && (
                   <View style={{ marginTop: 14 }}>
                     <TouchableOpacity
                       style={{ backgroundColor: '#1F6FEB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center' }}
                       activeOpacity={0.8}
                       onPress={() => {
-                        void Linking.openURL(`${SUPABASE_FUNCTIONS_URL}/financing-redirect?project=${encodeURIComponent(project.id)}&src=portal`);
+                        void Linking.openURL(`${SUPABASE_FUNCTIONS_URL}/financing-redirect?project=${encodeURIComponent(project.id)}&src=portal&portal=${encodeURIComponent(portalId)}&t=${encodeURIComponent(accessTokenParam)}`);
                       }}
                     >
                       <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Finance this project</Text>

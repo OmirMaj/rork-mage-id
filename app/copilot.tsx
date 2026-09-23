@@ -22,6 +22,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, ChevronRight, FolderPlus, Receipt, ShieldCheck, RefreshCw } from 'lucide-react-native';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useProjectCapGate } from '@/hooks/useProjectCapGate';
+import { projectCapError } from '@/utils/copilot/newProject/newProjectCapability';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
@@ -32,9 +34,11 @@ import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
+import { cardSurface } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import CopilotShell from '@/components/copilot/CopilotShell';
+import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { copilotPrecondition, pickableProjects, PROJECT_FREE, WARRANTY_OWNER_ONLY_COPY } from '@/utils/copilot/projectScope';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
 import type { Project } from '@/types';
@@ -105,7 +109,16 @@ export default function CopilotScreen() {
   const gateOpen = projectFree || started || (!!project && !changing && precondition.ok && !warrantyBlocked);
   useEffect(() => { if (gateOpen && !projectFree && !started) setStarted(true); }, [gateOpen, projectFree, started]);
 
-  const ctx = { project, projectId, ctx: { ...projectsCtx, markupDecided, markup: globalMarkup, receipts, laborSamples, seeds }, safety: safetyCtx, tier };
+  // #57 / #156 (CONTRACT 5): the new_project capability asks canCreateProject
+  // before it adds the job, and the addProject in the bag refuses too (belt
+  // and braces), so a job past the free plan's cap is never made on this phone
+  // only — the conversation says why and offers See plans.
+  const capGate = useProjectCapGate();
+  const gatedAddProject = (p: Project) => {
+    if (!capGate.canCreate(p?.name)) throw projectCapError();
+    return projectsCtx.addProject(p);
+  };
+  const ctx = { project, projectId, ctx: { ...projectsCtx, canCreateProject: capGate.canCreate, addProject: gatedAddProject, markupDecided, markup: globalMarkup, receipts, laborSamples, seeds }, safety: safetyCtx, tier };
 
   const picker = (
     <ProjectPicker
@@ -124,7 +137,8 @@ export default function CopilotScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <GateTopbar styles={styles} colors={colors} onClose={close} />
-        <ScrollView contentContainerStyle={styles.body}>
+        {/* Clears the global Brain FAB so the last choice isn't under it. */}
+        <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
           {(!project || changing) ? picker
             : !precondition.ok ? (
               <View style={styles.block} testID="copilot-gate-no-estimate">
@@ -133,11 +147,11 @@ export default function CopilotScreen() {
                 <Text style={styles.muted}>
                   {capabilityId === 'invoice' ? 'Billing draws against the estimate.' : 'The schedule is built from the estimate’s lines.'} Nothing has been charged.
                 </Text>
-                <TouchableOpacity style={styles.primary} onPress={buildEstimateFirst} activeOpacity={0.9} testID="copilot-gate-build-estimate">
+                <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={buildEstimateFirst} activeOpacity={0.9} testID="copilot-gate-build-estimate">
                   <Receipt size={18} color={Colors.textOnAccent} strokeWidth={2} />
                   <Text style={styles.primaryText}>Build the estimate first</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
+                <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
                   <Text style={styles.secondaryText}>Pick another job</Text>
                 </TouchableOpacity>
               </View>
@@ -154,7 +168,7 @@ export default function CopilotScreen() {
                 ) : roleState.isError && roleState.role == null ? (
                   <>
                     <Text style={styles.headline}>Couldn’t check your role on this job.</Text>
-                    <TouchableOpacity style={styles.primary} onPress={roleState.refetch} activeOpacity={0.9}>
+                    <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={roleState.refetch} activeOpacity={0.9}>
                       <RefreshCw size={16} color={Colors.textOnAccent} strokeWidth={2} />
                       <Text style={styles.primaryText}>Try again</Text>
                     </TouchableOpacity>
@@ -162,7 +176,7 @@ export default function CopilotScreen() {
                 ) : (
                   <Text style={styles.headline}>{WARRANTY_OWNER_ONLY_COPY}</Text>
                 )}
-                <TouchableOpacity style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
+                <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
                   <Text style={styles.secondaryText}>Pick another job</Text>
                 </TouchableOpacity>
               </View>
@@ -177,7 +191,7 @@ export default function CopilotScreen() {
       {pickedHere && project && (
         <View style={[styles.forBar, { paddingTop: insets.top + Tokens.spacing.xs }]}>
           <Text style={styles.forText} numberOfLines={1}>for {project.name}</Text>
-          <TouchableOpacity onPress={() => { setStarted(false); setChanging(true); }} hitSlop={8} testID="copilot-change-job">
+          <TouchableOpacity accessibilityRole="button" onPress={() => { setStarted(false); setChanging(true); }} hitSlop={8} testID="copilot-change-job">
             <Text style={styles.forChange}>Change</Text>
           </TouchableOpacity>
         </View>
@@ -193,7 +207,7 @@ export default function CopilotScreen() {
       <Modal visible={overlayPicker} animationType="slide" transparent={false} onRequestClose={() => setOverlayPicker(false)}>
         <View style={[styles.root, { paddingTop: insets.top }]}>
           <GateTopbar styles={styles} colors={colors} onClose={() => setOverlayPicker(false)} />
-          <ScrollView contentContainerStyle={styles.body}>{picker}</ScrollView>
+          <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>{picker}</ScrollView>
         </View>
       </Modal>
     </View>
@@ -206,7 +220,7 @@ function GateTopbar({ styles, colors, onClose }: { styles: Styles; colors: Theme
   return (
     <View style={styles.topbar}>
       <Text style={styles.brand}>MAGE&nbsp;COPILOT</Text>
-      <TouchableOpacity onPress={onClose} accessibilityLabel="Close" hitSlop={10}>
+      <TouchableOpacity accessibilityRole="button" onPress={onClose} accessibilityLabel="Close" hitSlop={10}>
         <X size={20} color={colors.textMuted} strokeWidth={2} />
       </TouchableOpacity>
     </View>
@@ -231,7 +245,7 @@ function ProjectPicker({ styles, colors, candidates, loading, staleId, currentId
         <Text style={styles.eyebrow}>NO JOB YET</Text>
         <Text style={styles.headline}>Create a project first.</Text>
         <Text style={styles.muted}>This goes on a job, and you don’t have an open one. Nothing has been charged.</Text>
-        <TouchableOpacity style={styles.primary} onPress={onNewProject} activeOpacity={0.9} testID="copilot-picker-new-project">
+        <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={onNewProject} activeOpacity={0.9} testID="copilot-picker-new-project">
           <FolderPlus size={18} color={Colors.textOnAccent} strokeWidth={2} />
           <Text style={styles.primaryText}>Start a project</Text>
         </TouchableOpacity>
@@ -247,7 +261,7 @@ function ProjectPicker({ styles, colors, candidates, loading, staleId, currentId
         <Text style={styles.muted}>Pick the job first, so nothing you say is spent on the wrong one.</Text>
       )}
       {candidates.map((p) => (
-        <TouchableOpacity key={p.id} style={[styles.card, p.id === currentId && styles.cardCurrent]} onPress={() => onPick(p.id)} activeOpacity={0.85} testID={`copilot-picker-${p.id}`}>
+        <TouchableOpacity accessibilityRole="button" key={p.id} style={[styles.card, p.id === currentId && styles.cardCurrent]} onPress={() => onPick(p.id)} activeOpacity={0.85} testID={`copilot-picker-${p.id}`}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardLabel} numberOfLines={1}>{p.name || 'Untitled job'}</Text>
             {!!p.location && <Text style={styles.muted} numberOfLines={1}>{p.location}</Text>}
@@ -255,7 +269,7 @@ function ProjectPicker({ styles, colors, candidates, loading, staleId, currentId
           <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
         </TouchableOpacity>
       ))}
-      <TouchableOpacity style={styles.secondary} onPress={onNewProject} activeOpacity={0.8}>
+      <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={onNewProject} activeOpacity={0.8}>
         <Text style={styles.secondaryText}>It’s a new job — start a project</Text>
       </TouchableOpacity>
     </View>
@@ -273,7 +287,7 @@ function makeStyles(colors: ThemeColors) {
     eyebrow: { ...Type.monoEyebrow, color: colors.accentLabel },
     headline: { ...Type.serifHeadline, color: colors.text },
     muted: { ...Type.footnote, color: colors.textMuted },
-    card: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, backgroundColor: colors.surface },
+    card: { ...cardSurface(colors, { radius: 'lg', pad: Tokens.spacing.md }), flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm },
     cardCurrent: { borderColor: colors.accent },
     cardLabel: { ...Type.subheadEmphasized, color: colors.text },
     primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, backgroundColor: colors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },

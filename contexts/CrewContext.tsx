@@ -12,6 +12,7 @@ import { generateClaimToken } from '@/utils/crew';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { shouldSurfaceToMarketplace, crewMemberToWorkerProfile } from '@/utils/crew';
 import { isTransportError } from '@/utils/networkErrors';
+import { crewMemberUpdateRow } from '@/utils/projectContextPure';
 import {
   projectCrewCacheKey, savedProjectCrewFrom, parseSavedProjectCrew, type SavedProjectCrew,
 } from '@/utils/timeClockPayroll';
@@ -147,7 +148,16 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     });
     setCrewMembers(updated);
     void saveLocal(storageKey, updated);
-    if (canSync && next) void supabaseWrite('crew_members', 'update', toRow(next));
+    // #70 (wave 5, CONTRACT 19): ONLY the columns this edit changed, never
+    // the whole row. The whole row put back whatever this phone last read —
+    // an unclaimed worker's phone, email, jobs and status changed on another
+    // device reverted on every edit here. The server pins the claim state
+    // and the ID scan for a stale copy (crew_freeze_ownership_columns); this
+    // stops the rest. A key passed as undefined is a clear and goes as null
+    // (Remove ID, the purge-path scan). So startClaimInvite sends
+    // { id, claim_token } and the ID-scan save sends full_name + the id_*
+    // columns only.
+    if (canSync && next) void supabaseWrite('crew_members', 'update', crewMemberUpdateRow(id, changes, next.updatedAt));
   }, [crewMembers, canSync, storageKey]);
 
   const deleteCrewMember = useCallback((id: string) => {
@@ -170,14 +180,62 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
   /** Mint a single-use claim token onto a member (idempotent — keeps an
    *  existing unclaimed token). Returns the token. Sending the magic-link
    *  invite is done by the screen via utils/crewScan → auth-magic-link. */
-  const startClaimInvite = useCallback((id: string): string | null => {
+  //
+  // The token that goes in the e-mail must be the one the SERVER holds.
+  // crew_freeze_ownership_columns (20260923160000, CONTRACT 19) lets
+  // claim_token move only NULL → value, and pins it silently after that — so
+  // a phone holding a stale copy with no token used to mint a second one, the
+  // server kept the first, and the e-mailed link carried a token nothing
+  // stored (the worker's claim failed with no explanation). So when the row
+  // is on the server, the mint is written DIRECTLY and the stored value is
+  // read back from that same UPDATE: whatever the server kept (another
+  // device's earlier token, or ours) is what gets sent. This one write skips
+  // the offline queue on purpose — an invite e-mail needs the network anyway,
+  // and a queued write can't answer "which token did you keep?". Only when the
+  // server has no row yet (created offline, insert still queued — so no other
+  // device can have minted for it) does the token go through the queue.
+  const startClaimInvite = useCallback(async (id: string): Promise<string | null> => {
     const member = crewMembers.find(m => m.id === id);
     if (!member) return null;
     if (member.claimedByUserId) return member.claimToken ?? null; // already claimed
-    const token = member.claimToken ?? generateClaimToken(generateUUID());
-    if (!member.claimToken) updateCrewMember(id, { claimToken: token });
-    return token;
-  }, [crewMembers, updateCrewMember]);
+    const minted = member.claimToken ?? generateClaimToken(generateUUID());
+    if (!canSync) {
+      if (!member.claimToken) updateCrewMember(id, { claimToken: minted });
+      return minted;
+    }
+    const { data, error } = await supabase
+      .from('crew_members')
+      .update({ claim_token: minted, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('claim_token, claimed_by_user_id')
+      .maybeSingle();
+    if (error) {
+      throw new Error(isTransportError(error)
+        ? 'MAGE couldn\u2019t be reached, so the invite wasn\u2019t sent. Try again when you have signal.'
+        : `The invite wasn\u2019t sent: ${error.message}`);
+    }
+    if (!data) {
+      // No server row yet: nobody else can hold a token for it.
+      if (!member.claimToken) updateCrewMember(id, { claimToken: minted });
+      return minted;
+    }
+    const row = data as { claim_token: string | null; claimed_by_user_id: string | null };
+    const stored = row.claim_token ?? null;
+    // Keep this device's copy on the server's value (local only — the server
+    // already has it, so nothing is queued).
+    if (stored !== (member.claimToken ?? null) || row.claimed_by_user_id !== (member.claimedByUserId ?? null)) {
+      const next = crewMembers.map(m => (m.id === id
+        ? { ...m, claimToken: stored ?? undefined, claimedByUserId: row.claimed_by_user_id ?? undefined }
+        : m));
+      setCrewMembers(next);
+      void saveLocal(storageKey, next);
+    }
+    // Claimed since this copy was read: there is no invite to send.
+    if (row.claimed_by_user_id) {
+      throw new Error(`${member.fullName} has already claimed this profile, so there\u2019s no invite to send.`);
+    }
+    return stored;
+  }, [crewMembers, canSync, storageKey, updateCrewMember]);
 
   // Claim redemption is NOT done here. The claiming worker is a different auth
   // user than the owning GC, and crew_members RLS makes the unclaimed row

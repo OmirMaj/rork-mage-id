@@ -30,6 +30,7 @@ import {
   CloudOff, RotateCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { cardSurface } from '@/components/ui';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -523,9 +524,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   retryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
   errorBanner: {
+    ...cardSurface(t, { radius: 'md', pad: 10 }),
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    padding: 10, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
   },
   errorBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary },
   recoveryLine: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 18 },

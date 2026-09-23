@@ -42,7 +42,7 @@ import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
 import { capProjectCount, countsTowardFreeCap, isSampleProjectName } from '@/utils/projectCap';
 import MageRefreshControl from '@/components/MageRefreshControl';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -81,14 +81,6 @@ import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 import DailyLogCard from '@/components/home/DailyLogCard';
 import { showAlert } from '@/utils/alert';
-
-// The ProjectContext query prefixes pull-to-refresh re-reads (see
-// handleRefresh). Each one is the first element of a real `queryKey:
-// ['<name>', userId]` in contexts/ProjectContext.tsx.
-const HOME_REFRESH_QUERY_KEYS = [
-  'projects', 'invoices', 'dailyReports', 'changeOrders',
-  'rfis', 'submittals', 'punchItems', 'permits',
-] as const;
 
 // Status filter buckets. ONE label map for the dense table's section header,
 // the chips and the empty-bucket state, so "No closeout jobs" names the same
@@ -144,7 +136,7 @@ export default function HomeScreen() {
   const projectCtx = useProjects();
   const {
     projects, isLoading, addProject, getTotalOutstandingBalance, invoices, settings, userRole,
-    changeOrders, changeOrdersLoaded,
+    changeOrders, changeOrdersLoaded, invoicesLoaded,
     // RT-R1: an empty `projects` is EITHER a brand-new account OR every read
     // 401'd and this device has a cold cache. The list's empty state answers
     // that question, so it has to know which (audit 2026-09-07).
@@ -322,31 +314,25 @@ export default function HomeScreen() {
   // Pull-to-refresh. Re-reads every list a card on this screen is drawn from:
   // projects, invoices (Ready to Bill, burn), daily reports (Daily Log),
   // change orders (Recovered, Ready to Bill), RFIs / submittals / punch items
-  // (Smart Inbox, Brain Watch) and permits (Brain Watch). The keys are the
-  // ProjectContext query PREFIXES — each query is ['<name>', userId], and a
-  // prefix invalidation matches it for whoever is signed in.
+  // (Smart Inbox, Brain Watch) and permits (Brain Watch).
   //
   // Audit wave 5, #150: this used to invalidate ['daily-reports'], a key no
   // query has, so after the foreman filed today's report a pull still left the
   // Daily Log card asking for today — and COs, RFIs, submittals, punch items
   // and permits were never re-read at all.
   //
-  // TODO(w5-join-screens): replace this whole list with
-  // `await useProjects().refreshAll()` (CONTRACT 24, added by w5-join-core
-  // from ProjectContext's refetchAllOnForeground). That path bumps the portal
-  // read epoch first and skips the projects re-read while a project write is
-  // still queued; the raw ['projects'] / ['invoices'] invalidations below do
-  // neither, so a pull within a moment of an offline edit can briefly show the
-  // server's older row until the queue flushes.
-  const queryClient = useQueryClient();
+  // CONTRACT 24: the context's refreshAll (= its foreground refetch) re-reads
+  // projects, money, pro docs (daily reports, RFIs, submittals, punch items,
+  // permits) and the portal lists. It bumps the portal read epoch first and
+  // skips the projects re-read while a project write is still queued — which
+  // raw ['projects'] / ['invoices'] invalidations did not, so a pull a moment
+  // after an offline edit could briefly show the server's older row.
+  const { refreshAll } = projectCtx;
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        ...HOME_REFRESH_QUERY_KEYS.map(key =>
-          queryClient.invalidateQueries({ queryKey: [key] }),
-        ),
+      await Promise.all([refreshAll(),
         // The checklist's "Couldn't check Stripe — pull down to refresh" row
         // (#153) promises that this pull asks Stripe again.
         user?.id ? refetchStripe() : Promise.resolve(),
@@ -354,7 +340,7 @@ export default function HomeScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [queryClient, user?.id, refetchStripe]);
+  }, [refreshAll, user?.id, refetchStripe]);
   const { tier } = useSubscription();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -474,12 +460,10 @@ export default function HomeScreen() {
   //
   // `undefined` until both lists have actually been read: before that the
   // rows print '—', never a 0% computed from an empty list with no source.
-  // Invoices have no loaded flag on the context, so the query cache is asked
-  // directly; the context re-renders this screen when its invoices land. The
-  // second half covers the one render between the query answering and the
-  // context copying that answer into `invoices`.
-  const invoicesAnswer = queryClient.getQueryState(['invoices', userId])?.data as unknown[] | undefined;
-  const invoicesRead = invoicesAnswer !== undefined && (invoicesAnswer.length === 0 || invoices.length > 0);
+  // `invoicesLoaded` is the context's per-account stamp, set in the same
+  // update that copies the read into `invoices` — so it can never be true
+  // while `invoices` still holds nothing (or the last account's rows).
+  const invoicesRead = invoicesLoaded;
   // Jobs someone else owns, field roles and unread lists get no entry — see
   // buildBurnByProject for why each would be a sourceless 0%.
   const burnByProject = useMemo(() => buildBurnByProject({

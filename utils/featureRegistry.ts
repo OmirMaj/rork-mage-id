@@ -309,6 +309,11 @@ const REGISTRY = [
   // #163: "ask your plans" opens here — the Ask box is on the Plans screen
   // (its own Business gate and upgrade button live in AskPlansPanel).
   { id: 'plans', title: 'Plans & Drawings', synonyms: ['blueprints', 'sheets', 'drawings', 'markup', 'ask your plans', 'plan search', 'find on plans'], route: '/plans', requires: 'plan_markup', icon: 'MagePlans', group: 'project' },
+  // #161 (wave 5): "files" / "folders" / "attachments" land on Documents, and
+  // Documents now opens each job's Project Files (its Files card →
+  // /project-files { projectId }) — the fix's "link each project's Files"
+  // branch. A separate project-files entry would be a 25th destination in no
+  // browsable catalog (validate-nav-coverage's ceiling only goes down).
   { id: 'documents', title: 'Documents', synonyms: ['files', 'docs', 'folders', 'attachments'], route: '/documents', icon: 'FileText', group: 'project' },
   { id: 'estimate-calibration', title: 'Estimate Calibration', synonyms: ['bid accuracy', 'high or low', 'calibrate'], route: '/estimate-calibration', requires: 'portfolio_margin', icon: 'SlidersHorizontal', group: 'project' },
 

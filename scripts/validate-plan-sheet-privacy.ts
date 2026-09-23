@@ -475,13 +475,22 @@ for (const fn of ['analyze-takeoff', 'analyze-drawings', 'analyze-spec-book']) {
   ok('compare-drawings still accepts the url fallback', /oldPageUrl/.test(code));
 }
 
-// The held migration must still be held, and must still be the one thing this
+// The plan-sheets migration left held/ in wave 5 (#83, productDecision #83)
+// so the repo names the file production will record. It is still gated: its
+// header must say DO NOT APPLY until the founder's OK (and the tmp/ objects
+// are gone and the OTA has reached devices), the old held/ copy must be gone
+// (two copies could both be applied), and it must still be the one thing this
 // work is a precondition for.
-const held = join(ROOT, 'supabase/migrations/held/20260904101100_plan_sheets_private.sql');
+const held = join(ROOT, 'supabase/migrations/20260923181000_plan_sheets_private.sql');
 let heldSrc = '';
 try { heldSrc = readFileSync(held, 'utf8'); } catch {/* reported below */}
-ok('the plan-sheets migration is still parked in held/', heldSrc.length > 0,
-  'A file moved up out of held/ can be swept into a bulk apply before the OTA is live.');
+let oldHeldGone = false;
+try { readFileSync(join(ROOT, 'supabase/migrations/held/20260904101100_plan_sheets_private.sql'), 'utf8'); } catch { oldHeldGone = true; }
+ok('the plan-sheets migration carries its DO-NOT-APPLY gate (founder OK, tmp/ objects, OTA)',
+  heldSrc.length > 0 && /DO NOT APPLY/.test(heldSrc) && /THE FOUNDER SAYS YES/.test(heldSrc)
+  && /tmp\//.test(heldSrc) && /REACHED[\s\S]{0,12}devices/.test(heldSrc),
+  'A file outside held/ with no stated gate can be swept into a bulk apply before the OTA is live.');
+ok('…and the old held/ copy is gone (one file, one apply)', oldHeldGone);
 ok('it still flips the bucket private', /set public = false where id = 'plan-sheets'/.test(heldSrc));
 ok('it still adds a membership SELECT policy', /can_access_project\(\(storage\.foldername\(name\)\)\[1\]\)/.test(heldSrc));
 // Flipping the bucket is not the same as closing anonymous read. The migration

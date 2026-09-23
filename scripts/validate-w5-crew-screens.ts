@@ -132,5 +132,25 @@ ok('realtime policies: authenticated, schedule topics, presence/broadcast, can_a
   && (mig.match(/public\.can_access_project\(split_part\(realtime\.topic\(\), ':', 2\)::text, 'viewer'::text\)/g) ?? []).length === 2
   && !/::uuid/.test(mig.replace(/--.*$/gm, '')));
 
+// Integration round 1 (data-security): the server keeps the FIRST claim token
+// (the freeze pins claim_token once set), so a device with a stale no-token copy
+// used to mint a second one and e-mail a link carrying a token the server never
+// stored. The invite now sends the token read back from the server's own row.
+console.log('\n#70 carry — the e-mailed claim token is the stored one');
+{
+  const ctx = code('contexts/CrewContext.tsx');
+  const at = ctx.indexOf('const startClaimInvite = useCallback(');
+  const body = at >= 0 ? ctx.slice(at, ctx.indexOf('\n  }, [', at)) : '';
+  ok('startClaimInvite is async and writes the mint with the stored value read back from the same UPDATE',
+    /useCallback\(async \(id: string\): Promise<string \| null> =>/.test(body)
+    && /\.from\('crew_members'\)\s*\.update\(\{ claim_token: minted[^}]*\}\)\s*\.eq\('id', id\)\s*\.select\('claim_token, claimed_by_user_id'\)\s*\.maybeSingle\(\)/.test(body));
+  ok('…and returns the SERVER\'s claim_token, never the local mint, when the row exists',
+    /const stored = row\.claim_token \?\? null;/.test(body) && /return stored;\s*$/.test(body.trimEnd() + '\n'));
+  ok('…a failed write throws (no link with an unstored token goes out)',
+    /if \(error\) \{\s*throw new Error\(/.test(body));
+  ok('Crew awaits it inside the try, so a failure shows as Invite failed',
+    /try \{[\s\S]{0,200}const token = await startClaimInvite\(member\.id\);[\s\S]{0,300}sendClaimInvite\(member\.email, token, member\.id\)/.test(crew));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

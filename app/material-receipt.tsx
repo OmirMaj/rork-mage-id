@@ -40,7 +40,8 @@ import {
   normalizeExtraction, receiptLinesTotal, reconcile, receiptToCostSamples,
 } from '@/utils/materialReceipt';
 import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
-import { matchCommitmentByVendor } from '@/utils/scanRouting';
+import { matchCommitmentByVendor, materialReceiptOwnerGate } from '@/utils/scanRouting';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import type { Commitment, MaterialReceipt, MaterialReceiptLine } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -88,6 +89,14 @@ function MaterialReceiptInner() {
   const [saved, setSaved] = useState<null | 'saving' | MaterialReceiptSaveOutcome>(null);
 
   const project = projectId ? getProject(projectId) : null;
+  // Owner-only (same rule Scan Anything applies to a scanned bill):
+  // material_receipts is owner-only by RLS, so a receipt an invited PM saves
+  // lands on HIS account and the GC's job costing never counts it. Save is
+  // blocked on a job he doesn't own, and the card says why.
+  const roleState = useProjectRoleState(projectId || undefined);
+  const ownerGate = useMemo(() => materialReceiptOwnerGate(projectId, {
+    role: roleState.role, isLoading: roleState.isLoading, isError: roleState.isError,
+  }), [projectId, roleState.role, roleState.isLoading, roleState.isError]);
   // ───────────────────────────────────────────────────────────────────────────
   // SUBCONTRACTS BELONG IN THIS PICKER TOO (MONEY-AP-1, audit 2026-09-11).
   //
@@ -234,6 +243,7 @@ function MaterialReceiptInner() {
 
   const save = useCallback(() => {
     if (!draft) return;
+    if (ownerGate.state !== 'open') { showAlert("Can't save this receipt", ownerGate.reason); return; }
     if (draft.lines.length === 0) { showAlert('Nothing to save', 'Add at least one line item.'); return; }
     const toSave: MaterialReceipt = {
       ...draft,
@@ -254,7 +264,7 @@ function MaterialReceiptInner() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setDraft(null);
     setImageUri(null);
-  }, [draft, projectId, commitmentId, addReceipt]);
+  }, [draft, projectId, commitmentId, addReceipt, ownerGate]);
 
   const recon = draft ? reconcile(draft) : null;
 
@@ -285,6 +295,11 @@ function MaterialReceiptInner() {
               ))}
             </ScrollView>
           </View>
+        )}
+
+        {/* Said before he snaps and extracts, not only at Save. */}
+        {!draft && ownerGate.state !== 'open' && (
+          <Text style={[styles.reconWarn, { marginBottom: 10 }]} testID="receipt-owner-only-top">{ownerGate.reason}</Text>
         )}
 
         {/* Capture */}
@@ -427,7 +442,17 @@ function MaterialReceiptInner() {
               <Text style={styles.priceBookText}>Saving feeds <Text style={{ fontWeight: '800', color: t.text }}>{sampleCount}</Text> price{sampleCount === 1 ? '' : 's'} into your Cost Database.</Text>
             </View>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={save} activeOpacity={0.85} testID="receipt-save">
+            {ownerGate.state !== 'open' && (
+              <Text style={styles.reconWarn} testID="receipt-owner-only">{ownerGate.reason}</Text>
+            )}
+            <TouchableOpacity
+              style={[styles.saveBtn, ownerGate.state !== 'open' && { opacity: 0.5 }]}
+              onPress={save}
+              disabled={ownerGate.state !== 'open'}
+              accessibilityState={{ disabled: ownerGate.state !== 'open' }}
+              activeOpacity={0.85}
+              testID="receipt-save"
+            >
               <Check size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.saveBtnText}>Save receipt</Text>
             </TouchableOpacity>

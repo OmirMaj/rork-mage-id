@@ -63,3 +63,31 @@ export function capProjectCount(
   for (const p of projects) if (countsTowardFreeCap(p, userId)) n += 1;
   return n;
 }
+
+/**
+ * Data import is a project-create path too (integration review, wave 5): every
+ * project in a backup is claimed by the importer (ownerUserId = him), so each
+ * non-sample one takes a slot, and the server refuses every INSERT past the
+ * cap. The screen used to report all of them imported while the server kept
+ * one. This splits the NEW projects of a file, in file order, into the ones
+ * the plan admits and the ones it holds back.
+ *
+ * `canCreateAt(count)` is useTierAccess().canCreateProject — "may he create
+ * one more with `count` already counted?" — so a paid plan admits everything
+ * and the free plan admits up to its one slot. Samples are always admitted
+ * and never counted, as the trigger does.
+ */
+export function partitionImportForCap<T extends Pick<Project, 'name'>>(
+  incomingNew: readonly T[],
+  currentCapCount: number,
+  canCreateAt: (count: number) => boolean,
+): { admit: T[]; held: T[] } {
+  const admit: T[] = [];
+  const held: T[] = [];
+  let count = currentCapCount;
+  for (const p of incomingNew) {
+    if (isSampleProjectName(p.name)) { admit.push(p); continue; }
+    if (canCreateAt(count)) { admit.push(p); count += 1; } else { held.push(p); }
+  }
+  return { admit, held };
+}

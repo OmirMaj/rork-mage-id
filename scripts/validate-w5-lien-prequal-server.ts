@@ -96,9 +96,30 @@ ok('a signed row keeps OLD sub_signature and signed_at',
   && /new\.signed_at\s*:=\s*old\.signed_at/i.test(lwGuard));
 ok('a signed row is never knocked back to requested by a stale card',
   /if\s+new\.status\s*=\s*'requested'\s+then\s+new\.status\s*:=\s*old\.status/i.test(lwGuard));
-ok('a void moves the signing token off the live column for every caller',
-  /if\s+new\.status\s*=\s*'voided'[\s\S]*?new\.sign_token\s*:=\s*null/i.test(lwGuard)
-  && lwGuard.indexOf("new.status = 'voided'") < lwGuard.indexOf("current_user"));
+{
+  // Every caller: the void branch is a top-level if with no role test of its
+  // own. (Integration round 1 put the voided-status pin in front of it, so
+  // "comes before the first current_user" no longer describes this.)
+  const voidAt = lwGuard.indexOf("if new.status = 'voided'");
+  const voidEnd = lwGuard.indexOf('end if;', voidAt);
+  const before = voidAt >= 0 ? lwGuard.slice(0, voidAt) : '';
+  const ifs = (before.match(/(^|\s)if\s/g) ?? []).length;
+  const ends = (before.match(/end if;/g) ?? []).length;
+  ok('a void moves the signing token off the live column for every caller',
+    /if\s+new\.status\s*=\s*'voided'[\s\S]*?new\.sign_token\s*:=\s*null/i.test(lwGuard)
+    && voidAt >= 0 && voidEnd > voidAt && !/current_user|auth\.uid/.test(lwGuard.slice(voidAt, voidEnd))
+    && ifs === ends, `ifs before the void branch ${ifs}, end ifs ${ends}`);
+}
+// Integration round 1 (data-security): saveLienWaiver upserts the status its
+// card last showed, so a stale card on another device could put a voided
+// release back to 'requested' — dead link, but the GC's list read "awaiting
+// signature" again. A signed-in client's write keeps 'voided'; it runs before
+// the void branch so a sign_token the stale copy carried back is re-killed.
+{
+  const pinAt = lwGuard.search(/if\s+old\.status\s*=\s*'voided'\s+and\s+auth\.uid\(\)\s+is\s+not\s+null\s+and\s+current_user\s*=\s*'authenticated'\s+then\s+new\.status\s*:=\s*old\.status;\s*end if;/i);
+  ok('a voided waiver stays voided for a signed-in client (silently), ahead of the void branch',
+    pinAt >= 0 && pinAt < lwGuard.indexOf("if new.status = 'voided'"));
+}
 const pqGuard = fn('prequal_packets_protect_submission')?.text ?? '';
 for (const col of ['financials', 'safety', 'insurance', 'criteria', 'licenses', 'w9_on_file', 'w9_doc_path', 'submitted_at']) {
   ok(`the prequal guard keeps OLD.${col} on an empty write`, new RegExp(`new\\.${col}\\s*:=\\s*old\\.${col}`, 'i').test(pqGuard));

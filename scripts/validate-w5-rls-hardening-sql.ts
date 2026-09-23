@@ -176,12 +176,24 @@ ok('freeze decides the owner from OLD.project_id, never NEW',
 ok('freeze pins user_id, project_id and created_at from OLD, silently',
   /new\.user_id\s*:= old\.user_id/i.test(freeze) && /new\.project_id\s*:= old\.project_id/i.test(freeze)
   && /new\.created_at\s*:= old\.created_at/i.test(freeze) && !/raise/i.test(freeze));
-ok('attached as aa_collab_freeze_ownership to every *_collab_update table except punch_items',
-  /policyname like '%\\_collab\\_update'/.test(mig) && /tablename <> 'punch_items'/.test(mig)
+// punch_items is NOT excluded (integration round 1, data-security): wave 4's
+// punch_items_guard pins user_id but never project_id, so without the freeze a
+// field seat moves the GC's item into a job he owns and deletes it through the
+// owner branch of punch_items_collab_delete. The freeze is a separate trigger
+// beside the guard; the guard itself is not redefined (WAVE4_OBJECTS above).
+ok('attached as aa_collab_freeze_ownership to every *_collab_update table, punch_items included',
+  /policyname like '%\\_collab\\_update'/.test(mig) && !/tablename <> 'punch_items'/.test(mig)
   && /create trigger aa_collab_freeze_ownership before update on public\.%I/.test(mig));
 const EXPECTED = ['access_reservations', 'building_access_rules', 'daily_reports', 'deliveries', 'drawing_pins', 'field_tickets',
-  'permits', 'photos', 'plan_calibrations', 'plan_markups', 'plan_sheets', 'rfis', 'submittals', 'time_entries'];
-ok('post-condition names the fourteen production collab tables', EXPECTED.every(t => new RegExp(`'${t}'`).test(mig)));
+  'permits', 'photos', 'plan_calibrations', 'plan_markups', 'plan_sheets', 'punch_items', 'rfis', 'submittals', 'time_entries'];
+const postCond = mig.slice(mig.indexOf('v_expected text[]'));
+ok('post-condition names the fifteen production collab tables (punch_items included)',
+  EXPECTED.every(t => new RegExp(`'${t}'`).test(postCond.slice(0, postCond.indexOf('];')))));
+ok('post-condition checks wave 4\'s punch_items_guard is still attached beside the freeze',
+  /tg\.tgname = 'punch_items_guard'/.test(postCond)
+  && !/punch_items must stay with wave 4/.test(mig));
+ok('aa_collab_freeze_ownership sorts before punch_items_guard (project_id is back on OLD first)',
+  'aa_collab_freeze_ownership' < 'punch_items_guard');
 const LATER_BEFORE_TRIGGERS = ['daily_reports_portal_owner', 'photos_portal_owner', 'rfis_portal_owner', 'rfis_answer_guard',
   'submittals_answer_guard', 'daily_reports_updated_at', 'field_tickets_updated_at', 'time_entries_updated_at'];
 ok('aa_collab_freeze_ownership sorts before wave 4\'s portal-owner triggers and the answer guards',

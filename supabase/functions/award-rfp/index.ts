@@ -130,6 +130,11 @@ serve(async (req) => {
       if (/Response not found/i.test(text))       return jsonResponse({ success: false, error: "Response not found" }, 404);
       if (/already awarded/i.test(text))          return jsonResponse({ success: false, error: "RFP already awarded" }, 409);
       if (/does not belong/i.test(text))          return jsonResponse({ success: false, error: "Response doesn't belong to this RFP" }, 400);
+      // Wave 5 (rfp-marketplace): award_rfp refuses a withdrawn / declined bid
+      // ('This bid is no longer open for award (status: …)'). The review screen
+      // hides Award on those rows; this is the race where it was withdrawn
+      // while the screen was open — a sentence, not raw PostgREST text.
+      if (/no longer open for award/i.test(text)) return jsonResponse({ success: false, error: "This bid was withdrawn or declined, so it can't be awarded." }, 409);
       return jsonResponse({ success: false, error: `Award failed: ${text.slice(0, 240)}` }, 500);
     }
     const result = (await rpcRes.json()) as {

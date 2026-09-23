@@ -22,9 +22,9 @@ import {
   buildPublicProfileSnapshot, buildPublicProfileUrl, publicLocationFor, publicProfileIdFor,
   sha256Hex, isPortfolioPublicUrl, isDurablePublicUrl, choosePortfolioPhotos,
   PORTFOLIO_URL_WARN_LENGTH, PUBLIC_PROFILE_SNAPSHOT_VERSION,
-  ownsForPortfolio, makeSerialQueue, type PublicProfileSettingsW5,
+  ownsForPortfolio, makeSerialQueue,
 } from '../utils/publicProfileSnapshot';
-import type { Project, ProjectPhoto, AppSettings } from '../types';
+import type { Project, ProjectPhoto, AppSettings, PublicProfileSettings } from '../types';
 
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, detail?: string) {
@@ -41,7 +41,7 @@ const SQL_VECTOR = '5bb4e35a-caf6-a350-9cca-98d07d677dcb';
 const SB = 'https://nteoqhcswappxxjlpvap.supabase.co';
 const pub = (id: string) => `${SB}/storage/v1/object/public/portfolio/${OWNER}/${PROJECT}/${id}.jpg`;
 
-function project(extra: Partial<Project> = {}, profile: PublicProfileSettingsW5 = { enabled: true }): Project {
+function project(extra: Partial<Project> = {}, profile: PublicProfileSettings = { enabled: true }): Project {
   return {
     id: PROJECT, name: 'Maple kitchen', type: 'renovation',
     location: '1234 Maple St, Springfield, IL 62701',

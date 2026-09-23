@@ -397,12 +397,22 @@ grant execute on function public.portal_get_owner_token(uuid) to authenticated, 
 -- be restored BEFORE they run, or a seat could retarget a row at his own
 -- project and pass their check.
 --
--- Attached to every public table with a *_collab_update policy EXCEPT
--- punch_items (wave 4's punch_items_guard owns it). Production 2026-09-23:
--- access_reservations, building_access_rules, daily_reports, deliveries,
--- drawing_pins, field_tickets, permits, photos, plan_calibrations,
--- plan_markups, plan_sheets, rfis, submittals, time_entries. field_tickets and
--- time_entries key project_id as TEXT; the cast below handles both.
+-- Attached to every public table with a *_collab_update policy. Production
+-- 2026-09-23: access_reservations, building_access_rules, daily_reports,
+-- deliveries, drawing_pins, field_tickets, permits, photos, plan_calibrations,
+-- plan_markups, plan_sheets, punch_items, rfis, submittals, time_entries.
+-- field_tickets and time_entries key project_id as TEXT; the cast below
+-- handles both.
+--
+-- punch_items gets it too, as a SEPARATE trigger beside wave 4's
+-- punch_items_guard (which stays untouched). That guard pins user_id but never
+-- project_id, and punch_items_collab_update only asks for field access to the
+-- NEW project — so a field seat could move the GC's item into a job he owns
+-- and then delete it through punch_items_collab_delete's owner branch (the
+-- item is gone from the GC's job even without the delete). aa_ sorts before
+-- punch_items_guard, so project_id is back on OLD before the guard runs. The
+-- sub-portal RPCs run with auth.uid() null and pass; delete-account's
+-- user_id handover runs as the service role and passes.
 --
 -- NOT CHANGED, deliberately: time_entries_collab_update still lets a field
 -- seat edit another worker's shift hours (foremen close each other's shifts —
@@ -452,7 +462,6 @@ begin
       from pg_policies pol
      where pol.schemaname = 'public'
        and pol.policyname like '%\_collab\_update'
-       and pol.tablename <> 'punch_items'
      order by pol.tablename
   loop
     select count(*) into v_cols
@@ -562,19 +571,19 @@ create trigger aa_field_tickets_seal
   before update on public.field_tickets
   for each row execute function public.field_tickets_seal();
 
--- Post-condition: every *_collab_update table (bar punch_items) carries the
--- freeze, and the fourteen production tables are all among them.
+-- Post-condition: every *_collab_update table carries the freeze, the fifteen
+-- production tables (punch_items included) are all among them, and wave 4's
+-- punch_items_guard is still attached beside it.
 do $mig$
 declare
   v_missing text;
   v_expected text[] := array['access_reservations', 'building_access_rules', 'daily_reports',
     'deliveries', 'drawing_pins', 'field_tickets', 'permits', 'photos', 'plan_calibrations',
-    'plan_markups', 'plan_sheets', 'rfis', 'submittals', 'time_entries'];
+    'plan_markups', 'plan_sheets', 'punch_items', 'rfis', 'submittals', 'time_entries'];
 begin
   select string_agg(t.tablename, ', ') into v_missing
     from (select distinct tablename from pg_policies
-           where schemaname = 'public' and policyname like '%\_collab\_update'
-             and tablename <> 'punch_items') t
+           where schemaname = 'public' and policyname like '%\_collab\_update') t
    where not exists (select 1 from pg_trigger tg
                       where tg.tgrelid = format('public.%I', t.tablename)::regclass
                         and tg.tgname = 'aa_collab_freeze_ownership' and not tg.tgisinternal);
@@ -590,9 +599,11 @@ begin
   if v_missing is not null then
     raise exception '[170000] expected collab tables without the ownership freeze (did their *_collab_update policy get renamed?): %', v_missing;
   end if;
-  if exists (select 1 from pg_trigger tg where tg.tgrelid = to_regclass('public.punch_items')
-              and tg.tgname = 'aa_collab_freeze_ownership') then
-    raise exception '[170000] punch_items must stay with wave 4''s punch_items_guard';
+  -- The freeze is added BESIDE wave 4's guard, never instead of it.
+  if to_regclass('public.punch_items') is not null
+     and not exists (select 1 from pg_trigger tg where tg.tgrelid = to_regclass('public.punch_items')
+                      and tg.tgname = 'punch_items_guard' and not tg.tgisinternal) then
+    raise exception '[170000] wave 4''s punch_items_guard is missing on punch_items — apply 20260920120000 first';
   end if;
   raise notice '[170000] ownership freeze attached to every collab table';
 end

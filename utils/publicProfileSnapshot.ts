@@ -33,18 +33,10 @@ export const PUBLIC_PROFILE_SNAPSHOT_VERSION = 2;
 /** The bucket the page's photos and logo are copied into (public read). */
 export const PORTFOLIO_BUCKET = 'portfolio';
 
-/**
- * Local type extension (CONTRACT 27): w5-join-core folds `showAddress` and the
- * 'address' hide key into types/index.ts PublicProfileSettings, then deletes
- * these aliases.
- *   hideStats 'address' → no location line at all, not even the city.
- *   showAddress true    → the full `project.location` prints (opt-in).
- */
-export type PublicProfileHideKeyW5 = 'value' | 'duration' | 'sqft' | 'address';
-export type PublicProfileSettingsW5 = Omit<PublicProfileSettings, 'hideStats'> & {
-  showAddress?: boolean;
-  hideStats?: PublicProfileHideKeyW5[];
-};
+/** The public-page hide keys (types/index.ts PublicProfileSettings.hideStats):
+ *   'address' → no location line at all, not even the city;
+ *   showAddress true → the full `project.location` prints (opt-in). */
+type PublicProfileHideKey = NonNullable<PublicProfileSettings['hideStats']>[number];
 
 export interface PublicProfileSnapshot {
   v: number;
@@ -89,7 +81,7 @@ export interface PublicProfileSnapshot {
     headline?: string;
     body?: string;
     completedAt?: string;
-    hideStats?: PublicProfileHideKeyW5[];
+    hideStats?: PublicProfileHideKey[];
   };
   testimonial?: {
     quote: string;
@@ -180,7 +172,7 @@ export function choosePortfolioPhotos(
  */
 export function publicLocationFor(
   project: Pick<Project, 'location' | 'structuredAddress'>,
-  profile: Pick<PublicProfileSettingsW5, 'showAddress' | 'hideStats'> | undefined,
+  profile: Pick<PublicProfileSettings, 'showAddress' | 'hideStats'> | undefined,
 ): { address?: string; locality?: string; shown: string } {
   if ((profile?.hideStats ?? []).includes('address')) return { shown: '' };
   const full = (project.location ?? '').trim();
@@ -193,7 +185,7 @@ export function publicLocationFor(
 
 export function buildPublicProfileSnapshot(opts: BuildOpts): PublicProfileSnapshot {
   const { project, settings, photos = [], maxPhotos = PORTFOLIO_MAX_PHOTOS } = opts;
-  const profile: PublicProfileSettingsW5 = (project.publicProfile as PublicProfileSettingsW5 | undefined) ?? { enabled: false };
+  const profile: PublicProfileSettings = project.publicProfile ?? { enabled: false };
 
   const companyBranding = settings?.branding;
   const projectSlug = profile.slug || slugify(project.name);

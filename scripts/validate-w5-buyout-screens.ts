@@ -60,6 +60,17 @@ eq('0 is refused', parseBidAmountInput('0'), null);
 eq('empty is refused', parseBidAmountInput(''), null);
 eq('two decimal points are refused, not guessed', parseBidAmountInput('4.800.50'), null);
 eq('words are refused', parseBidAmountInput('forty-eight hundred'), null);
+// Integration review (wave 5): the fields are decimal-pad keyboards, which type
+// ',' as the decimal mark in comma-decimal locales. Stripping everything but
+// digits and '.' turned a $4,800.50 bid into $480,050.
+eq('a comma decimal "4800,50" is refused, never read as 480050', parseBidAmountInput('4800,50'), null);
+eq('European grouping "1.234,56" is refused, never read as 1.23', parseBidAmountInput('1.234,56'), null);
+eq('a negative "-500" is refused, never read as 500', parseBidAmountInput('-500'), null);
+eq('US grouping with cents still reads "1,234,567.89"', parseBidAmountInput('1,234,567.89'), 1234567.89);
+eq('a trailing point "4800." reads as 4800', parseBidAmountInput('4800.'), 4800);
+ok('an unreadable package budget is refused and said, not saved as $0',
+  /const parsedBudget = budgetText \? parseBidAmountInput\(newPkgBudget\) : 0;/.test(list)
+  && /if \(parsedBudget == null\) \{\s*showAlert\('Check the budget'/.test(list));
 eq('a stored $0 has no amount', bidAmountOf({ amount: 0 }), null);
 eq('a stored NaN has no amount', bidAmountOf({ amount: Number.NaN }), null);
 const sorted = [
@@ -142,7 +153,7 @@ const bun = (globalThis as unknown as { Bun?: BunGlobal }).Bun;
 if (!bun) { console.error('\n✗ must run under bun\n'); process.exit(1); }
 let printed = '';
 let blocked = false;
-const BLOCKED = 'Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and tap Share again.';
+const BLOCKED = 'Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and try again.';
 bun.plugin({
   name: 'stub-native-for-aia',
   setup(build) {

@@ -152,6 +152,11 @@ ok('voice is a 3-try trial on Free, not an included feature', /voice fill: 3 fre
 ok('no free takeoff trial is claimed (aiTakeoff is proOnly)', !/free AI trials \([^)]*takeoff/i.test(freeCard));
 ok('the cap is "1 project (finished jobs still count)", not "1 active project"', /1 project \(finished jobs still count\)/.test(freeCard) && !/1 active project/.test(freeCard));
 ok('no page copy says awarded jobs are free', !/awarded[^.<]{0,40}(don.t|do not|never) count/i.test(pricingHtml));
+// The demo page's FAQ said "Free tier with one active project" — the cap
+// counts finished jobs too (integration review, wave 5).
+const demoHtml = read('marketing/demo.html');
+ok('demo.html FAQ: one project of your own, finished jobs still count — no "one active project"',
+  /Free covers one project of your own \(finished jobs still count\)/.test(demoHtml) && !/one active project/i.test(demoHtml));
 
 // ── #176 support routes ─────────────────────────────────────────────────────
 console.log('\n#176 — cancelling names both routes:');

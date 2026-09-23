@@ -165,11 +165,13 @@ export default function AskMageScreen() {
       costSources,
       laborSamples,
       constraints: allConstraints,
+      // The pipeline horizon's backlog is this company's own jobs only.
+      userId,
     };
   }, [
     projects, commitments, changeOrders, invoices, rfis, leads, dailyReports,
     permits, submittals, punchItems, safety, bidResponses, aiaPayApps, receipts, costSources, laborSamples,
-    allConstraints,
+    allConstraints, userId,
   ]);
 
   // The anchored job (from the Brain FAB on a job screen). Resolved against the

@@ -27,10 +27,10 @@ import { supabase } from '@/lib/supabase';
 // platform, iOS included, so this was not a web issue. 14 other files in this
 // repo were already migrated; these five were missed.
 import { readAsBase64 } from '@/utils/platformFile';
-import type { COICoverageType, COIValidationResult } from '@/types';
+import type { COICoverage, COICoverageType, COIValidationResult } from '@/types';
 import { readEdgeError } from '@/utils/edgeError';
 import { daysUntilCalendarDay, calendarDayOf } from '@/utils/calendarDate';
-import { hasUnconfirmedAi, type COICoverageW5 } from '@/utils/coiFiles';
+import { hasUnconfirmedAi } from '@/utils/coiFiles';
 
 interface RawAIExtraction {
   insuredName?: string;
@@ -95,7 +95,7 @@ export function coiReadFailureMessage(code: string, serverMessage: string): stri
   return `We couldn't read this certificate. ${typeIt}`;
 }
 
-function unreadResult(message: string): { coverages: COICoverageW5[]; validation: COIValidationResult } {
+function unreadResult(message: string): { coverages: COICoverage[]; validation: COIValidationResult } {
   return {
     coverages: [],
     validation: {
@@ -122,7 +122,7 @@ function mimeFor(uri: string, mimeType?: string | null): string {
  * whose message says why, and the card offers the manual coverage rows.
  */
 export async function validateCOIImage(localFileUri: string, mimeType?: string | null): Promise<{
-  coverages: COICoverageW5[];
+  coverages: COICoverage[];
   validation: COIValidationResult;
 }> {
   let base64: string;
@@ -153,13 +153,13 @@ export async function validateCOIImage(localFileUri: string, mimeType?: string |
   }
 
   const raw = data.data;
-  const coverages: COICoverageW5[] = (raw.coverages ?? []).map(c => ({
+  const coverages: COICoverage[] = (raw.coverages ?? []).map(c => ({
     type: normalizeCoverageType(c.type),
     carrierName: c.carrierName || undefined,
     policyNumber: c.policyNumber || undefined,
     // The model's days are SUGGESTIONS, never effectiveDate / expiresAt:
     // those feed subcontractors.coi_expiry, the reminders and the award gate
-    // the moment the certificate is saved (see COICoverageW5). Only a real
+    // the moment the certificate is saved (see COICoverage). Only a real
     // calendar day is kept; anything else is left for the GC to type.
     aiEffectiveDate: calendarDayOf(c.effectiveDate ?? null) ?? undefined,
     aiExpiresAt: calendarDayOf(c.expiresAt ?? null) ?? undefined,
@@ -214,7 +214,7 @@ function humanCoverage(type: COICoverageType): string {
  * finding, so an unconfirmed date is never presented as checked.
  */
 export function recomputeValidation(
-  coverages: COICoverageW5[],
+  coverages: COICoverage[],
   prior: COIValidationResult | undefined,
   now: Date = new Date(),
 ): COIValidationResult {

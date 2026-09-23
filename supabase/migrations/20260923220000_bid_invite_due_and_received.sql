@@ -3,6 +3,13 @@
 -- Wave 5, lane buyout. Three changes to invitation to bid
 -- (20260908120000_bid_package_invites.sql), none of which edits that file.
 --
+-- APPLY ORDER: AFTER the notify edge function that knows 'bid_invite_received'
+-- is deployed (w5-join-server) — the same rule as 20260923130000. Applied
+-- first, every bid a sub files in the gap gets an unknown-event answer and the
+-- GC is never told (the row write itself is safe: the trigger's call sits in
+-- an exception block). The ship runs migrations before functions, so deploy
+-- notify first, or apply this file and 130000 after the function step.
+--
 -- ── 1. #99 — the sub who gets the link by TEXT never sees the bid due date ──
 -- The app recommends texting the link ("subs answer a text far more often than
 -- an email") and the page it opens showed scope, package and CSI, but no date:

@@ -236,7 +236,8 @@ function GenerativeSetupInner() {
               count={plan?.packages.length ?? 0}
               subtitle={
                 (plan?.packages.length ?? 0) > 0
-                  ? `${formatMoneyFull(plan?.totalPackagedBudget ?? 0)} across ${plan?.packages.length} CSI division${(plan?.packages.length ?? 0) === 1 ? '' : 's'}`
+                  // #11 (wave 5): package budgets are the estimate's COST, not its sell price.
+                  ? `${formatMoneyFull(plan?.totalPackagedBudget ?? 0)} at cost across ${plan?.packages.length} CSI division${(plan?.packages.length ?? 0) === 1 ? '' : 's'}`
                   : 'No new divisions to package'
               }
               value={includePackages}

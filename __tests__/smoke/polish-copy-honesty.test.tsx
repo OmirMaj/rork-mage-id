@@ -38,7 +38,7 @@ import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { PROJECT_ID } from '@/__tests__/fixtures/world';
 import { certRosterBanner } from '@/app/safety-certifications';
-import { finalInvoiceState } from '@/app/handover';
+import { finalInvoiceState, jobInvoiceHandoverState } from '@/app/handover';
 import { typeComparisonColdStart } from '@/app/business';
 
 function collectText(node: unknown, out: string[] = []): string[] {
@@ -109,6 +109,49 @@ describe('/handover resolves its own project instead of dead-ending', () => {
       expect(finalInvoiceState({ number: 3, status: 'draft' }).status).toBe('open');
       expect(finalInvoiceState(undefined).status).toBe('open');
       expect(finalInvoiceState(undefined).detail).toContain('No invoices yet');
+    });
+  });
+
+  // Wave 5 (#139, productDecision): Handover's invoice row reads the whole
+  // job's billing, not the newest invoice — an earlier invoice still open, or
+  // retainage still held, is not "paid in full".
+  describe('jobInvoiceHandoverState', () => {
+    type Inv = Parameters<typeof jobInvoiceHandoverState>[0][number];
+    const inv = (o: Partial<Inv> & { number: number; status: string }): Inv => ({
+      id: `inv-${o.number}`, totalDue: 0, subtotal: 0, amountPaid: 0, retentionPercent: 0, ...o,
+    } as Inv);
+
+    it('names the oldest invoice still open, with its money and overdue state', () => {
+      const row = jobInvoiceHandoverState([
+        inv({ number: 1, status: 'paid', totalDue: 10000, subtotal: 10000, amountPaid: 10000 }),
+        inv({ number: 4, status: 'overdue', totalDue: 18400, subtotal: 18400, amountPaid: 0 }),
+        inv({ number: 5, status: 'paid', totalDue: 12000, subtotal: 12000, amountPaid: 12000 }),
+      ], '2026-09-23');
+      expect(row.status).toBe('partial');
+      expect(row.detail).toBe('Invoice #4 has $18,400.00 open (overdue)');
+      expect(row.targetInvoiceId).toBe('inv-4');
+    });
+
+    it('all paid with retainage still held is partial, never "paid in full"', () => {
+      const row = jobInvoiceHandoverState([
+        inv({ number: 1, status: 'paid', totalDue: 100000, subtotal: 100000, retentionPercent: 10, amountPaid: 90000 }),
+      ], '2026-09-23');
+      expect(row.status).toBe('partial');
+      expect(row.detail).toBe('All invoices paid — $10,000.00 retention still held; bill the release before handover');
+      expect(row.detail).not.toMatch(/paid in full/);
+    });
+
+    it('everything paid and nothing held is done', () => {
+      const row = jobInvoiceHandoverState([
+        inv({ number: 1, status: 'paid', totalDue: 5000, subtotal: 5000, amountPaid: 5000 }),
+        inv({ number: 2, status: 'paid', totalDue: 7000, subtotal: 7000, amountPaid: 7000 }),
+      ], '2026-09-23');
+      expect(row.status).toBe('done');
+      expect(row.detail).toBe('All 2 invoices paid in full');
+    });
+
+    it('no invoices is open', () => {
+      expect(jobInvoiceHandoverState([], '2026-09-23').status).toBe('open');
     });
   });
 

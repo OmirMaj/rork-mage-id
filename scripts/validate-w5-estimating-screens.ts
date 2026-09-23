@@ -58,7 +58,9 @@ console.log('\n#9 / #88 / #124 app/cost-xray.tsx');
   const raw = read('app/cost-xray.tsx');
   const src = code('app/cost-xray.tsx');
   ok('#9: no copy promises the lines are GC-only', !/GC-only/.test(src));
-  ok('#9: the review copy says the lines show on the client\'s proposal', /named on the client\\u2019s proposal/.test(src));
+  // w5-join-screens landed the client-view half (xray.clientVisible false →
+  // one neutral 'Contingency' scope line), so the copy now says exactly that.
+  ok('#9: the review copy says the proposal shows only a Contingency total, never the finding', /as one \\u201cContingency\\u201d line, never the finding/.test(src) && !/named on the client/.test(src));
   ok('#9: isAllowance is NOT flipped (allowance semantics unchanged)', /isAllowance: true/.test(src));
   const apply = callbackBody(src, 'applyToEstimate');
   ok('#88: no separate "No estimate yet" alert before the summary', !/'No estimate yet'/.test(apply));

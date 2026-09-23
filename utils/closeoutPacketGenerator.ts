@@ -133,7 +133,9 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
   // at handover, so an internal crew-list item must not appear in its punch
   // section or count toward its "N% complete". Narrowed once here so the
   // completion maths and the rendered section can never disagree.
-  const punchItems = data.punchItems.filter(p => punchListTypeOf(p) === 'punch');
+  // #9 (wave 5): nor a Cost X-Ray verify task (xray.clientVisible === false) —
+  // its description is the GC-only hidden-condition finding.
+  const punchItems = data.punchItems.filter(p => punchListTypeOf(p) === 'punch').filter(p => p.xray?.clientVisible !== false);
 
   const approvedCOs = changeOrders.filter(co => co.status === 'approved');
   const totalCOValue = sumCents(approvedCOs.map(co => co.changeAmount ?? 0));

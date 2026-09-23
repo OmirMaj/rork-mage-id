@@ -102,15 +102,49 @@ CREATE TRIGGER subcontractors_sanitize_tax_id_last4
 REVOKE ALL ON FUNCTION public.subcontractors_sanitize_tax_id_last4() FROM PUBLIC, anon, authenticated;
 
 -- ── 3 · material_receipts ───────────────────────────────────────────────────
+-- The key is (user_id, id), not id alone. Receipt ids are client-made and
+-- NOT globally unique: a QuickBooks-sourced receipt's id is
+-- `qbo-<type>-<qbo_id>-<line>` (utils/qbo/qboCostMap.ts), and qbo_id is
+-- QuickBooks' per-company sequential number — two contractors on QuickBooks
+-- both have a 'qbo-Purchase-1-1'. With a global key the second one's upsert
+-- lands on the first one's row, RLS refuses it (42501), his receipt never
+-- reaches the server and Retry fails forever. PostgREST's upsert with no
+-- on_conflict conflicts on the primary key, and every row carries user_id, so
+-- the app's write needs no change.
 CREATE TABLE IF NOT EXISTS public.material_receipts (
-  id text PRIMARY KEY,
+  id text NOT NULL,
   user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
   project_id text,
   commitment_id text,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  PRIMARY KEY (user_id, id)
 );
+
+-- A database that ran an earlier draft of this file has PRIMARY KEY (id);
+-- move it to (user_id, id). Production had no material_receipts table when
+-- this was written (2026-09-23), so there this is a no-op.
+DO $pk$
+DECLARE
+  v_con text;
+  v_cols text;
+BEGIN
+  SELECT c.conname,
+         string_agg(a.attname, ',' ORDER BY array_position(c.conkey, a.attnum))
+    INTO v_con, v_cols
+    FROM pg_constraint c
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+   WHERE c.conrelid = 'public.material_receipts'::regclass AND c.contype = 'p'
+   GROUP BY c.conname;
+  IF v_cols IS DISTINCT FROM 'user_id,id' THEN
+    IF v_con IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE public.material_receipts DROP CONSTRAINT %I', v_con);
+    END IF;
+    ALTER TABLE public.material_receipts ADD PRIMARY KEY (user_id, id);
+  END IF;
+END
+$pk$;
 
 CREATE INDEX IF NOT EXISTS material_receipts_user_idx ON public.material_receipts(user_id);
 CREATE INDEX IF NOT EXISTS material_receipts_project_idx
@@ -148,7 +182,11 @@ GRANT ALL ON public.material_receipts TO service_role;
 --    tax_id_last4 stays '1234'; set it to '' → NULL (a deliberate clear).
 -- 3. Four material_receipts policies, owner-scoped, TO authenticated; as user
 --    B, select count(*) from material_receipts → 0 of A's rows; an insert with
---    user_id = A is rejected; anon select → permission denied.
+--    user_id = A is rejected; anon select → permission denied. A and B can
+--    each hold a row with the same id (the key is (user_id, id)):
+--    select pg_get_constraintdef(oid) from pg_constraint
+--     where conrelid = 'public.material_receipts'::regclass and contype = 'p';
+--    → PRIMARY KEY (user_id, id)
 -- 4. NOTIFY pgrst, 'reload schema'; save a material receipt on a device and
 --    see it on app.mageid.app's budget dashboard.
 -- ============================================================================

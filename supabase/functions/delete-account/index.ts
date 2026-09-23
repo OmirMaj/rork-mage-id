@@ -250,6 +250,9 @@ const USER_KEYED_BUCKETS = [
   'secure-contracts',  // <uid>/<contractId>.pdf
   'worker-ids',        // <uid>/<crewMemberId>/<ts>.jpg
   'rfp-attachments',   // <uid>/<rfpId>/<ts>_<name>        (PUBLIC bucket)
+  'portfolio',         // <uid>/<projectId>/<photoId>.jpg, <uid>/branding/logo-<hash>.<ext>
+                       //   (utils/portfolioPublish, PUBLIC bucket; wave 5). The
+                       //   public_profiles rows go by FK cascade (owner_id).
 ];
 
 // Keyed by project id, so we have to walk the user's projects first.

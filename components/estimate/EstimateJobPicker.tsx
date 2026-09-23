@@ -12,6 +12,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { cardSurface } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -55,8 +56,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   label: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const, marginBottom: 6 },
   row: { gap: 8 },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.full,
-    borderWidth: 1, borderColor: t.line, backgroundColor: t.surface, maxWidth: 200,
+    ...cardSurface(t, { radius: 'full', pad: 'none' }),
+    paddingHorizontal: 12, paddingVertical: 7, maxWidth: 200,
   },
   chipOn: { backgroundColor: t.accent + '1A', borderColor: t.accent },
   chipText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const },

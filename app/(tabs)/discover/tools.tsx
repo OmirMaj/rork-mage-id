@@ -57,6 +57,7 @@ import EmptyState from '@/components/EmptyState';
 import { useProjects } from '@/contexts/ProjectContext';
 import { featureFor, type FeatureId } from '@/utils/featureRegistry';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useClaimedCrewProfile } from '@/hooks/useClaimedCrewProfile';
 
 const SECTIONS = [
   'AI HUB', 'INDUSTRY', 'DECISIONS', 'FIELD', 'MONEY', 'FIND WORK',
@@ -167,7 +168,10 @@ const TOOL_ROWS: ToolRow[] = [
   { feature: 'tax-1099', route: '/tax-1099-export', Icon: FileDown, title: '1099-NEC export', subtitle: 'Year-end CSV for your CPA — flags subs paid ≥ $600', tone: 'success', testID: 'tools-tax-1099', section: 'MONEY' },
 
   // ── FIND WORK — PRODUCT-F4: both were sidebar-only.
-  { feature: 'auto-bids', route: '/auto-bids', Icon: Zap, title: 'Pre-priced bids', subtitle: 'Bids MAGE has already priced from your cost book — review and send', tone: 'accent', testID: 'tools-auto-bids', section: 'FIND WORK' },
+  // #16 (wave 5): a pre-priced bid uses his closed jobs' costs when he has
+  // them, and the owner's budget when he doesn't — "from your cost book"
+  // promised history that a new account doesn't have.
+  { feature: 'auto-bids', route: '/auto-bids', Icon: Zap, title: 'Pre-priced bids', subtitle: 'Open bids priced from what your closed jobs cost, or the owner\u2019s budget — review before you send', tone: 'accent', testID: 'tools-auto-bids', section: 'FIND WORK' },
   // Audit round 2, #11: this read "Vendors, yards and price history". The
   // screen is a MOCK catalog (mocks/suppliers.ts) with no price history and
   // no real vendor in it; say so on the door, not only once inside.
@@ -253,12 +257,22 @@ export default function DiscoverToolsScreen() {
   // validator proves no chip advertises a tier its destination does not
   // enforce, in either direction.
   const { canAccess, requiredTierFor } = useTierAccess();
+  // #74 (wave 5): for a worker who claimed his crew profile and has no crew
+  // plan, the Crew row is HIS profile — "My Profile", no Business chip (the
+  // screen already opens for him; only the row's words were a roster's).
+  const claimedCrewWorker = useClaimedCrewProfile();
+  const crewAsProfile = useCallback((row: ToolRow): boolean => {
+    if (row.feature !== 'crew' || !claimedCrewWorker) return false;
+    const requires = featureFor('crew').requires;
+    return !!requires && !canAccess(requires);
+  }, [claimedCrewWorker, canAccess]);
   const tierMeta = useCallback((row: ToolRow): string | undefined => {
     if (!row.feature) return undefined;
+    if (crewAsProfile(row)) return undefined;
     const requires = featureFor(row.feature).requires;
     if (!requires || canAccess(requires)) return undefined;
     return requiredTierFor(requires).toUpperCase();
-  }, [canAccess, requiredTierFor]);
+  }, [canAccess, requiredTierFor, crewAsProfile]);
 
   // Push the REGISTRY route, not the row's literal, so a literal that has
   // drifted since ship-check last ran cannot misroute anyone.
@@ -310,8 +324,8 @@ export default function DiscoverToolsScreen() {
                   {i > 0 && <View style={styles.divider} />}
                   <NavRow
                     Icon={row.Icon}
-                    title={row.title}
-                    subtitle={row.subtitle}
+                    title={crewAsProfile(row) ? 'My Profile' : row.title}
+                    subtitle={crewAsProfile(row) ? 'Your crew profile — phone, email and trades' : row.subtitle}
                     meta={tierMeta(row)}
                     tone={row.tone}
                     onPress={() => open(row)}

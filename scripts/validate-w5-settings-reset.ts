@@ -49,17 +49,61 @@ ok('neither calls deleteProject', !/deleteProject\s*\(/.test(both));
 ok("neither sends a projects delete (supabaseWrite('projects', 'delete'))", !/supabaseWrite\(\s*['"]projects['"]\s*,\s*['"]delete['"]/.test(both));
 ok('neither calls forgetProjectsLocally / syncProjectToSupabase', !/forgetProjectsLocally|syncProjectToSupabase/.test(both));
 ok('the screen no longer takes deleteProject from the context', !/\bdeleteProject\b/.test(src));
-ok('the sweep is selectTenantKeysToWipe + multiRemove', /selectTenantKeysToWipe\(allKeys\)/.test(reset) && /AsyncStorage\.multiRemove\(keysToWipe\)/.test(reset));
+ok('the sweep is selectTenantKeysToWipe + multiRemove', /selectTenantKeysToWipe\(allKeys, \{ dropOfflineQueue: false \}\)\.filter\(\(k\) => !RESET_KEEPS\.has\(k\)\)/.test(reset) && /AsyncStorage\.multiRemove\(keysToWipe\)/.test(reset));
+// Integration round 1 (web-comms-ai): pending work is dropped under the queue
+// locks (AuthContext's dropPendingWrites, the sign-out path) BEFORE the sweep,
+// and the sweep never touches a queue key itself. The unlocked multiRemove let
+// an in-flight flush write the queue back and orphaned the durable photo copies.
+{
+  const dropAt = reset.indexOf('await dropPendingWrites();');
+  const sweepAt = reset.indexOf('selectTenantKeysToWipe(');
+  ok('pending writes are dropped through dropPendingWrites() before the sweep', dropAt > -1 && sweepAt > dropAt);
+  ok('…imported from AuthContext (the lock-holding helper, not a copy)', /import \{ useAuth, dropPendingWrites \} from '@\/contexts\/AuthContext';/.test(src)
+    && /export async function dropPendingWrites\(\): Promise<void> \{/.test(read('contexts/AuthContext.tsx')));
+  ok('the sweep keeps the queue keys (dropOfflineQueue: false)', /dropOfflineQueue: false/.test(reset) && !/selectTenantKeysToWipe\(allKeys\)/.test(reset));
+  // A reset with no signal: the role / onboarding queries fall back to these
+  // device keys when the profile read fails, and with them gone the root
+  // layout sent a working GC to persona-select. They are kept, and a reset is
+  // refused while the app already knows it can't reach the account.
+  const pc = read('contexts/ProjectContext.tsx');
+  const role = /const USER_ROLE_KEY = '([^']+)';/.exec(pc)?.[1];
+  const onb = /const ONBOARDING_KEY = '([^']+)';/.exec(pc)?.[1];
+  const keeps = /const RESET_KEEPS: ReadonlySet<string> = new Set\(\[([^\]]*)\]\);/.exec(src)?.[1] ?? '';
+  ok('RESET_KEEPS names ProjectContext\'s USER_ROLE_KEY and ONBOARDING_KEY', !!role && !!onb && keeps.includes(`'${role}'`) && keeps.includes(`'${onb}'`), `role=${role} onboarding=${onb} keeps=${keeps}`);
+  const refuse = reset.indexOf('if (sourceFailed) {');
+  ok('the reset is refused (before anything is dropped) while the account is unreachable', refuse > -1 && refuse < dropAt
+    && /if \(sourceFailed\) \{\s*showAlert\('Reset needs a connection'[\s\S]{0,300}?return;\s*\}/.test(reset)
+    && src.includes('}, [user?.id, queryClient, retryRemoteReads, reloadLocalMirrors, sourceFailed]);'));
+}
 ok('never AsyncStorage.clear()', !/AsyncStorage\.clear\(/.test(src));
 ok('the lists are re-read, not zeroed: invalidateQueries + retryRemoteReads, no setQueryData([])',
   /queryClient\.invalidateQueries\(\{ queryKey: \[name, userId\] \}\)/.test(reset)
   && /retryRemoteReads\(\);/.test(reset)
   && !/setQueryData\(\[[^\]]*\],\s*\[\]\)/.test(reset));
+// Integration round 1 (data-security): the plan lists are in-memory state, not
+// react-query data, so the invalidations above never reach them. Without
+// reloadLocalMirrors a sheet whose upload sat in the wiped queue stays on
+// screen and the next plan edit writes it back to disk.
+{
+  const sweepAt = reset.indexOf('AsyncStorage.multiRemove(keysToWipe)');
+  const reloadAt = reset.indexOf('await reloadLocalMirrors()');
+  const retryAt = reset.indexOf('retryRemoteReads();');
+  ok('the in-memory plan lists are reloaded: await reloadLocalMirrors() after the sweep, before retryRemoteReads',
+    sweepAt >= 0 && reloadAt > sweepAt && retryAt > reloadAt
+    && /reloadLocalMirrors[^}]*\}\s*=\s*useCoreData\(\)/.test(src)
+    && src.includes('}, [user?.id, queryClient, retryRemoteReads, reloadLocalMirrors, sourceFailed]);'));
+}
 ok('pending changes and photos are counted BEFORE the dialog, with the read-only helpers',
   /getOwnOfflineQueue\(\)[\s\S]{0,80}getOwnPhotoUploadQueue\(\)[\s\S]*showAlert\(\s*'Reset this device\?'/.test(clear));
 ok("…and the dialog says they haven't reached MAGE and will be lost",
   /on this phone \$\{[^}]*\} reached MAGE and will be lost/.test(clear));
-ok('Cancel is the first (safe) choice', /\[\s*\{ text: 'Cancel', style: 'cancel' \},\s*\{ text: 'Reset this device', style: 'destructive'/.test(clear));
+ok('Cancel is the first (safe) choice', /\[\s*\{ text: 'Cancel', style: 'cancel' \},\s*(?:\.\.\.\(unsaved > 0 \? \[\{ text: 'Review Not saved', onPress: \(\) => requestSyncSheet\(\) \}\] : \[\]\),\s*)?\{ text: 'Reset this device', style: 'destructive'/.test(clear));
+// w5-join-screens (settings handoff 1): the reset sweep removes the Not-saved
+// list, the only copy of a record the server refused — count it, say so, and
+// offer the list before the reset.
+ok('handleClearAll counts the Not-saved records (countOwnUnsavedRecords)', /countOwnUnsavedRecords\(\)\.catch\(\(\) => 0\)/.test(clear));
+ok('…says a reset deletes them, and offers Review Not saved first',
+  /Resetting deletes/.test(clear) && /\{ text: 'Review Not saved', onPress: \(\) => requestSyncSheet\(\) \}/.test(clear));
 ok('the dialog says jobs stay on the account and reload', /Your jobs stay on your account and reload/.test(clear));
 ok('the Done alert says the device was reset and jobs are reloading',
   /showAlert\('Done', 'This device was reset\. Your jobs are reloading from your account\.'\)/.test(reset));

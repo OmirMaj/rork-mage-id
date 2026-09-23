@@ -161,7 +161,36 @@ const EVENT_LABELS: Record<string, { label: string; emoji?: string; cta?: string
   bid_question_asked:    { label: 'Bid questions',       cta: 'rfp-detail' },
   bid_question_answered: { label: 'Bid Q&A answered',    cta: 'rfp-detail' },
   closeout_binder_sent:  { label: 'Closeouts delivered', cta: 'closeout-binder' },
+  // Wave 5 (CONTRACT 8): raised only by their AFTER triggers through notify,
+  // which writes the outbox row this digest counts.
+  bid_invite_received:   { label: 'Sub bids received',   cta: 'buyout-package' },
+  lien_waiver_signed:    { label: 'Lien waivers signed', cta: 'lien-waivers' },
+  prequal_submitted:     { label: 'Prequalification packets submitted', cta: 'prequal-manager' },
 };
+
+/** A sub-typed name as one clipped line ('' when absent). The card escapes it. */
+function oneLine(v: unknown, max = 80): string {
+  const t = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+/** "$48,250.00" — exact to the cent (a bid he compares against other bids,
+ *  so the shared whole-dollar fmtMoney is wrong here). null when unreadable. */
+export function fmtMoneyCents(v: unknown): string | null {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : typeof v === 'number' ? v : NaN;
+  if (!Number.isFinite(n)) return null;
+  const cents = Math.round(Math.abs(n) * 100);
+  const whole = Math.floor(cents / 100).toLocaleString('en-US');
+  return `${n < 0 && cents > 0 ? '-' : ''}$${whole}.${String(cents % 100).padStart(2, '0')}`;
+}
+
+/** 'Acme Framing bid $48,250.00' — or 'Acme Framing filed a bid' when no
+ *  amount was read (never a guessed $0). */
+export function subBidLine(p: Record<string, unknown> | null | undefined): string {
+  const who = oneLine(p?.vendor_name) || oneLine(p?.sub_name) || 'A sub';
+  const amt = fmtMoneyCents(p?.amount);
+  return amt ? `${who} bid ${amt}` : `${who} filed a bid`;
+}
 
 function groupEvents(rows: OutboxRow[]): EventGroup[] {
   const map = new Map<string, EventGroup>();
@@ -226,6 +255,13 @@ function buildDigestEmail(opts: {
       : g.key === 'sub_invoice_submitted' ? `${fmtMoney((g.latestPayload?.amount as number) ?? 0)} from ${(g.latestPayload?.submitted_by_name as string) || 'a sub'}`
       : g.key === 'rfp_awarded'         ? `Won: ${projectName}`
       : g.key === 'nearby_rfp_posted'   ? `${projectName}`
+      // Wave 5 (CONTRACT 8): notify merges the facts it read server-side into
+      // the outbox payload (Object.assign(payload, wave5.facts)), so the card
+      // says WHO bid / signed / submitted instead of just the job name. No
+      // amount is printed unless one was read, and it is exact to the cent.
+      : g.key === 'bid_invite_received' ? subBidLine(g.latestPayload)
+      : g.key === 'lien_waiver_signed'  ? `${oneLine(g.latestPayload?.sub_company) || oneLine(g.latestPayload?.signer_name) || 'A sub'} signed their lien waiver`
+      : g.key === 'prequal_submitted'   ? `${oneLine(g.latestPayload?.sub_name) || 'A sub'} submitted a prequalification packet`
       : '';
 
     return `

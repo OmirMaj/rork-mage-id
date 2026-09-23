@@ -265,8 +265,17 @@ export default function BuyoutScreen() {
       showAlert('Name required', 'Give the package a name like "Plumbing rough-in".');
       return;
     }
-    // "12,000" used to read as NaN → 0. Separators stripped, to the cent.
-    const budget = parseBidAmountInput(newPkgBudget) ?? 0;
+    // "12,000" used to read as NaN → 0. US grouping accepted, to the cent. An
+    // EMPTY box is a package with no budget yet (0, as before); a box he typed
+    // into that doesn't read as dollars ("12000,50" from a comma-decimal
+    // keyboard, "-500") is refused and said, never saved as a guess or as $0.
+    const budgetText = newPkgBudget.trim();
+    const parsedBudget = budgetText ? parseBidAmountInput(newPkgBudget) : 0;
+    if (parsedBudget == null) {
+      showAlert('Check the budget', `Couldn't read "${budgetText}" as a dollar amount. Type it like 12000 or 12,000.50 — or leave it blank.`);
+      return;
+    }
+    const budget = parsedBudget;
     // Seed the scope from the line items he just ticked. `scopeDescription` is
     // the only description of the work the bidder ever sees — it is what the
     // invite email prints and what `bid_invite_get` hands the sub-facing page —

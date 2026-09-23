@@ -133,6 +133,21 @@ for (const e of ['client_invoice_paid', 'client_payment_failed', 'field_report_f
   }
   ok('settings: every group with rows is rendered', /\(\['leads', 'client', 'team', 'sub', 'marketplace'\] as CategoryDef\['group'\]\[\]\)/.test(SETTINGS));
 }
+// Wave 5 (CONTRACT 8): the three sub-side events send under their own event
+// names from wave5NotifyText — kept OUT of the wave-3 block above (its five
+// keys stay pinned) and held to the same rule: every prefKey has a mute row.
+{
+  const SETTINGS = read('app/notifications-settings.tsx');
+  const start = NOTIFY.indexOf('function wave5NotifyText(');
+  const end = NOTIFY.indexOf('// <<< wave5-notify-text');
+  const w5 = start > -1 && end > start ? NOTIFY.slice(start, end) : '';
+  const keys = [...new Set([...w5.matchAll(/prefKey: '([a-z_]+)'/g)].map(m => m[1]))];
+  ok('the wave-5 block sends under exactly its three event names', keys.sort().join(',') === 'bid_invite_received,lien_waiver_signed,prequal_submitted', keys.join(','));
+  for (const k of keys) {
+    ok(`settings: wave-5 prefKey ${k} has a mute row in the sub group`,
+      new RegExp(`\\n    key: '${k}',\\n    label: '[^']+',\\n    description: '[^\\n]+',\\n    icon: [^\\n]+,\\n    group: 'sub',`).test(SETTINGS) && new RegExp(`\\| '${k}'`).test(SETTINGS));
+  }
+}
 ok('notify email about his own client carries no "Sent by <himself>"', /case 'punch_marked_ready': \{[\s\S]{0,1200}sender: null/.test(NOTIFY));
 ok('the email button goes through the shared route table', /cta: \{ label: text\.ctaLabel, href: appLink\(event, /.test(NOTIFY));
 ok('the inbox prints the paid amount exact (fmtMoneyExact, not the compact $K formatter)', /case 'client_invoice_paid': \{[\s\S]{0,300}fmtMoneyExact\(p\.amount_paid\)/.test(INBOX));

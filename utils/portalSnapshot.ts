@@ -1984,8 +1984,15 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     // predates the split stays on the portal exactly as before. The SUB portal
     // (utils/subPortalSnapshot.ts) deliberately does NOT filter this: a crew
     // item assigned to a sub is precisely that sub's work.
+    //
+    // #9 (wave 5): and never a Cost X-Ray verify task. Each accepted tell makes
+    // one ('Verify before demo/order: Possible knob-and-tube behind panel'),
+    // stamped xray.clientVisible === false because its text IS the GC-only
+    // finding the estimate folds into 'Contingency'. It has no listType, so
+    // the formal-punch filter alone let the finding onto the homeowner's page.
     const activePunch = punchItems.filter(
       p => punchListTypeOf(p) === 'punch'
+        && p.xray?.clientVisible !== false
         && (p.status === 'open' || p.status === 'in_progress' || p.status === 'ready_for_review')
     );
     if (activePunch.length) {

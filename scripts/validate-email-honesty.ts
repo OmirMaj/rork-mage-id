@@ -407,8 +407,14 @@ ok('the morning briefing body carries a working unsubscribe link',
   ok('the preferences page can lift a global unsubscribe (resubscribe with event_key null)',
     /id="resubAll"/.test(prefsPage) && /callApi\('resubscribe', null\)/.test(prefsPage));
   ok('the app\'s "all email is off" alert names that control', /tap "Turn email back on"/.test(settingsSrc) && /turn email back on/i.test(prefsPage));
+  // Wave 5 (push-unsub): the preferences page no longer carries its own key
+  // list — it fetches marketing/email-event-keys.json, the one list the
+  // unsubscribe page reads too. The row is in that JSON; the page must fetch it.
+  const eventKeys = JSON.parse(read('marketing/email-event-keys.json')) as { groups: { items: { key: string }[] }[] };
   ok('website leads can be managed: an app category and a preferences-page row',
-    /key: 'lead_received'/.test(settingsSrc) && /\{ key: 'lead_received'/.test(prefsPage));
+    /key: 'lead_received'/.test(settingsSrc)
+      && eventKeys.groups.some((g) => g.items.some((i) => i.key === 'lead_received'))
+      && /fetch\(KEYS_URL/.test(prefsPage));
   ok('digestGate names a validator that exists', !/validate-digest-unsubscribe\.ts/.test(read('supabase/functions/morning-digest/digestGate.ts')));
 }
 

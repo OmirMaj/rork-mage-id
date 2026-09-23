@@ -333,7 +333,8 @@ export default function EstimateScreen() {
   const pendingProjectBulkSavings = useMemo(() => {
     if (!pendingLinkProject) return null;
     const pkgs = getBidPackagesForProject(pendingLinkProject.id);
-    return computeBulkSavings(pendingLinkProject.id, pkgs, commitments, bidPackageBids);
+    // #11 (wave 5): the estimate lines let a SELL-basis budget be refused.
+    return computeBulkSavings(pendingLinkProject.id, pkgs, commitments, bidPackageBids, undefined, { estimateItems: pendingLinkProject.linkedEstimate?.items });
   }, [pendingLinkProject, getBidPackagesForProject, commitments, bidPackageBids]);
   const showBulkSavings = !!(
     pendingProjectBulkSavings?.hasRealData && (pendingProjectBulkSavings?.bulkSavings ?? 0) > 0

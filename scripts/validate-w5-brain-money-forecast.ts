@@ -113,6 +113,40 @@ console.log('\n#116 — the call carries the key and reports whether it spent:')
   ok('the forecast screen’s own path is unchanged: no cacheKey', aiCalls.length === 1 && !('cacheKey' in aiCalls[0]));
 }
 
+console.log('\nintegration review — the background forecast asks the AI allowance first:');
+{
+  const K = { cacheKey: 'week_close_forecast_K', cacheHours: 12 };
+  const run = async (o: { cached: boolean; allowed: boolean; fromCache?: boolean; allowThrows?: boolean }) => {
+    aiCalls.length = 0;
+    serveFromCache = o.fromCache ?? o.cached;
+    const log: string[] = [];
+    const res = await pp.predictInvoicePaymentsWithinAllowance([inv('i1')], projectsById, K, {
+      isCached: async (k) => { log.push('peek:' + k); return o.cached; },
+      allowFresh: async () => { log.push('check'); if (o.allowThrows) throw new Error('x'); return o.allowed; },
+      record: async () => { log.push('record'); },
+    });
+    serveFromCache = false;
+    return { res, log, calls: aiCalls.length };
+  };
+  const refused = await run({ cached: false, allowed: false });
+  ok('over the allowance with nothing cached → no AI call, nothing recorded, null (no dates)',
+    refused.res === null && refused.calls === 0 && !refused.log.includes('record'),
+    JSON.stringify(refused));
+  ok('…and the limit was asked BEFORE anything else could spend',
+    refused.log.join(',') === 'peek:week_close_forecast_K,check', refused.log.join(','));
+  const allowed = await run({ cached: false, allowed: true });
+  ok('within the allowance → one fresh call, recorded once',
+    allowed.res !== null && allowed.calls === 1 && allowed.log.filter(l => l === 'record').length === 1,
+    JSON.stringify(allowed));
+  const cachedHit = await run({ cached: true, allowed: false });
+  ok('a cached answer is served even over the allowance, never re-asked and never recorded',
+    cachedHit.res !== null && !cachedHit.log.includes('check') && !cachedHit.log.includes('record'),
+    JSON.stringify(cachedHit));
+  const throws = await run({ cached: false, allowed: true, allowThrows: true });
+  ok('a limit read that throws does not spend (background work, when in doubt it waits)',
+    throws.res === null && throws.calls === 0, JSON.stringify(throws));
+}
+
 console.log('\n#116 — the Friday Close wiring:');
 {
   const hook = read('hooks/useWeekClose.ts');
@@ -128,10 +162,15 @@ console.log('\n#116 — the Friday Close wiring:');
     /enabled: enabled && forecastKey !== null && hasOverdue,/.test(hook));
   ok('…the same fingerprint is mageAI’s cacheKey',
     /cacheKey: `week_close_forecast_\$\{forecastKey\}`/.test(hook));
-  ok('…and a fresh call is recorded on the app’s AI meter',
-    /if \(run\.freshAiCall\) \{\s*try \{ await recordAIUsage\('smart', 'invoicePrediction'\); \}/.test(hook));
+  ok('…and a fresh call is recorded on the app’s AI meter, after the allowance was asked',
+    /return predictInvoicePaymentsWithinAllowance\(inv, byId, \{/.test(hook)
+      && /isCached: hasCachedMageAIResult,/.test(hook)
+      && /allowFresh: async \(\) => \(await checkAILimit\(tierNow, 'smart', 'invoicePrediction'\)\)\.allowed,/.test(hook)
+      && /record: \(\) => recordAIUsage\('smart', 'invoicePrediction'\),/.test(hook)
+      && !/predictInvoicePaymentsCached\(/.test(hook),
+    'the hook must go through predictInvoicePaymentsWithinAllowance — a direct predictInvoicePaymentsCached call spends without asking');
   ok('…the query reads its inputs through a ref, not a closure over a new array',
-    /const \{ invoices: inv, projectsById: byId \} = forecastInputsRef\.current;/.test(hook));
+    /const \{ invoices: inv, projectsById: byId, subscriptionTier: tierNow \} = forecastInputsRef\.current;/.test(hook));
 
   const card = read('components/home/WeekCloseCard.tsx');
   ok('the Home card assembles the close only when it will render',

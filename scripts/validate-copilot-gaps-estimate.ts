@@ -42,7 +42,10 @@ const ground = (data: any): Grounding => ({ facts: [], data });
   ok('quality gap offers the 4 finish tiers', q?.choices?.length === 4);
   ok('quality gap is a choice kind', q?.kind === 'choice');
   ok('size gap is a number kind', estimateGaps({}, ground({})).find(x => x.field === 'sizeSqft')?.kind === 'number');
-  ok('markup impact is below the 0.4 ask threshold', (estimateGaps({}, ground({})).find(x => x.field === 'markupPct')?.impact ?? 1) < 0.4);
+  // WAVE 5 (#7): the markup is ASKED when nothing is decided — never a silent
+// 18% — and a decided saved markup resolves the gap.
+ok('markup is ASKED when nothing is decided (impact ≥ the 0.4 ask threshold)', (estimateGaps({}, ground({})).find(x => x.field === 'markupPct')?.impact ?? 0) >= 0.4);
+has('markup resolved from a decided saved markup', estimateGaps({}, ground({ decidedMarkupPct: 20 })).map(x => x.field), 'markupPct', false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

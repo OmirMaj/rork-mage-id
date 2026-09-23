@@ -51,9 +51,64 @@ export interface ClientEstimateView {
   itemCount: number;
 }
 
+/**
+ * #9 (wave 5) — a Cost X-Ray line the GC kept GC-only (xray.clientVisible ===
+ * false): his contingency for a suspected hidden condition. Its tell text must
+ * never reach a client-facing surface; its money does, under
+ * CLIENT_CONTINGENCY_LABEL, so every total still ties. Shared by this view and
+ * every document that walks est.items itself (the estimate PDF, the email).
+ */
+export function isGcOnlyEstimateLine(item: Pick<LinkedEstimateItem, 'xray'>): boolean {
+  return item.xray?.clientVisible === false;
+}
+export const CLIENT_CONTINGENCY_LABEL = 'Contingency';
+
 /** Cents — the one grid every client-facing figure here sits on. */
 const cents = (n: number): number => Math.round((Number.isFinite(n) ? n : 0) * 100);
 const fromCents = (c: number): number => c / 100;
+
+/** One printed line of a client-facing per-line estimate (the estimate PDF and
+ *  its plain-text email). The contingency row has no quantity, unit price or
+ *  markup: those ("200 LF @ $17.00") could hint at the finding. */
+export interface ClientEstimateLineRow {
+  name: string;
+  category: string;
+  /** null on the contingency row — it prints as a lump sum. */
+  quantity: number | null;
+  unit: string;
+  unitPrice: number | null;
+  markup: number | null;
+  lineTotal: number;
+}
+
+/**
+ * #9: the rows a per-line client document prints. Every client-visible line
+ * as it is; every GC-only Cost X-Ray line folded into ONE lump-sum
+ * CLIENT_CONTINGENCY_LABEL row at the end, summed on the cent grid — the same
+ * shape toClientEstimateView gives the proposal, so the PDF, the email and the
+ * portal agree and the lines still foot to the estimate total.
+ */
+export function clientEstimateLineRows(
+  items: readonly Pick<LinkedEstimateItem, 'name' | 'category' | 'quantity' | 'unit' | 'unitPrice' | 'markup' | 'lineTotal' | 'xray'>[],
+): ClientEstimateLineRow[] {
+  const rows: ClientEstimateLineRow[] = [];
+  let hiddenCents = 0;
+  let hiddenCount = 0;
+  for (const it of items) {
+    if (isGcOnlyEstimateLine(it)) { hiddenCents += cents(it.lineTotal); hiddenCount++; continue; }
+    rows.push({
+      name: it.name, category: it.category, quantity: it.quantity, unit: it.unit,
+      unitPrice: it.unitPrice, markup: it.markup, lineTotal: it.lineTotal,
+    });
+  }
+  if (hiddenCount > 0) {
+    rows.push({
+      name: CLIENT_CONTINGENCY_LABEL, category: CLIENT_CONTINGENCY_LABEL, quantity: null, unit: 'LS',
+      unitPrice: null, markup: null, lineTotal: fromCents(hiddenCents),
+    });
+  }
+  return rows;
+}
 
 /**
  * Project a contractor estimate into the client-safe view.
@@ -89,7 +144,16 @@ export function toClientEstimateView(est: LinkedEstimate): ClientEstimateView {
   const factor = rowSum > 0 ? est.grandTotal / rowSum : 1;
   const clientCents = (item: LinkedEstimateItem) => cents(item.lineTotal * factor);
 
-  const groupCents = groupByCSIDivision(est.items)
+  // #9 (wave 5): a Cost X-Ray line the GC marked GC-only (xray.clientVisible
+  // === false) is his contingency for a suspected hidden condition — its tell
+  // ("Possible knob-and-tube behind panel") must never reach the homeowner.
+  // Its money still does, so the price ties: every hidden line is summed into
+  // ONE neutral 'Contingency' scope group, and never listed as an allowance.
+  const isHidden = isGcOnlyEstimateLine;
+  const shown = est.items.filter(it => !isHidden(it));
+  const hiddenCents = est.items.filter(isHidden).reduce((s, it) => s + clientCents(it), 0);
+
+  const groupCents = groupByCSIDivision(shown)
     .map(g => {
       const key = g.division?.number ?? 'other';
       const label = g.division ? `${g.division.number} ${g.division.title}` : 'Other scope';
@@ -105,6 +169,7 @@ export function toClientEstimateView(est: LinkedEstimate): ClientEstimateView {
     // scope line overstated by the credit, and the credit itself absent from
     // the document the homeowner accepts.
     .filter(g => g.c !== 0);
+  if (hiddenCents !== 0) groupCents.push({ key: 'contingency', label: CLIENT_CONTINGENCY_LABEL, c: hiddenCents });
 
   // Fold the rounding remainder into the largest group so the schedule of
   // values sums exactly to the contract price. With the filter above this is
@@ -117,7 +182,7 @@ export function toClientEstimateView(est: LinkedEstimate): ClientEstimateView {
   }
   const scopeGroups: ClientScopeGroup[] = groupCents.map(g => ({ key: g.key, label: g.label, total: fromCents(g.c) }));
 
-  const allowances: ClientAllowance[] = est.items
+  const allowances: ClientAllowance[] = shown
     .filter(it => it.isAllowance)
     .map(it => ({ name: it.name, amount: fromCents(clientCents(it)) }));
 

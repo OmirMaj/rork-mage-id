@@ -85,6 +85,7 @@ import { cardSurface } from '@/components/ui';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
+import { pdfFailureMessage } from '@/utils/platformFile';
 
 export default function AIAPayAppScreen() {
   const router = useRouter();
@@ -1119,8 +1120,9 @@ function AIAPayAppScreenInner() {
         { ...app, changeOrderSummary: printedCoSummary },
         settings.branding,
       );
-    } catch {
-      showAlert('Error', 'Could not generate the pay application PDF.');
+    } catch (err) {
+      // CONTRACT 25 (#147): a blocked web window now throws — say so.
+      showAlert('Error', pdfFailureMessage(err, 'Could not generate the pay application PDF.'));
     } finally {
       setGenerating(false);
     }
@@ -1139,8 +1141,8 @@ function AIAPayAppScreenInner() {
       // the portal-side rendering of this AIA app gets a Pay button.
       await handleSave();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      showAlert('Error', 'Could not generate the pay application PDF.');
+    } catch (err) {
+      showAlert('Error', pdfFailureMessage(err, 'Could not generate the pay application PDF.'));
     } finally {
       setGenerating(false);
     }

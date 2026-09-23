@@ -12,6 +12,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { REQUIRED_TIER } from '../utils/featureTiers';
+import { LIST_PRICE_MONTHLY } from '../constants/pricing';
 
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, detail?: string) {
@@ -189,22 +190,29 @@ for (const { pattern, why } of PRICING_BANNED) {
   // Count RENDER sites only — strip comment lines first, or this validator's
   // own explanatory comment counts as a third occurrence.
   const pdfCode = pdf.split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
-  const clientFacingBulkSavings = [...pdfCode.matchAll(/Bulk Savings/g)];
-  ok('legacy HTML PDF renders Bulk Savings only when > 0',
-    /\(legacyEst\.bulkSavingsTotal \?\? 0\) > 0 \?/.test(pdf),
-    'the legacy HTML proposal row must be guarded — it reaches the contractor\'s customer');
-  ok('legacy text export renders Bulk Savings only when > 0',
-    /if \(\(legacyEst\.bulkSavingsTotal \?\? 0\) > 0\) \{/.test(pdf),
-    'the legacy plain-text export must be guarded too');
-  ok('linked-estimate HTML PDF renders Bulk Savings only when > 0',
-    /\(est\.bulkSavingsTotal \?\? 0\) > 0 \?/.test(pdf),
-    'the linkedEstimate HTML row must be guarded — it reaches the contractor\'s customer');
-  ok('linked-estimate text export renders Bulk Savings only when > 0',
-    /if \(\(est\.bulkSavingsTotal \?\? 0\) > 0\) \{/.test(pdf),
-    'the linkedEstimate plain-text export must be guarded too');
-  ok('every Bulk Savings site in the PDF generator is guarded',
-    clientFacingBulkSavings.length === 4,
-    `found ${clientFacingBulkSavings.length} — expected 4 (2 legacyEst + 2 linkedEstimate), a new unguarded site may have been added`);
+  // WAVE 5 (#93): the buyout figure is the GC's gain on buying out, not a
+  // discount on the client's price — the Estimate Total is not reduced by it.
+  // It printed as "Bulk Savings −$X" inside the totals, reading as a deduction
+  // the total never took. It is now a NOTE outside the totals (only when > 0,
+  // only when the GC opts in), stating it is not deducted — at all four sites,
+  // through two guarded helpers.
+  ok('no negative "Bulk Savings" row is left in the PDF generator',
+    !/Bulk Savings/.test(pdfCode) && !/-\$\{formatCurrency\((?:est|legacyEst)\.bulkSavingsTotal/.test(pdfCode),
+    'a negative savings row above an unchanged total tells the client money came off that never did');
+  ok('the note helpers render only when > 0 and say the total is not reduced',
+    /function bulkSavingsNoteText\(amount[^)]*\): string \{\s*return \(amount \?\? 0\) > 0\s*\?[\s\S]{0,300}not deducted from the total above/.test(pdf)
+    && /function bulkSavingsNoteHtml\(amount[^)]*\): string \{\s*return \(amount \?\? 0\) > 0\s*\?[\s\S]{0,400}Not deducted from the Estimate Total above/.test(pdf));
+  for (const [label, re] of [
+    ['legacy HTML PDF', /bulkSavingsNoteHtml\(legacyEst\.bulkSavingsTotal\)/],
+    ['legacy text export', /bulkSavingsNoteText\(legacyEst\.bulkSavingsTotal\)/],
+    ['linked-estimate HTML PDF', /bulkSavingsNoteHtml\(est\.bulkSavingsTotal\)/],
+    ['linked-estimate text export', /bulkSavingsNoteText\(est\.bulkSavingsTotal\)/],
+  ] as const) {
+    ok(`${label} prints the savings through the guarded note (outside the totals)`, re.test(pdf));
+  }
+  ok('every bulkSavingsTotal read in the PDF generator goes through a note helper',
+    [...pdfCode.matchAll(/\.bulkSavingsTotal\b/g)].length === 4,
+    `found ${[...pdfCode.matchAll(/\.bulkSavingsTotal\b/g)].length} — expected 4`);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -653,35 +661,40 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     // trusted, so the site must print none - and this check flips the moment
     // somebody reconciles them, at which point it demands the figure back.
     const pricing3 = prose('marketing/pricing.html');
-    const paywallScreen = readFileSync('app/paywall.tsx', 'utf8');
-    const paywallModal = readFileSync('components/Paywall.tsx', 'utf8');
-    const listRate: Record<string, string> = {};
-    for (const m of paywallScreen.matchAll(
-      /(pro|business|enterprise)Package\?\.product\?\.priceString \?\? \(packagesStillLoading \? null : '(\$[\d.]+)\/mo'\)/g)) {
-      listRate[m[1]] = m[2];
+    // WAVE 5 (#42): the app's three fallback tables (app/paywall.tsx $29,
+    // components/Paywall.tsx $29.99 + a typed $289.99 annual, the onboarding
+    // paywall $29.00 + a typed $23.20/mo) are ONE now: constants/pricing.ts
+    // LIST_PRICE_MONTHLY. It deliberately carries NO annual figure - the app
+    // shows an annual price only when the store package supplies it - so
+    // "the code agrees on an annual price" is false by construction and this
+    // page must keep printing none. The screens may not type a price again.
+    const listRate: Record<string, string> = { ...LIST_PRICE_MONTHLY };
+    ok('the one in-code list-price table is present (constants/pricing.ts)',
+      ['pro', 'business', 'enterprise'].every(t => /^\$\d+(\.\d{2})?$/.test(listRate[t] ?? '')),
+      JSON.stringify(listRate));
+    for (const f of ['app/paywall.tsx', 'components/Paywall.tsx', 'app/onboarding-paywall.tsx']) {
+      const src = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      ok(`${f} types no price of its own (it reads constants/pricing.ts)`, !/['"`]\$\d/.test(src),
+        'a second price table is how three screens came to quote $29, $29.00 and $29.99 for the same plan');
     }
+    // No annual figure exists anywhere in the code (see above).
     const storePrice: Record<string, { monthly: string; annual: string }> = {};
-    for (const m of paywallModal.matchAll(
-      /(pro|business|enterprise):\s*\{\s*monthly:\s*'(\$[\d.]+)',\s*annual:\s*'(\$[\d.]+)'/g)) {
-      storePrice[m[1]] = { monthly: m[2], annual: m[3] };
-    }
-    ok('both in-code price tables are still parseable',
-      Object.keys(listRate).length === 3 && Object.keys(storePrice).length === 3,
-      `app/paywall.tsx fallbacks: ${JSON.stringify(listRate)} | components/Paywall.tsx FALLBACK_PRICES: ${JSON.stringify(storePrice)}`);
 
     // Exactly one monthly figure per tier on the pricing page. The Enterprise
     // tier card said $150 and the FAQ 121 lines below said $149.99, and the
     // old guard passed with both of them on the page.
     for (const tier of ['pro', 'business', 'enterprise']) {
       const shown = listRate[tier];
-      const other = storePrice[tier]?.monthly;
+      // The list rate exactly, and no cents variant of it ($29 but not $29.99).
+      const exact = new RegExp(`\\${shown}(?![\\d.,])`);
+      const variant = new RegExp(`\\${shown}\\.\\d{2}`);
       ok(`pricing.html prints ${tier}'s monthly rate exactly as the app does (${shown})`,
-        !!shown && pricing3.includes(shown) && (shown === other || !pricing3.includes(other ?? ' ')),
-        `the app's upgrade screen shows ${shown}; the store product is ${other}. The page must print one of those and only one - it printed both.`);
+        !!shown && exact.test(pricing3) && !variant.test(pricing3),
+        `constants/pricing.ts says ${shown}; the page must print that figure and no other monthly figure for ${tier}.`);
     }
 
-    const tablesAgree = ['pro', 'business', 'enterprise'].every(
-      t => listRate[t] === storePrice[t]?.monthly);
+    // True only if the code ever carries a confirmed annual price again.
+    const tablesAgree = ['pro', 'business', 'enterprise'].every(t => !!storePrice[t]?.annual);
 
     // WHAT COUNTS AS "OUR ANNUAL PRICE", COMPUTED RATHER THAN LISTED.
     // Banning the literals $288/$792 would only stop those two strings; the
@@ -1406,14 +1419,10 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
       const needed = OFFICE_PEOPLE - 1;
       const ORDER = ['free', 'pro', 'business', 'enterprise'] as const;
       const fits = ORDER.find(t => (seats2[t] ?? 0) >= needed);
-      // Monthly rate straight out of the app's own upgrade screen, the same
-      // source the price block above uses - never a literal typed in here.
-      const paywallSrc = readFileSync('app/paywall.tsx', 'utf8');
-      const rate: Record<string, string> = {};
-      for (const m of paywallSrc.matchAll(
-        /(pro|business|enterprise)Package\?\.product\?\.priceString \?\? \(packagesStillLoading \? null : '(\$[\d.]+)\/mo'\)/g)) {
-        rate[m[1]] = m[2];
-      }
+      // Monthly rate straight out of the app's one price table
+      // (constants/pricing.ts, wave 5 #42), the same source the price block
+      // above uses - never a literal typed in here.
+      const rate: Record<string, string> = { ...LIST_PRICE_MONTHLY };
       ok('the AIA row check can still read the monthly rates', Object.keys(rate).length === 3, JSON.stringify(rate));
       const aiaTable2 = /<h2[^>]*id="aia"[\s\S]*?<\/table>/.exec(prose('marketing/compare/index.html'))?.[0] ?? '';
       const mageRow = [...aiaTable2.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(m => m[1])

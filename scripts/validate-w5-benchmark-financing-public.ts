@@ -275,6 +275,15 @@ ok('the plan-sheets migration is now 20260923181000 and no longer in held/', mov
     /signed-media-urls/.test(header) && /architect page/.test(header) && /REACHED\s*\n?--\s*devices/.test(header));
   ok('…and the limits: signed URLs until expiry (7 days legacy) and rfp-attachments',
     /up to 7 DAYS/.test(header) && /rfp-attachments/.test(header));
+  // Integration round 2: the file sits at the top level, so a bulk / catch-up
+  // apply would flip the bucket before the OTA reaches devices. A self-guard
+  // must be the FIRST executable statement and refuse without the opt-in.
+  const firstSql = moved.split('\n').map(l => l.trim()).find(l => l !== '' && !l.startsWith('--')) ?? '';
+  const guardAt = header.search(/do \$g\$\s*begin\s*if coalesce\(current_setting\('mageid\.founder_ok_83', true\), ''\) <> 'yes' then\s*raise exception 'held: founder decision #83/);
+  ok('…and it refuses to run without the founder opt-in: the self-guard is its first statement',
+    firstSql === 'do $g$' && guardAt >= 0 && guardAt < moved.indexOf("update storage.buckets set public = false"),
+    `first executable line: ${firstSql}`);
+  ok('…and the header tells the operator how to opt in', /set mageid\.founder_ok_83 = 'yes';/.test(header));
 }
 {
   const readme = read('supabase/migrations/held/README.md');

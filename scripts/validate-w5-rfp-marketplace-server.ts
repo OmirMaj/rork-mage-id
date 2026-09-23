@@ -16,7 +16,7 @@
 //
 // Run: bun run scripts/validate-w5-rfp-marketplace-server.ts
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,7 +31,10 @@ function ok(name: string, cond: boolean, detail?: string) {
 const sqlCode = (s: string) => s.split('\n').map(l => l.replace(/--.*$/, '')).join('\n');
 
 const PRE = 'supabase/migrations/20260923100000_rfp_marketplace_hardening.sql';
-const POST = 'supabase/migrations/20260923101000_public_bids_private_columns.sql';
+// 101000 must not ship before the OTA (an old build's select('*') and Review
+// bids' address_line read would fail outright), so it is parked under held/:
+// the only place a bulk apply of supabase/migrations/*.sql cannot reach.
+const POST = 'supabase/migrations/held/20260923101000_public_bids_private_columns.sql';
 const pre = sqlCode(read(PRE));
 const post = sqlCode(read(POST));
 
@@ -121,7 +124,13 @@ ok('SELECT is re-granted to authenticated on every column except the five, read 
   && /grant select \(%s\) on public\.public_bids to authenticated/.test(post));
 ok('and any explicit column grant on the five is revoked too',
   /revoke select \(address_line, latitude, longitude, contact_email, posted_by\)\s+on public\.public_bids from anon, authenticated;/.test(post));
-ok('101000 sorts after 100000 (the RPCs it depends on exist first)', POST > PRE);
+const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
+ok('101000 sorts after 100000 (the RPCs it depends on exist first)', base(POST) > base(PRE));
+ok('101000 is held (not in the top-level folder a bulk apply sweeps)',
+  existsSync(join(ROOT, POST))
+  && !existsSync(join(ROOT, 'supabase/migrations/20260923101000_public_bids_private_columns.sql')));
+ok('held/README.md lists 101000 with its apply-after-OTA precondition',
+  /20260923101000_public_bids_private_columns\.sql[^\n]*\|[^\n]*OTA/.test(read('supabase/migrations/held/README.md')));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

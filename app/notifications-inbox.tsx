@@ -9,8 +9,10 @@ import {
   ChevronLeft, Bell, MessageSquare, HandCoins, CheckCircle2, Inbox,
   Trash2, X, CheckCheck, Settings,
   PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package, Sunrise, CalendarCheck, UserPlus,
-  Banknote, AlertTriangle, FileText, ListChecks, ShieldAlert,
+  Banknote, AlertTriangle, FileText, ListChecks, ShieldAlert, Gavel, ClipboardCheck,
 } from 'lucide-react-native';
+import { WAIVER_LABELS } from '@/utils/lienWaiverEngine';
+import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -45,6 +47,11 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
   // Sub → GC
   sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Sub invoice' },
   sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Invoice update' },
+  // Wave 5 (CONTRACT 8): sub-side trigger events — a bid through an invite
+  // link, a signed lien waiver, a submitted prequalification packet.
+  bid_invite_received:   { icon: <Gavel       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Bid received' },
+  lien_waiver_signed:    { icon: <PenTool     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Waiver signed' },
+  prequal_submitted:     { icon: <ClipboardCheck size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Prequal packet' },
 
   // Money in (#48) — a client paying through Stripe, or a bank payment bouncing.
   client_invoice_paid:   { icon: <Banknote    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Client paid' },
@@ -187,6 +194,39 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
           : `${submitter} submitted an invoice`,
         body: amount ? `${amount} — pending your review` : 'Pending your review.',
       };
+    }
+    // Wave 5 (CONTRACT 8). notify stores the facts it re-read from the source
+    // row with the service role (nothing the anonymous sub typed is trusted
+    // beyond a flattened name). Amounts exact to the cent.
+    case 'bid_invite_received': {
+      const clip = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, 80) : '');
+      const who = clip(p.vendor_name) || clip(p.sub_name) || 'A subcontractor';
+      const pkg = clip(p.package_name) || 'your bid package';
+      const amt = fmtMoneyExact(p.amount);
+      return {
+        title: amt ? `${who} bid ${amt}` : `${who} filed a bid`,
+        body: [`On ${pkg}, through your invite link`, projectName].filter(Boolean).join(' · '),
+      };
+    }
+    case 'lien_waiver_signed': {
+      const clip = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, 80) : '');
+      const who = clip(p.sub_company) || clip(p.signer_name) || 'A subcontractor';
+      const typeKey = typeof p.waiver_type === 'string' ? p.waiver_type : '';
+      const type = (WAIVER_LABELS as Record<string, { short: string } | undefined>)[typeKey]?.short ?? '';
+      const day = calendarDayOf(typeof p.through_date === 'string' ? p.through_date : null);
+      const amt = fmtMoneyExact(p.paid_amount);
+      return {
+        title: `${who} signed their ${type ? `${type.toLowerCase()} ` : ''}lien waiver`,
+        body: [
+          amt ? `${amt}` : '',
+          day ? `through ${formatCalendarDay(day, { month: 'short', day: 'numeric', year: 'numeric' })}` : '',
+          projectName,
+        ].filter(Boolean).join(' · '),
+      };
+    }
+    case 'prequal_submitted': {
+      const who = (typeof p.sub_name === 'string' && p.sub_name.trim()) ? p.sub_name.trim().slice(0, 80) : 'A subcontractor';
+      return { title: `${who} submitted their prequalification packet`, body: 'Review it before you award them work.' };
     }
     case 'sub_invoice_reviewed': {
       const num = (p.invoice_number as string) || '';

@@ -15,6 +15,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useProjectCapGate } from '@/hooks/useProjectCapGate';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTimeEntries } from '@/hooks/useTimeEntries';
 import { todayCalendarDay } from '@/utils/calendarDate';
@@ -72,6 +73,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
   // visually no-ops when there's nothing to scope to.
   const router = useRouter();
   const ctx = useProjects();
+  const capGate = useProjectCapGate();
   const { addManualEntry } = useTimeEntries();
   const { tier } = useSubscription();
   const insets = useSafeAreaInsets();
@@ -349,11 +351,20 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         // "Cannot read property 'charAt' of undefined" because downstream
         // components called .charAt on undefined string fields. Mirrors
         // the standard "Create Project" payload from the home tab.
+        // #57 / #156 (CONTRACT 5): the free plan's one-job cap. The server
+        // refuses a second job's insert, so a voice-drafted job past the cap
+        // would live on this phone only — explain and offer the upgrade.
+        const voiceName = parsed.projectName || 'Voice-drafted project';
+        if (!capGate.canCreate(voiceName)) {
+          handleClose();
+          capGate.explainAndOfferUpgrade();
+          return;
+        }
         const newId = generateUUID();
         const now = new Date().toISOString();
         ctx.addProject({
           id: newId,
-          name: parsed.projectName || 'Voice-drafted project',
+          name: voiceName,
           type: (parsed.projectType || 'renovation') as never,
           location: parsed.projectLocation || 'United States',
           squareFootage: 0,
@@ -560,7 +571,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
       setError('Couldn\'t save that — try again.');
       setStep('reviewing');
     }
-  }, [parsed, project, ctx, router, handleClose]);
+  }, [parsed, project, ctx, router, handleClose, capGate]);
 
   const KindIcon = parsed?.kind === 'rfi' ? MessageSquare
     : parsed?.kind === 'co' ? FilePlus2

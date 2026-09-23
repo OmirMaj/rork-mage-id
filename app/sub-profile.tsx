@@ -24,6 +24,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, HardHat, Info } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
+import { cardSurface } from '@/components/ui';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { shareText } from '@/utils/shareText';
@@ -151,10 +152,10 @@ const makeStyles = (t: ThemeColors) =>
     scroll: { paddingVertical: Tokens.spacing.md, paddingBottom: 40 },
     scrollDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center', paddingHorizontal: 24 },
     emptyCard: {
-      margin: Tokens.spacing.md, padding: 24, alignItems: 'center', gap: 10,
-      borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+      ...cardSurface(t, { radius: 'lg', pad: 24 }),
+      margin: Tokens.spacing.md, alignItems: 'center', gap: 10,
     },
-    emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, textAlign: 'center' },
+    emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, textAlign: 'center' },
     emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 360 },
     scopeNote: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8,

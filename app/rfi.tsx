@@ -50,7 +50,7 @@ import { rfiBlockStatus, overdueCalendarDays } from '@/utils/delayScan/rfiBlocki
 import { computeRfiHoldTime } from '@/utils/rfiHoldTime';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay, formatCalendarDay, toCalendarDayString, addCalendarDays, calendarDayOf } from '@/utils/calendarDate';
 
@@ -955,7 +955,8 @@ function RFIForm() {
       // daily caps per CLAUDE.md; the relay only sees the feature id).
       const limit = await checkAILimit(tier, 'smart', 'projectMemory');
       if (!limit.allowed) {
-        setSuggestError(limit.message ?? "You've used today's advanced AI calls. Try again tomorrow.");
+        // #123: the counters roll at 00:00 UTC — say the real local moment.
+        setSuggestError(limit.message ?? `You've used today's advanced AI calls. ${nextAiResetLabel().daily}.`);
         return;
       }
       const docs = extractMemoryDocs({

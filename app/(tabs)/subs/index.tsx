@@ -41,7 +41,7 @@ import {
   buildSubEvaluationGrounding,
   type ComplianceState,
 } from '@/utils/subCompliance';
-import { signW9Url, type SubcontractorW5 } from '@/utils/coiFiles';
+import { signW9Url } from '@/utils/coiFiles';
 import { readFileBytes } from '@/utils/fileBytes';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -327,7 +327,7 @@ export default function SubsScreen() {
     setNotes(sub.notes);
     setTaxIdLast4(sub.taxIdLast4 ?? '');
     setLegalName(sub.legalName ?? '');
-    setW9DocPath((sub as SubcontractorW5).w9DocPath);
+    setW9DocPath(sub.w9DocPath);
     setShowForm(true);
     setShowDetail(null);
   }, []);
@@ -842,10 +842,9 @@ export default function SubsScreen() {
                       if (error) throw error;
                       setW9DocPath(path);
                       setW9OnFile(true);
-                      // w9DocPath persists once subcontractors.w9_doc_path is mapped
-                      // (20260923150000 + the w5-join-core mapper, CONTRACT 17).
-                      const patch: Partial<SubcontractorW5> = { w9OnFile: true, w9DocPath: path };
-                      updateSubcontractor(editingSub.id, patch as Partial<Subcontractor>);
+                      // w9DocPath persists through subcontractors.w9_doc_path
+                      // (20260923150000 + ProjectContext's mapper, CONTRACT 17).
+                      updateSubcontractor(editingSub.id, { w9OnFile: true, w9DocPath: path });
                       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       showAlert('W-9 uploaded', 'Stored in your private sub-documents bucket. Visible only to your account.');
                     } catch (err) {

@@ -12,6 +12,20 @@ import { generateUUID } from '@/utils/generateId';
 
 export interface NewProjectApplied { route: '/project-detail'; projectId: string }
 
+/**
+ * #57 / #156 (CONTRACT 5): the free plan's one-job cap. The host (app/copilot.tsx)
+ * puts useProjectCapGate().canCreate in the ctx bag as `canCreateProject`;
+ * when it says no, apply() refuses BEFORE addProject with this error, and the
+ * conversation shows it as errorKind 'project_cap' (the sentence + See plans).
+ * A job the server's cap refuses would otherwise live on this phone only.
+ */
+export const PROJECT_CAP_ERROR_CODE = 'project_cap';
+export const PROJECT_CAP_APPLY_MESSAGE =
+  'Free covers one job of your own, and this would make a second. See plans to take the cap off — nothing was created.';
+export function projectCapError(): Error & { code: string } {
+  return Object.assign(new Error(PROJECT_CAP_APPLY_MESSAGE), { code: PROJECT_CAP_ERROR_CODE });
+}
+
 const TYPES: ProjectType[] = [
   'new_build', 'renovation', 'addition', 'remodel', 'commercial', 'landscape',
   'roofing', 'flooring', 'painting', 'plumbing', 'electrical', 'concrete',
@@ -145,6 +159,8 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
       schedule: null,
       status: 'draft',
     };
+    const canCreate = ctx.ctx?.canCreateProject as ((name?: string) => boolean) | undefined;
+    if (typeof canCreate === 'function' && !canCreate(project.name)) throw projectCapError();
     ctx.ctx?.addProject?.(project);
     return { route: '/project-detail', projectId: id };
   },

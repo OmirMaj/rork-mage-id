@@ -160,8 +160,9 @@ const FEATURE_PITCH: Record<string, string> = {
     'Give each sub their own scope, drawings and requests so you stop forwarding the same email set five times.',
   'Prequal + COI Tracking':
     'Prequal packets and insurance certificates per sub, with expiry dates that surface before the sub is on site uninsured.',
-  'COI Vault & Insurance Validator':
-    'Every sub certificate in one vault, checked for the limits you require and flagged before it expires.',
+  // ('COI Vault & Insurance Validator' left in wave 5: no screen passes it any
+  // more — the vault uses 'Prequal + COI Tracking' — and "checked for the
+  // limits you require" promised a check an unconfirmed AI read doesn't make.)
   'Sub Scorecard':
     'Which subs are actually good — graded from your real job costs, schedule hits and change orders.',
   'Crew Time Tracking':

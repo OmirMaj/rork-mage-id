@@ -48,6 +48,8 @@
 // exercise it under Bun.
 
 import type { PlanZone, PlanSheet, ScheduleTask, DrawingPin, ProjectPhoto } from '@/types';
+// Relative, not '@/': the bun validators load this module directly.
+import { isPhotoShareable } from './photoShareToken';
 
 /** Hard cap on photos in a single share link — keeps the URL inside what SMS
  *  and email clients will carry without mangling. */
@@ -162,6 +164,10 @@ export interface BuildPlanShareResult {
   droppedUnsigned: number;
   /** Photos trimmed by the cap (oldest first). */
   droppedExcess: number;
+  /** Pinned photos left out because they are a field seat's draft awaiting
+   *  the GC's review (#59) or were recalled from the client portal — the
+   *  photo timeline share (buildPhotoSharePayload) leaves them out too. */
+  droppedWithdrawn: number;
   /** True when there is no URL for the plan image — the link would render a
    *  blank plan, so callers should refuse to share. */
   planNotSynced: boolean;
@@ -217,14 +223,18 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
     .filter((p) => p.planSheetId === sheet.id && !!p.linkedPhotoId)
     .map((p) => ({ pin: p, photo: photoById.get(p.linkedPhotoId as string) }))
     .filter((x): x is { pin: DrawingPin; photo: ProjectPhoto } => !!x.photo);
+  // Same client-visibility rule as the photo timeline: a draft or a recalled
+  // photo never rides a homeowner link, pinned or not.
+  const shareable = pinned.filter((x) => isPhotoShareable(x.photo));
+  const droppedWithdrawn = pinned.length - shareable.length;
 
   const urlFor = (photo: ProjectPhoto): string => {
     const signed = opts.photoUrls?.[photo.id];
     if (signed && isRemote(signed)) return signed;
     return isRemote(photo.uri) ? photo.uri : '';
   };
-  const stored = pinned.filter((x) => !!x.photo.storagePath || isRemote(x.photo.uri));
-  const droppedLocal = pinned.length - stored.length;
+  const stored = shareable.filter((x) => !!x.photo.storagePath || isRemote(x.photo.uri));
+  const droppedLocal = shareable.length - stored.length;
   const remote = stored
     .map((x) => ({ ...x, url: urlFor(x.photo) }))
     .filter((x) => !!x.url);
@@ -279,7 +289,7 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
   };
 
   return {
-    payload, droppedLocal, droppedUnsigned, droppedExcess,
+    payload, droppedLocal, droppedUnsigned, droppedExcess, droppedWithdrawn,
     planNotSynced: !sheetImg,
     planUnsigned: !sheetImg && !!sheet.storagePath,
   };

@@ -189,6 +189,15 @@ function withSubRollup(tasks: ScheduleTask[], latestByTask: ReadonlyMap<string, 
   return mutated ? next : tasks;
 }
 
+/** #169: a presence label from the profile — never an email address. */
+function scheduleProPresenceName(...candidates: unknown[]): string {
+  for (const c of candidates) {
+    const t = typeof c === 'string' ? c.trim() : '';
+    if (t && !t.includes('@')) return t;
+  }
+  return 'Collaborator';
+}
+
 export default function ScheduleProScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -273,6 +282,7 @@ function ScheduleProScreenInner() {
     getPinsForPlan,
     getPhotosForProject,
     getDailyReportsForProject,
+    settings: settingsForPresence,
   } = useProjects();
 
   // Reached from the sidebar, universal search or a deep link there is no
@@ -1170,9 +1180,18 @@ function ScheduleProScreenInner() {
   // -------------------------------------------------------------------------
   // Phase 2 — live sync + presence
   // -------------------------------------------------------------------------
+  // #169 (wave 5): the name other members see next to my cursor. It was my
+  // sign-in EMAIL — broadcast to everyone on the job (a sub, a homeowner's
+  // architect). Now my profile name (contact name, else company), else the
+  // neutral 'Collaborator'. Never the email.
+  // (Not AuthUser.name: it falls back to the email's local part.)
+  const presenceName = scheduleProPresenceName(
+    settingsForPresence?.branding?.contactName,
+    settingsForPresence?.branding?.companyName,
+  );
   const collabSelf = useMemo(
-    () => (user?.id ? { userId: user.id, name: ((user as { email?: string }).email) ?? 'Collaborator' } : null),
-    [user?.id],
+    () => (user?.id ? { userId: user.id, name: presenceName } : null),
+    [user?.id, presenceName],
   );
   const { peers: schedulePeers, setSelectedTask: setPresenceTask } = useSchedulePresence(project?.id, collabSelf);
   const livePeerProjectId = project?.id;

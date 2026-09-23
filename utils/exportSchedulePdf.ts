@@ -21,6 +21,7 @@
 // on each row; we don't do explicit pagination.
 
 import { Platform } from 'react-native';
+import { openPrintWindowOrThrow } from '@/utils/platformFile';
 import * as Print from 'expo-print';
 import type { ScheduleTask } from '@/types';
 import {
@@ -400,40 +401,13 @@ export async function exportSchedulePdf(opts: ExportOpts): Promise<void> {
     // instead of the rendered schedule HTML. Open the HTML in a new tab
     // and trigger print there — the new tab can also be saved as PDF.
     if (typeof window === 'undefined') return;
-// NO 'noopener' in the feature string. Per the HTML spec, window.open()
-    // returns NULL whenever noopener is present — in every browser — so `w` was
-    // always null, the write-and-print path below was unreachable dead code, and
-    // 100% of users silently took the branch commented "popup blocked": a tab
-    // opens with the right content but the print dialog never appears, and
-    // because it is a blob: URL the tab title is a UUID so "Save as PDF"
-    // defaults to a garbage filename.
-    //
-    // Dropping noopener is safe here specifically: we open about:blank and write
-    // our own HTML into it. It is same-origin by definition and there is no
-    // third-party page to tabnab us.
-    const w = window.open('', '_blank');
-    if (!w) {
-      // Popup blocked. Fall back: navigate via a Blob URL so at least the
-      // user can save the page.
-      const blob = new Blob([html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      return;
-    }
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    // The browser needs a tick to lay out before printing. Without this
-    // delay, Chrome will print a blank page on slower machines.
-    setTimeout(() => {
-      try {
-        w.focus();
-        w.print();
-      } catch {
-        // If print is blocked, the tab still shows the rendered schedule
-        // and the user can Cmd-P / save manually.
-      }
-    }, 350);
+    // CONTRACT 25 (#147): one print-window path for the whole app. It opens
+    // synchronously (this runs inside the tap), writes the HTML, prints once
+    // its images settle, and THROWS PRINT_WINDOW_BLOCKED_MESSAGE when the
+    // browser blocks the window — the old blob-URL fallback was blocked just
+    // the same and returned as if it had worked. The caller shows
+    // pdfFailureMessage(err, …).
+    openPrintWindowOrThrow(html);
     return;
   }
   // Native: expo-print does the right thing — renders the HTML to a PDF

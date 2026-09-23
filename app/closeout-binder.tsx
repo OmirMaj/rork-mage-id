@@ -47,7 +47,7 @@ import {
 } from '@/utils/closeoutBinderEngine';
 import { statusPillStyle } from '@/utils/statusPill';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
-import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
+import { loadLienWaiversChecked } from '@/utils/lienWaiverEngine';
 import { generateUUID } from '@/utils/generateId';
 import { notifyEvent } from '@/utils/notifyClient';
 import { Type } from '@/constants/typography';
@@ -67,6 +67,7 @@ import { syncMemoryEmbeddings, answerFromMemory, type MemoryDoc } from '@/utils/
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { pdfFailureMessage } from '@/utils/platformFile';
 
 type BinderStatus = CloseoutBinder['status'];
 
@@ -100,6 +101,11 @@ export default function CloseoutBinderScreen() {
   const [sentAt, setSentAt] = useState<string | undefined>();
   const [selections, setSelections] = useState<SelectionCategory[]>([]);
   const [lienWaivers, setLienWaivers] = useState<LienWaiver[]>([]);
+  // #30 (CONTRACT 6): a failed waiver read is NOT "no waivers" — the binder
+  // would print an empty lien-waiver section for a job that has them. Held
+  // here so the export refuses (with Retry) instead.
+  const [waiverReadError, setWaiverReadError] = useState<string | null>(null);
+  const [waiverReload, setWaiverReload] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -132,10 +138,10 @@ export default function CloseoutBinderScreen() {
     let cancelled = false;
     void (async () => {
       if (!projectId) { setLoading(false); return; }
-      const [existing, sels, waivers, baked] = await Promise.all([
+      const [existing, sels, waiverRead, baked] = await Promise.all([
         fetchCloseoutBinder(projectId),
         fetchSelectionsForProject(projectId),
-        fetchLienWaiversForProject(projectId),
+        loadLienWaiversChecked(projectId),
         loadBakedPassport(projectId),
       ]);
       if (cancelled) return;
@@ -149,11 +155,12 @@ export default function CloseoutBinderScreen() {
         setSentAt(existing.sentAt);
       }
       setSelections(sels);
-      setLienWaivers(waivers);
+      if (waiverRead.ok) { setLienWaivers(waiverRead.waivers); setWaiverReadError(null); }
+      else setWaiverReadError(waiverRead.error);
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, waiverReload]);
 
   const persistBinder = useCallback(async (overrides: Partial<CloseoutBinder>) => {
     if (!projectId) return null;
@@ -390,6 +397,16 @@ export default function CloseoutBinderScreen() {
 
   const handleExport = useCallback(async () => {
     if (!project) return;
+    // #30: never print "no lien waivers" off a read that failed. (No await
+    // before the PDF call below — on web it opens its window in this tap.)
+    if (waiverReadError) {
+      showAlert(
+        'Lien waivers not loaded',
+        `Couldn't read this job's lien waivers (${waiverReadError}), so the binder would list none. Check your signal and try again.`,
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Retry', onPress: () => setWaiverReload(n => n + 1) }],
+      );
+      return;
+    }
     setExporting(true);
     try {
       const projectCommitments = (commitments ?? []).filter((c: any) => c.projectId === project.id);
@@ -424,11 +441,13 @@ export default function CloseoutBinderScreen() {
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      showAlert('Export failed', e instanceof Error ? e.message : 'Try again.');
+      // CONTRACT 25 (#147): a blocked web window says so; anything else gets
+      // the plain fallback, never a raw exception string. No success haptic.
+      showAlert('Export failed', pdfFailureMessage(e, "Couldn't build the closeout binder PDF. Try again."));
     } finally {
       setExporting(false);
     }
-  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties, lienWaivers, subcontractors]);
+  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties, lienWaivers, subcontractors, waiverReadError]);
 
   const addMaintenance = useCallback(() => {
     setMaintenance(prev => [...prev, { id: generateUUID(), task: '', frequency: 'Annual', notes: '' }]);
@@ -565,7 +584,7 @@ export default function CloseoutBinderScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[AIA Forms] Generate failed:', err);
-      showAlert('Could not generate', err instanceof Error ? err.message : 'Try again.');
+      showAlert('Could not generate', pdfFailureMessage(err, `Couldn't build the ${formId} form. Try again.`));
     }
   }, [project, branding, getPunchItemsForProject, getChangeOrdersForProject]);
 
